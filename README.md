@@ -338,42 +338,183 @@ uvicorn main:app --reload --port 8000
 ### Docker Deployment
 
 ```bash
-# 1. Build all services
+# 1. Copy environment variables template
+cp .env.example .env
+# Edit .env with your configuration
+
+# 2. Build all services
 docker-compose build
 
-# 2. Start all services
+# 3. Start all services
 docker-compose up -d
 
-# 3. Check logs
+# 4. Check logs
 docker-compose logs -f
 
-# 4. Stop services
+# 5. Check service status
+docker-compose ps
+
+# 6. Stop services
 docker-compose down
+
+# 7. Stop and remove volumes (clean slate)
+docker-compose down -v
+```
+
+### Quick Start with Docker
+
+```bash
+# Start entire application stack
+docker-compose up -d
+
+# Services will be available at:
+# - Web Frontend: http://localhost:3000
+# - Backend API: http://localhost:8080/api
+# - AI Service: http://localhost:8000
+# - PostgreSQL: localhost:5432
+# - MongoDB: localhost:27017
+# - Redis: localhost:6379
+# - Qdrant: http://localhost:6333
 ```
 
 ---
 
 ## 📁 Project Structure
 
+### Frontend Best Practices (React + Vite)
+
+The `petties-web` frontend follows modern React best practices:
+
+```
+petties-web/
+├── src/
+│   ├── components/           # Reusable UI components
+│   │   ├── common/          # Shared components (Button, Input, Modal)
+│   │   ├── features/        # Feature-specific components
+│   │   └── selects/         # Custom select components
+│   ├── pages/               # Route-based page components
+│   ├── layouts/             # Layout wrappers (DashboardLayout, AuthLayout)
+│   ├── services/            # API calls and external integrations
+│   │   ├── api/            # API client configuration (axios)
+│   │   └── endpoints/      # API endpoint functions
+│   ├── store/               # State management (Zustand)
+│   │   ├── auth.store.ts
+│   │   ├── pet.store.ts
+│   │   └── booking.store.ts
+│   ├── hooks/               # Custom React hooks
+│   │   ├── useAuth.ts
+│   │   ├── usePets.ts
+│   │   └── useBooking.ts
+│   ├── types/               # TypeScript type definitions
+│   │   ├── api.types.ts
+│   │   ├── models.ts
+│   │   └── index.ts
+│   ├── utils/               # Utility functions
+│   │   ├── formatters.ts
+│   │   ├── validators.ts
+│   │   └── constants.ts
+│   ├── assets/              # Static assets (images, icons)
+│   ├── styles/              # Global styles
+│   ├── config/              # App configuration
+│   ├── App.tsx              # Root component with routing
+│   └── main.tsx             # Application entry point
+├── public/                  # Static public assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+├── Dockerfile               # Production Docker image
+└── .dockerignore
+
+Key Frontend Recommendations:
+✅ Use functional components with hooks
+✅ Implement proper TypeScript types
+✅ Use Zustand for global state management
+✅ Implement route-based code splitting
+✅ Use React Query for server state
+✅ Implement proper error boundaries
+✅ Use CSS-in-JS or Tailwind CSS consistently
+✅ Implement proper loading states
+✅ Add proper authentication guards
+✅ Use environment variables for API URLs
+```
+
+### Backend Structure (Spring Boot)
+
+```
+backend-spring/petties/
+├── src/
+│   ├── main/
+│   │   ├── java/com/petties/
+│   │   │   ├── PettiesApplication.java
+│   │   │   ├── config/              # Configuration classes
+│   │   │   │   ├── SecurityConfig.java
+│   │   │   │   ├── CorsConfig.java
+│   │   │   │   ├── RedisConfig.java
+│   │   │   │   └── MongoConfig.java
+│   │   │   ├── controller/          # REST Controllers
+│   │   │   │   ├── AuthController.java
+│   │   │   │   ├── PetController.java
+│   │   │   │   ├── BookingController.java
+│   │   │   │   └── DoctorController.java
+│   │   │   ├── service/             # Business logic
+│   │   │   │   ├── impl/
+│   │   │   │   ├── AuthService.java
+│   │   │   │   ├── PetService.java
+│   │   │   │   └── BookingService.java
+│   │   │   ├── repository/          # Data access layer
+│   │   │   │   ├── UserRepository.java
+│   │   │   │   ├── PetRepository.java
+│   │   │   │   └── BookingRepository.java
+│   │   │   ├── entity/              # JPA entities
+│   │   │   │   ├── User.java
+│   │   │   │   ├── Pet.java
+│   │   │   │   ├── Booking.java
+│   │   │   │   └── Doctor.java
+│   │   │   ├── dto/                 # Data Transfer Objects
+│   │   │   │   ├── request/
+│   │   │   │   └── response/
+│   │   │   ├── exception/           # Custom exceptions
+│   │   │   │   ├── GlobalExceptionHandler.java
+│   │   │   │   └── ResourceNotFoundException.java
+│   │   │   ├── security/            # Security components
+│   │   │   │   ├── JwtTokenProvider.java
+│   │   │   │   ├── JwtAuthenticationFilter.java
+│   │   │   │   └── UserDetailsServiceImpl.java
+│   │   │   └── util/                # Utility classes
+│   │   └── resources/
+│   │       ├── application.properties
+│   │       ├── application-dev.properties
+│   │       ├── application-prod.properties
+│   │       └── db/migration/        # Flyway migrations
+│   └── test/
+│       └── java/com/petties/
+│           ├── controller/
+│           ├── service/
+│           └── repository/
+├── pom.xml
+├── Dockerfile
+└── .dockerignore
+
+Key Backend Recommendations:
+✅ Use layered architecture (Controller → Service → Repository)
+✅ Implement proper exception handling
+✅ Use DTOs for request/response
+✅ Implement JWT authentication
+✅ Use Spring Security for authorization
+✅ Implement request validation
+✅ Use database migrations (Flyway/Liquibase)
+✅ Add comprehensive logging
+✅ Implement caching where appropriate
+✅ Use connection pooling (HikariCP)
+```
+
+### Complete Project Structure
+
 ```
 petties/
 │
-├── petties-web/                    # Web Frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── common/
-│   │   │   ├── selects/
-│   │   │   └── features/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   ├── store/
-│   │   ├── hooks/
-│   │   ├── types/
-│   │   ├── utils/
-│   │   └── App.tsx
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
+├── petties-web/                    # Web Frontend (detailed above)
 │
 ├── petties_mobile/                 # Mobile App
 │   ├── lib/
@@ -385,33 +526,83 @@ petties/
 │   │   └── main.dart
 │   └── pubspec.yaml
 │
-├── petties-backend/                # Spring Boot API
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/
-│   │   │   │   └── com/petties/
-│   │   │   │       ├── controller/
-│   │   │   │       ├── service/
-│   │   │   │       ├── repository/
-│   │   │   │       ├── entity/
-│   │   │   │       └── dto/
-│   │   │   └── resources/
-│   │   └── test/
-│   ├── pom.xml
-│   └── application.yml
+├── backend-spring/petties/          # Spring Boot API (detailed above)
 │
-├── petties-ai/                     # Python AI Layer
-│   ├── main.py
-│   ├── chatbot/
-│   ├── rag/
-│   ├── vector_store/
-│   ├── requirements.txt
-│   └── config.py
+├── petties-agent-serivce/          # Python AI Layer
+│   ├── main.py                     # FastAPI application
+│   ├── chatbot/                    # AI chatbot logic
+│   ├── rag/                        # RAG implementation
+│   ├── vector_store/               # Qdrant integration
+│   ├── requirements.txt            # Python dependencies
+│   ├── config.py                   # Configuration
+│   ├── Dockerfile                  # Production Docker image
+│   └── .dockerignore
 │
-├── docker-compose.yml
-├── .env.example
-└── README.md
+├── docker-compose.yml              # Multi-service orchestration
+├── .env.example                    # Environment variables template
+├── pettiesPR.pdf                   # Project proposal document
+└── README.md                       # This file
 ```
+
+---
+
+## 🐳 Docker Configuration
+
+### Services Architecture
+
+The project uses Docker Compose to orchestrate multiple services:
+
+| Service | Image | Port | Description |
+|---------|-------|------|-------------|
+| **postgres** | postgres:16-alpine | 5432 | PostgreSQL database for relational data |
+| **mongodb** | mongo:7-jammy | 27017 | MongoDB for flexible document storage |
+| **redis** | redis:7-alpine | 6379 | Redis for caching and sessions |
+| **qdrant** | qdrant/qdrant:latest | 6333, 6334 | Vector database for AI embeddings |
+| **backend** | Custom (Java 21) | 8080 | Spring Boot REST API |
+| **ai-service** | Custom (Python 3.14) | 8000 | FastAPI AI service |
+| **web** | Custom (Nginx) | 3000 | React frontend |
+
+### Dockerfile Optimization
+
+All Dockerfiles use multi-stage builds for lightweight production images:
+
+#### Web Frontend Dockerfile
+- **Stage 1**: Build with Node.js (dependencies + build)
+- **Stage 2**: Serve with Nginx (only production files)
+- **Size**: ~25MB (vs ~500MB+ without optimization)
+- **Features**: Gzip compression, caching headers, health checks
+
+#### Backend Dockerfile
+- **Stage 1**: Build with Maven (compile + package)
+- **Stage 2**: Run with JRE (only JAR file)
+- **Size**: ~150MB (vs ~350MB+ with full JDK)
+- **Features**: Non-root user, optimized JVM settings, health checks
+
+#### AI Service Dockerfile
+- **Base**: Python 3.14 slim (minimal dependencies)
+- **Size**: ~400MB (includes ML libraries)
+- **Features**: Non-root user, health checks, proper signal handling
+
+### Environment Variables
+
+All services use environment variables for configuration. See `.env.example` for complete list.
+
+### Health Checks
+
+All services implement health checks for Docker Compose readiness:
+- **Web**: HTTP check on `/health`
+- **Backend**: HTTP check on `/api/actuator/health`
+- **AI Service**: HTTP check on `/health`
+- **Databases**: Native health check commands
+
+### Volume Management
+
+Persistent data is stored in Docker volumes:
+- `postgres_data`: PostgreSQL database
+- `mongodb_data`: MongoDB database
+- `mongodb_config`: MongoDB configuration
+- `redis_data`: Redis persistent storage
+- `qdrant_data`: Vector database storage
 
 ---
 
