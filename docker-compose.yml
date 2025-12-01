@@ -1,0 +1,208 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # POSTGRESQL DATABASE
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: petties-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: petties_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MONGODB DATABASE
+  # ============================================
+  mongodb:
+    image: mongo:7-jammy
+    container_name: petties-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: petties_nosql
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    ports:
+      - "27017:27017"
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # REDIS CACHE
+  # ============================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: petties-redis
+  #   restart: unless-stopped
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis_data:/data
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - petties-network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ============================================
+  # QDRANT VECTOR DATABASE
+  # ============================================
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   container_name: petties-qdrant
+  #   restart: unless-stopped
+  #   volumes:
+  #     - qdrant_data:/qdrant/storage
+  #   ports:
+  #     - "6333:6333"
+  #     - "6334:6334"
+  #   networks:
+  #     - petties-network
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ============================================
+  # SPRING BOOT BACKEND API
+  # ============================================
+  backend:
+    build:
+      context: ./backend-spring/petties
+      dockerfile: Dockerfile
+    container_name: petties-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: petties_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_DB: petties_nosql
+      MONGO_USERNAME: admin
+      MONGO_PASSWORD: admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_SERVICE_URL: http://ai-service:8000
+      JWT_SECRET: ${JWT_SECRET:-pettiesSecretKeyChangeInProduction}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://web:80
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================
+  # PYTHON AI AGENT SERVICE
+  # ============================================
+  ai-service:
+    build:
+      context: ./petties-agent-serivce
+      dockerfile: Dockerfile
+    container_name: petties-ai-service
+    restart: unless-stopped
+    environment:
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ENVIRONMENT: production
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # ============================================
+  # WEB FRONTEND (React + Vite)
+  # ============================================
+  web:
+    build:
+      context: ./petties-web
+      dockerfile: Dockerfile
+    container_name: petties-web
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  petties-network:
+    driver: bridge
+    name: petties-network
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
