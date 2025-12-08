@@ -1,48 +1,109 @@
 # ============================================
-# PETTIES AI AGENT SERVICE - Dockerfile
-# Python FastAPI with AI/ML Libraries
+# PETTIES AI AGENT SERVICE - Unified Dockerfile
+# Supports both Dev and Prod via BUILD_ENV arg
+# 
+# Usage:
+#   Dev:  docker build --build-arg BUILD_ENV=dev -t petties-ai:dev .
+#   Prod: docker build --build-arg BUILD_ENV=prod -t petties-ai:prod .
+# 
+# Or via docker-compose:
+#   docker-compose -f docker-compose.dev.yml build
+#   docker-compose -f docker-compose.prod.yml build
 # ============================================
 
-FROM python:3.14-slim-bookworm
+# Build arguments
+ARG BUILD_ENV=prod
+ARG PYTHON_VERSION=3.12
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
+# ============================================
+# Stage 1: Builder - Install dependencies
+# ============================================
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies for AI libraries
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libpq-dev \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install dependencies to user directory
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# ============================================
+# Stage 2: Base - Common runtime setup
+# ============================================
+FROM python:${PYTHON_VERSION}-slim-bookworm AS base
+
+LABEL maintainer="Petties Team"
+LABEL build_env=${BUILD_ENV}
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    PATH="/home/petties/.local/bin:$PATH"
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
 # Create non-root user
-RUN useradd -m -u 1001 petties && \
-    chown -R petties:petties /app
+RUN useradd -m -u 1001 -s /bin/bash petties
 
-# Copy requirements first (for caching)
-COPY --chown=petties:petties requirements.txt .
+WORKDIR /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy installed packages from builder
+COPY --from=builder /root/.local /home/petties/.local
 
 # Copy application code
-COPY --chown=petties:petties . .
+COPY --chown=petties:petties ./app ./app
+
+# Create necessary directories
+RUN mkdir -p /app/uploads /app/logs \
+    && chown -R petties:petties /app
 
 # Switch to non-root user
 USER petties
 
-# Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run FastAPI with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# ============================================
+# Stage 3: Development (with hot-reload)
+# ============================================
+FROM base AS dev
+
+LABEL environment="development"
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# ============================================
+# Stage 4: Production (optimized)
+# ============================================
+FROM base AS prod
+
+LABEL environment="production"
+
+# Production: workers=1 for Render free tier (512MB RAM)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]
+
+# ============================================
+# Final stage selection based on BUILD_ENV
+# ============================================
+FROM ${BUILD_ENV} AS final

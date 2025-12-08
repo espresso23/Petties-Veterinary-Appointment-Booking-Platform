@@ -1,0 +1,105 @@
+# ============================================
+# PETTIES - Docker Compose for PRODUCTION
+# Optimized builds, no hot-reload
+# NOTE: Chỉ dùng để test locally trước khi deploy Render
+# Render sẽ dùng render.yaml để deploy
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # SPRING BOOT BACKEND API (Production)
+  # ============================================
+  backend:
+    build:
+      context: ./backend-spring/petties
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: prod
+    container_name: petties-prod-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Supabase PostgreSQL
+      DB_HOST: ${DB_HOST:-db.euetrjfuupxdbkbxddep.supabase.co}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-postgres}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-petties-prod}
+      # MongoDB Atlas
+      MONGO_URI: ${MONGO_URI:-mongodb+srv://petties_db_user:CYHnmwUJ5KbH3qTj@petites.vgpt2yx.mongodb.net/petties_nosql?retryWrites=true&w=majority}
+      # AI Service
+      AI_SERVICE_URL: http://ai-service:8000
+      # JWT (64 chars)
+      JWT_SECRET: ${JWT_SECRET:-PettiesSecure2025ProductionJWTSecretKey64CharsLongForSecurity!!}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    ports:
+      - "8080:8080"
+    networks:
+      - petties-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ============================================
+  # PYTHON AI AGENT SERVICE (Production)
+  # ============================================
+  ai-service:
+    build:
+      context: ./petties-agent-serivce
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: prod
+    container_name: petties-prod-ai-service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      APP_DEBUG: "false"
+      # Supabase PostgreSQL
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:petties-prod@db.euetrjfuupxdbkbxddep.supabase.co:5432/postgres?sslmode=require}
+      # Qdrant Cloud
+      QDRANT_URL: ${QDRANT_URL:-https://df017fa3-1522-4456-b1a8-7a799bdfd1dc.eu-central-1-0.aws.cloud.qdrant.io}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      # Ollama Configuration (Hybrid: Local or Cloud)
+      # RECOMMENDED: Use Ollama Cloud (set OLLAMA_API_KEY)
+      # - Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
+      # - Local Mode: Set OLLAMA_BASE_URL=https://your-tunnel-url.com (if using local Ollama with tunnel)
+      # Primary: kimi-k2:1t-cloud (Cloud, 256K context) | kimi-k2 (Local) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # Required for Cloud mode (recommended)
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud}  # Cloud model (256K context window)
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    ports:
+      - "8000:8000"
+    networks:
+      - petties-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  petties-prod-network:
+    driver: bridge
+    name: petties-prod-network

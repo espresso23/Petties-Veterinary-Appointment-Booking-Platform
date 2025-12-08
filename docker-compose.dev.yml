@@ -1,0 +1,149 @@
+# ============================================
+# PETTIES - Docker Compose for DEVELOPMENT
+# Full services với hot-reload
+# ============================================
+# Note: version is not needed in Docker Compose v2+
+
+services:
+  # ============================================
+  # POSTGRESQL DATABASE
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: petties-dev-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: petties_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - petties-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MONGODB DATABASE
+  # ============================================
+  mongodb:
+    image: mongo:7-jammy
+    container_name: petties-dev-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: petties_nosql
+    volumes:
+      - mongodb_dev_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - petties-dev-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # SPRING BOOT BACKEND API (Development)
+  # ============================================
+  backend:
+    build:
+      context: ./backend-spring/petties
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: dev
+    container_name: petties-dev-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # PostgreSQL
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: petties_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      # MongoDB
+      MONGO_URI: mongodb://admin:admin@mongodb:27017/petties_nosql?authSource=admin
+      # AI Service
+      AI_SERVICE_URL: http://ai-service:8000
+      # JWT (dev only)
+      JWT_SECRET: devSecretKeyForLocalDevelopmentOnly123456789012345678901234
+      # CORS
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+    volumes:
+      # Mount source code for hot-reload
+      - ./backend-spring/petties/src:/app/src:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - petties-dev-network
+
+  # ============================================
+  # PYTHON AI AGENT SERVICE (Development)
+  # ============================================
+  ai-service:
+    build:
+      context: ./petties-agent-serivce
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: dev
+    container_name: petties-dev-ai-service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      APP_DEBUG: "true"
+      # PostgreSQL
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      # Qdrant Cloud (same as production)
+      QDRANT_URL: ${QDRANT_URL:-https://df017fa3-1522-4456-b1a8-7a799bdfd1dc.eu-central-1-0.aws.cloud.qdrant.io}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.HsB_05xFQdMvLDpawZycFerVC_9EMgXZLjfFuSFcmk8}
+      # Ollama Configuration (Hybrid: Local or Cloud)
+      # Local Mode (Default): Set OLLAMA_BASE_URL=http://host.docker.internal:11434 (Ollama chạy trên host machine)
+      # Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
+      # Primary: kimi-k2 (Local) | kimi-k2:1t-cloud (Cloud) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # Set for Cloud mode, leave empty for Local
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2}  # Auto-switches to kimi-k2:1t-cloud if API key provided
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # CORS (comma-separated string)
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080
+    volumes:
+      # Mount source code for hot-reload
+      - ./petties-agent-serivce/app:/app/app:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - petties-dev-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  petties-dev-network:
+    driver: bridge
+    name: petties-dev-network
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  postgres_dev_data:
+    driver: local
+  mongodb_dev_data:
+    driver: local
