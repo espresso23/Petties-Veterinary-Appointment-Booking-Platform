@@ -1,0 +1,106 @@
+# ============================================
+# PETTIES AGENT SERVICE - .gitignore
+# ============================================
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== Virtual Environments =====
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# ===== IDEs =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Environment Variables =====
+.env
+.env.local
+.env.*.local
+
+# ===== Logs =====
+logs/
+*.log
+*.log.*
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Uploads =====
+uploads/
+temp/
+tmp/
+
+# ===== Testing =====
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===== Jupyter Notebook =====
+.ipynb_checkpoints
+
+# ===== Alembic =====
+# Giữ migrations folder nhưng ignore __pycache__
+app/db/postgres/migrations/__pycache__/
+
+# ===== Docker =====
+.dockerignore
+
+# ===== OS =====
+Thumbs.db
+.DS_Store
+
+# ===== Package files =====
+*.tar.gz
+*.zip
+
+# ===== Secrets =====
+secrets/
+credentials/
+*.pem
+*.key
+
+# ===== LLM Models (nếu download local) =====
+models/
+*.bin
+*.safetensors
+
+# ===== Qdrant data =====
+qdrant_storage/

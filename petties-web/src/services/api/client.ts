@@ -1,0 +1,86 @@
+import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { env } from '../../config/env'
+import { useAuthStore } from '../../store/authStore'
+
+export const apiClient = axios.create({
+  baseURL: env.API_BASE_URL,
+  timeout: 30_000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Request interceptor: Tự động thêm access token vào header
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const accessToken = useAuthStore.getState().accessToken
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  },
+)
+
+// Response interceptor: Tự động refresh token khi 401
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
+
+    // Nếu lỗi 401 và chưa retry
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        const refreshToken = useAuthStore.getState().refreshToken
+
+        if (!refreshToken) {
+          // Không có refresh token → logout
+          useAuthStore.getState().clearAuth()
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+
+        // Gọi API refresh token
+        const response = await axios.post(
+          `${env.API_BASE_URL}/auth/refresh`,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${refreshToken}`,
+            },
+          },
+        )
+
+        const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+          response.data
+
+        // Lưu tokens mới
+        useAuthStore.getState().setTokens(newAccessToken, newRefreshToken)
+
+        // Retry request ban đầu với token mới
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        }
+        return apiClient(originalRequest)
+      } catch (refreshError) {
+        // Refresh failed → logout
+        useAuthStore.getState().clearAuth()
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      }
+    }
+
+    // Log error trong dev mode
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('API error', error)
+    }
+
+    return Promise.reject(error)
+  },
+)
+

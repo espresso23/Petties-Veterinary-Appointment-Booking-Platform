@@ -1,0 +1,1 @@
+export { ClinicManagerDashboardPage } from './DashboardPage'

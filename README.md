@@ -61,9 +61,9 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 ```
 ┌─────────────────────────────────────┐
 │         WEB FRONTEND                │
-│  - React 18+ + Vite                │
+│  - React 19 + Vite                  │
 │  - TypeScript                       │
-│  - Tailwind CSS                     │
+│  - Tailwind CSS v4                  │
 │  - React Router v7                  │
 │  - Zustand (State Management)       │
 │  - Axios (HTTP Client)              │
@@ -72,9 +72,10 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 ┌─────────────────────────────────────┐
 │       MOBILE FRONTEND               │
 │  - Flutter 3.5                      │
-│  - iOS & Android Support           │
+│  - iOS & Android Support            │
 │  - Provider (State Management)      │
-│  - Google Maps Integration          │
+│  - GoRouter (Navigation)            │
+│  - Role-based Routing               │
 │  - Firebase Messaging (Push)        │
 └─────────────────────────────────────┘
 ```
@@ -84,17 +85,19 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 ┌─────────────────────────────────────┐
 │         BACKEND API                 │
 │  - Java 21                          │
-│  - Spring Boot 3.x                  │
+│  - Spring Boot 4.0.0                │
 │  - Spring Data JPA                  │
-│  - Spring Security (JWT)            │
+│  - Spring Security 6.x (JWT)        │
+│  - Spring Boot Actuator             │
 │  - RESTful API Architecture         │
 └─────────────────────────────────────┘
 
 ┌─────────────────────────────────────┐
 │         DATABASES                   │
-│  - PostgreSQL (Relational Data)    │
-│  - MongoDB (NoSQL, Flexible Data)  │
-│  - Redis (Caching)                 │
+│  - PostgreSQL 16 (Relational Data) │
+│  - MongoDB 7 (NoSQL, Flexible Data)│
+│  - Qdrant Cloud (Vector Database)  │
+│  - Redis (Caching - Optional)      │
 └─────────────────────────────────────┘
 ```
 
@@ -102,13 +105,12 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 ```
 ┌─────────────────────────────────────┐
 │      AI LAYER (Python)              │
-│  - Python 3.14                      │
+│  - Python 3.12                      │
 │  - FastAPI + Uvicorn                │
 │  - LangGraph (Multi-agent)          │
-│  - Ollama (Local LLM)               │
+│  - Ollama (Hybrid: Local/Cloud)     │
 │  - LlamaIndex (RAG)                 │
-│  - OpenAI Embedding Model           │
-│  - Qdrant (Vector Database)         │
+│  - Qdrant Cloud (Vector Database)   │
 │  - FastMCP (Protocol)               │
 └─────────────────────────────────────┘
 ```
@@ -183,7 +185,8 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Xây dựng uy tín cho bác sĩ
 
 ### 🔐 Thêm Tính Năng Đặc Biệt
-- **AI Chatbot**: Trợ lý chăm sóc pet thông minh
+- **AI Chatbot**: Trợ lý chăm sóc pet thông minh với Multi-Agent Architecture
+- **Admin Dashboard**: Quản lý AI Agents, Tools, Knowledge Base
 - **Định giá động**: Tính giá dựa trên khoảng cách
 - **Đa ngôn ngữ**: Hỗ trợ nhiều ngôn ngữ và múi giờ
 - **Analytics**: Báo cáo chi tiết cho quản trị viên
@@ -204,31 +207,31 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
             │                            │
             └────────────┬───────────────┘
                          │
-         ┌───────────────▼────────────────┐
-         │    API GATEWAY / LOAD BALANCER │
-         │    (Port 8080 / 8443)          │
-         └───────────────┬────────────────┘
-                         │
 ┌────────────────────────┼────────────────────────┐
 │                  BACKEND SERVICES               │
 │                                                  │
 │  ┌─────────────────────────────────────┐       │
-│  │ Spring Boot API Server              │       │
+│  │ Spring Boot API Server (Port 8080)  │       │
 │  │ ├─ Authentication Service           │       │
 │  │ ├─ Booking Service                  │       │
 │  │ ├─ Pet Management Service           │       │
-│  │ ├─ Doctor Service                   │       │
+│  │ ├─ Vet Service                      │       │
 │  │ ├─ Payment Service (Stripe)         │       │
 │  │ ├─ Notification Service             │       │
 │  │ └─ Admin Dashboard Service          │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
 │  ┌─────────────────────────────────────┐       │
-│  │ AI & Data Processing (Python)       │       │
+│  │ AI Agent Service (Port 8000)        │       │
 │  │ ├─ FastAPI Server                   │       │
-│  │ ├─ AI Chatbot (LLM)                │       │
+│  │ ├─ Multi-Agent System (LangGraph)   │       │
+│  │ │  ├─ Main Agent (Supervisor)       │       │
+│  │ │  ├─ Booking Agent                 │       │
+│  │ │  ├─ Medical Agent                 │       │
+│  │ │  └─ Research Agent                │       │
 │  │ ├─ RAG Engine (LlamaIndex)          │       │
-│  │ ├─ Vector Search (Qdrant)          │       │
+│  │ ├─ Vector Search (Qdrant Cloud)     │       │
+│  │ ├─ Tool Registry (FastMCP)          │       │
 │  │ └─ WebSocket Orchestrator           │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
@@ -242,12 +245,13 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
     └──────────┘                  └────────────┘
          │
     ┌────▼────────────────┐
-    │   Redis Cache       │
+    │   Qdrant Cloud      │
+    │ (Vector Database)   │
     └─────────────────────┘
          │
     ┌────▼────────────────┐
-    │ AWS S3 / Cloudinary │
-    │ (Media Storage)     │
+    │ Ollama (Hybrid)     │
+    │ Local / Cloud LLM   │
     └─────────────────────┘
 ```
 
@@ -258,36 +262,36 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 ### Prerequisites
 - Node.js 18+ (Web Frontend)
 - Java 21 (Backend)
-- Python 3.10+ (AI Layer)
+- Python 3.12+ (AI Layer)
 - Flutter SDK 3.5+ (Mobile)
-- PostgreSQL 14+ & MongoDB 6+
+- PostgreSQL 16+ & MongoDB 7+
 - Docker & Docker Compose
+- Ollama (Optional - for local LLM mode)
 
 ### Web Frontend Setup
 
 ```bash
-# 1. Clone repo và navigate
+# 1. Navigate to web folder
 cd petties-web
 
-# 2. Cài dependencies
+# 2. Install dependencies
 npm install
 
-# 3. Setup Tailwind CSS
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
-
-# 4. Start development server
+# 3. Start development server
 npm run dev
 
-# 5. Open browser
+# 4. Open browser
 # http://localhost:5173
+
+# 5. Build for production
+npm run build
 ```
 
 ### Backend Setup
 
 ```bash
 # 1. Navigate to backend folder
-cd petties-backend
+cd backend-spring/petties
 
 # 2. Build with Maven
 mvn clean install
@@ -297,6 +301,7 @@ mvn spring-boot:run
 
 # 4. API accessible at
 # http://localhost:8080/api
+# Health check: http://localhost:8080/api/actuator/health
 ```
 
 ### Mobile App Setup
@@ -311,18 +316,25 @@ flutter pub get
 # 3. Run on emulator/device
 flutter run
 
-# 4. Build APK
+# 4. Build APK (Android)
 flutter build apk
 
-# 5. Build IPA
+# 5. Build IPA (iOS)
 flutter build ios
+
+# Note: Mobile app supports role-based routing:
+# - PET_OWNER: Mobile only
+# - VET: Web + Mobile
+# - CLINIC_OWNER: Web + Mobile
+# - ADMIN: Web only (blocked on mobile)
+# - CLINIC_MANAGER: Web only (blocked on mobile)
 ```
 
 ### AI Layer Setup
 
 ```bash
-# 1. Navigate to AI folder
-cd petties-ai
+# 1. Navigate to AI service folder
+cd petties-agent-serivce
 
 # 2. Create virtual environment
 python -m venv venv
@@ -331,51 +343,120 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Run FastAPI server
-uvicorn main:app --reload --port 8000
+# 4. Run database migrations
+alembic upgrade head
+
+# 5. Run FastAPI server
+python -m uvicorn app.main:app --reload --port 8000
+
+# 6. Access API docs
+# Swagger UI: http://localhost:8000/docs
+# Health check: http://localhost:8000/health
+
+# Note: Ollama Configuration
+# - Local Mode: Set OLLAMA_BASE_URL=http://localhost:11434 (default)
+# - Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
 ```
 
-### Docker Deployment
+## 🐳 Docker Compose Files
+
+Project sử dụng **3 Docker Compose files** cho các mục đích khác nhau:
+
+### 📁 File Structure
+
+| File | Mục đích | Khi nào dùng |
+|------|----------|--------------|
+| `docker-compose.db-only.yml` | Chỉ databases (PostgreSQL + MongoDB) | **Development chính**: Chạy Backend/AI Service trực tiếp với hot-reload |
+| `docker-compose.dev.yml` | Full stack với Docker (dev mode) | Test toàn bộ stack trong Docker, với hot-reload |
+| `docker-compose.prod.yml` | Production test (services only) | Test production build locally trước khi deploy Render |
+
+**Lưu ý:** Tất cả Dockerfiles sử dụng **unified multi-stage builds** với `BUILD_ENV` argument (dev/prod).
+
+### 🚀 Quick Start
+
+#### Option 1: Development với Hot-reload (Khuyến nghị)
 
 ```bash
-# 1. Copy environment variables template
+# 1. Copy environment variables (if not exists)
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env với credentials của bạn
 
-# 2. Build all services
-docker-compose build
+# 2. Start databases only
+docker-compose -f docker-compose.db-only.yml up -d
 
-# 3. Start all services
-docker-compose up -d
+# 3. Start services trực tiếp (not in Docker)
+# Terminal 1: Backend
+cd backend-spring/petties
+mvn spring-boot:run
 
-# 4. Check logs
-docker-compose logs -f
+# Terminal 2: AI Service
+cd petties-agent-serivce
+# Activate virtual environment (if using venv)
+# Windows: venv\Scripts\activate
+# Linux/Mac: source venv/bin/activate
+python -m uvicorn app.main:app --reload --port 8000
 
-# 5. Check service status
-docker-compose ps
+# Terminal 3: Frontend
+cd petties-web
+npm run dev
 
-# 6. Stop services
-docker-compose down
-
-# 7. Stop and remove volumes (clean slate)
-docker-compose down -v
+# Terminal 4: Mobile (Optional)
+cd petties_mobile
+flutter run
 ```
 
-### Quick Start with Docker
+**Services sẽ chạy tại:**
+- PostgreSQL: `localhost:5432`
+- MongoDB: `localhost:27017`
+- Backend API: `http://localhost:8080` (Health: `/api/actuator/health`)
+- AI Service: `http://localhost:8000` (Health: `/health`, Docs: `/docs`)
+- Frontend Web: `http://localhost:5173`
+- Mobile App: Flutter emulator/device
+
+#### Option 2: Full Docker Development
 
 ```bash
-# Start entire application stack
-docker-compose up -d
+# Start all services in Docker (không có hot-reload)
+docker-compose -f docker-compose.dev.yml up --build -d
 
-# Services will be available at:
-# - Web Frontend: http://localhost:3000
-# - Backend API: http://localhost:8080/api
-# - AI Service: http://localhost:8000
-# - PostgreSQL: localhost:5432
-# - MongoDB: localhost:27017
-# - Redis: localhost:6379
-# - Qdrant: http://localhost:6333
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop services
+docker-compose -f docker-compose.dev.yml down
 ```
+
+#### Option 3: Production Test Locally
+
+```bash
+# Test production build trước khi deploy Render
+docker-compose -f docker-compose.prod.yml up --build
+
+# Note: Cần set environment variables trong .env
+# Hoặc pass trực tiếp qua command line
+```
+
+### 🔐 Environment Variables
+
+**Quan trọng:** Copy `.env.example` thành `.env` và điền giá trị thực tế:
+
+```bash
+cp .env.example .env
+# Edit .env với credentials của bạn
+```
+
+Xem `.env.example` để biết tất cả environment variables cần thiết.
+
+**Ollama Configuration (Hybrid Mode):**
+- **Local Mode (Default)**: 
+  - Set `OLLAMA_BASE_URL=http://localhost:11434` (hoặc IP server riêng)
+  - Model: `kimi-k2` (hoặc model đã pull về)
+  - Cần chạy Ollama server local hoặc self-hosted
+- **Cloud Mode (Recommended for Production)**: 
+  - Set `OLLAMA_API_KEY=sk-...` (lấy từ https://ollama.com)
+  - Auto-switches base URL to `https://ollama.com`
+  - Model: `kimi-k2:1t-cloud` (256K context window)
+  - Không cần Ollama server local
 
 ---
 
@@ -456,7 +537,7 @@ backend-spring/petties/
 │   │   │   │   ├── AuthController.java
 │   │   │   │   ├── PetController.java
 │   │   │   │   ├── BookingController.java
-│   │   │   │   └── DoctorController.java
+│   │   │   │   └── VetController.java
 │   │   │   ├── service/             # Business logic
 │   │   │   │   ├── impl/
 │   │   │   │   ├── AuthService.java
@@ -470,7 +551,7 @@ backend-spring/petties/
 │   │   │   │   ├── User.java
 │   │   │   │   ├── Pet.java
 │   │   │   │   ├── Booking.java
-│   │   │   │   └── Doctor.java
+│   │   │   │   └── Vet.java
 │   │   │   ├── dto/                 # Data Transfer Objects
 │   │   │   │   ├── request/
 │   │   │   │   └── response/
@@ -529,18 +610,34 @@ petties/
 ├── backend-spring/petties/          # Spring Boot API (detailed above)
 │
 ├── petties-agent-serivce/          # Python AI Layer
-│   ├── main.py                     # FastAPI application
-│   ├── chatbot/                    # AI chatbot logic
-│   ├── rag/                        # RAG implementation
-│   ├── vector_store/               # Qdrant integration
+│   ├── app/
+│   │   ├── main.py                 # FastAPI application
+│   │   ├── api/                    # API routes (agents, tools, knowledge, chat, settings)
+│   │   ├── core/
+│   │   │   ├── agents/             # Multi-agent system (Main, Booking, Medical, Research)
+│   │   │   ├── tools/              # Tool registry, executor, MCP integration
+│   │   │   └── prompts/            # Prompt templates
+│   │   ├── config/                 # Settings & logging
+│   │   ├── db/                     # Database models & session
+│   │   └── services/               # Business logic
+│   ├── alembic/                    # Database migrations
 │   ├── requirements.txt            # Python dependencies
-│   ├── config.py                   # Configuration
-│   ├── Dockerfile                  # Production Docker image
+│   ├── Dockerfile                  # Unified Dockerfile (dev/prod)
 │   └── .dockerignore
 │
-├── docker-compose.yml              # Multi-service orchestration
+├── docker-compose.db-only.yml      # Databases only (PostgreSQL + MongoDB)
+├── docker-compose.dev.yml          # Full dev stack (databases + services)
+├── docker-compose.prod.yml         # Production test (services only)
 ├── .env.example                    # Environment variables template
-├── pettiesPR.pdf                   # Project proposal document
+├── scripts/                        # Utility scripts
+│   ├── create-env-example.py       # Generate .env.example
+│   ├── dev-start.bat               # Windows dev start script
+│   └── dev-stop.bat                # Windows dev stop script
+├── docs-references/                # Technical documentation
+│   ├── PETTIES_Features.md         # Feature list
+│   ├── TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md
+│   ├── DEVELOPMENT_WORKFLOW.md
+│   └── SETUP_GUIDE.md
 └── README.md                       # This file
 ```
 
@@ -556,11 +653,15 @@ The project uses Docker Compose to orchestrate multiple services:
 |---------|-------|------|-------------|
 | **postgres** | postgres:16-alpine | 5432 | PostgreSQL database for relational data |
 | **mongodb** | mongo:7-jammy | 27017 | MongoDB for flexible document storage |
-| **redis** | redis:7-alpine | 6379 | Redis for caching and sessions |
-| **qdrant** | qdrant/qdrant:latest | 6333, 6334 | Vector database for AI embeddings |
-| **backend** | Custom (Java 21) | 8080 | Spring Boot REST API |
-| **ai-service** | Custom (Python 3.14) | 8000 | FastAPI AI service |
-| **web** | Custom (Nginx) | 3000 | React frontend |
+| **backend** | Custom (Java 21, Spring Boot 4.0.0) | 8080 | Spring Boot REST API |
+| **ai-service** | Custom (Python 3.12) | 8000 | FastAPI AI Agent Service |
+| **Qdrant** | Cloud (External) | - | Vector database for AI embeddings |
+| **Ollama** | Local/Cloud (Hybrid) | 11434 | LLM inference (Local or Cloud API) |
+
+**Note:** 
+- Qdrant sử dụng Qdrant Cloud (không chạy local)
+- Ollama có thể chạy local hoặc dùng Ollama Cloud API
+- Web frontend và Mobile app chạy ngoài Docker trong development
 
 ### Dockerfile Optimization
 
@@ -579,9 +680,11 @@ All Dockerfiles use multi-stage builds for lightweight production images:
 - **Features**: Non-root user, optimized JVM settings, health checks
 
 #### AI Service Dockerfile
-- **Base**: Python 3.14 slim (minimal dependencies)
+- **Unified Dockerfile**: Supports both dev and prod via `BUILD_ENV` argument
+- **Base**: Python 3.12 slim-bookworm (minimal dependencies)
+- **Multi-stage**: Builder stage (install deps) + Runtime stage (minimal)
 - **Size**: ~400MB (includes ML libraries)
-- **Features**: Non-root user, health checks, proper signal handling
+- **Features**: Non-root user, health checks, hot-reload (dev mode)
 
 ### Environment Variables
 
@@ -598,55 +701,232 @@ All services implement health checks for Docker Compose readiness:
 ### Volume Management
 
 Persistent data is stored in Docker volumes:
-- `postgres_data`: PostgreSQL database
-- `mongodb_data`: MongoDB database
-- `mongodb_config`: MongoDB configuration
-- `redis_data`: Redis persistent storage
-- `qdrant_data`: Vector database storage
+- `postgres_dev_data`: PostgreSQL database (development)
+- `mongodb_dev_data`: MongoDB database (development)
+
+**Note:** 
+- Qdrant sử dụng Qdrant Cloud (external service, không có local volume)
+- Redis không được sử dụng trong current setup (optional)
 
 ---
 
 ## 🔌 API Endpoints
 
-### Authentication
+> **⚠️ Deployment Status:** Project hiện tại đang trong giai đoạn phát triển (Development), **chưa deploy production**. Tất cả endpoints được test trên môi trường local (localhost).
+
+### Authentication ✅ (Implemented)
 ```
-POST   /api/auth/register          - Đăng ký tài khoản
-POST   /api/auth/login             - Đăng nhập
-POST   /api/auth/logout            - Đăng xuất
-POST   /api/auth/refresh-token     - Làm mới token
+POST   /api/auth/register          - Đăng ký tài khoản ✅
+POST   /api/auth/login             - Đăng nhập ✅
+POST   /api/auth/logout            - Đăng xuất ✅
+POST   /api/auth/refresh           - Làm mới token ✅
+GET    /api/auth/me                - Lấy thông tin user hiện tại ✅
 ```
 
-### Pet Management
+### Pet Management ⚠️ (Not Yet Implemented)
 ```
-GET    /api/pets                   - Lấy danh sách pet
-POST   /api/pets                   - Thêm pet mới
-GET    /api/pets/{id}              - Chi tiết pet
-PUT    /api/pets/{id}              - Cập nhật pet
-DELETE /api/pets/{id}              - Xóa pet
-```
-
-### Booking
-```
-GET    /api/bookings               - Danh sách appointment
-POST   /api/bookings               - Tạo appointment mới
-GET    /api/bookings/{id}          - Chi tiết appointment
-PUT    /api/bookings/{id}          - Cập nhật appointment
-POST   /api/bookings/{id}/cancel   - Hủy appointment
+GET    /api/pets                   - Lấy danh sách pet ⚠️
+POST   /api/pets                   - Thêm pet mới ⚠️
+GET    /api/pets/{id}              - Chi tiết pet ⚠️
+PUT    /api/pets/{id}              - Cập nhật pet ⚠️
+DELETE /api/pets/{id}              - Xóa pet ⚠️
 ```
 
-### Doctor
+### Booking ⚠️ (Not Yet Implemented)
 ```
-GET    /api/doctors                - Danh sách bác sĩ
-GET    /api/doctors/available      - Bác sĩ có sẵn
-GET    /api/doctors/{id}           - Chi tiết bác sĩ
-GET    /api/doctors/{id}/schedule  - Lịch biểu bác sĩ
+GET    /api/bookings               - Danh sách appointment ⚠️
+POST   /api/bookings               - Tạo appointment mới ⚠️
+GET    /api/bookings/{id}          - Chi tiết appointment ⚠️
+PUT    /api/bookings/{id}          - Cập nhật appointment ⚠️
+POST   /api/bookings/{id}/cancel   - Hủy appointment ⚠️
 ```
 
-### AI Chatbot
+### Vet ⚠️ (Not Yet Implemented)
 ```
-POST   /api/chat                   - Gửi tin nhắn
-GET    /api/chat/history           - Lịch sử chat
+GET    /api/vets                   - Danh sách bác sĩ thú y ⚠️
+GET    /api/vets/available         - Bác sĩ có sẵn ⚠️
+GET    /api/vets/{id}              - Chi tiết bác sĩ ⚠️
+GET    /api/vets/{id}/schedule     - Lịch biểu bác sĩ ⚠️
 ```
+
+### AI Chatbot & Agent Management
+```
+POST   /api/v1/chat                - Gửi tin nhắn đến AI Agent
+GET    /api/v1/chat/history        - Lịch sử chat
+WS     /ws/chat/{session_id}       - WebSocket real-time chat
+GET    /api/v1/agents              - Danh sách agents
+GET    /api/v1/agents/{id}         - Chi tiết agent
+PUT    /api/v1/agents/{id}         - Cập nhật agent config
+GET    /api/v1/tools               - Danh sách tools
+POST   /api/v1/tools/import        - Import tools từ Swagger
+GET    /api/v1/knowledge           - Knowledge base documents
+POST   /api/v1/knowledge/upload    - Upload document
+GET    /api/v1/settings            - System settings
+PUT    /api/v1/settings            - Update settings
+```
+
+---
+
+## 📊 Feature Implementation Status
+
+> **Last Updated:** December 8, 2025  
+> **Project Status:** 🚧 In Development (Not Yet Deployed)
+
+### Overall Progress
+
+| Component | Completion | Status | Notes |
+|-----------|------------|--------|-------|
+| **Backend (Spring Boot)** | 10% | 🔄 In Progress | Core Auth ✅, Business Logic APIs ⚠️ |
+| **AI Service** | 30% | 🔄 In Progress | Core Agents ✅, RAG 🔄, Chat 🔄 |
+| **Web Frontend** | 10% | 🔄 In Progress | Admin Dashboard ✅, User Dashboards 🔄 |
+| **Mobile App** | 10% | 🔄 In Progress | Auth ✅, Routing ✅, Screens 🔄 |
+| **Infrastructure** | 90% | ✅ Ready | Docker ✅, Databases ✅, Config ✅ |
+
+### Detailed Status
+
+#### Backend (Spring Boot) - 10% Complete
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Authentication & Authorization | ✅ Done | JWT, Refresh Token, 5 Roles |
+| Pet Management API | ⚠️ TODO | Not implemented |
+| Booking API | ⚠️ TODO | Not implemented |
+| Vet API | ⚠️ TODO | Not implemented |
+| Payment API (Stripe) | ⚠️ TODO | Not implemented |
+| Notification Service | ⚠️ TODO | Not implemented |
+| File Upload Service | ⚠️ TODO | Not implemented |
+
+#### AI Service (FastAPI) - 30% Complete
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Multi-Agent System | ✅ Done | Main, Booking, Medical, Research |
+| Dynamic Config Loader | ✅ Done | DB-based configuration |
+| Agent Factory | ✅ Done | Dynamic agent creation |
+| Prompt Management | ✅ Done | Versioned prompts in DB |
+| Tool System | ✅ Done | Scanner, Swagger Import |
+| Ollama Hybrid Mode | ✅ Done | Local/Cloud support |
+| RAG Pipeline | 🔄 50% | Qdrant client ✅, Document processing 🔄 |
+| Chat API | 🔄 50% | In-memory storage (needs migration) |
+| Routing Examples Manager | ⚠️ TODO | AG-04 - Critical |
+| WebSocket Streaming | ⚠️ TODO | PG-01 - Critical |
+
+#### Web Frontend (React) - 10% Complete
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Admin Dashboard | ✅ Done | Agent/Tool/Knowledge Management |
+| Authentication Pages | ✅ Done | Login, Role-based routing |
+| Agent Management UI | ✅ Done | Prompt editor, config |
+| Tool Registry UI | ✅ Done | Enable/disable, import |
+| Knowledge Base UI | ✅ Done | Document upload |
+| User Dashboards | 🔄 Skeleton | Vet, Clinic Owner, Clinic Manager |
+| Booking Flow UI | ⚠️ TODO | Not implemented |
+| Pet Management UI | ⚠️ TODO | Not implemented |
+| Real-time Chat UI | ⚠️ TODO | Not implemented |
+
+#### Mobile App (Flutter) - 10% Complete
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Authentication | ✅ Done | Login, Role-based routing |
+| Routing System | ✅ Done | GoRouter with role guards |
+| Role Restrictions | ✅ Done | ADMIN/CLINIC_MANAGER blocked |
+| Home Screens | ✅ Done | Pet Owner, Vet, Clinic Owner |
+| Booking Flow | ⚠️ TODO | Not implemented |
+| Pet Management | ⚠️ TODO | Not implemented |
+| Profile & Settings | ⚠️ TODO | Not implemented |
+
+---
+
+## 🎯 Role-Based Access & Platforms
+
+### Platform Support by Role
+
+| Role | Web | Mobile | Notes |
+|------|-----|--------|-------|
+| **PET_OWNER** | ❌ | ✅ | Mobile only |
+| **VET** | ✅ | ✅ | Web + Mobile |
+| **CLINIC_OWNER** | ✅ | ✅ | Web + Mobile |
+| **ADMIN** | ✅ | ❌ | Web only (blocked on mobile) |
+| **CLINIC_MANAGER** | ✅ | ❌ | Web only (blocked on mobile) |
+
+### Authentication & Routing
+
+- **Web**: Role-based routing với React Router v7, Zustand state management
+- **Mobile**: Role-based routing với GoRouter, Provider state management, tự động redirect theo role sau khi login
+- **Backend**: JWT authentication với Spring Security 6.x
+- **Token Management**: Access token + Refresh token với blacklist support
+
+---
+
+## 🤖 AI Agent Architecture
+
+### Multi-Agent System (LangGraph)
+
+```
+User Query
+    │
+    ▼
+┌─────────────────┐
+│  Main Agent     │  ← Supervisor (Intent Classification, Routing)
+│  (Supervisor)   │
+└────────┬────────┘
+         │
+    ┌────┴────┬──────────┬──────────┐
+    ▼         ▼          ▼          ▼
+┌─────────┐ ┌──────────┐ ┌──────────┐
+│Booking  │ │ Medical  │ │ Research │
+│ Agent   │ │ Agent    │ │ Agent    │
+└─────────┘ └──────────┘ └──────────┘
+    │         │            │
+    └─────────┴────────────┘
+              │
+              ▼
+    ┌─────────────────┐
+    │   Tools (MCP)   │  ← check_slot, RAG_search, web_search, etc.
+    └─────────────────┘
+```
+
+### Agent Responsibilities
+
+1. **Main Agent (Supervisor)**
+   - Intent classification với Dynamic Few-Shot Routing (RAG-based)
+   - Context-aware routing đến Sub-Agents
+   - Response synthesis và quality control
+   - State management (conversation context)
+
+2. **Booking Agent**
+   - Xử lý đặt lịch khám
+   - Kiểm tra slot trống
+   - Hủy lịch hẹn
+   - Tools: `check_slot`, `create_booking`, `cancel_booking`
+
+3. **Medical Agent (Semi-Autonomous)**
+   - Chẩn đoán sơ bộ dựa trên triệu chứng
+   - Internal RAG search (knowledge base)
+   - Auto-delegate to Research Agent nếu confidence < 80%
+   - Tools: `rag_search`, `search_symptoms`
+
+4. **Research Agent (Web Researcher)**
+   - Tìm kiếm thông tin trên web (Tavily/DuckDuckGo)
+   - Tra cứu bài viết y khoa
+   - Tìm video hướng dẫn (YouTube)
+   - Bắt buộc trích dẫn nguồn (URL)
+   - Tools: `web_search`, `search_youtube_videos`, `extract_web_content`
+
+### Ollama Hybrid Mode
+
+- **Local Mode**: 
+  - Ollama server chạy local tại `http://localhost:11434`
+  - Model: `kimi-k2` (hoặc model đã pull về)
+  - Cần setup Ollama local hoặc self-hosted
+- **Cloud Mode (Recommended for Production)**: 
+  - Dùng Ollama Cloud API với API key (`https://ollama.com`)
+  - Model: `kimi-k2:1t-cloud` (256K context window)
+  - Auto-switching khi có `OLLAMA_API_KEY`
+  - Không cần Ollama server local
+- **Configuration**: Admin có thể config qua Dashboard (không cần restart server)
 
 ---
 
@@ -662,42 +942,6 @@ GET    /api/chat/history           - Lịch sử chat
 
 ---
 
-## 📊 Database Schema
-
-### Key Tables
-- `users` - Tài khoản người dùng
-- `pets` - Thông tin thú cưng
-- `doctors` - Hồ sơ bác sĩ thú y
-- `bookings` - Lịch tham khám
-- `medical_records` - Hồ sơ bệnh tật
-- `prescriptions` - Đơn thuốc
-- `payments` - Giao dịch thanh toán
-- `notifications` - Thông báo
-- `reviews` - Đánh giá và nhận xét
-
----
-
-## 📈 Deployment
-
-### Production Checklist
-- [ ] Build optimized React bundle (`npm run build`)
-- [ ] Configure Spring Boot for production
-- [ ] Setup PostgreSQL & MongoDB databases
-- [ ] Configure AWS S3 for media storage
-- [ ] Setup Stripe production keys
-- [ ] Enable HTTPS/TLS certificates
-- [ ] Configure GitHub Actions CI/CD
-- [ ] Setup monitoring & logging
-- [ ] Database backup strategy
-- [ ] Load testing & performance optimization
-
-### Deployment Platforms
-- **Web Frontend**: Vercel, Netlify, AWS S3 + CloudFront
-- **Backend API**: AWS EC2, Heroku, DigitalOcean
-- **Databases**: AWS RDS, MongoDB Atlas
-- **Mobile**: Apple App Store, Google Play Store
-
----
 
 ## 🧪 Testing
 
@@ -719,11 +963,11 @@ flutter test
 
 ## 📚 Documentation
 
-- [Frontend Setup Guide](./petties-web/SETUP.md)
-- [Backend API Documentation](./petties-backend/API.md)
-- [Mobile App Guide](./petties_mobile/README.md)
-- [Database Schema](./docs/DATABASE.md)
-- [Deployment Guide](./docs/DEPLOYMENT.md)
+- [Setup Guide](./docs-references/SETUP_GUIDE.md) - Chi tiết setup từng service
+- [Development Workflow](./docs-references/DEVELOPMENT_WORKFLOW.md) - Quy trình phát triển
+- [Features List](./docs-references/PETTIES_Features.md) - Danh sách đầy đủ tính năng
+- [AI Agent Management](./docs-references/TECHNICAL%20SCOPE%20PETTIES%20-%20AGENT%20MANAGEMENT.md) - Kiến trúc AI Agent chi tiết
+- [Git Workflow](./docs-references/PETTIES_Git_Workflow_TEAM_GUIDE.md) - Git collaboration guide
 
 ---
 
@@ -752,39 +996,33 @@ hotfix/critical-bug     # Critical fixes
 
 ---
 
-## 📅 Timeline
+---
 
-| Phase | Thời Gian | Mục Tiêu |
-|-------|-----------|---------|
-| **Phase 1: Planning & Design** | 05/01 - 31/01/2026 | Requirements, Database Design, Architecture |
-| **Phase 2: Core Development** | 01/02 - 28/02/2026 | API, Frontend, Mobile fundamentals |
-| **Phase 3: Features & AI** | 01/03 - 31/03/2026 | Advanced features, AI implementation |
-| **Phase 4: Testing & Deployment** | 01/04 - 30/04/2026 | Testing, Optimization, Deployment |
+## 🚀 Deployment Status
+
+> **⚠️ Important:** Project hiện tại **chưa được deploy production**. Tất cả development và testing được thực hiện trên môi trường local (localhost).
+
+### Current Environment
+- **Development:** Local only (localhost)
+- **Staging:** Not configured
+- **Production:** Not deployed
+
+### Planned Deployment
+- **Backend/AI Service:** Render.com (khi ready)
+- **Web Frontend:** Vercel (khi ready)
+- **Databases:** Supabase (PostgreSQL), MongoDB Atlas, Qdrant Cloud
+
+### Next Steps for Deployment
+1. Complete Critical Features (AG-04, KB-01, Chat Migration)
+2. Complete Business Logic APIs (Pet, Booking, Vet)
+3. Complete Mobile App Screens
+4. Setup CI/CD Pipeline
+5. Configure Production Environment Variables
+6. Deploy to Staging for Testing
+7. Deploy to Production
 
 ---
 
-## 📞 Support & Contact
-
-- **Issues**: Report trên GitHub Issues
-- **Email**: tanplqse181717@fpt.edu.vn (Leader)
-- **Supervisor**: longnx6@fe.edu.vn (Nguyễn Xuân Long)
-
----
-
-## 📄 License
-
-Dự án này được phát triển cho mục đích giáo dục tại FPT University.
-
----
-
-## 🙏 Acknowledgments
-
-- FPT University
-- Supervisor: Nguyễn Xuân Long
-- Team Members
-- Open Source Community
-
----
-
-**Last Updated**: December 1, 2025
-**Version**: 1.0.0
+**Last Updated**: December 8, 2025  
+**Version**: 1.0.0 (Development)  
+**Status**: 🚧 In Development - Not Yet Deployed

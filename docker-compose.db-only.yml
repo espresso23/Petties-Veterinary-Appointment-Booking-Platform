@@ -1,0 +1,70 @@
+# ============================================
+# PETTIES - Docker Compose for DATABASES ONLY
+# Dùng khi chạy Backend/AI Service trực tiếp (không qua Docker)
+# Qdrant dùng Cloud cho cả dev và prod
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # POSTGRESQL DATABASE
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: petties-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: petties_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MONGODB DATABASE
+  # ============================================
+  mongodb:
+    image: mongo:7-jammy
+    container_name: petties-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: petties_nosql
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - petties-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # NOTE: Qdrant uses Cloud for both dev and prod
+  # URL: https://df017fa3-1522-4456-b1a8-7a799bdfd1dc.eu-central-1-0.aws.cloud.qdrant.io
+  # ============================================
+
+networks:
+  petties-network:
+    driver: bridge
+    name: petties-network
+
+volumes:
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local

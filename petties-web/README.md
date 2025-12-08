@@ -1,73 +1,234 @@
-# React + TypeScript + Vite
+# Petties Web Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Web Frontend cho Petties - Veterinary Appointment Booking Platform**
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+Version: 1.0.0 (Development)
+Status:  In Development (Not Yet Deployed)
+Stack:   React 19 | Vite | TypeScript | Tailwind CSS v4
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 📋 Overview
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Petties Web Frontend là ứng dụng web được xây dựng với **React 19**, **Vite**, và **TypeScript**, cung cấp giao diện quản trị và sử dụng cho các role khác nhau trong hệ thống Petties.
+
+### Platform Support by Role
+
+| Role | Web Support | Notes |
+|------|-------------|-------|
+| **ADMIN** | ✅ | Web only - Full admin dashboard |
+| **CLINIC_MANAGER** | ✅ | Web only - Clinic management |
+| **CLINIC_OWNER** | ✅ | Web + Mobile - Clinic owner dashboard |
+| **VET** | ✅ | Web + Mobile - Vet dashboard |
+| **PET_OWNER** | ❌ | Mobile only |
+
+---
+
+## 🛠️ Tech Stack
+
+### Core Technologies
+- **React 19** - UI library
+- **Vite** - Build tool and dev server
+- **TypeScript** - Type safety
+- **Tailwind CSS v4** - Utility-first CSS framework
+
+### State Management & Routing
+- **Zustand** - Global state management
+- **React Router v7** - Declarative routing
+
+### HTTP Client
+- **Axios** - HTTP client for API calls
+
+### UI Components
+- **Heroicons** - Icon library
+- **Custom Components** - Built with Tailwind CSS
+
+---
+
+## 📁 Project Structure
+
 ```
+petties-web/
+├── src/
+│   ├── components/           # Reusable UI components
+│   │   ├── admin/           # Admin-specific components
+│   │   ├── common/          # Shared components
+│   │   └── selects/         # Custom select components
+│   ├── pages/               # Route-based page components
+│   │   ├── admin/           # Admin dashboard pages
+│   │   ├── auth/            # Authentication pages
+│   │   ├── vet/             # Vet dashboard
+│   │   ├── clinic-owner/    # Clinic owner dashboard
+│   │   └── clinic-manager/  # Clinic manager dashboard
+│   ├── layouts/             # Layout wrappers
+│   │   ├── AdminLayout.tsx
+│   │   ├── AuthLayout.tsx
+│   │   └── DashboardLayout.tsx
+│   ├── services/            # API calls and integrations
+│   │   ├── api/            # API client configuration
+│   │   └── agentService.ts # AI Service API client
+│   ├── store/               # Zustand state stores
+│   │   └── authStore.ts
+│   ├── hooks/               # Custom React hooks
+│   ├── types/               # TypeScript type definitions
+│   ├── utils/               # Utility functions
+│   ├── config/              # App configuration
+│   ├── App.tsx              # Root component with routing
+│   └── main.tsx             # Application entry point
+├── public/                  # Static public assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+├── Dockerfile               # Production Docker image
+└── .dockerignore
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm hoặc yarn
+
+### Installation
+
+```bash
+# 1. Navigate to web folder
+cd petties-web
+
+# 2. Install dependencies
+npm install
+
+# 3. Copy environment variables (if needed)
+# Create .env file with:
+# VITE_API_URL=http://localhost:8080
+# VITE_AI_SERVICE_URL=http://localhost:8000
+```
+
+### Development
+
+```bash
+# Start development server
+npm run dev
+
+# Open browser
+# http://localhost:5173
+```
+
+### Build for Production
+
+```bash
+# Build production bundle
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+---
+
+## 📊 Feature Implementation Status
+
+### ✅ Completed Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Authentication** | ✅ Done | Login page, JWT handling |
+| **Admin Dashboard** | ✅ Done | Overview with service health |
+| **Agent Management** | ✅ Done | CRUD agents, prompt editor |
+| **Tool Registry** | ✅ Done | Enable/disable, Swagger import |
+| **Knowledge Base** | ✅ Done | Document upload UI |
+| **System Settings** | ✅ Done | Ollama config, API keys |
+| **Role-based Routing** | ✅ Done | React Router with guards |
+
+### 🔄 In Progress
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **User Dashboards** | 🔄 Skeleton | Vet, Clinic Owner, Clinic Manager |
+| **Playground UI** | 🔄 Skeleton | Agent testing interface |
+| **Routing Examples Manager** | 🔄 UI Only | Needs backend API |
+
+### ⚠️ Not Yet Implemented
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Booking Flow UI** | ⚠️ TODO | Not implemented |
+| **Pet Management UI** | ⚠️ TODO | Not implemented |
+| **Real-time Chat UI** | ⚠️ TODO | WebSocket integration |
+| **Payment Integration** | ⚠️ TODO | Stripe checkout |
+| **Profile & Settings** | ⚠️ TODO | User profile management |
+
+---
+
+## 🎨 Design System
+
+### Warm Neutrals Design System
+
+Petties Web sử dụng design system với màu sắc warm neutrals:
+- Primary colors: Warm beiges và soft browns
+- Accent colors: Veterinary-themed greens và blues
+- Typography: Clear, readable fonts
+- Components: Consistent spacing và styling
+
+---
+
+## 🔌 API Integration
+
+### Backend API (Spring Boot)
+- **Base URL:** `http://localhost:8080/api`
+- **Authentication:** JWT Bearer token
+- **Endpoints:**
+  - `/auth/login` - Authentication
+  - `/auth/me` - Current user info
+  - `/pets` - Pet management (⚠️ Not implemented)
+  - `/bookings` - Booking management (⚠️ Not implemented)
+
+### AI Service API (FastAPI)
+- **Base URL:** `http://localhost:8000/api/v1`
+- **Authentication:** JWT Bearer token (admin only)
+- **Endpoints:**
+  - `/agents` - Agent management ✅
+  - `/tools` - Tool registry ✅
+  - `/knowledge` - Knowledge base ✅
+  - `/settings` - System settings ✅
+  - `/chat` - Chat API 🔄
+
+---
+
+## 🧪 Testing
+
+```bash
+# Run tests (when configured)
+npm run test
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+---
+
+## 📚 Documentation
+
+- [Main README](../README.md) - Project overview
+- [Setup Guide](../docs-references/SETUP_GUIDE.md) - Detailed setup instructions
+- [Development Workflow](../docs-references/DEVELOPMENT_WORKFLOW.md) - Workflow guide
+- [Frontend Best Practices](../docs-references/FRONTEND_BEST_PRACTICES.md) - Coding standards
+
+---
+
+## 🤝 Contributing
+
+1. Create feature branch: `git checkout -b feature/amazing-feature`
+2. Commit changes: `git commit -m 'feat: add amazing feature'`
+3. Push to branch: `git push origin feature/amazing-feature`
+4. Open Pull Request
+
+---
+
+**Last Updated:** December 8, 2025  
+**Status:** 🚧 In Development - Not Yet Deployed

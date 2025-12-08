@@ -1,0 +1,5 @@
+# Photos Directory
+# 
+# Lưu photo images (nếu cần bundle vào app)
+# Thông thường photos sẽ load từ network, nhưng có thể cache một số ảnh thường dùng
+
