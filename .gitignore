@@ -5,8 +5,5 @@
 .shared
 .agent
 .vscode
-docs-references
 .env
 .env.production
-# Keep .env.example in repo
-!.env.example
