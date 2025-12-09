@@ -41,20 +41,19 @@ export function useAuth(): UseAuthReturn {
   const user = useAuthStore((state) => state.user)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const isLoading = useAuthStore((state) => state.isLoading)
-  const setUser = useAuthStore((state) => state.setUser)
-  const setTokens = useAuthStore((state) => state.setTokens)
+  // Note: setUser and setTokens are handled internally by API endpoints
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const validateTokens = useAuthStore((state) => state.validateTokens)
 
   // Validate tokens on mount and periodically
   useEffect(() => {
     validateTokens()
-    
+
     // Validate every 5 minutes
     const interval = setInterval(() => {
       validateTokens()
     }, 5 * 60 * 1000)
-    
+
     return () => clearInterval(interval)
   }, [validateTokens])
 
@@ -107,7 +106,7 @@ export function useAuth(): UseAuthReturn {
     if (!accessToken || !isAuthenticated) return
 
     try {
-      const currentUser = await getCurrentUser()
+      await getCurrentUser()
       // getCurrentUser already updates authStore via setUser
     } catch (err) {
       console.error('Refresh user error:', err)
