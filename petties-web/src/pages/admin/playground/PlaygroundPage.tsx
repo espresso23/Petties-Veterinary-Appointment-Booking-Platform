@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { agentApi, createChatWebSocket } from '../../../services/agentService'
+import { agentApi } from '../../../services/agentService'
 import type { Agent } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { AgentFlowVisualization } from '../../../components/admin/AgentFlowVisualization'
@@ -50,7 +50,6 @@ export const PlaygroundPage = () => {
   const [flowNodes, setFlowNodes] = useState<FlowNode[]>([])
   const [flowEdges, setFlowEdges] = useState<FlowEdge[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
     loadAgents()

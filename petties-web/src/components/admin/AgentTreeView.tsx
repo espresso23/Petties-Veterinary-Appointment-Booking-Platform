@@ -5,7 +5,7 @@ import type { Agent } from '../../services/agentService'
 interface AgentTreeViewProps {
   mainAgent?: Agent
   subAgents: Agent[]
-  selectedAgentId?: string
+  selectedAgentId?: number
   onSelectAgent: (agent: Agent) => void
 }
 

@@ -107,7 +107,7 @@ export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
               </span>
             </div>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {results.map((result, index) => (
+              {results.map((result) => (
                 <div
                   key={`${result.document_id}-${result.chunk_index}`}
                   className="p-4 bg-stone-50 rounded-lg border border-stone-200"

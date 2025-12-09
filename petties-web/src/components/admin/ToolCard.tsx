@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { 
-  CodeBracketIcon, 
+import {
+  CodeBracketIcon,
   GlobeAltIcon,
   ChevronDownIcon,
-  ChevronRightIcon,
-  CheckCircleIcon,
-  XCircleIcon
+  ChevronRightIcon
 } from '@heroicons/react/24/outline'
 import type { Tool } from '../../services/agentService'
 

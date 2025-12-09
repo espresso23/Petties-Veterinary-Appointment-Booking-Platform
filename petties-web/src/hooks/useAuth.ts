@@ -8,7 +8,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { authApi, tokenStorage, User, LoginRequest, RegisterRequest } from '../services/authService'
+import { authApi, tokenStorage } from '../services/authService'
+import type { User, LoginRequest, RegisterRequest } from '../services/authService'
 
 export interface UseAuthReturn {
   // State

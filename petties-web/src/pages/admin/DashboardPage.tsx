@@ -1,8 +1,6 @@
 import { useAuthStore } from '../../store/authStore'
 import { useState, useEffect } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8000'
-
 interface ServiceHealth {
     status: 'checking' | 'healthy' | 'error'
     message: string

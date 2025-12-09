@@ -25,7 +25,7 @@ interface AgentFlowVisualizationProps {
  * Displays hierarchical agent execution flow
  * TODO: Replace with React Flow for interactive visualization
  */
-export const AgentFlowVisualization = ({ nodes, edges }: AgentFlowVisualizationProps) => {
+export const AgentFlowVisualization = ({ nodes, edges: _edges }: AgentFlowVisualizationProps) => {
   const [expanded, setExpanded] = useState(true)
 
   const getNodeColor = (status: FlowNode['status']) => {

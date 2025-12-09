@@ -12,7 +12,7 @@ interface Setting {
 }
 
 const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8000'
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('accessToken')
   return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
@@ -179,7 +179,7 @@ export const SettingsPage = () => {
           <ApiKeyManager
             apiKeys={groupedSettings.llm}
             onSave={handleSaveKey}
-            onTest={(key) => handleTestConnection('ollama')}
+            onTest={() => handleTestConnection('ollama')}
             category="llm"
             categoryLabel="Local LLM (Ollama)"
           />
@@ -190,7 +190,7 @@ export const SettingsPage = () => {
           <ApiKeyManager
             apiKeys={groupedSettings.vector_db}
             onSave={handleSaveKey}
-            onTest={(key) => handleTestConnection('qdrant')}
+            onTest={() => handleTestConnection('qdrant')}
             category="vector_db"
             categoryLabel="Vector Database (Qdrant Cloud)"
           />
@@ -201,7 +201,7 @@ export const SettingsPage = () => {
           <ApiKeyManager
             apiKeys={groupedSettings.embeddings}
             onSave={handleSaveKey}
-            onTest={(key) => handleTestConnection('embeddings')}
+            onTest={() => handleTestConnection('embeddings')}
             category="embeddings"
             categoryLabel="Embeddings Service"
           />

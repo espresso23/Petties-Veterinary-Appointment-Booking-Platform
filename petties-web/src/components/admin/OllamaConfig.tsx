@@ -285,12 +285,11 @@ export const OllamaConfig = ({
               Save Configuration
             </button>
           )}
-        </div>
           {testResult && (
             <div className={`
               mt-2 p-3 rounded-lg flex items-center gap-2 text-sm
-              ${testResult.status === 'success' 
-                ? 'bg-green-50 text-green-900' 
+              ${testResult.status === 'success'
+                ? 'bg-green-50 text-green-900'
                 : 'bg-red-50 text-red-900'
               }
             `}>
