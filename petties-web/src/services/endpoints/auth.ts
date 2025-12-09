@@ -22,10 +22,10 @@ export interface RegisterRequest {
 export async function login(payload: LoginRequest): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>('/auth/login', payload)
   
-  // Lưu tokens vào store
+  // Lưu tokens vào store (đồng bộ)
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
   
-  // Lưu user info
+  // Lưu user info (đồng bộ)
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
@@ -78,8 +78,17 @@ export async function refreshToken(): Promise<AuthResponse> {
     },
   )
   
-  // Lưu tokens mới
+  // Lưu tokens mới (đồng bộ với localStorage)
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
+  
+  // Update user info if available in response
+  if (data.userId || data.username) {
+    const currentUser = useAuthStore.getState().user
+    if (currentUser) {
+      // Keep existing user, just update tokens
+      useAuthStore.getState().setUser(currentUser)
+    }
+  }
   
   return data
 }
@@ -117,7 +126,7 @@ export async function logout(): Promise<void> {
 export async function getCurrentUser(): Promise<UserResponse> {
   const { data } = await apiClient.get<UserResponse>('/auth/me')
   
-  // Cập nhật user info trong store
+  // Cập nhật user info trong store (đồng bộ với localStorage)
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,

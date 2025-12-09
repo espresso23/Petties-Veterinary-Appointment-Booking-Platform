@@ -1,0 +1,7 @@
+export { NavigationBar } from './NavigationBar'
+export { HeroSection } from './HeroSection'
+export { ProblemStatement } from './ProblemStatement'
+export { FeaturesSection } from './FeaturesSection'
+export { HowItWorksSection } from './HowItWorksSection'
+export { TargetUsersSection } from './TargetUsersSection'
+export { CTAFooter } from './CTAFooter'

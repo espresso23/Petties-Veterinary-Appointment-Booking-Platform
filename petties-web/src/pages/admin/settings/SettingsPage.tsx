@@ -11,9 +11,12 @@ interface Setting {
   description?: string
 }
 
-const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8000'
+import { useAuthStore } from '../../../store/authStore'
+
+// Direct AI Service URL (no gateway)
+const AI_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000'
 const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem('accessToken')
+  const token = useAuthStore.getState().accessToken
   return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
@@ -40,7 +43,7 @@ export const SettingsPage = () => {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE}/ai/api/v1/settings`, {
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
         headers: getAuthHeaders()
       })
       if (response.ok) {
@@ -80,7 +83,7 @@ export const SettingsPage = () => {
 
   const handleSaveKey = async (key: string, value: string) => {
     try {
-      const response = await fetch(`${API_BASE}/ai/api/v1/settings/${key}`, {
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${key}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -98,7 +101,7 @@ export const SettingsPage = () => {
 
   const handleTestConnection = async (category: string) => {
     try {
-      const response = await fetch(`${API_BASE}/ai/api/v1/settings/test-${category}`, {
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-${category}`, {
         method: 'POST',
         headers: getAuthHeaders()
       })

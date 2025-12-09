@@ -40,7 +40,7 @@ apiClient.interceptors.response.use(
         if (!refreshToken) {
           // Không có refresh token → logout
           useAuthStore.getState().clearAuth()
-          window.location.href = '/login'
+          window.location.href = '/auth/login'
           return Promise.reject(error)
         }
 
@@ -58,7 +58,7 @@ apiClient.interceptors.response.use(
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
           response.data
 
-        // Lưu tokens mới
+        // Lưu tokens mới (đồng bộ với localStorage)
         useAuthStore.getState().setTokens(newAccessToken, newRefreshToken)
 
         // Retry request ban đầu với token mới
@@ -67,9 +67,9 @@ apiClient.interceptors.response.use(
         }
         return apiClient(originalRequest)
       } catch (refreshError) {
-        // Refresh failed → logout
+        // Refresh failed → logout (clear all tokens)
         useAuthStore.getState().clearAuth()
-        window.location.href = '/login'
+        window.location.href = '/auth/login'
         return Promise.reject(refreshError)
       }
     }

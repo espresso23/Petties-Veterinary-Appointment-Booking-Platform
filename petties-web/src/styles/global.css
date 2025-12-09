@@ -12,6 +12,11 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
   *,
   *::before,
   *::after {
@@ -21,6 +26,8 @@
   body {
     margin: 0;
     min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
     background: linear-gradient(to bottom, #fef3c7 0%, #fafaf9 40%); /* Warm amber-100 to stone-50 */
   }
 }

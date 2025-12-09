@@ -1,19 +1,21 @@
 /**
  * useAuth Hook - Authentication state and actions
  * 
+ * Now uses authStore as single source of truth
  * Provides:
  * - Login/logout functions
  * - Current user state
  * - Role checking
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { authApi, tokenStorage } from '../services/authService'
-import type { User, LoginRequest, RegisterRequest } from '../services/authService'
+import { useCallback, useEffect } from 'react'
+import { useAuthStore } from '../store/authStore'
+import { login as loginApi, register as registerApi, logout as logoutApi, getCurrentUser } from '../services/endpoints/auth'
+import type { LoginRequest, RegisterRequest } from '../services/endpoints/auth'
 
 export interface UseAuthReturn {
   // State
-  user: User | null
+  user: { userId: string; username: string; email: string; role: string } | null
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
@@ -34,11 +36,27 @@ export interface UseAuthReturn {
 }
 
 export function useAuth(): UseAuthReturn {
-  const [user, setUser] = useState<User | null>(tokenStorage.getUser())
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Use authStore as single source of truth
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isLoading = useAuthStore((state) => state.isLoading)
+  const setUser = useAuthStore((state) => state.setUser)
+  const setTokens = useAuthStore((state) => state.setTokens)
+  const clearAuth = useAuthStore((state) => state.clearAuth)
+  const validateTokens = useAuthStore((state) => state.validateTokens)
 
-  const isAuthenticated = !!user
+  // Validate tokens on mount and periodically
+  useEffect(() => {
+    validateTokens()
+    
+    // Validate every 5 minutes
+    const interval = setInterval(() => {
+      validateTokens()
+    }, 5 * 60 * 1000)
+    
+    return () => clearInterval(interval)
+  }, [validateTokens])
 
   // Role checks
   const hasRole = useCallback((role: string) => user?.role === role, [user])
@@ -48,88 +66,61 @@ export function useAuth(): UseAuthReturn {
   const isClinicOwner = hasRole('CLINIC_OWNER')
   const isPetOwner = hasRole('PET_OWNER')
 
-  // Initialize from storage on mount
-  useEffect(() => {
-    const storedUser = tokenStorage.getUser()
-    if (storedUser) {
-      setUser(storedUser)
-    }
-  }, [])
-
   // Login
   const login = useCallback(async (credentials: LoginRequest): Promise<boolean> => {
-    setIsLoading(true)
-    setError(null)
-
     try {
-      const response = await authApi.login(credentials)
-      setUser(response.user)
+      await loginApi(credentials)
+      // loginApi already updates authStore via setTokens and setUser
       return true
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed'
-      setError(message)
+      console.error('Login error:', err)
       return false
-    } finally {
-      setIsLoading(false)
     }
   }, [])
 
   // Register
   const register = useCallback(async (data: RegisterRequest): Promise<boolean> => {
-    setIsLoading(true)
-    setError(null)
-
     try {
-      const response = await authApi.register(data)
-      setUser(response.user)
+      await registerApi(data)
+      // registerApi already updates authStore via setTokens and setUser
       return true
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Registration failed'
-      setError(message)
+      console.error('Register error:', err)
       return false
-    } finally {
-      setIsLoading(false)
     }
   }, [])
 
   // Logout
   const logout = useCallback(async (): Promise<void> => {
-    setIsLoading(true)
     try {
-      await authApi.logout()
+      await logoutApi()
+    } catch (err) {
+      console.error('Logout error:', err)
     } finally {
-      setUser(null)
-      setIsLoading(false)
+      // Always clear local auth regardless of API call success
+      clearAuth()
     }
-  }, [])
+  }, [clearAuth])
 
   // Refresh user info
   const refreshUser = useCallback(async (): Promise<void> => {
-    if (!tokenStorage.isAuthenticated()) return
+    if (!accessToken || !isAuthenticated) return
 
     try {
-      const currentUser = await authApi.getCurrentUser()
-      setUser(currentUser)
-      localStorage.setItem('user', JSON.stringify(currentUser))
-    } catch {
-      // If refresh fails, try to refresh token
-      try {
-        await authApi.refreshToken()
-        const currentUser = await authApi.getCurrentUser()
-        setUser(currentUser)
-      } catch {
-        // Token refresh also failed, logout
-        setUser(null)
-        tokenStorage.clearTokens()
-      }
+      const currentUser = await getCurrentUser()
+      // getCurrentUser already updates authStore via setUser
+    } catch (err) {
+      console.error('Refresh user error:', err)
+      // If refresh fails, validate tokens (might trigger clear if expired)
+      validateTokens()
     }
-  }, [])
+  }, [accessToken, isAuthenticated, validateTokens])
 
   return {
     user,
     isAuthenticated,
     isLoading,
-    error,
+    error: null, // Errors handled in components
     login,
     register,
     logout,

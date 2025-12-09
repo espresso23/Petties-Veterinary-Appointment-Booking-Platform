@@ -1,6 +1,7 @@
 /**
  * ProtectedRoute - Route protection with role-based access
  * 
+ * Now uses authStore directly for consistency
  * Usage:
  *   <ProtectedRoute allowedRoles={['ADMIN', 'VET']}>
  *     <AdminPage />
@@ -8,7 +9,8 @@
  */
 
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
+import { useAuthStore } from '../store/authStore'
+import { useEffect } from 'react'
 
 interface ProtectedRouteProps {
     children: React.ReactNode
@@ -19,21 +21,27 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
     children,
     allowedRoles,
-    redirectTo = '/login'
+    redirectTo = '/auth/login'
 }: ProtectedRouteProps) {
-    const { isAuthenticated, user, isLoading } = useAuth()
+    const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+    const user = useAuthStore((state) => state.user)
+    const isLoading = useAuthStore((state) => state.isLoading)
+    const validateTokens = useAuthStore((state) => state.validateTokens)
     const location = useLocation()
+
+    // Validate tokens on mount
+    useEffect(() => {
+      validateTokens()
+    }, [validateTokens])
 
     // Show loading while checking auth
     if (isLoading) {
         return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100vh'
-            }}>
-                Loading...
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
+                    <p className="mt-4 text-stone-600">Loading...</p>
+                </div>
             </div>
         )
     }
@@ -43,18 +51,17 @@ export function ProtectedRoute({
         return <Navigate to={redirectTo} state={{ from: location }} replace />
     }
 
+    // Block PET_OWNER from web (mobile only)
+    if (user?.role === 'PET_OWNER') {
+        return <Navigate to="/auth/login?error=pet_owner_mobile_only" replace />
+    }
+
     // Check role if specified
     if (allowedRoles && user) {
         if (!allowedRoles.includes(user.role)) {
             // User doesn't have required role - redirect to their dashboard
-            const roleRedirects: Record<string, string> = {
-                'ADMIN': '/admin',
-                'VET': '/vet',
-                'CLINIC_MANAGER': '/clinic-manager',
-                'CLINIC_OWNER': '/clinic-owner',
-                'PET_OWNER': '/home',
-            }
-            return <Navigate to={roleRedirects[user.role] || '/home'} replace />
+            const dashboardPath = getRoleDashboard(user.role)
+            return <Navigate to={dashboardPath} replace />
         }
     }
 
@@ -67,10 +74,10 @@ export function ProtectedRoute({
 export function getRoleDashboard(role?: string): string {
     const dashboards: Record<string, string> = {
         'ADMIN': '/admin',
-        'VET': '/vet/dashboard',
-        'CLINIC_MANAGER': '/clinic-manager/dashboard',
-        'CLINIC_OWNER': '/clinic-owner/dashboard',
-        'PET_OWNER': '/home',
+        'VET': '/vet',
+        'CLINIC_MANAGER': '/clinic-manager',
+        'CLINIC_OWNER': '/clinic-owner',
+        // PET_OWNER blocked from web - mobile only
     }
     return dashboards[role || ''] || '/home'
 }
