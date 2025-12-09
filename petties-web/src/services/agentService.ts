@@ -1,25 +1,19 @@
 /**
- * Agent Service - API calls to petties-agent-serivce
+ * Agent Service - API calls to petties-agent-service
  * 
- * Routes through API Gateway:
- * - Development: http://localhost:8080/ai/*
- * - Production: https://api.petties.com/ai/*
+ * Direct connection to AI Service (no gateway)
+ * - Development: http://localhost:8000
+ * - Production: Configure via VITE_AGENT_SERVICE_URL environment variable
  */
 
-// API Gateway URL (handles routing to ai-service internally)
-const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080'
-const AI_SERVICE_BASE = `${API_GATEWAY_URL}/ai`
+import { useAuthStore } from '../store/authStore'
 
-// For local dev without gateway
-const DIRECT_AI_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000'
-const USE_GATEWAY = import.meta.env.VITE_USE_GATEWAY !== 'false'
+// Direct AI Service URL (no gateway)
+const AGENT_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000'
 
-// Base URL for AI service
-const AGENT_SERVICE_URL = USE_GATEWAY ? AI_SERVICE_BASE : DIRECT_AI_URL
-
-// Get auth token from localStorage
+// Get auth token from authStore (single source of truth)
 const getAuthHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem('accessToken')
+    const token = useAuthStore.getState().accessToken
     return token ? { 'Authorization': `Bearer ${token}` } : {}
 }
 
@@ -255,9 +249,7 @@ export const knowledgeApi = {
 // ===== WEBSOCKET =====
 
 export const createChatWebSocket = (sessionId: string): WebSocket => {
-    const wsUrl = USE_GATEWAY
-        ? `${API_GATEWAY_URL.replace('http', 'ws')}/ai/ws/chat/${sessionId}`
-        : `${DIRECT_AI_URL.replace('http', 'ws')}/ws/chat/${sessionId}`
+    const wsUrl = `${AGENT_SERVICE_URL.replace('http', 'ws')}/ws/chat/${sessionId}`
     return new WebSocket(wsUrl)
 }
 

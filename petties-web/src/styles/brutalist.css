@@ -1,0 +1,156 @@
+/* Brutalist Design System for Petties Onboarding */
+
+/* Border utilities */
+.border-brutal {
+  border: 4px solid #1c1917;
+}
+
+.border-brutal-thick {
+  border: 8px solid #1c1917;
+}
+
+/* Shadow utilities */
+.shadow-brutal {
+  box-shadow: 8px 8px 0 #1c1917;
+}
+
+.shadow-brutal-sm {
+  box-shadow: 4px 4px 0 #1c1917;
+}
+
+/* Hover effects */
+.brutal-hover {
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.brutal-hover:hover {
+  transform: translate(-4px, -4px);
+  box-shadow: 12px 12px 0 #1c1917;
+}
+
+/* Button styles */
+.btn-brutal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 2rem;
+  border: 4px solid #1c1917;
+  background-color: #d97706; /* amber-600 */
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 4px 4px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1c1917;
+  background-color: #b45309; /* amber-700 */
+}
+
+.btn-brutal:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #1c1917;
+}
+
+.btn-brutal-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border: 4px solid #1c1917;
+  background-color: transparent;
+  color: #1c1917;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 4px 4px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal-outline:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1c1917;
+  background-color: #fef3c7; /* amber-100 */
+}
+
+/* Card styles */
+.card-brutal {
+  background-color: #fff;
+  border: 4px solid #1c1917;
+  box-shadow: 8px 8px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.card-brutal:hover {
+  transform: translate(-4px, -4px);
+  box-shadow: 12px 12px 0 #1c1917;
+}
+
+/* Section styles */
+.section-brutal {
+  padding: 5rem 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .section-brutal {
+    padding: 6rem 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-brutal {
+    padding: 7rem 2rem;
+  }
+}
+
+/* Typography */
+.heading-brutal {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+
+.subheading-brutal {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Form Input Brutalist Style */
+.input-brutal {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 4px solid #1c1917;
+  background-color: #fff;
+  color: #1c1917;
+  font-weight: 500;
+  font-size: 1rem;
+  box-shadow: 4px 4px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.input-brutal:focus {
+  outline: none;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1c1917;
+  background-color: #fef3c7; /* amber-100 */
+}
+
+.input-brutal:disabled {
+  background-color: #f5f5f4; /* stone-100 */
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.input-brutal::placeholder {
+  color: #78716c; /* stone-500 */
+}
