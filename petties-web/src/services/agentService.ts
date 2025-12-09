@@ -37,7 +37,7 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
 export interface Agent {
     id: number
     name: string
-    agent_type: 'main' | 'booking' | 'medical' | 'product'
+    agent_type: 'main' | 'booking' | 'medical' | 'research'
     description?: string
     temperature: number
     max_tokens: number

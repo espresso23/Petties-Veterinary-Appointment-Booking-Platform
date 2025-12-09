@@ -15,7 +15,7 @@
 8. Xem lịch booking của tôi
 9. Xem chi tiết booking
 10. Hủy booking
-11. Thanh toán (Stripe)
+11. Thanh toán online.
 12. Xem hồ sơ y tế thú cưng (EMR)
 13. Xem sổ tiêm chủng
 14. Đánh giá & review bác sĩ
@@ -61,7 +61,7 @@
 11. Gán dịch vụ nếu user chưa chọn được
 12. Quản lý hủy & hoàn tiền
 13. Xem dashboard hôm nay
-14. 🆕 Quản lý ca làm việc nhân viên
+14. Quản lý ca làm việc nhân viên
 
 ---
 
@@ -71,10 +71,10 @@
 3. Tạo dịch vụ
 4. Sửa dịch vụ
 5. Xóa dịch vụ
-6. Cấu hình giá dịch vụ
-7. 🆕 Xem Dashboard Phòng Khám
-8. 🆕 Theo dõi doanh thu
-9. 🆕 Quản lý lịch biểu tổng
+6. Cấu hình giá dịch vụ(giá cơ bản + giá theo số km)
+7. Xem Dashboard Phòng Khám
+8. Theo dõi doanh thu
+9. Quản lý lịch biểu tổng
 
 ---
 
@@ -85,13 +85,9 @@
 2. Xem danh sách các clinic pending chờ duyệt
 3. Phê duyệt clinic
 4. Từ chối clinic
-5. Xem thống kê nền tảng
-6. 🆕 Theo dõi tất cả appointments
-7. 🆕 Thống kê người dùng và giao dịch
-8. 🆕 Báo cáo doanh thu
-9. 🆕 Analytics & Reports chi tiết
-
-#### **🤖 AI Agent Management (Quản lý AI Agent)**
+5. Xem thống kê nền tảng, doanh thu
+6. Thống kê người dùng và giao dịch
+9. Xem đơn tố cáo xử lý vi phạm của clinic, người dùng.
 10. 🆕 **Agent Configuration**
     - Quản lý Agent theo cấu trúc phân cấp (Main Agent + Sub-Agents)
     - Chỉnh sửa System Prompt với version control
@@ -282,8 +278,8 @@
 | **Backend** | Java 21, Spring Boot 3.x, Spring Security (JWT) |
 | **AI Layer** | Python 3.12, FastAPI, LangGraph, FastMCP, LlamaIndex |
 | **Databases** | PostgreSQL, MongoDB, Redis, Qdrant (Vector) |
-| **Infrastructure** | Docker, AWS S3/Cloudinary, GitHub Actions |
-| **Payment** | Stripe |
+| **Infrastructure** | Docker, Cloudinary, GitHub Actions |
+| **Payment** | Stripe | 
 | **Notifications** | Firebase (Push), Email, SMS |
 
 ---
@@ -291,5 +287,4 @@
 **Version: 7.0 - PETTIES COMPREHENSIVE FEATURES + AI AGENT MANAGEMENT**  
 **Status: ✅ READY FOR DEV**  
 **Total Features: 90+ (V0.0.1)**  
-**Happy Flows: 10**  
 **Last Updated: December 6, 2025**

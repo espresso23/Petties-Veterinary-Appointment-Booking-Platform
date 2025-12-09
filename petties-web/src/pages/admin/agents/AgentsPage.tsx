@@ -166,7 +166,7 @@ export const AgentsPage = () => {
             <AgentTreeView
               mainAgent={agents.main_agent}
               subAgents={agents.sub_agents}
-              selectedAgentId={selectedAgent?.id.toString()}
+              selectedAgentId={selectedAgent?.id}
               onSelectAgent={setSelectedAgent}
             />
           </div>
