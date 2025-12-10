@@ -3,6 +3,8 @@ import 'package:logger/logger.dart';
 import '../../config/constants/app_constants.dart';
 import '../../utils/storage_service.dart';
 import '../../config/env/environment.dart';  // ✅ Thêm import
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Interceptor for API requests and responses
 class ApiInterceptor extends Interceptor {
@@ -17,8 +19,9 @@ class ApiInterceptor extends Interceptor {
     final baseUrl = Environment.baseUrl;
     final isProduction = Environment.isProduction;
     
-    // ✅ Debug: Log base URL (bỏ emoji)
+    // ✅ Debug: Log platform
     _logger.i('[API Configuration]');
+    _logger.i('  Platform: ${kIsWeb ? "WEB" : Platform.operatingSystem}');
     _logger.i('  Environment: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}');
     _logger.i('  Base URL: $baseUrl');
     

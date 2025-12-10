@@ -199,6 +199,7 @@ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
 - Text uppercase cho headings và buttons
 - High contrast colors
 - Hover effects với translate + shadow
+- **Dùng icon libraries (Heroicons, Lucide) cho icons nếu cần** - Dùng SVG icons từ library, không dùng emoji
 
 ### ❌ DON'T
 - Không dùng `border-radius` (trừ trường hợp đặc biệt)
@@ -206,10 +207,68 @@ font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 
 - Không dùng drop-shadow blur
 - Không dùng thin borders (< 3px)
 - Không dùng lowercase cho primary buttons
+- **KHÔNG DÙNG EMOJI trong UI components, buttons, labels, hoặc text hiển thị** - Emoji như 💰📊🎉✅❌🚀💡🔧📝 trông "AI-generated" và không phù hợp với brutalist design
+- **KHÔNG DÙNG EMOJI trong code comments, log messages, hoặc user-facing text** - Chỉ dùng text thuần, không emoji
+- Nếu cần visual indicators, dùng icon từ Heroicons/Lucide thay vì emoji
+
+### Icon Guidelines
+**Nếu cần icons:**
+- ✅ Sử dụng **Heroicons** (đã có trong project): `<IconName />` components
+- ✅ Sử dụng **Lucide React** (nếu có): `<LucideIcon />` components
+- ❌ KHÔNG dùng emoji: 💰📊🎉✅❌🚀💡🔧📝📱💻🌐⚙️
+
+**Ví dụ:**
+```tsx
+// ✅ ĐÚNG: Dùng Heroicons
+import { CurrencyDollarIcon, ChartBarIcon } from '@heroicons/react/24/outline'
+<CurrencyDollarIcon className="w-5 h-5" />
+
+// ❌ SAI: Không dùng emoji
+<span>💰 Payment</span>
+<span>📊 Analytics</span>
+```
 
 ---
 
-## 🐾 Brand Identity
+## 🚫 Anti-Pattern: Emoji Usage
+
+**QUAN TRỌNG: KHÔNG BAO GIỜ dùng emoji trong UI code, components, hoặc user-facing text.**
+
+### Lý do không dùng emoji:
+1. **Không phù hợp với Brutalist Design**: Emoji tạo cảm giác "playful" và "AI-generated", không match với phong cách cứng cáp, minimal của brutalism
+2. **Accessibility**: Emoji có thể không hiển thị đúng trên một số platforms/độ tuổi
+3. **Consistency**: Emoji thay đổi theo platform, không consistent
+4. **Professional**: Petties là ứng dụng chuyên nghiệp, emoji giảm độ nghiêm túc
+
+### Thay thế bằng:
+- **Text thuần**: "Payment", "Analytics", "Settings" thay vì "💰 Payment", "📊 Analytics"
+- **Icons từ libraries**: Heroicons, Lucide React nếu cần visual indicator
+- **Typography + Color**: Dùng font weight, color để nhấn mạnh thay vì emoji
+
+### Ví dụ cụ thể:
+
+// ❌ SAI - Trông "AI-generated"
+<button>💰 Thanh toán</button>
+<div>📊 Thống kê</div>
+<span>✅ Hoàn thành</span>
+
+// ✅ ĐÚNG - Professional, clean
+<button className="btn-brutal">THANH TOÁN</button>
+<div className="heading-brutal">THỐNG KÊ</div>
+<span className="text-success">Hoàn thành</span>
+
+// ✅ Nếu cần icon
+<button className="btn-brutal">
+  <CurrencyDollarIcon className="w-5 h-5 mr-2" />
+  THANH TOÁN
+</button>### Debug/Development:
+- ❌ KHÔNG dùng emoji trong console.log, debug messages
+- ❌ KHÔNG dùng emoji trong comments
+- ✅ Dùng text thuần: `console.log('[API Config] Base URL:', url)`
+
+---
+
+## �� Brand Identity
 
 **Petties** là nền tảng chăm sóc thú cưng, phong cách thiết kế cần:
 

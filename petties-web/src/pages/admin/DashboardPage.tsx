@@ -1,6 +1,8 @@
 import { useAuthStore } from '../../store/authStore'
 import { useState, useEffect } from 'react'
-import { env } from '../../config/env'  // ✅ Sửa: relative path thay vì @/
+import { env } from '../../config/env'
+import { DashboardCard, DashboardStatsGrid, DashboardSection } from '../../components/dashboard/DashboardCard'
+import '../../styles/brutalist.css'
 
 interface ServiceHealth {
     status: 'checking' | 'healthy' | 'error'
@@ -9,7 +11,8 @@ interface ServiceHealth {
 }
 
 /**
- * ADMIN Dashboard Page
+ * ADMIN Dashboard Page - Neobrutalism Design
+ * No icons/emoji as per design guidelines
  */
 export const AdminDashboardPage = () => {
     const { user } = useAuthStore()
@@ -21,7 +24,7 @@ export const AdminDashboardPage = () => {
     }, [])
 
     const checkServices = async () => {
-        // Check AI Service (port 8001 - direct call, not through gateway/backend)
+        // Check AI Service
         try {
             const res = await fetch('http://localhost:8001/health', { method: 'GET' })
             if (res.ok) {
@@ -30,104 +33,135 @@ export const AdminDashboardPage = () => {
             } else {
                 setAiHealth({ status: 'error', message: `HTTP ${res.status}` })
             }
-        } catch (err) {
-            setAiHealth({ status: 'error', message: 'Not running (port 8001)' })
+        } catch {
+            setAiHealth({ status: 'error', message: 'Not running' })
         }
 
-        // Check Spring Boot (actuator health endpoint)
+        // Check Spring Boot
         try {
             const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
             if (res.ok) {
                 const data = await res.json()
-                setSpringHealth({ status: 'healthy', message: data.status || 'Spring Boot API' })
+                setSpringHealth({ status: 'healthy', message: data.status || 'UP' })
             } else {
                 setSpringHealth({ status: 'error', message: `HTTP ${res.status}` })
             }
-        } catch (err) {
+        } catch {
             setSpringHealth({ status: 'error', message: 'Connection failed' })
         }
     }
 
-    const getStatusIcon = (status: ServiceHealth['status']) => {
+    const getStatusStyle = (status: ServiceHealth['status']) => {
         switch (status) {
-            case 'healthy': return '🟢'
-            case 'error': return '🔴'
-            default: return '🟡'
+            case 'healthy': return 'bg-green-100 border-green-600 text-green-800'
+            case 'error': return 'bg-red-100 border-red-600 text-red-800'
+            default: return 'bg-amber-100 border-amber-600 text-amber-800'
+        }
+    }
+
+    const getStatusText = (status: ServiceHealth['status']) => {
+        switch (status) {
+            case 'healthy': return 'HEALTHY'
+            case 'error': return 'ERROR'
+            default: return 'CHECKING'
         }
     }
 
     return (
-        <div className="dashboard-page">
-            <header className="dashboard-header">
-                <h1>👨‍💻 Dashboard Admin nền tảng</h1>
-                <p>Chào mừng, {user?.username || 'Admin'}</p>
+        <div className="p-6 bg-stone-50 min-h-screen">
+            {/* Header */}
+            <header className="mb-8">
+                <h1 className="text-2xl font-bold text-stone-900 uppercase tracking-wide">
+                    ADMIN DASHBOARD
+                </h1>
+                <p className="text-stone-600 mt-1">
+                    Chao mung, {user?.username || 'Admin'}
+                </p>
             </header>
 
-            {/* Service Health Status */}
-            <section className="health-section" style={{ marginBottom: '24px' }}>
-                <h2>🏥 Service Health</h2>
-                <div className="health-grid" style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
-                    <div className="health-card" style={{
-                        padding: '16px', borderRadius: '8px', minWidth: '200px',
-                        background: aiHealth.status === 'healthy' ? '#dcfce7' : aiHealth.status === 'error' ? '#fee2e2' : '#fef3c7'
-                    }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                            {getStatusIcon(aiHealth.status)} AI Service
-                        </div>
-                        <div style={{ fontSize: '14px', marginTop: '4px' }}>{aiHealth.message}</div>
-                        {aiHealth.version && <div style={{ fontSize: '12px', opacity: 0.7 }}>v{aiHealth.version}</div>}
+            {/* Service Health */}
+            <DashboardSection title="SERVICE HEALTH">
+                <div className="flex flex-wrap gap-4">
+                    <div className={`border-4 border-stone-900 p-4 shadow-brutal ${getStatusStyle(aiHealth.status)}`}>
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1">AI SERVICE</p>
+                        <p className="text-lg font-bold">{getStatusText(aiHealth.status)}</p>
+                        <p className="text-sm">{aiHealth.message}</p>
+                        {aiHealth.version && <p className="text-xs opacity-70">v{aiHealth.version}</p>}
                     </div>
-                    <div className="health-card" style={{
-                        padding: '16px', borderRadius: '8px', minWidth: '200px',
-                        background: springHealth.status === 'healthy' ? '#dcfce7' : springHealth.status === 'error' ? '#fee2e2' : '#fef3c7'
-                    }}>
-                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                            {getStatusIcon(springHealth.status)} Backend API
-                        </div>
-                        <div style={{ fontSize: '14px', marginTop: '4px' }}>{springHealth.message}</div>
+                    <div className={`border-4 border-stone-900 p-4 shadow-brutal ${getStatusStyle(springHealth.status)}`}>
+                        <p className="text-xs font-bold uppercase tracking-wide mb-1">BACKEND API</p>
+                        <p className="text-lg font-bold">{getStatusText(springHealth.status)}</p>
+                        <p className="text-sm">{springHealth.message}</p>
                     </div>
-                    <button onClick={checkServices} style={{
-                        padding: '16px 24px', borderRadius: '8px', border: 'none',
-                        background: '#3b82f6', color: 'white', cursor: 'pointer', fontSize: '14px'
-                    }}>
-                        🔄 Refresh
+                    <button
+                        onClick={checkServices}
+                        className="btn-brutal py-2 px-4 text-sm"
+                    >
+                        REFRESH
                     </button>
                 </div>
-            </section>
+            </DashboardSection>
 
-            <div className="dashboard-grid">
-                <div className="dashboard-card">
-                    <h3>👨‍⚕️ Bác sĩ pending</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Chờ phê duyệt</p>
+            {/* Platform Stats */}
+            <DashboardSection title="PLATFORM STATS">
+                <DashboardStatsGrid>
+                    <DashboardCard
+                        title="CLINICS PENDING"
+                        value="--"
+                        subtitle="Cho phe duyet"
+                    />
+                    <DashboardCard
+                        title="TOTAL USERS"
+                        value="--"
+                        subtitle="He thong"
+                    />
+                    <DashboardCard
+                        title="APPOINTMENTS"
+                        value="--"
+                        subtitle="Hom nay"
+                    />
+                    <DashboardCard
+                        title="REVENUE"
+                        value="--"
+                        subtitle="Thang nay (VND)"
+                    />
+                </DashboardStatsGrid>
+            </DashboardSection>
+
+            {/* AI Agent Stats */}
+            <DashboardSection title="AI AGENT STATS">
+                <DashboardStatsGrid>
+                    <DashboardCard
+                        title="ACTIVE AGENTS"
+                        value="--"
+                        subtitle="Dang hoat dong"
+                    />
+                    <DashboardCard
+                        title="TOOLS"
+                        value="--"
+                        subtitle="Da dang ky"
+                    />
+                    <DashboardCard
+                        title="KNOWLEDGE DOCS"
+                        value="--"
+                        subtitle="Da index"
+                    />
+                    <DashboardCard
+                        title="CHAT SESSIONS"
+                        value="--"
+                        subtitle="24h qua"
+                    />
+                </DashboardStatsGrid>
+            </DashboardSection>
+
+            {/* Pending Actions */}
+            <DashboardSection title="PENDING ACTIONS">
+                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6">
+                    <p className="text-stone-600 text-center">Khong co hanh dong cho xu ly</p>
                 </div>
-
-                <div className="dashboard-card">
-                    <h3>👥 Tổng người dùng</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Hệ thống</p>
-                </div>
-
-                <div className="dashboard-card">
-                    <h3>📊 Appointments</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Hôm nay</p>
-                </div>
-
-                <div className="dashboard-card">
-                    <h3>💰 Doanh thu</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Tháng này (VND)</p>
-                </div>
-            </div>
-
-            <section className="dashboard-section">
-                <h2>Bác sĩ chờ phê duyệt</h2>
-                <p className="placeholder-text">Chức năng đang được phát triển...</p>
-            </section>
+            </DashboardSection>
         </div>
     )
 }
 
 export default AdminDashboardPage
-
