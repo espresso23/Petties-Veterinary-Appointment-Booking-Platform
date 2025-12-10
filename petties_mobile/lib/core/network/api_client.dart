@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../config/constants/app_constants.dart';
+import '../../config/env/environment.dart';  // ✅ Thêm import
 import '../error/exceptions.dart';
 import 'api_interceptor.dart';
 
@@ -10,7 +11,7 @@ class ApiClient {
   ApiClient({String? baseUrl}) {
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl ?? AppConstants.baseUrl,
+        baseUrl: baseUrl ?? Environment.baseUrl,  // ✅ Sửa: Dùng Environment thay AppConstants
         connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
         receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
         headers: {

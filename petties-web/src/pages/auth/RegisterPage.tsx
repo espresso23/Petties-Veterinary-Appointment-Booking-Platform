@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { register } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
+import { useToast } from '../../components/Toast'
 import '../../styles/brutalist.css'
 
 // Helper to get role-based dashboard path
@@ -28,6 +29,7 @@ export function RegisterPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
     const navigate = useNavigate()
+    const { showToast } = useToast()
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
     const user = useAuthStore((state) => state.user)
 
@@ -71,13 +73,16 @@ export function RegisterPage() {
             if (registeredUser) {
                 // PET_OWNER chỉ có thể sử dụng mobile app
                 if (registeredUser.role === 'PET_OWNER') {
-                    setSuccessMessage('🎉 Đăng ký thành công! Vui lòng tải ứng dụng Petties trên điện thoại để sử dụng.')
+                    const msg = '🎉 Đăng ký thành công! Vui lòng tải ứng dụng Petties trên điện thoại để sử dụng.'
+                    setSuccessMessage(msg)
+                    showToast('success', msg)
                     useAuthStore.getState().clearAuth()
                     return
                 }
 
                 // CLINIC_OWNER - redirect to clinic-owner dashboard
                 if (registeredUser.role === 'CLINIC_OWNER') {
+                    showToast('success', '🎉 Đăng ký thành công! Chào mừng bạn đến với Petties.')
                     navigate('/clinic-owner', { replace: true })
                     return
                 }

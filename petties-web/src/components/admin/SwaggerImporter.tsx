@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowDownOnSquareIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline'
+import { env } from '@/config/env'
 
 interface SwaggerImporterProps {
   onImport: (url: string) => Promise<{ new_tools: number; updated_tools: number }>
@@ -11,7 +12,7 @@ interface SwaggerImporterProps {
  * Allows admin to import tools from Spring Boot Swagger endpoint
  */
 export const SwaggerImporter = ({ onImport, onScan }: SwaggerImporterProps) => {
-  const [swaggerUrl, setSwaggerUrl] = useState('http://localhost:8080/v3/api-docs')
+  const [swaggerUrl, setSwaggerUrl] = useState(`${env.API_BASE_URL.replace('/api', '')}/v3/api-docs`)
   const [isImporting, setIsImporting] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [result, setResult] = useState<{ new_tools: number; updated_tools: number } | null>(null)
@@ -72,7 +73,7 @@ export const SwaggerImporter = ({ onImport, onScan }: SwaggerImporterProps) => {
               type="text"
               value={swaggerUrl}
               onChange={(e) => setSwaggerUrl(e.target.value)}
-              placeholder="http://localhost:8080/v3/api-docs"
+              placeholder={`${env.API_BASE_URL.replace('/api', '')}/v3/api-docs`}
               className="flex-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm"
             />
             <button
