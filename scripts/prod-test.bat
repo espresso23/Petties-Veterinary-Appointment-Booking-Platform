@@ -10,7 +10,7 @@ echo   PETTIES - Production Test
 echo ========================================
 echo.
 echo [WARNING] This builds production images locally.
-echo [WARNING] Uses cloud databases (Supabase, MongoDB Atlas, Qdrant Cloud)
+echo [WARNING] Uses cloud databases (Neon, MongoDB Atlas, Qdrant Cloud)
 echo.
 
 set /p confirm="Continue? (y/n): "

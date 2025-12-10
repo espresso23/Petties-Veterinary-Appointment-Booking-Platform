@@ -7,15 +7,13 @@ const fallback = {
 }
 
 // Detect environment based on hostname
-const getEnvironment = (): 'local' | 'uat' | 'production' => {
+const getEnvironment = (): 'local' | 'production' => {
   if (typeof window === 'undefined') return 'local' // SSR fallback
   
   const hostname = window.location.hostname
   
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'local'
-  } else if (hostname.includes('uat')) {
-    return 'uat'
   } else {
     return 'production'
   }
@@ -29,11 +27,6 @@ const environmentUrls = {
     API_BASE_URL: 'http://localhost:8080/api',
     WS_URL: 'ws://localhost:8080/ws',
     AGENT_SERVICE_URL: 'http://localhost:8000',
-  },
-  uat: {
-    API_BASE_URL: 'https://uat-api.petties.world/api',
-    WS_URL: 'wss://uat-api.petties.world/ws',
-    AGENT_SERVICE_URL: 'https://uat-ai.petties.world',
   },
   production: {
     API_BASE_URL: 'https://api.petties.world/api',

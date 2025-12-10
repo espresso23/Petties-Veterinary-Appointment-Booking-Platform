@@ -177,7 +177,7 @@ docker-compose -f docker-compose.dev.yml up --build
 3. **Set Environment Variables** in Render Dashboard:
    - `OLLAMA_API_KEY` (from https://ollama.com)
    - `QDRANT_API_KEY` (from Qdrant Cloud)
-   - `DATABASE_URL` (Supabase)
+   - `DATABASE_URL` (Neon)
    - `MONGO_URI` (MongoDB Atlas)
    - `JWT_SECRET` (64+ characters)
 

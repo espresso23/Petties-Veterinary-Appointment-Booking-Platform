@@ -4,6 +4,7 @@ class AppRoutes {
 
   // Root
   static const String root = '/';
+  static const String onboarding = '/onboarding';
 
   // Authentication
   static const String login = '/login';
@@ -17,11 +18,9 @@ class AppRoutes {
   static const String bookings = '/bookings';
   static const String profile = '/profile';
 
-  // Role-specific Home Routes
+  // Role-specific Home Routes (Mobile only: PET_OWNER, VET)
   static const String petOwnerHome = '/pet-owner/home';
   static const String vetHome = '/vet/home';
-  static const String clinicManagerHome = '/clinic-manager/home';
-  static const String clinicOwnerHome = '/clinic-owner/home';
 
   // Booking Flow
   static const String clinicDetails = '/clinic/:id';

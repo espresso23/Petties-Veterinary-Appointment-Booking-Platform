@@ -61,11 +61,11 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
         return ["http://localhost:3000", "http://localhost:5173"]
 
-    # ==================== Database - PostgreSQL (Supabase) ====================
+    # ==================== Database - PostgreSQL (Neon) ====================
     # Option 1: Dùng DATABASE_URL trực tiếp (khuyến nghị cho production)
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/petties_db",
-        description="Database connection URL (Supabase)"
+        default="postgresql+asyncpg://postgres:petties-prod@ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech:5432/postgres",
+        description="Database connection URL (Neon)"
     )
 
     # Option 2: Dùng các biến riêng lẻ (cho development)

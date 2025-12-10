@@ -81,7 +81,7 @@ flutter run
 |------|---------|----------|
 | `application.properties` | Base | Config chung |
 | `application-dev.properties` | dev | Local Docker DBs |
-| `application-prod.properties` | prod | Cloud DBs (Supabase, Atlas) |
+| `application-prod.properties` | prod | Cloud DBs (Neon, Atlas) |
 
 **Cách switch profile:**
 ```bash

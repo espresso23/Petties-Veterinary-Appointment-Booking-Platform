@@ -1010,7 +1010,7 @@ hotfix/critical-bug     # Critical fixes
 ### Planned Deployment
 - **Backend/AI Service:** Render.com (khi ready)
 - **Web Frontend:** Vercel (khi ready)
-- **Databases:** Supabase (PostgreSQL), MongoDB Atlas, Qdrant Cloud
+- **Databases:** Neon (PostgreSQL), MongoDB Atlas, Qdrant Cloud
 
 ### Next Steps for Deployment
 1. Complete Critical Features (AG-04, KB-01, Chat Migration)

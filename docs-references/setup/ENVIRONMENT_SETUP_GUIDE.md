@@ -1,15 +1,14 @@
-# Environment Setup Guide - Local, UAT & Production
+# Environment Setup Guide - Local & Production
 
 ## Tổng quan
 
-Hướng dẫn cấu hình môi trường cho Development (Local), UAT (User Acceptance Testing) và Production.
+Hướng dẫn cấu hình môi trường cho Development (Local) và Production.
 
 ## Phân biệt môi trường
 
 | Môi trường | Docker Compose | Backend URL | AI Service URL | Ports | Mục đích |
 |------------|----------------|-------------|----------------|-------|----------|
 | **Local** | `docker-compose.dev.yml` | `localhost:8080` | `localhost:8000` | 8080, 8000 | Development |
-| **UAT** | `docker-compose.uat.yml` | `uat-api.petties.world` | `uat-ai.petties.world` | 8082, 8002 | User Acceptance Testing |
 | **Production** | `docker-compose.prod.yml` | `api.petties.world` | `ai.petties.world` | 8080, 8000 | Live production |
 
 ## Frontend (React/Vite)
@@ -61,20 +60,7 @@ npm run dev
 **Frontend tự động:**
 - Vite inject env vars vào code khi build
 - Nếu env vars không được set, dùng production fallback từ `env.ts`
-- Auto-detect: Nếu domain có `uat` → dùng UAT URLs
-
-### UAT (Vercel Preview hoặc custom domain)
-
-**Set Environment Variables trên Vercel cho Preview environment:**
-
-| Key | Value |
-|-----|-------|
-| `VITE_API_BASE_URL` | `https://uat-api.petties.world/api` |
-| `VITE_WS_URL` | `wss://uat-api.petties.world/ws` |
-| `VITE_AGENT_SERVICE_URL` | `https://uat-ai.petties.world` |
-
-**Hoặc frontend tự động detect:**
-- Nếu domain có `uat` (ví dụ: `uat.petties.world`) → tự động dùng UAT URLs
+- Xem chi tiết: `VERCEL_PRODUCTION_SETUP.md`
 
 ## Backend (Spring Boot)
 
@@ -94,41 +80,6 @@ docker-compose -f docker-compose.dev.yml up -d
 cd backend-spring/petties
 export SPRING_PROFILES_ACTIVE=dev
 ./mvnw spring-boot:run
-```
-
-### UAT (EC2)
-
-**File `.env.uat` trên EC2:** `~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform/.env.uat`
-
-```bash
-# Profile
-SPRING_PROFILES_ACTIVE=uat
-
-# Database (Neon PostgreSQL)
-DB_HOST_UAT=ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech
-DB_PORT_UAT=5432
-DB_NAME_UAT=petties_db
-DB_USERNAME_UAT=neondb_owner
-DB_PASSWORD_UAT=your_password
-
-# MongoDB Atlas
-MONGO_URI_UAT=mongodb+srv://user:pass@cluster.mongodb.net/petties_nosql?retryWrites=true&w=majority
-
-# AI Service
-AI_SERVICE_URL=http://ai-service-uat:8000
-
-# JWT
-JWT_SECRET_UAT=UATSecretKeyForUserAcceptanceTesting123456789012345678901234
-
-# CORS (UAT domains)
-CORS_ORIGINS_UAT=https://uat-api.petties.world,https://uat-ai.petties.world,http://localhost:5173
-```
-
-**Deploy trên EC2:**
-
-```bash
-cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-docker-compose -f docker-compose.uat.yml --env-file .env.uat up -d --build
 ```
 
 ### Production (EC2)
@@ -184,37 +135,6 @@ export ENVIRONMENT=development
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### UAT (EC2)
-
-**File `.env.uat` trên EC2:** 
-
-```bash
-# Environment
-ENVIRONMENT=uat
-APP_DEBUG=true
-
-# Database (Neon PostgreSQL)
-DATABASE_URL_UAT=postgresql://neondb_owner:password@ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech:5432/petties_db?sslmode=require
-
-# Qdrant
-QDRANT_URL_UAT=https://your-cluster.qdrant.io
-QDRANT_API_KEY_UAT=your-api-key
-
-# Ollama
-OLLAMA_API_KEY_UAT=your-ollama-key
-OLLAMA_MODEL_UAT=kimi-k2:1t-cloud
-
-# CORS
-CORS_ORIGINS_UAT=https://uat-api.petties.world,https://uat-ai.petties.world,http://localhost:5173
-```
-
-**Deploy trên EC2:**
-
-```bash
-cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-docker-compose -f docker-compose.uat.yml --env-file .env.uat up -d --build
-```
-
 ### Production (EC2)
 
 **File `.env` trên EC2:**
@@ -256,14 +176,6 @@ docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
 | Backend API | http://localhost:8080/api | ws://localhost:8080/ws |
 | AI Service | http://localhost:8000 | ws://localhost:8000/ws |
 
-### UAT (User Acceptance Testing)
-
-| Service | HTTP | WebSocket | Domain |
-|---------|------|-----------|--------|
-| Frontend | https://petties.world (hoặc Vercel Preview) | - | Vercel |
-| Backend API | https://uat-api.petties.world/api | wss://uat-api.petties.world/ws | EC2 + Nginx |
-| AI Service | https://uat-ai.petties.world | wss://uat-ai.petties.world/ws | EC2 + Nginx |
-
 ### Production
 
 | Service | HTTP | WebSocket | Domain |
@@ -304,20 +216,6 @@ Mở browser console, bạn sẽ thấy:
 }
 ```
 
-### Frontend (UAT)
-
-Mở browser console trên domain có `uat`:
-
-```
-🔧 Environment Config: {
-  environment: "uat",
-  hostname: "uat.petties.world",
-  API_BASE_URL: "https://uat-api.petties.world/api",
-  WS_URL: "wss://uat-api.petties.world/ws",
-  AGENT_SERVICE_URL: "https://uat-ai.petties.world"
-}
-```
-
 ### Frontend (Production)
 
 Mở browser console trên https://petties.world:
@@ -338,9 +236,6 @@ Mở browser console trên https://petties.world:
 # Development
 curl http://localhost:8080/api/actuator/health
 
-# UAT
-curl https://uat-api.petties.world/api/actuator/health
-
 # Production
 curl https://api.petties.world/api/actuator/health
 ```
@@ -350,9 +245,6 @@ curl https://api.petties.world/api/actuator/health
 ```bash
 # Development
 curl http://localhost:8000/health
-
-# UAT
-curl https://uat-ai.petties.world/health
 
 # Production
 curl https://ai.petties.world/health
@@ -405,14 +297,6 @@ curl https://ai.petties.world/health
 - [ ] Health check pass: `curl https://api.petties.world/api/actuator/health`
 - [ ] Nginx config có WebSocket support
 
-### Backend (EC2 - UAT)
-- [ ] File `.env.uat` có `SPRING_PROFILES_ACTIVE=uat`
-- [ ] Database credentials đúng
-- [ ] CORS_ORIGINS_UAT có UAT domains
-- [ ] Containers đang chạy: `docker-compose -f docker-compose.uat.yml ps`
-- [ ] Health check pass: `curl https://uat-api.petties.world/api/actuator/health`
-- [ ] Nginx config có WebSocket support cho UAT
-
 ### AI Service (EC2 - Production)
 - [ ] File `.env` có đầy đủ config
 - [ ] Containers đang chạy: `docker-compose -f docker-compose.prod.yml ps`
@@ -420,10 +304,4 @@ curl https://ai.petties.world/health
 - [ ] Nginx config có WebSocket support cho `/ws/`
 - [ ] Test WebSocket: `wscat -c wss://ai.petties.world/ws/chat/test`
 
-### AI Service (EC2 - UAT)
-- [ ] File `.env.uat` có đầy đủ config
-- [ ] Containers đang chạy: `docker-compose -f docker-compose.uat.yml ps`
-- [ ] Health check pass: `curl https://uat-ai.petties.world/health`
-- [ ] Nginx config có WebSocket support cho `/ws/`
-- [ ] Test WebSocket: `wscat -c wss://uat-ai.petties.world/ws/chat/test`
 
