@@ -1,6 +1,6 @@
 import { useAuthStore } from '../../store/authStore'
 import { useState, useEffect } from 'react'
-import { env } from '@/config/env'
+import { env } from '../../config/env'  // ✅ Sửa: relative path thay vì @/
 
 interface ServiceHealth {
     status: 'checking' | 'healthy' | 'error'

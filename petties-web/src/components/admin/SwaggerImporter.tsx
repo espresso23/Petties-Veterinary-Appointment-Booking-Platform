@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowDownOnSquareIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline'
-import { env } from '@/config/env'
+import { env } from '../../config/env'  // ✅ Sửa: relative path thay vì @/
 
 interface SwaggerImporterProps {
   onImport: (url: string) => Promise<{ new_tools: number; updated_tools: number }>
