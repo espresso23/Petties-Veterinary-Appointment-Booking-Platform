@@ -25,7 +25,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # Supabase PostgreSQL
-      DB_HOST: ${DB_HOST:-db.euetrjfuupxdbkbxddep.supabase.co}
+      DB_HOST: ${DB_HOST:-ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USERNAME: ${DB_USERNAME:-postgres}
@@ -77,7 +77,6 @@ services:
       # Ollama Configuration (Hybrid: Local or Cloud)
       # RECOMMENDED: Use Ollama Cloud (set OLLAMA_API_KEY)
       # - Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
-      # - Local Mode: Set OLLAMA_BASE_URL=https://your-tunnel-url.com (if using local Ollama with tunnel)
       # Primary: kimi-k2:1t-cloud (Cloud, 256K context) | kimi-k2 (Local) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
