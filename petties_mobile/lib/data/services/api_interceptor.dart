@@ -17,10 +17,10 @@ class ApiInterceptor extends Interceptor {
     final baseUrl = Environment.baseUrl;
     final isProduction = Environment.isProduction;
     
-    // ✅ Debug: Log base URL being used
-    _logger.i('�� API Configuration:');
-    _logger.i('  - Environment: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}');
-    _logger.i('  - Base URL: $baseUrl');
+    // ✅ Debug: Log base URL (bỏ emoji)
+    _logger.i('[API Configuration]');
+    _logger.i('  Environment: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}');
+    _logger.i('  Base URL: $baseUrl');
     
     _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 30);

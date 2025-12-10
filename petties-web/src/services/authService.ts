@@ -9,7 +9,10 @@
  * - /api/auth/logout
  */
 
-import { env } from '../config/env'  // ✅ Thêm import
+import { env } from '../config/env'
+
+// ✅ Define AUTH_BASE từ env (env.API_BASE_URL đã có /api rồi)
+const AUTH_BASE = `${env.API_BASE_URL}/auth`
 
 // ===== TYPES =====
 
