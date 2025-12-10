@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { login } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
+import { useToast } from '../../components/Toast'
 import '../../styles/brutalist.css'
 
 // Helper to get role-based dashboard path
@@ -22,6 +23,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
 
@@ -46,10 +48,13 @@ export function LoginPage() {
       if (loggedInUser) {
         // Block PET_OWNER from web (mobile only)
         if (loggedInUser.role === 'PET_OWNER') {
-          setError('PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
+          showToast('warning', 'Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
           useAuthStore.getState().clearAuth()
           return
         }
+
+        // Success toast
+        showToast('success', `Đăng nhập thành công! Chào mừng ${loggedInUser.username}`)
 
         // Redirect to role-based dashboard
         const dashboardPath = getRoleDashboard(loggedInUser.role)

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import '../../config/constants/app_constants.dart';
 import '../../utils/storage_service.dart';
+import '../../config/env/environment.dart';  // ✅ Thêm import
 
 /// Interceptor for API requests and responses
 class ApiInterceptor extends Interceptor {
@@ -13,7 +14,15 @@ class ApiInterceptor extends Interceptor {
   final List<_PendingRequest> _pendingRequests = [];
 
   ApiInterceptor() {
-    _dio.options.baseUrl = AppConstants.baseUrl;
+    final baseUrl = Environment.baseUrl;
+    final isProduction = Environment.isProduction;
+    
+    // ✅ Debug: Log base URL being used
+    _logger.i('�� API Configuration:');
+    _logger.i('  - Environment: ${isProduction ? "PRODUCTION" : "DEVELOPMENT"}');
+    _logger.i('  - Base URL: $baseUrl');
+    
+    _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 30);
     _dio.options.receiveTimeout = const Duration(seconds: 30);
   }
@@ -29,10 +38,11 @@ class ApiInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
 
-    _logger.d('REQUEST[${options.method}] => PATH: ${options.path}');
+    // ✅ Debug: Log full URL
+    final fullUrl = '${options.baseUrl}${options.path}';
+    _logger.d('REQUEST[${options.method}] => $fullUrl');  // ✅ Show full URL instead of just path
     _logger.d('Headers: ${options.headers}');
-    _logger.d('Data: ${options.data}');
-
+    
     super.onRequest(options, handler);
   }
 

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../../config/constants/app_constants.dart';
 import '../../domain/errors/exceptions.dart';
 import 'api_interceptor.dart';
+import '../../config/env/environment.dart';
 
 /// HTTP client wrapper using Dio
 class ApiClient {
@@ -10,7 +11,7 @@ class ApiClient {
   ApiClient({String? baseUrl}) {
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl ?? AppConstants.baseUrl,
+        baseUrl: baseUrl ?? Environment.baseUrl,
         connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
         receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
         headers: {

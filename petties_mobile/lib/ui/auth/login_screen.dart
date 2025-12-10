@@ -3,11 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
-import '../../config/constants/app_constants.dart';
+import '../../config/constants/app_colors.dart';
 
-/// Login screen
+/// Login screen - Neobrutalism Style
 class LoginScreen extends StatefulWidget {
-  /// Optional initial error message to display (e.g., from blocked role redirect)
   final String? initialErrorMessage;
   
   const LoginScreen({
@@ -28,36 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Show initial error message if provided (e.g., from blocked role redirect)
     if (widget.initialErrorMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.initialErrorMessage != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.initialErrorMessage!,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 6),
-              action: SnackBarAction(
-                label: 'Đóng',
-                textColor: Colors.white,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                },
-              ),
-            ),
-          );
-        }
+        _showErrorToast(widget.initialErrorMessage!);
       });
     }
   }
@@ -67,6 +39,68 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _showErrorToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: const Icon(Icons.error_outline, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: AppColors.stone900, width: 3),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _showSuccessToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: AppColors.stone900, width: 3),
+        ),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -80,226 +114,359 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         if (success) {
-          // Navigate to home
+          _showSuccessToast('Đăng nhập thành công!');
           context.go(AppRoutes.home);
         } else {
-          // Show error with more details
           final errorMessage = _extractErrorMessage(authProvider.error);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(errorMessage),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 5),
-              action: SnackBarAction(
-                label: 'Xem chi tiết',
-                textColor: Colors.white,
-                onPressed: () {
-                  _showErrorDialog(context, authProvider.error);
-                },
-              ),
-            ),
-          );
+          _showErrorToast(errorMessage);
         }
       }
     }
   }
 
   String _extractErrorMessage(String? error) {
-    if (error == null) return 'Đăng nhập thất bại';
+    if (error == null) return 'Đăng nhập thất bại. Vui lòng thử lại.';
     
-    // Parse common error messages
     if (error.contains('SocketException') || error.contains('Failed host lookup')) {
-      return 'Không thể kết nối đến server. Kiểm tra backend đã chạy chưa?';
+      return '❌ Không thể kết nối đến server. Kiểm tra backend đã chạy chưa?';
     }
     if (error.contains('401') || error.contains('Unauthorized')) {
-      return 'Sai username hoặc password';
+      return '❌ Sai username hoặc password. Vui lòng kiểm tra lại.';
     }
     if (error.contains('404')) {
-      return 'API endpoint không tìm thấy. Kiểm tra base URL?';
+      return '❌ API endpoint không tìm thấy. Kiểm tra cấu hình server.';
     }
     if (error.contains('Timeout')) {
-      return 'Kết nối timeout. Kiểm tra network?';
+      return '❌ Kết nối timeout. Kiểm tra kết nối mạng.';
+    }
+    if (error.contains('Connection refused')) {
+      return '❌ Server từ chối kết nối. Backend có đang chạy không?';
     }
     
-    return error.length > 100 ? '${error.substring(0, 100)}...' : error;
-  }
-
-  void _showErrorDialog(BuildContext context, String? error) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Chi tiết lỗi'),
-        content: SingleChildScrollView(
-          child: SelectableText(
-            error ?? 'Không có thông tin lỗi',
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
-    );
+    return error.length > 100 ? '❌ ${error.substring(0, 100)}...' : '❌ $error';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-      ),
+      backgroundColor: AppColors.stone50,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Username',
-                    prefixIcon: Icon(Icons.person),
-                    hintText: 'petowner1',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Back to Onboarding
+              GestureDetector(
+                onTap: () => context.go(AppRoutes.onboarding),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.stone900, width: 2),
                   ),
-                  keyboardType: TextInputType.text,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập username';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Mật khẩu',
-                    prefixIcon: const Icon(Icons.lock),
-                    hintText: '••••••',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.arrow_back, size: 18, color: AppColors.stone700),
+                      const SizedBox(width: 8),
+                      Text(
+                        'QUAY LẠI',
+                        style: TextStyle(
+                          color: AppColors.stone700,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1,
+                        ),
                       ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Logo & Title
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBackground,
+                        border: Border.all(color: AppColors.stone900, width: 4),
+                        boxShadow: const [
+                          BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
+                        ],
+                      ),
+                      child: const Icon(Icons.pets, size: 48, color: AppColors.primary),
                     ),
-                  ),
-                  obscureText: _obscurePassword,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập mật khẩu';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                // Error display
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, _) {
-                    if (authProvider.error != null && !authProvider.isLoading) {
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          border: Border.all(color: Colors.red.shade200),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.red),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _extractErrorMessage(authProvider.error),
-                                style: const TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                // Login button
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, _) {
-                    return SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: authProvider.isLoading ? null : _handleLogin,
-                        child: authProvider.isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Đăng nhập'),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'PETTIES',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primary,
+                        letterSpacing: 4,
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'CHÀO MỪNG TRỞ LẠI',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.stone900,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Đăng nhập để truy cập vào Petties',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.stone600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                // Debug info
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, _) {
-                    return ExpansionTile(
-                      title: const Text('🔧 Debug Info', style: TextStyle(fontSize: 14)),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDebugRow('API Base URL', AppConstants.baseUrl),
-                              _buildDebugRow('Loading', authProvider.isLoading.toString()),
-                              _buildDebugRow('Authenticated', authProvider.isAuthenticated.toString()),
-                              if (authProvider.error != null)
-                                _buildDebugRow('Error', authProvider.error!),
-                            ],
-                          ),
+              ),
+              const SizedBox(height: 32),
+
+              // Login Form Card
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  border: Border.all(color: AppColors.stone900, width: 4),
+                  boxShadow: const [
+                    BoxShadow(color: AppColors.stone900, offset: Offset(8, 8)),
+                  ],
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Username Field
+                      const Text(
+                        'TÊN ĐĂNG NHẬP',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.stone900,
+                          letterSpacing: 1,
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                      const SizedBox(height: 8),
+                      _buildBrutalTextField(
+                        controller: _usernameController,
+                        hintText: 'Nhập tên đăng nhập',
+                        prefixIcon: Icons.person,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Vui lòng nhập tên đăng nhập';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Password Field
+                      const Text(
+                        'MẬT KHẨU',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.stone900,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildBrutalTextField(
+                        controller: _passwordController,
+                        hintText: 'Nhập mật khẩu',
+                        prefixIcon: Icons.lock,
+                        obscureText: _obscurePassword,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                            color: AppColors.stone500,
+                          ),
+                          onPressed: () {
+                            setState(() => _obscurePassword = !_obscurePassword);
+                          },
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Vui lòng nhập mật khẩu';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Login Button
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, _) {
+                          return _BrutalButton(
+                            onPressed: authProvider.isLoading ? null : _handleLogin,
+                            isLoading: authProvider.isLoading,
+                            label: 'ĐĂNG NHẬP',
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+
+              // Register Link
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Chưa có tài khoản? ',
+                      style: TextStyle(color: AppColors.stone600),
+                    ),
+                    GestureDetector(
+                      onTap: () => context.go(AppRoutes.register),
+                      child: const Text(
+                        'ĐĂNG KÝ NGAY',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDebugRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-          ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-          ),
-        ],
+  Widget _buildBrutalTextField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData prefixIcon,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      validator: validator,
+      style: const TextStyle(
+        fontWeight: FontWeight.w500,
+        color: AppColors.stone900,
+      ),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(color: AppColors.stone400),
+        prefixIcon: Icon(prefixIcon, color: AppColors.stone500),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: AppColors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(color: AppColors.stone900, width: 3),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(color: AppColors.stone900, width: 3),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(color: AppColors.primary, width: 3),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(color: AppColors.error, width: 3),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.zero,
+          borderSide: const BorderSide(color: AppColors.error, width: 3),
+        ),
       ),
     );
   }
 }
 
+/// Neobrutalism styled button
+class _BrutalButton extends StatefulWidget {
+  final VoidCallback? onPressed;
+  final String label;
+  final bool isLoading;
+
+  const _BrutalButton({
+    required this.onPressed,
+    required this.label,
+    this.isLoading = false,
+  });
+
+  @override
+  State<_BrutalButton> createState() => _BrutalButtonState();
+}
+
+class _BrutalButtonState extends State<_BrutalButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null || widget.isLoading;
+    
+    return GestureDetector(
+      onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
+      onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),
+      onTapCancel: isDisabled ? null : () => setState(() => _isPressed = false),
+      onTap: widget.onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: double.infinity,
+        transform: Matrix4.translationValues(
+          _isPressed ? 4 : 0,
+          _isPressed ? 4 : 0,
+          0,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isDisabled ? AppColors.stone400 : AppColors.primary,
+          border: Border.all(color: AppColors.stone900, width: 4),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(_isPressed ? 0 : 4, _isPressed ? 0 : 4),
+            ),
+          ],
+        ),
+        child: Center(
+          child: widget.isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.white,
+                    letterSpacing: 2,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}

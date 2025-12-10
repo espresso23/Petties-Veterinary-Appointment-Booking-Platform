@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
 import '../../config/constants/app_constants.dart';
+import '../../config/env/environment.dart';  // ✅ Thêm import
 
 /// Home screen
 class HomeScreen extends StatelessWidget {
@@ -139,7 +140,7 @@ class HomeScreen extends StatelessWidget {
                                       ),
                                       Expanded(
                                         child: SelectableText(
-                                          AppConstants.baseUrl,
+                                          Environment.baseUrl,  // ✅ Sửa: Dùng Environment thay AppConstants
                                           style: const TextStyle(
                                             fontFamily: 'monospace',
                                             fontSize: 12,

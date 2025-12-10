@@ -10,8 +10,12 @@ import 'core/utils/storage_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase (skip if not configured - for development)
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase not configured: $e');
+  }
   
   // Initialize local storage
   await StorageService().init();

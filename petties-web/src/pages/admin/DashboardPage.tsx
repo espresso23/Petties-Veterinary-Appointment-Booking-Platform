@@ -1,5 +1,6 @@
 import { useAuthStore } from '../../store/authStore'
 import { useState, useEffect } from 'react'
+import { env } from '@/config/env'
 
 interface ServiceHealth {
     status: 'checking' | 'healthy' | 'error'
@@ -35,7 +36,7 @@ export const AdminDashboardPage = () => {
 
         // Check Spring Boot (actuator health endpoint)
         try {
-            const res = await fetch('http://localhost:8080/api/actuator/health', { method: 'GET' })
+            const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
             if (res.ok) {
                 const data = await res.json()
                 setSpringHealth({ status: 'healthy', message: data.status || 'Spring Boot API' })

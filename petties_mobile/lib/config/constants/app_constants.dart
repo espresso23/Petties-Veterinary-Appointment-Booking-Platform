@@ -3,7 +3,7 @@ class AppConstants {
   AppConstants._();
 
   // API Configuration
-  static const String baseUrl = 'https://api.petties.com';
+  static const String baseUrl = 'https://api.petties.world/api';  // ✅ Sửa domain
   static const String apiVersion = 'v1';
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;

@@ -9,8 +9,7 @@
  * - /api/auth/logout
  */
 
-const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080'
-const AUTH_BASE = `${API_GATEWAY_URL}/api/auth`
+import { env } from '../config/env'  // ✅ Thêm import
 
 // ===== TYPES =====
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
+import { ToastProvider } from './components/Toast'
 
 // Layouts
 import { MainLayout } from './layouts/MainLayout'
@@ -43,70 +44,73 @@ function App() {
   }, [initializeAuth])
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<OnboardingPage />} />
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<OnboardingPage />} />
 
-        {/* Auth Routes - uses Outlet */}
-        <Route element={<AuthLayout />}>
-          <Route path="/auth/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/login" element={<LoginPage />} />
-        </Route>
+          {/* Auth Routes - uses Outlet */}
+          <Route element={<AuthLayout />}>
+            <Route path="/auth/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
 
-        {/* Home (after login) - uses Outlet */}
-        <Route element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }>
-          <Route path="/home" element={<HomePage />} />
-        </Route>
+          {/* Home (after login) - uses Outlet */}
+          <Route element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="/home" element={<HomePage />} />
+          </Route>
 
-        {/* Admin Routes */}
-        <Route path="/admin" element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <AdminLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<AdminDashboardPage />} />
-          <Route path="agents" element={<AgentsPage />} />
-          <Route path="tools" element={<ToolsPage />} />
-          <Route path="knowledge" element={<KnowledgePage />} />
-          <Route path="playground" element={<PlaygroundPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
+          {/* Admin Routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="tools" element={<ToolsPage />} />
+            <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="playground" element={<PlaygroundPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
 
-        {/* Vet Routes */}
-        <Route path="/vet" element={
-          <ProtectedRoute allowedRoles={['VET']}>
-            <VetLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<VetDashboardPage />} />
-        </Route>
+          {/* Vet Routes */}
+          <Route path="/vet" element={
+            <ProtectedRoute allowedRoles={['VET']}>
+              <VetLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<VetDashboardPage />} />
+          </Route>
 
-        {/* Clinic Owner Routes */}
-        <Route path="/clinic-owner" element={
-          <ProtectedRoute allowedRoles={['CLINIC_OWNER']}>
-            <ClinicOwnerLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<ClinicOwnerDashboardPage />} />
-        </Route>
+          {/* Clinic Owner Routes */}
+          <Route path="/clinic-owner" element={
+            <ProtectedRoute allowedRoles={['CLINIC_OWNER']}>
+              <ClinicOwnerLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<ClinicOwnerDashboardPage />} />
+          </Route>
 
-        {/* Clinic Manager Routes */}
-        <Route path="/clinic-manager" element={
-          <ProtectedRoute allowedRoles={['CLINIC_MANAGER']}>
-            <ClinicManagerLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<ClinicManagerDashboardPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          {/* Clinic Manager Routes */}
+          <Route path="/clinic-manager" element={
+            <ProtectedRoute allowedRoles={['CLINIC_MANAGER']}>
+              <ClinicManagerLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<ClinicManagerDashboardPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   )
 }
 
 export default App
+
