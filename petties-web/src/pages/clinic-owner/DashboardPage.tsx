@@ -1,48 +1,92 @@
 import { useAuthStore } from '../../store/authStore'
+import { DashboardCard, DashboardStatsGrid, DashboardSection } from '../../components/dashboard/DashboardCard'
+import '../../styles/brutalist.css'
 
 /**
- * CLINIC_OWNER Dashboard Page
+ * CLINIC_OWNER Dashboard Page - Neobrutalism Design
+ * No icons/emoji as per design guidelines
  */
 export const ClinicOwnerDashboardPage = () => {
     const { user } = useAuthStore()
 
     return (
-        <div className="dashboard-page">
-            <header className="dashboard-header">
-                <h1>🏥 Dashboard Chủ phòng khám</h1>
-                <p>Chào mừng, {user?.username || 'Chủ phòng khám'}</p>
+        <div className="p-6 bg-stone-50 min-h-screen">
+            {/* Header */}
+            <header className="mb-8">
+                <h1 className="text-2xl font-bold text-stone-900 uppercase tracking-wide">
+                    CLINIC OWNER DASHBOARD
+                </h1>
+                <p className="text-stone-600 mt-1">
+                    Chào mừng, {user?.username || 'Chủ phòng khám'}
+                </p>
             </header>
 
-            <div className="dashboard-grid">
-                <div className="dashboard-card">
-                    <h3>💰 Doanh thu hôm nay</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">VND</p>
-                </div>
+            {/* Today Stats */}
+            <DashboardSection title="THỐNG KÊ HÔM NAY">
+                <DashboardStatsGrid>
+                    <DashboardCard
+                        title="DOANH THU HÔM NAY"
+                        value="--"
+                        subtitle="VND"
+                    />
+                    <DashboardCard
+                        title="BOOKINGS HÔM NAY"
+                        value="--"
+                        subtitle="Hôm nay"
+                    />
+                    <DashboardCard
+                        title="HOÀN THÀNH HÔM NAY"
+                        value="--"
+                        subtitle="Cuộc hẹn"
+                    />
+                </DashboardStatsGrid>
+            </DashboardSection>
 
-                <div className="dashboard-card">
-                    <h3>📊 Tổng booking</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Tháng này</p>
-                </div>
+            {/* Clinic Info */}
+            <DashboardSection title="THÔNG TIN PHÒNG KHÁM">
+                <DashboardStatsGrid>
+                    <DashboardCard
+                        title="DỊCH VỤ"
+                        value="--"
+                        subtitle="Đang hoạt động"
+                    />
+                    <DashboardCard
+                        title="BÁC SĨ"
+                        value="--"
+                        subtitle="Trong phòng khám"
+                    />
+                    <DashboardCard
+                        title="RATING"
+                        value="--"
+                        subtitle="Trung bình"
+                    />
+                    <DashboardCard
+                        title="ĐÁNH GIÁ"
+                        value="--"
+                        subtitle="Tổng số"
+                    />
+                </DashboardStatsGrid>
+            </DashboardSection>
 
-                <div className="dashboard-card">
-                    <h3>🩺 Dịch vụ</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Đang hoạt động</p>
+            {/* Monthly Revenue */}
+            <DashboardSection title="DOANH THU THÁNG NAY">
+                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TONG DOANH THU</p>
+                            <p className="text-2xl font-bold text-stone-900">-- VND</p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">SO BOOKINGS</p>
+                            <p className="text-2xl font-bold text-stone-900">--</p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TRUNG BINH/BOOKING</p>
+                            <p className="text-2xl font-bold text-stone-900">-- VND</p>
+                        </div>
+                    </div>
                 </div>
-
-                <div className="dashboard-card">
-                    <h3>👨‍⚕️ Bác sĩ</h3>
-                    <p className="stat-number">--</p>
-                    <p className="stat-label">Trong phòng khám</p>
-                </div>
-            </div>
-
-            <section className="dashboard-section">
-                <h2>Thống kê doanh thu</h2>
-                <p className="placeholder-text">Chức năng đang được phát triển...</p>
-            </section>
+            </DashboardSection>
         </div>
     )
 }
