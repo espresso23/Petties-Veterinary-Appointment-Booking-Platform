@@ -40,7 +40,7 @@ export function LoginPage() {
 
     try {
       await login({ username, password })
-      
+
       // Get user from store after login
       const loggedInUser = useAuthStore.getState().user
       if (loggedInUser) {
@@ -50,7 +50,7 @@ export function LoginPage() {
           useAuthStore.getState().clearAuth()
           return
         }
-        
+
         // Redirect to role-based dashboard
         const dashboardPath = getRoleDashboard(loggedInUser.role)
         navigate(dashboardPath, { replace: true })
@@ -75,22 +75,22 @@ export function LoginPage() {
       <div className="w-full lg:w-2/5 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <div className="max-w-sm w-full">
           {/* Back to Home Link */}
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 mb-8 transition-colors cursor-pointer"
           >
-            <svg 
-              className="w-5 h-5" 
-              fill="none" 
-              stroke="currentColor" 
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M10 19l-7-7m0 0l7-7m-7 7h18" 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
             <span className="text-sm font-medium">Về trang chủ</span>
@@ -115,8 +115,8 @@ export function LoginPage() {
 
             {/* Error Message */}
             {error && (
-              <div 
-                className="border-brutal bg-red-50 border-red-300 p-3 mb-5 shadow-brutal-sm" 
+              <div
+                className="border-brutal bg-red-50 border-red-300 p-3 mb-5 shadow-brutal-sm"
                 role="alert"
               >
                 <p className="text-xs sm:text-sm font-medium text-red-800">{error}</p>
@@ -127,8 +127,8 @@ export function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Username Field */}
               <div>
-                <label 
-                  htmlFor="username" 
+                <label
+                  htmlFor="username"
                   className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
                 >
                   Tên đăng nhập
@@ -147,8 +147,8 @@ export function LoginPage() {
 
               {/* Password Field */}
               <div>
-                <label 
-                  htmlFor="password" 
+                <label
+                  htmlFor="password"
                   className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
                 >
                   Mật khẩu
@@ -185,9 +185,12 @@ export function LoginPage() {
               </p>
               <p className="text-xs text-stone-600 text-center mt-3">
                 Chưa có tài khoản?{' '}
-                <a href="#" className="font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer transition-colors">
+                <Link
+                  to="/register"
+                  className="font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer transition-colors"
+                >
                   Đăng ký tại đây
-                </a>
+                </Link>
               </p>
             </div>
           </div>
@@ -221,7 +224,7 @@ export function LoginPage() {
               PETTIES
             </span>
           </div>
-          
+
           <div className="border-brutal bg-amber-50 p-8 shadow-brutal mb-8">
             <h2 className="text-3xl sm:text-4xl font-bold text-stone-900 mb-4 uppercase tracking-tight">
               CHĂM SÓC THÚ CƯNG
