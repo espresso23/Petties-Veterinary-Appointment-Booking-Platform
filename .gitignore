@@ -7,3 +7,4 @@
 .vscode
 .env
 .env.production
+petties-key.pem

@@ -1,8 +1,11 @@
 # ============================================
 # PETTIES - Docker Compose for PRODUCTION
 # Optimized builds, no hot-reload
-# NOTE: Chỉ dùng để test locally trước khi deploy Render
-# Render sẽ dùng render.yaml để deploy
+# 
+# Usage:
+#   - Local testing: docker-compose -f docker-compose.prod.yml up -d
+#   - EC2 deployment: docker-compose -f docker-compose.prod.yml --env-file .env up -d
+#   - Ports bind to 127.0.0.1 for Nginx reverse proxy (not exposed publicly)
 # ============================================
 
 version: '3.8'
@@ -36,7 +39,7 @@ services:
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"  # Bind to localhost only (Nginx reverse proxy)
     networks:
       - petties-prod-network
     healthcheck:
@@ -48,7 +51,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M  # Optimized for t3.small (2GB RAM)
+        reservations:
+          memory: 384M
 
   # ============================================
   # PYTHON AI AGENT SERVICE (Production)
@@ -82,7 +87,7 @@ services:
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # Bind to localhost only (Nginx reverse proxy)
     networks:
       - petties-prod-network
     healthcheck:
@@ -94,7 +99,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 768M  # Optimized for t3.small (2GB RAM)
+        reservations:
+          memory: 384M
 
 # ============================================
 # NETWORKS
