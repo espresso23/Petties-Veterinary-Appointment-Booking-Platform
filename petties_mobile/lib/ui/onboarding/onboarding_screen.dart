@@ -17,22 +17,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<OnboardingData> _pages = [
     OnboardingData(
-      icon: Icons.calendar_month,
+      icon: Icons.calendar_month_outlined,
       title: 'ĐẶT LỊCH KHÁM',
       subtitle: 'Đặt lịch hẹn với bác sĩ thú y\nchỉ với vài thao tác',
       color: AppColors.primary,
     ),
     OnboardingData(
-      icon: Icons.smart_toy,
+      icon: Icons.smart_toy_outlined,
       title: 'AI TƯ VẤN 24/7',
       subtitle: 'Trợ lý AI thông minh\nsẵn sàng hỗ trợ bạn mọi lúc',
-      color: AppColors.primaryLight,
+      color: AppColors.primary,
     ),
     OnboardingData(
-      icon: Icons.folder_shared,
+      icon: Icons.folder_shared_outlined,
       title: 'HỒ SƠ SỨC KHỎE',
       subtitle: 'Quản lý hồ sơ sức khỏe\nđiện tử cho thú cưng',
-      color: AppColors.primaryDark,
+      color: AppColors.primary,
     ),
   ];
 
@@ -66,19 +66,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             // Skip Button
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(24.0),
               child: Align(
                 alignment: Alignment.topRight,
                 child: TextButton(
                   onPressed: _goToLogin,
-                  child: Text(
-                    'BỎ QUA',
-                    style: TextStyle(
-                      color: AppColors.stone600,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.stone900,
+                    textStyle: const TextStyle(
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
                     ),
                   ),
+                  child: const Text('BỎ QUA'),
                 ),
               ),
             ),
@@ -99,11 +99,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // Page Indicators
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              padding: const EdgeInsets.symmetric(vertical: 32.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(_pages.length, (index) {
-                  return Container(
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
                     margin: const EdgeInsets.symmetric(horizontal: 6),
                     width: _currentPage == index ? 32 : 12,
                     height: 12,
@@ -115,6 +116,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         color: AppColors.stone900,
                         width: 3,
                       ),
+                      boxShadow: _currentPage == index
+                          ? [
+                              const BoxShadow(
+                                color: AppColors.stone900,
+                                offset: Offset(2, 2),
+                              )
+                            ]
+                          : [],
                     ),
                   );
                 }),
@@ -123,7 +132,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // Bottom Buttons
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
               child: Row(
                 children: [
                   // Back button (visible after first page)
@@ -167,52 +176,92 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Icon Card - Brutal Style
-          Container(
-            width: 160,
-            height: 160,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBackground,
-              border: Border.all(
-                color: AppColors.stone900,
-                width: 4,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: AppColors.stone900,
-                  offset: Offset(8, 8),
+          Stack(
+            children: [
+              // Background decorative shape
+              Transform.rotate(
+                angle: -0.1,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: AppColors.stone200,
+                    border: Border.all(
+                      color: AppColors.stone900,
+                      width: 4,
+                    ),
+                  ),
                 ),
-              ],
-            ),
-            child: Icon(
-              data.icon,
-              size: 80,
-              color: data.color,
-            ),
+              ),
+              // Main Icon Container
+              Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  border: Border.all(
+                    color: AppColors.stone900,
+                    width: 4,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: AppColors.stone900,
+                      offset: Offset(8, 8),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    data.icon,
+                    size: 80,
+                    color: AppColors.stone900,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 64),
 
           // Title - Brutal Typography
           Text(
             data.title,
             style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
               color: AppColors.stone900,
-              letterSpacing: 2,
+              letterSpacing: 1.5,
+              height: 1.1,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           // Subtitle
-          Text(
-            data.subtitle,
-            style: TextStyle(
-              fontSize: 16,
-              color: AppColors.stone600,
-              height: 1.5,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.amber50,
+              border: Border.all(
+                color: AppColors.stone900,
+                width: 3,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: AppColors.stone900,
+                  offset: Offset(4, 4),
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
+            child: Text(
+              data.subtitle,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.stone700,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
@@ -287,9 +336,9 @@ class _BrutalButtonState extends State<_BrutalButton> {
             widget.label,
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: widget.isOutlined ? AppColors.stone900 : AppColors.white,
-              letterSpacing: 1,
+              letterSpacing: 1.5,
             ),
           ),
         ),

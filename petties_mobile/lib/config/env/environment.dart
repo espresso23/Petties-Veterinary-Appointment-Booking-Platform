@@ -6,7 +6,7 @@ class Environment {
   static const String _prodBaseUrl = 'https://api.petties.world/api';
 
   // ✅ Tạm thời: Force production để test với backend trên EC2
-  static const bool _forceProduction = true;  // ✅ Set true để dùng production URL
+  static const bool _forceProduction = false;  // ✅ Set true để dùng production URL
   
   /// Get the base URL based on build mode
   static String get baseUrl {

@@ -51,6 +51,12 @@ class AppRouterConfig {
             currentLocation == AppRoutes.register;
         final isOnboardingRoute = currentLocation == AppRoutes.onboarding;
 
+        // If user is on login/register page and not authenticated, stay there (no redirect)
+        // This prevents reload when login fails
+        if (isLoginRoute && !isAuthenticated) {
+          return null;
+        }
+
         // Block ADMIN, CLINIC_MANAGER, and CLINIC_OWNER users (mobile not supported - web only)
         if (isAuthenticated && 
             (userRole == 'ADMIN' || userRole == 'CLINIC_MANAGER' || userRole == 'CLINIC_OWNER')) {

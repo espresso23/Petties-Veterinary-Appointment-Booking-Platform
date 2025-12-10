@@ -70,7 +70,7 @@ export const ClinicOwnerDashboardPage = () => {
 
             {/* Monthly Revenue */}
             <DashboardSection title="DOANH THU THÁNG NAY">
-                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6">
+                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6 transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] cursor-default">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                             <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TONG DOANH THU</p>

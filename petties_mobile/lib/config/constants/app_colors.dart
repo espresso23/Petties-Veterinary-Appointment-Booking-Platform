@@ -11,6 +11,7 @@ class AppColors {
   static const Color primaryDark = Color(0xFFB45309);   // amber-700 - Hover/pressed state
   static const Color primarySurface = Color(0xFFFEF3C7); // amber-100 - Light backgrounds
   static const Color primaryBackground = Color(0xFFFFFBEB); // amber-50 - Card backgrounds
+  static const Color amber50 = Color(0xFFFFFBEB); // amber-50 - Alias for direct use
 
   // ===== NEOBRUTALISM NEUTRALS - Stone =====
   static const Color stone50 = Color(0xFFFAFAF9);   // Page background

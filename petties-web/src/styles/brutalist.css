@@ -80,6 +80,34 @@
   background-color: #fef3c7; /* amber-100 */
 }
 
+.btn-brutal-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 3px solid #1c1917;
+  background-color: #d97706; /* amber-600 */
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 3px 3px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal-sm:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #1c1917;
+  background-color: #b45309; /* amber-700 */
+}
+
+.btn-brutal-sm:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 #1c1917;
+}
+
 /* Card styles */
 .card-brutal {
   background-color: #fff;
