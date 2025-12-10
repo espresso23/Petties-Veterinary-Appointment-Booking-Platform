@@ -17,7 +17,7 @@
 │                            │                                     │
 │              ┌─────────────┼─────────────┐                      │
 │              ▼             ▼             ▼                      │
-│         Supabase      MongoDB Atlas   Qdrant Cloud              │
+│         Neon      MongoDB Atlas   Qdrant Cloud              │
 │        (PostgreSQL)    (NoSQL DB)    (Vector DB)                │
 │                                                                  │
 │  Ollama Cloud (LLM) ────── API Key ────── Render Services       │
@@ -335,6 +335,6 @@ và docker-compose -f docker-compose.dev.yml up backend --build
 - **Repository:** https://github.com/your-org/petties
 - **Render Dashboard:** https://dashboard.render.com
 - **Vercel Dashboard:** https://vercel.com
-- **Supabase Dashboard:** https://supabase.com/dashboard
+- **Neon Dashboard:** https://neon.com
 - **MongoDB Atlas:** https://cloud.mongodb.com
 - **Qdrant Cloud:** https://cloud.qdrant.io

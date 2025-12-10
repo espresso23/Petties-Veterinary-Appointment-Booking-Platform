@@ -18,8 +18,8 @@ POSTGRES_DB=petties_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 
-# Production (Supabase) - Uncomment and fill for production
-# DB_HOST=db.your-project.supabase.co
+# Production (Neon) - Uncomment and fill for production
+# DB_HOST=ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech
 # DB_PORT=5432
 # DB_NAME=postgres
 # DB_USERNAME=postgres
@@ -103,7 +103,7 @@ APP_DEBUG=true
 # 1. For production deployment on Render:
 #    - Set all production values in Render Dashboard
 #    - Use Ollama Cloud (set OLLAMA_API_KEY)
-#    - Use Supabase for PostgreSQL
+#    - Use Neon for PostgreSQL
 #    - Use MongoDB Atlas for NoSQL
 #
 # 2. For local development:

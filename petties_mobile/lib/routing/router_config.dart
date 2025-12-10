@@ -2,20 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../ui/auth/login_screen.dart';
+import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
-import '../ui/clinic_owner/clinic_owner_home_screen.dart';
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
 /// Handles role-based routing and authentication
+/// 
+/// Mobile App Roles:
+/// - PET_OWNER: ✅ Mobile only
+/// - VET: ✅ Mobile + Web
+/// - CLINIC_OWNER: ❌ Web only (blocked on mobile)
+/// - CLINIC_MANAGER: ❌ Web only (blocked on mobile)
+/// - ADMIN: ❌ Web only (blocked on mobile)
 class AppRouterConfig {
   /// Get the appropriate home route based on user role
-  /// PET_OWNER: Mobile only
-  /// CLINIC_OWNER: Web + Mobile
-  /// VET: Web + Mobile
-  /// ADMIN: Web only (blocked on mobile)
-  /// CLINIC_MANAGER: Web only (blocked on mobile)
+  /// Only PET_OWNER and VET are allowed on mobile
   static String _getHomeRouteForRole(String? role) {
     switch (role) {
       case 'PET_OWNER':
@@ -23,7 +26,8 @@ class AppRouterConfig {
       case 'VET':
         return AppRoutes.vetHome;
       case 'CLINIC_OWNER':
-        return AppRoutes.clinicOwnerHome;
+        // CLINIC_OWNER should not use mobile app (web only)
+        return AppRoutes.login;
       case 'CLINIC_MANAGER':
         // CLINIC_MANAGER should not use mobile app (web only)
         return AppRoutes.login;
@@ -38,29 +42,42 @@ class AppRouterConfig {
 
   static GoRouter createRouter(AuthProvider authProvider) {
     return GoRouter(
-      initialLocation: AppRoutes.root,
+      initialLocation: AppRoutes.onboarding,
       redirect: (context, state) {
         final isAuthenticated = authProvider.isAuthenticated;
         final userRole = authProvider.user?.role;
         final currentLocation = state.matchedLocation;
         final isLoginRoute = currentLocation == AppRoutes.login ||
             currentLocation == AppRoutes.register;
+        final isOnboardingRoute = currentLocation == AppRoutes.onboarding;
 
-        // Block ADMIN and CLINIC_MANAGER users (mobile not supported - web only)
-        if (isAuthenticated && (userRole == 'ADMIN' || userRole == 'CLINIC_MANAGER')) {
-          final errorMsg = userRole == 'ADMIN' 
-              ? 'admin_web_only' 
-              : 'clinic_manager_web_only';
+        // Block ADMIN, CLINIC_MANAGER, and CLINIC_OWNER users (mobile not supported - web only)
+        if (isAuthenticated && 
+            (userRole == 'ADMIN' || userRole == 'CLINIC_MANAGER' || userRole == 'CLINIC_OWNER')) {
+          String errorMsg;
+          switch (userRole) {
+            case 'ADMIN':
+              errorMsg = 'admin_web_only';
+              break;
+            case 'CLINIC_MANAGER':
+              errorMsg = 'clinic_manager_web_only';
+              break;
+            case 'CLINIC_OWNER':
+              errorMsg = 'clinic_owner_web_only';
+              break;
+            default:
+              errorMsg = 'web_only';
+          }
           return '${AppRoutes.login}?error=$errorMsg';
         }
 
-        // Redirect to role-specific home if authenticated and on login/register or root
-        if (isAuthenticated && (isLoginRoute || currentLocation == AppRoutes.root)) {
+        // Redirect to role-specific home if authenticated and on login/register/onboarding or root
+        if (isAuthenticated && (isLoginRoute || isOnboardingRoute || currentLocation == AppRoutes.root)) {
           return _getHomeRouteForRole(userRole);
         }
 
-        // Redirect to login if not authenticated and not already on login/register
-        if (!isAuthenticated && !isLoginRoute && currentLocation != AppRoutes.root) {
+        // Redirect to login if not authenticated and not already on login/register/onboarding
+        if (!isAuthenticated && !isLoginRoute && !isOnboardingRoute && currentLocation != AppRoutes.root) {
           return AppRoutes.login;
         }
 
@@ -73,6 +90,11 @@ class AppRouterConfig {
             body: Center(child: CircularProgressIndicator()),
           ),
         ),
+        // Onboarding route
+        GoRoute(
+          path: AppRoutes.onboarding,
+          builder: (context, state) => const OnboardingScreen(),
+        ),
         // Login route with error handling
         GoRoute(
           path: AppRoutes.login,
@@ -84,6 +106,8 @@ class AppRouterConfig {
               errorMessage = 'Tài khoản ADMIN chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
             } else if (error == 'clinic_manager_web_only') {
               errorMessage = 'Tài khoản CLINIC_MANAGER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
+            } else if (error == 'clinic_owner_web_only') {
+              errorMessage = 'Tài khoản CLINIC_OWNER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
             }
             
             return LoginScreen(
@@ -109,13 +133,8 @@ class AppRouterConfig {
           path: AppRoutes.vetHome,
           builder: (context, state) => const VetHomeScreen(),
         ),
-        // CLINIC_OWNER: Web + Mobile
-        GoRoute(
-          path: AppRoutes.clinicOwnerHome,
-          builder: (context, state) => const ClinicOwnerHomeScreen(),
-        ),
         
-        // Note: CLINIC_MANAGER and ADMIN routes are intentionally not included
+        // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included
         // as they are blocked by redirect logic above (web only)
         
         // Legacy home route - redirect to role-specific
@@ -136,3 +155,4 @@ class AppRouterConfig {
     );
   }
 }
+

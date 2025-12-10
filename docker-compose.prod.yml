@@ -24,7 +24,7 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      # Supabase PostgreSQL
+      # Neon PostgreSQL
       DB_HOST: ${DB_HOST:-ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
@@ -69,8 +69,8 @@ services:
     environment:
       ENVIRONMENT: production
       APP_DEBUG: "false"
-      # Supabase PostgreSQL
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:petties-prod@db.euetrjfuupxdbkbxddep.supabase.co:5432/postgres?sslmode=require}
+      # Neon PostgreSQL
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:petties-prod@ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech:5432/postgres?sslmode=require}
       # Qdrant Cloud
       QDRANT_URL: ${QDRANT_URL:-https://df017fa3-1522-4456-b1a8-7a799bdfd1dc.eu-central-1-0.aws.cloud.qdrant.io}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
