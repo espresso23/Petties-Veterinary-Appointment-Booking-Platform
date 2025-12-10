@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { login } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
+import { HomeIcon, CpuChipIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
 // Helper to get role-based dashboard path
@@ -82,10 +83,10 @@ export function LoginPage() {
           {/* Back to Home Link */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-stone-900 font-bold hover:text-amber-700 mb-8 transition-colors cursor-pointer"
+            className="group inline-flex items-center gap-2 text-stone-900 font-bold hover:text-amber-700 mb-8 transition-colors cursor-pointer"
           >
             <svg
-              className="w-5 h-5"
+              className="w-5 h-5 text-stone-900 group-hover:text-amber-700 transition-colors"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -98,7 +99,7 @@ export function LoginPage() {
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            <span className="text-sm font-medium">Về trang chủ</span>
+            <span className="text-sm font-bold text-stone-900">Về trang chủ</span>
           </Link>
 
           {/* Login Card */}
@@ -243,14 +244,17 @@ export function LoginPage() {
 
           {/* Feature Pills */}
           <div className="flex flex-wrap gap-3 justify-center">
-            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-              <span className="text-sm font-bold text-stone-900">🏠 Đặt lịch tại nhà</span>
+            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2 transition-all duration-200 hover:translate-x-[-3px] hover:translate-y-[-3px] hover:shadow-[7px_7px_0_#1c1917] cursor-default">
+              <HomeIcon className="w-5 h-5 text-stone-900" />
+              <span className="text-sm font-bold text-stone-900">Đặt lịch tại nhà</span>
             </div>
-            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-              <span className="text-sm font-bold text-stone-900">🤖 AI Tư vấn 24/7</span>
+            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2 transition-all duration-200 hover:translate-x-[-3px] hover:translate-y-[-3px] hover:shadow-[7px_7px_0_#1c1917] cursor-default">
+              <CpuChipIcon className="w-5 h-5 text-stone-900" />
+              <span className="text-sm font-bold text-stone-900">AI Tư vấn 24/7</span>
             </div>
-            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-              <span className="text-sm font-bold text-stone-900">📋 Hồ sơ điện tử</span>
+            <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2 transition-all duration-200 hover:translate-x-[-3px] hover:translate-y-[-3px] hover:shadow-[7px_7px_0_#1c1917] cursor-default">
+              <ClipboardDocumentListIcon className="w-5 h-5 text-stone-900" />
+              <span className="text-sm font-bold text-stone-900">Hồ sơ điện tử</span>
             </div>
           </div>
         </div>
@@ -283,4 +287,3 @@ export function LoginPage() {
     </div>
   )
 }
-

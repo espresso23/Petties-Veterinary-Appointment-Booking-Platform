@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { register } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
+import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
 // Helper to get role-based dashboard path
@@ -113,10 +114,10 @@ export function RegisterPage() {
                     {/* Back to Home Link */}
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 text-stone-900 font-bold hover:text-amber-700 mb-8 transition-colors cursor-pointer"
+                        className="group inline-flex items-center gap-2 text-stone-900 font-bold hover:text-amber-700 mb-8 transition-colors cursor-pointer"
                     >
                         <svg
-                            className="w-5 h-5"
+                            className="w-5 h-5 text-stone-900 group-hover:text-amber-700 transition-colors"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -129,7 +130,7 @@ export function RegisterPage() {
                                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
                             />
                         </svg>
-                        <span className="text-sm font-medium">Về trang chủ</span>
+                        <span className="text-sm font-bold text-stone-900">Về trang chủ</span>
                     </Link>
 
                     {/* Register Card */}
@@ -184,15 +185,15 @@ export function RegisterPage() {
                                     value={role}
                                     onChange={(e) => setRole(e.target.value as RegisterRole)}
                                     disabled={isLoading}
-                                    className="input-brutal text-sm cursor-pointer"
+                                    className="input-brutal text-xs cursor-pointer"
                                 >
-                                    <option value="PET_OWNER">🐾 Chủ thú cưng (Pet Owner)</option>
-                                    <option value="CLINIC_OWNER">🏥 Chủ phòng khám (Clinic Owner)</option>
+                                    <option value="PET_OWNER">Chủ thú cưng (Pet Owner)</option>
+                                    <option value="CLINIC_OWNER">Chủ phòng khám (Clinic Owner)</option>
                                 </select>
-                                <p className="text-xs text-stone-500 mt-1">
+                                <p className="text-sm text-stone-500 mt-1">
                                     {role === 'PET_OWNER'
-                                        ? '📱 Sử dụng ứng dụng mobile để đặt lịch khám'
-                                        : '💻 Quản lý phòng khám thú y trên web'
+                                        ? 'Sử dụng ứng dụng mobile để đặt lịch khám'
+                                        : 'Quản lý phòng khám thú y trên web'
                                     }
                                 </p>
                             </div>
@@ -358,20 +359,23 @@ export function RegisterPage() {
                             THÚ CƯNG
                         </h2>
                         <p className="text-lg text-stone-700 leading-relaxed">
-                            Đăng ký ngay để kết nối với bác sĩ thú y chuyên nghiệp
+                            Đăng ký ngay để kết nối với các phòng khám thú y chuyên nghiệp
                         </p>
                     </div>
 
                     {/* Feature Pills */}
                     <div className="flex flex-wrap gap-3 justify-center">
-                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-                            <span className="text-sm font-bold text-stone-900">✨ Miễn phí đăng ký</span>
+                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2">
+                            <SparklesIcon className="w-5 h-5 text-stone-900" />
+                            <span className="text-sm font-bold text-stone-900">Miễn phí đăng ký</span>
                         </div>
-                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-                            <span className="text-sm font-bold text-stone-900">🔒 Bảo mật thông tin</span>
+                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2">
+                            <ShieldCheckIcon className="w-5 h-5 text-stone-900" />
+                            <span className="text-sm font-bold text-stone-900">Bảo mật thông tin</span>
                         </div>
-                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm">
-                            <span className="text-sm font-bold text-stone-900">🚀 Sử dụng ngay</span>
+                        <div className="border-brutal bg-white px-4 py-2 shadow-brutal-sm flex items-center gap-2">
+                            <RocketLaunchIcon className="w-5 h-5 text-stone-900" />
+                            <span className="text-sm font-bold text-stone-900">Sử dụng ngay</span>
                         </div>
                     </div>
                 </div>

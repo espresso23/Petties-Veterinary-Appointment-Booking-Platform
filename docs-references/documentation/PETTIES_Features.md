@@ -74,7 +74,7 @@
 6. Cấu hình giá dịch vụ(giá cơ bản + giá theo số km)
 7. Xem Dashboard Phòng Khám
 8. Theo dõi doanh thu
-9. Quản lý lịch biểu tổng
+
 
 ---
 

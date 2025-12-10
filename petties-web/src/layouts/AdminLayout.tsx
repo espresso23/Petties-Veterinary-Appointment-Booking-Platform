@@ -81,13 +81,13 @@ export const AdminLayout = () => {
                   to={link.path}
                   end={link.end}
                   className={({ isActive }) =>
-                    `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-colors ${isActive
-                      ? 'bg-amber-100 text-stone-900 border-amber-600'
-                      : 'text-stone-700 border-transparent hover:bg-stone-100 hover:border-stone-400'
+                    `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${isActive
+                      ? 'bg-amber-500 !text-white border-stone-900'
+                      : '!text-stone-900 border-transparent hover:bg-amber-200 hover:border-stone-900 hover:translate-x-[-2px]'
                     }`
                   }
                 >
-                  {link.label}
+                  {String(link.label)}
                 </NavLink>
               ))}
             </div>
@@ -101,7 +101,7 @@ export const AdminLayout = () => {
           </p>
           <button
             onClick={handleLogout}
-            className="w-full py-2 px-4 bg-stone-900 text-white text-sm font-bold uppercase tracking-wide border-4 border-stone-900 hover:bg-stone-700 transition-colors"
+            className="w-full py-2 px-4 bg-stone-900 text-white text-sm font-bold uppercase tracking-wide border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] hover:bg-stone-700 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#1c1917] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_#1c1917] transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-offset-2"
           >
             ĐĂNG XUẤT
           </button>

@@ -37,16 +37,16 @@ export const HowItWorksSection = () => {
               )}
 
               {/* Step Card */}
-              <div className="relative z-10 text-center flex flex-col items-center">
+              <div className="relative z-10 text-center flex flex-col items-center group cursor-pointer">
                 {/* Number Circle */}
-                <div className="inline-flex items-center justify-center w-28 h-28 sm:w-32 sm:h-32 border-4 border-amber-500 bg-stone-900 mb-6 sm:mb-8">
+                <div className="inline-flex items-center justify-center w-28 h-28 sm:w-32 sm:h-32 border-4 border-amber-500 bg-stone-900 mb-6 sm:mb-8 transition-transform group-hover:scale-110 duration-300 shadow-[4px_4px_0_#d97706]">
                   <span className="text-3xl sm:text-4xl font-bold text-amber-500">
                     {step.number}
                   </span>
                 </div>
 
                 {/* Content */}
-                <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-5 w-full">
+                <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-5 w-full uppercase">
                   {step.title}
                 </h3>
                 <p className="text-stone-400 text-base sm:text-lg w-full leading-relaxed">

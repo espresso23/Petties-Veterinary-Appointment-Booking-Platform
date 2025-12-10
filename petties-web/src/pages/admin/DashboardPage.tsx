@@ -82,13 +82,13 @@ export const AdminDashboardPage = () => {
             {/* Service Health */}
             <DashboardSection title="SERVICE HEALTH">
                 <div className="flex flex-wrap gap-4">
-                    <div className={`border-4 border-stone-900 p-4 shadow-brutal ${getStatusStyle(aiHealth.status)}`}>
+                    <div className={`border-4 border-stone-900 p-4 shadow-brutal transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] cursor-default ${getStatusStyle(aiHealth.status)}`}>
                         <p className="text-xs font-bold uppercase tracking-wide mb-1">AI SERVICE</p>
                         <p className="text-lg font-bold">{getStatusText(aiHealth.status)}</p>
                         <p className="text-sm">{aiHealth.message}</p>
                         {aiHealth.version && <p className="text-xs opacity-70">v{aiHealth.version}</p>}
                     </div>
-                    <div className={`border-4 border-stone-900 p-4 shadow-brutal ${getStatusStyle(springHealth.status)}`}>
+                    <div className={`border-4 border-stone-900 p-4 shadow-brutal transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] cursor-default ${getStatusStyle(springHealth.status)}`}>
                         <p className="text-xs font-bold uppercase tracking-wide mb-1">BACKEND API</p>
                         <p className="text-lg font-bold">{getStatusText(springHealth.status)}</p>
                         <p className="text-sm">{springHealth.message}</p>
@@ -156,7 +156,7 @@ export const AdminDashboardPage = () => {
 
             {/* Pending Actions */}
             <DashboardSection title="PENDING ACTIONS">
-                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6">
+                <div className="bg-white border-4 border-stone-900 shadow-brutal p-6 transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] cursor-default">
                     <p className="text-stone-600 text-center">Khong co hanh dong cho xu ly</p>
                 </div>
             </DashboardSection>

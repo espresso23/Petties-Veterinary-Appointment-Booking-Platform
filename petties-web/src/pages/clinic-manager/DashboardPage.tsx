@@ -75,7 +75,7 @@ export const ClinicManagerDashboardPage = () => {
 
             {/* Recent Bookings */}
             <DashboardSection title="BOOKING GẦN ĐÂY">
-                <div className="bg-white border-4 border-stone-900 shadow-brutal">
+                <div className="bg-white border-4 border-stone-900 shadow-brutal transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917]">
                     <table className="w-full">
                         <thead className="border-b-4 border-stone-900">
                             <tr className="text-left">
@@ -87,7 +87,7 @@ export const ClinicManagerDashboardPage = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
+                            <tr className="transition-colors duration-200 hover:bg-amber-50 cursor-default">
                                 <td colSpan={5} className="p-6 text-center text-stone-600">
                                     Không có booking
                                 </td>
