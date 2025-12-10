@@ -65,7 +65,7 @@
 
 ---
 
-### 🏥 **ROLE 4: CLINIC_OWNER (Chủ phòng khám) MOBILE + WEB**
+### 🏥 **ROLE 4: CLINIC_OWNER (Chủ phòng khám) WEB-ONLY**
 1. Đăng nhập
 2. Quản lý thông tin phòng khám
 3. Tạo dịch vụ

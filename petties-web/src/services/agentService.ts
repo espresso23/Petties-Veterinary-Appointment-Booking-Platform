@@ -7,9 +7,11 @@
  */
 
 import { useAuthStore } from '../store/authStore'
+import { env } from '../config/env'
 
 // Direct AI Service URL (no gateway)
-const AGENT_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000'
+// Use centralized env config for consistency
+const AGENT_SERVICE_URL = env.AGENT_SERVICE_URL
 
 // Get auth token from authStore (single source of truth)
 const getAuthHeaders = (): Record<string, string> => {
@@ -248,9 +250,27 @@ export const knowledgeApi = {
 
 // ===== WEBSOCKET =====
 
+/**
+ * Create WebSocket connection for chat
+ * Automatically converts http/https to ws/wss
+ */
 export const createChatWebSocket = (sessionId: string): WebSocket => {
-    const wsUrl = `${AGENT_SERVICE_URL.replace('http', 'ws')}/ws/chat/${sessionId}`
-    return new WebSocket(wsUrl)
+    // Convert HTTP/HTTPS to WS/WSS
+    let wsUrl = AGENT_SERVICE_URL
+    if (wsUrl.startsWith('https://')) {
+        wsUrl = wsUrl.replace('https://', 'wss://')
+    } else if (wsUrl.startsWith('http://')) {
+        wsUrl = wsUrl.replace('http://', 'ws://')
+    }
+    
+    const fullWsUrl = `${wsUrl}/ws/chat/${sessionId}`
+    
+    // Debug log in development
+    if (import.meta.env.DEV) {
+        console.log('🔌 WebSocket URL:', fullWsUrl)
+    }
+    
+    return new WebSocket(fullWsUrl)
 }
 
 export default { agentApi, toolApi, knowledgeApi, createChatWebSocket }
