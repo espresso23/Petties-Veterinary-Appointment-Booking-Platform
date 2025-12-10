@@ -41,10 +41,7 @@ class ApiInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
 
-    // ✅ Debug: Log full URL
-    final fullUrl = '${options.baseUrl}${options.path}';
-    _logger.d('REQUEST[${options.method}] => $fullUrl');  // ✅ Show full URL instead of just path
-    _logger.d('Headers: ${options.headers}');
+    // NOTE: Logging removed for production/security
     
     super.onRequest(options, handler);
   }
@@ -54,10 +51,7 @@ class ApiInterceptor extends Interceptor {
     Response response,
     ResponseInterceptorHandler handler,
   ) {
-    _logger.d(
-      'RESPONSE[${response.statusCode}] => PATH: ${response.requestOptions.path}',
-    );
-    _logger.d('Data: ${response.data}');
+    // NOTE: Logging removed for production/security
 
     super.onResponse(response, handler);
   }

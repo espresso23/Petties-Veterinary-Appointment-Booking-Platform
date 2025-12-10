@@ -1,4 +1,5 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 import '../styles/brutalist.css'
 
 interface NavItem {
@@ -17,6 +18,10 @@ interface NavGroup {
  * Text-only navigation, no icons as per design guidelines
  */
 export const AdminLayout = () => {
+  const navigate = useNavigate()
+  const clearAuth = useAuthStore((state) => state.clearAuth)
+  const user = useAuthStore((state) => state.user)
+
   const navGroups: NavGroup[] = [
     {
       title: null,
@@ -43,6 +48,11 @@ export const AdminLayout = () => {
       ]
     }
   ]
+
+  const handleLogout = () => {
+    clearAuth()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-stone-50 flex">
@@ -72,8 +82,8 @@ export const AdminLayout = () => {
                   end={link.end}
                   className={({ isActive }) =>
                     `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-colors ${isActive
-                      ? 'bg-amber-50 text-amber-700 border-amber-600'
-                      : 'text-stone-700 border-transparent hover:bg-stone-50 hover:border-stone-300'
+                      ? 'bg-amber-100 text-stone-900 border-amber-600'
+                      : 'text-stone-700 border-transparent hover:bg-stone-100 hover:border-stone-400'
                     }`
                   }
                 >
@@ -84,9 +94,18 @@ export const AdminLayout = () => {
           ))}
         </nav>
 
-        {/* Footer */}
+        {/* User & Logout */}
         <div className="px-6 py-4 border-t-4 border-stone-900">
-          <p className="text-xs text-stone-500 text-center">V0.0.1</p>
+          <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
+            {user?.username || 'Admin'}
+          </p>
+          <button
+            onClick={handleLogout}
+            className="w-full py-2 px-4 bg-stone-900 text-white text-sm font-bold uppercase tracking-wide border-4 border-stone-900 hover:bg-stone-700 transition-colors"
+          >
+            ĐĂNG XUẤT
+          </button>
+          <p className="text-xs text-stone-500 text-center mt-3">V0.0.1</p>
         </div>
       </aside>
 

@@ -82,7 +82,7 @@ export function LoginPage() {
           {/* Back to Home Link */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 mb-8 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 text-stone-900 font-bold hover:text-amber-700 mb-8 transition-colors cursor-pointer"
           >
             <svg
               className="w-5 h-5"

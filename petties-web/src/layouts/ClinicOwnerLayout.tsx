@@ -1,12 +1,23 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 import '../styles/brutalist.css'
+
+interface NavItem {
+    path: string
+    label: string
+    end?: boolean
+}
 
 /**
  * CLINIC_OWNER Layout - Neobrutalism Design
  * Text-only navigation, no icons as per design guidelines
  */
 export const ClinicOwnerLayout = () => {
-    const navItems = [
+    const navigate = useNavigate()
+    const clearAuth = useAuthStore((state) => state.clearAuth)
+    const user = useAuthStore((state) => state.user)
+
+    const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
         { path: '/clinic-owner/clinic-info', label: 'THÔNG TIN PHÒNG KHÁM' },
         { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
@@ -15,6 +26,11 @@ export const ClinicOwnerLayout = () => {
         { path: '/clinic-owner/schedule', label: 'LỊCH LÀM VIỆC' },
     ]
 
+    const handleLogout = () => {
+        clearAuth()
+        navigate('/login', { replace: true })
+    }
+
     return (
         <div className="min-h-screen bg-stone-50 flex">
             {/* Sidebar */}
@@ -22,7 +38,7 @@ export const ClinicOwnerLayout = () => {
                 {/* Logo/Header */}
                 <div className="px-6 py-6 border-b-4 border-stone-900">
                     <h2 className="text-xl font-bold text-amber-600 uppercase tracking-wider">PETTIES</h2>
-                    <p className="text-xs font-bold text-stone-600 uppercase tracking-wide mt-1">CHU PHONG KHAM</p>
+                    <p className="text-xs font-bold text-stone-600 uppercase tracking-wide mt-1">CHỦ PHÒNG KHÁM</p>
                 </div>
 
                 {/* Navigation */}
@@ -34,8 +50,8 @@ export const ClinicOwnerLayout = () => {
                             end={link.end}
                             className={({ isActive }) =>
                                 `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-colors ${isActive
-                                    ? 'bg-amber-50 text-amber-700 border-amber-600'
-                                    : 'text-stone-700 border-transparent hover:bg-stone-50 hover:border-stone-300'
+                                    ? 'bg-amber-100 text-stone-900 border-amber-600'
+                                    : 'text-stone-700 border-transparent hover:bg-stone-100 hover:border-stone-400'
                                 }`
                             }
                         >
@@ -44,9 +60,18 @@ export const ClinicOwnerLayout = () => {
                     ))}
                 </nav>
 
-                {/* Footer */}
+                {/* User & Logout */}
                 <div className="px-6 py-4 border-t-4 border-stone-900">
-                    <p className="text-xs text-stone-500 text-center">V0.0.1</p>
+                    <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
+                        {user?.username || 'User'}
+                    </p>
+                    <button
+                        onClick={handleLogout}
+                        className="w-full py-2 px-4 bg-stone-900 text-white text-sm font-bold uppercase tracking-wide border-4 border-stone-900 hover:bg-stone-700 transition-colors"
+                    >
+                        ĐĂNG XUẤT
+                    </button>
+                    <p className="text-xs text-stone-500 text-center mt-3">V0.0.1</p>
                 </div>
             </aside>
 
