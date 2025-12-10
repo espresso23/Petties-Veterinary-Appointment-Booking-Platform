@@ -8,3 +8,4 @@
 .env
 .env.production
 petties-key.pem
+devpetties.pem

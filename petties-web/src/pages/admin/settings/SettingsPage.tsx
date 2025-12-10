@@ -14,7 +14,9 @@ interface Setting {
 import { useAuthStore } from '../../../store/authStore'
 
 // Direct AI Service URL (no gateway)
-const AI_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000'
+// Use centralized env config for consistency
+import { env } from '../../../config/env'
+const AI_SERVICE_URL = env.AGENT_SERVICE_URL
 const getAuthHeaders = (): Record<string, string> => {
   const token = useAuthStore.getState().accessToken
   return token ? { 'Authorization': `Bearer ${token}` } : {}
