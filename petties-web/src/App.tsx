@@ -14,6 +14,7 @@ import { ClinicManagerLayout } from './layouts/ClinicManagerLayout'
 import { OnboardingPage } from './pages/onboarding'
 import { HomePage } from './pages/home/HomePage'
 import { LoginPage } from './pages/auth/LoginPage'
+import { RegisterPage } from './pages/auth/RegisterPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
@@ -50,6 +51,8 @@ function App() {
         {/* Auth Routes - uses Outlet */}
         <Route element={<AuthLayout />}>
           <Route path="/auth/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/login" element={<LoginPage />} />
         </Route>
 
         {/* Home (after login) - uses Outlet */}
