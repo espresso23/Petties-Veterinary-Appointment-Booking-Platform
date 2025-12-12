@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+  Inset drawable để scale icon và thêm padding
+  Đảm bảo icon không bị cắt ở các góc (Android adaptive icon safe zone)
+  Inset 15% mỗi bên = scale icon xuống 70%, giúp icon hiển thị đầy đủ
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="15%">
+    <!-- 
+      Sử dụng bitmap từ drawable folder - tạm thời copy từ mdpi
+      Sau đó có thể tạo proper density-specific versions nếu cần
+    -->
+    <bitmap android:src="@drawable/ic_launcher_foreground_temp" />
+</inset>
