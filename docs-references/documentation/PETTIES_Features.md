@@ -90,8 +90,7 @@
 9. Xem đơn tố cáo xử lý vi phạm của clinic, người dùng.
 10. 🆕 **Agent Configuration**
     - Quản lý Agent theo cấu trúc phân cấp (Main Agent + Sub-Agents)
-    - Chỉnh sửa System Prompt với version control
-    - Cấu hình Dynamic Few-Shot Routing Examples (đa ngôn ngữ)
+    - Chỉnh sửa System Prompt với version control (không ưu tiên)
     - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
     - Bật/tắt Agent (Enable/Disable)
 
@@ -183,11 +182,6 @@
 - 🏗️ **Semi-Autonomous Flow** - Medical Agent tự động gọi Research Agent khi confidence thấp
 - 🏗️ **State Management** - Main Agent quản lý toàn bộ conversation context
 
-### Routing & Configuration
-- 🎯 **Dynamic Few-Shot Routing** - Cấu hình routing pairs (User Query → Target Agent) với RAG
-- 🎯 **Cross-lingual Support** - Hỗ trợ đa ngôn ngữ (VI, EN, KO, JA) với cross-lingual embeddings
-- 🎯 **Zero Training** - Cập nhật routing có hiệu lực ngay lập tức, không cần retrain model
-- 🎯 **Prompt Versioning** - Lưu lịch sử và version của system prompts
 
 ### Monitoring & Debugging
 - 🔍 **Agent Playground** - Test agents trong môi trường an toàn
