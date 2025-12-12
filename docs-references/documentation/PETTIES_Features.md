@@ -90,14 +90,12 @@
 9. Xem đơn tố cáo xử lý vi phạm của clinic, người dùng.
 10. 🆕 **Agent Configuration**
     - Quản lý Agent theo cấu trúc phân cấp (Main Agent + Sub-Agents)
-    - Chỉnh sửa System Prompt với version control
-    - Cấu hình Dynamic Few-Shot Routing Examples (đa ngôn ngữ)
+    - Chỉnh sửa System Prompt với version control (không ưu tiên)
     - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
     - Bật/tắt Agent (Enable/Disable)
 
 11. 🆕 **Tool Registry & Governance**
     - Quét và đồng bộ Code-based Tools từ Python (@mcp.tool)
-    - Import Tools từ Swagger/OpenAPI (Spring Boot endpoints)
     - Xem Request/Response Schema cho mỗi tool
     - Gán Tools cho Agents
     - Bật/tắt Tools (Enable/Disable)
@@ -173,11 +171,9 @@
 
 ### Admin Tool Management
 - 📊 **Tool Scanner** - Tự động quét và đồng bộ Code-based tools từ Python (@mcp.tool)
-- 📊 **Swagger/OpenAPI Import** - Tự động import API tools từ Spring Boot Swagger endpoint
 - 📊 **Tool Assignment** - Gán tools cho specific agents (Main Agent hoặc Sub-Agents)
 - 📊 **Schema Viewer** - Xem Request/Response schema cho mỗi tool
 - 📊 **Tool Enable/Disable** - Bật/tắt tools cho từng agent
-- 📊 **Tool Classification** - Phân loại Code-based vs API-based tools
 
 ### Agent Architecture
 - 🏗️ **Hierarchical Agent System** - Main Agent (Supervisor) + Sub-Agents (Workers)
@@ -186,11 +182,6 @@
 - 🏗️ **Semi-Autonomous Flow** - Medical Agent tự động gọi Research Agent khi confidence thấp
 - 🏗️ **State Management** - Main Agent quản lý toàn bộ conversation context
 
-### Routing & Configuration
-- 🎯 **Dynamic Few-Shot Routing** - Cấu hình routing pairs (User Query → Target Agent) với RAG
-- 🎯 **Cross-lingual Support** - Hỗ trợ đa ngôn ngữ (VI, EN, KO, JA) với cross-lingual embeddings
-- 🎯 **Zero Training** - Cập nhật routing có hiệu lực ngay lập tức, không cần retrain model
-- 🎯 **Prompt Versioning** - Lưu lịch sử và version của system prompts
 
 ### Monitoring & Debugging
 - 🔍 **Agent Playground** - Test agents trong môi trường an toàn
@@ -261,8 +252,6 @@
 ✅ **Push/Email/SMS Notifications** (Firebase)  
 ✅ **Multi-language & Timezone** (Đa ngôn ngữ)  
 ✅ **Admin Agent Management Dashboard** (Quản lý, Tinh chỉnh & Giám sát Agents)  
-✅ **Dynamic Few-Shot Routing** (Zero Training, Cross-lingual)  
-✅ **Tool Registry & Governance** (Code-based + API-based Tools)  
 ✅ **Knowledge Base RAG** (Qdrant Cloud với Binary Quantization)  
 ✅ **Agent Playground** (Interactive Testing & Debugging)  
 ✅ **Dynamic Secrets Management** (API Keys, Ollama Config)
