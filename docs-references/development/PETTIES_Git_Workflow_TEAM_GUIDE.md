@@ -13,11 +13,9 @@ Huyền - DE180773
 Uyên - DE180893
 ```
 
-### **3 branch chính**
+### **2 branch chính**
 ```
 main (production, live) ← Auto-deploy Vercel
-  ↑
-release/v0.0.1 (staging, test)
   ↑
 develop (integration, share code)
   ↑
@@ -235,25 +233,12 @@ All features merged to develop:
 develop: A ── B ── C ── D ── E ── F ── G ── H
 ```
 
-### **Day 4: Tạo release branch**
-```bash
-# Tân (Leader) tạo
-git checkout develop
-git pull origin develop
-git checkout -b release/v0.0.1
-git push origin release/v0.0.1
 
-QA test trên release/v0.0.1:
-├─ Bug 1: double-booking → Tân fix
-├─ Bug 2: timezone → Tân fix
-└─ Re-test ✓
+### **Day 4: Merge to main (Production!)**
 ```
+Tân tạo PR: develop → main
 
-### **Day 5: Merge to main (Production!)**
-```
-Tân tạo PR: release/v0.0.1 → main
-
-Title: "chore: release v0.0.1 to production"
+Title: "chore: develop to production"
 
 Team reviews + approves (2 people)
 
@@ -262,8 +247,7 @@ Click [Merge pull request]
 ✓ Auto-deploy to Vercel
 ✓ LIVE! 🎉
 
-git tag -a v0.0.1 -m "Release v0.0.1"
-git push origin v0.0.1
+git push origin main
 ```
 
 ---
