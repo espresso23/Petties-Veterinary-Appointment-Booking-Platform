@@ -5,22 +5,19 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 ---
 
 ## 1. High-Level Business Process Overview
-
-
----
+<img width="8442" height="1637" alt="High-Level Business Process Overview" src="https://github.com/user-attachments/assets/9ed55792-1e88-4fa8-b618-fef9b1081ff4" />
 
 ## 2. Core Business Processes
 
 ### 2.1 Process Map (Level 0)
 
-
-
----
+<img width="2176" height="3605" alt="Core Business Processes" src="https://github.com/user-attachments/assets/80b0bf73-91d0-44fb-809d-f8df6701b0d1" />
 
 ## 3. BP-001: Clinic Onboarding Process
 
 ### 3.1 BPMN Diagram
 
+<img width="12864" height="1272" alt="Clinic Onboarding Process" src="https://github.com/user-attachments/assets/a4c9ba49-632d-4e1a-a817-3f4ce2ab227b" />
 
 ### 3.2 Process Description
 
@@ -47,6 +44,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 4.1 BPMN Diagram
 
+<img width="2785" height="10900" alt="Booking Management Process" src="https://github.com/user-attachments/assets/1b4b202a-1bd6-47cc-baa0-87aaf6bfe571" />
 
 
 ### 4.2 Booking Status State Machine
@@ -64,7 +62,8 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 | COMPLETED | Vet completes EMR | Enable rating workflow | RATING |
 | RATING | Pet Owner submits rating | Store rating & comment, update vet rating average | End |
 
----
+<img width="3686" height="5375" alt="Booking Status State Machine" src="https://github.com/user-attachments/assets/a9659b5f-c9cd-42eb-ac00-3533c84b4545" />
+
 
 ## 5. BP-003: Medical Service Process
 
@@ -72,6 +71,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 5.1 BPMN Diagram
 
+<img width="24811" height="1637" alt="Medical Service Process" src="https://github.com/user-attachments/assets/297baa0c-36e2-4767-a467-6972a40e66f9" />
 
 
 ### 5.2 Process Description Table
@@ -101,7 +101,8 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 | **Online** | Thanh toán ngay, status = PAID | Chỉ generate receipt |
 | **Cash** | Chưa thanh toán, status = UNPAID | Collect cash → generate receipt |
 
----
+<img width="16484" height="3087" alt="Payment Processing" src="https://github.com/user-attachments/assets/500e63a9-aea3-4a5d-8a11-54e303a952a2" />
+
 
 ## 6. BP-004: Payment Processing
 
@@ -113,6 +114,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 6.2 Revenue Split Model
 
+<img width="1980" height="2255" alt="Revenue Split Model" src="https://github.com/user-attachments/assets/4e657ddd-fc6e-4d4d-ba1f-53bd904aeaed" />
 
 
 ### 6.3 Revenue Split Table
@@ -135,10 +137,12 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 7.1 BPMN Diagram - Vet Review (Immediate)
 
+<img width="13755" height="1615" alt="Vet Review" src="https://github.com/user-attachments/assets/048cd143-de68-4dce-9504-11c99eeb4fcc" />
 
 
 ### 7.2 BPMN Diagram - Clinic Review (Later)
 
+<img width="16292" height="1682" alt="Clinic Review" src="https://github.com/user-attachments/assets/0d45e44e-8ab7-49da-8671-2849c24750ce" />
 
 
 ### 7.3 Review Types Comparison
@@ -154,6 +158,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 7.4 Review Flow Summary
 
+<img width="5212" height="1017" alt="Review Flow Summary" src="https://github.com/user-attachments/assets/d51d0d4c-f097-4fbc-8f67-eee8abd6a840" />
 
 
 ---
@@ -163,6 +168,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 ### 8.1 BPMN Diagram
 
 
+<img width="22031" height="3108" alt="AI Assistance Process" src="https://github.com/user-attachments/assets/23605bab-49be-4b56-ba51-3aaab59441fe" />
 
 ### 8.2 Agent Routing Decision Table
 
@@ -179,6 +185,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 9.1 BPMN Diagram
 
+<img width="11532" height="2348" alt="SOS Emergency Process" src="https://github.com/user-attachments/assets/59ba5765-ac04-42bf-9bd3-fea4a83a472f" />
 
 
 ---
@@ -187,6 +194,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 10.1 Happy Path Journey Map
 
+<img width="12613" height="890" alt="End-to-End Customer Journey" src="https://github.com/user-attachments/assets/f6077889-5e97-4487-9c9b-c04c34552518" />
 
 ---
 
@@ -195,6 +203,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 ### 11.1 System Integration Diagram
 
 
+<img width="3803" height="3340" alt="Data Flow Overview" src="https://github.com/user-attachments/assets/7a9788e1-2378-4e12-9034-64459fdb5775" />
 
 ---
 
@@ -245,6 +254,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 13.2 Process Health Metrics
 
+<img width="918" height="4310" alt="Process Health Metrics" src="https://github.com/user-attachments/assets/55b73aa1-9c33-4bd5-8654-316674d784a6" />
 
 
 **Targets:**
@@ -259,12 +269,14 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ### 14.1 Booking Cancellation Sub-Process
 
+<img width="2177" height="4575" alt="Booking Cancellation Sub-Process" src="https://github.com/user-attachments/assets/31224262-e549-4322-a32f-0a4d36d6d585" />
 
 
 > **Note:** Refund policy là clinic tự setup theo contract/cấu hình riêng.
 
 ### 14.2 Payment Failure Handling
 
+<img width="1924" height="4104" alt="Payment Failure Handling" src="https://github.com/user-attachments/assets/82bcccf8-6da1-4d18-b3a9-a312efacf8b2" />
 
 
 ---
