@@ -140,6 +140,35 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Verify OTP and complete registration
+  Future<bool> verifyOtpAndRegister({
+    required String email,
+    required String otpCode,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      _authResponse = await _authService.verifyOtpAndRegister(
+        email: email,
+        otpCode: otpCode,
+      );
+
+      // Get user info to complete auth state
+      _user = await _authService.getCurrentUser();
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Sign in with Google
   Future<bool> signInWithGoogle() async {
     _isLoading = true;

@@ -14,7 +14,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class AuthResponse {
-    
+
     private String accessToken;
     private String refreshToken;
     @Builder.Default
@@ -22,6 +22,6 @@ public class AuthResponse {
     private UUID userId;
     private String username;
     private String email;
+    private String fullName;
     private String role;
 }
-

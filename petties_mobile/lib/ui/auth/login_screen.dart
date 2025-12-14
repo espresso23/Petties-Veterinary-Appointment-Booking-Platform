@@ -168,85 +168,93 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.stone50,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Back to Onboarding
-              GestureDetector(
-                onTap: () => context.go(AppRoutes.onboarding),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.stone900, width: 2),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.arrow_back, size: 18, color: AppColors.stone700),
-                      const SizedBox(width: 8),
-                      Text(
-                        'QUAY LẠI',
-                        style: TextStyle(
-                          color: AppColors.stone700,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Logo & Title
-              Center(
+        child: Column(
+          children: [
+            // Scrollable content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBackground,
-                        border: Border.all(color: AppColors.stone900, width: 4),
-                        boxShadow: const [
-                          BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
+                    // Top section with back button
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () => context.go(AppRoutes.onboarding),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.stone900, width: 2),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.arrow_back, size: 18, color: AppColors.stone700),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Quay lại',
+                                  style: TextStyle(
+                                    color: AppColors.stone700,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Logo & Title
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryBackground,
+                              border: Border.all(color: AppColors.stone900, width: 4),
+                              boxShadow: const [
+                                BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
+                              ],
+                            ),
+                            child: const Icon(Icons.pets, size: 48, color: AppColors.primary),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Petties',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.primary,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Chào mừng trở lại',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.stone900,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Đăng nhập để truy cập vào Petties',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.stone600,
+                            ),
+                          ),
                         ],
                       ),
-                      child: const Icon(Icons.pets, size: 48, color: AppColors.primary),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'PETTIES',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primary,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'CHÀO MỪNG TRỞ LẠI',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.stone900,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Đăng nhập để truy cập vào Petties',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.stone600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
 
               // Login Form Card
               Container(
@@ -265,12 +273,11 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                       // Username Field
                       const Text(
-                        'TÊN ĐĂNG NHẬP',
+                        'Tên đăng nhập',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.stone900,
-                          letterSpacing: 1,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -289,12 +296,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Password Field
                       const Text(
-                        'MẬT KHẨU',
+                        'Mật khẩu',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.stone900,
-                          letterSpacing: 1,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -327,7 +333,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           return _BrutalButton(
                             onPressed: authProvider.isLoading ? null : _handleLogin,
                             isLoading: authProvider.isLoading,
-                            label: 'ĐĂNG NHẬP',
+                            label: 'Đăng nhập',
                           );
                         },
                       ),
@@ -345,11 +351,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                               child: Text(
-                              'HOẶC',
+                              'hoặc',
                               style: TextStyle(
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 color: AppColors.stone500,
-                                letterSpacing: 1,
                               ),
                             ),
                           ),
@@ -376,33 +381,47 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Register Link
-              Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Chưa có tài khoản? ',
-                      style: TextStyle(color: AppColors.stone600),
-                    ),
-                    GestureDetector(
-                      onTap: () => context.go(AppRoutes.register),
-                      child: const Text(
-                        'ĐĂNG KÝ NGAY',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w800,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // Fixed bottom section with register link
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+              decoration: BoxDecoration(
+                color: AppColors.stone50,
+                border: Border(
+                  top: BorderSide(color: AppColors.stone200, width: 1),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Chưa có tài khoản? ',
+                    style: TextStyle(
+                      color: AppColors.stone600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => context.go(AppRoutes.register),
+                    child: const Text(
+                      'Đăng ký ngay',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -598,12 +617,11 @@ class _GoogleSignInButtonState extends State<_GoogleSignInButton> {
             ),
             const SizedBox(width: 12),
             Text(
-              'ĐĂNG NHẬP VỚI GOOGLE',
+              'Đăng nhập với Google',
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: isDisabled ? AppColors.stone500 : AppColors.stone900,
-                letterSpacing: 1,
             ),
           ),
         ],

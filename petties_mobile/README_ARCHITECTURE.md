@@ -1,6 +1,6 @@
-# Petties Mobile - Clean Architecture
+# Petties Mobile - Architecture
 
-Ứng dụng đặt lịch hẹn thú y được xây dựng với Flutter theo kiến trúc Clean Architecture.
+Ứng dụng đặt lịch hẹn thú y được xây dựng với Flutter.
 
 ## Cấu trúc dự án
 
@@ -8,106 +8,70 @@
 lib/
 ├── config/
 │   ├── constants/        # Hằng số ứng dụng (colors, strings, constants)
-│   ├── routes/           # Cấu hình routing (GoRouter)
+│   ├── env/              # Environment configuration
 │   └── theme/            # Theme configuration
 │
 ├── core/
-│   ├── error/            # Exception và Failure handling
-│   ├── network/          # API client, interceptors
-│   └── utils/            # Utilities (validators, storage, datetime utils)
+│   ├── error/            # Exception handling
+│   ├── network/          # Network utilities
+│   └── utils/            # Core utilities
 │
 ├── data/
-│   ├── models/           # API response models
+│   ├── models/           # API response/request models
 │   ├── datasources/      # Remote & local data sources
-│   │   ├── remote/       # API calls
-│   │   └── local/        # Local storage
+│   ├── services/         # API services (auth, api_client, etc.)
 │   └── repositories/     # Repository implementations
 │
-├── domain/
-│   ├── entities/         # Business entities
-│   ├── repositories/     # Abstract repositories
-│   └── usecases/         # Business logic
+├── providers/            # State management (Provider/ChangeNotifier)
 │
-├── presentation/
-│   ├── screens/          # App screens
-│   │   ├── auth/         # Authentication screens
-│   │   ├── home/         # Home screen
-│   │   └── ...           # Other screens
-│   └── widgets/          # Reusable widgets
+├── routing/              # GoRouter configuration
+│   ├── app_routes.dart   # Route constants
+│   └── router_config.dart # Router setup
+│
+├── ui/                   # User Interface
+│   ├── auth/             # Authentication screens
+│   ├── core/             # Shared UI components
+│   ├── home/             # Home screens
+│   ├── onboarding/       # Onboarding flow
+│   ├── pet_owner/        # Pet owner screens
+│   └── vet/              # Veterinarian screens
+│
+├── utils/                # Utility classes
+│   ├── storage_service.dart
+│   └── validators.dart
 │
 └── main.dart             # App entry point
 ```
 
-## Tính năng chính
+## Các layer
 
-- ✅ Clean Architecture với tách biệt các layer rõ ràng
-- ✅ Dependency Injection sẵn sàng
-- ✅ Error handling với Either (dartz)
-- ✅ API client với Dio và interceptors
-- ✅ Local storage với SharedPreferences
-- ✅ Routing với GoRouter
-- ✅ Theme configuration
-- ✅ Reusable widgets
-- ✅ Form validation
+### 1. UI Layer (`ui/`)
+- **Screens**: App screens với Neobrutalism design
+- **Core widgets**: Reusable UI components
+- Sử dụng Provider để truy cập state
 
-## Bắt đầu
+### 2. Provider Layer (`providers/`)
+- **AuthProvider**: Quản lý authentication state
+- Business logic kết nối UI và Data layer
 
-### Cài đặt dependencies
-
-```bash
-flutter pub get
-```
-
-### Chạy ứng dụng
-
-```bash
-flutter run
-```
-
-## Các layer trong Clean Architecture
-
-### 1. Presentation Layer
-- **Screens**: UI screens của ứng dụng
-- **Widgets**: Reusable UI components
-- Không chứa business logic
-
-### 2. Domain Layer
-- **Entities**: Business objects thuần túy
-- **Repositories**: Abstract interfaces
-- **UseCases**: Business logic của ứng dụng
-- Không phụ thuộc vào framework hay thư viện bên ngoài
-
-### 3. Data Layer
+### 3. Data Layer (`data/`)
 - **Models**: Data models với JSON serialization
-- **DataSources**: Remote (API) và Local (cache) data sources
-- **Repositories**: Implementation của domain repositories
-- Chuyển đổi giữa models và entities
+- **Services**: API calls (AuthService, ApiClient)
+- **Repositories**: Data access abstraction
 
-### 4. Core Layer
-- **Error**: Exception và failure handling
-- **Network**: API client và interceptors
-- **Utils**: Utilities và helper functions
+### 4. Core Layer (`core/`)
+- **Error**: Exception handling
+- **Utils**: Storage, validators, helpers
 
-### 5. Config Layer
+### 5. Config Layer (`config/`)
 - **Constants**: App constants, colors, strings
-- **Routes**: Routing configuration
-- **Theme**: Theme configuration
+- **Env**: Environment-specific configuration
+- **Theme**: Material theme configuration
 
-## Packages đã sử dụng
+## Packages chính
 
 - `dio` - HTTP client
 - `go_router` - Routing
 - `provider` - State management
-- `dartz` - Functional programming (Either)
 - `shared_preferences` - Local storage
-- `firebase_core` & `firebase_messaging` - Firebase
-- `logger` - Logging
-- `intl` - Internationalization
-
-## Tiếp theo
-
-1. Implement các use cases cụ thể
-2. Tạo providers cho state management
-3. Kết nối với API backend
-4. Implement Firebase authentication
-5. Thêm các screens và features khác
+- `firebase_core` & `google_sign_in` - Authentication

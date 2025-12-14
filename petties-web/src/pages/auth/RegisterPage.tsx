@@ -1,9 +1,11 @@
-import { useState, useEffect, type FormEvent } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { register } from '../../services/endpoints/auth'
+import { sendRegistrationOtp, verifyOtpAndRegister, resendOtp } from '../../services/endpoints/auth'
+import type { SendOtpRequest } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
-import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
+import { OtpInput } from '../../components/OtpInput'
+import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon, EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
 // Helper to get role-based dashboard path
@@ -18,21 +20,35 @@ function getRoleDashboard(role: string): string {
 }
 
 type RegisterRole = 'PET_OWNER' | 'CLINIC_OWNER'
+type RegisterStep = 'form' | 'otp'
 
 export function RegisterPage() {
+    // Form fields
     const [username, setUsername] = useState('')
     const [email, setEmail] = useState('')
+    const [fullName, setFullName] = useState('')
     const [password, setPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [phone, setPhone] = useState('')
     const [role, setRole] = useState<RegisterRole>('PET_OWNER')
+
+    // OTP state
+    const [step, setStep] = useState<RegisterStep>('form')
+    const [otpCode, setOtpCode] = useState('')
+    const [resendCountdown, setResendCountdown] = useState(0)
+
+    // UI state
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(false)
     const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
     const navigate = useNavigate()
     const { showToast } = useToast()
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
     const user = useAuthStore((state) => state.user)
+
+    // Countdown timer ref
+    const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
     // Redirect nếu đã đăng nhập
     useEffect(() => {
@@ -42,7 +58,33 @@ export function RegisterPage() {
         }
     }, [isAuthenticated, user, navigate])
 
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    // Cleanup countdown timer
+    useEffect(() => {
+        return () => {
+            if (countdownRef.current) {
+                clearInterval(countdownRef.current)
+            }
+        }
+    }, [])
+
+    // Start resend cooldown timer
+    const startResendCountdown = (seconds: number) => {
+        setResendCountdown(seconds)
+        if (countdownRef.current) clearInterval(countdownRef.current)
+
+        countdownRef.current = setInterval(() => {
+            setResendCountdown((prev) => {
+                if (prev <= 1) {
+                    if (countdownRef.current) clearInterval(countdownRef.current)
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+    }
+
+    // Step 1: Submit form → Send OTP
+    const handleSubmitForm = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         setError(null)
 
@@ -61,49 +103,106 @@ export function RegisterPage() {
         setIsLoading(true)
 
         try {
-            await register({
+            const payload: SendOtpRequest = {
                 username,
                 email,
                 password,
                 phone: phone || undefined,
+                fullName,
                 role,
-            })
-
-            // Get user from store after register
-            const registeredUser = useAuthStore.getState().user
-            if (registeredUser) {
-                // PET_OWNER chỉ có thể sử dụng mobile app
-                if (registeredUser.role === 'PET_OWNER') {
-                    const msg = '🎉 Đăng ký thành công! Vui lòng tải ứng dụng Petties trên điện thoại để sử dụng.'
-                    setSuccessMessage(msg)
-                    showToast('success', msg)
-                    useAuthStore.getState().clearAuth()
-                    return
-                }
-
-                // CLINIC_OWNER - redirect to clinic-owner dashboard
-                if (registeredUser.role === 'CLINIC_OWNER') {
-                    showToast('success', '🎉 Đăng ký thành công! Chào mừng bạn đến với Petties.')
-                    navigate('/clinic-owner', { replace: true })
-                    return
-                }
-
-                // Redirect to role-based dashboard
-                const dashboardPath = getRoleDashboard(registeredUser.role)
-                navigate(dashboardPath, { replace: true })
-            } else {
-                // Fallback if user not set
-                navigate('/home', { replace: true })
             }
+
+            const response = await sendRegistrationOtp(payload)
+
+            showToast('success', response.message)
+            startResendCountdown(response.resendCooldownSeconds)
+            setStep('otp')
         } catch (err: any) {
             setError(
                 err.response?.data?.message ||
                 err.message ||
-                'Đăng ký thất bại. Vui lòng thử lại.',
+                'Không thể gửi mã OTP. Vui lòng thử lại.',
             )
         } finally {
             setIsLoading(false)
         }
+    }
+
+    // Step 2: Verify OTP → Complete registration
+    const handleVerifyOtp = async () => {
+        if (otpCode.length !== 6) {
+            setError('Vui lòng nhập đủ 6 chữ số mã OTP.')
+            return
+        }
+
+        setError(null)
+        setIsLoading(true)
+
+        try {
+            const response = await verifyOtpAndRegister({ email, otpCode })
+
+            // PET_OWNER chỉ có thể sử dụng mobile app
+            if (response.role === 'PET_OWNER') {
+                const msg = 'Đăng ký thành công! Vui lòng tải ứng dụng Petties trên điện thoại để sử dụng.'
+                setSuccessMessage(msg)
+                showToast('success', msg)
+                useAuthStore.getState().clearAuth()
+                return
+            }
+
+            // CLINIC_OWNER - redirect to clinic-owner dashboard
+            if (response.role === 'CLINIC_OWNER') {
+                showToast('success', 'Đăng ký thành công! Chào mừng bạn đến với Petties.')
+                navigate('/clinic-owner', { replace: true })
+                return
+            }
+
+            // Redirect to role-based dashboard
+            const dashboardPath = getRoleDashboard(response.role)
+            navigate(dashboardPath, { replace: true })
+        } catch (err: any) {
+            setError(
+                err.response?.data?.message ||
+                err.message ||
+                'Mã OTP không đúng. Vui lòng thử lại.',
+            )
+            // Reset OTP input on error
+            setOtpCode('')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    // Resend OTP
+    const handleResendOtp = async () => {
+        if (resendCountdown > 0) return
+
+        setError(null)
+        setIsLoading(true)
+
+        try {
+            const response = await resendOtp(email)
+            showToast('success', response.message)
+            startResendCountdown(response.resendCooldownSeconds)
+            setOtpCode('')
+        } catch (err: any) {
+            setError(
+                err.response?.data?.message ||
+                err.message ||
+                'Không thể gửi lại mã OTP. Vui lòng thử lại.',
+            )
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    // Go back to form step
+    const handleBackToForm = () => {
+        setStep('form')
+        setOtpCode('')
+        setError(null)
+        if (countdownRef.current) clearInterval(countdownRef.current)
+        setResendCountdown(0)
     }
 
     return (
@@ -143,10 +242,13 @@ export function RegisterPage() {
                                 </span>
                             </div>
                             <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 mb-3 uppercase tracking-tight">
-                                ĐĂNG KÝ TÀI KHOẢN
+                                {step === 'form' ? 'ĐĂNG KÝ TÀI KHOẢN' : 'XÁC THỰC EMAIL'}
                             </h1>
                             <p className="text-sm sm:text-base text-stone-600">
-                                Tạo tài khoản để bắt đầu sử dụng Petties
+                                {step === 'form'
+                                    ? 'Tạo tài khoản để bắt đầu sử dụng Petties'
+                                    : `Nhập mã OTP đã được gửi đến ${email}`
+                                }
                             </p>
                         </div>
 
@@ -170,143 +272,229 @@ export function RegisterPage() {
                             </div>
                         )}
 
-                        {/* Register Form */}
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {/* Role Selection */}
-                            <div>
-                                <label
-                                    htmlFor="role"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Loại tài khoản *
-                                </label>
-                                <select
-                                    id="role"
-                                    value={role}
-                                    onChange={(e) => setRole(e.target.value as RegisterRole)}
-                                    disabled={isLoading}
-                                    className="input-brutal text-xs cursor-pointer"
-                                >
-                                    <option value="PET_OWNER">Chủ thú cưng (Pet Owner)</option>
-                                    <option value="CLINIC_OWNER">Chủ phòng khám (Clinic Owner)</option>
-                                </select>
-                                <p className="text-sm text-stone-500 mt-1">
-                                    {role === 'PET_OWNER'
-                                        ? 'Sử dụng ứng dụng mobile để đặt lịch khám'
-                                        : 'Quản lý phòng khám thú y trên web'
-                                    }
-                                </p>
-                            </div>
+                        {/* Step 1: Registration Form */}
+                        {step === 'form' && (
+                            <form onSubmit={handleSubmitForm} className="space-y-4">
+                                {/* Role Selection */}
+                                <div>
+                                    <label
+                                        htmlFor="role"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Loại tài khoản *
+                                    </label>
+                                    <select
+                                        id="role"
+                                        value={role}
+                                        onChange={(e) => setRole(e.target.value as RegisterRole)}
+                                        disabled={isLoading}
+                                        className="input-brutal text-xs cursor-pointer"
+                                    >
+                                        <option value="PET_OWNER">Chủ thú cưng (Pet Owner)</option>
+                                        <option value="CLINIC_OWNER">Chủ phòng khám (Clinic Owner)</option>
+                                    </select>
+                                    <p className="text-sm text-stone-500 mt-1">
+                                        {role === 'PET_OWNER'
+                                            ? 'Sử dụng ứng dụng mobile để đặt lịch khám'
+                                            : 'Quản lý phòng khám thú y trên web'
+                                        }
+                                    </p>
+                                </div>
 
-                            {/* Username Field */}
-                            <div>
-                                <label
-                                    htmlFor="username"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Tên đăng nhập *
-                                </label>
-                                <input
-                                    id="username"
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="Nhập tên đăng nhập"
-                                    required
-                                    disabled={isLoading}
-                                    className="input-brutal text-sm"
-                                />
-                            </div>
+                                {/* Username Field */}
+                                <div>
+                                    <label
+                                        htmlFor="username"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Tên đăng nhập *
+                                    </label>
+                                    <input
+                                        id="username"
+                                        type="text"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                        placeholder="Nhập tên đăng nhập"
+                                        required
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
 
-                            {/* Email Field */}
-                            <div>
-                                <label
-                                    htmlFor="email"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Email *
-                                </label>
-                                <input
-                                    id="email"
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Nhập địa chỉ email"
-                                    required
-                                    disabled={isLoading}
-                                    className="input-brutal text-sm"
-                                />
-                            </div>
+                                {/* Email Field */}
+                                <div>
+                                    <label
+                                        htmlFor="email"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Email *
+                                    </label>
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="Nhập địa chỉ email"
+                                        required
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
 
-                            {/* Phone Field */}
-                            <div>
-                                <label
-                                    htmlFor="phone"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Số điện thoại
-                                </label>
-                                <input
-                                    id="phone"
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="Nhập số điện thoại (tùy chọn)"
-                                    disabled={isLoading}
-                                    className="input-brutal text-sm"
-                                />
-                            </div>
+                                {/* Full Name Field */}
+                                <div>
+                                    <label
+                                        htmlFor="fullName"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Họ và tên *
+                                    </label>
+                                    <input
+                                        id="fullName"
+                                        type="text"
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        placeholder="Nhập họ và tên đầy đủ"
+                                        required
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
 
-                            {/* Password Field */}
-                            <div>
-                                <label
-                                    htmlFor="password"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Mật khẩu *
-                                </label>
-                                <input
-                                    id="password"
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
-                                    required
-                                    minLength={6}
-                                    disabled={isLoading}
-                                    className="input-brutal text-sm"
-                                />
-                            </div>
+                                {/* Phone Field */}
+                                <div>
+                                    <label
+                                        htmlFor="phone"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Số điện thoại
+                                    </label>
+                                    <input
+                                        id="phone"
+                                        type="tel"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        placeholder="Nhập số điện thoại (tùy chọn)"
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
 
-                            {/* Confirm Password Field */}
-                            <div>
-                                <label
-                                    htmlFor="confirmPassword"
-                                    className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
-                                >
-                                    Xác nhận mật khẩu *
-                                </label>
-                                <input
-                                    id="confirmPassword"
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="Nhập lại mật khẩu"
-                                    required
-                                    disabled={isLoading}
-                                    className="input-brutal text-sm"
-                                />
-                            </div>
+                                {/* Password Field */}
+                                <div>
+                                    <label
+                                        htmlFor="password"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Mật khẩu *
+                                    </label>
+                                    <input
+                                        id="password"
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
+                                        required
+                                        minLength={6}
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
 
-                            {/* Submit Button */}
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full btn-brutal text-sm sm:text-base py-3 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-                            >
-                                {isLoading ? 'ĐANG ĐĂNG KÝ...' : 'ĐĂNG KÝ'}
-                            </button>
-                        </form>
+                                {/* Confirm Password Field */}
+                                <div>
+                                    <label
+                                        htmlFor="confirmPassword"
+                                        className="block text-xs font-bold text-stone-900 mb-2 uppercase tracking-wide"
+                                    >
+                                        Xác nhận mật khẩu *
+                                    </label>
+                                    <input
+                                        id="confirmPassword"
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        placeholder="Nhập lại mật khẩu"
+                                        required
+                                        disabled={isLoading}
+                                        className="input-brutal text-sm"
+                                    />
+                                </div>
+
+                                {/* Submit Button */}
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="w-full btn-brutal text-sm sm:text-base py-3 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
+                                >
+                                    {isLoading ? (
+                                        'ĐANG GỬI MÃ OTP...'
+                                    ) : (
+                                        <>
+                                            <EnvelopeIcon className="w-5 h-5" />
+                                            GỬI MÃ XÁC THỰC
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        )}
+
+                        {/* Step 2: OTP Verification */}
+                        {step === 'otp' && (
+                            <div className="space-y-6">
+                                {/* OTP Input */}
+                                <div>
+                                    <OtpInput
+                                        length={6}
+                                        value={otpCode}
+                                        onChange={setOtpCode}
+                                        disabled={isLoading}
+                                        autoFocus
+                                    />
+                                </div>
+
+                                {/* OTP Info */}
+                                <div className="text-center">
+                                    <p className="text-sm text-stone-500">
+                                        Mã có hiệu lực trong <span className="font-bold text-amber-600">5 phút</span>
+                                    </p>
+                                </div>
+
+                                {/* Verify Button */}
+                                <button
+                                    type="button"
+                                    onClick={handleVerifyOtp}
+                                    disabled={isLoading || otpCode.length !== 6}
+                                    className="w-full btn-brutal text-sm sm:text-base py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isLoading ? 'ĐANG XÁC THỰC...' : 'XÁC THỰC VÀ ĐĂNG KÝ'}
+                                </button>
+
+                                {/* Resend & Back buttons */}
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleBackToForm}
+                                        disabled={isLoading}
+                                        className="flex-1 btn-brutal-outline text-sm py-2 flex items-center justify-center gap-2"
+                                    >
+                                        <ArrowLeftIcon className="w-4 h-4" />
+                                        QUAY LẠI
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleResendOtp}
+                                        disabled={isLoading || resendCountdown > 0}
+                                        className="flex-1 btn-brutal-outline text-sm py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {resendCountdown > 0
+                                            ? `GỬI LẠI (${resendCountdown}s)`
+                                            : 'GỬI LẠI MÃ'
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Additional Info */}
                         <div className="mt-6 pt-5 border-t-4 border-stone-200">
