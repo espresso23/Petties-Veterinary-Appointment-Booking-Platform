@@ -15,9 +15,9 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 - `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Multi-Agent System)
 - `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
 
-**Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Qdrant Cloud (vectors)
+**Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Qdrant Cloud (vectors), firebase (push messages)
 
-**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), Ollama (hybrid local/cloud), LlamaIndex for RAG
+**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), Ollama (hybrid local for dev/cloud for prod), LlamaIndex for RAG
 
 ## Development Commands
 
