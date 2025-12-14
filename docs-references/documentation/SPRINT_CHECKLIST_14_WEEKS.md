@@ -95,38 +95,38 @@ Checklist use cases theo từng Actor, chia theo Sprint (mỗi sprint 1 tuần).
 | PO2-04 | Forgot Password | Quên mật khẩu - gửi email reset | P1 | [ ] |
 | PO2-05 | Update Profile | Cập nhật thông tin cá nhân | P1 | [ ] |
 | PO2-06 | Change Password | Đổi mật khẩu | P2 | [ ] |
-| PO2-07 | Logout | Đăng xuất | P0 | [ ] |
+| PO2-07 | Logout | Đăng xuất | P0 | [x] |
 
 ### VET - Authentication
 | ID | Use Case | Description | Priority | Status |
 |----|----------|-------------|----------|--------|
-| V2-01 | Login (Web) | Đăng nhập từ tài khoản được cấp (Web) | P0 | [ ] |
-| V2-02 | Login (Mobile) | Đăng nhập từ tài khoản được cấp (Mobile) | P0 | [ ] |
+| V2-01 | Login (Web) | Đăng nhập từ tài khoản được cấp (Web) | P0 | [x] |
+| V2-02 | Login (Mobile) | Đăng nhập từ tài khoản được cấp (Mobile) | P0 | [x] |
 | V2-03 | View My Profile | Xem hồ sơ bác sĩ | P1 | [ ] |
 | V2-04 | Update Profile | Cập nhật thông tin (ảnh, bio) | P2 | [ ] |
 
 ### CLINIC_MANAGER - Authentication
 | ID | Use Case | Description | Priority | Status |
 |----|----------|-------------|----------|--------|
-| CM2-01 | Login | Đăng nhập từ tài khoản được cấp | P0 | [ ] |
-| CM2-02 | View Dashboard | Xem dashboard quản lý | P0 | [ ] |
+| CM2-01 | Login | Đăng nhập từ tài khoản được cấp | P0 | [x] |
+| CM2-02 | View Dashboard | Xem dashboard quản lý | P0 | [x] |
 
 ### CLINIC_OWNER - Authentication
 | ID | Use Case | Description | Priority | Status |
 |----|----------|-------------|----------|--------|
 | CO2-01 | Register Clinic | Đăng ký phòng khám mới (pending approval) | P0 | [ ] |
-| CO2-02 | Login | Đăng nhập | P0 | [ ] |
-| CO2-03 | View Dashboard | Xem dashboard phòng khám | P0 | [ ] |
+| CO2-02 | Login | Đăng nhập | P0 | [x] |
+| CO2-03 | View Dashboard | Xem dashboard phòng khám | P0 | [x] |
 
 ### Backend Tasks
 | ID | Task | Owner | Priority | Status |
 |----|------|-------|----------|--------|
-| B2-01 | Implement JWT Authentication | Tuân | P0 | [ ] |
-| B2-02 | Implement Refresh Token | Tuân | P0 | [ ] |
-| B2-03 | Implement Role-based Authorization | Tuân | P0 | [ ] |
-| B2-04 | Google OAuth Integration | Tuân | P1 | [ ] |
-| B2-05 | Password Reset Flow | Tuân | P1 | [ ] |
-| B2-06 | Input Validation (Vietnamese messages) | Tuân | P0 | [ ] |
+| B2-01 | Implement JWT Authentication | Tân | P0 | [x] |
+| B2-02 | Implement Refresh Token | Tân | P0 | [x] |
+| B2-03 | Implement Role-based Authorization | Tân | P0 | [x] |
+| B2-04 | Google OAuth Integration | Tân | P1 | [x] |
+| B2-05 | Password Reset Flow | Tân | P1 | [ ] |
+| B2-06 | Input Validation (Vietnamese messages) | Tân | P0 | [ ] |
 
 **Sprint 2 Deliverables:**
 - [ ] All actors can register/login

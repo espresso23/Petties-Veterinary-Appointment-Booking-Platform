@@ -4,9 +4,13 @@ import com.petties.petties.dto.auth.AuthResponse;
 import com.petties.petties.dto.auth.GoogleSignInRequest;
 import com.petties.petties.dto.auth.LoginRequest;
 import com.petties.petties.dto.auth.RegisterRequest;
+import com.petties.petties.dto.auth.SendOtpRequest;
+import com.petties.petties.dto.auth.SendOtpResponse;
+import com.petties.petties.dto.auth.VerifyOtpRequest;
 import com.petties.petties.dto.auth.UserResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.service.AuthService;
+import com.petties.petties.service.RegistrationOtpService;
 import com.petties.petties.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,22 +22,63 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
-    
+
     private final AuthService authService;
     private final UserService userService;
-    
+    private final RegistrationOtpService registrationOtpService;
+
+    /**
+     * [DEPRECATED] Direct registration without email verification
+     * Keep for backward compatibility, use /register/send-otp instead
+     */
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
+    /**
+     * Step 1: Send OTP to email for registration
+     * 
+     * @param request Registration data (username, email, password, phone, role)
+     * @return SendOtpResponse with email and expiry info
+     */
+    @PostMapping("/register/send-otp")
+    public ResponseEntity<SendOtpResponse> sendRegistrationOtp(@Valid @RequestBody SendOtpRequest request) {
+        SendOtpResponse response = registrationOtpService.sendRegistrationOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Step 2: Verify OTP and complete registration
+     * 
+     * @param request Email and OTP code
+     * @return AuthResponse with tokens (user is logged in after registration)
+     */
+    @PostMapping("/register/verify-otp")
+    public ResponseEntity<AuthResponse> verifyOtpAndRegister(@Valid @RequestBody VerifyOtpRequest request) {
+        AuthResponse response = registrationOtpService.verifyOtpAndRegister(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Resend OTP for registration
+     * 
+     * @param email Email to resend OTP to
+     * @return SendOtpResponse with new expiry info
+     */
+    @PostMapping("/register/resend-otp")
+    public ResponseEntity<SendOtpResponse> resendOtp(@RequestParam String email) {
+        SendOtpResponse response = registrationOtpService.resendOtp(email);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * Login or register with Google Sign-In
      * 
@@ -46,21 +91,21 @@ public class AuthController {
         AuthResponse response = authService.loginWithGoogle(request);
         return ResponseEntity.ok(response);
     }
-    
+
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refreshToken(@RequestHeader("Authorization") String authHeader) {
         String refreshToken = authHeader.replace("Bearer ", "");
         AuthResponse response = authService.refreshToken(refreshToken);
         return ResponseEntity.ok(response);
     }
-    
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authHeader) {
         String accessToken = authHeader.replace("Bearer ", "");
         authService.logout(accessToken);
         return ResponseEntity.ok().build();
     }
-    
+
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getCurrentUser() {
         User currentUser = authService.getCurrentUser();
@@ -68,4 +113,3 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 }
-
