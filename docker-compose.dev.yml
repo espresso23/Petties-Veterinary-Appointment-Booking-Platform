@@ -77,7 +77,7 @@ services:
       # JWT (dev only)
       JWT_SECRET: devSecretKeyForLocalDevelopmentOnly123456789012345678901234
       # Google OAuth
-      GOOGLE_CLIENT_ID: YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
     volumes:
