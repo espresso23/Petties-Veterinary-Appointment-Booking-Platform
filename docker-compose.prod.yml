@@ -1,7 +1,7 @@
 # ============================================
 # PETTIES - Docker Compose for PRODUCTION
 # Optimized builds, no hot-reload
-# 
+#
 # Usage:
 #   - Local testing: docker-compose -f docker-compose.prod.yml up -d
 #   - EC2 deployment: docker-compose -f docker-compose.prod.yml --env-file .env up -d
@@ -40,12 +40,17 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS - Production domains only
       CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
+      # Email Configuration
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
     ports:
-      - "127.0.0.1:8080:8080"  # Bind to localhost only (Nginx reverse proxy)
+      - "127.0.0.1:8080:8080" # Bind to localhost only (Nginx reverse proxy)
     networks:
       - petties-prod-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,7 +58,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M  # Optimized for t3.small (2GB RAM)
+          memory: 768M # Optimized for t3.small (2GB RAM)
         reservations:
           memory: 384M
 
@@ -82,17 +87,17 @@ services:
       # Primary: kimi-k2:1t-cloud (Cloud, 256K context) | kimi-k2 (Local) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # Required for Cloud mode (recommended)
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud}  # Cloud model (256K context window)
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-} # Required for Cloud mode (recommended)
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud} # Cloud model (256K context window)
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       # CORS - Production domains only
       CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
     ports:
-      - "127.0.0.1:8000:8000"  # Bind to localhost only (Nginx reverse proxy)
+      - "127.0.0.1:8000:8000" # Bind to localhost only (Nginx reverse proxy)
     networks:
       - petties-prod-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -100,7 +105,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M  # Optimized for t3.small (2GB RAM)
+          memory: 768M # Optimized for t3.small (2GB RAM)
         reservations:
           memory: 384M
 
