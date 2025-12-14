@@ -27,6 +27,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -265,9 +267,8 @@ public class AuthService {
         
         log.info("Google Sign-In for email: {}, platform: {}", googleUser.email(), request.getPlatform());
         
-        // 2. Find or create user
-        User user = userRepository.findByEmail(googleUser.email())
-                .orElseGet(() -> createUserFromGoogle(googleUser, request.getPlatform()));
+        // 2. Find or create user (with race condition handling)
+        User user = findOrCreateGoogleUser(googleUser, request.getPlatform());
         
         // 3. Generate tokens
         String accessToken = tokenProvider.generateToken(
@@ -295,6 +296,33 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole().name())
                 .build();
+    }
+
+    /**
+     * Find existing user by email or create new one.
+     * Handles race condition where concurrent requests might try to create
+     * the same user simultaneously.
+     * 
+     * @param googleUser Google user info
+     * @param platform Platform (mobile/web)
+     * @return User (existing or newly created)
+     */
+    private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
+        // First attempt: try to find existing user
+        return userRepository.findByEmail(googleUser.email())
+                .orElseGet(() -> {
+                    try {
+                        // User not found, create new one
+                        return createUserFromGoogle(googleUser, platform);
+                    } catch (DataIntegrityViolationException e) {
+                        // Race condition: another request created the user first
+                        // Retry finding the user that was just created
+                        log.warn("Race condition detected for email: {}. Retrying findByEmail.", googleUser.email());
+                        return userRepository.findByEmail(googleUser.email())
+                                .orElseThrow(() -> new RuntimeException(
+                                        "Failed to create or find user for email: " + googleUser.email(), e));
+                    }
+                });
     }
 
     /**
