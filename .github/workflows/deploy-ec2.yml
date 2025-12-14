@@ -29,10 +29,8 @@ jobs:
             git pull origin main
             echo "Stopping containers..."
             docker-compose -f docker-compose.prod.yml --env-file .env down
-            echo "Building containers (no cache)..."
-            docker-compose -f docker-compose.prod.yml --env-file .env build --no-cache
             echo "Starting containers..."
-            docker-compose -f docker-compose.prod.yml --env-file .env up -d
+            docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
             echo "Showing recent logs..."
             docker-compose -f docker-compose.prod.yml logs --tail=50
             echo "=== Deployment complete! ==="
