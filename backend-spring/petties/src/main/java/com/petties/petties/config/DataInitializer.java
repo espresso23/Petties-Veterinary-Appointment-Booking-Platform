@@ -28,36 +28,37 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
-    
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
+
     @Override
     public void run(String... args) throws Exception {
         initializeAdminUser();
     }
-    
+
     /**
      * Khởi tạo admin user mặc định
      * Chỉ tạo nếu chưa có admin user trong database
      */
     private void initializeAdminUser() {
         final String adminUsername = "admin";
-        
+
         // Kiểm tra xem đã có admin user chưa
         if (userRepository.existsByUsername(adminUsername)) {
             log.info("✅ Admin user '{}' already exists. Skipping initialization.", adminUsername);
             return;
         }
-        
+
         // Tạo admin user mới
         User admin = new User();
         admin.setUsername(adminUsername);
         admin.setPassword(passwordEncoder.encode("admin"));
         admin.setEmail("admin@petties.world");
         admin.setPhone("0000000000");
+        admin.setFullName("Thuong em la dieu anh khong the ngo");
         admin.setRole(Role.ADMIN);
-        
+
         try {
             User savedAdmin = userRepository.save(admin);
             log.info("✅ Default admin user created successfully!");

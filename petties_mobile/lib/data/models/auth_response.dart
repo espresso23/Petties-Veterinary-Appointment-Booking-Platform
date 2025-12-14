@@ -8,6 +8,7 @@ class AuthResponse extends BaseModel {
   final String userId;
   final String username;
   final String email;
+  final String? fullName;
   final String role;
 
   AuthResponse({
@@ -17,6 +18,7 @@ class AuthResponse extends BaseModel {
     required this.userId,
     required this.username,
     required this.email,
+    this.fullName,
     required this.role,
   });
 
@@ -28,6 +30,7 @@ class AuthResponse extends BaseModel {
       userId: json['userId'] ?? '',
       username: json['username'] ?? '',
       email: json['email'] ?? '',
+      fullName: json['fullName'],
       role: json['role'] ?? '',
     );
   }
@@ -41,6 +44,7 @@ class AuthResponse extends BaseModel {
       'userId': userId,
       'username': username,
       'email': email,
+      'fullName': fullName,
       'role': role,
     };
   }

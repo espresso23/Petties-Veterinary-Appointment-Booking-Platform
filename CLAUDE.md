@@ -133,6 +133,10 @@ Copy `.env.example` to `.env` in each service directory.
 5. Update docs with current date when modifying documentation
 6. Check existing project structure to avoid duplication
 7. When write docs do not import any description use ASCII art(┌, ─, │, └, etc.), should add mermaid diagram code (if any) and necessary content.
+8. Create Unit Testing and System testing for new feature use Junit for springboot and pytest for python.
+9. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
+10. Always comprehensive all plan and got a user accepted before excecute code.
+11. Always follow the app design style for the frontend in docs-references
 
 ## Important Documentation
 

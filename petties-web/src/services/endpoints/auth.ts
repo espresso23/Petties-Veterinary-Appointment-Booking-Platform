@@ -16,37 +16,44 @@ export interface RegisterRequest {
   role: 'PET_OWNER' | 'VET' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'ADMIN'
 }
 
+export interface SendOtpRequest {
+  username: string
+  password: string
+  email: string
+  phone?: string
+  fullName: string
+  role: 'PET_OWNER' | 'CLINIC_OWNER'
+}
+
+export interface SendOtpResponse {
+  message: string
+  email: string
+  expiryMinutes: number
+  resendCooldownSeconds: number
+}
+
+export interface VerifyOtpRequest {
+  email: string
+  otpCode: string
+}
+
 /**
- * Đăng nhập
+ * Step 1: Gửi OTP đến email để đăng ký
  */
-export async function login(payload: LoginRequest): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/auth/login', payload)
-  
-  // Lưu tokens vào store (đồng bộ)
-  useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
-  
-  // Lưu user info (đồng bộ)
-  useAuthStore.getState().setUser({
-    userId: data.userId,
-    username: data.username,
-    email: data.email,
-    role: data.role,
-  })
-  
+export async function sendRegistrationOtp(payload: SendOtpRequest): Promise<SendOtpResponse> {
+  const { data } = await apiClient.post<SendOtpResponse>('/auth/register/send-otp', payload)
   return data
 }
 
 /**
- * Đăng ký
+ * Step 2: Xác thực OTP và hoàn tất đăng ký
  */
-export async function register(
-  payload: RegisterRequest,
-): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/auth/register', payload)
-  
+export async function verifyOtpAndRegister(payload: VerifyOtpRequest): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/register/verify-otp', payload)
+
   // Lưu tokens vào store
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
-  
+
   // Lưu user info
   useAuthStore.getState().setUser({
     userId: data.userId,
@@ -54,7 +61,58 @@ export async function register(
     email: data.email,
     role: data.role,
   })
-  
+
+  return data
+}
+
+/**
+ * Gửi lại OTP
+ */
+export async function resendOtp(email: string): Promise<SendOtpResponse> {
+  const { data } = await apiClient.post<SendOtpResponse>(`/auth/register/resend-otp?email=${encodeURIComponent(email)}`)
+  return data
+}
+
+/**
+ * Đăng nhập
+ */
+export async function login(payload: LoginRequest): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/login', payload)
+
+  // Lưu tokens vào store (đồng bộ)
+  useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
+
+  // Lưu user info (đồng bộ)
+  useAuthStore.getState().setUser({
+    userId: data.userId,
+    username: data.username,
+    email: data.email,
+    role: data.role,
+  })
+
+  return data
+}
+
+/**
+ * [DEPRECATED] Đăng ký trực tiếp (không cần xác thực email)
+ * Sử dụng sendRegistrationOtp + verifyOtpAndRegister thay thế
+ */
+export async function register(
+  payload: RegisterRequest,
+): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/register', payload)
+
+  // Lưu tokens vào store
+  useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
+
+  // Lưu user info
+  useAuthStore.getState().setUser({
+    userId: data.userId,
+    username: data.username,
+    email: data.email,
+    role: data.role,
+  })
+
   return data
 }
 
@@ -63,11 +121,11 @@ export async function register(
  */
 export async function refreshToken(): Promise<AuthResponse> {
   const refreshToken = useAuthStore.getState().refreshToken
-  
+
   if (!refreshToken) {
     throw new Error('No refresh token available')
   }
-  
+
   const { data } = await apiClient.post<AuthResponse>(
     '/auth/refresh',
     {},
@@ -77,10 +135,10 @@ export async function refreshToken(): Promise<AuthResponse> {
       },
     },
   )
-  
+
   // Lưu tokens mới (đồng bộ với localStorage)
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
-  
+
   // Update user info if available in response
   if (data.userId || data.username) {
     const currentUser = useAuthStore.getState().user
@@ -89,7 +147,7 @@ export async function refreshToken(): Promise<AuthResponse> {
       useAuthStore.getState().setUser(currentUser)
     }
   }
-  
+
   return data
 }
 
@@ -98,7 +156,7 @@ export async function refreshToken(): Promise<AuthResponse> {
  */
 export async function logout(): Promise<void> {
   const accessToken = useAuthStore.getState().accessToken
-  
+
   try {
     if (accessToken) {
       await apiClient.post(
@@ -125,7 +183,7 @@ export async function logout(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<UserResponse> {
   const { data } = await apiClient.get<UserResponse>('/auth/me')
-  
+
   // Cập nhật user info trong store (đồng bộ với localStorage)
   useAuthStore.getState().setUser({
     userId: data.userId,
@@ -133,7 +191,7 @@ export async function getCurrentUser(): Promise<UserResponse> {
     email: data.email,
     role: data.role,
   })
-  
+
   return data
 }
 
@@ -146,10 +204,10 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
     idToken,
     platform: 'web'  // Web → CLINIC_OWNER
   })
-  
+
   // Lưu tokens vào store
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
-  
+
   // Lưu user info
   useAuthStore.getState().setUser({
     userId: data.userId,
@@ -157,7 +215,7 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
     email: data.email,
     role: data.role,
   })
-  
+
   return data
 }
 
