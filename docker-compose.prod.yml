@@ -38,8 +38,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-PettiesSecure2025ProductionJWTSecretKey64CharsLongForSecurity!!}
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
-      # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # CORS - Production domains only
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
     ports:
       - "127.0.0.1:8080:8080"  # Bind to localhost only (Nginx reverse proxy)
     networks:
@@ -85,8 +85,8 @@ services:
       OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # Required for Cloud mode (recommended)
       OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud}  # Cloud model (256K context window)
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # CORS - Production domains only
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
     ports:
       - "127.0.0.1:8000:8000"  # Bind to localhost only (Nginx reverse proxy)
     networks:
