@@ -134,6 +134,59 @@ def _extract_output_schema(func) -> Dict[str, Any]:
     }
 
 
+# ===== TOOL EXECUTION =====
+async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> Any:
+    """
+    Execute a registered MCP tool by name
+
+    Args:
+        tool_name: Name of the tool to execute
+        parameters: Dictionary of parameters to pass to the tool
+
+    Returns:
+        Tool execution result
+
+    Raises:
+        ValueError: If tool not found
+        Exception: If tool execution fails
+
+    Example:
+        >>> result = await call_mcp_tool("health_check", {})
+        >>> print(result)  # {"status": "healthy", ...}
+    """
+    if parameters is None:
+        parameters = {}
+
+    # Get registered tools from MCP server
+    registered_tools = mcp_server.list_tools()
+
+    if tool_name not in registered_tools:
+        available_tools = list(registered_tools.keys())
+        raise ValueError(
+            f"Tool '{tool_name}' not found. Available tools: {available_tools}"
+        )
+
+    # Get the tool function
+    tool_func = registered_tools[tool_name]
+
+    logger.info(f"🔧 Executing MCP tool: {tool_name} with params: {parameters}")
+
+    try:
+        # Execute the tool function with parameters
+        result = await tool_func(**parameters)
+        logger.info(f"✅ Tool '{tool_name}' executed successfully")
+        return result
+
+    except TypeError as e:
+        # Handle parameter mismatch errors
+        logger.error(f"❌ Parameter error for tool '{tool_name}': {e}")
+        raise ValueError(f"Invalid parameters for tool '{tool_name}': {e}")
+
+    except Exception as e:
+        logger.error(f"❌ Error executing tool '{tool_name}': {e}")
+        raise
+
+
 # ===== MCP SERVER INFO =====
 def get_server_info() -> Dict[str, Any]:
     """Get MCP server information"""
