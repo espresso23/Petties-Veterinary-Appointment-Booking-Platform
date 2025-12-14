@@ -4,7 +4,7 @@
 
 ```
 Version: 1.0.0 (Development)
-Status:  In Development (Not Yet Deployed)
+Status:  🚧 In Development (Mobile not released)
 Stack:   Flutter 3.5 | Dart | GoRouter | Provider
 ```
 
@@ -20,9 +20,22 @@ Petties Mobile App là ứng dụng di động được xây dựng với **Flut
 |------|----------------|-------|
 | **PET_OWNER** | ✅ | Mobile only - Primary platform |
 | **VET** | ✅ | Web + Mobile - Vet dashboard |
-| **CLINIC_OWNER** | ✅ | Web + Mobile - Clinic management |
-| **ADMIN** | ❌ | Web only - Blocked on mobile |
+| **CLINIC_OWNER** | ❌ | Web only - Blocked on mobile |
 | **CLINIC_MANAGER** | ❌ | Web only - Blocked on mobile |
+| **ADMIN** | ❌ | Web only - Blocked on mobile |
+
+---
+
+## 📦 Application Identity
+
+| Platform | Package/Bundle ID | Notes |
+|----------|-------------------|-------|
+| **Android** | `world.petties.mobile` | Play Store ID |
+| **iOS** | `world.petties.mobile` | App Store ID |
+| **macOS** | `world.petties.mobile` | Mac App Store |
+| **Linux** | `world.petties.mobile` | Linux builds |
+
+> **Note**: Dev và Prod dùng cùng Application ID. Flavors chỉ thay đổi URL endpoints.
 
 ---
 
@@ -116,25 +129,43 @@ cd petties_mobile
 # 2. Get Flutter packages
 flutter pub get
 
-# 3. Run on emulator/device
-flutter run
+# 3. Run on emulator/device (Development)
+flutter run --flavor dev --dart-define=FLAVOR=dev
 
 # Or specify device
-flutter run -d <device_id>
+flutter run -d <device_id> --flavor dev --dart-define=FLAVOR=dev
 ```
 
-### Build
+### Build Commands
 
+#### Development Build
 ```bash
-# Build APK (Android)
-flutter build apk
+# Run on emulator (uses localhost:8080)
+flutter run --flavor dev --dart-define=FLAVOR=dev
 
-# Build IPA (iOS)
-flutter build ios
+# Build APK dev
+flutter build apk --flavor dev --dart-define=FLAVOR=dev
 
-# Build App Bundle (Android - for Play Store)
-flutter build appbundle
+# Build iOS dev
+flutter build ios --flavor dev --dart-define=FLAVOR=dev
 ```
+
+#### Production Build
+```bash
+# Run production (uses api.petties.world)
+flutter run --flavor prod --dart-define=FLAVOR=prod
+
+# Build APK production
+flutter build apk --release --flavor prod --dart-define=FLAVOR=prod
+
+# Build App Bundle (for Play Store)
+flutter build appbundle --release --flavor prod --dart-define=FLAVOR=prod
+
+# Build iOS (for App Store)
+flutter build ios --release --flavor prod --dart-define=FLAVOR=prod
+```
+
+> 📘 Chi tiết đầy đủ về Flavors: [FLAVORS_SETUP.md](FLAVORS_SETUP.md)
 
 ---
 
@@ -145,10 +176,14 @@ flutter build appbundle
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Authentication** | ✅ Done | Login screen with JWT handling |
+| **Google Sign-In** | ✅ Done | Google OAuth integration (PET_OWNER auto-role) |
 | **Role-based Routing** | ✅ Done | GoRouter with role guards |
-| **Role Restrictions** | ✅ Done | ADMIN/CLINIC_MANAGER blocked |
+| **Role Restrictions** | ✅ Done | ADMIN/CLINIC_MANAGER/CLINIC_OWNER blocked (web only) |
 | **Auth Provider** | ✅ Done | JWT token management |
-| **Home Screens** | ✅ Done | Pet Owner, Vet, Clinic Owner |
+| **Home Screens** | ✅ Done | Pet Owner, Vet |
+| **Flavors** | ✅ Done | Dev/Prod environment switching |
+
+> 📘 Google Sign-In setup: [GOOGLE_SIGNIN_SETUP.md](GOOGLE_SIGNIN_SETUP.md)
 
 ### 🔄 In Progress
 
@@ -177,9 +212,9 @@ The app automatically redirects users based on their role after login:
 
 - **PET_OWNER** → `/pet-owner/home`
 - **VET** → `/vet/home`
-- **CLINIC_OWNER** → `/clinic-owner/home`
-- **ADMIN** → Blocked (redirected to login with error message)
-- **CLINIC_MANAGER** → Blocked (redirected to login with error message)
+- **CLINIC_OWNER** → Blocked (web only)
+- **CLINIC_MANAGER** → Blocked (web only)
+- **ADMIN** → Blocked (web only)
 
 ### Routing Guards
 
@@ -192,7 +227,12 @@ The app automatically redirects users based on their role after login:
 ## 🔌 API Integration
 
 ### Backend API (Spring Boot)
-- **Base URL:** `http://localhost:8080/api` (development)
+
+| Environment | Base URL | AI Service URL |
+|-------------|----------|----------------|
+| **Development** | `http://10.0.2.2:8080/api` | `http://10.0.2.2:8000` |
+| **Production** | `https://api.petties.world/api` | `https://ai.petties.world` |
+
 - **Authentication:** JWT Bearer token
 - **Endpoints:**
   - `/auth/login` - Authentication ✅
@@ -201,11 +241,19 @@ The app automatically redirects users based on their role after login:
   - `/pets` - Pet management ⚠️ (Not implemented)
   - `/bookings` - Booking management ⚠️ (Not implemented)
 
-### Development Notes
+### Environment Selection
 
-- **Android Emulator:** Use `10.0.2.2` instead of `localhost` for API calls
-- **iOS Simulator:** Use `localhost` directly
-- **Physical Device:** Use your machine's IP address (same WiFi network)
+URLs tự động chuyển đổi theo flavor:
+- **dev**: Sử dụng localhost/emulator URLs
+- **prod**: Sử dụng production URLs
+
+### Platform-Specific URLs (Development)
+
+| Platform | localhost alias |
+|----------|----------------|
+| **Android Emulator** | `10.0.2.2` |
+| **iOS Simulator** | `localhost` |
+| **Physical Device** | Dùng IP máy host (e.g., `192.168.1.100`) |
 
 ---
 
@@ -243,5 +291,5 @@ flutter test --coverage
 
 ---
 
-**Last Updated:** December 8, 2025  
-**Status:** 🚧 In Development - Not Yet Deployed
+**Last Updated:** December 14, 2025  
+**Status:** 🚧 In Development (Mobile not released)

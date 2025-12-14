@@ -17,6 +17,7 @@ class AppColors {
   static const Color stone50 = Color(0xFFFAFAF9);   // Page background
   static const Color stone100 = Color(0xFFF5F5F4);  // Light surfaces
   static const Color stone200 = Color(0xFFE7E5E4);  // Dividers
+  static const Color stone300 = Color(0xFFD6D3D1);  // Light borders
   static const Color stone400 = Color(0xFFA8A29E);  // Secondary text, icons
   static const Color stone500 = Color(0xFF78716C);  // Placeholder text
   static const Color stone600 = Color(0xFF57534E);  // Body text secondary

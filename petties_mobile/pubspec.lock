@@ -460,10 +460,10 @@ packages:
     dependency: "direct main"
     description:
       name: get_it
-      sha256: "2c120112e34bbd5f4ce2ca1ad3076a5b2068eb1e48aae8dd7b717b26cdd38543"
+      sha256: "1d648d2dd2047d7f7450d5727ca24ee435f240385753d90b49650e3cdff32e56"
       url: "https://pub.dev"
     source: hosted
-    version: "9.1.1"
+    version: "9.2.0"
   glob:
     dependency: transitive
     description:
@@ -480,6 +480,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.8.1"
+  google_identity_services_web:
+    dependency: transitive
+    description:
+      name: google_identity_services_web
+      sha256: "5d187c46dc59e02646e10fe82665fc3884a9b71bc1c90c2b8b749316d33ee454"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.3+1"
   google_maps:
     dependency: transitive
     description:
@@ -528,6 +536,46 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.14+3"
+  google_sign_in:
+    dependency: "direct main"
+    description:
+      name: google_sign_in
+      sha256: d0a2c3bcb06e607bb11e4daca48bd4b6120f0bbc4015ccebbe757d24ea60ed2a
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.3.0"
+  google_sign_in_android:
+    dependency: transitive
+    description:
+      name: google_sign_in_android
+      sha256: d5e23c56a4b84b6427552f1cf3f98f716db3b1d1a647f16b96dbb5b93afa2805
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.2.1"
+  google_sign_in_ios:
+    dependency: transitive
+    description:
+      name: google_sign_in_ios
+      sha256: "102005f498ce18442e7158f6791033bbc15ad2dcc0afa4cf4752e2722a516c96"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.9.0"
+  google_sign_in_platform_interface:
+    dependency: transitive
+    description:
+      name: google_sign_in_platform_interface
+      sha256: "5f6f79cf139c197261adb6ac024577518ae48fdff8e53205c5373b5f6430a8aa"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.5.0"
+  google_sign_in_web:
+    dependency: transitive
+    description:
+      name: google_sign_in_web
+      sha256: "460547beb4962b7623ac0fb8122d6b8268c951cf0b646dd150d60498430e4ded"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.12.4+4"
   graphs:
     dependency: transitive
     description:
@@ -620,10 +668,10 @@ packages:
     dependency: transitive
     description:
       name: image_picker_ios
-      sha256: "997d100ce1dda5b1ba4085194c5e36c9f8a1fb7987f6a36ab677a344cd2dc986"
+      sha256: "956c16a42c0c708f914021666ffcd8265dde36e673c9fa68c81f7d085d9774ad"
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.13+2"
+    version: "0.8.13+3"
   image_picker_linux:
     dependency: transitive
     description:
@@ -988,18 +1036,18 @@ packages:
     dependency: "direct main"
     description:
       name: shared_preferences
-      sha256: "6e8bf70b7fef813df4e9a36f658ac46d107db4b4cfe1048b477d4e453a8159f5"
+      sha256: "2939ae520c9024cb197fc20dee269cd8cdbf564c8b5746374ec6cacdc5169e64"
       url: "https://pub.dev"
     source: hosted
-    version: "2.5.3"
+    version: "2.5.4"
   shared_preferences_android:
     dependency: transitive
     description:
       name: shared_preferences_android
-      sha256: "46a46fd64659eff15f4638bbe19de43f9483f0e0bf024a9fb6b3582064bacc7b"
+      sha256: "83af5c682796c0f7719c2bbf74792d113e40ae97981b8f266fa84574573556bc"
       url: "https://pub.dev"
     source: hosted
-    version: "2.4.17"
+    version: "2.4.18"
   shared_preferences_foundation:
     dependency: transitive
     description:
@@ -1225,10 +1273,10 @@ packages:
     dependency: transitive
     description:
       name: video_player_android
-      sha256: "3f7ef3fb7b29f510e58f4d56b6ffbc3463b1071f2cf56e10f8d25f5b991ed85b"
+      sha256: d74b66f283afff135d5be0ceccca2ca74dff7df1e9b1eaca6bd4699875d3ae60
       url: "https://pub.dev"
     source: hosted
-    version: "2.8.21"
+    version: "2.8.22"
   video_player_avfoundation:
     dependency: transitive
     description:
@@ -1265,10 +1313,10 @@ packages:
     dependency: transitive
     description:
       name: watcher
-      sha256: "592ab6e2892f67760543fb712ff0177f4ec76c031f02f5b4ff8d3fc5eb9fb61a"
+      sha256: f52385d4f73589977c80797e60fe51014f7f2b957b5e9a62c3f6ada439889249
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.4"
+    version: "1.2.0"
   web:
     dependency: transitive
     description:

@@ -92,18 +92,20 @@ Module này thay thế việc quản lý cấu hình bằng file .env truyền t
      * Cloud: Tự động fetch danh sách Cloud models (ví dụ: kimi-k2:1t-cloud) từ Ollama Cloud API.  
    * **Auto-switching:** Khi admin nhập API key → tự động chuyển sang Cloud mode và model `kimi-k2` → `kimi-k2:1t-cloud` (256K context window).
 
-### **C. Tool Registry & Governance (Quản lý & Đồng bộ Công cụ)**
+### **C. Tool Management (Quản lý Công cụ - Code-based Only)**
 
-Module này đảm bảo tính nhất quán giữa Code và Cấu hình, đồng thời cho phép mở rộng tool mà không cần code.
+Module này đảm bảo tính nhất quán giữa Code và Cấu hình cho các Tools được code thủ công.
 
-1. **Tool Classification (Phân loại Tool):**  
-   * **Type 1: Code-based Tools (Internal Python Functions):**  
-     * Là các hàm Python thuần túy xử lý logic nội bộ Agent (VD: calculator, format\_date).  
-     * Được quét tự động từ mã nguồn Python.  
-   * **Type 2: API-based Tools (OpenAPI/Swagger Import):**  
-     * Là các tool kết nối đến Spring Boot Backend.  
-     * **Cơ chế tự động:** Admin nhập URL Swagger (VD: http://localhost:8080/v3/api-docs). Hệ thống tự động parse và tạo ra hàng loạt tools tương ứng (VD: booking\_controller\_create, pet\_controller\_find\_by\_id).  
-2. **Schema Definition (Định nghĩa Cấu trúc Dữ liệu):** Mỗi tool (dù là Code hay API) bắt buộc phải hiển thị rõ 2 loại schema JSON để Agent hiểu:  
+> **Triết lý Tool Design:** Tất cả Tools được code thủ công bằng Python với decorator `@tool` hoặc `@mcp.tool`. KHÔNG sử dụng Swagger/OpenAPI auto-import vì:
+> - API endpoints được thiết kế cho Frontend/Mobile, KHÔNG phải cho LLM consumption
+> - Tools cần có mô tả ngữ nghĩa rõ ràng (semantic descriptions) để LLM hiểu khi nào nên dùng
+> - Parameters cần được thiết kế natural language friendly (VD: `date="hôm nay"` thay vì `date="2024-01-15"`)
+
+1. **Code-based Tools (Python Functions):**
+   * Là các hàm Python thuần túy được viết thủ công cho LLM consumption.
+   * Được quét tự động từ mã nguồn Python (Tool Scanner).
+   * Mỗi tool có mô tả semantic rõ ràng để LLM biết khi nào nên gọi.
+2. **Schema Definition (Định nghĩa Cấu trúc Dữ liệu):** Mỗi tool bắt buộc phải hiển thị rõ 2 loại schema JSON để Agent hiểu:  
    * **Request Schema (Input):**  
      * Định nghĩa: Agent cần gửi tham số gì? Kiểu dữ liệu là gì? (String, Int, Enum).  
      * Mục đích: Giúp hệ thống validate dữ liệu Agent sinh ra trước khi thực thi thực tế.  
@@ -141,7 +143,7 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 * **LangGraph:** Sử dụng pattern Supervisor của LangGraph. State của cuộc hội thoại sẽ được truyền giữa các Node (Agents). Main Agent là Node điều hướng.  
 * **Nested Graph Execution:** Hỗ trợ Medical Agent gọi Research Agent như một Node con hoặc Tool để thực hiện tác vụ phụ (Sub-tasking).  
 * **Dynamic Configuration Loader:** Module thay thế python-dotenv. Khi khởi tạo, module này truy vấn bảng system\_configs trong Postgres để lấy API Keys và settings, sau đó inject vào Runtime Context của Agent.  
-* **Dynamic Tool Loading:** Hệ thống có service "Tool Scanner" để update Code-based Tools và API Executor để chạy API-based Tools cấu hình từ DB.  
+* **Dynamic Tool Loading:** Hệ thống có service "Tool Scanner" để quét và update Code-based Tools từ mã nguồn Python.  
 * **MCP Integration:** Các module xử lý logic nghiệp vụ tuân thủ chuẩn MCP.
 
 ### **Frontend (React \+ Ant Design/MUI)**
@@ -157,24 +159,23 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 
 ## **5\. User Flow cho Admin (Người quản trị)**
 
-1. **Trường hợp 1: Sửa lỗi Điều phối bằng Ví dụ (Correction by Example) \- MỚI**  
-   * **Vấn đề:** Main Agent điều hướng nhầm câu "Mua thuốc xổ giun" sang Medical Agent (vì nghĩ là chữa bệnh) thay vì Research Agent (vì đây là nhu cầu mua sắm/tìm kiếm).  
-   * **Hành động:**  
-     * Admin vào tab "Routing Config".  
-     * Thêm một Routing Pair mới:  
-       * Query: "Mua thuốc xổ giun"  
-       * Target: Research Agent  
-     * Bấm **Save**.  
-   * **Kết quả:** Hệ thống lưu và vector hóa ví dụ này. Lần sau user hỏi "Bán cho tôi thuốc xổ giun", hệ thống tìm thấy ví dụ trên và Main Agent sẽ điều hướng đúng sang Research Agent.  
-2. **Trường hợp 2: Đồng bộ API từ Spring Boot (Auto-import from Swagger)**  
-   * **Actor:** Admin (sau khi Developer deploy API mới bên Java).  
-   * **Context:** Developer Java đã viết xong API GET /api/v1/vaccines/{petId} và deploy Spring Boot.  
-   * **Process:**  
-     1. Admin vào "Tool Registry", nhấn nút "Import from Swagger".  
-     2. Hệ thống Python (FastAPI) gọi sang Spring Boot (/v3/api-docs), tải file JSON về.  
-     3. Hệ thống so sánh và phát hiện Endpoint mới: /api/v1/vaccines/{petId}.  
-     4. Hệ thống tự động tạo một MCP Tool có tên vaccine\_controller\_get\_history với input schema petId (integer).  
-     5. Admin đổi tên tool thành check\_vaccine\_history (cho dễ hiểu với AI) và gán cho MedicalAgent.  
+1. **Trường hợp 1: Sửa lỗi Điều phối qua System Prompt**
+   * **Vấn đề:** Main Agent điều hướng nhầm câu "Mua thuốc xổ giun" sang Medical Agent (vì nghĩ là chữa bệnh) thay vì Research Agent (vì đây là nhu cầu mua sắm/tìm kiếm).
+   * **Hành động:**
+     * Admin vào tab "Agent Configuration" → chọn Main Agent.
+     * Chỉnh sửa System Prompt, thêm hướng dẫn rõ ràng hơn về routing rules.
+     * Bấm **Save**.
+   * **Kết quả:** Main Agent sử dụng LLM + Updated Prompt để điều hướng chính xác hơn.
+2. **Trường hợp 2: Thêm Tool mới cho Agent**
+   * **Actor:** Developer.
+   * **Context:** Cần thêm tool `check_vaccine_history` cho Medical Agent.
+   * **Process:**
+     1. Developer tạo file Python với decorator `@tool` trong `mcp_tools/medical_tools.py`.
+     2. Developer code logic gọi Spring Boot API bên trong function.
+     3. Admin vào Dashboard → "Tool Management" → "Scan Tools".
+     4. Hệ thống quét và hiển thị tool mới.
+     5. Admin gán tool cho Medical Agent.
+   * **Lưu ý:** Tool được thiết kế với mô tả semantic cho LLM, KHÔNG auto-import từ Swagger.
 3. **Trường hợp 3: Thêm kiến thức mới vào Vector Store (RAG Update)**  
    * **Actor:** Admin.  
    * **Context:** Có phác đồ điều trị mới cần cập nhật cho Agent.  
@@ -232,10 +233,10 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 * **Framework:** FastAPI (High-performance API framework).  
 * **Agent Orchestration:** LangGraph (Xây dựng luồng xử lý Agent có trạng thái \- Stateful Multi-Agent Orchestrator).  
 * **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline và Web Scraping/Indexing dữ liệu phi cấu trúc).  
-* **Tool Framework:** FastMCP  
-  * Cơ chế: Sử dụng FastMCP để chạy Server Tools.  
-  * Code-based Tools: Viết trực tiếp bằng Python (@mcp.tool).  
-  * API-based Tools: Sử dụng thư viện dynamic import (như langchain-openapi hoặc tự viết script parse JSON) để tự động biến Spring Boot Swagger thành MCP Tools.
+* **Tool Framework:** FastMCP
+  * Cơ chế: Sử dụng FastMCP để chạy Server Tools.
+  * Code-based Tools: Viết trực tiếp bằng Python (@mcp.tool).
+  * **Lưu ý:** Tất cả Tools được code thủ công. KHÔNG sử dụng Swagger auto-import (xem Section C - Tool Management).
 
 ### **B. Frontend (Admin Dashboard)**
 
@@ -316,15 +317,14 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **AG-01** | **Hierarchical Agent Management** | Quản lý danh sách các Nodes trong LangGraph. Hiển thị cấu trúc cây Supervisor \-\> Workers. Cho phép kích hoạt/vô hiệu hóa từng Sub-Agent Node. | **Critical** |
 | **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Message cho từng Node. Dữ liệu được versioning và lưu trong PostgreSQL. Hỗ trợ biến động (Dynamic Variables). | **Critical** |
 | **AG-03** | **Model Parameter Tuning** | Cấu hình tham số inference cho Kimi k2/Gemma 3 (Temperature, Max Tokens, Top-P) thông qua API Config. | **High** |
-| **AG-04** | **Routing Examples Manager** | (MỚI) Giao diện CRUD các "Routing Pairs" cho kỹ thuật Few-Shot. Sync vector sang Qdrant. Thay thế cho việc training model. | **Critical** |
+| **AG-04** | **LLM Intent Classification** | Main Agent sử dụng LLM + Well-crafted Prompt để phân loại intent và routing. Không cần RAG routing hay Few-Shot examples. | **High** |
 
 ### **Tools & Integrations (Công cụ & Tích hợp)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **TL-01** | **Automated Tool Scanner** | Backend Service quét các hàm Python nội bộ (@mcp.tool) để tạo tool xử lý logic, tính toán đơn giản. | **Critical** |
+| **TL-01** | **Automated Tool Scanner** | Backend Service quét các hàm Python nội bộ (@mcp.tool) để tạo tool. Tất cả tools được code thủ công với semantic descriptions. | **Critical** |
 | **TL-02** | **Tool Assignment & Routing** | Map các MCP Tools cụ thể vào từng Sub-Agent Node trong LangGraph. Đảm bảo Agent chỉ nhìn thấy tool được cho phép. | **Critical** |
-| **TL-03** | **Swagger/OpenAPI Importer** | Nhập URL Swagger của Spring Boot (VD: /v3/api-docs). Hệ thống tự động parse JSON, trích xuất tất cả Endpoint và tạo thành danh sách Tools cho Agent sử dụng. Loại bỏ việc phải code wrapper thủ công. | **Critical** |
 
 ### **Knowledge Base & RAG (Kiến thức)**
 
@@ -361,16 +361,27 @@ Mô tả các tình huống thực tế gắn liền với công nghệ sử d�
   3. Admin nhấn Save \-\> Backend cập nhật cấu hình vào PostgreSQL.  
   4. Tại Playground, Admin chat thử. WebSocket trả về log cho thấy Supervisor đã route đúng sang MedicalAgent.
 
-### **UC-02: Đồng bộ API từ Spring Boot (Auto-import from Swagger)**
+### **UC-02: Thêm Tool mới cho Agent (Code-based)**
 
-* **Actor:** Admin (sau khi Developer deploy API mới bên Java).  
-* **Context:** Developer Java đã viết xong API GET /api/v1/vaccines/{petId} và deploy Spring Boot.  
-* **Process:**  
-  1. Admin vào "Tool Registry", nhấn nút "Import from Swagger".  
-  2. Hệ thống Python (FastAPI) gọi sang Spring Boot (/v3/api-docs), tải file JSON về.  
-  3. Hệ thống so sánh và phát hiện Endpoint mới: /api/v1/vaccines/{petId}.  
-  4. Hệ thống tự động tạo một MCP Tool có tên vaccine\_controller\_get\_history với input schema petId (integer).  
-  5. Admin đổi tên tool thành check\_vaccine\_history (cho dễ hiểu với AI) và gán cho MedicalAgent.
+* **Actor:** Developer + Admin.
+* **Context:** Cần thêm tool `check_vaccine_history` để Medical Agent tra cứu lịch sử tiêm chủng.
+* **Process:**
+  1. Developer tạo function trong `mcp_tools/medical_tools.py`:
+     ```python
+     @tool
+     def check_vaccine_history(pet_name: str) -> str:
+         """
+         Tra cứu lịch sử tiêm chủng của thú cưng.
+         Sử dụng khi user hỏi về vaccine, tiêm phòng, hoặc lịch sử tiêm.
+         """
+         # Gọi Spring Boot API bên trong
+         response = requests.get(f"{BACKEND_URL}/api/v1/vaccines/by-pet/{pet_name}")
+         return format_vaccine_history(response.json())
+     ```
+  2. Admin vào Dashboard → "Tool Management" → nhấn "Scan Tools".
+  3. Hệ thống quét và hiển thị tool mới `check_vaccine_history`.
+  4. Admin gán tool cho Medical Agent và bật Enable.
+* **Lưu ý:** Tool được thiết kế với semantic description cho LLM hiểu khi nào nên gọi.
 
 ### **UC-03: Thêm kiến thức mới vào Vector Store (RAG Update)**
 

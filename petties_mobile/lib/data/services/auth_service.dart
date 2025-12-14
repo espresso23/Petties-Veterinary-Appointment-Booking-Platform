@@ -31,20 +31,49 @@ class AuthService {
       );
 
       final authResponse = AuthResponse.fromJson(response.data);
-
-      // Save tokens to storage
-      await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-      await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
-      await _storage.setString(AppConstants.userIdKey, authResponse.userId);
-      await _storage.setString(
-        AppConstants.userDataKey,
-        authResponse.toJson().toString(),
-      );
-
+      await _saveAuthData(authResponse);
       return authResponse;
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Login with Google ID Token
+  /// Backend will verify the token with Google and create/login user
+  /// 
+  /// Platform determines the default role for new users:
+  /// - 'mobile' → PET_OWNER
+  /// - 'web' → CLINIC_OWNER
+  Future<AuthResponse> loginWithGoogle({
+    required String idToken,
+    String platform = 'mobile', // 'mobile' or 'web'
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/google',
+        data: {
+          'idToken': idToken,
+          'platform': platform,
+        },
+      );
+
+      final authResponse = AuthResponse.fromJson(response.data);
+      await _saveAuthData(authResponse);
+      return authResponse;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Save auth data to storage
+  Future<void> _saveAuthData(AuthResponse authResponse) async {
+    await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
+    await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
+    await _storage.setString(AppConstants.userIdKey, authResponse.userId);
+    await _storage.setString(
+      AppConstants.userDataKey,
+      authResponse.toJson().toString(),
+    );
   }
 
   /// Register new user
@@ -70,16 +99,7 @@ class AuthService {
       );
 
       final authResponse = AuthResponse.fromJson(response.data);
-
-      // Save tokens to storage
-      await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-      await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
-      await _storage.setString(AppConstants.userIdKey, authResponse.userId);
-      await _storage.setString(
-        AppConstants.userDataKey,
-        authResponse.toJson().toString(),
-      );
-
+      await _saveAuthData(authResponse);
       return authResponse;
     } catch (e) {
       rethrow;

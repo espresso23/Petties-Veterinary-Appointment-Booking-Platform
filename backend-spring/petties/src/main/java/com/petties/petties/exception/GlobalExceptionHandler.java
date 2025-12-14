@@ -112,11 +112,17 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage != null ? errorMessage : "Validation failed");
         });
 
+        // Lấy message lỗi đầu tiên làm message chính
+        String firstErrorMessage = ex.getBindingResult().getAllErrors().stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage())
+                .orElse("Dữ liệu không hợp lệ");
+
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Validation Failed")
-                .message("Validation failed for one or more fields")
+                .message(firstErrorMessage)
                 .path(request.getRequestURI())
                 .errors(errors)
                 .build();

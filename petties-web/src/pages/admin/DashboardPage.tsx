@@ -24,9 +24,9 @@ export const AdminDashboardPage = () => {
     }, [])
 
     const checkServices = async () => {
-        // Check AI Service
+        // Check AI Service - FIX: Use env.AGENT_SERVICE_URL instead of hardcoded port 8001
         try {
-            const res = await fetch('http://localhost:8001/health', { method: 'GET' })
+            const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })  // ✅ FIXED
             if (res.ok) {
                 const data = await res.json()
                 setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })

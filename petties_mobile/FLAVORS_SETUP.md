@@ -27,14 +27,22 @@ static const String _flavor = String.fromEnvironment('FLAVOR', defaultValue: 'de
 Được cấu hình trong `android/app/build.gradle.kts`:
 
 - **dev**: 
-  - Application ID: `com.example.petties_mobile.dev`
+  - Application ID: `world.petties.mobile` (không có suffix)
   - App Name: "Petties Dev"
   - Version Suffix: `-dev`
+  - Dùng cho: Test trên emulator với localhost
   
 - **prod**:
-  - Application ID: `com.example.petties_mobile`
+  - Application ID: `world.petties.mobile`
   - App Name: "Petties"
-  - Không có suffix
+  - Dùng cho: Release app lên Play Store/App Store
+
+> **Lưu ý**: Cả dev và prod đều dùng cùng Application ID vì chỉ release prod, dev chỉ test trên emulator.
+
+### iOS Bundle Identifier
+
+- Bundle Identifier: `world.petties.mobile`
+- Cấu hình trong `ios/Runner.xcodeproj/project.pbxproj`
 
 ---
 

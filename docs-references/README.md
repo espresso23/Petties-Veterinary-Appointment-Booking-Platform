@@ -23,6 +23,7 @@ Workflow, best practices, và hướng dẫn phát triển:
 - `DEVELOPMENT_WORKFLOW.md` - Workflow phát triển
 - `FRONTEND_BEST_PRACTICES.md` - Best practices cho Frontend development
 - `PETTIES_Git_Workflow_TEAM_GUIDE.md` - Hướng dẫn Git workflow cho team
+- `EXCEPTION_HANDLING_GUIDE.md` - Hướng dẫn xử lý Exception trong Backend Spring
 
 ### 📖 Reference (`/reference`)
 Quick reference, commands, và cheat sheets:
@@ -33,6 +34,8 @@ Technical documentation, features, và architecture:
 - `PETTIES_Features.md` - Danh sách features của hệ thống
 - `TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - Technical scope về Agent Management
 - `SP26_Petties_Capstone.md` - Tài liệu Capstone project
+- `SPRINT_CHECKLIST_14_WEEKS.md` - Checklist use cases theo Sprint (14 tuần)
+- `BUSINESS_WORKFLOW_BPMN.md` - Luồng nghiệp vụ theo chuẩn BPMN 2.0
 
 ### 🎨 Design (`/design`)
 Design guides và style guidelines:

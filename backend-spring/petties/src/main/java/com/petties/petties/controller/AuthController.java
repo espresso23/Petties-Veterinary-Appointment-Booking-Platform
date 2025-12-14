@@ -1,6 +1,7 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.auth.AuthResponse;
+import com.petties.petties.dto.auth.GoogleSignInRequest;
 import com.petties.petties.dto.auth.LoginRequest;
 import com.petties.petties.dto.auth.RegisterRequest;
 import com.petties.petties.dto.auth.UserResponse;
@@ -30,6 +31,19 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Login or register with Google Sign-In
+     * 
+     * Platform determines the default role for new users:
+     * - "mobile" → PET_OWNER
+     * - "web" → CLINIC_OWNER
+     */
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> googleSignIn(@Valid @RequestBody GoogleSignInRequest request) {
+        AuthResponse response = authService.loginWithGoogle(request);
         return ResponseEntity.ok(response);
     }
     

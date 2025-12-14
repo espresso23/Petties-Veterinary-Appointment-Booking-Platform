@@ -1,12 +1,31 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Add Google Services classpath
+        classpath("com.google.gms:google-services:4.4.0")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")  // ✅ ADD THIS LINE - Must be last
 }
 
 android {
-    namespace = "com.example.petties_mobile"
+    namespace = "world.petties.mobile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,14 +39,26 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.petties_mobile"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "world.petties.mobile"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Flavor configuration for dev/prod environments
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            // Không dùng applicationIdSuffix vì chỉ test trên emulator
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Petties Dev")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Petties")
+        }
     }
 
     buildTypes {

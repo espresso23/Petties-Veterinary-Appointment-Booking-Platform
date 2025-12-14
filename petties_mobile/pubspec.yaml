@@ -55,6 +55,8 @@ dependencies:
   firebase_messaging: ^16.0.4
   firebase_core: ^4.2.1
   
+  # Authentication
+  google_sign_in: ^6.2.1
   
   # Logging
   logger: ^2.5.0

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../data/models/auth_response.dart';
 import '../data/models/user_response.dart';
 import '../data/services/auth_service.dart';
+import '../data/services/google_auth_service.dart';
 import '../utils/storage_service.dart';
 import '../config/constants/app_constants.dart';
 
@@ -139,12 +140,57 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Sign in with Google
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Step 1: Get Google ID token
+      final googleResult = await GoogleAuthService.instance.signIn();
+
+      if (googleResult.isCancelled) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      if (!googleResult.isSuccess) {
+        _error = googleResult.error ?? 'Google Sign-In failed';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // Step 2: Send ID token to backend for verification
+      _authResponse = await _authService.loginWithGoogle(
+        idToken: googleResult.idToken!,
+      );
+
+      // Step 3: Get user info
+      _user = await _authService.getCurrentUser();
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      // Sign out from Google if signed in
+      await GoogleAuthService.instance.signOut();
+      
       await _authService.logout();
       _authResponse = null;
       _user = null;

@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from app.core.tools.mcp_server import get_mcp_tools_metadata, mcp_server
-from app.db.postgres.models import Tool, ToolTypeEnum
+from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
@@ -126,10 +126,9 @@ class ToolScanner:
 
                 self.logger.info(f"🔄 Updated tool: {tool_name}")
             else:
-                # Create new tool
+                # Create new tool (all tools are code-based per TECHNICAL SCOPE v4.0)
                 new_tool = Tool(
                     name=tool_name,
-                    tool_type=ToolTypeEnum.CODE_BASED,  # FastMCP tools are code-based
                     description=tool_meta["description"],
                     input_schema=tool_meta["input_schema"],
                     output_schema=tool_meta["output_schema"],

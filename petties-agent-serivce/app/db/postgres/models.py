@@ -25,19 +25,6 @@ class AgentType(str, enum.Enum):
     RESEARCH = "research"   # Research Agent (Web search general-purpose)
 
 
-class ToolTypeEnum(str, enum.Enum):
-    """Tool types"""
-    CODE_BASED = "code_based"
-    API_BASED = "api_based"
-
-
-class ToolSource(str, enum.Enum):
-    """Tool source - nơi tool được tạo ra"""
-    FASTMCP_CODE = "fastmcp_code"           # Code-based tools từ FastMCP
-    SWAGGER_IMPORTED = "swagger_imported"   # Auto-imported từ Swagger/OpenAPI
-    MANUAL_API = "manual_api"               # Manual API tools (legacy)
-
-
 # ===== AGENTS TABLE =====
 class Agent(Base):
     """
@@ -88,59 +75,31 @@ class Agent(Base):
 # ===== TOOLS TABLE =====
 class Tool(Base):
     """
-    Tools Table
+    Tools Table (Code-based only - v0.0.2)
 
-    Purpose: Lưu trữ metadata của tất cả tools (Code-based & API-based)
+    Purpose: Lưu trữ metadata của Code-based tools
+
+    Note: Swagger/OpenAPI auto-import đã bị remove (xem TECHNICAL SCOPE v4.0)
+    Tất cả tools được code thủ công với semantic descriptions cho LLM.
+
     Columns:
         - id: Primary key
         - name: Tool name (unique, ví dụ: check_slot, create_booking)
-        - tool_type: Loại tool (code_based, api_based)
-        - source: Tool source (fastmcp_code, swagger_imported, manual_api)
-        - description: Mô tả chức năng
+        - description: Mô tả chức năng (semantic description cho LLM)
         - input_schema: JSON schema cho input parameters
         - output_schema: JSON schema cho output data
-        - endpoint: API endpoint (nếu là API-based tool)
-        - method: HTTP method (GET, POST, etc.)
-        - headers: HTTP headers (nếu cần auth)
         - enabled: Tool có được enable không
         - assigned_agents: JSON array với agent names được phép dùng
-
-        # Swagger/OpenAPI specific fields (TL-03)
-        - swagger_url: URL của Swagger spec (nếu là swagger_imported)
-        - operation_id: Operation ID từ OpenAPI spec
-        - path: API path từ OpenAPI (ví dụ: /api/bookings/{id})
-        - original_name: Tên gốc từ Swagger (trước khi admin rename)
-        - request_body_schema: Schema cho request body (POST/PUT)
-        - response_schema: Schema cho response (OpenAPI format)
-        - path_parameters: JSON schema cho path params (ví dụ: {id})
-        - query_parameters: JSON schema cho query params
     """
     __tablename__ = "tools"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
-    tool_type = Column(Enum(ToolTypeEnum), nullable=False)
-    source = Column(Enum(ToolSource), default=ToolSource.FASTMCP_CODE, nullable=False)
-    description = Column(Text)
+    description = Column(Text)  # Semantic description cho LLM
 
     # Schema definition (JSON format)
     input_schema = Column(JSON)
     output_schema = Column(JSON)
-
-    # API-based tool specific fields
-    endpoint = Column(String(500))  # URL endpoint
-    method = Column(String(10))     # GET, POST, PUT, DELETE
-    headers = Column(JSON)          # HTTP headers (auth tokens, etc.)
-
-    # ===== Swagger/OpenAPI specific fields (TL-03) =====
-    swagger_url = Column(String(500))       # URL của Swagger spec
-    operation_id = Column(String(200))      # operationId từ OpenAPI
-    path = Column(String(500))              # API path: /api/bookings/{id}
-    original_name = Column(String(200))     # Tên gốc từ Swagger (trước rename)
-    request_body_schema = Column(JSON)      # Request body schema (POST/PUT)
-    response_schema = Column(JSON)          # Response schema
-    path_parameters = Column(JSON)          # Path params: {id, userId, ...}
-    query_parameters = Column(JSON)         # Query params: {page, size, ...}
 
     # Status & Assignment
     enabled = Column(Boolean, default=False)  # Default false, admin enable sau
@@ -151,7 +110,7 @@ class Tool(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     def __repr__(self):
-        return f"<Tool(name={self.name}, type={self.tool_type}, source={self.source})>"
+        return f"<Tool(name={self.name}, enabled={self.enabled})>"
 
 
 # ===== PROMPT VERSIONS TABLE =====

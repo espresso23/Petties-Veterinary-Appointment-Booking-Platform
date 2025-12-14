@@ -1,6 +1,6 @@
 # 🐾 Petties - Veterinary Appointment Booking Platform
 
-**Petties** là một nền tảng hiện đại kết nối chủ nuôi thú cưng với bác sĩ thú y chuyên nghiệp, cung cấp dịch vụ đặt lịch tham khám tại nhà hoặc tại phòng khám một cách dễ dàng và an toàn.
+**Petties** là một nền tảng hiện đại kết nối chủ nuôi thú cưng với các **phòng khám thú y** chuyên nghiệp. Chủ pet đặt lịch với phòng khám, phòng khám phân công bác sĩ phù hợp. Cung cấp dịch vụ đặt lịch tham khám tại nhà hoặc tại phòng khám một cách dễ dàng và an toàn.
 
 ---
 
@@ -40,15 +40,18 @@
 ### Vấn Đề Cần Giải Quyết
 Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức khỏe cho pet:
 
-- ❌ Khó tìm bác sĩ thú y có dịch vụ thăm nhà
+- ❌ Khó tìm phòng khám thú y có dịch vụ thăm nhà
+- ❌ Khó so sánh dịch vụ và giá cả giữa các phòng khám
 - ❌ Quy trình đặt lịch phức tạp, quản lý nhiều pet không tiện
 - ❌ Không có thông báo định kỳ về tình trạng sức khỏe
 - ❌ Thanh toán trực tuyến chưa an toàn
 
 ### Mục Tiêu Giải Pháp
-- ✅ Cung cấp nền tảng đặt lịch tham khám tại nhà từ bác sĩ thú y
-- ✅ Hỗ trợ đặt lịch thực thời và quản lý appointment giữa chủ pet và bác sĩ
-- ✅ Bác sĩ quản lý lịch biểu, cài đặt giá cước, theo dõi doanh thu
+- ✅ Cung cấp nền tảng đặt lịch tham khám với **phòng khám thú y** (Clinic-centric)
+- ✅ Tìm kiếm và so sánh phòng khám theo dịch vụ, giá cả, đánh giá
+- ✅ Phòng khám phân công bác sĩ phù hợp sau khi nhận booking
+- ✅ Hỗ trợ đặt lịch thực thời: **Home Visit** hoặc **Clinic Visit**
+- ✅ Phòng khám quản lý bác sĩ, lịch biểu, giá cước, doanh thu
 - ✅ Thanh toán trực tuyến an toàn và bảo mật
 - ✅ Admin dashboard giám sát appointment, người dùng và giao dịch
 - ✅ Tối ưu UX: thông báo, nhắc nhở, tips chăm sóc thú cưng
@@ -143,15 +146,16 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Truy cập bất kỳ lúc nào, bất kỳ nơi đâu
 
 ### 3️⃣ Đặt Lịch Tham Khám
+- Tìm kiếm **phòng khám** (Clinic) theo dịch vụ, khoảng cách, đánh giá
 - Chọn loại dịch vụ: **Home Visit** hoặc **Clinic Visit**
-- Tìm kiếm bác sĩ theo chuyên khoa, khoảng cách, đánh giá
-- Xem lịch trống của bác sĩ
+- Xem lịch trống của phòng khám
+- Clinic sẽ phân công bác sĩ phù hợp sau khi đặt
 - Thanh toán trực tuyến ngay khi đặt
 
 ### 4️⃣ Cấp Cứu (SOS)
-- Xác định bác sĩ thú y khẩn cấp gần nhất
-- Liên hệ tức thì cho tư vấn
-- Đặt lịch khẩn cấp
+- Tìm phòng khám thú y khẩn cấp gần nhất
+- Liên hệ tức thì với phòng khám để được tư vấn
+- Đặt lịch khẩn cấp với phòng khám
 
 ### 5️⃣ Tư Vấn Video
 - Gọi video trực tiếp với bác sĩ
@@ -173,16 +177,25 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Thống kê người dùng và giao dịch
 - Báo cáo doanh thu
 
-### 9️⃣ Dashboard Bác Sĩ/Phòng Khám
-- Quản lý lịch biểu
+### 9️⃣ Dashboard Bác Sĩ (VET) - Mobile + Web
+- Xem lịch làm việc được gán
+- Xem booking được phân công từ Clinic
+- Phê duyệt/từ chối booking
+- Check-in/Check-out bệnh nhân
+- Ghi chú hồ sơ bệnh án (EMR)
+- Ghi đơn thuốc điện tử
+
+### 9️⃣.1 Dashboard Phòng Khám (CLINIC_OWNER/CLINIC_MANAGER) - Web Only
+- **CLINIC_OWNER**: Quản lý phòng khám, thêm CLINIC_MANAGER
+- **CLINIC_MANAGER**: Quản lý bác sĩ (VET), phân công booking
+- Quản lý lịch biểu và ca làm việc
 - Duyệt request từ chủ pet
-- Quản lý nhân viên, ca làm việc
-- Theo dõi doanh thu
+- Theo dõi doanh thu và thống kê
 
 ### 🔟 Đánh Giá & Nhận Xét
-- Chủ pet đánh giá bác sĩ (1-5 sao)
+- Chủ pet đánh giá **phòng khám (Clinic)** và **bác sĩ (Vet)** (1-5 sao)
 - Viết nhận xét chi tiết
-- Xây dựng uy tín cho bác sĩ
+- Xây dựng uy tín cho phòng khám và bác sĩ
 
 ### 🔐 Thêm Tính Năng Đặc Biệt
 - **AI Chatbot**: Trợ lý chăm sóc pet thông minh với Multi-Agent Architecture
@@ -712,16 +725,22 @@ Persistent data is stored in Docker volumes:
 
 ## 🔌 API Endpoints
 
-> **⚠️ Deployment Status:** Project hiện tại đang trong giai đoạn phát triển (Development), **chưa deploy production**. Tất cả endpoints được test trên môi trường local (localhost).
+> **✅ Production URLs:** API endpoints có sẵn tại `https://api.petties.world/api`. Development sử dụng `http://localhost:8080/api`.
 
 ### Authentication ✅ (Implemented)
 ```
 POST   /api/auth/register          - Đăng ký tài khoản ✅
 POST   /api/auth/login             - Đăng nhập ✅
+POST   /api/auth/google            - Đăng nhập bằng Google ✅ (NEW)
 POST   /api/auth/logout            - Đăng xuất ✅
 POST   /api/auth/refresh           - Làm mới token ✅
 GET    /api/auth/me                - Lấy thông tin user hiện tại ✅
 ```
+
+> 🔐 **Google Sign-In**: Hỗ trợ đăng nhập bằng Google cho cả Mobile và Web.
+> - Mobile (Flutter) → Auto-assign role `PET_OWNER`
+> - Web (React) → Auto-assign role `CLINIC_OWNER`
+> - Xem chi tiết: [`petties_mobile/GOOGLE_SIGNIN_SETUP.md`](petties_mobile/GOOGLE_SIGNIN_SETUP.md)
 
 ### Pet Management ⚠️ (Not Yet Implemented)
 ```
@@ -758,7 +777,7 @@ GET    /api/v1/agents              - Danh sách agents
 GET    /api/v1/agents/{id}         - Chi tiết agent
 PUT    /api/v1/agents/{id}         - Cập nhật agent config
 GET    /api/v1/tools               - Danh sách tools
-POST   /api/v1/tools/import        - Import tools từ Swagger
+POST   /api/v1/tools/scan          - Scan code-based tools
 GET    /api/v1/knowledge           - Knowledge base documents
 POST   /api/v1/knowledge/upload    - Upload document
 GET    /api/v1/settings            - System settings
@@ -769,8 +788,8 @@ PUT    /api/v1/settings            - Update settings
 
 ## 📊 Feature Implementation Status
 
-> **Last Updated:** December 8, 2025  
-> **Project Status:** 🚧 In Development (Not Yet Deployed)
+> **Last Updated:** December 13, 2025  
+> **Project Status:** ✅ Deployed to Production (petties.world)
 
 ### Overall Progress
 
@@ -788,7 +807,7 @@ PUT    /api/v1/settings            - Update settings
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication & Authorization | ✅ Done | JWT, Refresh Token, 5 Roles |
+| Authentication & Authorization | ✅ Done | JWT, Refresh Token, 5 Roles, Google Sign-In |
 | Pet Management API | ⚠️ TODO | Not implemented |
 | Booking API | ⚠️ TODO | Not implemented |
 | Vet API | ⚠️ TODO | Not implemented |
@@ -804,11 +823,11 @@ PUT    /api/v1/settings            - Update settings
 | Dynamic Config Loader | ✅ Done | DB-based configuration |
 | Agent Factory | ✅ Done | Dynamic agent creation |
 | Prompt Management | ✅ Done | Versioned prompts in DB |
-| Tool System | ✅ Done | Scanner, Swagger Import |
+| Tool System | ✅ Done | Scanner (Code-based only) |
 | Ollama Hybrid Mode | ✅ Done | Local/Cloud support |
 | RAG Pipeline | 🔄 50% | Qdrant client ✅, Document processing 🔄 |
 | Chat API | 🔄 50% | In-memory storage (needs migration) |
-| Routing Examples Manager | ⚠️ TODO | AG-04 - Critical |
+| LLM Intent Classification | 🔄 In Progress | AG-04 - LLM + Prompt based |
 | WebSocket Streaming | ⚠️ TODO | PG-01 - Critical |
 
 #### Web Frontend (React) - 10% Complete
@@ -816,9 +835,9 @@ PUT    /api/v1/settings            - Update settings
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Admin Dashboard | ✅ Done | Agent/Tool/Knowledge Management |
-| Authentication Pages | ✅ Done | Login, Role-based routing |
+| Authentication Pages | ✅ Done | Login, Google Sign-In, Role-based routing |
 | Agent Management UI | ✅ Done | Prompt editor, config |
-| Tool Registry UI | ✅ Done | Enable/disable, import |
+| Tool Registry UI | ✅ Done | Enable/disable, scan (code-based tools only) |
 | Knowledge Base UI | ✅ Done | Document upload |
 | User Dashboards | 🔄 Skeleton | Vet, Clinic Owner, Clinic Manager |
 | Booking Flow UI | ⚠️ TODO | Not implemented |
@@ -829,10 +848,10 @@ PUT    /api/v1/settings            - Update settings
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication | ✅ Done | Login, Role-based routing |
+| Authentication | ✅ Done | Login, Google Sign-In, Role-based routing |
 | Routing System | ✅ Done | GoRouter with role guards |
-| Role Restrictions | ✅ Done | ADMIN/CLINIC_MANAGER blocked |
-| Home Screens | ✅ Done | Pet Owner, Vet, Clinic Owner |
+| Role Restrictions | ✅ Done | ADMIN/CLINIC_MANAGER/CLINIC_OWNER blocked (web only) |
+| Home Screens | ✅ Done | Pet Owner, Vet |
 | Booking Flow | ⚠️ TODO | Not implemented |
 | Pet Management | ⚠️ TODO | Not implemented |
 | Profile & Settings | ⚠️ TODO | Not implemented |
@@ -845,11 +864,11 @@ PUT    /api/v1/settings            - Update settings
 
 | Role | Web | Mobile | Notes |
 |------|-----|--------|-------|
-| **PET_OWNER** | ❌ | ✅ | Mobile only |
+| **PET_OWNER** | ❌ | ✅ | Mobile only (blocked on web) |
 | **VET** | ✅ | ✅ | Web + Mobile |
-| **CLINIC_OWNER** | ✅ | ✅ | Web + Mobile |
-| **ADMIN** | ✅ | ❌ | Web only (blocked on mobile) |
+| **CLINIC_OWNER** | ✅ | ❌ | Web only (blocked on mobile) |
 | **CLINIC_MANAGER** | ✅ | ❌ | Web only (blocked on mobile) |
+| **ADMIN** | ✅ | ❌ | Web only (blocked on mobile) |
 
 ### Authentication & Routing
 
@@ -857,6 +876,10 @@ PUT    /api/v1/settings            - Update settings
 - **Mobile**: Role-based routing với GoRouter, Provider state management, tự động redirect theo role sau khi login
 - **Backend**: JWT authentication với Spring Security 6.x
 - **Token Management**: Access token + Refresh token với blacklist support
+- **Google Sign-In**: OAuth 2.0 integration cho cả Web (React) và Mobile (Flutter)
+  - Mobile → Auto-assign `PET_OWNER` role
+  - Web → Auto-assign `CLINIC_OWNER` role
+  - Chi tiết setup: [`petties_mobile/GOOGLE_SIGNIN_SETUP.md`](petties_mobile/GOOGLE_SIGNIN_SETUP.md)
 
 ---
 
@@ -891,7 +914,7 @@ User Query
 ### Agent Responsibilities
 
 1. **Main Agent (Supervisor)**
-   - Intent classification với Dynamic Few-Shot Routing (RAG-based)
+   - Intent classification với LLM + Well-crafted Prompts
    - Context-aware routing đến Sub-Agents
    - Response synthesis và quality control
    - State management (conversation context)
@@ -1000,29 +1023,33 @@ hotfix/critical-bug     # Critical fixes
 
 ## 🚀 Deployment Status
 
-> **⚠️ Important:** Project hiện tại **chưa được deploy production**. Tất cả development và testing được thực hiện trên môi trường local (localhost).
+> **✅ Production Deployed:** Project đã được deploy lên production tại **petties.world**
 
 ### Current Environment
-- **Development:** Local only (localhost)
-- **Staging:** Not configured
-- **Production:** Not deployed
+- **Development:** Local (localhost)
+- **Production:** ✅ Live at petties.world
 
-### Planned Deployment
-- **Backend/AI Service:** Render.com (khi ready)
-- **Web Frontend:** Vercel (khi ready)
+### Production URLs
+| Service | URL |
+|---------|-----|
+| **Web Frontend** | https://petties.world |
+| **Backend API** | https://api.petties.world |
+| **AI Service** | https://ai.petties.world |
+
+### Infrastructure
+- **Web Frontend:** Vercel / Render
+- **Backend/AI Service:** Render.com
 - **Databases:** Neon (PostgreSQL), MongoDB Atlas, Qdrant Cloud
 
-### Next Steps for Deployment
+### Next Steps for Enhancement
 1. Complete Critical Features (AG-04, KB-01, Chat Migration)
 2. Complete Business Logic APIs (Pet, Booking, Vet)
 3. Complete Mobile App Screens
 4. Setup CI/CD Pipeline
-5. Configure Production Environment Variables
-6. Deploy to Staging for Testing
-7. Deploy to Production
+5. Enhanced monitoring and logging
 
 ---
 
-**Last Updated**: December 8, 2025  
-**Version**: 1.0.0 (Development)  
-**Status**: 🚧 In Development - Not Yet Deployed
+**Last Updated**: December 13, 2025  
+**Version**: 1.0.0 (Production)  
+**Status**: ✅ Deployed at petties.world

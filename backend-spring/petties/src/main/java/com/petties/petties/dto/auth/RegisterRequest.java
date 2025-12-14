@@ -15,22 +15,22 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RegisterRequest {
-    
-    @NotBlank(message = "Username is required")
-    @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
+
+    @NotBlank(message = "Tên đăng nhập không được để trống")
+    @Size(min = 3, max = 50, message = "Tên đăng nhập phải từ 3 đến 50 ký tự")
     private String username;
-    
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+
+    @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
     private String password;
-    
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email should be valid")
+
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không hợp lệ")
     private String email;
-    
+
     private String phone;
-    
-    @NotNull(message = "Role is required")
+
+    @NotNull(message = "Vai trò không được để trống")
     private Role role;
 }
 

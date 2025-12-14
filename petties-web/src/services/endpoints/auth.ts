@@ -137,3 +137,27 @@ export async function getCurrentUser(): Promise<UserResponse> {
   return data
 }
 
+/**
+ * Đăng nhập bằng Google
+ * Platform "web" → CLINIC_OWNER role
+ */
+export async function googleSignIn(idToken: string): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/google', {
+    idToken,
+    platform: 'web'  // Web → CLINIC_OWNER
+  })
+  
+  // Lưu tokens vào store
+  useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
+  
+  // Lưu user info
+  useAuthStore.getState().setUser({
+    userId: data.userId,
+    username: data.username,
+    email: data.email,
+    role: data.role,
+  })
+  
+  return data
+}
+

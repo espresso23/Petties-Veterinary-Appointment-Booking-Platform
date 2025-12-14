@@ -207,7 +207,7 @@ async def seed_database(
     """
     try:
         from app.db.postgres.models import (
-            Agent, Tool, SystemSetting, AgentType, ToolTypeEnum,
+            Agent, Tool, SystemSetting, AgentType,
             SettingCategory, DEFAULT_SETTINGS
         )
         from sqlalchemy import select
@@ -336,7 +336,6 @@ Nhiệm vụ: Tìm kiếm thông tin trên web."""
             tools = [
                 Tool(
                     name="check_slot",
-                    tool_type=ToolTypeEnum.CODE_BASED,
                     description="Kiểm tra slot thời gian trống cho booking",
                     input_schema={
                         "type": "object",
@@ -358,7 +357,6 @@ Nhiệm vụ: Tìm kiếm thông tin trên web."""
                 ),
                 Tool(
                     name="create_booking",
-                    tool_type=ToolTypeEnum.CODE_BASED,
                     description="Tạo booking mới",
                     input_schema={
                         "type": "object",
