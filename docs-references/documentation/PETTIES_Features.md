@@ -95,9 +95,8 @@
     - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
     - Bật/tắt Agent (Enable/Disable)
 
-11. 🆕 **Tool Registry & Governance**
+11. 🆕 **Tool Management (Code-based)**
     - Quét và đồng bộ Code-based Tools từ Python (@mcp.tool)
-    - Import Tools từ Swagger/OpenAPI (Spring Boot endpoints)
     - Xem Request/Response Schema cho mỗi tool
     - Gán Tools cho Agents
     - Bật/tắt Tools (Enable/Disable)
@@ -173,11 +172,9 @@
 
 ### Admin Tool Management
 - 📊 **Tool Scanner** - Tự động quét và đồng bộ Code-based tools từ Python (@mcp.tool)
-- 📊 **Swagger/OpenAPI Import** - Tự động import API tools từ Spring Boot Swagger endpoint
 - 📊 **Tool Assignment** - Gán tools cho specific agents (Main Agent hoặc Sub-Agents)
 - 📊 **Schema Viewer** - Xem Request/Response schema cho mỗi tool
 - 📊 **Tool Enable/Disable** - Bật/tắt tools cho từng agent
-- 📊 **Tool Classification** - Phân loại Code-based vs API-based tools
 
 ### Agent Architecture
 - 🏗️ **Hierarchical Agent System** - Main Agent (Supervisor) + Sub-Agents (Workers)
@@ -262,7 +259,7 @@
 ✅ **Multi-language & Timezone** (Đa ngôn ngữ)  
 ✅ **Admin Agent Management Dashboard** (Quản lý, Tinh chỉnh & Giám sát Agents)  
 ✅ **Dynamic Few-Shot Routing** (Zero Training, Cross-lingual)  
-✅ **Tool Registry & Governance** (Code-based + API-based Tools)  
+✅ **Tool Management** (Code-based Tools only)  
 ✅ **Knowledge Base RAG** (Qdrant Cloud với Binary Quantization)  
 ✅ **Agent Playground** (Interactive Testing & Debugging)  
 ✅ **Dynamic Secrets Management** (API Keys, Ollama Config)

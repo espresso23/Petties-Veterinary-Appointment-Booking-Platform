@@ -1,50 +1,18 @@
 """
 PETTIES AGENT SERVICE - Tool API Schemas
-Pydantic schemas cho Tool Management APIs
+Pydantic schemas cho Tool Management APIs (Code-based tools only)
 
 Package: app.api.schemas
 Purpose: Request/Response validation
-Version: v0.0.1
+Version: v0.0.2 - Simplified for code-based tools
 """
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
 # ===== REQUEST SCHEMAS =====
-
-class ImportSwaggerRequest(BaseModel):
-    """
-    Request schema cho import từ Swagger
-
-    Endpoint: POST /tools/import-swagger
-    """
-    swagger_url: str = Field(
-        ...,
-        description="URL của Swagger spec",
-        examples=["/v3/api-docs", "http://localhost:8080/v3/api-docs"]
-    )
-    auto_enable: bool = Field(
-        default=False,
-        description="Tự động enable tools sau khi import"
-    )
-
-
-class RenameToolRequest(BaseModel):
-    """
-    Request schema cho rename tool
-
-    Endpoint: PUT /tools/{tool_id}/rename
-    """
-    new_name: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="New tool name (snake_case)",
-        examples=["check_vaccine_history", "create_booking"]
-    )
-
 
 class ExecuteToolRequest(BaseModel):
     """
@@ -55,10 +23,6 @@ class ExecuteToolRequest(BaseModel):
     parameters: Dict[str, Any] = Field(
         default_factory=dict,
         description="Tool parameters"
-    )
-    headers: Optional[Dict[str, str]] = Field(
-        default=None,
-        description="Custom HTTP headers"
     )
 
 
@@ -87,62 +51,72 @@ class EnableToolRequest(BaseModel):
     )
 
 
+class CreateToolRequest(BaseModel):
+    """
+    Request schema cho create new tool (manual)
+
+    Endpoint: POST /tools
+    """
+    name: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="Tool name (snake_case)",
+        examples=["check_slot", "create_booking"]
+    )
+    description: str = Field(
+        ...,
+        description="Semantic description for LLM"
+    )
+    input_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON schema for input parameters"
+    )
+    output_schema: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="JSON schema for output"
+    )
+    enabled: bool = Field(
+        default=False,
+        description="Enable tool immediately"
+    )
+    assigned_agents: List[str] = Field(
+        default_factory=list,
+        description="List of agent names to assign"
+    )
+
+
+class UpdateToolRequest(BaseModel):
+    """
+    Request schema cho update tool
+
+    Endpoint: PUT /tools/{tool_id}
+    """
+    description: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+    output_schema: Optional[Dict[str, Any]] = None
+    enabled: Optional[bool] = None
+    assigned_agents: Optional[List[str]] = None
+
+
 # ===== RESPONSE SCHEMAS =====
 
 class ToolResponse(BaseModel):
     """
-    Response schema cho single tool
+    Response schema cho single tool (simplified for code-based)
     """
     id: int
     name: str
-    original_name: Optional[str] = None
-    tool_type: str
-    source: str
     description: Optional[str] = None
-    method: Optional[str] = None
-    path: Optional[str] = None
-    endpoint: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+    output_schema: Optional[Dict[str, Any]] = None
     enabled: bool
-    assigned_agents: List[str]
-    swagger_url: Optional[str] = None
-    operation_id: Optional[str] = None
+    assigned_agents: List[str] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-
-
-class ImportSwaggerResponse(BaseModel):
-    """
-    Response schema cho Swagger import
-
-    Endpoint: POST /tools/import-swagger
-    """
-    success: bool
-    message: str
-    swagger_url: str
-    server_url: str
-    openapi_version: str
-    total_endpoints: int
-    new_tools: int
-    updated_tools: int
-    skipped_tools: int
-    tools: List[Dict[str, Any]]
-
-
-class RenameToolResponse(BaseModel):
-    """
-    Response schema cho rename tool
-
-    Endpoint: PUT /tools/{tool_id}/rename
-    """
-    success: bool
-    message: str
-    id: int
-    old_name: str
-    new_name: str
-    original_name: Optional[str] = None
 
 
 class ExecuteToolResponse(BaseModel):
@@ -153,9 +127,6 @@ class ExecuteToolResponse(BaseModel):
     """
     success: bool
     tool_name: str
-    method: str
-    url: str
-    status_code: int
     data: Optional[Any] = None
     error: Optional[str] = None
 
@@ -171,15 +142,18 @@ class ToolListResponse(BaseModel):
     filters: Optional[Dict[str, Any]] = None
 
 
-class SwaggerImportHistoryResponse(BaseModel):
+class ScanToolsResponse(BaseModel):
     """
-    Response schema cho import history
+    Response schema cho scan tools
 
-    Endpoint: GET /tools/swagger-imported
+    Endpoint: POST /tools/scan
     """
-    total: int
-    swagger_url: Optional[str] = None
-    tools: List[ToolResponse]
+    success: bool
+    message: str
+    total_tools: int
+    new_tools: int
+    updated_tools: int
+    tool_list: List[str]
 
 
 # ===== ERROR RESPONSE =====

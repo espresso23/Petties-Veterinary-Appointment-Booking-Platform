@@ -3,8 +3,8 @@
 **Web Frontend cho Petties - Veterinary Appointment Booking Platform**
 
 ```
-Version: 1.0.0 (Development)
-Status:  In Development (Not Yet Deployed)
+Version: 1.0.0
+Status:  ✅ Deployed (Production)
 Stack:   React 19 | Vite | TypeScript | Tailwind CSS v4
 ```
 
@@ -20,7 +20,7 @@ Petties Web Frontend là ứng dụng web được xây dựng với **React 19*
 |------|-------------|-------|
 | **ADMIN** | ✅ | Web only - Full admin dashboard |
 | **CLINIC_MANAGER** | ✅ | Web only - Clinic management |
-| **CLINIC_OWNER** | ✅ | Web + Mobile - Clinic owner dashboard |
+| **CLINIC_OWNER** | ✅ | Web only - Clinic owner dashboard |
 | **VET** | ✅ | Web + Mobile - Vet dashboard |
 | **PET_OWNER** | ❌ | Mobile only |
 
@@ -138,12 +138,15 @@ npm run preview
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Authentication** | ✅ Done | Login page, JWT handling |
+| **Google Sign-In** | ✅ Done | OAuth 2.0, auto-assign CLINIC_OWNER role |
 | **Admin Dashboard** | ✅ Done | Overview with service health |
 | **Agent Management** | ✅ Done | CRUD agents, prompt editor |
-| **Tool Registry** | ✅ Done | Enable/disable, Swagger import |
+| **Tool Registry** | ✅ Done | Enable/disable, scan (code-based tools only) |
 | **Knowledge Base** | ✅ Done | Document upload UI |
 | **System Settings** | ✅ Done | Ollama config, API keys |
 | **Role-based Routing** | ✅ Done | React Router with guards |
+
+> 📘 **Note:** PET_OWNER accounts are blocked from web login (mobile only). Google Sign-In on web automatically creates CLINIC_OWNER accounts.
 
 ### 🔄 In Progress
 
@@ -180,16 +183,19 @@ Petties Web sử dụng design system với màu sắc warm neutrals:
 ## 🔌 API Integration
 
 ### Backend API (Spring Boot)
-- **Base URL:** `http://localhost:8080/api`
+- **Development Base URL:** `http://localhost:8080/api`
+- **Production Base URL:** `https://api.petties.world/api`
 - **Authentication:** JWT Bearer token
 - **Endpoints:**
-  - `/auth/login` - Authentication
-  - `/auth/me` - Current user info
+  - `/auth/login` - Authentication ✅
+  - `/auth/google` - Google Sign-In ✅
+  - `/auth/me` - Current user info ✅
   - `/pets` - Pet management (⚠️ Not implemented)
   - `/bookings` - Booking management (⚠️ Not implemented)
 
 ### AI Service API (FastAPI)
-- **Base URL:** `http://localhost:8000/api/v1`
+- **Development Base URL:** `http://localhost:8000/api/v1`
+- **Production Base URL:** `https://ai.petties.world/api/v1`
 - **Authentication:** JWT Bearer token (admin only)
 - **Endpoints:**
   - `/agents` - Agent management ✅
@@ -230,5 +236,5 @@ npm run test:watch
 
 ---
 
-**Last Updated:** December 8, 2025  
-**Status:** 🚧 In Development - Not Yet Deployed
+**Last Updated:** December 14, 2025  
+**Status:** ✅ Deployed (Production)

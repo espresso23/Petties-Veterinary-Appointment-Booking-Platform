@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.db.postgres.session import AsyncSessionLocal, init_db
-from app.db.postgres.models import Agent, Tool, AgentType, ToolTypeEnum, SystemSetting, SettingCategory, DEFAULT_SETTINGS
+from app.db.postgres.models import Agent, Tool, AgentType, SystemSetting, SettingCategory, DEFAULT_SETTINGS
 from sqlalchemy import select
 import logging
 
@@ -198,8 +198,7 @@ async def seed_tools():
         # ===== BOOKING TOOLS =====
         check_slot_tool = Tool(
             name="check_slot",
-            tool_type=ToolTypeEnum.CODE_BASED,
-            description="Kiểm tra slot thời gian trống cho booking",
+            description="Kiểm tra slot thời gian trống cho booking. Sử dụng khi user muốn đặt lịch và cần xem giờ nào còn trống.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -222,8 +221,7 @@ async def seed_tools():
 
         create_booking_tool = Tool(
             name="create_booking",
-            tool_type=ToolTypeEnum.CODE_BASED,
-            description="Tạo booking mới",
+            description="Tạo booking mới cho thú cưng. Sử dụng khi user đã chọn slot và muốn xác nhận đặt lịch.",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -249,8 +247,7 @@ async def seed_tools():
         # ===== MEDICAL TOOLS =====
         search_symptoms_tool = Tool(
             name="search_symptoms",
-            tool_type=ToolTypeEnum.CODE_BASED,
-            description="Tìm bệnh dựa trên triệu chứng",
+            description="Tìm bệnh dựa trên triệu chứng của thú cưng. Sử dụng khi user mô tả các triệu chứng và cần chẩn đoán sơ bộ.",
             input_schema={
                 "type": "object",
                 "properties": {

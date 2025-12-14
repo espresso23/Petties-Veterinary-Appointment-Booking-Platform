@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   CodeBracketIcon,
-  GlobeAltIcon,
   ChevronDownIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline'
@@ -16,41 +15,10 @@ interface ToolCardProps {
 /**
  * Tool Card Component
  * Displays tool information with schema viewer and assignment controls
+ * All tools are code-based (FastMCP)
  */
 export const ToolCard = ({ tool, onToggle, onAssign }: ToolCardProps) => {
   const [expanded, setExpanded] = useState(false)
-
-  const getToolIcon = () => {
-    if (tool.tool_type === 'code_based') {
-      return <CodeBracketIcon className="w-5 h-5 text-blue-600" />
-    }
-    return <GlobeAltIcon className="w-5 h-5 text-amber-600" />
-  }
-
-  const getSourceBadge = () => {
-    switch (tool.source) {
-      case 'fastmcp_code':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-            FastMCP Code
-          </span>
-        )
-      case 'swagger_imported':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
-            Swagger Import
-          </span>
-        )
-      case 'manual_api':
-        return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-            Manual API
-          </span>
-        )
-      default:
-        return null
-    }
-  }
 
   return (
     <div className={`
@@ -66,18 +34,17 @@ export const ToolCard = ({ tool, onToggle, onAssign }: ToolCardProps) => {
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-start gap-4 flex-1 min-w-0">
-          <div className={`
-            flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center
-            ${tool.tool_type === 'code_based' ? 'bg-blue-50' : 'bg-amber-50'}
-          `}>
-            {getToolIcon()}
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-blue-50">
+            <CodeBracketIcon className="w-5 h-5 text-blue-600" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-semibold text-stone-900 text-sm truncate">
                 {tool.name}
               </h3>
-              {getSourceBadge()}
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                FastMCP Code
+              </span>
             </div>
             {tool.description && (
               <p className="text-xs text-stone-500 line-clamp-2">

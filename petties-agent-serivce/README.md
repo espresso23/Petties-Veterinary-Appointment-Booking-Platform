@@ -26,7 +26,7 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
 | **Dynamic Configuration Loader** | Load prompts & settings từ DB (thay .env) | ✅ Implemented |
 | **Intent Classification** | Phân loại user request (Booking/Medical/Research) | ✅ Implemented |
 | **System Prompt Management** | Quản lý prompts từ DB với versioning | ✅ Implemented |
-| **Tool Management** | Auto-import từ Swagger, FastMCP tools | ✅ Implemented |
+| **Tool Management** | Code-based tools với FastMCP | ✅ Implemented |
 | **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | 🔄 In Progress |
 | **Ollama Hybrid Mode** | Local & Cloud mode support | ✅ Implemented |
 | **Real-time Streaming** | WebSocket streaming responses | 🔄 In Progress |
@@ -249,11 +249,9 @@ petties-agent-serivce/
 │   │   │   ├── medical_agent.py
 │   │   │   └── research_agent.py
 │   │   │
-│   │   ├── tools/              # Tool System
+│   │   ├── tools/              # Tool System (Code-based only)
 │   │   │   ├── mcp_server.py   # FastMCP server
 │   │   │   ├── scanner.py      # Tool scanner (TL-01)
-│   │   │   ├── openapi_parser.py
-│   │   │   ├── swagger_importer.py  # Swagger parser (TL-03)
 │   │   │   ├── executor.py     # Dynamic executor
 │   │   │   └── mcp_tools/
 │   │   │       ├── booking_tools.py
@@ -371,19 +369,16 @@ Response:
 }
 ```
 
-### Tool Management (TL-01, TL-03)
+### Tool Management (TL-01)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/tools/import-swagger` | Import tools từ Swagger URL |
-| `GET` | `/api/v1/tools/swagger-imported` | List imported tools |
-| `PUT` | `/api/v1/tools/{id}/rename` | Rename imported tool |
-| `POST` | `/api/v1/tools/{name}/execute` | Test execute tool |
 | `POST` | `/api/v1/tools/scan` | Scan FastMCP code-based tools |
 | `GET` | `/api/v1/tools` | List all tools |
 | `GET` | `/api/v1/tools/{id}` | Get tool detail |
 | `PUT` | `/api/v1/tools/{id}/enable` | Enable/disable tool |
 | `POST` | `/api/v1/tools/{id}/assign` | Assign tool to agent |
+| `POST` | `/api/v1/tools/{name}/execute` | Test execute tool |
 
 ### Knowledge Base (KB-01)
 
@@ -439,18 +434,13 @@ Response:
 - created_at: Timestamp
 ```
 
-**tools** (Tool Registry)
+**tools** (Tool Registry - Code-based only)
 ```sql
 - id: Integer (PK)
 - name: String(100) UNIQUE
-- tool_type: Enum (code_based, api_based)
-- source: Enum (fastmcp_code, swagger_imported, manual_api)
 - description: Text
 - input_schema: JSON
 - output_schema: JSON
-- method: String (GET, POST, PUT, DELETE)  # For API-based
-- path: String (/api/bookings/{id})        # For API-based
-- swagger_url: String                       # For API-based
 - enabled: Boolean
 - assigned_agents: JSON Array
 ```
@@ -509,7 +499,7 @@ Response:
 | **AG-01** | Hierarchical Agent Management | ✅ Done | `/api/v1/agents` - CRUD |
 | **AG-02** | System Prompt Editor | ✅ Done | ⭐ DB-based, versioned, editable via Dashboard |
 | **AG-03** | Model Parameter Tuning | ✅ Done | `/api/v1/agents/{id}` - temp, model, max_tokens |
-| **AG-04** | Routing Examples Manager | 🔴 TODO | Few-Shot routing với Qdrant |
+| **AG-04** | LLM Intent Classification | 🔄 In Progress | LLM + Prompt based routing |
 
 ### Tools & Integrations
 
@@ -517,7 +507,6 @@ Response:
 |----|---------|--------|-------|
 | **TL-01** | Automated Tool Scanner | ✅ Done | `/api/v1/tools/scan` - FastMCP code-based |
 | **TL-02** | Tool Assignment & Routing | ✅ Done | `/api/v1/tools/{id}/assign` |
-| **TL-03** | Swagger/OpenAPI Importer | ✅ Done | `/api/v1/tools/import-swagger` |
 
 ### Knowledge Base & RAG
 

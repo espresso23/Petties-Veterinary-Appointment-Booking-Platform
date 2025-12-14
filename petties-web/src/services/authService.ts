@@ -186,6 +186,30 @@ export const authApi = {
         } finally {
             tokenStorage.clearTokens()
         }
+    },
+
+    /**
+     * Login with Google ID Token
+     * Platform "web" → CLINIC_OWNER role
+     */
+    async googleSignIn(idToken: string): Promise<AuthResponse> {
+        const response = await fetch(`${AUTH_BASE}/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idToken,
+                platform: 'web'  // Web → CLINIC_OWNER
+            })
+        })
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}))
+            throw new Error(error.message || 'Google Sign-In failed')
+        }
+
+        const data: AuthResponse = await response.json()
+        tokenStorage.setTokens(data)
+        return data
     }
 }
 

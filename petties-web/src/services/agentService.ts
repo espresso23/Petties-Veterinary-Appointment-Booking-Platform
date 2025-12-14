@@ -54,9 +54,9 @@ export interface AgentListResponse {
 export interface Tool {
     id: number
     name: string
-    tool_type: 'code_based' | 'api_based'
-    source: 'fastmcp_code' | 'swagger_imported' | 'manual_api'
     description?: string
+    input_schema?: object
+    output_schema?: object
     enabled: boolean
     assigned_agents?: string[]
 }
@@ -172,17 +172,6 @@ export const toolApi = {
             body: JSON.stringify({ agent_name: agentName })
         })
         if (!response.ok) throw new Error('Failed to assign tool')
-    },
-
-    // Import from Swagger
-    async importSwagger(swaggerUrl: string): Promise<any> {
-        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools/import-swagger`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ swagger_url: swaggerUrl, auto_enable: false })
-        })
-        if (!response.ok) throw new Error('Failed to import from Swagger')
-        return response.json()
     },
 
     // Scan code tools

@@ -2,23 +2,20 @@ import { useState, useEffect } from 'react'
 import { toolApi } from '../../../services/agentService'
 import type { Tool } from '../../../services/agentService'
 import { ToolCard } from '../../../components/admin/ToolCard'
-import { SwaggerImporter } from '../../../components/admin/SwaggerImporter'
-import { ArrowPathIcon, AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 /**
  * Tool Registry & Governance Page
  * 
  * Features:
- * - View all tools (code-based + API-based)
+ * - View all code-based tools (FastMCP)
  * - Enable/disable tools
  * - Assign tools to agents
- * - Import from Swagger/OpenAPI
  * - Scan code-based tools
  */
 export const ToolsPage = () => {
   const [tools, setTools] = useState<Tool[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'code_based' | 'api_based'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -47,16 +44,15 @@ export const ToolsPage = () => {
     }
   }
 
-  const handleImport = async (url: string) => {
-    const result = await toolApi.importSwagger(url)
-    await loadTools()
-    return result
-  }
-
   const handleScan = async () => {
-    const result = await toolApi.scanTools()
-    await loadTools()
-    return result
+    try {
+      const result = await toolApi.scanTools()
+      await loadTools()
+      return result
+    } catch (err) {
+      console.error('Failed to scan tools', err)
+      alert('Failed to scan tools')
+    }
   }
 
   const handleAssign = (toolId: number) => {
@@ -64,19 +60,16 @@ export const ToolsPage = () => {
     console.log('Assign tool', toolId)
   }
 
-  // Filter tools
+  // Filter tools by search query
   const filteredTools = tools.filter(tool => {
-    const matchesFilter = filter === 'all' || tool.tool_type === filter
     const matchesSearch = searchQuery.trim() === '' || 
       tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tool.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesFilter && matchesSearch
+    return matchesSearch
   })
 
   const stats = {
     total: tools.length,
-    codeBased: tools.filter(t => t.tool_type === 'code_based').length,
-    apiBased: tools.filter(t => t.tool_type === 'api_based').length,
     enabled: tools.filter(t => t.enabled).length
   }
 
@@ -100,38 +93,36 @@ export const ToolsPage = () => {
             <div>
               <h1 className="text-2xl font-bold text-stone-900">Tool Registry</h1>
               <p className="text-sm text-stone-500 mt-1">
-                Manage and configure tools for AI agents. Import from Swagger or scan code-based tools.
+                Manage and configure code-based tools for AI agents.
               </p>
             </div>
-            <button
-              onClick={loadTools}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors cursor-pointer"
-            >
-              <ArrowPathIcon className="w-4 h-4" />
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleScan}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer"
+              >
+                <MagnifyingGlassIcon className="w-4 h-4" />
+                Scan Tools
+              </button>
+              <button
+                onClick={loadTools}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors cursor-pointer"
+              >
+                <ArrowPathIcon className="w-4 h-4" />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* Import Section */}
-        <SwaggerImporter onImport={handleImport} onScan={handleScan} />
-
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5">
             <div className="text-2xl font-bold text-stone-900">{stats.total}</div>
             <div className="text-sm text-stone-500 mt-1">Total Tools</div>
-          </div>
-          <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5">
-            <div className="text-2xl font-bold text-blue-600">{stats.codeBased}</div>
-            <div className="text-sm text-stone-500 mt-1">Code-based</div>
-          </div>
-          <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5">
-            <div className="text-2xl font-bold text-amber-600">{stats.apiBased}</div>
-            <div className="text-sm text-stone-500 mt-1">API-based</div>
           </div>
           <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5">
             <div className="text-2xl font-bold text-green-600">{stats.enabled}</div>
@@ -139,44 +130,17 @@ export const ToolsPage = () => {
           </div>
         </div>
 
-        {/* Filters and Search */}
+        {/* Search */}
         <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search tools by name or description..."
-                  className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Filter */}
-            <div className="flex items-center gap-3">
-              <AdjustmentsHorizontalIcon className="w-5 h-5 text-stone-500" />
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value as typeof filter)}
-                aria-label="Filter tools by type"
-                className="px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm cursor-pointer"
-              >
-                <option value="all">All Types</option>
-                <option value="code_based">Code-based</option>
-                <option value="api_based">API-based</option>
-              </select>
-            </div>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tools by name or description..."
+              className="w-full pl-10 pr-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm"
+            />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
           </div>
         </div>
 
@@ -190,9 +154,9 @@ export const ToolsPage = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-stone-900 mb-2">No tools found</h3>
                 <p className="text-sm text-stone-500">
-                  {searchQuery || filter !== 'all'
-                    ? 'Try adjusting your filters or search query'
-                    : 'Import tools from Swagger or scan code-based tools to get started'
+                  {searchQuery
+                    ? 'Try adjusting your search query'
+                    : 'Click "Scan Tools" to discover code-based tools from the AI service'
                   }
                 </p>
               </div>

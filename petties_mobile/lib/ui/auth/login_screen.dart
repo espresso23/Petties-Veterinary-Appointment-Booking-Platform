@@ -146,6 +146,23 @@ class _LoginScreenState extends State<LoginScreen> {
     return error.length > 100 ? '❌ ${error.substring(0, 100)}...' : '❌ $error';
   }
 
+  Future<void> _handleGoogleSignIn() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    final success = await authProvider.signInWithGoogle();
+
+    if (mounted) {
+      if (success) {
+        _showSuccessToast('Đăng nhập với Google thành công!');
+        context.go(AppRoutes.home);
+      } else if (authProvider.error != null) {
+        final errorMessage = _extractErrorMessage(authProvider.error);
+        _showErrorToast(errorMessage);
+      }
+      // If cancelled, do nothing
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,11 +258,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     BoxShadow(color: AppColors.stone900, offset: Offset(8, 8)),
                   ],
                 ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
+          child: Form(
+            key: _formKey,
+            child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              children: [
                       // Username Field
                       const Text(
                         'TÊN ĐĂNG NHẬP',
@@ -258,16 +275,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       _buildBrutalTextField(
-                        controller: _usernameController,
+                  controller: _usernameController,
                         hintText: 'Nhập tên đăng nhập',
                         prefixIcon: Icons.person,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
                             return 'Vui lòng nhập tên đăng nhập';
-                          }
-                          return null;
-                        },
-                      ),
+                    }
+                    return null;
+                  },
+                ),
                       const SizedBox(height: 20),
 
                       // Password Field
@@ -282,31 +299,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       _buildBrutalTextField(
-                        controller: _passwordController,
+                  controller: _passwordController,
                         hintText: 'Nhập mật khẩu',
                         prefixIcon: Icons.lock,
                         obscureText: _obscurePassword,
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
                             color: AppColors.stone500,
-                          ),
-                          onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
-                          },
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Vui lòng nhập mật khẩu';
-                          }
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: 24),
+                      onPressed: () {
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                    ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Vui lòng nhập mật khẩu';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
 
                       // Login Button
-                      Consumer<AuthProvider>(
-                        builder: (context, authProvider, _) {
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
                           return _BrutalButton(
                             onPressed: authProvider.isLoading ? null : _handleLogin,
                             isLoading: authProvider.isLoading,
@@ -314,8 +331,49 @@ class _LoginScreenState extends State<LoginScreen> {
                           );
                         },
                       ),
-                    ],
-                  ),
+                      const SizedBox(height: 20),
+
+                      // Divider with "OR"
+                      Row(
+                          children: [
+                            Expanded(
+                            child: Container(
+                              height: 3,
+                              color: AppColors.stone300,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                              'HOẶC',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.stone500,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 3,
+                              color: AppColors.stone300,
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 20),
+
+                      // Google Sign-In Button
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
+                          return _GoogleSignInButton(
+                            onPressed: authProvider.isLoading ? null : _handleGoogleSignIn,
+                            isLoading: authProvider.isLoading,
+                    );
+                  },
+                ),
+              ],
+            ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -465,6 +523,90 @@ class _BrutalButtonState extends State<_BrutalButton> {
                     letterSpacing: 2,
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Google Sign-In button with Neobrutalism style
+class _GoogleSignInButton extends StatefulWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _GoogleSignInButton({
+    required this.onPressed,
+    this.isLoading = false,
+  });
+
+  @override
+  State<_GoogleSignInButton> createState() => _GoogleSignInButtonState();
+}
+
+class _GoogleSignInButtonState extends State<_GoogleSignInButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null || widget.isLoading;
+    
+    return GestureDetector(
+      onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
+      onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),
+      onTapCancel: isDisabled ? null : () => setState(() => _isPressed = false),
+      onTap: widget.onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        width: double.infinity,
+        transform: Matrix4.translationValues(
+          _isPressed ? 4 : 0,
+          _isPressed ? 4 : 0,
+          0,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: isDisabled ? AppColors.stone200 : AppColors.white,
+          border: Border.all(color: AppColors.stone900, width: 4),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(_isPressed ? 0 : 4, _isPressed ? 0 : 4),
+            ),
+          ],
+        ),
+      child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+            // Google Logo
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(
+            child: Text(
+                  'G',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.red.shade600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'ĐĂNG NHẬP VỚI GOOGLE',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: isDisabled ? AppColors.stone500 : AppColors.stone900,
+                letterSpacing: 1,
+            ),
+          ),
+        ],
         ),
       ),
     );

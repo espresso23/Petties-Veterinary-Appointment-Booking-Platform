@@ -3,6 +3,7 @@ package com.petties.petties.service;
 import com.petties.petties.config.JwtTokenProvider;
 import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.dto.auth.AuthResponse;
+import com.petties.petties.dto.auth.GoogleSignInRequest;
 import com.petties.petties.dto.auth.LoginRequest;
 import com.petties.petties.dto.auth.RegisterRequest;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
@@ -11,11 +12,13 @@ import com.petties.petties.exception.UnauthorizedException;
 import com.petties.petties.model.BlacklistedToken;
 import com.petties.petties.model.RefreshToken;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.repository.RefreshTokenRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.util.TokenUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -37,6 +41,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
     private final BlacklistedTokenRepository blacklistedTokenRepository;
+    private final GoogleAuthService googleAuthService;
     
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -245,6 +250,90 @@ public class AuthService {
         
         return userRepository.findById(userPrincipal.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    /**
+     * Login or register with Google Sign-In
+     * 
+     * @param request Contains idToken and platform
+     * @return AuthResponse with JWT tokens
+     */
+    @Transactional
+    public AuthResponse loginWithGoogle(GoogleSignInRequest request) {
+        // 1. Verify Google ID token
+        GoogleAuthService.GoogleUserInfo googleUser = googleAuthService.verifyIdToken(request.getIdToken());
+        
+        log.info("Google Sign-In for email: {}, platform: {}", googleUser.email(), request.getPlatform());
+        
+        // 2. Find or create user
+        User user = userRepository.findByEmail(googleUser.email())
+                .orElseGet(() -> createUserFromGoogle(googleUser, request.getPlatform()));
+        
+        // 3. Generate tokens
+        String accessToken = tokenProvider.generateToken(
+                user.getUserId(),
+                user.getUsername(),
+                user.getRole().name()
+        );
+        String refreshToken = tokenProvider.generateRefreshToken(
+                user.getUserId(),
+                user.getUsername()
+        );
+        
+        // 4. Delete old refresh tokens and save new one
+        refreshTokenRepository.deleteAllByUserId(user.getUserId());
+        saveRefreshToken(user.getUserId(), refreshToken);
+        
+        log.info("Google Sign-In successful for user: {}, role: {}", user.getUsername(), user.getRole());
+        
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .role(user.getRole().name())
+                .build();
+    }
+
+    /**
+     * Create a new user from Google Sign-In data
+     * Role is determined by platform:
+     * - mobile → PET_OWNER
+     * - web → CLINIC_OWNER
+     */
+    private User createUserFromGoogle(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
+        // Determine role based on platform
+        Role role = "web".equalsIgnoreCase(platform) ? Role.CLINIC_OWNER : Role.PET_OWNER;
+        
+        log.info("Creating new user from Google: email={}, name={}, platform={}, role={}", 
+                googleUser.email(), googleUser.name(), platform, role);
+        
+        // Generate unique username from name (with fallback to email)
+        String baseName = googleUser.name();
+        String username;
+        
+        if (baseName != null && !baseName.isBlank()) {
+            // Use name as username, handle duplicates
+            username = baseName;
+            int suffix = 1;
+            while (userRepository.existsByUsername(username)) {
+                username = baseName + "_" + suffix++;
+            }
+        } else {
+            // Fallback to email if name is not available
+            username = googleUser.email();
+        }
+        
+        User user = new User();
+        user.setUsername(username); // Use name instead of email
+        user.setEmail(googleUser.email());
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setRole(role);
+        user.setAvatar(googleUser.picture());
+        
+        return userRepository.save(user);
     }
 }
 

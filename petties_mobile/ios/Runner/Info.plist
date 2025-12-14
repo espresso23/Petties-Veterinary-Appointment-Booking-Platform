@@ -45,5 +45,26 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Firebase Configuration -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>  <!-- Set to false để FlutterFire tự xử lý -->
+	
+	<!-- Google Sign-In Configuration -->
+	<!-- Thay YOUR_IOS_CLIENT_ID bằng iOS Client ID từ Google Cloud Console -->
+	<!-- Format: com.googleusercontent.apps.XXXXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.YOUR_IOS_CLIENT_ID</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
 </dict>
 </plist>

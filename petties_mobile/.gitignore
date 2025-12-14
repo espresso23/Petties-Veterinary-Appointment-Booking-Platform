@@ -6,6 +6,7 @@
 .DS_Store
 .atom/
 .build/
+build/
 .buildlog/
 .history
 .svn/
@@ -43,3 +44,32 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android build outputs
+/android/app/build/
+/android/.gradle/
+/android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# iOS build outputs
+/ios/build/
+/ios/Pods/
+/ios/.symlinks/
+/ios/DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Flutter build outputs
+/build/
+*.app
+*.framework
+*.xcarchive
+
+# Firebase
+**/google-services.json.bak
+**/GoogleService-Info.plist.bak

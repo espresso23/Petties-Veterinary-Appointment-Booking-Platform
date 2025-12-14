@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, createContext, useContext, useCallback, useRef, type ReactNode } from 'react'
 import '../styles/brutalist.css'
 
 // Toast types
@@ -21,9 +21,12 @@ const ToastContext = createContext<ToastContextType | null>(null)
 // Toast Provider
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toasts, setToasts] = useState<Toast[]>([])
+    // Use a counter ref for unique IDs to prevent duplicate keys
+    const idCounter = useRef(0)
 
     const showToast = useCallback((type: ToastType, message: string, duration = 5000) => {
-        const id = Date.now().toString()
+        // Generate unique ID using counter + timestamp
+        const id = `toast-${++idCounter.current}-${Date.now()}`
         setToasts((prev) => [...prev, { id, type, message, duration }])
     }, [])
 
