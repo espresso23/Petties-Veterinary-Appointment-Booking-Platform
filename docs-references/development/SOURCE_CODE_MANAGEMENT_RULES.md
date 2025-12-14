@@ -112,7 +112,8 @@ public class BookingController { }
 
 // Methods & Variables: camelCase
 public void createUser() { }
-private String userName;
+private String username;
+private String fullName;
 
 // Constants: UPPER_SNAKE_CASE
 public static final String JWT_SECRET = "secret";
@@ -234,7 +235,7 @@ class BookingScreen { }
 
 // Methods & Variables: camelCase
 void createBooking() { }
-String userName;
+String username;
 
 // Files: snake_case
 user_service.dart
