@@ -4,8 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
 import java.util.List;
@@ -13,11 +13,8 @@ import java.util.List;
 /**
  * CORS Configuration for Backend API
  * 
- * Note: In production with API Gateway, CORS is handled by Gateway.
- * This config is useful for:
- * - Direct access during development
- * - Testing backend independently
- * - Fallback if Gateway is down
+ * This bean is used by Spring Security's .cors(Customizer.withDefaults())
+ * to handle CORS preflight requests properly.
  */
 @Configuration
 public class CorsConfig {
@@ -26,8 +23,7 @@ public class CorsConfig {
     private String allowedOrigins;
     
     @Bean
-    public CorsFilter corsFilter() {
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         
         // Allow credentials
@@ -66,8 +62,9 @@ public class CorsConfig {
         config.setMaxAge(3600L);
         
         // Apply to all paths
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         
-        return new CorsFilter(source);
+        return source;
     }
 }
