@@ -249,40 +249,38 @@ sudo nano /etc/nginx/sites-available/api.petties.world
 
 ```nginx
 server {
-    listen 80;
+    listen 443 ssl;
     server_name api.petties.world;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name api.petties.world;
-
+    
+    # SSL - managed by Certbot
     ssl_certificate /etc/letsencrypt/live/api.petties.world/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/api.petties.world/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     client_max_body_size 15M;
 
-    # Backend API
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
+
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Origin $http_origin;
+
+        # KHÔNG thêm CORS headers ở đây - để Backend xử lý
+        
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
     }
 
-    # WebSocket support
+    # WebSocket cho API (nếu có)
     location /ws/ {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8080/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -290,17 +288,24 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_connect_timeout 75s;
-        proxy_buffering off;
+        proxy_read_timeout 86400s;
     }
 
-    # Health check
     location /api/actuator/health {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8080/api/actuator/health;
         access_log off;
     }
+}
+
+server {
+    listen 80;
+    server_name api.petties.world;
+    
+    if ($host = api.petties.world) {
+        return 301 https://$host$request_uri;
+    }
+    
+    return 404;
 }
 ```
 
