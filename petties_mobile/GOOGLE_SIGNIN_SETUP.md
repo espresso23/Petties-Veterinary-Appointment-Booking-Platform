@@ -94,7 +94,7 @@ Vào **APIs & Services** → **Credentials** → **+ CREATE CREDENTIALS** → **
 
 📝 **Lưu lại:**
 - Client ID: `YOUR_WEB_CLIENT_ID.apps.googleusercontent.com`
-- Client Secret: (lưu cho backend)
+- Client Secret: (lưu cho backend, KHÔNG commit vào repo)
 
 ### 2.2. Android Client ID
 
@@ -288,9 +288,11 @@ public GoogleIdTokenVerifier googleIdTokenVerifier() {
 
 ```properties
 # Google OAuth2
-google.client-id=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
-google.client-secret=YOUR_CLIENT_SECRET
+google.client-id=${GOOGLE_CLIENT_ID}
+google.client-secret=${GOOGLE_CLIENT_SECRET}
 ```
+
+> ⚠️ **KHÔNG commit secrets vào repo!** Sử dụng environment variables hoặc .env file.
 
 ### 5.5. Dependencies (pom.xml)
 
@@ -394,8 +396,9 @@ Trước khi deploy lên production:
 
 2. **VPS Environment:**
    ```bash
-   # Trong file .env trên VPS
+   # Trong file .env trên VPS (thay bằng giá trị thực)
    GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
    ```
 
 ---
