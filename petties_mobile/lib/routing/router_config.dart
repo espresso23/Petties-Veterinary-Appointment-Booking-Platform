@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../ui/auth/login_screen.dart';
+import '../ui/auth/register_screen.dart';
 import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
@@ -123,9 +124,7 @@ class AppRouterConfig {
         ),
         GoRoute(
           path: AppRoutes.register,
-          builder: (context, state) => const Scaffold(
-            body: Center(child: Text('Register Screen - Coming Soon')),
-          ),
+          builder: (context, state) => const RegisterScreen(),
         ),
         
         // Role-specific Home Routes

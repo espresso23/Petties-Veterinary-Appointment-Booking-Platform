@@ -5,6 +5,7 @@ export interface AuthResponse {
   userId: string
   username: string
   email: string
+  fullName?: string
   role: string
 }
 
@@ -12,6 +13,7 @@ export interface UserResponse {
   userId: string
   username: string
   email: string
+  fullName?: string
   phone?: string
   avatar?: string
   role: string

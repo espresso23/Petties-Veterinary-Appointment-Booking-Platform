@@ -23,7 +23,7 @@ services:
     networks:
       - petties-dev-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +46,7 @@ services:
     networks:
       - petties-dev-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -80,6 +80,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      # Email SMTP (OTP) - MUST set in .env file!
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
     volumes:
       # Mount source code for hot-reload
       - ./backend-spring/petties/src:/app/src:ro
@@ -118,8 +121,8 @@ services:
       # Primary: kimi-k2 (Local) | kimi-k2:1t-cloud (Cloud) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
       LLM_PROVIDER: ollama
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # Set for Cloud mode, leave empty for Local
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2}  # Auto-switches to kimi-k2:1t-cloud if API key provided
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-} # Set for Cloud mode, leave empty for Local
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2} # Auto-switches to kimi-k2:1t-cloud if API key provided
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       # CORS (comma-separated string)
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080

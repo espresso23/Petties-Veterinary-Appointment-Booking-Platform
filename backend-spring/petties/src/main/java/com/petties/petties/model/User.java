@@ -18,8 +18,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
-    @UniqueConstraint(columnNames = "username"),
-    @UniqueConstraint(columnNames = "email")
+        @UniqueConstraint(columnNames = "username"),
+        @UniqueConstraint(columnNames = "email")
 })
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING)
@@ -31,40 +31,42 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userId;
-    
+
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
-    
+
     @Column(name = "password", nullable = false)
     private String password;
-    
+
     @Column(name = "phone", length = 20)
     private String phone;
-    
+
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
-    
+
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+
     @Column(name = "avatar", length = 500)
     private String avatar;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private Role role;
-    
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-    
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 }
-
