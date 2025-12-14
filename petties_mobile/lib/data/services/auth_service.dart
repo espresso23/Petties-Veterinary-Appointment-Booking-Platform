@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/auth_response.dart';
+import '../models/send_otp_response.dart';
 import '../models/user_response.dart';
 import 'api_client.dart';
 import '../../config/constants/app_constants.dart';
@@ -76,12 +77,13 @@ class AuthService {
     );
   }
 
-  /// Register new user
+  /// Register new user (DEPRECATED - dùng sendRegistrationOtp thay thế)
   Future<AuthResponse> register({
     required String username,
     required String password,
     required String email,
     String? phone,
+    String? fullName,
     String? avatar,
     required String role,
   }) async {
@@ -93,6 +95,7 @@ class AuthService {
           'password': password,
           'email': email,
           if (phone != null) 'phone': phone,
+          if (fullName != null) 'fullName': fullName,
           if (avatar != null) 'avatar': avatar,
           'role': role,
         },
@@ -101,6 +104,68 @@ class AuthService {
       final authResponse = AuthResponse.fromJson(response.data);
       await _saveAuthData(authResponse);
       return authResponse;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Step 1: Gửi OTP đến email để đăng ký
+  Future<SendOtpResponse> sendRegistrationOtp({
+    required String username,
+    required String email,
+    required String password,
+    String? phone,
+    required String fullName,
+    required String role,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/register/send-otp',
+        data: {
+          'username': username,
+          'email': email,
+          'password': password,
+          if (phone != null) 'phone': phone,
+          'fullName': fullName,
+          'role': role,
+        },
+      );
+      return SendOtpResponse.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Step 2: Verify OTP và hoàn tất đăng ký
+  Future<AuthResponse> verifyOtpAndRegister({
+    required String email,
+    required String otpCode,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/register/verify-otp',
+        data: {
+          'email': email,
+          'otpCode': otpCode,
+        },
+      );
+
+      final authResponse = AuthResponse.fromJson(response.data);
+      await _saveAuthData(authResponse);
+      return authResponse;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Gửi lại OTP
+  Future<SendOtpResponse> resendOtp({required String email}) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/register/resend-otp',
+        data: {'email': email},
+      );
+      return SendOtpResponse.fromJson(response.data);
     } catch (e) {
       rethrow;
     }

@@ -37,7 +37,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
-    
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
@@ -45,42 +45,41 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final BlacklistedTokenRepository blacklistedTokenRepository;
     private final GoogleAuthService googleAuthService;
-    
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         // Check if username or email already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new ResourceAlreadyExistsException("Username already exists");
         }
-        
+
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new ResourceAlreadyExistsException("Email already exists");
         }
-        
+
         // Create new user
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
+        user.setFullName(request.getFullName());
         user.setRole(request.getRole());
-        
+
         User savedUser = userRepository.save(user);
-        
+
         // Generate tokens
         String accessToken = tokenProvider.generateToken(
                 savedUser.getUserId(),
                 savedUser.getUsername(),
-                savedUser.getRole().name()
-        );
+                savedUser.getRole().name());
         String refreshToken = tokenProvider.generateRefreshToken(
                 savedUser.getUserId(),
-                savedUser.getUsername()
-        );
-        
+                savedUser.getUsername());
+
         // Save refresh token to database
         saveRefreshToken(savedUser.getUserId(), refreshToken);
-        
+
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
@@ -88,29 +87,27 @@ public class AuthService {
                 .userId(savedUser.getUserId())
                 .username(savedUser.getUsername())
                 .email(savedUser.getEmail())
+                .fullName(savedUser.getFullName())
                 .role(savedUser.getRole().name())
                 .build();
     }
-    
+
     @Transactional
     public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getUsername(),
-                        request.getPassword()
-                )
-        );
+                        request.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        UserDetailsServiceImpl.UserPrincipal userPrincipal =
-                (UserDetailsServiceImpl.UserPrincipal) authentication.getPrincipal();
+        UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
+                .getPrincipal();
 
         String token = tokenProvider.generateToken(
                 userPrincipal.getUserId(),
                 userPrincipal.getUsername(),
-                userPrincipal.getRole()
-        );
+                userPrincipal.getRole());
 
         User user = userRepository.findById(userPrincipal.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -118,15 +115,14 @@ public class AuthService {
         // Generate refresh token
         String refreshToken = tokenProvider.generateRefreshToken(
                 user.getUserId(),
-                user.getUsername()
-        );
-        
+                user.getUsername());
+
         // Delete old refresh tokens for this user (rotation)
         refreshTokenRepository.deleteAllByUserId(user.getUserId());
-        
+
         // Save new refresh token
         saveRefreshToken(user.getUserId(), refreshToken);
-        
+
         return AuthResponse.builder()
                 .accessToken(token)
                 .refreshToken(refreshToken)
@@ -134,58 +130,57 @@ public class AuthService {
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .fullName(user.getFullName())
                 .role(user.getRole().name())
                 .build();
     }
-    
+
     @Transactional
     public AuthResponse refreshToken(String refreshToken) {
         // Validate token format and expiration
         if (!tokenProvider.validateToken(refreshToken)) {
             throw new UnauthorizedException("Invalid or expired refresh token");
         }
-        
+
         // Check if it's actually a refresh token
         String tokenType = tokenProvider.getTokenType(refreshToken);
         if (!"refresh".equals(tokenType)) {
             throw new UnauthorizedException("Invalid token type");
         }
-        
+
         // Check if token exists in database
         String tokenHash = TokenUtil.hashToken(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new UnauthorizedException("Refresh token not found"));
-        
+
         // Check if token is expired
         if (storedToken.isExpired()) {
             refreshTokenRepository.delete(storedToken);
             throw new UnauthorizedException("Refresh token expired");
         }
-        
+
         // Get user info
         String username = tokenProvider.getUsernameFromToken(refreshToken);
         UUID userId = tokenProvider.getUserIdFromToken(refreshToken);
-        
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
+
         // Generate new tokens
         String newAccessToken = tokenProvider.generateToken(
                 userId,
                 username,
-                user.getRole().name()
-        );
+                user.getRole().name());
         String newRefreshToken = tokenProvider.generateRefreshToken(
                 userId,
-                username
-        );
-        
+                username);
+
         // Delete old refresh token (rotation)
         refreshTokenRepository.delete(storedToken);
-        
+
         // Save new refresh token
         saveRefreshToken(userId, newRefreshToken);
-        
+
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
@@ -193,28 +188,28 @@ public class AuthService {
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .fullName(user.getFullName())
                 .role(user.getRole().name())
                 .build();
     }
-    
+
     @Transactional
     public void logout(String accessToken) {
         if (!tokenProvider.validateToken(accessToken)) {
             throw new UnauthorizedException("Invalid access token");
         }
-        
+
         // Check if it's an access token
         String tokenType = tokenProvider.getTokenType(accessToken);
         if (!"access".equals(tokenType)) {
             throw new UnauthorizedException("Invalid token type");
         }
-        
+
         UUID userId = tokenProvider.getUserIdFromToken(accessToken);
         LocalDateTime expiresAt = LocalDateTime.ofInstant(
                 tokenProvider.getExpirationDateFromToken(accessToken).toInstant(),
-                java.time.ZoneId.systemDefault()
-        );
-        
+                java.time.ZoneId.systemDefault());
+
         // Blacklist the access token
         String tokenHash = TokenUtil.hashToken(accessToken);
         BlacklistedToken blacklistedToken = new BlacklistedToken();
@@ -222,35 +217,34 @@ public class AuthService {
         blacklistedToken.setUserId(userId);
         blacklistedToken.setExpiresAt(expiresAt);
         blacklistedTokenRepository.save(blacklistedToken);
-        
+
         // Delete all refresh tokens for this user
         refreshTokenRepository.deleteAllByUserId(userId);
     }
-    
+
     private void saveRefreshToken(UUID userId, String refreshToken) {
         String tokenHash = TokenUtil.hashToken(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.ofInstant(
                 tokenProvider.getExpirationDateFromToken(refreshToken).toInstant(),
-                java.time.ZoneId.systemDefault()
-        );
-        
+                java.time.ZoneId.systemDefault());
+
         RefreshToken token = new RefreshToken();
         token.setUserId(userId);
         token.setTokenHash(tokenHash);
         token.setExpiresAt(expiresAt);
         refreshTokenRepository.save(token);
     }
-    
+
     public User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new UnauthorizedException("User not authenticated");
         }
-        
-        UserDetailsServiceImpl.UserPrincipal userPrincipal = 
-                (UserDetailsServiceImpl.UserPrincipal) authentication.getPrincipal();
-        
+
+        UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
+                .getPrincipal();
+
         return userRepository.findById(userPrincipal.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
@@ -278,19 +272,17 @@ public class AuthService {
         String accessToken = tokenProvider.generateToken(
                 user.getUserId(),
                 user.getUsername(),
-                user.getRole().name()
-        );
+                user.getRole().name());
         String refreshToken = tokenProvider.generateRefreshToken(
                 user.getUserId(),
-                user.getUsername()
-        );
+                user.getUsername());
 
         // 5. Delete old refresh tokens and save new one
         refreshTokenRepository.deleteAllByUserId(user.getUserId());
         saveRefreshToken(user.getUserId(), refreshToken);
-        
+
         log.info("Google Sign-In successful for user: {}, role: {}", user.getUsername(), user.getRole());
-        
+
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
@@ -298,6 +290,7 @@ public class AuthService {
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .fullName(user.getFullName())
                 .role(user.getRole().name())
                 .build();
     }
@@ -308,7 +301,7 @@ public class AuthService {
      * the same user simultaneously.
      * 
      * @param googleUser Google user info
-     * @param platform Platform (mobile/web)
+     * @param platform   Platform (mobile/web)
      * @return User (existing or newly created)
      */
     private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
@@ -334,33 +327,21 @@ public class AuthService {
      * Role is determined by platform:
      * - mobile → PET_OWNER
      * - web → CLINIC_OWNER
+     * 
+     * Username = email (guaranteed unique)
+     * FullName = name from Google
      */
     private User createUserFromGoogle(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
         // Determine role based on platform
         Role role = "web".equalsIgnoreCase(platform) ? Role.CLINIC_OWNER : Role.PET_OWNER;
-        
-        log.info("Creating new user from Google: email={}, name={}, platform={}, role={}", 
+
+        log.info("Creating new user from Google: email={}, name={}, platform={}, role={}",
                 googleUser.email(), googleUser.name(), platform, role);
-        
-        // Generate unique username from name (with fallback to email)
-        String baseName = googleUser.name();
-        String username;
-        
-        if (baseName != null && !baseName.isBlank()) {
-            // Use name as username, handle duplicates
-            username = baseName;
-            int suffix = 1;
-            while (userRepository.existsByUsername(username)) {
-                username = baseName + "_" + suffix++;
-            }
-        } else {
-            // Fallback to email if name is not available
-            username = googleUser.email();
-        }
-        
+
         User user = new User();
-        user.setUsername(username); // Use name instead of email
+        user.setUsername(googleUser.email()); // Use email as username
         user.setEmail(googleUser.email());
+        user.setFullName(googleUser.name()); // Use name as fullName
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRole(role);
         user.setAvatar(googleUser.picture());
@@ -393,4 +374,3 @@ public class AuthService {
         }
     }
 }
-
