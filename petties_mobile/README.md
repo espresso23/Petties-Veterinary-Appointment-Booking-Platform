@@ -76,7 +76,7 @@ petties_mobile/
 ├── lib/
 │   ├── config/              # Configuration
 │   │   ├── constants/       # App constants
-│   │   ├── routes/          # Route definitions (legacy)
+│   │   ├── env/             # Environment config
 │   │   └── theme/           # Theme configuration
 │   ├── core/                # Core utilities
 │   │   ├── error/           # Error handling
@@ -84,14 +84,9 @@ petties_mobile/
 │   │   └── utils/           # Utilities
 │   ├── data/                # Data layer
 │   │   ├── models/          # Data models
-│   │   ├── datasources/     # Data sources (remote/local)
+│   │   ├── datasources/     # Data sources
+│   │   ├── services/        # API services
 │   │   └── repositories/    # Repository implementations
-│   ├── domain/              # Domain layer
-│   │   ├── entities/        # Business entities
-│   │   ├── repositories/    # Repository interfaces
-│   │   └── usecases/        # Business logic
-│   ├── presentation/        # Presentation layer (legacy)
-│   │   └── screens/         # Screen widgets
 │   ├── providers/           # State providers
 │   │   └── auth_provider.dart
 │   ├── routing/             # Navigation & routing
@@ -103,6 +98,7 @@ petties_mobile/
 │   │   ├── vet/             # Vet screens
 │   │   ├── clinic_owner/    # Clinic owner screens
 │   │   └── core/            # Core widgets
+│   ├── utils/               # Shared utils
 │   └── main.dart            # App entry point
 ├── android/                 # Android configuration
 ├── ios/                     # iOS configuration

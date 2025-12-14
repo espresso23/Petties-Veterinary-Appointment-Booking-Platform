@@ -287,19 +287,6 @@ petties_mobile/
 │   │   │   └── home_screen.dart
 │   │   └── ...                 # Khi có feature mới (bookings/, pets/, vets/) thì thêm tại đây
 │   │
-│   ├── domain/                 # Domain Layer - Business Logic (Pure Dart)
-│   │   ├── entities/           # Domain Entities (Business Models)
-│   │   │   ├── user.dart       # User entity
-│   │   │   └── base_entity.dart
-│   │   ├── repositories/       # Repository Interfaces (Abstract)
-│   │   │   └── auth_repository.dart
-│   │   ├── usecases/           # Use Cases (Business Operations)
-│   │   │   ├── auth_usecases.dart
-│   │   │   └── base_usecase.dart
-│   │   └── errors/             # Domain Errors
-│   │       ├── exceptions.dart
-│   │       └── failures.dart
-│   │
 │   ├── data/                   # Data Layer - Data Access Implementation
 │   │   ├── datasources/        # Data Sources
 │   │   │   ├── remote/         # Remote Data Source (API)
@@ -320,11 +307,18 @@ petties_mobile/
 │   ├── providers/              # State Management (Provider)
 │   │   └── auth_provider.dart  # AuthProvider - Quản lý auth state
 │   │
+│   ├── core/                   # Core Utilities & Error Handling
+│   │   ├── error/              # Exceptions & Failures
+│   │   │   └── exceptions.dart
+│   │   ├── network/            # Network utilities
+│   │   └── utils/              # General utilities
+│   │
 │   ├── config/                 # Configuration
 │   │   ├── constants/          # Constants
 │   │   │   ├── app_colors.dart      # Color palette
 │   │   │   ├── app_constants.dart   # App-wide constants (API URLs, timeouts)
 │   │   │   └── app_strings.dart     # String constants
+│   │   ├── env/                # Environment variables
 │   │   └── theme/              # Theme Configuration
 │   │       └── app_theme.dart       # Light/Dark themes
 │   │
@@ -332,7 +326,7 @@ petties_mobile/
 │   │   ├── app_routes.dart     # Route constants
 │   │   └── router_config.dart  # GoRouter configuration
 │   │
-│   ├── utils/                  # Utilities
+│   ├── utils/                  # Shared Utilities
 │   │   ├── storage_service.dart    # Local storage wrapper
 │   │   ├── validators.dart         # Validation functions
 │   │   ├── datetime_utils.dart     # Date/time helpers
@@ -393,46 +387,7 @@ class LoginScreen extends StatelessWidget {
 
 ---
 
-#### `lib/domain/`
-**Mục đích:** Business Logic - Pure Dart (không phụ thuộc Flutter/HTTP)
 
-**Cấu trúc:**
-- `entities/` - Domain entities (User, Pet, Booking) - Business models
-- `repositories/` - Repository interfaces (abstract classes)
-- `usecases/` - Business operations (LoginUseCase, CreateBookingUseCase)
-- `errors/` - Domain errors (exceptions, failures)
-
-**Quy tắc:**
-- Entities không có annotations (không có `@JsonSerializable`)
-- Repository là interfaces (abstract classes)
-- UseCases chứa business logic
-
-**Ví dụ:**
-```dart
-// domain/entities/user.dart
-class User {
-  final String id;
-  final String username;
-  final String email;
-  // Pure Dart class, no Flutter/HTTP dependencies
-}
-
-// domain/repositories/auth_repository.dart
-abstract class AuthRepository {
-  Future<Either<Failure, User>> login(String username, String password);
-}
-
-// domain/usecases/auth_usecases.dart
-class LoginUseCase {
-  final AuthRepository repository;
-  
-  Future<Either<Failure, User>> call(String username, String password) {
-    return repository.login(username, password);
-  }
-}
-```
-
----
 
 #### `lib/data/`
 **Mục đích:** Data Access - Implementation của data layer
@@ -721,21 +676,21 @@ flutter:
 
 ---
 
-### 7. **Clean Architecture (Mobile)**
+### 7. **Layered Architecture (Mobile)**
 
-**Dependency Rule:**
+**Flow:**
 ```
-UI → Domain ← Data
+UI → Provider → Data
 ```
 
-- UI phụ thuộc Domain (qua repositories interfaces)
-- Data implement Domain interfaces
-- Domain không phụ thuộc UI hoặc Data
+- **UI**: Widgets & Screens
+- **Provider**: State Management & Business Logic (Bridge)
+- **Data**: API Calls & Storage
 
 **Lợi ích:**
-- Testable (có thể mock repositories)
-- Maintainable (thay đổi UI/Data không ảnh hưởng Domain)
-- Scalable (dễ thêm features mới)
+- Simplified: Giảm boilerplate code
+- Provider Pattern: Quản lý state hiệu quả
+- Separation of Concerns: UI tách biệt với Data
 
 ---
 
@@ -780,17 +735,17 @@ UI → Domain ← Data
 3. **API Calls:**
    - Tất cả API calls qua `data/services/`
    - Use interceptors cho token/error handling
-   - Handle errors trong domain layer
+   - Handle errors trong provider layer
 
 4. **Navigation:**
    - Route constants trong `routing/app_routes.dart`
    - Use GoRouter
    - Protected routes với redirect logic
 
-5. **Clean Architecture:**
-   - Entities = Pure Dart classes
-   - Models = DTOs with JSON serialization
-   - Repository interfaces trong domain, implementations trong data
+5. **Layered Architecture:**
+   - Data Layer: Models (DTOs), Services, Repositories
+   - Provider Layer: Business Logic & State
+   - UI Layer: Screens & Widgets
 
 ---
 
