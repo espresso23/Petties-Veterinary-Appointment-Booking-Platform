@@ -381,7 +381,7 @@ Project sử dụng **3 Docker Compose files** cho các mục đích khác nhau:
 |------|----------|--------------|
 | `docker-compose.db-only.yml` | Chỉ databases (PostgreSQL + MongoDB) | **Development chính**: Chạy Backend/AI Service trực tiếp với hot-reload |
 | `docker-compose.dev.yml` | Full stack với Docker (dev mode) | Test toàn bộ stack trong Docker, với hot-reload |
-| `docker-compose.prod.yml` | Production test (services only) | Test production build locally trước khi deploy Render |
+| `docker-compose.prod.yml` | Production test (services only) | Test production build locally trước khi deploy EC2 |
 
 **Lưu ý:** Tất cả Dockerfiles sử dụng **unified multi-stage builds** với `BUILD_ENV` argument (dev/prod).
 
@@ -442,7 +442,7 @@ docker-compose -f docker-compose.dev.yml down
 #### Option 3: Production Test Locally
 
 ```bash
-# Test production build trước khi deploy Render
+# Test production build trước khi deploy EC2
 docker-compose -f docker-compose.prod.yml up --build
 
 # Note: Cần set environment variables trong .env
@@ -1037,8 +1037,8 @@ hotfix/critical-bug     # Critical fixes
 | **AI Service** | https://ai.petties.world |
 
 ### Infrastructure
-- **Web Frontend:** Vercel / Render
-- **Backend/AI Service:** Render.com
+- **Web Frontend:** Vercel
+- **Backend/AI Service:** EC2
 - **Databases:** Neon (PostgreSQL), MongoDB Atlas, Qdrant Cloud
 
 ### Next Steps for Enhancement

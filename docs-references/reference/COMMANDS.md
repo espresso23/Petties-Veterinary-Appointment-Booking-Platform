@@ -308,13 +308,20 @@ docker-compose -f docker-compose.dev.yml restart ai-service
 
 ## 8. Production Deployment
 
-### Render (Backend + AI Service)
+### AWS EC2 (Backend + AI Service)
 ```bash
-# Push to main branch triggers auto-deploy
+# Push to main branch triggers auto-deploy via GitHub Actions
 git push origin main
 
-# Manual deploy via Render Dashboard
-# https://dashboard.render.com
+# Manual deploy on EC2:
+ssh -i petties-key.pem ubuntu@<EC2_IP>
+cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+git pull origin main
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+
+# Check logs
+docker-compose -f docker-compose.prod.yml logs -f
 ```
 
 ### Vercel (Frontend)
@@ -335,13 +342,11 @@ vercel --prod
 ```
 petties/
 ├── docker-compose.dev.yml      # Dev: Full services + hot-reload
-├── docker-compose.prod.yml     # Prod: Test locally before deploy
+├── docker-compose.prod.yml     # Prod: EC2 deployment
 ├── docker-compose.db-only.yml  # Dev: Databases only
-├── render.yaml                 # Render deployment config
 │
 ├── backend-spring/petties/
-│   ├── Dockerfile.dev          # Dev: JDK + debug
-│   ├── Dockerfile.prod         # Prod: JRE optimized
+│   ├── Dockerfile              # Unified Dockerfile (dev/prod)
 │   └── src/main/resources/
 │       ├── application.properties      # Base config
 │       ├── application-dev.properties  # Dev profile
