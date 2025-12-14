@@ -1,5 +1,7 @@
 # Petties - Development Workflow
 
+**Last Updated:** December 14, 2025
+
 ## Tổng quan kiến trúc
 
 ```
@@ -7,20 +9,22 @@
 │                     PRODUCTION ENVIRONMENT                       │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Vercel ──────────► petties-web.vercel.app (Frontend React)     │
+│  Vercel ──────────► petties.world (Frontend React)              │
 │                            │                                     │
 │                            ▼                                     │
-│  Render ──────────► petties-backend.onrender.com (Spring Boot)  │
+│  AWS EC2 ─────────► api.petties.world (Spring Boot)             │
 │                            │                                     │
 │                            ▼                                     │
-│  Render ──────────► petties-ai-service.onrender.com (FastAPI)   │
+│  AWS EC2 ─────────► ai.petties.world (FastAPI)                  │
 │                            │                                     │
 │              ┌─────────────┼─────────────┐                      │
 │              ▼             ▼             ▼                      │
-│         Neon      MongoDB Atlas   Qdrant Cloud              │
+│         Neon      MongoDB Atlas   Qdrant Cloud                  │
 │        (PostgreSQL)    (NoSQL DB)    (Vector DB)                │
 │                                                                  │
-│  Ollama Cloud (LLM) ────── API Key ────── Render Services       │
+│  Ollama Cloud (LLM) ────── API Key ────── EC2 Services          │
+│                                                                  │
+│  Nginx (Reverse Proxy) ─── SSL (Let's Encrypt)                  │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -176,32 +180,67 @@ flutter test
 
 ## 5. Deployment
 
-> **⚠️ Status:** Project hiện tại **chưa được deploy**. Tất cả development được thực hiện local.
+> **✅ Status:** Project đã được deploy lên Production tại **petties.world**
 
-### Current Status
-- **Development:** Local only (localhost:8080, localhost:8000, localhost:5173)
-- **Staging:** Not configured
-- **Production:** Not deployed
+### Production Environment
+- **Frontend:** https://petties.world (Vercel)
+- **Backend API:** https://api.petties.world (AWS EC2 + Nginx)
+- **AI Service:** https://ai.petties.world (AWS EC2 + Nginx)
+- **Databases:** Neon PostgreSQL, MongoDB Atlas, Qdrant Cloud
 
-### Planned Deployment (Khi ready)
+### Deployment Architecture
+- **EC2 Instance:** t3.small (2 vCPU, 2GB RAM)
+- **Reverse Proxy:** Nginx with SSL (Let's Encrypt)
+- **Containers:** Docker Compose (Production mode)
+- **CI/CD:** GitHub Actions auto-deploy on push to `main`
 
-**Automatic Deployment (CI/CD)**
-- Push to `main` → Auto deploy to Production (khi setup)
-- Push to `develop` → Auto deploy to Staging (khi setup)
+### Automatic Deployment (GitHub Actions)
+```yaml
+# Push to main → Auto deploy to EC2
+git push origin main
 
-**Manual Deployment**
-```bash
-# Backend/AI Service (Render) - Khi ready
-# Vào Render Dashboard > Manual Deploy
-
-# Frontend (Vercel) - Khi ready
-# Vào Vercel Dashboard > Redeploy
+# GitHub Actions workflow:
+# 1. SSH vào EC2
+# 2. Pull latest code
+# 3. Rebuild Docker containers
+# 4. Health check services
 ```
 
-**Rollback**
+### Manual Deployment (EC2)
 ```bash
-# Render: Chọn previous deploy và click "Rollback"
-# Vercel: Chọn previous deployment và click "Promote to Production"
+# SSH vào EC2
+ssh -i petties-key.pem ubuntu@15.134.219.97
+
+# Pull latest code
+cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+git pull origin main
+
+# Rebuild và restart containers
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+
+# Check logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+### Frontend Deployment (Vercel)
+```bash
+# Auto-deploy khi push to main
+git push origin main
+
+# Hoặc manual deploy từ Vercel Dashboard:
+# https://vercel.com/dashboard
+```
+
+### Rollback
+```bash
+# EC2: Checkout previous commit
+cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+git checkout <previous-commit-hash>
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+
+# Vercel: Dashboard > Previous deployment > Promote to Production
 ```
 
 ## 6. Environment Variables
@@ -212,10 +251,32 @@ Copy `.env.example` thành `.env` và điền values:
 cp .env.example .env
 ```
 
-### Production
-Quản lý qua Dashboard của Render/Vercel.
+### Production (AWS EC2)
+Environment variables được quản lý qua file `.env` trên EC2:
 
-**KHÔNG BAO GIỜ commit credentials vào Git!**
+```bash
+# SSH vào EC2
+ssh -i petties-key.pem ubuntu@15.134.219.97
+
+# Edit .env file
+cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+nano .env
+
+# Restart containers sau khi sửa
+docker-compose -f docker-compose.prod.yml down
+docker-compose -f docker-compose.prod.yml --env-file .env up -d
+```
+
+**QUAN TRỌNG:**
+- ❌ **KHÔNG BAO GIỜ** commit file `.env` vào Git
+- ✅ Chỉ commit `.env.example` (template không có sensitive data)
+- ✅ Backup file `.env` production ở nơi an toàn (1Password, AWS Secrets Manager, etc.)
+
+### Frontend Environment (Vercel)
+Quản lý qua Vercel Dashboard:
+1. Vào **Settings** > **Environment Variables**
+2. Thêm/sửa biến môi trường
+3. Redeploy để apply changes
 
 ## 7. Troubleshooting
 
@@ -288,21 +349,37 @@ curl http://localhost:11434/api/tags
 
 ### Production (Ollama Cloud - Khuyến nghị)
 
-**Không cần setup Ollama server!**
+**EC2 Production sử dụng Ollama Cloud - Không cần setup Ollama server!**
 
 1. Đăng ký Ollama Cloud tại https://ollama.com
 2. Lấy API Key từ dashboard
-3. Set `OLLAMA_API_KEY` trong Render Dashboard (Environment Variables)
+3. Set `OLLAMA_API_KEY` trong file `.env` trên EC2:
+   ```bash
+   # SSH vào EC2
+   ssh -i petties-key.pem ubuntu@15.134.219.97
+   
+   # Edit .env
+   cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+   nano .env
+   
+   # Thêm/sửa dòng:
+   OLLAMA_API_KEY=sk-your-api-key-here
+   OLLAMA_MODEL=kimi-k2:1t-cloud
+   
+   # Restart AI Service
+   docker-compose -f docker-compose.prod.yml restart ai-service
+   ```
 4. Hệ thống tự động:
    - Switch sang `https://ollama.com`
    - Chuyển model sang `kimi-k2:1t-cloud` (256K context window)
    - Sử dụng Bearer token authentication
 
 **Lợi ích:**
-- Không cần GPU/RAM trên server
-- Không cần setup tunnel/Cloudflare
-- Context window lớn hơn (256K vs 128K)
-- Phù hợp với Render free tier
+- ✅ Không cần GPU/RAM trên EC2 instance
+- ✅ Không cần setup tunnel/Cloudflare
+- ✅ Context window lớn hơn (256K vs 128K)
+- ✅ Phù hợp với EC2 t3.small (2GB RAM)
+- ✅ Auto-scaling và high availability
 
 **Note:** 
 - Không cần Cloudflare Tunnel cho Ollama Cloud mode
@@ -333,8 +410,17 @@ và docker-compose -f docker-compose.dev.yml up backend --build
 ## 10. Contacts & Resources
 
 - **Repository:** https://github.com/your-org/petties
-- **Render Dashboard:** https://dashboard.render.com
-- **Vercel Dashboard:** https://vercel.com
-- **Neon Dashboard:** https://neon.com
-- **MongoDB Atlas:** https://cloud.mongodb.com
-- **Qdrant Cloud:** https://cloud.qdrant.io
+- **Production URLs:**
+  - Frontend: https://petties.world
+  - Backend API: https://api.petties.world
+  - AI Service: https://ai.petties.world
+- **Deployment Platforms:**
+  - EC2 Dashboard: https://console.aws.amazon.com/ec2
+  - Vercel Dashboard: https://vercel.com
+- **Databases:**
+  - Neon PostgreSQL: https://console.neon.tech
+  - MongoDB Atlas: https://cloud.mongodb.com
+  - Qdrant Cloud: https://cloud.qdrant.io
+- **Documentation:**
+  - EC2 Deployment Guide: `docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md`
+  - Vercel Setup: `docs-references/deployment/VERCEL_PRODUCTION_SETUP.md`

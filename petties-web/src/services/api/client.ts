@@ -30,12 +30,11 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    // Nếu lỗi 401 và chưa retry, và không phải là request login
+    // Nếu lỗi 401 và chưa retry, và không phải là request auth
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes('/auth/login') &&
-      !originalRequest.url?.includes('/auth/register')
+      !originalRequest.url?.includes('/auth/')
     ) {
       originalRequest._retry = true
 

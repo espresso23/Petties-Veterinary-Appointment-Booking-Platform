@@ -170,16 +170,49 @@ docker-compose -f docker-compose.dev.yml up --build
 
 ## Production Setup
 
-### Deployment on Render
+### Deployment on AWS EC2
 
-1. **Connect Repository** to Render
-2. **Deploy using `render.yaml`** (auto-detected)
-3. **Set Environment Variables** in Render Dashboard:
-   - `OLLAMA_API_KEY` (from https://ollama.com)
-   - `QDRANT_API_KEY` (from Qdrant Cloud)
-   - `DATABASE_URL` (Neon)
-   - `MONGO_URI` (MongoDB Atlas)
-   - `JWT_SECRET` (64+ characters)
+**Current Production:** Backend and AI Service deployed on AWS EC2.
+
+1. **EC2 Instance Setup:**
+   - Instance Type: t3.small (2 vCPU, 2GB RAM)
+   - OS: Ubuntu 22.04 LTS
+   - Security Groups: SSH (22), HTTP (80), HTTPS (443)
+
+2. **DNS Configuration (Namecheap):**
+   - `api.petties.world` → EC2 Public IP
+   - `ai.petties.world` → EC2 Public IP
+
+3. **Set Environment Variables on EC2:**
+   ```bash
+   # SSH vào EC2
+   ssh -i petties-key.pem ubuntu@<EC2_IP>
+   
+   # Edit .env file
+   cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+   nano .env
+   
+   # Required variables:
+   # - OLLAMA_API_KEY (from https://ollama.com)
+   # - QDRANT_API_KEY (from Qdrant Cloud)
+   # - DATABASE_URL (Neon PostgreSQL)
+   # - MONGO_URI (MongoDB Atlas)
+   # - JWT_SECRET (64+ characters)
+   # - CORS_ORIGINS (https://petties.world,https://www.petties.world)
+   ```
+
+4. **Deploy with Docker Compose:**
+   ```bash
+   docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+   ```
+
+**Chi tiết deployment:** Xem `docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md`
+
+### Frontend Deployment on Vercel
+
+Frontend deployed tại https://petties.world
+
+**Chi tiết setup:** Xem `docs-references/deployment/VERCEL_PRODUCTION_SETUP.md`
 
 ### Local Production Test
 
@@ -198,7 +231,7 @@ docker-compose -f docker-compose.prod.yml up --build
 |------|---------|-------------|
 | `docker-compose.db-only.yml` | Databases only | **Main development mode** - Run services directly with hot-reload |
 | `docker-compose.dev.yml` | Full dev stack | Test entire stack in Docker (no hot-reload) |
-| `docker-compose.prod.yml` | Production test | Test production build locally before Render deploy |
+| `docker-compose.prod.yml` | Production mode | EC2 deployment and local production testing |
 
 ### Common Commands
 
@@ -240,18 +273,32 @@ docker-compose -f docker-compose.db-only.yml up -d
 
 ### Production: Ollama Cloud
 
+**EC2 Production sử dụng Ollama Cloud**
+
 1. **Sign up** tại https://ollama.com
 2. **Get API Key** từ dashboard
-3. **Set in Render Dashboard:**
-   - `OLLAMA_API_KEY=sk-...`
-   - System auto-switches to `https://ollama.com`
-   - Model auto-switches to `kimi-k2:1t-cloud`
+3. **Set on EC2:**
+   ```bash
+   # SSH vào EC2
+   ssh -i petties-key.pem ubuntu@<EC2_IP>
+   
+   # Edit .env
+   cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+   nano .env
+   
+   # Add/update:
+   OLLAMA_API_KEY=sk-your-api-key
+   OLLAMA_MODEL=kimi-k2:1t-cloud
+   
+   # Restart AI service
+   docker-compose -f docker-compose.prod.yml restart ai-service
+   ```
 
 **Benefits:**
-- ✅ No GPU/RAM needed on server
+- ✅ No GPU/RAM needed on EC2 instance
 - ✅ No tunnel setup required
 - ✅ Larger context window (256K vs 128K)
-- ✅ Perfect for Render free tier
+- ✅ Perfect for EC2 t3.small (2GB RAM)
 
 ---
 

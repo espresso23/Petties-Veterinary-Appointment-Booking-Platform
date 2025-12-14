@@ -6,6 +6,7 @@ import com.petties.petties.dto.auth.AuthResponse;
 import com.petties.petties.dto.auth.GoogleSignInRequest;
 import com.petties.petties.dto.auth.LoginRequest;
 import com.petties.petties.dto.auth.RegisterRequest;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.exception.UnauthorizedException;
@@ -99,21 +100,21 @@ public class AuthService {
                         request.getPassword()
                 )
         );
-        
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        
-        UserDetailsServiceImpl.UserPrincipal userPrincipal = 
+
+        UserDetailsServiceImpl.UserPrincipal userPrincipal =
                 (UserDetailsServiceImpl.UserPrincipal) authentication.getPrincipal();
-        
+
         String token = tokenProvider.generateToken(
                 userPrincipal.getUserId(),
                 userPrincipal.getUsername(),
                 userPrincipal.getRole()
         );
-        
+
         User user = userRepository.findById(userPrincipal.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
+
         // Generate refresh token
         String refreshToken = tokenProvider.generateRefreshToken(
                 user.getUserId(),
@@ -264,13 +265,16 @@ public class AuthService {
     public AuthResponse loginWithGoogle(GoogleSignInRequest request) {
         // 1. Verify Google ID token
         GoogleAuthService.GoogleUserInfo googleUser = googleAuthService.verifyIdToken(request.getIdToken());
-        
+
         log.info("Google Sign-In for email: {}, platform: {}", googleUser.email(), request.getPlatform());
-        
+
         // 2. Find or create user (with race condition handling)
         User user = findOrCreateGoogleUser(googleUser, request.getPlatform());
-        
-        // 3. Generate tokens
+
+        // 3. Validate role-platform access
+        validateRolePlatformAccess(user.getRole(), request.getPlatform());
+
+        // 4. Generate tokens
         String accessToken = tokenProvider.generateToken(
                 user.getUserId(),
                 user.getUsername(),
@@ -280,8 +284,8 @@ public class AuthService {
                 user.getUserId(),
                 user.getUsername()
         );
-        
-        // 4. Delete old refresh tokens and save new one
+
+        // 5. Delete old refresh tokens and save new one
         refreshTokenRepository.deleteAllByUserId(user.getUserId());
         saveRefreshToken(user.getUserId(), refreshToken);
         
@@ -360,8 +364,33 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRole(role);
         user.setAvatar(googleUser.picture());
-        
+
         return userRepository.save(user);
+    }
+
+    /**
+     * Validate if the user's role is allowed on the platform.
+     * Role-Platform Matrix:
+     * - PET_OWNER: mobile only
+     * - VET: web + mobile
+     * - CLINIC_OWNER, CLINIC_MANAGER, ADMIN: web only
+     */
+    private void validateRolePlatformAccess(Role role, String platform) {
+        boolean isWeb = "web".equalsIgnoreCase(platform);
+        boolean isMobile = "mobile".equalsIgnoreCase(platform);
+
+        boolean allowed = switch (role) {
+            case PET_OWNER -> isMobile;
+            case VET -> true;
+            case CLINIC_OWNER, CLINIC_MANAGER, ADMIN -> isWeb;
+        };
+
+        if (!allowed) {
+            String message = isWeb
+                    ? "Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại."
+                    : "Tài khoản này chỉ có thể đăng nhập trên trang web.";
+            throw new ForbiddenException(message);
+        }
     }
 }
 

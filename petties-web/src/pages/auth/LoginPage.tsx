@@ -44,20 +44,16 @@ export function LoginPage() {
     if (urlError === 'pet_owner_mobile_only') {
       hasHandledUrlError.current = true
       setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
-      showToast('warning', 'Tài khoản này chỉ dành cho ứng dụng mobile')
     }
   }, []) // Empty dependency - run only on mount
 
-  // Redirect nếu đã đăng nhập (NHƯNG KHÔNG redirect PET_OWNER)
+  // Redirect nếu đã đăng nhập (trừ PET_OWNER - xử lý trong handleSubmit)
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Don't auto-redirect PET_OWNER - they can't use web
+      // Không redirect PET_OWNER - handleSubmit sẽ clear auth và show error
       if (user.role === 'PET_OWNER') {
-        useAuthStore.getState().clearAuth()
-        setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
         return
       }
-      
       const dashboardPath = getRoleDashboard(user.role)
       navigate(dashboardPath, { replace: true })
     }
@@ -69,23 +65,18 @@ export function LoginPage() {
     setIsLoading(true)
 
     try {
-      await login({ username, password })
+      const response = await login({ username, password })
 
-      const loggedInUser = useAuthStore.getState().user
-      if (loggedInUser) {
-        // Block PET_OWNER from web (mobile only)
-        if (loggedInUser.role === 'PET_OWNER') {
-          showToast('warning', 'Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
-          useAuthStore.getState().clearAuth()
-          return
-        }
-
-        showToast('success', `Đăng nhập thành công! Chào mừng ${loggedInUser.username}`)
-        const dashboardPath = getRoleDashboard(loggedInUser.role)
-        navigate(dashboardPath, { replace: true })
-      } else {
-        navigate('/home', { replace: true })
+      // Block PET_OWNER from web (mobile only)
+      if (response.role === 'PET_OWNER') {
+        useAuthStore.getState().clearAuth()
+        setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
+        return
       }
+
+      showToast('success', `Đăng nhập thành công! Chào mừng ${response.username}`)
+      const dashboardPath = getRoleDashboard(response.role)
+      navigate(dashboardPath, { replace: true })
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
@@ -108,24 +99,21 @@ export function LoginPage() {
     setError(null)
 
     try {
-      await googleSignIn(credentialResponse.credential)
-      
-      const loggedInUser = useAuthStore.getState().user
-      if (loggedInUser) {
-        // Block PET_OWNER from web (mobile only) - THÊM CHECK NÀY
-        if (loggedInUser.role === 'PET_OWNER') {
-          useAuthStore.getState().clearAuth() // ← CLEAR AUTH TRƯỚC
-          setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
-          showToast('warning', 'Tài khoản này chỉ dành cho ứng dụng mobile')
-          return
-        }
-        
-        showToast('success', `Đăng nhập Google thành công! Chào mừng ${loggedInUser.username}`)
-        const dashboardPath = getRoleDashboard(loggedInUser.role)
-        navigate(dashboardPath, { replace: true })
+      const response = await googleSignIn(credentialResponse.credential)
+
+      // Block PET_OWNER from web (mobile only)
+      // Note: Backend cũng validate, nhưng giữ check ở FE để đảm bảo
+      if (response.role === 'PET_OWNER') {
+        useAuthStore.getState().clearAuth()
+        setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
+        return
       }
+
+      showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.username}`)
+      const dashboardPath = getRoleDashboard(response.role)
+      navigate(dashboardPath, { replace: true })
     } catch (err: any) {
-      setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.')
+      setError(err.response?.data?.message || err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.')
     } finally {
       setIsLoading(false)
     }

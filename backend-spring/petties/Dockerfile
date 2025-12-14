@@ -121,7 +121,7 @@ FROM base AS prod
 LABEL environment="production"
 
 # Run application với JVM settings tối ưu cho 512MB RAM
-# MaxRAMPercentage=70 để chừa RAM cho OS (Render free tier)
+# MaxRAMPercentage=70 để chừa RAM cho OS (EC2 free tier)
 CMD ["java", \
      "-XX:+UseContainerSupport", \
      "-XX:MaxRAMPercentage=70.0", \
