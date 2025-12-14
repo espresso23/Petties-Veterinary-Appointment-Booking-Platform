@@ -25,12 +25,31 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-            echo "Pulling latest code from main branch..."
-            git pull origin main
+            echo "=== Starting deployment ==="
+            
+            echo "Fetching latest code from origin..."
+            git fetch origin
+            
+            echo "Resetting to origin/main (ensures exact sync)..."
+            git checkout main
+            git reset --hard origin/main
+            
+            echo "Current commit:"
+            git log --oneline -1
+            
             echo "Stopping containers..."
             docker-compose -f docker-compose.prod.yml --env-file .env down
-            echo "Starting containers..."
+            
+            echo "Building and starting containers..."
             docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
+            
+            echo "Waiting for services to start..."
+            sleep 10
+            
+            echo "Checking backend health..."
+            curl -f http://127.0.0.1:8080/api/actuator/health || echo "⚠️ Backend health check failed"
+            
             echo "Showing recent logs..."
-            docker-compose -f docker-compose.prod.yml logs --tail=50
+            docker-compose -f docker-compose.prod.yml logs --tail=30
+            
             echo "=== Deployment complete! ==="
