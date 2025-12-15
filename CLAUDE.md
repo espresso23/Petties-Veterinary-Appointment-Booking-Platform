@@ -152,7 +152,7 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 4. Pet owner not use web (only mobile app), vet also use mobile app, clinic owner only use web, clinic manager only use web, admin web only.
 5. Always comprehensive project structure, never missing any folder and file, always follows best practice.
 6. Always ensure APIs Spring Boot design have API documentation (Swagger).
-7. When i mention "dev" this mean is development environment which uses localhost storage. Different from "prod" which uses production URLs: petties.world, api.petties.world, ai.petties.world.
+7. **Environments**: "dev" = localhost (feature/* branches), "test" = test.petties.world + api-test.petties.world (develop branch), "prod" = www.petties.world + api.petties.world (main branch).
 8. If update docs, should update the docs to lasted version and date.
 9. Make sure get context all project structure before coding to avoid duplicate.
 10. When write docs do not import any description use ASCII art (┌, ─, │, └, etc.), should add mermaid diagram code (if any) and necessary content.
