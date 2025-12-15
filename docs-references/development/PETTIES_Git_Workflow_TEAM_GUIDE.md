@@ -15,7 +15,7 @@ Uyên - DE180893
 
 ### **2 branch chính**
 ```
-main (production, live) ← Auto-deploy Vercel
+main (production, live) ← Auto-deploy Vercel, EC2 
   ↑
 develop (integration, share code)
   ↑

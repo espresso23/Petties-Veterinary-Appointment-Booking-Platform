@@ -125,18 +125,36 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 Copy `.env.example` to `.env` in each service directory.
 
 ## Project Rules
+1. Always references in `docs-references/` folder to avoid out of scope.
+2. Always comprehensive all plan and got a user accepted before execute code.
+3. Always clearly dev environment and production environment, make sure best practice project structure.
+4. Pet owner not use web (only mobile app), vet also use mobile app, clinic owner only use web, clinic manager only use web, admin web only.
+5. Always comprehensive project structure, never missing any folder and file, always follows best practice.
+6. Always ensure APIs Spring Boot design have API documentation (Swagger).
+7. When i mention "dev" this mean is development environment which uses localhost storage. Different from "prod" which uses production URLs: petties.world, api.petties.world, ai.petties.world.
+8. If update docs, should update the docs to lasted version and date.
+9. Make sure get context all project structure before coding to avoid duplicate.
+10. When write docs do not import any description use ASCII art (┌, ─, │, └, etc.), should add mermaid diagram code (if any) and necessary content.
+11. Create Unit Testing and System testing for new feature use JUnit for Spring Boot and pytest for Python.
+12. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
+13. Always follow the app design style for the frontend in `docs-references/`.
 
-1. Always reference `docs-references/` for specifications before implementing
-2. Get plan approval before writing code for non-trivial changes
-3. Ensure all Spring Boot APIs have Swagger documentation
-4. "dev" = localhost only, "prod" = petties.world URLs
-5. Update docs with current date when modifying documentation
-6. Check existing project structure to avoid duplication
-7. When write docs do not import any description use ASCII art(┌, ─, │, └, etc.), should add mermaid diagram code (if any) and necessary content.
-8. Create Unit Testing and System testing for new feature use Junit for springboot and pytest for python.
-9. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
-10. Always comprehensive all plan and got a user accepted before excecute code.
-11. Always follow the app design style for the frontend in docs-references
+## Context & Clarification Rules
+
+14. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.
+15. **Context Priority**: When answering about code, always prioritize context from:
+    - `docs-references/` folder (PETTIES_Features.md, WBS, etc.)
+    - Existing codebase files
+    - Previous conversation
+    - General knowledge (last resort)
+16. **Confirm Understanding**: Before proposing major changes, summarize your current understanding in 3-5 bullet points and ask user to confirm or correct.
+17. **Insufficient Context**: If context is insufficient, clearly state that you are unsure and explain which additional files or information are needed (e.g., "I need to see the BookingController.java to understand the current implementation").
+18. **Multiple Interpretations**: When multiple interpretations are possible, explicitly describe each interpretation and ask the user which one is correct before implementing.
+19. **File References**: For every answer involving code, mention which files, modules, or components you are assuming to be relevant:
+    - Backend: `backend-spring/petties/src/main/java/com/petties/...`
+    - Web: `petties-web/src/...`
+    - Mobile: `petties_mobile/lib/...`
+    - AI Service: `petties-agent-serivce/app/...`
 
 ## Important Documentation
 

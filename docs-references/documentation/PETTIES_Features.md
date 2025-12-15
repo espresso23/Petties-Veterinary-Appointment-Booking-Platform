@@ -231,6 +231,63 @@
 - Hỗ trợ đa ngôn ngữ
 - Timezone support - Múi giờ
 
+### 👨‍⚕️ Vet Account Creation Flow (Clinic Manager → Vet)
+
+**Mô tả:** Quy trình để CLINIC_MANAGER thêm và cấp tài khoản cho VET
+
+#### Flow Diagram:
+```
+1. CLINIC_MANAGER điền form thêm Vet
+         ↓
+2. Hệ thống validate email
+         ↓
+3. Tạo account với status = PENDING_ACTIVATION
+         ↓
+4. Gửi email kích hoạt cho Vet (có link + token)
+         ↓
+5. VET click link, đặt mật khẩu mới
+         ↓
+6. Account status = ACTIVE → Có thể đăng nhập
+```
+
+#### Form thêm Vet (CLINIC_MANAGER nhập):
+| Field | Required | Description |
+|-------|----------|-------------|
+| Họ và tên | ✅ | Tên đầy đủ của bác sĩ |
+| Email | ✅ | Email để gửi thông tin đăng nhập |
+| Số điện thoại | ✅ | Liên hệ |
+| Chuyên khoa | ✅ | Nội khoa, Ngoại khoa, Da liễu, Mắt, Răng... |
+| Bằng cấp/Chứng chỉ | ❌ | Upload file (optional) |
+
+#### API Design:
+```
+POST /api/clinics/{clinicId}/vets
+{
+  "fullName": "Nguyễn Văn A",
+  "email": "vet@example.com",
+  "phone": "0901234567",
+  "specialization": "INTERNAL_MEDICINE"
+}
+```
+
+#### Email Template cho Vet:
+- **Subject:** 🎉 Bạn đã được thêm vào [Tên Phòng Khám] trên Petties
+- **Content:** Link kích hoạt (hết hạn sau 72 giờ)
+- **Action:** Click link → Trang đặt mật khẩu mới
+
+#### Account States:
+| Status | Mô tả | Đăng nhập? |
+|--------|-------|------------|
+| `PENDING_ACTIVATION` | Mới tạo, chưa kích hoạt | ❌ |
+| `ACTIVE` | Đã kích hoạt, hoạt động | ✅ |
+| `DEACTIVATED` | Bị vô hiệu hóa | ❌ |
+
+#### Bảo mật:
+- ✅ Không gửi mật khẩu qua email
+- ✅ Token hết hạn sau 72 giờ
+- ✅ Vet tự đặt mật khẩu
+- ✅ 1 email = 1 account
+
 ---
 
 ## 🔑 KEY FEATURES SUMMARY
