@@ -11,7 +11,7 @@
 | **Tên Dự Án** | Petties: Veterinary Appointment Booking Platform |
 | **Viết Tắt** | PVABP |
 | **Lớp** | CP_SEP490 |
-| **Thời Gian** | 05/01/2026 - 30/04/2026 |
+| **Thời Gian** | 05/01/2026 - 30/04/2026 (13 Sprints) |
 | **Chuyên Ngành** | Software Engineering |
 | **Địa Điểm** | Da Nang |
 
@@ -788,32 +788,34 @@ PUT    /api/v1/settings            - Update settings
 
 ## 📊 Feature Implementation Status
 
-> **Last Updated:** December 13, 2025  
-> **Project Status:** ✅ Deployed to Production (petties.world)
+> **Last Updated:** December 15, 2025  
+> **Project Status:** 🔄 Sprint 1 In Progress (62% Complete)
+> **Current Sprint:** Sprint 1 - Project Setup, Infrastructure & Authentication
 
-### Overall Progress
+### Overall Progress (Based on WBS)
 
 | Component | Completion | Status | Notes |
 |-----------|------------|--------|-------|
-| **Backend (Spring Boot)** | 10% | 🔄 In Progress | Core Auth ✅, Business Logic APIs ⚠️ |
-| **AI Service** | 30% | 🔄 In Progress | Core Agents ✅, RAG 🔄, Chat 🔄 |
-| **Web Frontend** | 10% | 🔄 In Progress | Admin Dashboard ✅, User Dashboards 🔄 |
-| **Mobile App** | 10% | 🔄 In Progress | Auth ✅, Routing ✅, Screens 🔄 |
-| **Infrastructure** | 90% | ✅ Ready | Docker ✅, Databases ✅, Config ✅ |
+| **Backend (Spring Boot)** | 15% | 🔄 In Progress | Auth (JWT, OAuth, Roles) ✅, Password Reset 🔄 |
+| **AI Service** | 10% | 🔄 In Progress | Basic setup ✅, LangGraph planned |
+| **Web Frontend** | 20% | 🔄 In Progress | Login ✅, Admin Dashboard ✅, Other Dashboards 🔄 |
+| **Mobile App** | 25% | 🔄 In Progress | Auth ✅, Routing ✅, Home Screens ✅ |
+| **Infrastructure** | 90% | ✅ Ready | CI/CD ✅, Databases ✅, Docker ✅ |
 
 ### Detailed Status
 
-#### Backend (Spring Boot) - 10% Complete
+#### Backend (Spring Boot) - 15% Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication & Authorization | ✅ Done | JWT, Refresh Token, 5 Roles, Google Sign-In |
-| Pet Management API | ⚠️ TODO | Not implemented |
-| Booking API | ⚠️ TODO | Not implemented |
-| Vet API | ⚠️ TODO | Not implemented |
-| Payment API (Stripe) | ⚠️ TODO | Not implemented |
-| Notification Service | ⚠️ TODO | Not implemented |
-| File Upload Service | ⚠️ TODO | Not implemented |
+| JWT Authentication | ✅ Done | Login, Register, Refresh Token |
+| Google OAuth Integration | ✅ Done | Web + Mobile support |
+| Role-based Authorization | ✅ Done | 5 Roles: PET_OWNER, VET, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
+| Password Reset Flow | 🔄 In Progress | Forgot password, OTP, Reset |
+| User Profile APIs | 🔄 In Progress | Get/Update profile, Avatar upload |
+| Pet Management API | ⚠️ Sprint 2 | Planned |
+| Booking API | ⚠️ Sprint 4 | Planned |
+| Vet API | ⚠️ Sprint 3 | Planned |
 
 #### AI Service (FastAPI) - 30% Complete
 
@@ -830,31 +832,33 @@ PUT    /api/v1/settings            - Update settings
 | LLM Intent Classification | 🔄 In Progress | AG-04 - LLM + Prompt based |
 | WebSocket Streaming | ⚠️ TODO | PG-01 - Critical |
 
-#### Web Frontend (React) - 10% Complete
+#### Web Frontend (React) - 20% Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Admin Dashboard | ✅ Done | Agent/Tool/Knowledge Management |
-| Authentication Pages | ✅ Done | Login, Google Sign-In, Role-based routing |
-| Agent Management UI | ✅ Done | Prompt editor, config |
-| Tool Registry UI | ✅ Done | Enable/disable, scan (code-based tools only) |
-| Knowledge Base UI | ✅ Done | Document upload |
-| User Dashboards | 🔄 Skeleton | Vet, Clinic Owner, Clinic Manager |
-| Booking Flow UI | ⚠️ TODO | Not implemented |
-| Pet Management UI | ⚠️ TODO | Not implemented |
-| Real-time Chat UI | ⚠️ TODO | Not implemented |
+| Login UI | ✅ Done | Shared login page for all roles |
+| Onboarding & Auth Screens | ✅ Done | Welcome, Login, Register with Google |
+| Role Protection Components | ✅ Done | ProtectedRoute, RoleGuard |
+| Admin Dashboard Layout | ✅ Done | Stats, charts, recent activities |
+| Clinic Owner Dashboard Layout | ✅ Done | Clinic stats, revenue overview |
+| Clinic Manager Dashboard Layout | 🔄 In Progress | Today bookings, vet schedules |
+| Vet Dashboard Layout | 🔄 In Progress | Assigned appointments, schedule view |
+| Pet Management UI | ⚠️ Sprint 2 | Planned |
+| Booking Flow UI | ⚠️ Sprint 4-5 | Planned |
 
-#### Mobile App (Flutter) - 10% Complete
+#### Mobile App (Flutter) - 25% Complete
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Authentication | ✅ Done | Login, Google Sign-In, Role-based routing |
-| Routing System | ✅ Done | GoRouter with role guards |
+| Onboarding Screens | ✅ Done | 3 slides introduction |
+| Login & Register | ✅ Done | With Google Sign-In |
+| Role-based Routing | ✅ Done | GoRouter with role guards |
 | Role Restrictions | ✅ Done | ADMIN/CLINIC_MANAGER/CLINIC_OWNER blocked (web only) |
-| Home Screens | ✅ Done | Pet Owner, Vet |
-| Booking Flow | ⚠️ TODO | Not implemented |
-| Pet Management | ⚠️ TODO | Not implemented |
-| Profile & Settings | ⚠️ TODO | Not implemented |
+| Pet Owner Home Screen | ✅ Done | Pet cards, quick actions, bottom nav |
+| Vet Home Screen | ✅ Done | Today appointments, calendar |
+| User Profile Screen | 🔄 In Progress | Avatar, edit info, change password |
+| Pet Management | ⚠️ Sprint 2 | Planned |
+| Booking Flow | ⚠️ Sprint 4-5 | Planned |
 
 ---
 
@@ -1041,15 +1045,23 @@ hotfix/critical-bug     # Critical fixes
 - **Backend/AI Service:** EC2
 - **Databases:** Neon (PostgreSQL), MongoDB Atlas, Qdrant Cloud
 
-### Next Steps for Enhancement
-1. Complete Critical Features (AG-04, KB-01, Chat Migration)
-2. Complete Business Logic APIs (Pet, Booking, Vet)
-3. Complete Mobile App Screens
-4. Setup CI/CD Pipeline
-5. Enhanced monitoring and logging
+### Sprint 1 Remaining Tasks (6 Pending)
+1. ⏳ Password Reset Flow (Backend - Tuân)
+2. ⏳ User Profile APIs (Backend - Tân)
+3. ⏳ Clinic Manager Dashboard Layout (Frontend - TânPIC)
+4. ⏳ Vet Dashboard Layout (Frontend - TânPIC)
+5. ⏳ User Profile Screen (Mobile - Uyên)
+6. ⏳ Draft Reports 1, 2, 3 (Docs)
+
+### Sprint 2 Planned (17/12 - 23/12/2025)
+- Pet Management (APIs + Mobile UI)
+- Clinic Management (APIs + Web UI)
+- Service Management
+- Admin Approval Flow
 
 ---
 
-**Last Updated**: December 13, 2025  
+**Last Updated**: December 15, 2025  
 **Version**: 1.0.0 (Production)  
+**Current Sprint**: Sprint 1 (62% Complete)  
 **Status**: ✅ Deployed at petties.world
