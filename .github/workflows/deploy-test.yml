@@ -1,0 +1,73 @@
+name: Deploy to Test Environment
+
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'docs-references/**'
+      - 'postman/**'
+
+jobs:
+  deploy-backend-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 Test Environment
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
+            
+            echo "🧪 ============================================"
+            echo "🧪 Deploying TEST environment..."
+            echo "🧪 ============================================"
+            
+            # Fetch and checkout develop branch
+            echo "📥 Fetching latest code from develop branch..."
+            git fetch origin
+            git checkout develop
+            git reset --hard origin/develop
+            
+            echo "📋 Current commit:"
+            git log --oneline -1
+            
+            # Check if test environment file exists
+            if [ ! -f .env.test ]; then
+              echo "⚠️ .env.test not found! Please create it first."
+              exit 1
+            fi
+            
+            # Stop existing test containers
+            echo "🛑 Stopping test containers..."
+            docker-compose -f docker-compose.test.yml --env-file .env.test down 2>/dev/null || true
+            
+            # Build and start test containers
+            echo "🔨 Building and starting test containers..."
+            docker-compose -f docker-compose.test.yml --env-file .env.test up -d --build
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 20
+            
+            # Health checks for Test environment (ports 8081/8001)
+            echo "🏥 Checking test backend health (port 8081)..."
+            curl -f http://127.0.0.1:8081/api/actuator/health || echo "⚠️ Backend Test health check failed"
+            
+            echo "🤖 Checking test AI service health (port 8001)..."
+            curl -f http://127.0.0.1:8001/health || echo "⚠️ AI Test health check failed"
+            
+            echo "📜 Showing recent test logs..."
+            docker-compose -f docker-compose.test.yml logs --tail=20
+            
+            echo "🧪 ============================================"
+            echo "✅ Test Deployment complete!"
+            echo "🌐 FE: https://test.petties.world"
+            echo "🔌 BE: https://api-test.petties.world/api"
+            echo "🧪 ============================================"

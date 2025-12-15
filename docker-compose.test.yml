@@ -1,0 +1,111 @@
+# ============================================
+# PETTIES - Docker Compose for TEST ENVIRONMENT
+# Runs on same EC2 as Production but different ports
+# Test BE: 8081, Test AI: 8001
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # SPRING BOOT BACKEND API (Test)
+  # ============================================
+  backend-test:
+    build:
+      context: ./backend-spring/petties
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: test
+    container_name: petties-test-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      # Neon PostgreSQL - TEST Branch
+      DB_HOST: ${DB_HOST_TEST:-ep-test-branch.neon.tech}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME_TEST:-postgres}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD_TEST}
+      # MongoDB - Test database
+      MONGO_URI: ${MONGO_URI_TEST:-mongodb+srv://user:pass@cluster/petties_test}
+      # AI Service (Test)
+      AI_SERVICE_URL: http://ai-service-test:8000
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
+      # CORS - Test domain only
+      CORS_ORIGINS: https://test.petties.world
+      # Email (shared with prod or test account)
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+    ports:
+      - "127.0.0.1:8081:8080" # Test uses port 8081 externally
+    networks:
+      - petties-test-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 512M # Lower than prod to save resources
+        reservations:
+          memory: 256M
+
+  # ============================================
+  # PYTHON AI AGENT SERVICE (Test)
+  # ============================================
+  ai-service-test:
+    build:
+      context: ./petties-agent-serivce
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: test
+    container_name: petties-test-ai-service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: test
+      APP_DEBUG: "true"
+      # Neon PostgreSQL - TEST Branch
+      DATABASE_URL: ${DATABASE_URL_TEST:-postgresql://user:pass@test-branch.neon.tech:5432/postgres?sslmode=require}
+      # Qdrant Cloud (can share with prod or use separate collection)
+      QDRANT_URL: ${QDRANT_URL}
+      QDRANT_API_KEY: ${QDRANT_API_KEY}
+      # Ollama Configuration
+      LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # CORS - Test domain only
+      CORS_ORIGINS: https://test.petties.world
+    ports:
+      - "127.0.0.1:8001:8000" # Test uses port 8001 externally
+    networks:
+      - petties-test-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M # Lower than prod to save resources
+        reservations:
+          memory: 256M
+
+# ============================================
+# NETWORKS (Separate from Production)
+# ============================================
+networks:
+  petties-test-network:
+    driver: bridge
+    name: petties-test-network
