@@ -117,12 +117,33 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Typography: Inter font, uppercase headings, font-weight 700
 - **No emojis in UI** - use Heroicons instead
 
-## Environment Configuration
+## Environment & Deployment
 
-- **Dev:** `localhost` for all services, Docker databases
-- **Prod:** `petties.world` (web), `api.petties.world` (backend), `ai.petties.world` (AI)
+### Three Environments
 
-Copy `.env.example` to `.env` in each service directory.
+| Environment | FE URL | BE URL | Branch | Database |
+|-------------|--------|--------|--------|----------|
+| **Local Dev** | `localhost:5173` | `localhost:8080` | `feature/*` | Docker |
+| **Test** | `test.petties.world` | `api-test.petties.world` | `develop` | Neon Test Branch |
+| **Production** | `www.petties.world` | `api.petties.world` | `main` | Neon Main |
+
+### CI/CD Pipeline (GitHub Actions)
+
+| Workflow | Trigger | Purpose |
+|----------|---------|--------|
+| `ci.yml` | PR → develop/main | Build + Test (gate before merge) |
+| `deploy-test.yml` | Push develop | Auto deploy Test Env |
+| `deploy-ec2.yml` | Push main | Auto deploy Production |
+
+### Docker Compose Files
+
+| File | Use Case |
+|------|----------|
+| `docker-compose.dev.yml` | Local development (full stack) |
+| `docker-compose.test.yml` | Test Env on EC2 (ports 8081/8001) |
+| `docker-compose.prod.yml` | Production on EC2 (ports 8080/8000) |
+
+Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 
 ## Project Rules
 1. Always references in `docs-references/` folder to avoid out of scope.
@@ -158,9 +179,17 @@ Copy `.env.example` to `.env` in each service directory.
 
 ## Important Documentation
 
+**Features & Architecture:**
 - `docs-references/documentation/PETTIES_Features.md` - Complete feature list
 - `docs-references/documentation/TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - AI architecture
 - `docs-references/documentation/VET_SCHEDULING_STRATEGY.md` - Slot-based booking system
 - `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` - Business processes
+
+**Development & Deployment:**
 - `docs-references/development/SOURCE_CODE_MANAGEMENT_RULES.md` - Git workflow for team of 5
+- `docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md` - EC2 deployment guide
+- `docs-references/deployment/VERCEL_PRODUCTION_SETUP.md` - Vercel FE setup
+- `docs-references/deployment/TEST_ENVIRONMENT_SETUP.md` - Test Env setup guide
+
+**Design:**
 - `docs-references/design/design-style-guide.md` - Neobrutalism UI guide

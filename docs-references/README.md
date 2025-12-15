@@ -13,6 +13,7 @@ Các hướng dẫn setup môi trường và cấu hình ban đầu:
 Các hướng dẫn về deployment và cấu hình production:
 - `EC2_PRODUCTION_DEPLOYMENT.md` - Hướng dẫn chi tiết deploy Backend và AI Service lên AWS EC2
 - `VERCEL_PRODUCTION_SETUP.md` - Hướng dẫn cấu hình Environment Variables trên Vercel cho Frontend Production
+- `TEST_ENVIRONMENT_SETUP.md` - Hướng dẫn setup Test Environment (test.petties.world + api-test.petties.world)
 
 ### 🏗️ Infrastructure (`/infrastructure`)
 Cấu hình infrastructure, server, và network:

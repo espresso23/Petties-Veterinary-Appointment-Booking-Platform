@@ -1,6 +1,6 @@
 # Petties - Development Workflow
 
-**Last Updated:** December 14, 2025
+**Last Updated:** December 16, 2025
 
 ## Tổng quan kiến trúc
 
@@ -85,16 +85,23 @@ flutter pub get
 flutter run
 ```
 
-## 2. Git Workflow
+## 2. Git Workflow & CI/CD
 
 ### Branch Strategy
-```
-main (production)
-  └── develop (staging)
-        ├── feature/feature-name
-        ├── bugfix/bug-description
-        └── hotfix/critical-fix
-```
+
+| Branch | Environment | Deploy Target | Trigger |
+|--------|-------------|---------------|---------|
+| `feature/*` | Local Dev | localhost | Manual |
+| `develop` | Test | test.petties.world + api-test.petties.world | Auto on push |
+| `main` | Production | www.petties.world + api.petties.world | Auto on push |
+
+### CI/CD Pipeline (GitHub Actions)
+
+| Workflow | Trigger | Purpose |
+|----------|---------|--------|
+| `ci.yml` | PR → develop/main | Build + Test (gate before merge) |
+| `deploy-test.yml` | Push develop | Auto deploy to Test Environment |
+| `deploy-ec2.yml` | Push main | Auto deploy to Production |
 
 ### Quy trình làm việc
 
@@ -135,6 +142,14 @@ refactor: refactor code
 test: thêm tests
 chore: cập nhật dependencies, config
 ```
+
+### Three Environments
+
+| Environment | FE URL | BE URL | Docker Compose |
+|-------------|--------|--------|----------------|
+| **Local Dev** | `localhost:5173` | `localhost:8080` | `docker-compose.dev.yml` |
+| **Test** | `test.petties.world` | `api-test.petties.world` | `docker-compose.test.yml` |
+| **Production** | `www.petties.world` | `api.petties.world` | `docker-compose.prod.yml` |
 
 ## 3. Phân công công việc
 
@@ -191,8 +206,14 @@ flutter test
 ### Deployment Architecture
 - **EC2 Instance:** t3.small (2 vCPU, 2GB RAM)
 - **Reverse Proxy:** Nginx with SSL (Let's Encrypt)
-- **Containers:** Docker Compose (Production mode)
-- **CI/CD:** GitHub Actions auto-deploy on push to `main`
+- **Containers:** Docker Compose (Test: ports 8081/8001, Prod: 8080/8000)
+- **CI/CD:** GitHub Actions auto-deploy on push to `develop` (Test) or `main` (Prod)
+
+### Test Environment
+- **Frontend:** https://test.petties.world (Vercel Preview)
+- **Backend API:** https://api-test.petties.world (AWS EC2 port 8081)
+- **AI Service:** https://api-test.petties.world/ai (AWS EC2 port 8001)
+- **Database:** Neon PostgreSQL (Test Branch)
 
 ### Automatic Deployment (GitHub Actions)
 ```yaml
@@ -424,3 +445,4 @@ và docker-compose -f docker-compose.dev.yml up backend --build
 - **Documentation:**
   - EC2 Deployment Guide: `docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md`
   - Vercel Setup: `docs-references/deployment/VERCEL_PRODUCTION_SETUP.md`
+  - Test Environment Setup: `docs-references/deployment/TEST_ENVIRONMENT_SETUP.md`

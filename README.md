@@ -374,7 +374,7 @@ python -m uvicorn app.main:app --reload --port 8000
 
 ## 🐳 Docker Compose Files
 
-Project sử dụng **3 Docker Compose files** cho các mục đích khác nhau:
+Project sử dụng **4 Docker Compose files** cho các mục đích khác nhau:
 
 ### 📁 File Structure
 
@@ -382,7 +382,8 @@ Project sử dụng **3 Docker Compose files** cho các mục đích khác nhau:
 |------|----------|--------------|
 | `docker-compose.db-only.yml` | Chỉ databases (PostgreSQL + MongoDB) | **Development chính**: Chạy Backend/AI Service trực tiếp với hot-reload |
 | `docker-compose.dev.yml` | Full stack với Docker (dev mode) | Test toàn bộ stack trong Docker, với hot-reload |
-| `docker-compose.prod.yml` | Production test (services only) | Test production build locally trước khi deploy EC2 |
+| `docker-compose.test.yml` | Test Environment trên EC2 | **Test/QA**: Deploy branch `develop` lên EC2 (ports 8081/8001) |
+| `docker-compose.prod.yml` | Production trên EC2 | **Production**: Deploy branch `main` lên EC2 (ports 8080/8000) |
 
 **Lưu ý:** Tất cả Dockerfiles sử dụng **unified multi-stage builds** với `BUILD_ENV` argument (dev/prod).
 
@@ -991,11 +992,19 @@ flutter test
 
 ## 📚 Documentation
 
+### Setup & Development
 - [Setup Guide](./docs-references/SETUP_GUIDE.md) - Chi tiết setup từng service
 - [Development Workflow](./docs-references/DEVELOPMENT_WORKFLOW.md) - Quy trình phát triển
+- [Git Workflow Guide](./docs-references/development/PETTIES_Git_Workflow_TEAM_GUIDE.md) - Git collaboration guide
+
+### Features & Architecture
 - [Features List](./docs-references/PETTIES_Features.md) - Danh sách đầy đủ tính năng
 - [AI Agent Management](./docs-references/TECHNICAL%20SCOPE%20PETTIES%20-%20AGENT%20MANAGEMENT.md) - Kiến trúc AI Agent chi tiết
-- [Git Workflow](./docs-references/PETTIES_Git_Workflow_TEAM_GUIDE.md) - Git collaboration guide
+
+### Deployment
+- [EC2 Production Deployment](./docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md) - Deploy Backend/AI lên EC2
+- [Vercel Production Setup](./docs-references/deployment/VERCEL_PRODUCTION_SETUP.md) - Deploy Frontend lên Vercel
+- [Test Environment Setup](./docs-references/deployment/TEST_ENVIRONMENT_SETUP.md) - Setup Test Env
 
 ---
 
@@ -1009,42 +1018,71 @@ flutter test
 
 ---
 
-## 📝 Git Workflow
+## 📝 Git Workflow & CI/CD
 
-```bash
-# Main branches
-main                    # Production release
-develop                 # Development branch
+### Branch Strategy
 
-# Feature branches
-feature/booking         # Feature specific
-bugfix/payment-issue    # Bug fixes
-hotfix/critical-bug     # Critical fixes
+| Branch | Environment | Deploy Target | Trigger |
+|--------|-------------|---------------|--------|
+| `feature/*` | Local Dev | localhost | Manual |
+| `develop` | Test | test.petties.world + api-test.petties.world | Auto on push |
+| `main` | Production | www.petties.world + api.petties.world | Auto on push |
+
+### CI/CD Pipeline (GitHub Actions)
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   PR Created    │────>│    ci.yml       │────>│  Allow Merge    │
+│ feature→develop │     │ Build + Test    │     │   if Pass       │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Push develop   │────>│ deploy-test.yml │────>│  Test Env Live  │
+│                 │     │ EC2 + Vercel    │     │test.petties.world│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Push main     │────>│ deploy-ec2.yml  │────>│ Production Live │
+│                 │     │ EC2 + Vercel    │     │www.petties.world│
+└─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
----
+### Workflow Files
 
----
+| File | Purpose |
+|------|--------|
+| `.github/workflows/ci.yml` | Build + Test on PRs (gate before merge) |
+| `.github/workflows/deploy-test.yml` | Auto deploy Test Env when push `develop` |
+| `.github/workflows/deploy-ec2.yml` | Auto deploy Production when push `main` |
 
-## 🚀 Deployment Status
+## 🚀 Deployment & Environments
 
 > **✅ Production Deployed:** Project đã được deploy lên production tại **petties.world**
 
-### Current Environment
-- **Development:** Local (localhost)
-- **Production:** ✅ Live at petties.world
+### Three Environments
 
-### Production URLs
-| Service | URL |
-|---------|-----|
-| **Web Frontend** | https://petties.world |
-| **Backend API** | https://api.petties.world |
-| **AI Service** | https://ai.petties.world |
+| Environment | FE URL | BE URL | Branch | Database |
+|-------------|--------|--------|--------|----------|
+| **Local Dev** | `localhost:5173` | `localhost:8080` | `feature/*` | Docker (local) |
+| **Test** | `test.petties.world` | `api-test.petties.world` | `develop` | Neon Test Branch |
+| **Production** | `www.petties.world` | `api.petties.world` | `main` | Neon Main |
 
 ### Infrastructure
-- **Web Frontend:** Vercel
-- **Backend/AI Service:** EC2
-- **Databases:** Neon (PostgreSQL), MongoDB Atlas, Qdrant Cloud
+
+| Component | Platform | Notes |
+|-----------|----------|-------|
+| **Web Frontend** | Vercel | Auto deploy on git push |
+| **Backend API** | EC2 (Docker) | Prod: 8080, Test: 8081 |
+| **AI Service** | EC2 (Docker) | Prod: 8000, Test: 8001 |
+| **PostgreSQL** | Neon Cloud | Branching for Test/Prod |
+| **MongoDB** | MongoDB Atlas | Shared cluster |
+| **Vector DB** | Qdrant Cloud | Shared for all envs |
+
+### Deployment Docs
+
+- [EC2 Production Deployment](./docs-references/deployment/EC2_PRODUCTION_DEPLOYMENT.md)
+- [Vercel Production Setup](./docs-references/deployment/VERCEL_PRODUCTION_SETUP.md)
+- [Test Environment Setup](./docs-references/deployment/TEST_ENVIRONMENT_SETUP.md)
 
 ### Sprint 1 Remaining Tasks (6 Pending)
 1. ⏳ Password Reset Flow (Backend - Tuân)
@@ -1062,7 +1100,7 @@ hotfix/critical-bug     # Critical fixes
 
 ---
 
-**Last Updated**: December 15, 2025  
-**Version**: 1.0.0 (Production)  
+**Last Updated**: December 16, 2025  
+**Version**: 1.1.0 (CI/CD + Test Environment)  
 **Current Sprint**: Sprint 1 (62% Complete)  
-**Status**: ✅ Deployed at petties.world
+**Status**: ✅ Deployed at petties.world + CI/CD Pipeline Ready

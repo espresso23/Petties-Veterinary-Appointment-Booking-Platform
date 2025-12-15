@@ -42,8 +42,9 @@ main (production) ─── Protected, requires 2 approvals
 **Develop Branch:**
 - Require PR before merging
 - Require 1 approval
-- Require status checks to pass
+- Require status checks to pass (`ci.yml` must pass)
 - Do not allow force pushes
+- **Auto deploy:** Push triggers `deploy-test.yml` → Test Environment
 
 ---
 
@@ -511,6 +512,7 @@ project/
 | Mobile App | Uyên | Huyền |
 | AI Service | Tân | Tuân |
 | DevOps/Infra | Tân | Tuân |
+| CI/CD Pipelines | Tân | Tuân |
 
 ### Ownership Responsibilities
 - Review tất cả PRs liên quan đến module
@@ -550,9 +552,19 @@ v1.0.0 - Production ready
 - [ ] 2 approvals received
 - [ ] Merged to main
 - [ ] Tagged release
-- [ ] Deploy to production
+- [ ] Deploy to Test Environment (auto via `deploy-test.yml`)
+- [ ] QA verified on Test Env
+- [ ] Deploy to Production (auto via `deploy-ec2.yml`)
 - [ ] Verify deployment
 - [ ] Announce release
+
+### CI/CD Workflows
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|--------|
+| CI | `.github/workflows/ci.yml` | PR → develop/main | Build + Test before merge |
+| Deploy Test | `.github/workflows/deploy-test.yml` | Push develop | Auto deploy to test.petties.world |
+| Deploy Prod | `.github/workflows/deploy-ec2.yml` | Push main | Auto deploy to www.petties.world |
 
 ### Hotfix Process
 ```
@@ -643,5 +655,5 @@ FORBIDDEN:
 
 ---
 
-**Last Updated:** 2025-12-14
+**Last Updated:** 2025-12-16
 **Maintained By:** Petties Team
