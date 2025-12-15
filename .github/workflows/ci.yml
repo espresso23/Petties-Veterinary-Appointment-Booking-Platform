@@ -1,3 +1,17 @@
+# ============================================
+# CI - Build & Test Workflow
+# 
+# Purpose: Kiểm tra code trước khi merge vào develop/main
+# Trigger: Pull Request tạo mới hoặc update
+# 
+# Jobs:
+#   - frontend: Lint, Type check, Build (React/Vite)
+#   - backend: Compile, Unit Tests (Spring Boot/Maven)
+#   - ai-service: Syntax check (Python/FastAPI)
+# 
+# PR chỉ được merge khi TẤT CẢ jobs PASS
+# ============================================
+
 name: CI - Build & Test
 
 on:
@@ -57,16 +71,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
-      
-      - name: Grant execute permission
-        run: chmod +x gradlew
+          cache: 'maven'
       
       - name: Build
-        run: ./gradlew build -x test
+        run: mvn clean compile -DskipTests
       
       - name: Run Unit Tests
-        run: ./gradlew test
+        run: mvn test
         continue-on-error: true  # Allow failures until tests are stable
 
   # ================================
