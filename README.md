@@ -1,3 +1,4 @@
+![Image](https://github.com/user-attachments/assets/ee68cc72-7bed-475f-8611-b62dc1e7f5ec)
 # 🐾 Petties - Veterinary Appointment Booking Platform
 
 **Petties** là một nền tảng hiện đại kết nối chủ nuôi thú cưng với các **phòng khám thú y** chuyên nghiệp. Chủ pet đặt lịch với phòng khám, phòng khám phân công bác sĩ phù hợp. Cung cấp dịch vụ đặt lịch tham khám tại nhà hoặc tại phòng khám một cách dễ dàng và an toàn.
