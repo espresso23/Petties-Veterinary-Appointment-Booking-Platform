@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy to Production
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     paths-ignore:
       - '**.md'
       - '.gitignore'
-      - 'README.md'
+      - 'docs-references/**'
+      - 'postman/**'
 
 jobs:
   deploy:
@@ -15,9 +16,9 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Deploy to EC2
+      - name: Deploy to EC2 Production
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -25,31 +26,41 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-            echo "=== Starting deployment ==="
             
-            echo "Fetching latest code from origin..."
+            echo "🚀 ============================================"
+            echo "🚀 Deploying PRODUCTION environment..."
+            echo "🚀 ============================================"
+            
+            echo "📥 Fetching latest code from origin..."
             git fetch origin
             
-            echo "Resetting to origin/main (ensures exact sync)..."
+            echo "🔄 Resetting to origin/main (ensures exact sync)..."
             git checkout main
             git reset --hard origin/main
             
-            echo "Current commit:"
+            echo "📋 Current commit:"
             git log --oneline -1
             
-            echo "Stopping containers..."
+            echo "🛑 Stopping production containers..."
             docker-compose -f docker-compose.prod.yml --env-file .env down
             
-            echo "Building and starting containers..."
+            echo "🔨 Building and starting production containers..."
             docker-compose -f docker-compose.prod.yml --env-file .env up -d --build
             
-            echo "Waiting for services to start..."
-            sleep 10
+            echo "⏳ Waiting for services to start..."
+            sleep 15
             
-            echo "Checking backend health..."
+            echo "🏥 Checking backend health (port 8080)..."
             curl -f http://127.0.0.1:8080/api/actuator/health || echo "⚠️ Backend health check failed"
             
-            echo "Showing recent logs..."
+            echo "🤖 Checking AI service health (port 8000)..."
+            curl -f http://127.0.0.1:8000/health || echo "⚠️ AI service health check failed"
+            
+            echo "📜 Showing recent logs..."
             docker-compose -f docker-compose.prod.yml logs --tail=30
             
-            echo "=== Deployment complete! ==="
+            echo "🚀 ============================================"
+            echo "✅ Production Deployment complete!"
+            echo "🌐 FE: https://www.petties.world"
+            echo "🔌 BE: https://api.petties.world/api"
+            echo "🚀 ============================================"

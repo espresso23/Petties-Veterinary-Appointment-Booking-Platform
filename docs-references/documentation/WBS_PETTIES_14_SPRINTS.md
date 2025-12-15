@@ -3,7 +3,7 @@
 
 **Project Duration:** 13 Sprints (1 Week/Sprint)  
 **Timeline:** 10/12/2025 - 11/03/2026  
-**Last Updated:** December 15, 2025
+**Last Updated:** December 16, 2025
 
 ---
 
@@ -33,6 +33,7 @@
 | Sprint | Product Backlog Item | Task | Description | Task Type | # | PIC | Level* | Estimate (h) | Actual Effort | Start | End | Actual Start | Actual End | Status |
 |--------|---------------------|------|-------------|-----------|---|-----|--------|--------------|---------------|-------|-----|--------------|------------|--------|
 | Sprint 1 | Set CI/CD for project | CI/CD for Web | Tạo workflow cho Web, kết nối Vercel auto-deploy khi push main branch. Domain: petties.world | DevOps | 1 | TânPIC | Medium | 4 | 4 | 10/12/2025 | 10/12/2025 | 10/12/2025 | 10/12/2025 | Done |
+| | | CI/CD for Test Environment | Tạo ci.yml (build+test), deploy-test.yml, docker-compose.test.yml, nginx config cho api-test.petties.world | DevOps | 1.1 | TânPIC | Complex | 8 | 8 | 15/12/2025 | 16/12/2025 | 15/12/2025 | 16/12/2025 | Done |
 | | | CI/CD for Mobile | Tạo workflow build APK/IPA, upload to Firebase App Distribution cho internal testing | DevOps | 2 | TânPIC | Medium | 4 | | 10/12/2025 | 10/12/2025 | | | Pending |
 | | Design database schema | Design database system | Thiết kế ERD diagram với 15+ tables: users, pets, clinics, vets, services, bookings, emr, payments, reviews, notifications | Design | 3 | TânPIC | Complex | 16 | 16 | 10/12/2025 | 11/12/2025 | 10/12/2025 | 11/12/2025 | Done |
 | | Draft Report | Draft Report 1 - Project Introduction | Viết bản nháp giới thiệu dự án: tên dự án, team members, problem statement, project objectives, scope, stakeholders, expected outcomes | Docs | 4 | Ổn | Medium | 4 | | 14/12/2025 | 15/12/2025 | | | Pending |
@@ -218,7 +219,7 @@
 
 | Sprint | Week | Start Date | End Date | Total Tasks | Done | Pending | Progress |
 |--------|------|------------|----------|-------------|------|---------|----------|
-| Sprint 1 | 1 | 10/12/2025 | 16/12/2025 | 21 | 13 | 8 | 62% |
+| Sprint 1 | 1 | 10/12/2025 | 16/12/2025 | 22 | 14 | 8 | 64% |
 | Sprint 2 | 2 | 17/12/2025 | 23/12/2025 | 11 | 0 | 11 | 0% |
 | Sprint 3 | 3 | 24/12/2025 | 30/12/2025 | 8 | 0 | 8 | 0% |
 | Sprint 4 | 4 | 31/12/2025 | 06/01/2026 | 5 | 0 | 5 | 0% |
@@ -231,7 +232,7 @@
 | Sprint 11 | 11 | 18/02/2026 | 24/02/2026 | 4 | 0 | 4 | 0% |
 | Sprint 12 | 12 | 25/02/2026 | 03/03/2026 | 6 | 0 | 6 | 0% |
 | Sprint 13 | 13 | 04/03/2026 | 11/03/2026 | 10 | 0 | 10 | 0% |
-| **Total** | **13** | **10/12/2025** | **11/03/2026** | **95** | **13** | **82** | **13.7%** |
+| **Total** | **13** | **10/12/2025** | **11/03/2026** | **96** | **14** | **82** | **14.6%** |
 
 ---
 
@@ -268,6 +269,6 @@
 
 ---
 
-**Document Version:** 10.0  
-**Last Updated:** December 15, 2025  
+**Document Version:** 11.0  
+**Last Updated:** December 16, 2025  
 **Maintained By:** Petties Team

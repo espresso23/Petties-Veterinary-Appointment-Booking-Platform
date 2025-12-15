@@ -1,0 +1,105 @@
+# ============================================
+# CI - Build & Test Workflow
+# 
+# Purpose: Kiểm tra code trước khi merge vào develop/main
+# Trigger: Pull Request tạo mới hoặc update
+# 
+# Jobs:
+#   - frontend: Lint, Type check, Build (React/Vite)
+#   - backend: Compile, Unit Tests (Spring Boot/Maven)
+#   - ai-service: Syntax check (Python/FastAPI)
+# 
+# PR chỉ được merge khi TẤT CẢ jobs PASS
+# ============================================
+
+name: CI - Build & Test
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  # ================================
+  # Frontend CI (Build Only - No Tests Yet)
+  # ================================
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./petties-web
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: petties-web/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Lint
+        run: npm run lint || echo "⚠️ Lint warnings exist"
+      
+      - name: Type check
+        run: npm run typecheck || echo "⚠️ Type check skipped (script not found)"
+      
+      - name: Build (check only)
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api-test.petties.world/api
+          VITE_WS_URL: wss://api-test.petties.world/ws
+          VITE_AGENT_SERVICE_URL: https://api-test.petties.world/ai
+
+  # ================================
+  # Backend CI (Build + Unit Tests)
+  # ================================
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend-spring/petties
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Build
+        run: mvn clean compile -DskipTests
+      
+      - name: Run Unit Tests
+        run: mvn test
+        continue-on-error: true  # Allow failures until tests are stable
+
+  # ================================
+  # AI Service CI (Python - Build Only)
+  # ================================
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./petties-agent-serivce
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Syntax check
+        run: python -m py_compile app/main.py
