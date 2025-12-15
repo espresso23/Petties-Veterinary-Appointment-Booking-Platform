@@ -20,6 +20,8 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: test
+      # Hibernate auto-create schema for test DB
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       # Neon PostgreSQL - TEST Branch
       DB_HOST: ${DB_HOST_TEST:-ep-test-branch.neon.tech}
       DB_PORT: ${DB_PORT:-5432}

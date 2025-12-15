@@ -44,7 +44,7 @@ cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
 cp .env.test.example .env.test
 
 # Chỉnh sửa với credentials thật
-nano .env.test
+sudo nano .env.test
 ```
 
 **Cập nhật các giá trị:**
