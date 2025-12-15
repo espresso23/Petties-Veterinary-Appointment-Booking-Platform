@@ -21,6 +21,7 @@ Changes:
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = '20250106_000001'
@@ -29,67 +30,84 @@ branch_labels = None
 depends_on = None
 
 
+def column_exists(table_name: str, column_name: str) -> bool:
+    """Check if a column exists in a table."""
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    return column_name in columns
+
+
 def upgrade() -> None:
-    # Create ToolSource enum type
-    tool_source_enum = postgresql.ENUM(
-        'fastmcp_code',
-        'swagger_imported',
-        'manual_api',
-        name='toolsource'
-    )
-    tool_source_enum.create(op.get_bind())
+    # Create ToolSource enum type using raw SQL with IF NOT EXISTS
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE toolsource AS ENUM ('fastmcp_code', 'swagger_imported', 'manual_api');
+        EXCEPTION
+            WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
 
     # Add source column với default = 'fastmcp_code'
-    op.add_column(
-        'tools',
-        sa.Column(
-            'source',
-            sa.Enum('fastmcp_code', 'swagger_imported', 'manual_api', name='toolsource'),
-            nullable=False,
-            server_default='fastmcp_code'
+    if not column_exists('tools', 'source'):
+        op.add_column(
+            'tools',
+            sa.Column(
+                'source',
+                sa.Enum('fastmcp_code', 'swagger_imported', 'manual_api', name='toolsource', create_type=False),
+                nullable=False,
+                server_default='fastmcp_code'
+            )
         )
-    )
 
-    # Add Swagger/OpenAPI specific columns
-    op.add_column(
-        'tools',
-        sa.Column('swagger_url', sa.String(500), nullable=True)
-    )
+    # Add Swagger/OpenAPI specific columns (only if not exists)
+    if not column_exists('tools', 'swagger_url'):
+        op.add_column(
+            'tools',
+            sa.Column('swagger_url', sa.String(500), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('operation_id', sa.String(200), nullable=True)
-    )
+    if not column_exists('tools', 'operation_id'):
+        op.add_column(
+            'tools',
+            sa.Column('operation_id', sa.String(200), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('path', sa.String(500), nullable=True)
-    )
+    if not column_exists('tools', 'path'):
+        op.add_column(
+            'tools',
+            sa.Column('path', sa.String(500), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('original_name', sa.String(200), nullable=True)
-    )
+    if not column_exists('tools', 'original_name'):
+        op.add_column(
+            'tools',
+            sa.Column('original_name', sa.String(200), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('request_body_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True)
-    )
+    if not column_exists('tools', 'request_body_schema'):
+        op.add_column(
+            'tools',
+            sa.Column('request_body_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('response_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True)
-    )
+    if not column_exists('tools', 'response_schema'):
+        op.add_column(
+            'tools',
+            sa.Column('response_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('path_parameters', postgresql.JSON(astext_type=sa.Text()), nullable=True)
-    )
+    if not column_exists('tools', 'path_parameters'):
+        op.add_column(
+            'tools',
+            sa.Column('path_parameters', postgresql.JSON(astext_type=sa.Text()), nullable=True)
+        )
 
-    op.add_column(
-        'tools',
-        sa.Column('query_parameters', postgresql.JSON(astext_type=sa.Text()), nullable=True)
-    )
+    if not column_exists('tools', 'query_parameters'):
+        op.add_column(
+            'tools',
+            sa.Column('query_parameters', postgresql.JSON(astext_type=sa.Text()), nullable=True)
+        )
 
     # Update enabled column default to False
     # (existing tools will remain as is, only new tools default to False)
