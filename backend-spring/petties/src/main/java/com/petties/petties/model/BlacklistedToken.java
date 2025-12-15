@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "blacklisted_tokens", indexes = {
-    @Index(name = "idx_token_hash", columnList = "token_hash"),
-    @Index(name = "idx_user_id", columnList = "user_id")
+    @Index(name = "idx_blacklisted_tokens_token_hash", columnList = "token_hash"),
+    @Index(name = "idx_blacklisted_tokens_user_id", columnList = "user_id")
 })
 @EntityListeners(AuditingEntityListener.class)
 @Getter
