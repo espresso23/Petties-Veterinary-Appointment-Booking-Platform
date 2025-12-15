@@ -24,7 +24,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create AgentType enum
+    # Create AgentType enum (skip if already exists)
     agent_type_enum = postgresql.ENUM(
         'main',
         'booking',
@@ -32,15 +32,15 @@ def upgrade() -> None:
         'product',
         name='agenttype'
     )
-    agent_type_enum.create(op.get_bind())
+    agent_type_enum.create(op.get_bind(), checkfirst=True)
 
-    # Create ToolTypeEnum enum
+    # Create ToolTypeEnum enum (skip if already exists)
     tool_type_enum = postgresql.ENUM(
         'code_based',
         'api_based',
         name='tooltypeenum'
     )
-    tool_type_enum.create(op.get_bind())
+    tool_type_enum.create(op.get_bind(), checkfirst=True)
 
     # ===== AGENTS TABLE =====
     op.create_table(
