@@ -24,7 +24,7 @@ Pipeline CI/CD cho mobile app bao gồm:
 
 1. Trong App Distribution, click **Testers & Groups**
 2. Tạo các groups:
-   - `internal-testers` - Team nội bộ (dev build)
+   - `petties-test` - Team nội bộ (dev build)
    - `production-testers` - QA team (prod build)
 3. Thêm email của testers vào từng group
 
@@ -322,7 +322,7 @@ Testers cần gửi UDID của device:
 
 | Event | Platform | Flavor | Deploy Target |
 |-------|----------|--------|---------------|
-| Push to `develop` | Android only | dev | Firebase (internal-testers) |
+| Push to `develop` | Android only | staging | Firebase (petties-test) |
 | Push to `main` | Android only | prod | Firebase (production-testers) |
 
 ### Manual trigger (Workflow dispatch)

@@ -63,7 +63,7 @@ on:
       tester_groups:
         description: 'Firebase App Distribution tester groups'
         required: false
-        default: 'internal-testers'
+        default: 'petties-test'
 
 env:
   FLUTTER_VERSION: '3.27.0'
