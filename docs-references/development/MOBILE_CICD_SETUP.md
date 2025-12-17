@@ -56,7 +56,115 @@ Pipeline CI/CD cho mobile app bao gồm:
 
 ## 🍎 PHẦN 2: iOS SETUP
 
-### 2.1 Yêu cầu
+### 2.0 Apple Developer Account - FAQ
+
+#### ❓ Team 5 người có cần 5 tài khoản không?
+
+**KHÔNG!** Chỉ cần **1 tài khoản** cho cả team.
+
+| Câu hỏi | Trả lời |
+|---------|---------|
+| Cần bao nhiêu account? | **CHỈ 1** |
+| Chi phí? | **$99/năm** (~2.5 triệu VND) |
+| Team members build được không? | ✅ Có (qua CI/CD) |
+| Team members test được không? | ✅ Có (qua TestFlight - MIỄN PHÍ) |
+
+#### 🎫 Hai loại Apple Developer Account
+
+| Loại | Chi phí | Phù hợp với |
+|------|---------|-------------|
+| **Individual** | $99/năm | Cá nhân, freelancer, team nhỏ |
+| **Organization** | $99/năm | Công ty, startup (cần DUNS number) |
+
+#### 👥 Phân quyền trong team (Organization Account)
+
+| Vai trò | Quyền |
+|---------|-------|
+| **Account Holder** | Quản lý mọi thứ, thanh toán |
+| **Admin** | Quản lý certificates, users, builds |
+| **Developer** | Tạo builds, access code signing |
+| **Marketing** | Quản lý App Store listing |
+
+#### 📱 TestFlight - Testers hoàn toàn MIỄN PHÍ
+
+- Testers **KHÔNG cần** Apple Developer Account
+- Chỉ cần iPhone + App Store (để tải TestFlight app)
+- Owner mời bằng email → Testers accept → Cài app test
+- Hỗ trợ tối đa **10,000 external testers**
+
+#### 🔗 Đăng ký Apple Developer
+
+1. Truy cập: https://developer.apple.com/programs/enroll/
+2. Đăng nhập Apple ID
+3. Chọn Individual hoặc Organization
+4. Thanh toán $99 (Visa/Mastercard)
+5. Đợi Apple approve (24-48 giờ)
+
+#### 🖥️ Team không có Mac có thể test iOS không?
+
+**CÓ!** Dùng Codemagic để build trên cloud.
+
+```
+Windows/Linux Dev → Push code → Codemagic (macOS cloud) → Build IPA → TestFlight → iPhone test
+```
+
+| Bước | Thực hiện bởi | Thiết bị cần |
+|------|---------------|--------------|
+| Code Flutter | Dev | Windows/Linux/Mac |
+| Push code | Dev | Git |
+| Build iOS (.ipa) | **Codemagic** | Không cần (cloud) |
+| Upload TestFlight | **Codemagic** | Tự động |
+| Test app | Tester | **iPhone** |
+
+#### ✅ Yêu cầu tối thiểu để develop iOS (không có Mac)
+
+| Yêu cầu | Bắt buộc? | Chi phí |
+|---------|-----------|---------|
+| Apple Developer Account | ✅ | $99/năm |
+| **Ít nhất 1 iPhone** trong team | ✅ | - |
+| Codemagic account | ✅ | Miễn phí (500 phút/tháng) |
+| Mac | ❌ | Không cần |
+
+#### 🔐 Code Signing không cần Mac
+
+Codemagic hỗ trợ **Automatic Code Signing**:
+1. Bạn cung cấp Apple Developer credentials
+2. Codemagic tự động tạo certificates và profiles
+3. Không cần Mac để tạo thủ công!
+
+---
+
+### 2.1 Lựa chọn CI/CD Platform cho iOS
+
+#### 🔄 So sánh GitHub Actions vs Codemagic
+
+| Tiêu chí | GitHub Actions | Codemagic |
+|----------|----------------|-----------|
+| **macOS Runner** | ❌ Tốn tiền ($0.08/phút) | ✅ Miễn phí 500 phút/tháng |
+| **iOS Build** | ⚠️ Phức tạp | ✅ Dễ setup |
+| **Apple Signing** | ❌ Phải tự setup | ✅ Tự động quản lý |
+| **Flutter Support** | ⚠️ Cần cấu hình | ✅ Native support |
+| **Free Tier (iOS)** | ~200 phút/tháng | 500 phút/tháng |
+
+#### 💡 Khuyến nghị
+
+| Platform | CI/CD Tool | Lý do |
+|----------|------------|-------|
+| **Android** | GitHub Actions | Đã setup, miễn phí |
+| **iOS** | **Codemagic** | macOS miễn phí, dễ setup |
+
+#### 🛠️ Setup Codemagic (Khuyến nghị cho iOS)
+
+1. Đăng ký: https://codemagic.io/signup
+2. Kết nối GitHub repository
+3. Codemagic sẽ hướng dẫn từng bước:
+   - Tự động detect Flutter project
+   - Hỗ trợ code signing wizard
+   - Tích hợp TestFlight/Firebase
+
+---
+
+### 2.2 Yêu cầu (nếu dùng GitHub Actions)
 
 - **Apple Developer Account** ($99/năm): https://developer.apple.com/
 - **App ID đã đăng ký** trên Apple Developer Portal
