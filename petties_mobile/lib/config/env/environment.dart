@@ -6,6 +6,7 @@ class Environment {
   // API URLs
   // ============================================================
   static const String _devBaseUrl = 'http://10.0.2.2:8080/api';
+  static const String _stagingBaseUrl = 'https://api-test.petties.world/api';
   static const String _prodBaseUrl = 'https://api.petties.world/api';
 
   // Flavor from build arguments
@@ -13,21 +14,41 @@ class Environment {
   
   /// Get the base URL based on flavor
   static String get baseUrl {
-    return _flavor == 'prod' ? _prodBaseUrl : _devBaseUrl;
+    switch (_flavor) {
+      case 'prod':
+        return _prodBaseUrl;
+      case 'staging':
+      case 'test':
+        return _stagingBaseUrl;
+      default:
+        return _devBaseUrl;
+    }
   }
 
   /// Check if running in production mode
   static bool get isProduction => _flavor == 'prod';
+  
+  /// Check if running in staging/test mode  
+  static bool get isStaging => _flavor == 'staging' || _flavor == 'test';
 
   /// Get current flavor
   static String get flavor => _flavor;
 
   /// AI Service URL
   static const String _devAiServiceUrl = 'http://10.0.2.2:8000';
+  static const String _stagingAiServiceUrl = 'https://ai-test.petties.world';
   static const String _prodAiServiceUrl = 'https://ai.petties.world';
 
   static String get aiServiceUrl {
-    return _flavor == 'prod' ? _prodAiServiceUrl : _devAiServiceUrl;
+    switch (_flavor) {
+      case 'prod':
+        return _prodAiServiceUrl;
+      case 'staging':
+      case 'test':
+        return _stagingAiServiceUrl;
+      default:
+        return _devAiServiceUrl;
+    }
   }
 
   // ============================================================

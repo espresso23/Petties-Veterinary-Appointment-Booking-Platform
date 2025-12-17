@@ -8,11 +8,11 @@ Hướng dẫn phát triển và chạy Petties Mobile App (Flutter).
 
 Mobile app hỗ trợ 3 environments thông qua flavor:
 
-| Environment | API URL | AI Service URL | Branch |
-|-------------|---------|----------------|--------|
-| **Dev** | `http://10.0.2.2:8080/api` | `http://10.0.2.2:8000` | `feature/*` |
-| **Test** | `https://api-test.petties.world/api` | `https://api-test.petties.world/ai` | `develop` |
-| **Prod** | `https://api.petties.world/api` | `https://ai.petties.world` | `main` |
+| Environment | Flavor | API URL | AI Service URL |
+|-------------|--------|---------|----------------|
+| **Dev** | `dev` | `http://10.0.2.2:8080/api` | `http://10.0.2.2:8000` |
+| **Staging/Test** | `staging` | `https://api-test.petties.world/api` | `https://ai-test.petties.world` |
+| **Prod** | `prod` | `https://api.petties.world/api` | `https://ai.petties.world` |
 
 > **Lưu ý**: `10.0.2.2` là alias cho localhost khi chạy Android emulator
 
@@ -31,39 +31,39 @@ flutter pub get
 #### Development (Local Backend)
 ```bash
 # Chạy với local backend (localhost:8080)
-flutter run --dart-define=FLAVOR=dev
+flutter run --flavor dev --dart-define=FLAVOR=dev
 ```
 
-#### Test Environment (api-test.petties.world)
+#### Staging/Test Environment (api-test.petties.world)
 ```bash
 # Chạy với test backend
-flutter run --dart-define=FLAVOR=test
+flutter run --flavor staging --dart-define=FLAVOR=staging
 ```
 
 #### Production (api.petties.world)
 ```bash
 # Chạy với production backend
-flutter run --dart-define=FLAVOR=prod
+flutter run --flavor prod --dart-define=FLAVOR=prod
 ```
 
 ### 3. Build APK
 
 ```bash
 # Dev build (debug)
-flutter build apk --debug --dart-define=FLAVOR=dev
+flutter build apk --debug --flavor dev --dart-define=FLAVOR=dev
 
-# Test build (debug)
-flutter build apk --debug --dart-define=FLAVOR=test
+# Staging/Test build (debug)
+flutter build apk --debug --flavor staging --dart-define=FLAVOR=staging
 
 # Production build (release)
-flutter build apk --release --dart-define=FLAVOR=prod
+flutter build apk --release --flavor prod --dart-define=FLAVOR=prod
 ```
 
 ### 4. Build iOS
 
 ```bash
 # Cần macOS với Xcode
-flutter build ios --dart-define=FLAVOR=prod
+flutter build ios --flavor prod --dart-define=FLAVOR=prod
 ```
 
 ### 5. Tests
@@ -79,10 +79,10 @@ flutter test
 | Mục đích | Command |
 |----------|---------|
 | Cài dependencies | `flutter pub get` |
-| Chạy dev (local) | `flutter run --dart-define=FLAVOR=dev` |
-| Chạy test env | `flutter run --dart-define=FLAVOR=test` |
-| Chạy production | `flutter run --dart-define=FLAVOR=prod` |
-| Build APK release | `flutter build apk --release --dart-define=FLAVOR=prod` |
+| Chạy dev (local) | `flutter run --flavor dev --dart-define=FLAVOR=dev` |
+| Chạy staging/test env | `flutter run --flavor staging --dart-define=FLAVOR=staging` |
+| Chạy production | `flutter run --flavor prod --dart-define=FLAVOR=prod` |
+| Build APK release | `flutter build apk --release --flavor prod --dart-define=FLAVOR=prod` |
 | Run tests | `flutter test` |
 
 ---
