@@ -46,14 +46,18 @@ android {
         versionName = flutter.versionName
     }
 
-    // Flavor configuration for dev/prod environments
+    // Flavor configuration for dev/test/prod environments
     flavorDimensions += "environment"
     productFlavors {
         create("dev") {
             dimension = "environment"
-            // Không dùng applicationIdSuffix vì chỉ test trên emulator
             versionNameSuffix = "-dev"
             resValue("string", "app_name", "Petties Dev")
+        }
+        create("staging") {
+            dimension = "environment"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "Petties Staging")
         }
         create("prod") {
             dimension = "environment"
