@@ -146,6 +146,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 
 ## Project Rules
+0. Always response in Vietnamese.
 1. Always references in `docs-references/` folder to avoid out of scope.
 2. Always comprehensive all plan and got a user accepted before execute code.
 3. Always clearly dev environment and production environment, make sure best practice project structure.
