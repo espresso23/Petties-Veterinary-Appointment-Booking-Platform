@@ -206,6 +206,17 @@ JWT_SECRET=YourProductionSecretKeyMinimum64CharactersLongForSecurityPurposesChan
 CORS_ORIGINS=https://petties.world,https://www.petties.world
 
 # ============================================
+# REDIS CLOUD CONFIGURATION
+# ============================================
+# Redis Cloud (Upstash/Redis Labs)
+# Format: redis://default:password@host:port/0 (0 for Production)
+REDIS_URL=
+REDIS_HOST=
+REDIS_PORT=
+REDIS_PASSWORD=
+REDIS_SSL=false
+
+# ============================================
 # AI SERVICE CONFIGURATION
 # ============================================
 ENVIRONMENT=production

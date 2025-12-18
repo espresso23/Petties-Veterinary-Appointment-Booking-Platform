@@ -1,15 +1,5 @@
 # Petties - Development Commands
 
-## Quick Reference
-
-| Môi trường | Command |
-|------------|---------|
-| **Full Dev (Docker)** | `.\scripts\dev-start.bat` |
-| **DB Only** | `.\scripts\dev-db-only.bat` |
-| **Stop All** | `.\scripts\dev-stop.bat` |
-| **Test Prod** | `.\scripts\prod-test.bat` |
-
----
 
 ## 1. Development với Docker (Recommended)
 
@@ -25,7 +15,6 @@ docker-compose -f docker-compose.dev.yml logs -f
 # View specific service logs
 docker-compose -f docker-compose.dev.yml logs -f backend
 docker-compose -f docker-compose.dev.yml logs -f ai-service
-
 # Stop all
 docker-compose -f docker-compose.dev.yml down -v
 ```
@@ -62,7 +51,12 @@ npm run dev
 
 # Terminal 4 - Mobile
 cd petties_mobile
+
+# Option 1: Android Emulator (default 10.0.2.2)
 flutter run --flavor dev --dart-define=FLAVOR=dev
+
+# Option 2: Real Device / LAN (thay IP)
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
 ```
 
 ---
@@ -75,6 +69,7 @@ flutter run --flavor dev --dart-define=FLAVOR=dev
 |------|---------|----------|
 | `application.properties` | Base | Config chung |
 | `application-dev.properties` | dev | Local Docker DBs |
+| `application-staging.properties` | staging | Staging (Redis DB 1) |
 | `application-prod.properties` | prod | Cloud DBs (Neon, Atlas) |
 
 **Cách switch profile:**
@@ -123,8 +118,11 @@ cp .env.development .env
 
 **Build modes:**
 ```bash
-# Development
-flutter run
+# Development (Emulator)
+flutter run --flavor dev --dart-define=FLAVOR=dev
+
+# Development (Real Device - LAN)
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://<YOUR_LAN_IP>:8080/api
 
 # Production (uses prod URLs automatically)
 flutter build apk --release
@@ -157,6 +155,19 @@ show dbs
 use petties_nosql
 show collections
 db.collection_name.find()
+exit
+```
+
+### Redis
+```bash
+# Access container
+docker exec -it petties-dev-redis redis-cli
+
+# Common commands
+ping                    # Check connection
+keys *                  # List all keys
+get key_name            # Get value
+flushall                # Clear all data
 exit
 ```
 

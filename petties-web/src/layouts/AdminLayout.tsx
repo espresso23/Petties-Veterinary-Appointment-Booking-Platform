@@ -46,6 +46,12 @@ export const AdminLayout = () => {
         { path: '/admin/reports', label: 'REPORTS' },
         { path: '/admin/settings', label: 'CẤU HÌNH' },
       ]
+    },
+    {
+      title: 'CÁ NHÂN',
+      items: [
+        { path: '/admin/profile', label: 'HỒ SƠ' },
+      ]
     }
   ]
 
