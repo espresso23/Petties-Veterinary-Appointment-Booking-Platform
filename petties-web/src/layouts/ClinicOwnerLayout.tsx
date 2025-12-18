@@ -23,7 +23,7 @@ export const ClinicOwnerLayout = () => {
         { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
         { path: '/clinic-owner/pricing', label: 'GIÁ DỊCH VỤ' },
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
-        { path: '/clinic-owner/schedule', label: 'LỊCH LÀM VIỆC' },
+        { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
     ]
 
     const handleLogout = () => {

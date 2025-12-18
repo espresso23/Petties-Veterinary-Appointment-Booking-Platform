@@ -16,6 +16,8 @@ import { OnboardingPage } from './pages/onboarding'
 import { HomePage } from './pages/home/HomePage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
@@ -29,6 +31,9 @@ import { SettingsPage } from './pages/admin/settings'
 import { VetDashboardPage } from './pages/vet/DashboardPage'
 import { ClinicOwnerDashboardPage } from './pages/clinic-owner/DashboardPage'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
+
+// Shared Pages
+import { ProfilePage } from './pages/shared'
 
 // Components
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -55,6 +60,8 @@ function App() {
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           </Route>
 
           {/* Home (after login) - uses Outlet */}
@@ -78,6 +85,7 @@ function App() {
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="playground" element={<PlaygroundPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* Vet Routes */}
@@ -87,6 +95,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<VetDashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* Clinic Owner Routes */}
@@ -96,6 +105,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<ClinicOwnerDashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           {/* Clinic Manager Routes */}
@@ -105,6 +115,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<ClinicManagerDashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Routes>
       </BrowserRouter>
