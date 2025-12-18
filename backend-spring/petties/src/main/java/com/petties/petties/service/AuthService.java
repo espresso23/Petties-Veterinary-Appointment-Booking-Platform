@@ -38,339 +38,365 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtTokenProvider tokenProvider;
-    private final AuthenticationManager authenticationManager;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final BlacklistedTokenRepository blacklistedTokenRepository;
-    private final GoogleAuthService googleAuthService;
+        private final UserRepository userRepository;
+        private final PasswordEncoder passwordEncoder;
+        private final JwtTokenProvider tokenProvider;
+        private final AuthenticationManager authenticationManager;
+        private final RefreshTokenRepository refreshTokenRepository;
+        private final BlacklistedTokenRepository blacklistedTokenRepository;
+        private final GoogleAuthService googleAuthService;
 
-    @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        // Check if username or email already exists
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new ResourceAlreadyExistsException("Username already exists");
+        @Transactional
+        public AuthResponse register(RegisterRequest request) {
+                // Check if username or email already exists
+                if (userRepository.existsByUsername(request.getUsername())) {
+                        throw new ResourceAlreadyExistsException("Username already exists");
+                }
+
+                if (userRepository.existsByEmail(request.getEmail())) {
+                        throw new ResourceAlreadyExistsException("Email already exists");
+                }
+
+                // Create new user
+                User user = new User();
+                user.setUsername(request.getUsername());
+                user.setPassword(passwordEncoder.encode(request.getPassword()));
+                user.setEmail(request.getEmail());
+                user.setPhone(request.getPhone());
+                user.setFullName(request.getFullName());
+                user.setRole(request.getRole());
+
+                User savedUser = userRepository.save(user);
+
+                // Generate tokens
+                String accessToken = tokenProvider.generateToken(
+                                savedUser.getUserId(),
+                                savedUser.getUsername(),
+                                savedUser.getRole().name());
+                String refreshToken = tokenProvider.generateRefreshToken(
+                                savedUser.getUserId(),
+                                savedUser.getUsername());
+
+                // Save refresh token to database
+                saveRefreshToken(savedUser.getUserId(), refreshToken);
+
+                return AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .refreshToken(refreshToken)
+                                .tokenType("Bearer")
+                                .userId(savedUser.getUserId())
+                                .username(savedUser.getUsername())
+                                .email(savedUser.getEmail())
+                                .fullName(savedUser.getFullName())
+                                .role(savedUser.getRole().name())
+                                .build();
         }
 
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ResourceAlreadyExistsException("Email already exists");
+        @Transactional
+        public AuthResponse login(LoginRequest request) {
+                Authentication authentication = authenticationManager.authenticate(
+                                new UsernamePasswordAuthenticationToken(
+                                                request.getUsername(),
+                                                request.getPassword()));
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
+                                .getPrincipal();
+
+                String token = tokenProvider.generateToken(
+                                userPrincipal.getUserId(),
+                                userPrincipal.getUsername(),
+                                userPrincipal.getRole());
+
+                User user = userRepository.findById(userPrincipal.getUserId())
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                // Generate refresh token
+                String refreshToken = tokenProvider.generateRefreshToken(
+                                user.getUserId(),
+                                user.getUsername());
+
+                // Delete old refresh tokens for this user (rotation)
+                refreshTokenRepository.deleteAllByUserId(user.getUserId());
+
+                // Save new refresh token
+                saveRefreshToken(user.getUserId(), refreshToken);
+
+                return AuthResponse.builder()
+                                .accessToken(token)
+                                .refreshToken(refreshToken)
+                                .tokenType("Bearer")
+                                .userId(user.getUserId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .fullName(user.getFullName())
+                                .role(user.getRole().name())
+                                .build();
         }
 
-        // Create new user
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setFullName(request.getFullName());
-        user.setRole(request.getRole());
+        @Transactional
+        public AuthResponse refreshToken(String refreshToken) {
+                // Validate token format and expiration
+                if (!tokenProvider.validateToken(refreshToken)) {
+                        throw new UnauthorizedException("Invalid or expired refresh token");
+                }
 
-        User savedUser = userRepository.save(user);
+                // Check if it's actually a refresh token
+                String tokenType = tokenProvider.getTokenType(refreshToken);
+                if (!"refresh".equals(tokenType)) {
+                        throw new UnauthorizedException("Invalid token type");
+                }
 
-        // Generate tokens
-        String accessToken = tokenProvider.generateToken(
-                savedUser.getUserId(),
-                savedUser.getUsername(),
-                savedUser.getRole().name());
-        String refreshToken = tokenProvider.generateRefreshToken(
-                savedUser.getUserId(),
-                savedUser.getUsername());
+                // Check if token exists in database
+                String tokenHash = TokenUtil.hashToken(refreshToken);
+                RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
+                                .orElseThrow(() -> new UnauthorizedException("Refresh token not found"));
 
-        // Save refresh token to database
-        saveRefreshToken(savedUser.getUserId(), refreshToken);
+                // Check if token is expired
+                if (storedToken.isExpired()) {
+                        refreshTokenRepository.delete(storedToken);
+                        throw new UnauthorizedException("Refresh token expired");
+                }
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .userId(savedUser.getUserId())
-                .username(savedUser.getUsername())
-                .email(savedUser.getEmail())
-                .fullName(savedUser.getFullName())
-                .role(savedUser.getRole().name())
-                .build();
-    }
+                // Get user info
+                String username = tokenProvider.getUsernameFromToken(refreshToken);
+                UUID userId = tokenProvider.getUserIdFromToken(refreshToken);
 
-    @Transactional
-    public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
-                        request.getPassword()));
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+                // Generate new tokens
+                String newAccessToken = tokenProvider.generateToken(
+                                userId,
+                                username,
+                                user.getRole().name());
+                String newRefreshToken = tokenProvider.generateRefreshToken(
+                                userId,
+                                username);
 
-        UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
-                .getPrincipal();
+                // Delete old refresh token (rotation)
+                refreshTokenRepository.delete(storedToken);
 
-        String token = tokenProvider.generateToken(
-                userPrincipal.getUserId(),
-                userPrincipal.getUsername(),
-                userPrincipal.getRole());
+                // Save new refresh token
+                saveRefreshToken(userId, newRefreshToken);
 
-        User user = userRepository.findById(userPrincipal.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        // Generate refresh token
-        String refreshToken = tokenProvider.generateRefreshToken(
-                user.getUserId(),
-                user.getUsername());
-
-        // Delete old refresh tokens for this user (rotation)
-        refreshTokenRepository.deleteAllByUserId(user.getUserId());
-
-        // Save new refresh token
-        saveRefreshToken(user.getUserId(), refreshToken);
-
-        return AuthResponse.builder()
-                .accessToken(token)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .userId(user.getUserId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole().name())
-                .build();
-    }
-
-    @Transactional
-    public AuthResponse refreshToken(String refreshToken) {
-        // Validate token format and expiration
-        if (!tokenProvider.validateToken(refreshToken)) {
-            throw new UnauthorizedException("Invalid or expired refresh token");
+                return AuthResponse.builder()
+                                .accessToken(newAccessToken)
+                                .refreshToken(newRefreshToken)
+                                .tokenType("Bearer")
+                                .userId(user.getUserId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .fullName(user.getFullName())
+                                .role(user.getRole().name())
+                                .build();
         }
 
-        // Check if it's actually a refresh token
-        String tokenType = tokenProvider.getTokenType(refreshToken);
-        if (!"refresh".equals(tokenType)) {
-            throw new UnauthorizedException("Invalid token type");
+        @Transactional
+        public void logout(String accessToken) {
+                if (!tokenProvider.validateToken(accessToken)) {
+                        throw new UnauthorizedException("Invalid access token");
+                }
+
+                // Check if it's an access token
+                String tokenType = tokenProvider.getTokenType(accessToken);
+                if (!"access".equals(tokenType)) {
+                        throw new UnauthorizedException("Invalid token type");
+                }
+
+                UUID userId = tokenProvider.getUserIdFromToken(accessToken);
+                LocalDateTime expiresAt = LocalDateTime.ofInstant(
+                                tokenProvider.getExpirationDateFromToken(accessToken).toInstant(),
+                                java.time.ZoneId.systemDefault());
+
+                // Blacklist the access token
+                String tokenHash = TokenUtil.hashToken(accessToken);
+                BlacklistedToken blacklistedToken = new BlacklistedToken();
+                blacklistedToken.setTokenHash(tokenHash);
+                blacklistedToken.setUserId(userId);
+                blacklistedToken.setExpiresAt(expiresAt);
+                blacklistedTokenRepository.save(blacklistedToken);
+
+                // Delete all refresh tokens for this user
+                refreshTokenRepository.deleteAllByUserId(userId);
         }
 
-        // Check if token exists in database
-        String tokenHash = TokenUtil.hashToken(refreshToken);
-        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new UnauthorizedException("Refresh token not found"));
+        private void saveRefreshToken(UUID userId, String refreshToken) {
+                String tokenHash = TokenUtil.hashToken(refreshToken);
+                LocalDateTime expiresAt = LocalDateTime.ofInstant(
+                                tokenProvider.getExpirationDateFromToken(refreshToken).toInstant(),
+                                java.time.ZoneId.systemDefault());
 
-        // Check if token is expired
-        if (storedToken.isExpired()) {
-            refreshTokenRepository.delete(storedToken);
-            throw new UnauthorizedException("Refresh token expired");
+                RefreshToken token = new RefreshToken();
+                token.setUserId(userId);
+                token.setTokenHash(tokenHash);
+                token.setExpiresAt(expiresAt);
+                refreshTokenRepository.save(token);
         }
 
-        // Get user info
-        String username = tokenProvider.getUsernameFromToken(refreshToken);
-        UUID userId = tokenProvider.getUserIdFromToken(refreshToken);
+        public User getCurrentUser() {
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                if (authentication == null || !authentication.isAuthenticated()) {
+                        log.warn("Attempted to get current user but no authentication found in SecurityContext");
+                        throw new UnauthorizedException("User not authenticated");
+                }
 
-        // Generate new tokens
-        String newAccessToken = tokenProvider.generateToken(
-                userId,
-                username,
-                user.getRole().name());
-        String newRefreshToken = tokenProvider.generateRefreshToken(
-                userId,
-                username);
+                Object principal = authentication.getPrincipal();
 
-        // Delete old refresh token (rotation)
-        refreshTokenRepository.delete(storedToken);
+                if (principal instanceof UserDetailsServiceImpl.UserPrincipal) {
+                        UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) principal;
+                        return userRepository.findById(userPrincipal.getUserId())
+                                        .orElseThrow(() -> {
+                                                log.error("User not found in database for ID: {}",
+                                                                userPrincipal.getUserId());
+                                                return new ResourceNotFoundException("User not found");
+                                        });
+                }
 
-        // Save new refresh token
-        saveRefreshToken(userId, newRefreshToken);
+                // Log the actual class type to helps debug why it's not UserPrincipal
+                String principalType = principal != null ? principal.getClass().getName() : "null";
+                log.error("Unexpected principal type in SecurityContext: {}. Expected UserPrincipal.", principalType);
 
-        return AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .tokenType("Bearer")
-                .userId(user.getUserId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole().name())
-                .build();
-    }
+                // Fallback for cases where principal might be just the username (String)
+                if (principal instanceof String) {
+                        String username = (String) principal;
+                        return userRepository.findByUsername(username)
+                                        .orElseThrow(() -> {
+                                                log.error("User not found in database for username: {}", username);
+                                                return new ResourceNotFoundException("User not found");
+                                        });
+                }
 
-    @Transactional
-    public void logout(String accessToken) {
-        if (!tokenProvider.validateToken(accessToken)) {
-            throw new UnauthorizedException("Invalid access token");
+                throw new UnauthorizedException("Could not extract user information from security context");
         }
 
-        // Check if it's an access token
-        String tokenType = tokenProvider.getTokenType(accessToken);
-        if (!"access".equals(tokenType)) {
-            throw new UnauthorizedException("Invalid token type");
+        /**
+         * Login or register with Google Sign-In
+         * 
+         * @param request Contains idToken and platform
+         * @return AuthResponse with JWT tokens
+         */
+        @Transactional
+        public AuthResponse loginWithGoogle(GoogleSignInRequest request) {
+                // 1. Verify Google ID token
+                GoogleAuthService.GoogleUserInfo googleUser = googleAuthService.verifyIdToken(request.getIdToken());
+
+                log.info("Google Sign-In for email: {}, platform: {}", googleUser.email(), request.getPlatform());
+
+                // 2. Find or create user (with race condition handling)
+                User user = findOrCreateGoogleUser(googleUser, request.getPlatform());
+
+                // 3. Validate role-platform access
+                validateRolePlatformAccess(user.getRole(), request.getPlatform());
+
+                // 4. Generate tokens
+                String accessToken = tokenProvider.generateToken(
+                                user.getUserId(),
+                                user.getUsername(),
+                                user.getRole().name());
+                String refreshToken = tokenProvider.generateRefreshToken(
+                                user.getUserId(),
+                                user.getUsername());
+
+                // 5. Delete old refresh tokens and save new one
+                refreshTokenRepository.deleteAllByUserId(user.getUserId());
+                saveRefreshToken(user.getUserId(), refreshToken);
+
+                log.info("Google Sign-In successful for user: {}, role: {}", user.getUsername(), user.getRole());
+
+                return AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .refreshToken(refreshToken)
+                                .tokenType("Bearer")
+                                .userId(user.getUserId())
+                                .username(user.getUsername())
+                                .email(user.getEmail())
+                                .fullName(user.getFullName())
+                                .role(user.getRole().name())
+                                .build();
         }
 
-        UUID userId = tokenProvider.getUserIdFromToken(accessToken);
-        LocalDateTime expiresAt = LocalDateTime.ofInstant(
-                tokenProvider.getExpirationDateFromToken(accessToken).toInstant(),
-                java.time.ZoneId.systemDefault());
-
-        // Blacklist the access token
-        String tokenHash = TokenUtil.hashToken(accessToken);
-        BlacklistedToken blacklistedToken = new BlacklistedToken();
-        blacklistedToken.setTokenHash(tokenHash);
-        blacklistedToken.setUserId(userId);
-        blacklistedToken.setExpiresAt(expiresAt);
-        blacklistedTokenRepository.save(blacklistedToken);
-
-        // Delete all refresh tokens for this user
-        refreshTokenRepository.deleteAllByUserId(userId);
-    }
-
-    private void saveRefreshToken(UUID userId, String refreshToken) {
-        String tokenHash = TokenUtil.hashToken(refreshToken);
-        LocalDateTime expiresAt = LocalDateTime.ofInstant(
-                tokenProvider.getExpirationDateFromToken(refreshToken).toInstant(),
-                java.time.ZoneId.systemDefault());
-
-        RefreshToken token = new RefreshToken();
-        token.setUserId(userId);
-        token.setTokenHash(tokenHash);
-        token.setExpiresAt(expiresAt);
-        refreshTokenRepository.save(token);
-    }
-
-    public User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedException("User not authenticated");
+        /**
+         * Find existing user by email or create new one.
+         * Handles race condition where concurrent requests might try to create
+         * the same user simultaneously.
+         * 
+         * @param googleUser Google user info
+         * @param platform   Platform (mobile/web)
+         * @return User (existing or newly created)
+         */
+        private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
+                // First attempt: try to find existing user
+                return userRepository.findByEmail(googleUser.email())
+                                .orElseGet(() -> {
+                                        try {
+                                                // User not found, create new one
+                                                return createUserFromGoogle(googleUser, platform);
+                                        } catch (DataIntegrityViolationException e) {
+                                                // Race condition: another request created the user first
+                                                // Retry finding the user that was just created
+                                                log.warn("Race condition detected for email: {}. Retrying findByEmail.",
+                                                                googleUser.email());
+                                                return userRepository.findByEmail(googleUser.email())
+                                                                .orElseThrow(() -> new RuntimeException(
+                                                                                "Failed to create or find user for email: "
+                                                                                                + googleUser.email(),
+                                                                                e));
+                                        }
+                                });
         }
 
-        UserDetailsServiceImpl.UserPrincipal userPrincipal = (UserDetailsServiceImpl.UserPrincipal) authentication
-                .getPrincipal();
+        /**
+         * Create a new user from Google Sign-In data
+         * Role is determined by platform:
+         * - mobile → PET_OWNER
+         * - web → CLINIC_OWNER
+         * 
+         * Username = email (guaranteed unique)
+         * FullName = name from Google
+         */
+        private User createUserFromGoogle(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
+                // Determine role based on platform
+                Role role = "web".equalsIgnoreCase(platform) ? Role.CLINIC_OWNER : Role.PET_OWNER;
 
-        return userRepository.findById(userPrincipal.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-    }
+                log.info("Creating new user from Google: email={}, name={}, platform={}, role={}",
+                                googleUser.email(), googleUser.name(), platform, role);
 
-    /**
-     * Login or register with Google Sign-In
-     * 
-     * @param request Contains idToken and platform
-     * @return AuthResponse with JWT tokens
-     */
-    @Transactional
-    public AuthResponse loginWithGoogle(GoogleSignInRequest request) {
-        // 1. Verify Google ID token
-        GoogleAuthService.GoogleUserInfo googleUser = googleAuthService.verifyIdToken(request.getIdToken());
+                User user = new User();
+                user.setUsername(googleUser.email()); // Use email as username
+                user.setEmail(googleUser.email());
+                user.setFullName(googleUser.name()); // Use name as fullName
+                user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                user.setRole(role);
+                user.setAvatar(googleUser.picture());
 
-        log.info("Google Sign-In for email: {}, platform: {}", googleUser.email(), request.getPlatform());
-
-        // 2. Find or create user (with race condition handling)
-        User user = findOrCreateGoogleUser(googleUser, request.getPlatform());
-
-        // 3. Validate role-platform access
-        validateRolePlatformAccess(user.getRole(), request.getPlatform());
-
-        // 4. Generate tokens
-        String accessToken = tokenProvider.generateToken(
-                user.getUserId(),
-                user.getUsername(),
-                user.getRole().name());
-        String refreshToken = tokenProvider.generateRefreshToken(
-                user.getUserId(),
-                user.getUsername());
-
-        // 5. Delete old refresh tokens and save new one
-        refreshTokenRepository.deleteAllByUserId(user.getUserId());
-        saveRefreshToken(user.getUserId(), refreshToken);
-
-        log.info("Google Sign-In successful for user: {}, role: {}", user.getUsername(), user.getRole());
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .userId(user.getUserId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole().name())
-                .build();
-    }
-
-    /**
-     * Find existing user by email or create new one.
-     * Handles race condition where concurrent requests might try to create
-     * the same user simultaneously.
-     * 
-     * @param googleUser Google user info
-     * @param platform   Platform (mobile/web)
-     * @return User (existing or newly created)
-     */
-    private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
-        // First attempt: try to find existing user
-        return userRepository.findByEmail(googleUser.email())
-                .orElseGet(() -> {
-                    try {
-                        // User not found, create new one
-                        return createUserFromGoogle(googleUser, platform);
-                    } catch (DataIntegrityViolationException e) {
-                        // Race condition: another request created the user first
-                        // Retry finding the user that was just created
-                        log.warn("Race condition detected for email: {}. Retrying findByEmail.", googleUser.email());
-                        return userRepository.findByEmail(googleUser.email())
-                                .orElseThrow(() -> new RuntimeException(
-                                        "Failed to create or find user for email: " + googleUser.email(), e));
-                    }
-                });
-    }
-
-    /**
-     * Create a new user from Google Sign-In data
-     * Role is determined by platform:
-     * - mobile → PET_OWNER
-     * - web → CLINIC_OWNER
-     * 
-     * Username = email (guaranteed unique)
-     * FullName = name from Google
-     */
-    private User createUserFromGoogle(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
-        // Determine role based on platform
-        Role role = "web".equalsIgnoreCase(platform) ? Role.CLINIC_OWNER : Role.PET_OWNER;
-
-        log.info("Creating new user from Google: email={}, name={}, platform={}, role={}",
-                googleUser.email(), googleUser.name(), platform, role);
-
-        User user = new User();
-        user.setUsername(googleUser.email()); // Use email as username
-        user.setEmail(googleUser.email());
-        user.setFullName(googleUser.name()); // Use name as fullName
-        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-        user.setRole(role);
-        user.setAvatar(googleUser.picture());
-
-        return userRepository.save(user);
-    }
-
-    /**
-     * Validate if the user's role is allowed on the platform.
-     * Role-Platform Matrix:
-     * - PET_OWNER: mobile only
-     * - VET: web + mobile
-     * - CLINIC_OWNER, CLINIC_MANAGER, ADMIN: web only
-     */
-    private void validateRolePlatformAccess(Role role, String platform) {
-        boolean isWeb = "web".equalsIgnoreCase(platform);
-        boolean isMobile = "mobile".equalsIgnoreCase(platform);
-
-        boolean allowed = switch (role) {
-            case PET_OWNER -> isMobile;
-            case VET -> true;
-            case CLINIC_OWNER, CLINIC_MANAGER, ADMIN -> isWeb;
-        };
-
-        if (!allowed) {
-            String message = isWeb
-                    ? "Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại."
-                    : "Tài khoản này chỉ có thể đăng nhập trên trang web.";
-            throw new ForbiddenException(message);
+                return userRepository.save(user);
         }
-    }
+
+        /**
+         * Validate if the user's role is allowed on the platform.
+         * Role-Platform Matrix:
+         * - PET_OWNER: mobile only
+         * - VET: web + mobile
+         * - CLINIC_OWNER, CLINIC_MANAGER, ADMIN: web only
+         */
+        private void validateRolePlatformAccess(Role role, String platform) {
+                boolean isWeb = "web".equalsIgnoreCase(platform);
+                boolean isMobile = "mobile".equalsIgnoreCase(platform);
+
+                boolean allowed = switch (role) {
+                        case PET_OWNER -> isMobile;
+                        case VET -> true;
+                        case CLINIC_OWNER, CLINIC_MANAGER, ADMIN -> isWeb;
+                };
+
+                if (!allowed) {
+                        String message = isWeb
+                                        ? "Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại."
+                                        : "Tài khoản này chỉ có thể đăng nhập trên trang web.";
+                        throw new ForbiddenException(message);
+                }
+        }
 }
