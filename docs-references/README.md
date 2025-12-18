@@ -2,7 +2,7 @@
 
 Tài liệu tham khảo được tổ chức theo từng nhóm nội dung để dễ dàng tìm kiếm và quản lý.
 
-> **Cập nhật lần cuối:** 18/12/2024
+> **Cập nhật lần cuối:** 18/12/2025
 
 ## 📁 Cấu trúc Folder
 
@@ -43,6 +43,7 @@ Technical documentation, features, và architecture:
 - `SP26_Petties_Capstone.md` - Tài liệu Capstone project
 - `WBS_PETTIES_14_SPRINTS.md` - Work Breakdown Structure theo 14 Sprint
 - `BUSINESS_WORKFLOW_BPMN.md` - Luồng nghiệp vụ theo chuẩn BPMN 2.0
+- `BPMN_DETAILED_SPECIFICATIONS.md` - Chi tiết các nghiệp vụ BPMN
 - `PETTIES_ERD_DIAGRAM.md` - ERD Diagram đầy đủ của hệ thống
 - `PETTIES_MVP_ERD.md` - ERD cho phiên bản MVP
 - `PETTIES_MVP_HAPPY_FLOWS.md` - Happy Flow cho MVP
@@ -61,7 +62,7 @@ Design guides và style guidelines:
 
 ---
 
-## 🔍 Cách sử dụng
+## � Cách sử dụng
 
 ### Khi cần setup môi trường mới
 → Xem folder `/setup`
@@ -94,19 +95,22 @@ Design guides và style guidelines:
 
 ---
 
-## � Tiến Độ Dự Án
+## 📊 Tiến Độ Dự Án (Hoàn thành Sprint 1)
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| 🌐 **Web Frontend** | ✅ Production | Deployed trên Vercel (petties.world) |
-| 🔧 **Backend Spring** | ✅ Production | Deployed trên AWS EC2 (api.petties.world) |
-| 🤖 **AI Agent** | ✅ Production | Deployed trên AWS EC2 |
-| 📱 **Mobile Flutter** | ✅ CI/CD Ready | Firebase App Distribution đã setup |
-| 🧪 **Testing** | 🔄 In Progress | Unit tests + Integration tests |
+**Tổng tiến độ:** 20.8% (20/96 tasks) | **Trạng thái:** Bắt đầu Sprint 2
+
+| Component | Status | Progress | Notes |
+|-----------|--------|----------|-------|
+| 🌐 **Web Frontend** | ✅ Production | 100% (S1) | Deployed on Vercel. Auth screens completed. |
+| 🔧 **Backend Spring** | ✅ Production | 100% (S1) | Deployed on EC2. JWT & OAuth ready. |
+| 🤖 **AI Agent** | ✅ In Dev | 80% (S1) | Cloud-only stack ready. Core agents implemented. |
+| 📱 **Mobile Flutter** | ✅ Staging | 100% (S1) | Firebase App Delivery & CI/CD ready. |
+| 📝 **Documentation** | 🔄 In Progress | 50% | WBS, SRS, SDD, ERD, BPMN updated. |
+| 🧪 **Testing** | 🔄 In Progress | 15% | Testing strategy and AI service test plan ready. |
 
 ---
 
-## �📝 Ghi chú
+## 📝 Ghi chú
 
 - Tất cả tài liệu sử dụng Markdown format
 - Các file được đặt tên theo convention: `UPPERCASE_DESCRIPTION.md`
