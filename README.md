@@ -12,7 +12,7 @@
 | **Tên Dự Án** | Petties: Veterinary Appointment Booking Platform |
 | **Viết Tắt** | PVABP |
 | **Lớp** | CP_SEP490 |
-| **Thời Gian** | 05/01/2026 - 30/04/2026 (13 Sprints) |
+| **Thời Gian** | 10/12/2025 - 11/03/2026 (13 Sprints) |
 | **Chuyên Ngành** | Software Engineering |
 | **Địa Điểm** | Da Nang |
 
@@ -745,18 +745,13 @@ Persistent data is stored in Docker volumes:
 ```
 POST   /api/auth/register          - Đăng ký tài khoản ✅
 POST   /api/auth/login             - Đăng nhập ✅
-POST   /api/auth/google            - Đăng nhập bằng Google ✅ (NEW)
+POST   /api/auth/google            - Đăng nhập bằng Google ✅
 POST   /api/auth/logout            - Đăng xuất ✅
 POST   /api/auth/refresh           - Làm mới token ✅
 GET    /api/auth/me                - Lấy thông tin user hiện tại ✅
 ```
 
-> 🔐 **Google Sign-In**: Hỗ trợ đăng nhập bằng Google cho cả Mobile và Web.
-> - Mobile (Flutter) → Auto-assign role `PET_OWNER`
-> - Web (React) → Auto-assign role `CLINIC_OWNER`
-> - Xem chi tiết: [`petties_mobile/GOOGLE_SIGNIN_SETUP.md`](petties_mobile/GOOGLE_SIGNIN_SETUP.md)
-
-### Pet Management ⚠️ (Not Yet Implemented)
+### Pet Management 🔄 (In Progress)
 ```
 GET    /api/pets                   - Lấy danh sách pet ⚠️
 POST   /api/pets                   - Thêm pet mới ⚠️
@@ -765,7 +760,7 @@ PUT    /api/pets/{id}              - Cập nhật pet ⚠️
 DELETE /api/pets/{id}              - Xóa pet ⚠️
 ```
 
-### Booking ⚠️ (Not Yet Implemented)
+### Booking ⚠️ (Planned - S4)
 ```
 GET    /api/bookings               - Danh sách appointment ⚠️
 POST   /api/bookings               - Tạo appointment mới ⚠️
@@ -774,7 +769,7 @@ PUT    /api/bookings/{id}          - Cập nhật appointment ⚠️
 POST   /api/bookings/{id}/cancel   - Hủy appointment ⚠️
 ```
 
-### Vet ⚠️ (Not Yet Implemented)
+### Vet ⚠️ (Planned - S3)
 ```
 GET    /api/vets                   - Danh sách bác sĩ thú y ⚠️
 GET    /api/vets/available         - Bác sĩ có sẵn ⚠️
