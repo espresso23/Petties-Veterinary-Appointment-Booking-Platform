@@ -47,35 +47,9 @@ Examples:
 
 ---
 
-### 2.2 Integration Testing
+> **📝 Note:** Dự án Petties tập trung vào **Unit Testing (API Testing)** và **System Testing**. 
 
-**Objective:** Verify multiple components work together correctly.
-
-**Scope:**
-- Controller → Service → Repository flow
-- Database operations (CRUD)
-- Transaction management
-- External service integrations
-
-**Tools:**
-
-| Tool | Purpose |
-|------|---------|
-| Spring Boot Test | Full application context |
-| H2 Database | In-memory test database |
-| TestContainers | PostgreSQL container (optional) |
-
-**Test Scenarios:**
-
-| Flow | Components Tested |
-|------|------------------|
-| User Registration | AuthController → AuthService → UserRepository → Database |
-| Booking Creation | BookingController → BookingService → SlotService → Database |
-| Payment Processing | PaymentController → PaymentService → Stripe API |
-
----
-
-### 2.3 System Testing
+### 2.2 System Testing
 
 **Objective:** Validate the complete application in a production-like environment.
 
@@ -91,12 +65,130 @@ Examples:
 
 **Test Environment:**
 
-| Environment | URL | Purpose |
-|-------------|-----|---------|
-| Test | api-test.petties.world | QA verification |
-| Production | www.petties.world | Live environment |
+> **✅ Trạng thái:** Tất cả environments đã được deploy và hoạt động.
+
+| Environment | Service | URL | Port | Branch |
+|-------------|---------|-----|------|--------|
+| **Development** | Backend API | `http://localhost:8080/api` | 8080 | `feature/*` |
+| | AI Service | `http://localhost:8000` | 8000 | |
+| | Frontend | `http://localhost:5173` | 5173 | |
+| **Test/Staging** | Backend API | `https://api-test.petties.world/api` | 8081 | `develop` |
+| | AI Service | `https://api-test.petties.world/ai` | 8001 | |
+| | Frontend | `https://test.petties.world` | - | |
+| **Production** | Backend API | `https://api.petties.world/api` | 8080 | `main` |
+| | AI Service | `https://ai.petties.world` | 8000 | |
+| | Frontend | `https://www.petties.world` | - | |
+
+**Firebase Console:** https://console.firebase.google.com/project/petties-cd84e
+
+**GitHub Repository:** https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform
 
 ---
+
+### 2.3 Beta Testing (Internal Testing)
+
+**Objective:** Distribute app builds to internal testers for real-device testing before production release.
+
+**Platforms:**
+
+| Platform | Distribution Tool | Testers |
+|----------|-------------------|---------|
+| Android | **Firebase App Distribution** | Internal team, QA |
+| iOS | **TestFlight** | Internal team, QA |
+
+#### 2.3.1 Firebase App Distribution (Android)
+
+**Workflow:**
+
+```
+Developer Push to develop
+        ↓
+GitHub Actions (mobile-ci-cd.yml)
+        ↓
+Build APK (staging flavor)
+        ↓
+Upload to Firebase App Distribution
+        ↓
+Testers receive email notification
+        ↓
+Install via Firebase App Tester app
+        ↓
+Test and report bugs
+```
+
+**Tester Groups:**
+
+| Group | Members | Khi nào nhận build |
+|-------|---------|-------------------|
+| `petties-test` | Dev team, QA | Push to `develop` |
+| `production-testers` | Stakeholders, PO | Push to `main` (pre-release) |
+
+**Environments trong build:**
+
+| Branch | Flavor | API URL |
+|--------|--------|---------|
+| `develop` | staging | api-test.petties.world |
+| `main` | prod | api.petties.world |
+
+#### 2.3.2 TestFlight (iOS)
+
+**Requirements:**
+- Apple Developer Account ($99/năm)
+- App created on App Store Connect
+
+**Tester Types:**
+
+| Type | Số lượng | Review |
+|------|----------|--------|
+| Internal Testers | 100 | Không cần |
+| External Testers | 10,000 | Cần Apple review (~24h) |
+
+#### 2.3.3 Beta Testing Checklist
+
+**Trước khi distribute:**
+- [ ] Build thành công trên CI/CD
+- [ ] Đúng flavor/environment
+- [ ] Release notes rõ ràng
+- [ ] Không có crash lớn
+
+**Testers kiểm tra:**
+- [ ] App install và launch thành công
+- [ ] Login/Register hoạt động
+- [ ] Core features hoạt động (Booking, Pet management)
+- [ ] Push notifications nhận được
+- [ ] UI hiển thị đúng trên device
+
+**Sau khi test:**
+- [ ] Bugs được report trên GitHub Issues
+- [ ] Feedback được ghi nhận
+- [ ] Fix bugs và release build mới
+
+#### 2.3.4 Bug Report Template (từ Testers)
+
+```markdown
+**Device:** iPhone 14 / Android 13
+**App Version:** 1.0.0-staging (build #45)
+**Steps to reproduce:**
+1. Open app
+2. Navigate to Booking
+3. Select date
+
+**Expected:** Calendar shows available slots
+**Actual:** App crashes
+
+**Screenshot/Video:** [Attach]
+```
+
+#### 2.3.5 Tools & Links
+
+| Tool | Purpose | Link |
+|------|---------|------|
+| Firebase App Distribution | Android distribution | https://console.firebase.google.com/project/petties-cd84e/appdistribution |
+| TestFlight | iOS distribution | https://appstoreconnect.apple.com |
+| Firebase App Tester | Android app for testers | [Play Store](https://play.google.com/store/apps/details?id=com.google.firebase.appdistribution.testerapp) |
+| TestFlight App | iOS app for testers | [App Store](https://apps.apple.com/app/testflight/id899247664) |
+| GitHub Actions | CI/CD Workflows | https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform/actions |
+| Postman | API Testing | https://www.postman.com |
 
 ## 3. Test Execution Process
 

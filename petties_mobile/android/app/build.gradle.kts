@@ -27,7 +27,7 @@ plugins {
 android {
     namespace = "world.petties.mobile"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"  // Fixed version for plugin compatibility
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -40,7 +40,7 @@ android {
 
     defaultConfig {
         applicationId = "world.petties.mobile"
-        minSdk = flutter.minSdkVersion
+        minSdk = 23  // Firebase Messaging requires minimum SDK 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
