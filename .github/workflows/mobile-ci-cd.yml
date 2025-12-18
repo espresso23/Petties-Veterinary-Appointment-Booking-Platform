@@ -307,9 +307,9 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "groups=${{ github.event.inputs.tester_groups }}" >> $GITHUB_OUTPUT
           elif [ "${{ needs.setup.outputs.flavor }}" == "prod" ]; then
-            echo "groups=production-testers" >> $GITHUB_OUTPUT
+            echo "groups=petties-test" >> $GITHUB_OUTPUT
           else
-            echo "groups=internal-testers" >> $GITHUB_OUTPUT
+            echo "groups=petties-test" >> $GITHUB_OUTPUT
           fi
       
       - name: Upload to Firebase App Distribution
