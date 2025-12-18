@@ -3,9 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../ui/auth/login_screen.dart';
 import '../ui/auth/register_screen.dart';
+import '../ui/auth/forgot_password_screen.dart';
+import '../ui/auth/reset_password_screen.dart';
 import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
+import '../ui/screens/profile/profile_screen.dart';
+import '../ui/screens/profile/edit_profile_screen.dart';
+import '../ui/screens/profile/change_password_screen.dart';
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -83,8 +88,12 @@ class AppRouterConfig {
           return _getHomeRouteForRole(userRole);
         }
 
-        // Redirect to login if not authenticated and not already on login/register/onboarding
-        if (!isAuthenticated && !isLoginRoute && !isOnboardingRoute && currentLocation != AppRoutes.root) {
+        final isAuthRoute = isLoginRoute || 
+                           currentLocation == AppRoutes.forgotPassword || 
+                           currentLocation == AppRoutes.resetPassword;
+
+        // Redirect to login if not authenticated and not explicitly on an allowed public route
+        if (!isAuthenticated && !isAuthRoute && !isOnboardingRoute && currentLocation != AppRoutes.root) {
           return AppRoutes.login;
         }
 
@@ -126,7 +135,25 @@ class AppRouterConfig {
           path: AppRoutes.register,
           builder: (context, state) => const RegisterScreen(),
         ),
-        
+        // Forgot Password route
+        GoRoute(
+          path: AppRoutes.forgotPassword,
+          builder: (context, state) => const ForgotPasswordScreen(),
+        ),
+        // Reset Password route
+        GoRoute(
+          path: AppRoutes.resetPassword,
+          builder: (context, state) {
+            final email = state.uri.queryParameters['email'] ?? '';
+            final cooldownStr = state.uri.queryParameters['cooldown'];
+            final cooldown = cooldownStr != null ? int.tryParse(cooldownStr) : null;
+            return ResetPasswordScreen(
+              email: email,
+              initialCooldown: cooldown,
+            );
+          },
+        ),
+
         // Role-specific Home Routes
         // PET_OWNER: Mobile only
         GoRoute(
@@ -149,6 +176,20 @@ class AppRouterConfig {
             final userRole = authProvider.user?.role;
             return _getHomeRouteForRole(userRole);
           },
+        ),
+
+        // Profile Routes (available for PET_OWNER and VET)
+        GoRoute(
+          path: AppRoutes.profile,
+          builder: (context, state) => const ProfileScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.editProfile,
+          builder: (context, state) => const EditProfileScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.changePassword,
+          builder: (context, state) => const ChangePasswordScreen(),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

@@ -1,7 +1,7 @@
 # PETTIES MVP ERD - Simplified Version
 
 **Version:** 1.0 MVP  
-**Last Updated:** 2025-12-17  
+**Last Updated:** 2025-12-19  
 **Scope:** Core Features (Sprint 1-9)  
 **Total Entities:** 15
 

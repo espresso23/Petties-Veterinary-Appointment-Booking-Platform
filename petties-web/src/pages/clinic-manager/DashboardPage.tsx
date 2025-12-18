@@ -25,19 +25,14 @@ export const ClinicManagerDashboardPage = () => {
             <DashboardSection title="TỔNG QUAN HÔM NAY">
                 <DashboardStatsGrid>
                     <DashboardCard
-                        title="BOOKING MOI"
+                        title="BOOKING MỚI"
                         value="--"
-                        subtitle="Cho gán bác sĩ"
+                        subtitle="Chưa gán bác sĩ"
                     />
                     <DashboardCard
                         title="BÁC SĨ ONLINE"
                         value="--"
                         subtitle="Đang làm việc"
-                    />
-                    <DashboardCard
-                        title="CUỘC HẸN"
-                        value="--"
-                        subtitle="Hôm nay"
                     />
                     <DashboardCard
                         title="HOÀN THÀNH"
@@ -51,7 +46,7 @@ export const ClinicManagerDashboardPage = () => {
             <DashboardSection title="CẦN XỬ LÝ">
                 <DashboardStatsGrid>
                     <DashboardCard
-                        title="BOOKING PENDING"
+                        title="BOOKING CHƯA GÁN BÁC SĨ"
                         value="--"
                         subtitle="Chưa gán bác sĩ"
                     />
@@ -61,7 +56,7 @@ export const ClinicManagerDashboardPage = () => {
                         subtitle="Chưa đọc"
                     />
                     <DashboardCard
-                        title="HOÀN TIỀN"
+                        title="YÊU CẦU HOÀN TIỀN"
                         value="--"
                         subtitle="Yêu cầu cho"
                     />

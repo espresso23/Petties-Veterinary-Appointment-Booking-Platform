@@ -219,3 +219,49 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
   return data
 }
 
+/**
+ * Forgot Password - Gửi OTP để reset mật khẩu
+ */
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+export interface ForgotPasswordResponse {
+  message: string
+  email: string
+  expiryMinutes: number
+  resendCooldownSeconds: number
+}
+
+export async function forgotPassword(payload: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+  const { data } = await apiClient.post<ForgotPasswordResponse>('/auth/forgot-password', payload)
+  return data
+}
+
+/**
+ * Reset Password - Xác thực OTP và đổi mật khẩu
+ */
+export interface ResetPasswordRequest {
+  email: string
+  otpCode: string
+  newPassword: string
+  confirmPassword: string
+}
+
+export interface ResetPasswordResponse {
+  message: string
+}
+
+export async function resetPassword(payload: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+  const { data } = await apiClient.post<ResetPasswordResponse>('/auth/reset-password', payload)
+  return data
+}
+
+/**
+ * Resend Password Reset OTP
+ */
+export async function resendPasswordResetOtp(email: string): Promise<SendOtpResponse> {
+  const { data } = await apiClient.post<SendOtpResponse>(`/auth/forgot-password/resend-otp?email=${encodeURIComponent(email)}`)
+  return data
+}
+

@@ -40,7 +40,7 @@ android {
 
     defaultConfig {
         applicationId = "world.petties.mobile"
-        minSdk = 23  // Firebase Messaging requires minimum SDK 23
+        minSdk = flutter.minSdkVersion  // Firebase Messaging requires minimum SDK 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

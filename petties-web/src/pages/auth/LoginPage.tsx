@@ -258,9 +258,9 @@ export function LoginPage() {
               <div className="mt-6 pt-5 border-t-4 border-stone-200">
                 <p className="text-xs text-stone-600 text-center">
                   Quên mật khẩu?{' '}
-                  <a href="#" className="font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer transition-colors">
+                  <Link to="/auth/forgot-password" className="font-bold text-amber-600 hover:text-amber-700 underline cursor-pointer transition-colors">
                     Khôi phục ngay
-                  </a>
+                  </Link>
                 </p>
                 <p className="text-xs text-stone-600 text-center mt-3">
                   Chưa có tài khoản?{' '}

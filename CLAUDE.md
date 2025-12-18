@@ -22,7 +22,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 - `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Multi-Agent System)
 - `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
 
-**Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Qdrant Cloud (vectors), firebase (push messages)
+**Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
 **AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), Ollama (hybrid local for dev/cloud for prod), LlamaIndex for RAG
 
@@ -30,7 +30,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 ### Quick Start (Databases only, services local)
 ```bash
-docker-compose -f docker-compose.dev.yml up -d postgres mongodb
+docker-compose -f docker-compose.dev.yml up -d postgres mongodb redis
 ```
 
 ### Web Frontend
@@ -96,7 +96,8 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - JWT auth with refresh tokens (Spring Security 6.x)
 - Global exception handling via `GlobalExceptionHandler`
 - Validation with Vietnamese messages on DTOs (`@NotBlank`, `@Size`, etc.)
-- Profiles: `dev` (local Docker DBs), `prod` (Neon/Atlas)
+- Profiles: `dev` (local Docker DBs), `test` (Cloud DBs), `prod` (Neon/Atlas/Redis Cloud)
+- Redis for OTP storage with TTL (Registration & Password Reset)
 
 ### Frontend (React)
 - State management: Zustand stores (`src/store/`)

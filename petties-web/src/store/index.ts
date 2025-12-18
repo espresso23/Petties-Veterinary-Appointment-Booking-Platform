@@ -13,3 +13,6 @@ export const useAppStore = create<AppState>((set) => ({
 // Export authStore
 export { useAuthStore } from './authStore'
 
+// Export userStore
+export { useUserStore } from './userStore'
+
