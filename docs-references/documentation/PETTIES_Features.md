@@ -114,10 +114,11 @@
     - Feedback system (Good/Bad responses)
 
 14. 🆕 **System & Security Configuration**
-    - Dynamic API Key Management (Qdrant, Tavily, etc.)
-    - Ollama Connection Configuration
-    - Model Selection (kimi-k2, llama3, etc.)
-    - Test connections cho các services
+    - Dynamic API Key Management (OpenRouter, Cohere, Qdrant, Tavily)
+    - LLM Provider Configuration (OpenRouter Cloud API)
+    - Model Selection (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
+    - Embedding Provider (Cohere embed-multilingual-v3)
+    - Test connections cho các Cloud services
     - Save & Reload Context (không cần restart server)
 
 ---

@@ -21,17 +21,6 @@
 name: Mobile CI/CD
 
 on:
-  push:
-    branches: [develop, main]
-    paths:
-      - 'petties_mobile/**'
-      - '.github/workflows/mobile-ci-cd.yml'
-  
-  pull_request:
-    branches: [develop, main]
-    paths:
-      - 'petties_mobile/**'
-  
   workflow_dispatch:
     inputs:
       flavor:
