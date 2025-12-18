@@ -318,23 +318,20 @@ Testers cần gửi UDID của device:
 
 ## 🚀 PHẦN 3: SỬ DỤNG PIPELINE
 
-### Auto-trigger (Push code)
+### Trigger (Bấm nút thủ công) 👆
 
-| Event | Platform | Flavor | Deploy Target |
-|-------|----------|--------|---------------|
-| Push to `develop` | Android only | staging | Firebase (petties-test) |
-| Push to `main` | Android only | prod | Firebase (production-testers) |
-
-### Manual trigger (Workflow dispatch)
+Hiện tại, pipeline đã được chuyển sang chế độ **chạy thủ công** để tránh tình trạng tạo ra hàng chục bản APK thừa khi merge code.
 
 1. Vào **GitHub Actions** → **Mobile CI/CD**
 2. Click **Run workflow**
 3. Chọn:
-   - **Branch**: develop/main
+   - **Branch**: develop (cho staging) hoặc main (cho production)
    - **Flavor**: dev/staging/prod
    - **Platform**: android/ios/both
    - **iOS distribution**: testflight/firebase
 4. Click **Run workflow**
+
+> **Lưu ý:** Sau khi merge code xong, nếu Team muốn có APK mới để test thì Leader hoặc người phụ trách cần vào bấm nút này.
 
 ---
 

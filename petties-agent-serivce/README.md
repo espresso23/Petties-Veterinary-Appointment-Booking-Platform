@@ -5,7 +5,7 @@
 ```
 Version: v0.0.1 (MVP Foundation)
 Status:  In Development
-Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud | Ollama
+Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
 ```
 
 ---
@@ -28,7 +28,8 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
 | **System Prompt Management** | Quản lý prompts từ DB với versioning | ✅ Implemented |
 | **Tool Management** | Code-based tools với FastMCP | ✅ Implemented |
 | **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | 🔄 In Progress |
-| **Ollama Hybrid Mode** | Local & Cloud mode support | ✅ Implemented |
+| **Cloud LLM Integration** | OpenRouter API (Cloud-Only) | ✅ Implemented |
+| **Cloud Embeddings** | Cohere embed-multilingual-v3 | ✅ Implemented |
 | **Real-time Streaming** | WebSocket streaming responses | 🔄 In Progress |
 
 ---
@@ -100,10 +101,12 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
    - Admin chỉnh sửa qua Dashboard → Cập nhật DB → Agent tự động load khi runtime
    - Template files chỉ dùng để seed ban đầu
 
-4. **Ollama Hybrid Mode**
-   - **Local Mode:** Ollama server local (http://localhost:11434)
-   - **Cloud Mode:** Ollama Cloud API (https://ollama.com) với API key
-   - Auto-switching: API key → Cloud mode, `kimi-k2` → `kimi-k2:1t-cloud`
+4. **Cloud AI Services (Cloud-Only Architecture)**
+   - **LLM Provider:** OpenRouter API (gateway đến nhiều LLM providers)
+   - **Models:** gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet
+   - **Embeddings:** Cohere embed-multilingual-v3
+   - **Web Search:** Tavily API
+   - Zero infrastructure - không cần GPU/RAM local
 
 ---
 
@@ -114,7 +117,10 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
 - **Python 3.12+**
 - **PostgreSQL 16+** (from root docker-compose)
 - **Qdrant Cloud account** (for vector storage)
-- **Ollama** (for local mode) OR **Ollama Cloud API Key** (for cloud mode)
+- **Cloud API Keys:**
+  - OpenRouter API Key (LLM) - https://openrouter.ai/keys
+  - Cohere API Key (Embeddings) - https://dashboard.cohere.com/api-keys
+  - Tavily API Key (Web Search) - https://tavily.com
 
 ### Installation
 
@@ -145,16 +151,24 @@ Key environment variables (chỉ dùng khi chưa config trong DB):
 # Database
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/petties_agent_db
 
+# LLM Provider (OpenRouter - Cloud Only)
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-your-openrouter-key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
+
+# Embeddings (Cohere - Cloud Only)
+EMBEDDING_PROVIDER=cohere
+COHERE_API_KEY=your-cohere-key
+EMBEDDING_MODEL=embed-multilingual-v3
+
 # Qdrant Cloud
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your_api_key
 
-# Ollama (Local Mode)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=kimi-k2
-
-# Ollama Cloud (Cloud Mode)
-# OLLAMA_API_KEY=your_ollama_cloud_api_key  # Set này → Auto switch to Cloud
+# Web Search (Tavily)
+TAVILY_API_KEY=your-tavily-key
 
 # Spring Boot Backend
 SPRING_BACKEND_URL=http://localhost:8080
@@ -175,9 +189,11 @@ ALGORITHM=HS256
    ```
 
 2. **Configure via Dashboard:**
-   - Vào `System Settings` → `Secrets`
+   - Vào `System Settings` → `API Keys`
+   - Nhập OpenRouter API Key (LLM)
+   - Nhập Cohere API Key (Embeddings)
    - Nhập Qdrant URL & API Key
-   - Nhập Ollama API Key (nếu dùng Cloud mode)
+   - Nhập Tavily API Key (Web Search)
    - Save → Backend tự động reload context
 
 ### Database Setup
@@ -458,18 +474,18 @@ Response:
 | Agent Orchestration | LangGraph 0.2.60 | ⭐ Supervisor-Worker pattern |
 | Tool Protocol | FastMCP 0.2.0 | MCP tool framework |
 
-### AI Layer
+### AI Layer (Cloud-Only)
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Primary LLM** | **Kimi k2 (Ollama)** | ⭐ Deep reasoning, Vietnamese support |
-| **LLM Provider** | **Ollama (Hybrid)** | ⭐ Local OR Cloud mode |
-| **Cloud Model** | **kimi-k2:1t-cloud** | ⭐ 256K context window (Cloud only) |
-| **Embeddings** | **nomic-embed-text-v1.5** | ⭐ Best balance (Multilingual, Fast) |
+| **LLM Provider** | **OpenRouter API** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
+| **Primary Models** | **gemini-2.0-flash, llama-3.3-70b** | ⭐ Free tier + Vietnamese support |
+| **Fallback** | **claude-3.5-sonnet** | Best quality khi cần |
+| **Embeddings** | **Cohere embed-multilingual-v3** | ⭐ Best for Vietnamese (Cloud API) |
 | **RAG Framework** | LlamaIndex 0.11.20 | Document processing |
-| **Web Search** | DuckDuckGo / Tavily | Web research |
+| **Web Search** | Tavily API | Web research |
 
-> **⚠️ Important:** Hệ thống **KHÔNG** sử dụng GPT-4o hoặc các model closed-source đắt đỏ. Toàn bộ LLM inference qua **Ollama** (Local hoặc Cloud).
+> **✅ Cloud-Only Architecture:** Hệ thống sử dụng Cloud APIs - **KHÔNG cần GPU/RAM local**. Phù hợp Render/Railway free tier.
 
 ### Data Layer
 
@@ -565,28 +581,32 @@ agent = await AgentFactory.create_agent(
 # - LLM config từ DB (system_settings: OLLAMA_API_KEY, OLLAMA_BASE_URL)
 ```
 
-### Ollama Hybrid Mode
+### Cloud AI Services Configuration
 
-**Local Mode (Default):**
-- Ollama server chạy local: `http://localhost:11434`
-- Model: `kimi-k2`
-- Không cần API key
+**Cloud-Only Architecture (Recommended):**
 
-**Cloud Mode (Auto-activated):**
-- Khi set `OLLAMA_API_KEY` trong DB → Auto switch
-- Base URL: `https://ollama.com`
-- Model: `kimi-k2:1t-cloud` (256K context window)
-- Admin config qua Dashboard → Không cần restart server
+| Service | Provider | Free Tier | Dashboard Config |
+|---------|----------|-----------|------------------|
+| **LLM** | OpenRouter | Free models | System Settings → LLM |
+| **Embeddings** | Cohere | 1,000/month | System Settings → Embeddings |
+| **Vector DB** | Qdrant Cloud | 1GB | System Settings → Vector DB |
+| **Web Search** | Tavily | 1,000/month | System Settings → Search |
 
 **Configuration:**
 ```bash
-# Via Dashboard: System Settings → Ollama Configuration
+# Via Dashboard: System Settings → API Keys
 # Hoặc via API:
-PUT /api/v1/settings/OLLAMA_API_KEY
+PUT /api/v1/settings/OPENROUTER_API_KEY
 {
-  "value": "your_ollama_cloud_api_key"
+  "value": "your_openrouter_api_key"
 }
 ```
+
+**Lợi ích:**
+- ✅ Zero infrastructure (không cần GPU/RAM local)
+- ✅ Deploy đơn giản trên Render/Railway free tier
+- ✅ Free tiers đủ cho MVP
+- ✅ Thay đổi config không cần restart server
 
 ### Prompt Management Flow
 
@@ -724,4 +744,4 @@ services:
 
 ---
 
-**Last Updated:** 2025-12-08
+**Last Updated:** 2025-12-18

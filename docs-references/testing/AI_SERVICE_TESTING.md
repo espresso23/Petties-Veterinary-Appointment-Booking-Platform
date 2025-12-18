@@ -163,7 +163,7 @@ async def test_citation_required():
 
 | Scenario | Expected Behavior |
 |----------|-------------------|
-| Ollama server down | Graceful error message, retry logic |
+| OpenRouter API down | Graceful error message, retry logic, fallback model |
 | Qdrant connection failed | Fallback hoặc error message |
 | Tool call timeout | Retry + timeout message |
 | Invalid user input | Validation error message |
@@ -175,11 +175,11 @@ async def test_citation_required():
 
 > **✅ Trạng thái:** Tất cả environments đã được deploy và hoạt động.
 
-| Environment | AI Service URL | Port | Qdrant | Ollama | Trạng thái |
-|-------------|----------------|------|--------|--------|------------|
-| **Development** | `http://localhost:8000` | 8000 | Local/Cloud | Local | ✅ Có |
-| **Test/Staging** | `https://api-test.petties.world/ai` | 8001 | Qdrant Cloud | Cloud | ✅ Đã deploy |
-| **Production** | `https://ai.petties.world` | 8000 | Qdrant Cloud | Ollama Cloud | ✅ Có |
+| Environment | AI Service URL | Port | Qdrant | LLM Provider | Trạng thái |
+|-------------|----------------|------|--------|--------------|------------|
+| **Development** | `http://localhost:8000` | 8000 | Qdrant Cloud | OpenRouter API | ✅ Có |
+| **Test/Staging** | `https://api-test.petties.world/ai` | 8001 | Qdrant Cloud | OpenRouter API | ✅ Đã deploy |
+| **Production** | `https://ai.petties.world` | 8000 | Qdrant Cloud | OpenRouter API | ✅ Có |
 
 ### Test AI Service tại Production:
 
