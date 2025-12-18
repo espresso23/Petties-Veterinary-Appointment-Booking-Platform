@@ -1,7 +1,16 @@
 # PETTIES - Test Cases Document
 
-**Version:** 1.0  
-**Last Updated:** 2025-12-17
+**Version:** 1.2
+**Last Updated:** 2025-12-19
+
+---
+
+## Feature Test Reports
+
+| Feature | Report Location | Status |
+|---------|-----------------|--------|
+| User Profile API | [features/USER_PROFILE_API_TEST.md](features/USER_PROFILE_API_TEST.md) | Complete |
+| Authentication API | [features/AUTH_API_TEST_REPORT.md](features/AUTH_API_TEST_REPORT.md) | Complete |
 
 ---
 
@@ -27,23 +36,43 @@
 | **Request** | `{"email": "user@test.com", "password": "wrongpass"}` |
 | **Expected** | Status 401, message: "Invalid username or password" |
 
-### TC-AUTH-003: Register New User
+### TC-AUTH-003: Login with Different Roles
 
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/auth/register |
-| **Description** | New user registration |
-| **Request** | `{"email": "new@test.com", "password": "Password123", "fullName": "Test User"}` |
-| **Expected** | Status 201, user created |
+| Role | Expected Response |
+|------|-------------------|
+| **PET_OWNER** | Status 200, role: "PET_OWNER" |
+| **VET** | Status 200, role: "VET" |
+| **CLINIC_MANAGER** | Status 200, role: "CLINIC_MANAGER" |
 
-### TC-AUTH-004: Register with Existing Email
+### TC-AUTH-004: Registration Flow with OTP (2 Steps)
 
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/auth/register |
-| **Description** | Register with email already in use |
-| **Preconditions** | Email already registered |
-| **Expected** | Status 409, message: "Email already exists" |
+**Step 1: Send Registration OTP**
+- **Endpoint:** POST /auth/register/send-otp
+- **Request:** `{"username": "test", "email": "test@gmail.com", "password": "...", "fullName": "...", "role": "PET_OWNER"}`
+- **Expected:** Status 200, returns SendOtpResponse (message: OTP sent)
+
+**Step 2: Verify OTP & Register**
+- **Endpoint:** POST /auth/register/verify-otp
+- **Request:** `{"email": "test@gmail.com", "otpCode": "123456"}`
+- **Expected:** Status 201, returns AuthResponse with tokens
+
+### TC-AUTH-005: Password Reset Flow (2 Steps)
+
+**Step 1: Forgot Password (Send OTP)**
+- **Endpoint:** POST /auth/forgot-password
+- **Request:** `{"email": "user@gmail.com"}`
+- **Expected:** Status 200, returns SendOtpResponse
+
+**Step 2: Reset Password**
+- **Endpoint:** POST /auth/reset-password
+- **Request:** `{"email": "user@gmail.com", "otpCode": "123456", "newPassword": "...", "confirmPassword": "..."}`
+- **Expected:** Status 200, returns MessageResponse (Đổi mật khẩu thành công)
+
+### TC-AUTH-006: OTP Cooldown & Resend
+
+- **Endpoint:** POST /auth/register/resend-otp (or /forgot-password/resend-otp)
+- **Condition:** Wait 60s cooldown before resending.
+- **Expected:** Status 200, returns new OTP expiry info.
 
 ---
 
@@ -152,15 +181,74 @@
 
 ---
 
-## 5. Test Execution Log
+## 5. User Profile API Test Cases
 
-| Test ID | Date | Tester | Result | Notes |
-|---------|------|--------|--------|-------|
-| TC-AUTH-001 | | | | |
-| TC-AUTH-002 | | | | |
-| TC-AUTH-003 | | | | |
-| ... | | | | |
+> **Full Report:** [features/USER_PROFILE_API_TEST.md](features/USER_PROFILE_API_TEST.md)
+
+### TC-PROFILE-001: Get Profile
+
+| Field | Value |
+|-------|-------|
+| **Endpoint** | GET /api/users/profile |
+| **Description** | User lay thong tin profile hien tai |
+| **Auth** | Bearer token (any authenticated user) |
+| **Expected** | Status 200, returns UserResponse |
+
+### TC-PROFILE-002: Update Profile
+
+| Field | Value |
+|-------|-------|
+| **Endpoint** | PUT /api/users/profile |
+| **Description** | Cap nhat fullName va phone |
+| **Auth** | Bearer token |
+| **Request** | `{"fullName": "New Name", "phone": "0987654321"}` |
+| **Expected** | Status 200, returns updated UserResponse |
+
+### TC-PROFILE-003: Upload Avatar
+
+| Field | Value |
+|-------|-------|
+| **Endpoint** | POST /api/users/profile/avatar |
+| **Description** | Upload avatar moi (Cloudinary) |
+| **Auth** | Bearer token |
+| **Request** | MultipartFile (JPEG, PNG, GIF, WEBP - max 10MB) |
+| **Expected** | Status 200, returns AvatarResponse with URL |
+
+### TC-PROFILE-004: Delete Avatar
+
+| Field | Value |
+|-------|-------|
+| **Endpoint** | DELETE /api/users/profile/avatar |
+| **Description** | Xoa avatar hien tai |
+| **Auth** | Bearer token |
+| **Expected** | Status 200, avatarUrl = null |
+
+### TC-PROFILE-005: Change Password
+
+| Field | Value |
+|-------|-------|
+| **Endpoint** | PUT /api/users/profile/password |
+| **Description** | Doi mat khau |
+| **Auth** | Bearer token |
+| **Request** | `{"currentPassword": "...", "newPassword": "...", "confirmPassword": "..."}` |
+| **Expected** | Status 200, message: "Doi mat khau thanh cong" |
 
 ---
 
-**Document Status:** Template Ready
+## 6. Test Execution Log
+
+| Test ID | Date | Tester | Result | Notes |
+|---------|------|--------|--------|-------|
+| TC-AUTH-003 | 2025-12-19 | Auto | PASSED | Login by Role (VET, OWNER, MANAGER) |
+| TC-AUTH-004 | 2025-12-19 | Auto | PASSED | Registration OTP Flow |
+| TC-AUTH-005 | 2025-12-19 | Auto | PASSED | Password Reset OTP Flow |
+| TC-AUTH-006 | 2025-12-19 | Auto | PASSED | OTP Resend & Cooldown |
+| TC-PROFILE-001 | 2025-12-18 | Auto | PASSED | Unit Test |
+| TC-PROFILE-002 | 2025-12-18 | Auto | PASSED | Unit Test |
+| TC-PROFILE-003 | 2025-12-18 | Auto | PASSED | Unit Test |
+| TC-PROFILE-004 | 2025-12-18 | Auto | PASSED | Unit Test |
+| TC-PROFILE-005 | 2025-12-18 | Auto | PASSED | Unit Test |
+
+---
+
+**Document Status:** In Progress

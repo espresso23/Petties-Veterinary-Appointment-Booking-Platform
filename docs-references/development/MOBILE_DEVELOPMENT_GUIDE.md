@@ -30,8 +30,18 @@ flutter pub get
 
 #### Development (Local Backend)
 ```bash
-# Chạy với local backend (localhost:8080)
+# 1. Chạy trên Emulator (mặc định dùng 10.0.2.2)
 flutter run --flavor dev --dart-define=FLAVOR=dev
+
+# 2. Chạy trên Thiết bị thật qua USB (Khuyên dùng - Ổn định nhất)
+# B1: Mở terminal chạy: adb reverse tcp:8080 tcp:8080
+# B2: Chạy lệnh dưới (dùng localhost)
+adb reverse tcp:8080 tcp:8080
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://localhost:8080/api
+
+# 3. Chạy trên Thiết bị thật qua LAN/Wifi (Cần tắt Firewall)
+# Thay 192.168.1.XXX bằng IP LAN của máy tính bạn
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
 ```
 
 #### Staging/Test Environment (api-test.petties.world)
@@ -94,8 +104,11 @@ flutter test
 - **Fix**: Đảm bảo backend đang chạy local và dùng `--dart-define=FLAVOR=dev`
 
 ### Physical device không kết nối được
-- Dùng IP máy host thay vì localhost (ví dụ: `192.168.1.100`)
-- Cần sửa URL trong code hoặc tạo flavor riêng
+- **Nguyên nhân**: Máy thật không hiểu `localhost` hoặc `10.0.2.2`.
+- **Fix**: Dùng lệnh có tham số `API_URL` trỏ về IP LAN máy tính:
+  ```bash
+  flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
+  ```
 
 ### iOS Simulator
 - iOS simulator có thể dùng `localhost` trực tiếp

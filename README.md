@@ -101,7 +101,7 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │  - PostgreSQL 16 (Relational Data) │
 │  - MongoDB 7 (NoSQL, Flexible Data)│
 │  - Qdrant Cloud (Vector Database)  │
-│  - Redis (Caching - Optional)      │
+│  - Redis (OTP & Session Storage)   │
 └─────────────────────────────────────┘
 ```
 

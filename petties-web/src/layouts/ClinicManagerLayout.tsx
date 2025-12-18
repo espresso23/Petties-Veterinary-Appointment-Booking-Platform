@@ -24,6 +24,7 @@ export const ClinicManagerLayout = () => {
         { path: '/clinic-manager/schedule', label: 'LỊCH LÀM VIỆC' },
         { path: '/clinic-manager/chat', label: 'CHAT TƯ VẤN' },
         { path: '/clinic-manager/refunds', label: 'HOÀN TIỀN' },
+        { path: '/clinic-manager/profile', label: 'HỒ SƠ CÁ NHÂN' },
     ]
 
     const handleLogout = () => {

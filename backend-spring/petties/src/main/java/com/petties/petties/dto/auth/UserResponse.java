@@ -16,10 +16,11 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class UserResponse {
-    
+
     private UUID userId;
     private String username;
     private String email;
+    private String fullName;
     private String phone;
     private String avatar;
     private Role role;

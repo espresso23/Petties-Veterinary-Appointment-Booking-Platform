@@ -274,20 +274,38 @@ class PetOwnerHomeScreen extends StatelessWidget {
           top: BorderSide(color: AppColors.stone900, width: 4),
         ),
       ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-        currentIndex: 0,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
-        ],
+      child: Builder(
+        builder: (context) => BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.stone400,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+          currentIndex: 0,
+          elevation: 0,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                // Already on home
+                break;
+              case 1:
+                // TODO: Navigate to explore
+                break;
+              case 2:
+                // TODO: Navigate to bookings
+                break;
+              case 3:
+                context.push(AppRoutes.profile);
+                break;
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
+            BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHAM PHA'),
+            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TAI KHOAN'),
+          ],
+        ),
       ),
     );
   }
