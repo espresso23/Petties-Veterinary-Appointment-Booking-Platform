@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
+import 'providers/user_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
 import 'core/utils/storage_service.dart';
@@ -25,10 +26,16 @@ void main() async {
   
   // Create AuthProvider instance (singleton)
   final authProvider = AuthProvider();
-  
+
+  // Create UserProvider instance
+  final userProvider = UserProvider();
+
   runApp(
-    ChangeNotifierProvider.value(
-      value: authProvider,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: authProvider),
+        ChangeNotifierProvider.value(value: userProvider),
+      ],
       child: PettiesApp(authProvider: authProvider),
     ),
   );

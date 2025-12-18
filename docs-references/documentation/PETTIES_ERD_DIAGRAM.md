@@ -26,16 +26,6 @@ erDiagram
         timestamp deleted_at
     }
 
-    ACTIVATION_TOKEN {
-        uuid token_id PK
-        uuid user_id FK "NOT NULL"
-        varchar token UK "NOT NULL"
-        enum token_type "NOT NULL: ACCOUNT_ACTIVATION|PASSWORD_RESET"
-        timestamp expires_at "NOT NULL"
-        boolean is_used "DEFAULT FALSE"
-        timestamp used_at
-        timestamp created_at "NOT NULL"
-    }
 
     %% ========== CLINIC MANAGEMENT ==========
     CLINIC {

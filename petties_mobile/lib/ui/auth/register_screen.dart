@@ -7,6 +7,7 @@ import '../../data/services/auth_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
 import '../../config/constants/app_colors.dart';
+import '../../utils/api_error_handler.dart';
 
 /// Register screen with OTP verification (2-step flow) - Neobrutalism Style
 class RegisterScreen extends StatefulWidget {
@@ -31,8 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // OTP controllers (6 digits)
   final List<TextEditingController> _otpControllers = 
       List.generate(6, (_) => TextEditingController());
-  final List<FocusNode> _otpFocusNodes = 
-      List.generate(6, (_) => FocusNode());
+  late final List<FocusNode> _otpFocusNodes;
   
   // State
   bool _isLoading = false;
@@ -47,6 +47,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Resend countdown
   int _resendCountdown = 0;
   Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize focus nodes with backspace detection
+    _otpFocusNodes = List.generate(6, (index) {
+      return FocusNode(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            // Neu o hien tai dang rong, quay lai o truoc do
+            if (_otpControllers[index].text.isEmpty && index > 0) {
+              _otpFocusNodes[index - 1].requestFocus();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -201,11 +222,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   String _extractErrorMessage(dynamic e) {
-    final errorStr = e.toString();
-    if (errorStr.contains('message')) {
-      return errorStr.split('message:').last.trim();
-    }
-    return errorStr.replaceAll('Exception: ', '');
+    return ApiErrorHandler.getErrorMessage(e);
   }
 
   void _showSuccessToast(String message) {
@@ -654,39 +671,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       textAlign: TextAlign.center,
                       keyboardType: TextInputType.number,
                       maxLength: 1,
-                      obscureText: false, // Hiển thị số rõ ràng
+                      obscureText: false,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
                         color: AppColors.stone900,
-                        fontFamily: 'monospace', // Font monospace cho số dễ đọc
+                        fontFamily: 'monospace',
                         height: 1.0,
                       ),
                       decoration: InputDecoration(
                         counterText: '',
                         filled: true,
                         fillColor: AppColors.white,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.zero,
-                          borderSide: const BorderSide(color: AppColors.stone900, width: 3),
+                          borderSide: const BorderSide(
+                              color: AppColors.stone900, width: 3),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.zero,
-                          borderSide: const BorderSide(color: AppColors.stone900, width: 3),
+                          borderSide: const BorderSide(
+                              color: AppColors.stone900, width: 3),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.zero,
-                          borderSide: const BorderSide(color: AppColors.primary, width: 3),
+                          borderSide: const BorderSide(
+                              color: AppColors.primary, width: 3),
                         ),
                       ),
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly
+                      ],
                       onChanged: (value) {
                         if (value.isNotEmpty && index < 5) {
                           _otpFocusNodes[index + 1].requestFocus();
-                        }
-                        if (value.isEmpty && index > 0) {
-                          _otpFocusNodes[index - 1].requestFocus();
                         }
                         // Auto submit when all digits entered
                         if (_getOtpCode().length == 6) {

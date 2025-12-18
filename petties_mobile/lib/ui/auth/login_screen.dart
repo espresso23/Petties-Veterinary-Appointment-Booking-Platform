@@ -325,7 +325,28 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
+
+                      // Forgot Password Link
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: InkWell(
+                          onTap: () => context.push(AppRoutes.forgotPassword),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            child: Text(
+                              'Quên mật khẩu?',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                const SizedBox(height: 20),
 
                       // Login Button
                 Consumer<AuthProvider>(

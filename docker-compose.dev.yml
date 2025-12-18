@@ -29,6 +29,26 @@ services:
       retries: 5
 
   # ============================================
+  # REDIS CACHE
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: petties-dev-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - petties-dev-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
   # MONGODB DATABASE
   # ============================================
   mongodb:
@@ -72,6 +92,9 @@ services:
       DB_PASSWORD: postgres
       # MongoDB
       MONGO_URI: mongodb://admin:admin@mongodb:27017/petties_nosql?authSource=admin
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       # AI Service
       AI_SERVICE_URL: http://ai-service:8000
       # JWT (dev only)
@@ -83,6 +106,10 @@ services:
       # Email SMTP (OTP) - MUST set in .env file!
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
+      # Cloudinary
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
     volumes:
       # Mount source code for hot-reload
       - ./backend-spring/petties/src:/app/src:ro
@@ -92,6 +119,8 @@ services:
       postgres:
         condition: service_healthy
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - petties-dev-network
@@ -151,4 +180,6 @@ volumes:
   postgres_dev_data:
     driver: local
   mongodb_dev_data:
+    driver: local
+  redis_dev_data:
     driver: local

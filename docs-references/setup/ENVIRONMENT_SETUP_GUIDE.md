@@ -100,6 +100,9 @@ DB_PASSWORD=your_password
 # MongoDB Atlas
 MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/petties_nosql?retryWrites=true&w=majority
 
+# Redis Cloud
+REDIS_URL=
+
 # AI Service
 AI_SERVICE_URL=http://ai-service:8000
 

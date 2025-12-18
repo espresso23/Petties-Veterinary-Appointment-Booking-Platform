@@ -251,20 +251,38 @@ class VetHomeScreen extends StatelessWidget {
           top: BorderSide(color: AppColors.stone900, width: 4),
         ),
       ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primaryDark,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-        currentIndex: 0,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LỊCH'),
-          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'BỆNH NHÂN'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'HỒ SƠ'),
-        ],
+      child: Builder(
+        builder: (context) => BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primaryDark,
+          unselectedItemColor: AppColors.stone400,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+          currentIndex: 0,
+          elevation: 0,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                // Already on dashboard
+                break;
+              case 1:
+                // TODO: Navigate to schedule
+                break;
+              case 2:
+                // TODO: Navigate to patients
+                break;
+              case 3:
+                context.push(AppRoutes.profile);
+                break;
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
+            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LICH'),
+            BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'BENH NHAN'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'HO SO'),
+          ],
+        ),
       ),
     );
   }
