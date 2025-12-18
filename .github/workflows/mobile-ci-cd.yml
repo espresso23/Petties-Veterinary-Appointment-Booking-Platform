@@ -1,0 +1,428 @@
+# ============================================
+# Mobile CI/CD - Build & Deploy Flutter App
+# 
+# Purpose: Build Flutter Android/iOS và deploy lên:
+#   - Android: Firebase App Distribution
+#   - iOS: TestFlight hoặc Firebase App Distribution
+# 
+# Triggers:
+#   - Push to develop: Build DEV flavor → Deploy to testers
+#   - Push to main: Build PROD flavor → Deploy to production testers
+#   - Manual dispatch: Chọn flavor, platform và deployment target
+#
+# Jobs:
+#   - build-android: Build APK với flavor được chọn
+#   - build-ios: Build IPA với flavor được chọn (macOS runner)
+#   - deploy-android: Upload APK lên Firebase App Distribution
+#   - deploy-ios-testflight: Upload IPA lên TestFlight
+#   - deploy-ios-firebase: Upload IPA lên Firebase (alternative)
+# ============================================
+
+name: Mobile CI/CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Build flavor'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      platform:
+        description: 'Target platform'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+      ios_distribution:
+        description: 'iOS distribution method'
+        required: false
+        default: 'testflight'
+        type: choice
+        options:
+          - testflight
+          - firebase
+      tester_groups:
+        description: 'Firebase App Distribution tester groups'
+        required: false
+        default: 'petties-test'
+
+env:
+  FLUTTER_VERSION: '3.27.0'
+  JAVA_VERSION: '17'
+  XCODE_VERSION: '15.0'
+
+jobs:
+  # ================================
+  # Determine what to build
+  # ================================
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      flavor: ${{ steps.config.outputs.flavor }}
+      build_android: ${{ steps.config.outputs.build_android }}
+      build_ios: ${{ steps.config.outputs.build_ios }}
+      ios_distribution: ${{ steps.config.outputs.ios_distribution }}
+    
+    steps:
+      - name: Configure build
+        id: config
+        run: |
+          # Determine flavor
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "flavor=${{ github.event.inputs.flavor }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "flavor=prod" >> $GITHUB_OUTPUT
+          else
+            # Use staging for develop branch so testers can connect to real API
+            echo "flavor=staging" >> $GITHUB_OUTPUT
+          fi
+          
+          # Determine platforms
+          PLATFORM="${{ github.event.inputs.platform }}"
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            PLATFORM="android"  # Default: only Android for auto builds
+          fi
+          
+          if [ "$PLATFORM" == "both" ]; then
+            echo "build_android=true" >> $GITHUB_OUTPUT
+            echo "build_ios=true" >> $GITHUB_OUTPUT
+          elif [ "$PLATFORM" == "ios" ]; then
+            echo "build_android=false" >> $GITHUB_OUTPUT
+            echo "build_ios=true" >> $GITHUB_OUTPUT
+          else
+            echo "build_android=true" >> $GITHUB_OUTPUT
+            echo "build_ios=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # iOS distribution method
+          echo "ios_distribution=${{ github.event.inputs.ios_distribution || 'testflight' }}" >> $GITHUB_OUTPUT
+
+  # ================================
+  # Build Android APK
+  # ================================
+  build-android:
+    needs: setup
+    if: needs.setup.outputs.build_android == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./petties_mobile
+    
+    outputs:
+      apk_path: ${{ steps.build.outputs.apk_path }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos || echo "⚠️ Analysis warnings exist"
+      
+      # Decode keystore from secrets (for release builds)
+      - name: Decode Keystore
+        if: needs.setup.outputs.flavor == 'prod'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-keystore.jks
+        
+      - name: Create key.properties
+        if: needs.setup.outputs.flavor == 'prod'
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=release-keystore.jks" >> android/key.properties
+      
+      - name: Build APK
+        id: build
+        run: |
+          FLAVOR="${{ needs.setup.outputs.flavor }}"
+          
+          if [ "$FLAVOR" == "prod" ]; then
+            flutter build apk --release --flavor $FLAVOR --dart-define=FLAVOR=$FLAVOR
+            APK_PATH="build/app/outputs/flutter-apk/app-$FLAVOR-release.apk"
+          else
+            flutter build apk --debug --flavor $FLAVOR --dart-define=FLAVOR=$FLAVOR
+            APK_PATH="build/app/outputs/flutter-apk/app-$FLAVOR-debug.apk"
+          fi
+          
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "✅ Built APK: $APK_PATH"
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: petties-${{ needs.setup.outputs.flavor }}-apk
+          path: petties_mobile/${{ steps.build.outputs.apk_path }}
+          retention-days: 14
+
+  # ================================
+  # Build iOS IPA
+  # ================================
+  build-ios:
+    needs: setup
+    if: needs.setup.outputs.build_ios == 'true'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./petties_mobile
+    
+    outputs:
+      ipa_path: ${{ steps.build.outputs.ipa_path }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      
+      - name: Get dependencies
+        run: flutter pub get
+      
+      # Install Apple Certificate and Provisioning Profile
+      - name: Install Apple Certificate
+        env:
+          P12_CERTIFICATE_BASE64: ${{ secrets.IOS_P12_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+        run: |
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          
+          # Import certificate from secrets
+          echo -n "$P12_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+          
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+      
+      - name: Install Provisioning Profile
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          
+          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+          
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+      
+      - name: Build iOS (Release)
+        id: build
+        run: |
+          FLAVOR="${{ needs.setup.outputs.flavor }}"
+          
+          flutter build ipa --release \
+            --flavor $FLAVOR \
+            --dart-define=FLAVOR=$FLAVOR \
+            --export-options-plist=ios/ExportOptions.plist
+          
+          IPA_PATH="build/ios/ipa/petties_mobile.ipa"
+          echo "ipa_path=$IPA_PATH" >> $GITHUB_OUTPUT
+          echo "✅ Built IPA: $IPA_PATH"
+      
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: petties-${{ needs.setup.outputs.flavor }}-ipa
+          path: petties_mobile/${{ steps.build.outputs.ipa_path }}
+          retention-days: 14
+      
+      # Cleanup
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db || true
+
+  # ================================
+  # Deploy Android to Firebase App Distribution
+  # ================================
+  deploy-android:
+    needs: [setup, build-android]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && needs.setup.outputs.build_android == 'true'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: petties-${{ needs.setup.outputs.flavor }}-apk
+          path: ./apk
+      
+      - name: Get APK filename
+        id: apk-file
+        run: |
+          APK_FILE=$(ls ./apk/*.apk | head -1)
+          echo "apk_file=$APK_FILE" >> $GITHUB_OUTPUT
+      
+      - name: Set tester groups
+        id: testers
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "groups=${{ github.event.inputs.tester_groups }}" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.setup.outputs.flavor }}" == "prod" ]; then
+            echo "groups=petties-test" >> $GITHUB_OUTPUT
+          else
+            echo "groups=petties-test" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          groups: ${{ steps.testers.outputs.groups }}
+          file: ${{ steps.apk-file.outputs.apk_file }}
+          releaseNotes: |
+            🤖 Petties Android - ${{ needs.setup.outputs.flavor }} build
+            
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Build: #${{ github.run_number }}
+
+  # ================================
+  # Deploy iOS to TestFlight (Recommended)
+  # ================================
+  deploy-ios-testflight:
+    needs: [setup, build-ios]
+    runs-on: macos-latest
+    if: |
+      github.event_name != 'pull_request' && 
+      needs.setup.outputs.build_ios == 'true' && 
+      needs.setup.outputs.ios_distribution == 'testflight'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: petties-${{ needs.setup.outputs.flavor }}-ipa
+          path: ./ipa
+      
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          # Decode API key
+          mkdir -p ~/private_keys
+          echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
+          
+          # Find IPA file
+          IPA_FILE=$(ls ./ipa/*.ipa | head -1)
+          
+          # Upload using xcrun altool
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_FILE" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+          
+          echo "✅ Uploaded to TestFlight successfully!"
+
+  # ================================
+  # Deploy iOS to Firebase App Distribution (Alternative)
+  # ================================
+  deploy-ios-firebase:
+    needs: [setup, build-ios]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'pull_request' && 
+      needs.setup.outputs.build_ios == 'true' && 
+      needs.setup.outputs.ios_distribution == 'firebase'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: petties-${{ needs.setup.outputs.flavor }}-ipa
+          path: ./ipa
+      
+      - name: Get IPA filename
+        id: ipa-file
+        run: |
+          IPA_FILE=$(ls ./ipa/*.ipa | head -1)
+          echo "ipa_file=$IPA_FILE" >> $GITHUB_OUTPUT
+      
+      - name: Set tester groups
+        id: testers
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "groups=${{ github.event.inputs.tester_groups }}" >> $GITHUB_OUTPUT
+          else
+            echo "groups=ios-testers" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          groups: ${{ steps.testers.outputs.groups }}
+          file: ${{ steps.ipa-file.outputs.ipa_file }}
+          releaseNotes: |
+            🍎 Petties iOS - ${{ needs.setup.outputs.flavor }} build
+            
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Build: #${{ github.run_number }}
+
+  # ================================
+  # Summary & Notification
+  # ================================
+  notify:
+    needs: [setup, build-android, build-ios, deploy-android, deploy-ios-testflight, deploy-ios-firebase]
+    runs-on: ubuntu-latest
+    if: always() && github.event_name != 'pull_request'
+    
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## 📱 Mobile CI/CD Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | Build | Deploy |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Android | ${{ needs.build-android.result || 'skipped' }} | ${{ needs.deploy-android.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS | ${{ needs.build-ios.result || 'skipped' }} | ${{ needs.deploy-ios-testflight.result || needs.deploy-ios-firebase.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Flavor:** ${{ needs.setup.outputs.flavor }}" >> $GITHUB_STEP_SUMMARY
+

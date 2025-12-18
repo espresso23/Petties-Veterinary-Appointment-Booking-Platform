@@ -65,28 +65,23 @@ QDRANT_URL=https://your-cluster-id.region.cloud.qdrant.io
 QDRANT_API_KEY=your-qdrant-api-key-here
 ```
 
-#### Ollama Configuration (Hybrid: Local or Cloud)
-
-**Option 1: Local Mode (Development)**
+#### Cloud AI Services Configuration (Cloud-Only)
 
 ```bash
-# Ollama runs on local machine
-LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_API_KEY=  # Leave empty
-OLLAMA_MODEL=kimi-k2
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-```
+# LLM Provider (OpenRouter)
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-your-openrouter-key  # Get from https://openrouter.ai/keys
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
 
-**Option 2: Cloud Mode (Production - Recommended)**
+# Embeddings (Cohere)
+EMBEDDING_PROVIDER=cohere
+COHERE_API_KEY=your-cohere-key  # Get from https://dashboard.cohere.com/api-keys
+EMBEDDING_MODEL=embed-multilingual-v3
 
-```bash
-# Uses Ollama Cloud API
-LLM_PROVIDER=ollama
-OLLAMA_API_KEY=sk-your-ollama-cloud-api-key  # Get from https://ollama.com
-OLLAMA_BASE_URL=https://ollama.com  # Auto-set if API key provided
-OLLAMA_MODEL=kimi-k2:1t-cloud  # Auto-switches if API key provided
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+# Web Search (Tavily)
+TAVILY_API_KEY=your-tavily-key  # Get from https://tavily.com
 ```
 
 #### JWT Secret
@@ -193,8 +188,10 @@ docker-compose -f docker-compose.dev.yml up --build
    nano .env
    
    # Required variables:
-   # - OLLAMA_API_KEY (from https://ollama.com)
+   # - OPENROUTER_API_KEY (from https://openrouter.ai)
+   # - COHERE_API_KEY (from https://cohere.com)
    # - QDRANT_API_KEY (from Qdrant Cloud)
+   # - TAVILY_API_KEY (from https://tavily.com)
    # - DATABASE_URL (Neon PostgreSQL)
    # - MONGO_URI (MongoDB Atlas)
    # - JWT_SECRET (64+ characters)
@@ -252,53 +249,45 @@ docker-compose -f docker-compose.db-only.yml up -d
 
 ---
 
-## Ollama Setup
+## Cloud AI Services Setup
 
-### Development: Local Ollama
+### Cloud-Only Architecture
 
-1. **Install Ollama:**
-   - Download from https://ollama.ai/download
-   - Install và start service
+Petties sử dụng Cloud APIs - **không cần cài đặt local AI services**.
 
-2. **Pull Models:**
-   ```bash
-   ollama pull kimi-k2
-   ollama pull nomic-embed-text
-   ```
+### Get API Keys
 
-3. **Verify:**
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
+| Service | Provider | URL | Free Tier |
+|---------|----------|-----|----------|
+| **LLM** | OpenRouter | https://openrouter.ai/keys | Free models available |
+| **Embeddings** | Cohere | https://dashboard.cohere.com/api-keys | 1,000 calls/month |
+| **Vector DB** | Qdrant Cloud | https://cloud.qdrant.io | 1GB storage |
+| **Web Search** | Tavily | https://tavily.com | 1,000 searches/month |
 
-### Production: Ollama Cloud
+### Verify API Connections
 
-**EC2 Production sử dụng Ollama Cloud**
+```bash
+# Test OpenRouter
+curl https://openrouter.ai/api/v1/models \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY"
 
-1. **Sign up** tại https://ollama.com
-2. **Get API Key** từ dashboard
-3. **Set on EC2:**
-   ```bash
-   # SSH vào EC2
-   ssh -i petties-key.pem ubuntu@<EC2_IP>
-   
-   # Edit .env
-   cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-   nano .env
-   
-   # Add/update:
-   OLLAMA_API_KEY=sk-your-api-key
-   OLLAMA_MODEL=kimi-k2:1t-cloud
-   
-   # Restart AI service
-   docker-compose -f docker-compose.prod.yml restart ai-service
-   ```
+# Test Cohere
+curl https://api.cohere.ai/v1/embed \
+  -H "Authorization: Bearer $COHERE_API_KEY" \
+  -d '{"texts": ["Test"], "model": "embed-multilingual-v3"}'
 
-**Benefits:**
-- ✅ No GPU/RAM needed on EC2 instance
-- ✅ No tunnel setup required
-- ✅ Larger context window (256K vs 128K)
-- ✅ Perfect for EC2 t3.small (2GB RAM)
+# Test Qdrant
+curl "$QDRANT_URL/collections" \
+  -H "api-key: $QDRANT_API_KEY"
+```
+
+### Benefits of Cloud-Only Architecture
+
+- ✅ No GPU/RAM needed on server
+- ✅ Zero infrastructure management
+- ✅ Deploy easily on Render/Railway free tier
+- ✅ Scale automatically
+- ✅ Free tiers sufficient for MVP
 
 ---
 
@@ -331,17 +320,20 @@ lsof -i :5432
 taskkill /PID <PID> /F
 ```
 
-### Ollama Connection Failed
+### Cloud API Connection Issues
 
-**Local Mode:**
-- Ensure Ollama is running: `ollama serve`
-- Check `OLLAMA_BASE_URL=http://localhost:11434`
-- Verify: `curl http://localhost:11434/api/tags`
+**OpenRouter:**
+- Verify `OPENROUTER_API_KEY` is set correctly
+- Check API key at https://openrouter.ai/keys
+- Test: `curl https://openrouter.ai/api/v1/models -H "Authorization: Bearer $OPENROUTER_API_KEY"`
 
-**Cloud Mode:**
-- Verify `OLLAMA_API_KEY` is set correctly
-- Check API key at https://ollama.com
-- Ensure `OLLAMA_MODEL=kimi-k2:1t-cloud` for cloud
+**Cohere:**
+- Verify `COHERE_API_KEY` is set correctly
+- Check free tier limits at https://dashboard.cohere.com
+
+**Qdrant:**
+- Verify `QDRANT_URL` and `QDRANT_API_KEY`
+- Check cluster status at https://cloud.qdrant.io
 
 ### Backend/AI Service Won't Start
 
