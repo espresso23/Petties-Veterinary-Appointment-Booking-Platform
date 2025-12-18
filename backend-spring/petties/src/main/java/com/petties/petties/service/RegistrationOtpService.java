@@ -5,13 +5,13 @@ import com.petties.petties.dto.auth.AuthResponse;
 import com.petties.petties.dto.auth.SendOtpRequest;
 import com.petties.petties.dto.auth.SendOtpResponse;
 import com.petties.petties.dto.auth.VerifyOtpRequest;
+import com.petties.petties.dto.otp.PendingRegistrationData;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
 import com.petties.petties.exception.ResourceNotFoundException;
-import com.petties.petties.model.PendingRegistration;
 import com.petties.petties.model.RefreshToken;
 import com.petties.petties.model.User;
-import com.petties.petties.repository.PendingRegistrationRepository;
+import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.RefreshTokenRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.util.TokenUtil;
@@ -22,11 +22,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
- * Service xử lý đăng ký với xác thực OTP qua email
+ * Service xu ly dang ky voi xac thuc OTP qua email.
+ * Su dung Redis de luu pending registration voi TTL tu dong (5 phut).
+ *
+ * Flow:
+ * 1. User gui thong tin dang ky -> Luu vao Redis -> Gui OTP qua email
+ * 2. User nhap OTP -> Verify -> Tao User chinh thuc
+ *
+ * Redis Key: "otp:registration:{email}"
+ * TTL: 5 minutes (auto-deleted by Redis)
  */
 @Slf4j
 @Service
@@ -34,125 +41,118 @@ import java.util.UUID;
 public class RegistrationOtpService {
 
     private final UserRepository userRepository;
-    private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
     private final EmailService emailService;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final OtpRedisService otpRedisService;
 
     private static final int RESEND_COOLDOWN_SECONDS = 60;
+    private static final int MAX_ATTEMPTS = 5;
 
     /**
-     * Gửi OTP cho đăng ký mới
-     * 
+     * Gui OTP cho dang ky moi
+     *
      * Flow:
-     * 1. Validate username/email chưa tồn tại
-     * 2. Xóa pending registration cũ (nếu có)
-     * 3. Tạo pending registration mới với OTP
-     * 4. Gửi email OTP
+     * 1. Validate username/email chua ton tai
+     * 2. Check cooldown
+     * 3. Luu pending registration vao Redis (TTL 5 phut)
+     * 4. Gui email OTP
      */
-    @Transactional
     public SendOtpResponse sendRegistrationOtp(SendOtpRequest request) {
-        // 1. Check username không tồn tại trong User table
+        String email = request.getEmail().toLowerCase().trim();
+
+        // 1. Check username khong ton tai trong User table
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new ResourceAlreadyExistsException("Tên đăng nhập đã được sử dụng");
         }
 
-        // 2. Check email không tồn tại trong User table
-        if (userRepository.existsByEmail(request.getEmail())) {
+        // 2. Check email khong ton tai trong User table
+        if (userRepository.existsByEmail(email)) {
             throw new ResourceAlreadyExistsException("Email đã được sử dụng");
         }
 
-        // 3. Check rate limiting - nếu pending registration tồn tại và chưa hết
-        // cooldown
-        pendingRegistrationRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
-            long secondsSinceCreated = ChronoUnit.SECONDS.between(existing.getCreatedAt(), LocalDateTime.now());
-            if (secondsSinceCreated < RESEND_COOLDOWN_SECONDS) {
-                long remainingSeconds = RESEND_COOLDOWN_SECONDS - secondsSinceCreated;
-                throw new BadRequestException(
-                        String.format("Vui lòng đợi %d giây trước khi gửi lại mã OTP", remainingSeconds));
-            }
-        });
+        // 3. Check username khong dang pending o email khac
+        if (otpRedisService.isUsernamePendingRegistration(request.getUsername())) {
+            throw new ResourceAlreadyExistsException("Tên đăng nhập đang được sử dụng trong yêu cầu đăng ký khác");
+        }
 
-        // 4. Xóa pending registration cũ (nếu có)
-        pendingRegistrationRepository.deleteByEmail(request.getEmail());
+        // 4. Check rate limiting - cooldown 60 giay
+        long cooldownRemaining = otpRedisService.getRegistrationCooldownRemaining(email);
+        if (cooldownRemaining > 0) {
+            throw new BadRequestException(
+                    String.format("Vui lòng đợi %d giây trước khi gửi lại mã OTP", cooldownRemaining));
+        }
 
         // 5. Generate OTP
         String otpCode = otpService.generateOtp();
 
-        // 6. Tạo pending registration mới
-        PendingRegistration pending = PendingRegistration.builder()
+        // 6. Luu pending registration vao Redis (TTL 5 phut)
+        PendingRegistrationData pendingData = PendingRegistrationData.builder()
                 .username(request.getUsername())
-                .email(request.getEmail())
+                .email(email)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
                 .fullName(request.getFullName())
-                .role(request.getRole())
+                .role(request.getRole().name())
                 .otpCode(otpCode)
-                .otpExpiresAt(otpService.calculateExpiryTime())
                 .attempts(0)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        pendingRegistrationRepository.save(pending);
+        otpRedisService.savePendingRegistration(pendingData);
 
-        // 7. Gửi email OTP (async)
-        emailService.sendOtpEmail(request.getEmail(), request.getUsername(), otpCode);
+        // 7. Gui email OTP (async)
+        emailService.sendOtpEmail(email, request.getUsername(), otpCode);
 
-        log.info("OTP sent for registration: email={}", request.getEmail());
+        log.info("OTP sent for registration: email={}", email);
 
         return SendOtpResponse.builder()
                 .message("Mã OTP đã được gửi đến email của bạn")
-                .email(request.getEmail())
+                .email(email)
                 .expiryMinutes(otpService.getExpiryMinutes())
                 .resendCooldownSeconds(RESEND_COOLDOWN_SECONDS)
                 .build();
     }
 
     /**
-     * Verify OTP và hoàn tất đăng ký
-     * 
+     * Verify OTP va hoan tat dang ky
+     *
      * Flow:
-     * 1. Tìm pending registration by email
-     * 2. Validate OTP
-     * 3. Tạo User chính thức
-     * 4. Xóa pending registration
-     * 5. Generate tokens và return
+     * 1. Tim pending registration tu Redis
+     * 2. Validate OTP (max attempts, dung/sai)
+     * 3. Tao User chinh thuc
+     * 4. Xoa pending registration tu Redis
+     * 5. Generate tokens va return
      */
     @Transactional
     public AuthResponse verifyOtpAndRegister(VerifyOtpRequest request) {
-        // 1. Tìm pending registration
-        PendingRegistration pending = pendingRegistrationRepository.findByEmail(request.getEmail())
+        String email = request.getEmail().toLowerCase().trim();
+
+        // 1. Tim pending registration tu Redis
+        PendingRegistrationData pending = otpRedisService.getPendingRegistration(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy yêu cầu đăng ký. Vui lòng đăng ký lại."));
+                        "Không tìm thấy yêu cầu đăng ký. Mã OTP đã hết hạn hoặc chưa đăng ký."));
 
         // 2. Check max attempts
         if (pending.isMaxAttemptsReached()) {
-            pendingRegistrationRepository.delete(pending);
+            otpRedisService.deletePendingRegistration(email);
             throw new BadRequestException(
                     "Bạn đã nhập sai mã OTP quá nhiều lần. Vui lòng đăng ký lại.");
         }
 
-        // 3. Check OTP expired
-        if (pending.isOtpExpired()) {
-            throw new BadRequestException(
-                    "Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại mã mới.");
-        }
-
-        // 4. Validate OTP
+        // 3. Validate OTP
         if (!pending.getOtpCode().equals(request.getOtpCode())) {
-            // IMPORTANT: Dùng method với REQUIRES_NEW transaction để đảm bảo
-            // increment được commit ngay lập tức, không bị rollback bởi exception
-            pendingRegistrationRepository.incrementAttemptsByEmail(request.getEmail());
+            // Increment attempts
+            otpRedisService.incrementRegistrationAttempts(email);
 
-            // Cần re-fetch để lấy giá trị attempts mới
-            int currentAttempts = pending.getAttempts() + 1;
-            int remainingAttempts = 5 - currentAttempts;
+            // Tinh so lan thu con lai
+            int remainingAttempts = MAX_ATTEMPTS - pending.getAttempts() - 1;
 
-            // Nếu đã hết lần thử, xóa pending registration
+            // Neu da het lan thu, xoa pending registration
             if (remainingAttempts <= 0) {
-                pendingRegistrationRepository.deleteByEmailWithNewTransaction(request.getEmail());
+                otpRedisService.deletePendingRegistration(email);
                 throw new BadRequestException(
                         "Bạn đã nhập sai mã OTP quá nhiều lần. Vui lòng đăng ký lại.");
             }
@@ -161,31 +161,31 @@ public class RegistrationOtpService {
                     String.format("Mã OTP không đúng. Bạn còn %d lần thử.", remainingAttempts));
         }
 
-        // 5. Double check username/email không bị race condition
+        // 4. Double check username/email khong bi race condition
         if (userRepository.existsByUsername(pending.getUsername())) {
-            pendingRegistrationRepository.delete(pending);
+            otpRedisService.deletePendingRegistration(email);
             throw new ResourceAlreadyExistsException("Tên đăng nhập đã được sử dụng bởi người khác");
         }
-        if (userRepository.existsByEmail(pending.getEmail())) {
-            pendingRegistrationRepository.delete(pending);
+        if (userRepository.existsByEmail(email)) {
+            otpRedisService.deletePendingRegistration(email);
             throw new ResourceAlreadyExistsException("Email đã được sử dụng bởi người khác");
         }
 
-        // 6. Tạo User chính thức
+        // 5. Tao User chinh thuc
         User user = new User();
         user.setUsername(pending.getUsername());
-        user.setEmail(pending.getEmail());
+        user.setEmail(email);
         user.setPassword(pending.getPassword()); // Already hashed
         user.setPhone(pending.getPhone());
         user.setFullName(pending.getFullName());
-        user.setRole(pending.getRole());
+        user.setRole(Role.valueOf(pending.getRole()));
 
         User savedUser = userRepository.save(user);
 
-        // 7. Xóa pending registration
-        pendingRegistrationRepository.delete(pending);
+        // 6. Xoa pending registration tu Redis
+        otpRedisService.deletePendingRegistration(email);
 
-        // 8. Generate tokens
+        // 7. Generate tokens
         String accessToken = tokenProvider.generateToken(
                 savedUser.getUserId(),
                 savedUser.getUsername(),
@@ -194,7 +194,7 @@ public class RegistrationOtpService {
                 savedUser.getUserId(),
                 savedUser.getUsername());
 
-        // 9. Save refresh token
+        // 8. Save refresh token
         saveRefreshToken(savedUser.getUserId(), refreshToken);
 
         log.info("User registered successfully via OTP: email={}", savedUser.getEmail());
@@ -212,30 +212,35 @@ public class RegistrationOtpService {
     }
 
     /**
-     * Gửi lại OTP
+     * Gui lai OTP
+     *
+     * Neu khong co pending registration (da het han), se bao loi yeu cau dang ky
+     * lai.
      */
-    @Transactional
     public SendOtpResponse resendOtp(String email) {
-        PendingRegistration pending = pendingRegistrationRepository.findByEmail(email)
+        email = email.toLowerCase().trim();
+
+        // Tim pending registration tu Redis
+        PendingRegistrationData pending = otpRedisService.getPendingRegistration(email)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy yêu cầu đăng ký. Vui lòng đăng ký lại."));
+                        "Không tìm thấy yêu cầu đăng ký. Mã OTP đã hết hạn, vui lòng đăng ký lại."));
 
         // Check cooldown
-        long secondsSinceCreated = ChronoUnit.SECONDS.between(pending.getCreatedAt(), LocalDateTime.now());
-        if (secondsSinceCreated < RESEND_COOLDOWN_SECONDS) {
-            long remainingSeconds = RESEND_COOLDOWN_SECONDS - secondsSinceCreated;
+        long cooldownRemaining = otpRedisService.getRegistrationCooldownRemaining(email);
+        if (cooldownRemaining > 0) {
             throw new BadRequestException(
-                    String.format("Vui lòng đợi %d giây trước khi gửi lại mã OTP", remainingSeconds));
+                    String.format("Vui lòng đợi %d giây trước khi gửi lại mã OTP", cooldownRemaining));
         }
 
         // Generate new OTP
         String newOtpCode = otpService.generateOtp();
+
+        // Update pending registration voi OTP moi
         pending.setOtpCode(newOtpCode);
-        pending.setOtpExpiresAt(otpService.calculateExpiryTime());
         pending.setAttempts(0); // Reset attempts on resend
         pending.setCreatedAt(LocalDateTime.now()); // Reset cooldown timer
 
-        pendingRegistrationRepository.save(pending);
+        otpRedisService.savePendingRegistration(pending);
 
         // Send email
         emailService.sendOtpEmail(email, pending.getUsername(), newOtpCode);

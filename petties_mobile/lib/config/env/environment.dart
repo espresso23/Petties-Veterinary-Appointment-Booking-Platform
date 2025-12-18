@@ -5,15 +5,28 @@ class Environment {
   // ============================================================
   // API URLs
   // ============================================================
+  // ⚠️ CHÚ Ý: Nếu chạy trên máy ảo (Emulator) thì dùng 10.0.2.2
+  // Nếu chạy trên điện thoại thật (Real Device) thì PHẢI dùng IP LAN của máy tính (ví dụ: 192.168.1.5)
+  // Mở CMD gõ 'ipconfig' để xem IP
+  // static const String _devBaseUrl = 'http://10.0.2.2:8080/api'; // Cho Emulator
   static const String _devBaseUrl = 'http://10.0.2.2:8080/api';
   static const String _stagingBaseUrl = 'https://api-test.petties.world/api';
   static const String _prodBaseUrl = 'https://api.petties.world/api';
 
+  static const String _defaultDevUrl = 'http://10.0.2.2:8080/api';
+  
   // Flavor from build arguments
   static const String _flavor = String.fromEnvironment('FLAVOR', defaultValue: 'dev');
+  static const String _apiUrlOverride = String.fromEnvironment('API_URL');
   
   /// Get the base URL based on flavor
   static String get baseUrl {
+    // Priority 1: API_URL passed via --dart-define
+    if (_apiUrlOverride.isNotEmpty) {
+      return _apiUrlOverride;
+    }
+
+    // Priority 2: Flavor specific defaults
     switch (_flavor) {
       case 'prod':
         return _prodBaseUrl;

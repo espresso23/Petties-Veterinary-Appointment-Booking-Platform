@@ -5,6 +5,7 @@ import '../data/services/auth_service.dart';
 import '../data/services/google_auth_service.dart';
 import '../utils/storage_service.dart';
 import '../config/constants/app_constants.dart';
+import '../utils/api_error_handler.dart';
 
 /// Provider for authentication state management
 class AuthProvider extends ChangeNotifier {
@@ -96,7 +97,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -133,7 +134,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -162,7 +163,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -204,7 +205,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -225,7 +226,7 @@ class AuthProvider extends ChangeNotifier {
       _user = null;
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -239,7 +240,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       await logout(); // Logout if refresh fails
       return false;
     }
@@ -251,7 +252,7 @@ class AuthProvider extends ChangeNotifier {
       _user = await _authService.getCurrentUser();
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       notifyListeners();
     }
   }
@@ -262,4 +263,3 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 }
-

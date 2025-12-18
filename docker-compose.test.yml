@@ -43,6 +43,15 @@ services:
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Redis (Staging/Test - DB 1)
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:}
     ports:
       - "127.0.0.1:8081:8080" # Test uses port 8081 externally
     networks:

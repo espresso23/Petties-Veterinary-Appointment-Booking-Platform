@@ -45,6 +45,11 @@ services:
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
+      # Redis (Production - DB 0)
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:}
     ports:
       - "127.0.0.1:8080:8080" # Bind to localhost only (Nginx reverse proxy)
     networks:
@@ -92,6 +97,9 @@ services:
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       # CORS - Production domains only
       CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
     ports:
       - "127.0.0.1:8000:8000" # Bind to localhost only (Nginx reverse proxy)
     networks:
