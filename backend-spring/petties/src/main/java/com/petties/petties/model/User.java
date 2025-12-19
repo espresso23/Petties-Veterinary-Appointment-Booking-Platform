@@ -55,6 +55,9 @@ public class User {
     @Column(name = "avatar", length = 500)
     private String avatar;
 
+    @Column(name = "avatar_public_id", length = 100)
+    private String avatarPublicId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private Role role;

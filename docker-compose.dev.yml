@@ -83,9 +83,9 @@ services:
       # Email SMTP (OTP) - MUST set in .env file!
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
-    volumes:
+    # volumes:
       # Mount source code for hot-reload
-      - ./backend-spring/petties/src:/app/src:ro
+      # - ./backend-spring/petties/src:/app/src:ro
     ports:
       - "8080:8080"
     depends_on:

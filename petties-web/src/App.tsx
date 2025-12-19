@@ -27,7 +27,7 @@ import { SettingsPage } from './pages/admin/settings'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
-import { ClinicOwnerDashboardPage } from './pages/clinic-owner/DashboardPage'
+import { ClinicOwnerDashboardPage, ServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
 
 // Components
@@ -96,6 +96,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<ClinicOwnerDashboardPage />} />
+            <Route path="services" element={<ServicesPage />} />
           </Route>
 
           {/* Clinic Manager Routes */}
