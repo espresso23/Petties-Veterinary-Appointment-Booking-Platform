@@ -65,14 +65,9 @@ export const useUserStore = create<UserState>((set, get) => ({
   uploadUserAvatar: async (file: File) => {
     set({ isLoading: true, error: null })
     try {
-      const response = await uploadAvatar(file)
-      const currentProfile = get().profile
-      if (currentProfile) {
-        set({
-          profile: { ...currentProfile, avatar: response.avatarUrl },
-          isLoading: false,
-        })
-      }
+      await uploadAvatar(file)
+      // Refetch profile to get the updated avatar URL with fresh timestamp
+      await get().fetchProfile()
     } catch (error) {
       let message = 'Lỗi khi upload avatar'
       if (isAxiosError(error) && error.response?.data?.message) {
@@ -89,13 +84,8 @@ export const useUserStore = create<UserState>((set, get) => ({
     set({ isLoading: true, error: null })
     try {
       await deleteAvatar()
-      const currentProfile = get().profile
-      if (currentProfile) {
-        set({
-          profile: { ...currentProfile, avatar: null },
-          isLoading: false,
-        })
-      }
+      // Refetch profile to ensure avatar is cleared
+      await get().fetchProfile()
     } catch (error) {
       let message = 'Lỗi khi xóa avatar'
       if (isAxiosError(error) && error.response?.data?.message) {
