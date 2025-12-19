@@ -1,0 +1,240 @@
+{
+	"info": {
+		"name": "PETTIES Service API - Simple Test",
+		"description": "Simple Postman collection for testing PETTIES Service Management API\n\n**Quick Start:**\n1. Run 'Login' to get token\n2. Run 'Create Service' to test\n3. Run 'Get All Services' to verify\n\n**Credentials:**\n- Username: Kingofwar1123\n- Password: 112003\n- Role: CLINIC_OWNER",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080/api",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "serviceId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Login successful\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Save token\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.collectionVariables.set(\"token\", jsonData.accessToken);",
+							"    console.log(\"✅ Token saved!\");",
+							"    console.log(\"Role: \" + jsonData.role);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"username\": \"Kingofwar1123\",\n    \"password\": \"112003\"\n}"
+				},
+				"url": "{{baseUrl}}/auth/login",
+				"description": "Login to get access token"
+			}
+		},
+		{
+			"name": "2. Create Service",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Service created\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test(\"Save serviceId\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.collectionVariables.set(\"serviceId\", jsonData.serviceId);",
+							"    console.log(\"✅ Service created: \" + jsonData.serviceId);",
+							"    console.log(\"Name: \" + jsonData.name);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Pet Vaccination\",\n    \"basePrice\": 500000,\n    \"durationTime\": 30,\n    \"slotsRequired\": 1,\n    \"isActive\": true,\n    \"isHomeVisit\": false\n}"
+				},
+				"url": "{{baseUrl}}/services",
+				"description": "Create a new service"
+			}
+		},
+		{
+			"name": "3. Get All Services",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Get services successful\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Services list exists\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    console.log(\"Total services: \" + jsonData.length);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"url": "{{baseUrl}}/services",
+				"description": "Get all services"
+			}
+		},
+		{
+			"name": "4. Get Service by ID",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Get service successful\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Service details correct\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    console.log(\"Service: \" + jsonData.name);",
+							"    console.log(\"Price: \" + jsonData.basePrice);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"url": "{{baseUrl}}/services/{{serviceId}}",
+				"description": "Get service by ID"
+			}
+		},
+		{
+			"name": "5. Update Service",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Service updated\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Updated data correct\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    console.log(\"✅ Service updated: \" + jsonData.name);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Pet Vaccination - Updated\",\n    \"basePrice\": 550000,\n    \"durationTime\": 45,\n    \"slotsRequired\": 1,\n    \"isActive\": true,\n    \"isHomeVisit\": true\n}"
+				},
+				"url": "{{baseUrl}}/services/{{serviceId}}",
+				"description": "Update service"
+			}
+		},
+		{
+			"name": "6. Delete Service",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Service deleted\", function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"console.log(\"✅ Service deleted successfully\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}"
+					}
+				],
+				"url": "{{baseUrl}}/services/{{serviceId}}",
+				"description": "Delete service"
+			}
+		}
+	]
+}

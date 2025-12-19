@@ -1,7 +1,10 @@
 package com.petties.petties.config;
 
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +33,7 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
+    private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
