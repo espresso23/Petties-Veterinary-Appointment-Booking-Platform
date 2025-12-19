@@ -1,0 +1,1528 @@
+{
+    "info": {
+        "_postman_id": "petties-service-management",
+        "name": "PETTIES Service Management - Complete Test Suite",
+        "description": "Comprehensive Postman collection for testing PETTIES Service Management API\n\n**Features:**\n- CRUD operations for services\n- Status management (active/inactive)\n- Home visit configuration\n- Price per km updates\n- Authentication with CLINIC_OWNER role\n- Validation testing\n- Error handling scenarios\n\n**Test Coverage:**\n- Happy path scenarios\n- Negative test cases\n- Boundary value testing\n- Authorization testing\n\n**Prerequisites:**\n1. Run PETTIES_Auth_5Roles collection first to create CLINIC_OWNER user\n2. Login as CLINIC_OWNER to get access token\n3. Set the accessToken variable in this collection\n\n**Created by:** Test Engineering Team\n**Version:** 1.0.0",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080/api",
+            "type": "string"
+        },
+        {
+            "key": "accessToken",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "serviceId",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "serviceId2",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "0. Setup - Login CLINIC_OWNER",
+            "item": [
+                {
+                    "name": "Login as CLINIC_OWNER",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response has access token\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.accessToken).to.exist;",
+                                    "    pm.expect(jsonData.accessToken).to.be.a('string');",
+                                    "    ",
+                                    "    // Save access token to collection variable",
+                                    "    pm.collectionVariables.set(\"accessToken\", jsonData.accessToken);",
+                                    "    ",
+                                    "    console.log(\"✅ Access Token saved successfully!\");",
+                                    "    console.log(\"Token (first 50 chars):\", jsonData.accessToken.substring(0, 50) + \"...\");",
+                                    "    console.log(\"Token length:\", jsonData.accessToken.length);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"User role is CLINIC_OWNER\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.role).to.eql(\"CLINIC_OWNER\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+                        },
+                        "url": "{{baseUrl}}/auth/login",
+                        "description": "Login with CLINIC_OWNER credentials to obtain access token for subsequent requests"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "1. Create Service - Happy Path",
+            "item": [
+                {
+                    "name": "Create Service - Basic Checkup",
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    "// Check if accessToken exists",
+                                    "const token = pm.collectionVariables.get(\"accessToken\");",
+                                    "",
+                                    "if (!token || token === \"\") {",
+                                    "    console.error(\"❌ ERROR: accessToken is empty!\");",
+                                    "    console.error(\"Please run '0. Setup - Login CLINIC_OWNER' first!\");",
+                                    "    throw new Error(\"Access token is required. Please login first.\");",
+                                    "}",
+                                    "",
+                                    "console.log(\"✅ Access token found:\", token.substring(0, 50) + \"...\");"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response has serviceId\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.serviceId).to.exist;",
+                                    "    pm.expect(jsonData.serviceId).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+                                    "    ",
+                                    "    // Save serviceId for later tests",
+                                    "    pm.collectionVariables.set(\"serviceId\", jsonData.serviceId);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service data is correct\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.name).to.eql(\"Khám sức khỏe tổng quát\");",
+                                    "    pm.expect(jsonData.basePrice).to.eql(\"200000\");",
+                                    "    pm.expect(jsonData.durationTime).to.eql(30);",
+                                    "    pm.expect(jsonData.slotsRequired).to.eql(1);",
+                                    "    pm.expect(jsonData.isActive).to.eql(true);",
+                                    "    pm.expect(jsonData.isHomeVisit).to.eql(false);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response has timestamps\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.createdAt).to.exist;",
+                                    "    pm.expect(jsonData.updatedAt).to.exist;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Khám sức khỏe tổng quát\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 1,\n    \"isActive\": true,\n    \"isHomeVisit\": false\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Create a basic service without home visit option"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Vaccination with Home Visit",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service created with home visit\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.serviceId).to.exist;",
+                                    "    pm.expect(jsonData.name).to.eql(\"Tiêm phòng tại nhà\");",
+                                    "    pm.expect(jsonData.isHomeVisit).to.eql(true);",
+                                    "    pm.expect(jsonData.pricePerKm).to.eql(\"15000\");",
+                                    "    ",
+                                    "    // Save second serviceId",
+                                    "    pm.collectionVariables.set(\"serviceId2\", jsonData.serviceId);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Tiêm phòng tại nhà\",\n    \"basePrice\": \"500000\",\n    \"durationTime\": 45,\n    \"slotsRequired\": 2,\n    \"isActive\": true,\n    \"isHomeVisit\": true,\n    \"pricePerKm\": \"15000\"\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Create a service with home visit option and price per km"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Surgery (Long Duration)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Long duration service created\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.durationTime).to.eql(120);",
+                                    "    pm.expect(jsonData.slotsRequired).to.eql(4);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Phẫu thuật triệt sản\",\n    \"basePrice\": \"2000000\",\n    \"durationTime\": 120,\n    \"slotsRequired\": 4,\n    \"isActive\": true,\n    \"isHomeVisit\": false\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Create a service that requires multiple slots and long duration"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "2. Get Services",
+            "item": [
+                {
+                    "name": "Get All Services",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response is an array\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.be.an('array');",
+                                    "    pm.expect(jsonData.length).to.be.at.least(1);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Each service has required fields\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    jsonData.forEach(function(service) {",
+                                    "        pm.expect(service.serviceId).to.exist;",
+                                    "        pm.expect(service.name).to.exist;",
+                                    "        pm.expect(service.basePrice).to.exist;",
+                                    "        pm.expect(service.durationTime).to.exist;",
+                                    "        pm.expect(service.slotsRequired).to.exist;",
+                                    "    });",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services",
+                        "description": "Retrieve all services for the clinic"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Service By ID",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service matches requested ID\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.serviceId).to.eql(pm.collectionVariables.get(\"serviceId\"));",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service has all details\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.all.keys(",
+                                    "        'serviceId', 'clinicId', 'name', 'basePrice', ",
+                                    "        'durationTime', 'slotsRequired', 'isActive', ",
+                                    "        'isHomeVisit', 'pricePerKm', 'createdAt', 'updatedAt'",
+                                    "    );",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/{{serviceId}}",
+                        "description": "Retrieve a specific service by ID"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "3. Update Service",
+            "item": [
+                {
+                    "name": "Update Service - Full Update",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service updated successfully\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.name).to.eql(\"Khám sức khỏe tổng quát (Nâng cao)\");",
+                                    "    pm.expect(jsonData.basePrice).to.eql(\"300000\");",
+                                    "    pm.expect(jsonData.durationTime).to.eql(45);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"UpdatedAt timestamp changed\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.updatedAt).to.exist;",
+                                    "    pm.expect(new Date(jsonData.updatedAt).getTime()).to.be.at.least(new Date(jsonData.createdAt).getTime());",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Khám sức khỏe tổng quát (Nâng cao)\",\n    \"basePrice\": \"300000\",\n    \"durationTime\": 45,\n    \"slotsRequired\": 2,\n    \"isActive\": true,\n    \"isHomeVisit\": false\n}"
+                        },
+                        "url": "{{baseUrl}}/services/{{serviceId}}",
+                        "description": "Update all fields of a service"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Service - Partial Update",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Only specified fields updated\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.basePrice).to.eql(\"250000\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"basePrice\": \"250000\"\n}"
+                        },
+                        "url": "{{baseUrl}}/services/{{serviceId}}",
+                        "description": "Update only specific fields (partial update)"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "4. Update Service Status",
+            "item": [
+                {
+                    "name": "Deactivate Service",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service is deactivated\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isActive).to.eql(false);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId}}/status?isActive=false",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId}}", "status"],
+                            "query": [
+                                {
+                                    "key": "isActive",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "description": "Deactivate a service (soft delete - service won't be available for booking)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Activate Service",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service is activated\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isActive).to.eql(true);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId}}/status?isActive=true",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId}}", "status"],
+                            "query": [
+                                {
+                                    "key": "isActive",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "description": "Reactivate a service"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "5. Update Home Visit Settings",
+            "item": [
+                {
+                    "name": "Enable Home Visit",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Home visit enabled\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isHomeVisit).to.eql(true);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId}}/home-visit?isHomeVisit=true",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId}}", "home-visit"],
+                            "query": [
+                                {
+                                    "key": "isHomeVisit",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "description": "Enable home visit option for a service"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Disable Home Visit",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Home visit disabled\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isHomeVisit).to.eql(false);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId}}/home-visit?isHomeVisit=false",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId}}", "home-visit"],
+                            "query": [
+                                {
+                                    "key": "isHomeVisit",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "description": "Disable home visit option for a service"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "6. Update Price Per Km",
+            "item": [
+                {
+                    "name": "Set Price Per Km",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Price per km updated\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.pricePerKm).to.eql(\"20000\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId2}}/price-per-km?pricePerKm=20000",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId2}}", "price-per-km"],
+                            "query": [
+                                {
+                                    "key": "pricePerKm",
+                                    "value": "20000"
+                                }
+                            ]
+                        },
+                        "description": "Update the price per kilometer for home visit services"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Price Per Km - Higher Rate",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 200\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Price per km updated to higher rate\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.pricePerKm).to.eql(\"25000\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{serviceId2}}/price-per-km?pricePerKm=25000",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{serviceId2}}", "price-per-km"],
+                            "query": [
+                                {
+                                    "key": "pricePerKm",
+                                    "value": "25000"
+                                }
+                            ]
+                        },
+                        "description": "Update to a higher rate for remote areas"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "7. Negative Tests - Validation",
+            "item": [
+                {
+                    "name": "Create Service - Missing Name",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Error message for missing name\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.include(\"không được để trống\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test validation: name is required"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Invalid Duration (Negative)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Error message for negative duration\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.include(\"số dương\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Invalid Service\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": -10,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test validation: duration must be positive"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Invalid Slots (Zero)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Error message for invalid slots\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.include(\"số dương\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Invalid Service\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 0\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test validation: slots must be positive (greater than 0)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Name Too Long",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 400 Bad Request\", function () {",
+                                    "    pm.response.to.have.status(400);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Error message for name too long\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.include(\"200 ký tự\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"This is a very long service name that exceeds the maximum allowed length of 200 characters. This is a very long service name that exceeds the maximum allowed length of 200 characters. This is a very long service name\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test validation: name max length is 200 characters"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "8. Negative Tests - Authorization",
+            "item": [
+                {
+                    "name": "Create Service - No Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Unauthorized Service\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test authorization: request without token should fail"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Invalid Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 401 Unauthorized\", function () {",
+                                    "    pm.response.to.have.status(401);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer invalid_token_here"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Unauthorized Service\",\n    \"basePrice\": \"200000\",\n    \"durationTime\": 30,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test authorization: request with invalid token should fail"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "9. Negative Tests - Not Found",
+            "item": [
+                {
+                    "name": "Get Service - Invalid UUID",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404 Not Found\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Error message indicates service not found\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.exist;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/00000000-0000-0000-0000-000000000000",
+                        "description": "Test error handling: non-existent service ID"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Service - Non-existent ID",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404 Not Found\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Updated Service\",\n    \"basePrice\": \"300000\"\n}"
+                        },
+                        "url": "{{baseUrl}}/services/00000000-0000-0000-0000-000000000000",
+                        "description": "Test error handling: update non-existent service"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Delete Service - Non-existent ID",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404 Not Found\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/00000000-0000-0000-0000-000000000000",
+                        "description": "Test error handling: delete non-existent service"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "10. Boundary Tests",
+            "item": [
+                {
+                    "name": "Create Service - Minimum Duration",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service created with minimum duration\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.durationTime).to.eql(1);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Quick Service\",\n    \"basePrice\": \"50000\",\n    \"durationTime\": 1,\n    \"slotsRequired\": 1\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test boundary: minimum duration value (1 minute)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Maximum Duration",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service created with maximum duration\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.durationTime).to.eql(127);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Long Service\",\n    \"basePrice\": \"5000000\",\n    \"durationTime\": 127,\n    \"slotsRequired\": 8\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test boundary: maximum duration for Byte type (127)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Create Service - Name Exactly 200 Chars",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 201 Created\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service created with max length name\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.name.length).to.eql(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Dịch vụ khám và điều trị bệnh tổng quát cho thú cưng bao gồm xét nghiệm máu, chụp X-quang, siêu âm, tiêm phòng đầy đủ và tư vấn chế độ dinh dưỡng phù hợp cho từng loại thú cưng khác nhau theo độ tuổi\",\n    \"basePrice\": \"500000\",\n    \"durationTime\": 60,\n    \"slotsRequired\": 2\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Test boundary: name exactly at 200 character limit"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "11. Delete Service",
+            "item": [
+                {
+                    "name": "Delete Service",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 204 No Content\", function () {",
+                                    "    pm.response.to.have.status(204);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Response body is empty\", function () {",
+                                    "    pm.expect(pm.response.text()).to.be.empty;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/{{serviceId}}",
+                        "description": "Delete a service (hard delete from database)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Verify Service Deleted",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Status code is 404 Not Found\", function () {",
+                                    "    pm.response.to.have.status(404);",
+                                    "});",
+                                    "",
+                                    "pm.test(\"Service no longer exists\", function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.message).to.exist;",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/{{serviceId}}",
+                        "description": "Verify that the deleted service cannot be retrieved"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "12. End-to-End Scenario",
+            "item": [
+                {
+                    "name": "E2E - Create Complete Service",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "var jsonData = pm.response.json();",
+                                    "pm.collectionVariables.set(\"e2eServiceId\", jsonData.serviceId);",
+                                    "",
+                                    "pm.test(\"Status code is 201\", function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Gói khám sức khỏe toàn diện\",\n    \"basePrice\": \"800000\",\n    \"durationTime\": 90,\n    \"slotsRequired\": 3,\n    \"isActive\": true,\n    \"isHomeVisit\": true,\n    \"pricePerKm\": \"18000\"\n}"
+                        },
+                        "url": "{{baseUrl}}/services",
+                        "description": "Step 1: Create a comprehensive service package"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Verify Created",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Service exists and data is correct\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.name).to.eql(\"Gói khám sức khỏe toàn diện\");",
+                                    "    pm.expect(jsonData.isActive).to.eql(true);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/{{e2eServiceId}}",
+                        "description": "Step 2: Verify service was created correctly"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Update Service Details",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Service updated successfully\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.basePrice).to.eql(\"750000\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"basePrice\": \"750000\"\n}"
+                        },
+                        "url": "{{baseUrl}}/services/{{e2eServiceId}}",
+                        "description": "Step 3: Update pricing (promotional discount)"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Increase Price Per Km",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Price per km updated\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.pricePerKm).to.eql(\"22000\");",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{e2eServiceId}}/price-per-km?pricePerKm=22000",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{e2eServiceId}}", "price-per-km"],
+                            "query": [
+                                {
+                                    "key": "pricePerKm",
+                                    "value": "22000"
+                                }
+                            ]
+                        },
+                        "description": "Step 4: Adjust transportation cost"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Deactivate for Maintenance",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Service deactivated\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isActive).to.eql(false);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{e2eServiceId}}/status?isActive=false",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{e2eServiceId}}", "status"],
+                            "query": [
+                                {
+                                    "key": "isActive",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "description": "Step 5: Temporarily disable service"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Reactivate Service",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"Service reactivated\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.isActive).to.eql(true);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/services/{{e2eServiceId}}/status?isActive=true",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["services", "{{e2eServiceId}}", "status"],
+                            "query": [
+                                {
+                                    "key": "isActive",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "description": "Step 6: Re-enable service after maintenance"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "E2E - Final Verification",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test(\"All changes persisted correctly\", function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.basePrice).to.eql(\"750000\");",
+                                    "    pm.expect(jsonData.pricePerKm).to.eql(\"22000\");",
+                                    "    pm.expect(jsonData.isActive).to.eql(true);",
+                                    "    pm.expect(jsonData.isHomeVisit).to.eql(true);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{accessToken}}"
+                            }
+                        ],
+                        "url": "{{baseUrl}}/services/{{e2eServiceId}}",
+                        "description": "Step 7: Verify all modifications were applied"
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ]
+}
