@@ -11,6 +11,7 @@ class Environment {
   // static const String _devBaseUrl = 'http://10.0.2.2:8080/api'; // Cho Emulator
   static const String _devBaseUrl = 'http://10.0.2.2:8080/api';
   static const String _stagingBaseUrl = 'https://api-test.petties.world/api';
+  static const String _stagingAiServiceUrl = 'https://api-test.petties.world/ai';
   static const String _prodBaseUrl = 'https://api.petties.world/api';
 
   static const String _defaultDevUrl = 'http://10.0.2.2:8080/api';
