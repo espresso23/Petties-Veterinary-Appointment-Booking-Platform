@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
 import { AvatarUpload } from '../../components/profile/AvatarUpload'
 import { ChangePasswordModal } from '../../components/profile/ChangePasswordModal'
+import { EmailChangeModal } from '../../components/profile/EmailChangeModal'
 import {
   UserIcon,
   EnvelopeIcon,
@@ -14,7 +15,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Roles that can edit their profile on web
-const EDITABLE_ROLES = ['VET']
+const EDITABLE_ROLES = ['VET', 'CLINIC_OWNER', 'CLINIC_MANAGER']
 
 export function ProfilePage() {
   const { user } = useAuthStore()
@@ -33,6 +34,7 @@ export function ProfilePage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
+  const [isEmailChangeModalOpen, setIsEmailChangeModalOpen] = useState(false)
   const [editForm, setEditForm] = useState({
     fullName: '',
     phone: '',
@@ -184,7 +186,7 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              {/* Email - Read Only */}
+              {/* Email - With Change Button */}
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 bg-stone-100 border-2 border-stone-900 flex items-center justify-center flex-shrink-0">
                   <EnvelopeIcon className="w-5 h-5 text-stone-700" />
@@ -193,9 +195,19 @@ export function ProfilePage() {
                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">
                     EMAIL
                   </label>
-                  <p className="text-lg font-semibold text-stone-900">
-                    {profile?.email || '--'}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-lg font-semibold text-stone-900">
+                      {profile?.email || '--'}
+                    </p>
+                    {canEdit && (
+                      <button
+                        onClick={() => setIsEmailChangeModalOpen(true)}
+                        className="px-3 py-1 bg-amber-500 border-2 border-stone-900 font-bold text-stone-900 uppercase text-xs hover:bg-amber-400 transition-colors shadow-[2px_2px_0_#000] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none"
+                      >
+                        ĐỔI EMAIL
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -322,6 +334,18 @@ export function ProfilePage() {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
         onSubmit={changeUserPassword}
+        isLoading={isLoading}
+      />
+
+      {/* Email Change Modal */}
+      <EmailChangeModal
+        isOpen={isEmailChangeModalOpen}
+        onClose={() => setIsEmailChangeModalOpen(false)}
+        onSuccess={() => {
+          setIsEmailChangeModalOpen(false)
+          fetchProfile()
+          showToast('success', 'Đổi email thành công')
+        }}
         isLoading={isLoading}
       />
     </div>

@@ -1,7 +1,7 @@
 # PETTIES - Testing Strategy Document
 
-**Version:** 1.0  
-**Last Updated:** 2025-12-17  
+**Version:** 3.0
+**Last Updated:** 2025-12-20
 **Project:** Petties - Veterinary Appointment Booking Platform
 
 ---
@@ -14,40 +14,108 @@ This document outlines the testing strategy for the Petties project, covering al
 
 ## 2. Testing Levels
 
-### 2.1 Unit Testing (API Testing)
+Dự án Petties áp dụng **testing pyramid** với focus vào Unit Tests và System Testing:
 
-**Objective:** Verify individual API endpoints function correctly in isolation.
+```mermaid
+flowchart TB
+    subgraph "Backend Testing Pyramid"
+        E2E[E2E Tests<br/>Manual/Postman<br/>FEW, SLOW]
+        Controller[Controller Unit Tests<br/>MockMvc + @WebMvcTest<br/>MANY, FAST]
+        Service[Service Unit Tests<br/>Mockito only<br/>MANY, FAST]
+    end
 
-**Scope:**
-- REST API endpoints (Controllers)
-- Request validation
-- Response format and status codes
-- Error handling
+    E2E --> Controller
+    E2E --> Service
+
+    style E2E fill:#ffcccc
+    style Controller fill:#ccffcc
+    style Service fill:#ccffcc
+```
+
+### 2.1 Controller Unit Tests (with MockMvc)
+
+**Objective:** Verify controller endpoints hoạt động đúng với HTTP layer (request mapping, validation, status codes).
+
+**Approach:**
+- Dùng `@WebMvcTest` để load web layer (nhưng VẪN LÀ UNIT TEST)
+- Mock all services với `@MockBean`
+- Test HTTP requests/responses với `MockMvc`
+- KHÔNG connect database, KHÔNG connect internet
+- Isolated, fast, repeatable
+
+**What to Test:**
+- HTTP status codes (200, 400, 401, 404, 500)
+- Request validation (`@Valid`, `@NotBlank`, `@Size`)
+- JSON serialization/deserialization
+- URL path mapping (`@GetMapping`, `@PostMapping`)
+- Exception handling (GlobalExceptionHandler)
+- Response structure
 
 **Tools:**
 
 | Tool | Purpose |
 |------|---------|
-| JUnit 5 | Primary test framework |
-| MockMvc | Simulate HTTP requests |
-| Mockito | Mock service dependencies |
-| Spring Boot Test | Test context configuration |
+| JUnit 5 | Test framework |
+| MockMvc | Simulate HTTP requests (in-memory, no network) |
+| `@WebMvcTest` | Load web layer only (no DB, no full context) |
+| `@MockBean` | Mock service layer |
+| Jackson ObjectMapper | JSON parsing |
+| AssertJ | Assertions |
 
-**Test Naming Convention:**
+**Test Structure:**
 ```
-methodName_condition_expectedResult
+src/test/java/com/petties/petties/
+└── controller/
+    ├── AuthControllerUnitTest.java
+    ├── UserControllerUnitTest.java
+    ├── PetControllerUnitTest.java
+    └── BookingControllerUnitTest.java
+```
+
+**Naming Convention:**
+- Files: `*ControllerUnitTest.java`
+- Methods: `methodName_condition_expectedResult`
 
 Examples:
-- login_validCredentials_returnsToken
-- login_invalidPassword_returns401
-- createPet_missingName_returns400
+- `login_validCredentials_returns200`
+- `login_blankUsername_returns400`
+- `getProfile_authenticatedUser_returns200`
+
+**Example Pattern:**
+```java
+@WebMvcTest(UserController.class)
+@DisplayName("UserController Unit Tests")
+class UserControllerUnitTest {
+
+    @Autowired private MockMvc mockMvc;
+    @MockBean private UserService userService;
+    @Autowired private ObjectMapper objectMapper;
+
+    @Test
+    void getProfile_authenticatedUser_returns200() throws Exception {
+        when(userService.getUserById(any())).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/api/users/profile")
+                .header("Authorization", "Bearer token"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.username").exists());
+    }
+
+    @Test
+    void updateProfile_blankFullName_returns400() throws Exception {
+        UpdateProfileRequest request = new UpdateProfileRequest("", "0987654321");
+
+        mockMvc.perform(put("/api/users/profile")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
+    }
+}
 ```
 
-**Coverage Target:** 70% for critical API modules (Auth, Booking, Payment)
+**Coverage Target:** ≥ 80% for controller classes
 
 ---
-
-> **📝 Note:** Dự án Petties tập trung vào **Unit Testing (API Testing)** và **System Testing**. 
 
 ### 2.2 System Testing
 

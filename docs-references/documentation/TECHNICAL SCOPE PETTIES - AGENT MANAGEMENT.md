@@ -82,7 +82,7 @@ Module này thay thế việc quản lý cấu hình bằng file .env truyền t
 
 1.  **API Key Management (Quản lý Key):**
     *   Giao diện nhập liệu an toàn cho các dịch vụ bên thứ 3\.
-    *   Các key bao gồm: QDRANT\_API\_KEY, QDRANT\_URL, TAVILY\_API\_KEY (hoặc Search API khác), SLACK\_BOT\_TOKEN, v.v.
+    *   Các key bao gồm: QDRANT\_API\_KEY, QDRANT\_URL, TAVILY\_API\_KEY (hoặc Search API khác), v.v.
     *   **Cơ chế:** Key được mã hóa và lưu trong Database (PostgreSQL). Khi Backend khởi động hoặc Runtime cần dùng, nó sẽ fetch trực tiếp từ DB thay vì đọc biến môi trường OS.
 2.  **LLM API Configuration (Cloud-Only):**
     *   **Primary Provider:** OpenRouter API (https://openrouter.ai) - Gateway đến nhiều LLM providers.
@@ -215,12 +215,12 @@ Các tính năng này được thực hiện bởi các Sub-Agent chuyên trách
    * **Sản phẩm/Bài viết:** Phải cung cấp URL trực tiếp đến trang sản phẩm hoặc bài báo tham khảo.  
    * **Hình ảnh:** Cung cấp URL gốc của hình ảnh hoặc trang chứa hình ảnh đó.  
    * **Video:** Cung cấp URL trực tiếp (ví dụ: link YouTube) cho các video hướng dẫn hoặc review.  
-3. **Format (Định dạng hiển thị):** Câu trả lời của Agent phải tách bạch rõ ràng, ví dụ:💡 Giải pháp tìm được:  
-   Bạn có thể cho chó uống nước đường loãng để cấp cứu hạ đường huyết...**🔗 Nguồn tham khảo & Mua sắm:**  
+3. **Format (Định dạng hiển thị):** Câu trả lời của Agent phải tách bạch rõ ràng, ví dụ: **Giải pháp tìm được:**  
+   Bạn có thể cho chó uống nước đường loãng để cấp cứu hạ đường huyết...**Nguồn tham khảo & Mua sắm:**  
    * [Bài viết: Sơ cứu chó bị tụt đường huyết \- PetMart](https://example.com)  
    * \[liên kết đáng ngờ đã bị xóa\]
 
-   **📺 Video hướng dẫn:**
+   **Video hướng dẫn:**
 
    * \[liên kết đáng ngờ đã bị xóa\]
 
@@ -234,10 +234,12 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 * **Framework:** FastAPI (High-performance API framework).  
 * **Agent Orchestration:** LangGraph (Xây dựng luồng xử lý Agent có trạng thái \- Stateful Multi-Agent Orchestrator).  
 * **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline và Web Scraping/Indexing dữ liệu phi cấu trúc).  
-* **Tool Framework:** FastMCP
-  * Cơ chế: Sử dụng FastMCP để chạy Server Tools.
-  * Code-based Tools: Viết trực tiếp bằng Python (@mcp.tool).
-  * **Lưu ý:** Tất cả Tools được code thủ công. KHÔNG sử dụng Swagger auto-import (xem Section C - Tool Management).
+* **Tool Framework:** FastMCP (Embedded Mode)
+  * **Cơ chế:** FastMCP được nhúng trực tiếp vào AI Service (FastAPI) như một thư viện.
+  * **Architecture:** In-process Execution. Agent gọi trực tiếp hàm Python thông qua `call_mcp_tool`.
+  * **Deployment:** KHÔNG cần deploy MCP Server riêng biệt. `AI Agent Service` bao gồm cả Agent Logic và Tool Runtime.
+  * **Code-based Tools:** Viết trực tiếp bằng Python (@mcp.tool) trong folder `mcp_tools/`.
+  * **Lưu ý:** Tất cả Tools được code thủ công để đảm bảo semantic descriptions tốt nhất cho LLM. KHÔNG sử dụng Swagger auto-import.
 
 ### **B. Frontend (Admin Dashboard)**
 
@@ -293,16 +295,21 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 
 * **Domain Knowledge:** Veterinary Knowledge Graph (future enhancement)
 
-### **D. Infrastructure & Real-time (Cloud-Native)**
+### **D. Infrastructure & Real-time (AWS EC2 Production)**
 
-* **Relational Database:** PostgreSQL (Render/Supabase free tier)
+* **Relational Database:** PostgreSQL (Neon/Supabase managed service)
 * **AI Runtime:** Cloud APIs only (OpenRouter + Cohere + Qdrant Cloud)
   * **KHÔNG cần GPU/RAM local**
-  * Phù hợp Render/Railway free tier
-  * Zero infrastructure management
+  * Deploy lên AWS EC2 với Docker
+  * CI/CD tự động qua GitHub Actions
 * **Real-time:** WebSocket (Streaming response lên Frontend)
-* **Caching Layer:** Redis (Upstash free tier - 10K commands/day)
-* **Containerization:** Docker (optional, có thể deploy trực tiếp lên Render)
+* **Caching Layer:** Redis Cloud (Upstash)
+* **Containerization:** Docker + Docker Compose
+* **Reverse Proxy:** Nginx với SSL (Let's Encrypt)
+* **Deployment:**
+  * **Backend API:** `https://api.petties.world` (Port 8080)
+  * **AI Service:** `https://ai.petties.world` (Port 8000)
+  * **Frontend:** Vercel at `https://petties.world`
 
 ## **9\. Detailed Feature List (Danh sách Tính năng Chi tiết)**
 
@@ -400,7 +407,7 @@ Mô tả các tình huống thực tế gắn liền với công nghệ sử d�
 ### **UC-04: Cấu hình Hệ thống Cloud APIs (Dynamic System Config)**
 
 * **Actor:** Admin (DevOps hoặc Lead Dev).
-* **Context:** Hệ thống vừa deploy lên Render free tier. Cần kết nối tới các Cloud APIs mà không cần SSH sửa file .env.
+* **Context:** Hệ thống đã deploy lên AWS EC2 với Docker. Cần cấu hình Cloud APIs qua Dashboard thay vì SSH sửa file .env.
 * **Process:**
   1. Admin truy cập Dashboard, vào mục **"System Settings"**.
   2. Tại tab **"API Keys"**, Admin nhập:
@@ -416,6 +423,7 @@ Mô tả các tình huống thực tế gắn liền với công nghệ sử d�
   5. Admin nhấn **"Save & Reload Context"**.
   6. Backend cập nhật DB (mã hóa API keys), refresh LangGraph Runtime ngay lập tức.
 * **Lợi ích:**
-  * Zero infrastructure (không cần GPU/Ollama server)
-  * Deploy đơn giản trên Render/Railway free tier
+  * Cloud-native AI stack (không cần GPU/Ollama server local)
+  * Deploy production-ready trên AWS EC2
+  * CI/CD tự động qua GitHub Actions
   * Thay đổi config không cần restart server

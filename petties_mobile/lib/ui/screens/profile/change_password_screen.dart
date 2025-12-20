@@ -70,7 +70,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withOpacity(0.1),
+                  color: AppColors.success.withValues(alpha: 0.1),
                   border: Border.all(color: AppColors.stone900, width: 3),
                 ),
                 child: const Icon(
@@ -111,7 +111,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     color: AppColors.primary,
                     border: Border.all(color: AppColors.stone900, width: 3),
                     boxShadow: const [
-                      BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+                      BoxShadow(
+                          color: AppColors.stone900, offset: Offset(4, 4)),
                     ],
                   ),
                   child: const Text(
@@ -380,7 +381,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           suffixIcon: IconButton(
             icon: Icon(
-              obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              obscureText
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
               color: AppColors.stone500,
             ),
             onPressed: onToggleVisibility,
@@ -469,7 +472,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               border: Border.all(color: AppColors.stone900, width: 3),
               boxShadow: isLoading
                   ? null
-                  : const [BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))],
+                  : const [
+                      BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))
+                    ],
             ),
             child: isLoading
                 ? const Center(

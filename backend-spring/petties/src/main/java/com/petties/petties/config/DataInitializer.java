@@ -34,41 +34,41 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        initializeAdminUser();
+        log.info("🚀 Starting data initialization...");
+
+        // Initialize users for all roles for testing
+        initializeUser("admin", "admin", "admin@petties.world", "System Admin", Role.ADMIN);
+        initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+        initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User", Role.CLINIC_OWNER);
+        initializeUser("clinicManager", "clinicmanager", "manager@clinic.com", "Clinic Manager User",
+                Role.CLINIC_MANAGER);
+        initializeUser("vet", "vet123", "vet@clinic.com", "Dr. Vet User", Role.VET);
+
+        log.info("✅ Data initialization completed!");
     }
 
     /**
-     * Khởi tạo admin user mặc định
-     * Chỉ tạo nếu chưa có admin user trong database
+     * Helper method to initialize a user if they don't exist
      */
-    private void initializeAdminUser() {
-        final String adminUsername = "admin";
-
-        // Kiểm tra xem đã có admin user chưa
-        if (userRepository.existsByUsername(adminUsername)) {
-            log.info("✅ Admin user '{}' already exists. Skipping initialization.", adminUsername);
+    private void initializeUser(String username, String password, String email, String fullName, Role role) {
+        if (userRepository.existsByUsername(username)) {
+            log.info("   - User '{}' ({}) already exists.", username, role);
             return;
         }
 
-        // Tạo admin user mới
-        User admin = new User();
-        admin.setUsername(adminUsername);
-        admin.setPassword(passwordEncoder.encode("admin"));
-        admin.setEmail("admin@petties.world");
-        admin.setPhone("0000000000");
-        admin.setFullName("Thuong em la dieu anh khong the ngo");
-        admin.setRole(Role.ADMIN);
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setEmail(email);
+        user.setPhone("0" + (long) (Math.random() * 1000000000L)); // Random valid-looking phone
+        user.setFullName(fullName);
+        user.setRole(role);
 
         try {
-            User savedAdmin = userRepository.save(admin);
-            log.info("✅ Default admin user created successfully!");
-            log.info("   Username: {}", adminUsername);
-            log.info("   Password: admin (⚠️ Please change after first login!)");
-            log.info("   Email: admin@petties.world");
-            log.info("   User ID: {}", savedAdmin.getUserId());
-            log.warn("⚠️  IMPORTANT: Please change the default password after first login!");
+            userRepository.save(user);
+            log.info("   + Created {} user: {} / {}", role, username, password);
         } catch (Exception e) {
-            log.error("❌ Failed to create default admin user: {}", e.getMessage(), e);
+            log.error("   x Failed to create user {}: {}", username, e.getMessage());
         }
     }
 }

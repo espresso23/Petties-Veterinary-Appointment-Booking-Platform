@@ -22,14 +22,19 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisConfig {
 
-    @Bean
-    public ObjectMapper redisObjectMapper() {
+    /**
+     * Internal method to create a specialized ObjectMapper for Redis.
+     * This mapper uses polymorphic type handling to store class information,
+     * allowing for seamless deserialization of different object types.
+     */
+    private ObjectMapper createRedisObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
         // Register JavaTimeModule for LocalDateTime support
         objectMapper.registerModule(new JavaTimeModule());
         // Disable writing dates as timestamps (ISO-8601 instead)
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        // Enable polymorphic type handling
+        // Enable polymorphic type handling for Redis only
+        // This adds @class metadata to JSON in Redis
         objectMapper.activateDefaultTyping(
                 LaissezFaireSubTypeValidator.instance,
                 ObjectMapper.DefaultTyping.NON_FINAL,
@@ -38,16 +43,14 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(
-            RedisConnectionFactory connectionFactory,
-            ObjectMapper redisObjectMapper) {
-
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // Create Jackson2JsonRedisSerializer with custom ObjectMapper
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(redisObjectMapper,
-                Object.class);
+        // Use a dedicated ObjectMapper for Redis to avoid interfering with global Web
+        // MVC settings
+        ObjectMapper redisMapper = createRedisObjectMapper();
+        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(redisMapper, Object.class);
 
         // Use String serializer for keys
         template.setKeySerializer(new StringRedisSerializer());

@@ -9,6 +9,10 @@
 # Start all (PostgreSQL, MongoDB, Backend, AI Service)
 docker-compose -f docker-compose.dev.yml up --build -d
 
+docker-compose -f docker-compose.dev.yml up backend --build -d
+
+docker-compose -f docker-compose.dev.yml up ai-service --build -d
+
 # View logs
 docker-compose -f docker-compose.dev.yml logs -f
 
@@ -69,7 +73,7 @@ flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://1
 |------|---------|----------|
 | `application.properties` | Base | Config chung |
 | `application-dev.properties` | dev | Local Docker DBs |
-| `application-staging.properties` | staging | Staging (Redis DB 1) |
+| `application-test.properties` | test | Test Env cho System Test) |
 | `application-prod.properties` | prod | Cloud DBs (Neon, Atlas) |
 
 **Cách switch profile:**

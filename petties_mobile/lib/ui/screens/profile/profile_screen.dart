@@ -53,7 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 border: Border.all(color: AppColors.stone900, width: 3),
               ),
               child: const Icon(
@@ -229,7 +229,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             InkWell(
               onTap: () => userProvider.fetchProfile(),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   border: Border.all(color: AppColors.stone900, width: 3),
@@ -393,7 +394,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15),
+              color: AppColors.primary.withValues(alpha: 0.15),
               border: Border.all(color: AppColors.stone900, width: 2),
             ),
             child: Text(
