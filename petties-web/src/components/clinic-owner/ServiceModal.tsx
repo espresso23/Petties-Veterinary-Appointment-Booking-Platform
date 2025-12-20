@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X, Loader2, Plus, Trash2, Edit2, Info } from 'lucide-react'
+import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle } from 'lucide-react'
 import type { Service } from './ServiceCard'
 import type { WeightPriceDto } from '../../types/service'
 
@@ -177,21 +177,35 @@ export function ServiceModal({
             >
               Thời gian (Phút)
             </label>
-            <input
-              type="number"
+            <select
               required
-              min="1"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-              placeholder="Ví dụ: 45"
               style={{
                 fontWeight: '700',
                 fontSize: '16px',
                 color: '#000000',
                 backgroundColor: '#ffffff'
               }}
-            />
+            >
+              <option value="">-- Chọn thời gian --</option>
+              <option value="15">15 phút (1 slot)</option>
+              <option value="30">30 phút (1 slot)</option>
+              <option value="45">45 phút (2 slots)</option>
+              <option value="60">60 phút (2 slots)</option>
+            </select>
+            <div className="flex items-start gap-2 p-3 bg-yellow-50 border-2 border-yellow-500">
+              <AlertCircle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-bold text-yellow-800 mb-1">LƯU Ý QUAN TRỌNG:</p>
+                <ul className="text-yellow-700 space-y-1 list-disc list-inside">
+                  <li>30 phút = 1 slot thời gian</li>
+                  <li>15 phút được tính là 1 slot</li>
+                  <li>45-60 phút được tính là 2 slots</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
