@@ -34,11 +34,15 @@ function mapResponseToService(response: ServiceResponse): Service {
 }
 
 function mapServiceToRequest(service: Partial<Service>): ServiceRequest {
+  // Calculate slots based on duration: 30 minutes = 1 slot
+  const duration = service.duration || 30
+  const calculatedSlots = Math.ceil(duration / 30)
+  
   return {
     name: service.name || '',
     basePrice: service.price?.toString() || '0',
-    durationTime: service.duration || 30,
-    slotsRequired: 1, // Default value
+    durationTime: duration,
+    slotsRequired: calculatedSlots,
     isActive: service.isActive ?? true,
     isHomeVisit: service.isHomeVisit ?? false,
     pricePerKm: service.isHomeVisit ? '0' : undefined,
