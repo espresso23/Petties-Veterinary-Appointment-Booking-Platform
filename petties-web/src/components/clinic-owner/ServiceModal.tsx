@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle } from 'lucide-react'
+import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle, Minus } from 'lucide-react'
 import type { Service } from './ServiceCard'
 import type { WeightPriceDto } from '../../types/service'
 
@@ -177,32 +177,61 @@ export function ServiceModal({
             >
               Thời gian (Phút)
             </label>
-            <select
-              required
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-              style={{
-                fontWeight: '700',
-                fontSize: '16px',
-                color: '#000000',
-                backgroundColor: '#ffffff'
-              }}
-            >
-              <option value="">-- Chọn thời gian --</option>
-              <option value="15">15 phút (1 slot)</option>
-              <option value="30">30 phút (1 slot)</option>
-              <option value="45">45 phút (2 slots)</option>
-              <option value="60">60 phút (2 slots)</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                required
+                readOnly
+                value={duration}
+                className="flex-1 p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow cursor-not-allowed bg-gray-50"
+                placeholder="15"
+                style={{
+                  fontWeight: '700',
+                  fontSize: '16px',
+                  color: '#000000'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const currentValue = parseInt(duration) || 0;
+                  if (currentValue >= 15) {
+                    setDuration(String(currentValue - 15));
+                  }
+                }}
+                className="p-3 bg-red-500 text-white border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!duration || parseInt(duration) <= 15}
+                style={{ fontWeight: '900' }}
+              >
+                <Minus size={24} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentValue = parseInt(duration) || 0;
+                  setDuration(String(currentValue + 15));
+                }}
+                className="p-3 bg-green-500 text-white border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                style={{ fontWeight: '900' }}
+              >
+                <Plus size={24} />
+              </button>
+            </div>
+            {duration && parseInt(duration) > 0 && (
+              <div className="text-sm font-bold text-gray-700">
+                📊 Số slots: {Math.ceil(parseInt(duration) / 30)} slot(s)
+              </div>
+            )}
             <div className="flex items-start gap-2 p-3 bg-yellow-50 border-2 border-yellow-500">
               <AlertCircle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-bold text-yellow-800 mb-1">LƯU Ý QUAN TRỌNG:</p>
                 <ul className="text-yellow-700 space-y-1 list-disc list-inside">
+                  <li>Chỉ nhập bội số của 15 (15, 30, 45, 60, 75, 90...)</li>
                   <li>30 phút = 1 slot thời gian</li>
                   <li>15 phút được tính là 1 slot</li>
                   <li>45-60 phút được tính là 2 slots</li>
+                  <li>75-90 phút được tính là 3 slots</li>
                 </ul>
               </div>
             </div>
