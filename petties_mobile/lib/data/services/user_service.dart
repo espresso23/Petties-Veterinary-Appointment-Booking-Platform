@@ -90,4 +90,59 @@ class UserService {
       rethrow;
     }
   }
+
+  /// Request email change
+  /// POST /api/users/profile/email/request-change
+  Future<Map<String, String>> requestEmailChange(String newEmail) async {
+    try {
+      final response = await _apiClient.post(
+        '/users/profile/email/request-change',
+        data: {'newEmail': newEmail},
+      );
+      return Map<String, String>.from(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Verify email change OTP
+  /// POST /api/users/profile/email/verify-change
+  Future<UserProfile> verifyEmailChange(String newEmail, String otp) async {
+    try {
+      final response = await _apiClient.post(
+        '/users/profile/email/verify-change',
+        data: {
+          'newEmail': newEmail,
+          'otp': otp,
+        },
+      );
+      return UserProfile.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Resend email change OTP
+  /// POST /api/users/profile/email/resend-otp
+  Future<Map<String, String>> resendEmailChangeOtp() async {
+    try {
+      final response = await _apiClient.post(
+        '/users/profile/email/resend-otp',
+      );
+      return Map<String, String>.from(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Cancel email change request
+  /// DELETE /api/users/profile/email/cancel-change
+  /// Xóa OTP record trong Redis để user có thể nhập email mới không cần đợi cooldown
+  Future<void> cancelEmailChange() async {
+    try {
+      await _apiClient.delete('/users/profile/email/cancel-change');
+    } catch (e) {
+      // Ignore errors - if no record exists, that's fine
+    }
+  }
 }

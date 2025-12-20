@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../providers/user_provider.dart';
 import '../../widgets/profile/avatar_picker.dart';
+import '../../widgets/profile/email_inline_edit.dart';
 
 /// Edit Profile Screen
 /// Allows editing fullName, phone, and avatar
@@ -139,7 +140,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
+                color: AppColors.warning.withValues(alpha: 0.1),
                 border: Border.all(color: AppColors.stone900, width: 3),
               ),
               child: const Icon(
@@ -372,23 +373,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Email field (read-only)
-            _buildFieldLabel('EMAIL'),
-            const SizedBox(height: 8),
-            _buildTextField(
-              controller: TextEditingController(text: userProvider.profile?.email ?? ''),
-              hint: '',
-              icon: Icons.email_outlined,
-              enabled: false,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Email không thể thay đổi',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.stone500,
-                fontStyle: FontStyle.italic,
-              ),
+            // Email field
+            EmailInlineEdit(
+              currentEmail: userProvider.profile?.email,
+              isFormStyle: true,
             ),
             const SizedBox(height: 20),
 
@@ -396,7 +384,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _buildFieldLabel('TÊN ĐANG NHẬP'),
             const SizedBox(height: 8),
             _buildTextField(
-              controller: TextEditingController(text: userProvider.profile?.username ?? ''),
+              controller: TextEditingController(
+                  text: userProvider.profile?.username ?? ''),
               hint: '',
               icon: Icons.account_circle_outlined,
               enabled: false,
@@ -499,7 +488,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               : AppColors.stone300,
           border: Border.all(color: AppColors.stone900, width: 3),
           boxShadow: (_hasChanges && !isUpdating)
-              ? const [BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))]
+              ? const [
+                  BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))
+                ]
               : null,
         ),
         child: isUpdating

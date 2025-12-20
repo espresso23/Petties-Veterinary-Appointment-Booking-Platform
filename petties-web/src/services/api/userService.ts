@@ -24,6 +24,15 @@ export interface ChangePasswordRequest {
   confirmPassword: string
 }
 
+export interface EmailChangeRequest {
+  newEmail: string
+}
+
+export interface EmailChangeVerifyRequest {
+  newEmail: string
+  otp: string
+}
+
 export interface AvatarResponse {
   avatarUrl: string | null
   publicId: string | null
@@ -76,5 +85,26 @@ export const deleteAvatar = async (): Promise<AvatarResponse> => {
  */
 export const changePassword = async (data: ChangePasswordRequest): Promise<{ message: string }> => {
   const response = await apiClient.put<{ message: string }>('/users/profile/password', data)
+  return response.data
+}
+
+/**
+ * Request email change - send OTP
+ */
+export const requestEmailChange = async (newEmail: string): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/users/profile/email/request-change', {
+    newEmail
+  })
+  return response.data
+}
+
+/**
+ * Verify email change with OTP
+ */
+export const verifyEmailChange = async (newEmail: string, otp: string): Promise<UserProfile> => {
+  const response = await apiClient.post<UserProfile>('/users/profile/email/verify-change', {
+    newEmail,
+    otp
+  })
   return response.data
 }

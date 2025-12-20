@@ -77,14 +77,14 @@ flowchart TB
     SYSTEM -->|"Pet Profile (EMR + Vaccination, READ-ONLY cross-clinic)"| VET
     
     %% Clinic Manager flows
-    CM -->|"Login, Add/Remove Vet"| SYSTEM
+    CM -->|"Add/Remove Vet"| SYSTEM
     CM -->|"Create Vet Schedule, Import Excel"| SYSTEM
-    CM -->|"Assign Vet to Booking, Report Pet Owner"| SYSTEM
-    SYSTEM -->|"Vet List, Booking List"| CM
+    CM -->|"Assign Vet to Booking"| SYSTEM
+    SYSTEM -->|"Vet List, Booking List/Pending Bookings"| CM
     SYSTEM -->|"Schedule Overview"| CM
     
     %% Clinic Owner flows
-    CO -->|"Register Clinic, Update Profile"| SYSTEM
+    CO -->|"Register Clinic"| SYSTEM
     CO -->|"Create/Update Services, Pricing"| SYSTEM
     CO -->|"Add Clinic Manager"| SYSTEM
     SYSTEM -->|"Clinic Status, Revenue Report"| CO
@@ -559,7 +559,7 @@ erDiagram
 
 | Rule ID | Rule Description |
 |---------|-----------------|
-| BR-003-01 | Email là unique, không được thay đổi sau khi đăng ký |
+| BR-003-01 | Email là unique, có thể thay đổi thông qua quy trình xác thực OTP (gửi về email mới) |
 | BR-003-02 | Password tối thiểu 8 ký tự, có chữ và số |
 | BR-003-03 | OTP có hiệu lực 5 phút, tối đa 5 lần thử |
 | BR-003-04 | Vet account được tạo bởi Clinic Manager, không tự đăng ký |

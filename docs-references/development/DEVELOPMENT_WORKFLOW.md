@@ -99,9 +99,10 @@ flutter run
 
 | Workflow | Trigger | Purpose |
 |----------|---------|--------|
-| `ci.yml` | PR → develop/main | Build + Test (gate before merge) |
-| `deploy-test.yml` | Push develop | Auto deploy to Test Environment |
-| `deploy-ec2.yml` | Push main | Auto deploy to Production |
+| `ci.yml` | PR → develop, main | Build + Lint + Test (Frontend, Backend, AI Service) |
+| `deploy-test.yml` | Push → develop | Auto Deploy to EC2 Test Environment |
+| `deploy-ec2.yml` | Push → main | Auto Deploy to EC2 Production |
+| `mobile-ci-cd.yml` | Manual Dispatch | Build & Deploy Mobile App (Android/iOS) to Firebase/TestFlight |
 
 ### Quy trình làm việc
 
