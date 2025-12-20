@@ -290,6 +290,25 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
 
 ---
 
+## 12. HF-012: Đổi Email (Change Email)
+
+**Actor:** Pet Owner, Vet, Clinic Owner, Clinic Manager
+
+```
+1. Profile Page → Click icon "Edit" cạnh Email
+2. Modal hiện ra: "Đổi Email"
+3. Nhập email mới
+4. Click "Gửi mã OTP"
+5. Hệ thống gửi Email chứa OTP (6 số) đến email MỚI
+6. User check mail → Lấy OTP (hiệu lực 5 phút)
+7. Nhập OTP vào form confirm
+8. Click "Xác nhận"
+9. Nếu OTP đúng → Email user được cập nhật
+10. Hệ thống hiển thị Toast "Cập nhật email thành công"
+```
+
+---
+
 **Document Status:** MVP Ready  
-**Last Updated:** 2025-12-17
+**Last Updated:** 2025-12-20
 

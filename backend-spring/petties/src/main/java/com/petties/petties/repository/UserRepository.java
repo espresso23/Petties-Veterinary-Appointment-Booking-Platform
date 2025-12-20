@@ -9,17 +9,26 @@ import java.util.UUID;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
-    
-    Optional<User> findByUsername(String username);
-    
-    Optional<User> findByEmail(String email);
-    
-    boolean existsByUsername(String username);
-    
-    boolean existsByEmail(String email);
-    
-    Optional<User> findByUsernameAndDeletedAtIsNull(String username);
-    
-    Optional<User> findByEmailAndDeletedAtIsNull(String email);
-}
 
+    Optional<User> findByUsername(String username);
+
+    Optional<User> findByEmail(String email);
+
+    boolean existsByUsername(String username);
+
+    boolean existsByEmail(String email);
+
+    Optional<User> findByUsernameAndDeletedAtIsNull(String username);
+
+    Optional<User> findByEmailAndDeletedAtIsNull(String email);
+
+    /**
+     * Kiem tra email da ton tai va thuoc ve user khac (khong phai userId hien tai).
+     * Dung cho chuc nang thay doi email.
+     *
+     * @param email   Email can kiem tra
+     * @param userId  UUID cua user hien tai (se duoc loai tru khoi ket qua)
+     * @return true neu email da duoc su dung boi user khac
+     */
+    boolean existsByEmailAndUserIdNot(String email, UUID userId);
+}
