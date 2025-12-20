@@ -24,8 +24,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
-**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), Ollama (hybrid local for dev/cloud for prod), LlamaIndex for RAG
-
+**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG and use Hybrid Qdrant Retrive.
 ## Development Commands
 
 ### Quick Start (Databases only, services local)
@@ -108,7 +107,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 ### AI Service (FastAPI)
 - Multi-agent: LangGraph with supervisor pattern
 - Config: DB-based dynamic configuration (agents, prompts, tools)
-- Tools: Code-based only (scanned from `app/core/tools/`)
+- Tools: Code-based only (scanned from `app/core/tools/`),use FastMCP host internal and use @mcp.tool
 - LLM: Ollama hybrid (local `http://localhost:11434` or cloud with `OLLAMA_API_KEY`)
 
 ### Mobile (Flutter)
