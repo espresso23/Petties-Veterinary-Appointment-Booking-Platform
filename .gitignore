@@ -8,6 +8,8 @@
 .env
 .env.*
 *.env
+.env.example
+.env.production
 petties-key.pem
 devpetties.pem
 *.txt
