@@ -1,5 +1,6 @@
 package com.petties.petties.service;
 
+import com.petties.petties.dto.otp.EmailChangeOtpData;
 import com.petties.petties.dto.otp.PasswordResetOtpData;
 import com.petties.petties.dto.otp.PendingRegistrationData;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service for storing OTP data in Redis with automatic TTL expiration.
@@ -17,6 +19,7 @@ import java.util.Optional;
  * Key patterns:
  * - Password Reset: "otp:password_reset:{email}"
  * - Registration: "otp:registration:{email}"
+ * - Email Change: "otp:email_change:{userId}"
  *
  * TTL: 5 minutes (auto-deleted by Redis)
  */
@@ -27,11 +30,10 @@ public class OtpRedisService {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
-    private static final String PASSWORD_RESET_PREFIX = "otp:password_reset:";
-    private static final String REGISTRATION_PREFIX = "otp:registration:";
-    private static final Duration OTP_TTL = Duration.ofMinutes(5);
-    private static final Duration COOLDOWN_TTL = Duration.ofSeconds(60);
-
+    private static final String PASSWORD_RESET_PREFIX = "otp:password_reset:"; // key = otp:password_reset:email
+    private static final String REGISTRATION_PREFIX = "otp:registration:"; // key = otp:registration:email
+    private static final String EMAIL_CHANGE_PREFIX = "otp:email_change:"; // key = otp:email_change:userId
+    private static final Duration OTP_TTL = Duration.ofMinutes(5); // 5 minutes
     // ============================================
     // PASSWORD RESET OTP
     // ============================================
@@ -49,7 +51,7 @@ public class OtpRedisService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        redisTemplate.opsForValue().set(key, data, OTP_TTL);
+        redisTemplate.opsForValue().set(key, data, OTP_TTL); // save to redis
         log.info("Password reset OTP saved to Redis for email={}", email);
     }
 
@@ -70,7 +72,7 @@ public class OtpRedisService {
      * Increment attempts for password reset OTP
      */
     public void incrementPasswordResetAttempts(String email) {
-        String key = PASSWORD_RESET_PREFIX + email.toLowerCase();
+        String key = PASSWORD_RESET_PREFIX + email.toLowerCase(); // key = otp:password_reset:email
         Optional<PasswordResetOtpData> optData = getPasswordResetOtp(email);
 
         if (optData.isPresent()) {
@@ -205,7 +207,8 @@ public class OtpRedisService {
      */
     public boolean isUsernamePendingRegistration(String username) {
         var keys = redisTemplate.keys(REGISTRATION_PREFIX + "*");
-        if (keys == null) return false;
+        if (keys == null)
+            return false;
 
         for (String key : keys) {
             Object data = redisTemplate.opsForValue().get(key);
@@ -217,5 +220,109 @@ public class OtpRedisService {
             }
         }
         return false;
+    }
+
+    // ============================================
+    // EMAIL CHANGE OTP
+    // ============================================
+
+    /**
+     * Save email change OTP data to Redis
+     * 
+     * @param userId   UUID of user requesting email change
+     * @param newEmail The new email to change to
+     * @param otpCode  The OTP code
+     */
+    public void saveEmailChangeOtp(UUID userId, String newEmail, String otpCode) {
+        String key = EMAIL_CHANGE_PREFIX + userId.toString();
+
+        EmailChangeOtpData data = EmailChangeOtpData.builder()
+                .userId(userId)
+                .newEmail(newEmail.toLowerCase())
+                .otpCode(otpCode)
+                .attempts(0)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        redisTemplate.opsForValue().set(key, data, OTP_TTL);
+        log.info("Email change OTP saved to Redis for userId={}", userId);
+    }
+
+    /**
+     * Get email change OTP data from Redis
+     * 
+     * @param userId UUID of user
+     * @return Optional containing EmailChangeOtpData if exists
+     */
+    public Optional<EmailChangeOtpData> getEmailChangeOtp(UUID userId) {
+        String key = EMAIL_CHANGE_PREFIX + userId.toString();
+        Object data = redisTemplate.opsForValue().get(key);
+
+        if (data instanceof EmailChangeOtpData) {
+            return Optional.of((EmailChangeOtpData) data);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Delete email change OTP from Redis
+     * 
+     * @param userId UUID of user
+     */
+    public void deleteEmailChangeOtp(UUID userId) {
+        String key = EMAIL_CHANGE_PREFIX + userId.toString();
+        redisTemplate.delete(key);
+        log.info("Email change OTP deleted from Redis for userId={}", userId);
+    }
+
+    /**
+     * Increment attempts for email change OTP
+     * 
+     * @param userId UUID of user
+     */
+    public void incrementEmailChangeAttempts(UUID userId) {
+        String key = EMAIL_CHANGE_PREFIX + userId.toString();
+        Optional<EmailChangeOtpData> optData = getEmailChangeOtp(userId);
+
+        if (optData.isPresent()) {
+            EmailChangeOtpData data = optData.get();
+            data.incrementAttempts();
+
+            // Keep remaining TTL
+            Long ttl = redisTemplate.getExpire(key);
+            if (ttl != null && ttl > 0) {
+                redisTemplate.opsForValue().set(key, data, Duration.ofSeconds(ttl));
+            }
+        }
+    }
+
+    /**
+     * Get remaining cooldown seconds for email change OTP
+     * 
+     * @param userId UUID of user
+     * @return Remaining cooldown seconds (0 if no cooldown)
+     */
+    public long getEmailChangeCooldownRemaining(UUID userId) {
+        Optional<EmailChangeOtpData> optData = getEmailChangeOtp(userId);
+        if (optData.isPresent()) {
+            long secondsSinceCreated = java.time.temporal.ChronoUnit.SECONDS.between(
+                    optData.get().getCreatedAt(), LocalDateTime.now());
+            long cooldownSeconds = 60;
+            if (secondsSinceCreated < cooldownSeconds) {
+                return cooldownSeconds - secondsSinceCreated;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Check if email change OTP exists
+     * 
+     * @param userId UUID of user
+     * @return true if exists
+     */
+    public boolean hasEmailChangeOtp(UUID userId) {
+        String key = EMAIL_CHANGE_PREFIX + userId.toString();
+        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 }

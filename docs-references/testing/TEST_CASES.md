@@ -1,7 +1,7 @@
 # PETTIES - Test Cases Document
 
-**Version:** 1.2
-**Last Updated:** 2025-12-19
+**Version:** 3.0
+**Last Updated:** 2025-12-20
 
 ---
 
@@ -14,240 +14,200 @@
 
 ---
 
+## 0. Test Case Naming Convention
+
+### Unit Tests (Controller Tests with MockMvc)
+- **Prefix:** `TC-UNIT-`
+- **Format:** `TC-UNIT-[MODULE]-[NUMBER]`
+- **File Name:** `*ControllerUnitTest.java`
+- **Examples:**
+  - `TC-UNIT-AUTH-001`: Login endpoint test
+  - `TC-UNIT-USER-001`: Get profile endpoint test
+
+### System/E2E Tests
+- **Prefix:** `TC-E2E-`
+- **Format:** `TC-E2E-[FLOW]-[NUMBER]`
+- **Examples:**
+  - `TC-E2E-BOOKING-001`: Full booking flow
+  - `TC-E2E-PAYMENT-001`: Payment flow
+
+---
+
 ## 1. Authentication API Test Cases
 
-### TC-AUTH-001: Login with Valid Credentials
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/auth/login |
-| **Description** | User logs in with correct email and password |
-| **Preconditions** | User exists and is ACTIVE |
-| **Request** | `{"email": "user@test.com", "password": "Password123"}` |
-| **Expected** | Status 200, returns accessToken and refreshToken |
-
-### TC-AUTH-002: Login with Invalid Password
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/auth/login |
-| **Description** | User logs in with wrong password |
-| **Preconditions** | User exists |
-| **Request** | `{"email": "user@test.com", "password": "wrongpass"}` |
-| **Expected** | Status 401, message: "Invalid username or password" |
-
-### TC-AUTH-003: Login with Different Roles
-
-| Role | Expected Response |
-|------|-------------------|
-| **PET_OWNER** | Status 200, role: "PET_OWNER" |
-| **VET** | Status 200, role: "VET" |
-| **CLINIC_MANAGER** | Status 200, role: "CLINIC_MANAGER" |
-
-### TC-AUTH-004: Registration Flow with OTP (2 Steps)
-
-**Step 1: Send Registration OTP**
-- **Endpoint:** POST /auth/register/send-otp
-- **Request:** `{"username": "test", "email": "test@gmail.com", "password": "...", "fullName": "...", "role": "PET_OWNER"}`
-- **Expected:** Status 200, returns SendOtpResponse (message: OTP sent)
-
-**Step 2: Verify OTP & Register**
-- **Endpoint:** POST /auth/register/verify-otp
-- **Request:** `{"email": "test@gmail.com", "otpCode": "123456"}`
-- **Expected:** Status 201, returns AuthResponse with tokens
-
-### TC-AUTH-005: Password Reset Flow (2 Steps)
-
-**Step 1: Forgot Password (Send OTP)**
-- **Endpoint:** POST /auth/forgot-password
-- **Request:** `{"email": "user@gmail.com"}`
-- **Expected:** Status 200, returns SendOtpResponse
-
-**Step 2: Reset Password**
-- **Endpoint:** POST /auth/reset-password
-- **Request:** `{"email": "user@gmail.com", "otpCode": "123456", "newPassword": "...", "confirmPassword": "..."}`
-- **Expected:** Status 200, returns MessageResponse (Đổi mật khẩu thành công)
-
-### TC-AUTH-006: OTP Cooldown & Resend
-
-- **Endpoint:** POST /auth/register/resend-otp (or /forgot-password/resend-otp)
-- **Condition:** Wait 60s cooldown before resending.
-- **Expected:** Status 200, returns new OTP expiry info.
+| Test ID | Endpoint | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-AUTH-001 | POST /api/auth/login | Valid credentials | 200 OK, JWT tokens returned | ✅ Pass |
+| TC-UNIT-AUTH-002 | POST /api/auth/login | Blank email | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-AUTH-003 | POST /api/auth/login | Blank password | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-AUTH-004 | POST /api/auth/login | Invalid email format | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-AUTH-005 | POST /api/auth/login | Wrong password | 401 Unauthorized | ✅ Pass |
+| TC-UNIT-AUTH-006 | POST /api/auth/register/send-otp | Valid registration data | 200 OK, OTP sent | ✅ Pass |
+| TC-UNIT-AUTH-007 | POST /api/auth/register/send-otp | Duplicate email | 400 Bad Request | ✅ Pass |
+| TC-UNIT-AUTH-008 | POST /api/auth/register/verify-otp | Valid OTP | 201 Created, tokens returned | ✅ Pass |
+| TC-UNIT-AUTH-009 | POST /api/auth/register/verify-otp | Expired OTP | 400 Bad Request | ✅ Pass |
+| TC-UNIT-AUTH-010 | POST /api/auth/register/verify-otp | Invalid OTP | 400 Bad Request | ✅ Pass |
+| TC-UNIT-AUTH-011 | POST /api/auth/forgot-password | Valid email | 200 OK, OTP sent | ✅ Pass |
+| TC-UNIT-AUTH-012 | POST /api/auth/forgot-password | Non-existent email | 404 Not Found | ✅ Pass |
+| TC-UNIT-AUTH-013 | POST /api/auth/reset-password | Valid OTP and password | 200 OK, password reset | ✅ Pass |
+| TC-UNIT-AUTH-014 | POST /api/auth/reset-password | Password mismatch | 400 Bad Request | ✅ Pass |
 
 ---
 
-## 2. Pet API Test Cases
+## 2. User Profile API Test Cases
 
-### TC-PET-001: Create Pet
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/pets |
-| **Description** | Pet owner creates new pet profile |
-| **Auth** | Bearer token (PET_OWNER role) |
-| **Request** | `{"name": "Buddy", "species": "DOG", "breed": "Golden Retriever"}` |
-| **Expected** | Status 201, returns pet with ID |
-
-### TC-PET-002: Get My Pets
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | GET /api/pets/my-pets |
-| **Description** | Get list of pets owned by current user |
-| **Auth** | Bearer token (PET_OWNER role) |
-| **Expected** | Status 200, returns array of pets |
-
-### TC-PET-003: Update Pet
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/pets/{petId} |
-| **Description** | Update pet information |
-| **Auth** | Bearer token (owner of pet) |
-| **Expected** | Status 200, returns updated pet |
-
-### TC-PET-004: Delete Pet
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | DELETE /api/pets/{petId} |
-| **Description** | Soft delete pet |
-| **Auth** | Bearer token (owner of pet) |
-| **Expected** | Status 204, no content |
+| Test ID | Endpoint | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-USER-001 | GET /api/users/profile | Valid token | 200 OK, user data returned | ✅ Pass |
+| TC-UNIT-USER-002 | GET /api/users/profile | No token | 401 Unauthorized | ✅ Pass |
+| TC-UNIT-USER-003 | GET /api/users/profile | Invalid token | 401 Unauthorized | ✅ Pass |
+| TC-UNIT-USER-004 | PUT /api/users/profile | Valid fullName and phone | 200 OK, updated data | ✅ Pass |
+| TC-UNIT-USER-005 | PUT /api/users/profile | Blank fullName | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-006 | PUT /api/users/profile | Invalid phone format | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-007 | PUT /api/users/profile | Phone too short | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-008 | POST /api/users/profile/avatar | Valid image (JPEG) | 200 OK, avatar URL returned | ✅ Pass |
+| TC-UNIT-USER-009 | POST /api/users/profile/avatar | Valid image (PNG) | 200 OK, avatar URL returned | ✅ Pass |
+| TC-UNIT-USER-010 | POST /api/users/profile/avatar | Invalid format (PDF) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-USER-011 | POST /api/users/profile/avatar | File too large (>10MB) | 400 Bad Request | ✅ Pass |
+| TC-UNIT-USER-012 | POST /api/users/profile/avatar | Empty file | 400 Bad Request | ✅ Pass |
+| TC-UNIT-USER-013 | DELETE /api/users/profile/avatar | User has avatar | 200 OK, avatar null | ✅ Pass |
+| TC-UNIT-USER-014 | DELETE /api/users/profile/avatar | User has no avatar | 400 Bad Request | ✅ Pass |
+| TC-UNIT-USER-015 | PUT /api/users/profile/password | Valid passwords | 200 OK, success message | ✅ Pass |
+| TC-UNIT-USER-016 | PUT /api/users/profile/password | Blank current password | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-017 | PUT /api/users/profile/password | Blank new password | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-018 | PUT /api/users/profile/password | Password too short (<8 chars) | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-019 | PUT /api/users/profile/password | No uppercase letter | 400 Bad Request, validation error | ✅ Pass |
+| TC-UNIT-USER-020 | PUT /api/users/profile/password | No digit | 400 Bad Request, validation error | ✅ Pass |
 
 ---
 
-## 3. Booking API Test Cases
+## 3. Pet API Test Cases
 
-### TC-BOOK-001: Create Booking
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/bookings |
-| **Description** | Pet owner creates new booking |
-| **Auth** | Bearer token (PET_OWNER role) |
-| **Request** | `{"petId": "...", "clinicId": "...", "serviceId": "...", "date": "2025-12-20", "time": "09:00"}` |
-| **Expected** | Status 201, booking status = PENDING |
-
-### TC-BOOK-002: Assign Vet to Booking
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/bookings/{bookingId}/assign |
-| **Description** | Manager assigns vet to booking |
-| **Auth** | Bearer token (CLINIC_MANAGER role) |
-| **Request** | `{"vetId": "..."}` |
-| **Expected** | Status 200, booking status = ASSIGNED |
-
-### TC-BOOK-003: Vet Accepts Booking
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/bookings/{bookingId}/confirm |
-| **Description** | Vet accepts assigned booking |
-| **Auth** | Bearer token (VET role) |
-| **Expected** | Status 200, booking status = CONFIRMED |
-
-### TC-BOOK-004: Cancel Booking
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/bookings/{bookingId}/cancel |
-| **Description** | Pet owner cancels booking |
-| **Auth** | Bearer token (PET_OWNER role) |
-| **Expected** | Status 200, booking status = CANCELLED |
+| Test ID | Endpoint | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-PET-001 | POST /api/pets | Valid pet data | 201 Created, pet returned | ⏳ Pending |
+| TC-UNIT-PET-002 | POST /api/pets | Blank name | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-PET-003 | POST /api/pets | Invalid species | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-PET-004 | POST /api/pets | No authentication | 401 Unauthorized | ⏳ Pending |
+| TC-UNIT-PET-005 | GET /api/pets/my-pets | Valid token | 200 OK, pet list returned | ⏳ Pending |
+| TC-UNIT-PET-006 | GET /api/pets/my-pets | No pets | 200 OK, empty array | ⏳ Pending |
+| TC-UNIT-PET-007 | GET /api/pets/{petId} | Valid petId | 200 OK, pet data returned | ⏳ Pending |
+| TC-UNIT-PET-008 | GET /api/pets/{petId} | Non-existent petId | 404 Not Found | ⏳ Pending |
+| TC-UNIT-PET-009 | GET /api/pets/{petId} | Invalid UUID format | 400 Bad Request | ⏳ Pending |
+| TC-UNIT-PET-010 | PUT /api/pets/{petId} | Valid update data | 200 OK, updated pet | ⏳ Pending |
+| TC-UNIT-PET-011 | PUT /api/pets/{petId} | Not owner | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-PET-012 | DELETE /api/pets/{petId} | Valid petId | 204 No Content | ⏳ Pending |
+| TC-UNIT-PET-013 | DELETE /api/pets/{petId} | Not owner | 403 Forbidden | ⏳ Pending |
 
 ---
 
-## 4. Clinic API Test Cases
+## 4. Booking API Test Cases
 
-### TC-CLINIC-001: Register Clinic
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/clinics |
-| **Description** | Clinic owner registers new clinic |
-| **Auth** | Bearer token (CLINIC_OWNER role) |
-| **Expected** | Status 201, clinic status = PENDING |
-
-### TC-CLINIC-002: Admin Approves Clinic
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/clinics/{clinicId}/approve |
-| **Description** | Admin approves clinic registration |
-| **Auth** | Bearer token (ADMIN role) |
-| **Expected** | Status 200, clinic status = APPROVED |
+| Test ID | Endpoint | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-BOOK-001 | POST /api/bookings | Valid booking data | 201 Created, booking returned | ⏳ Pending |
+| TC-UNIT-BOOK-002 | POST /api/bookings | Blank petId | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-BOOK-003 | POST /api/bookings | Blank clinicId | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-BOOK-004 | POST /api/bookings | Invalid date (past) | 400 Bad Request | ⏳ Pending |
+| TC-UNIT-BOOK-005 | POST /api/bookings | Slot not available | 400 Bad Request | ⏳ Pending |
+| TC-UNIT-BOOK-006 | PUT /api/bookings/{id}/assign | Valid vetId | 200 OK, booking assigned | ⏳ Pending |
+| TC-UNIT-BOOK-007 | PUT /api/bookings/{id}/assign | Not clinic manager | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-BOOK-008 | PUT /api/bookings/{id}/confirm | Vet confirms | 200 OK, status CONFIRMED | ⏳ Pending |
+| TC-UNIT-BOOK-009 | PUT /api/bookings/{id}/confirm | Not assigned vet | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-BOOK-010 | PUT /api/bookings/{id}/cancel | Pet owner cancels | 200 OK, status CANCELLED | ⏳ Pending |
+| TC-UNIT-BOOK-011 | PUT /api/bookings/{id}/cancel | Already confirmed | 400 Bad Request | ⏳ Pending |
 
 ---
 
-## 5. User Profile API Test Cases
+## 5. Clinic API Test Cases
 
-> **Full Report:** [features/USER_PROFILE_API_TEST.md](features/USER_PROFILE_API_TEST.md)
-
-### TC-PROFILE-001: Get Profile
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | GET /api/users/profile |
-| **Description** | User lay thong tin profile hien tai |
-| **Auth** | Bearer token (any authenticated user) |
-| **Expected** | Status 200, returns UserResponse |
-
-### TC-PROFILE-002: Update Profile
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/users/profile |
-| **Description** | Cap nhat fullName va phone |
-| **Auth** | Bearer token |
-| **Request** | `{"fullName": "New Name", "phone": "0987654321"}` |
-| **Expected** | Status 200, returns updated UserResponse |
-
-### TC-PROFILE-003: Upload Avatar
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | POST /api/users/profile/avatar |
-| **Description** | Upload avatar moi (Cloudinary) |
-| **Auth** | Bearer token |
-| **Request** | MultipartFile (JPEG, PNG, GIF, WEBP - max 10MB) |
-| **Expected** | Status 200, returns AvatarResponse with URL |
-
-### TC-PROFILE-004: Delete Avatar
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | DELETE /api/users/profile/avatar |
-| **Description** | Xoa avatar hien tai |
-| **Auth** | Bearer token |
-| **Expected** | Status 200, avatarUrl = null |
-
-### TC-PROFILE-005: Change Password
-
-| Field | Value |
-|-------|-------|
-| **Endpoint** | PUT /api/users/profile/password |
-| **Description** | Doi mat khau |
-| **Auth** | Bearer token |
-| **Request** | `{"currentPassword": "...", "newPassword": "...", "confirmPassword": "..."}` |
-| **Expected** | Status 200, message: "Doi mat khau thanh cong" |
+| Test ID | Endpoint | Description | Expected Result | Status |
+|---------|----------|-------------|-----------------|--------|
+| TC-UNIT-CLINIC-001 | POST /api/clinics | Valid clinic data | 201 Created, clinic returned | ⏳ Pending |
+| TC-UNIT-CLINIC-002 | POST /api/clinics | Blank name | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-CLINIC-003 | POST /api/clinics | Invalid phone | 400 Bad Request, validation error | ⏳ Pending |
+| TC-UNIT-CLINIC-004 | POST /api/clinics | Not clinic owner | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-CLINIC-005 | PUT /api/clinics/{id}/approve | Admin approves | 200 OK, status APPROVED | ⏳ Pending |
+| TC-UNIT-CLINIC-006 | PUT /api/clinics/{id}/approve | Not admin | 403 Forbidden | ⏳ Pending |
+| TC-UNIT-CLINIC-007 | GET /api/clinics | List all clinics | 200 OK, clinic list | ⏳ Pending |
+| TC-UNIT-CLINIC-008 | GET /api/clinics/{id} | Valid clinicId | 200 OK, clinic data | ⏳ Pending |
+| TC-UNIT-CLINIC-009 | GET /api/clinics/{id} | Non-existent clinic | 404 Not Found | ⏳ Pending |
 
 ---
 
 ## 6. Test Execution Log
 
-| Test ID | Date | Tester | Result | Notes |
-|---------|------|--------|--------|-------|
-| TC-AUTH-003 | 2025-12-19 | Auto | PASSED | Login by Role (VET, OWNER, MANAGER) |
-| TC-AUTH-004 | 2025-12-19 | Auto | PASSED | Registration OTP Flow |
-| TC-AUTH-005 | 2025-12-19 | Auto | PASSED | Password Reset OTP Flow |
-| TC-AUTH-006 | 2025-12-19 | Auto | PASSED | OTP Resend & Cooldown |
-| TC-PROFILE-001 | 2025-12-18 | Auto | PASSED | Unit Test |
-| TC-PROFILE-002 | 2025-12-18 | Auto | PASSED | Unit Test |
-| TC-PROFILE-003 | 2025-12-18 | Auto | PASSED | Unit Test |
-| TC-PROFILE-004 | 2025-12-18 | Auto | PASSED | Unit Test |
-| TC-PROFILE-005 | 2025-12-18 | Auto | PASSED | Unit Test |
+### Unit Tests (Implemented)
+
+| Test ID | Date | Result | Notes |
+|---------|------|--------|-------|
+| TC-UNIT-AUTH-001 | 2025-12-19 | PASSED | Login endpoint test |
+| TC-UNIT-AUTH-002 | 2025-12-20 | PASSED | Blank Username |
+| TC-UNIT-AUTH-003 | 2025-12-20 | PASSED | Blank Password |
+| TC-UNIT-AUTH-005 | 2025-12-20 | PASSED | Invalid Credentials |
+| TC-UNIT-AUTH-006 | 2025-12-19 | PASSED | Send registration OTP |
+| TC-UNIT-AUTH-007 | 2025-12-20 | PASSED | Email already exists |
+| TC-UNIT-AUTH-008 | 2025-12-19 | PASSED | Verify OTP |
+| TC-UNIT-AUTH-009 | 2025-12-20 | PASSED | Expired OTP |
+| TC-UNIT-AUTH-010 | 2025-12-20 | PASSED | Invalid OTP |
+| TC-UNIT-AUTH-011 | 2025-12-20 | PASSED | Forgot Password Valid |
+| TC-UNIT-AUTH-012 | 2025-12-20 | PASSED | Forgot Password NotFound |
+| TC-UNIT-AUTH-013 | 2025-12-19 | PASSED | Reset password |
+| TC-UNIT-AUTH-014 | 2025-12-20 | PASSED | Reset Password Mismatch |
+| TC-UNIT-USER-001 | 2025-12-18 | PASSED | Get profile |
+| TC-UNIT-USER-002 | 2025-12-20 | PASSED | Get profile (unauth) |
+| TC-UNIT-USER-004 | 2025-12-18 | PASSED | Update profile |
+| TC-UNIT-USER-005 | 2025-12-20 | PASSED | Update profile (blank name) |
+| TC-UNIT-USER-006 | 2025-12-20 | PASSED | Update profile (bad phone) |
+| TC-UNIT-USER-007 | 2025-12-20 | PASSED | Update profile (phone length) |
+| TC-UNIT-USER-008 | 2025-12-18 | PASSED | Upload avatar |
+| TC-UNIT-USER-009 | 2025-12-20 | PASSED | Upload PNG |
+| TC-UNIT-USER-010 | 2025-12-20 | PASSED | Upload Bad Type |
+| TC-UNIT-USER-011 | 2025-12-20 | PASSED | Upload Large File |
+| TC-UNIT-USER-012 | 2025-12-18 | PASSED | Upload empty file (validation) |
+| TC-UNIT-USER-013 | 2025-12-18 | PASSED | Delete avatar |
+| TC-UNIT-USER-014 | 2025-12-18 | PASSED | Delete non-existent avatar |
+| TC-UNIT-USER-015 | 2025-12-18 | PASSED | Change password |
+| TC-UNIT-USER-016 | 2025-12-20 | PASSED | Change pass (blank old) |
+| TC-UNIT-USER-017 | 2025-12-20 | PASSED | Change pass (blank new) |
+| TC-UNIT-USER-018 | 2025-12-20 | PASSED | Change pass (short) |
+| TC-UNIT-USER-019 | 2025-12-20 | PASSED | Change pass (upp) |
+| TC-UNIT-USER-020 | 2025-12-20 | PASSED | Change pass (digit) |
+
+### System/E2E Tests
+
+| Test ID | Date | Result | Notes |
+|---------|------|--------|-------|
+| TC-E2E-BOOKING-001 | TBD | PENDING | Full booking flow |
+| TC-E2E-PAYMENT-001 | TBD | PENDING | Payment flow |
+
+---
+
+## 7. Summary Statistics
+
+### Current Test Coverage (as of 2025-12-20)
+
+| Module | Unit Tests Implemented | Unit Tests Pending | Total Tests |
+|--------|----------------------|-------------------|-------------|
+| **Authentication** | 14 ✅ | 0 ⏳ | 14 |
+| **User Profile** | 20 ✅ | 0 ⏳ | 20 |
+| **Pet Management** | 0 ✅ | 13 ⏳ | 13 |
+| **Booking** | 0 ✅ | 11 ⏳ | 11 |
+| **Clinic** | 0 ✅ | 9 ⏳ | 9 |
+| **TOTAL** | **34 ✅** | **33 ⏳** | **67** |
+
+**Legend:**
+- ✅ Implemented and passing
+- ⏳ Pending implementation
+- ❌ Failed
+
+### Next Steps
+
+1. **Sprint 5-6:** Complete remaining Unit Tests for Auth and User modules (DONE)
+2. **Sprint 7-8:** Implement Unit Tests for Pet and Booking modules
+3. **Sprint 9-10:** Implement Unit Tests for Clinic module
+4. **Sprint 11-12:** E2E System Testing with Postman/Manual testing
+5. **Sprint 13:** Regression testing and final QA
 
 ---
 

@@ -125,13 +125,21 @@ class PetOwnerHomeScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(child: _buildActionCard(Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
+        Expanded(
+            child: _buildActionCard(
+                Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
         const SizedBox(width: 12),
-        Expanded(child: _buildActionCard(Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
+        Expanded(
+            child: _buildActionCard(
+                Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
         const SizedBox(width: 12),
-        Expanded(child: _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight)),
+        Expanded(
+            child: _buildActionCard(
+                Icons.pets, 'Thêm\npet', AppColors.primaryLight)),
         const SizedBox(width: 12),
-        Expanded(child: _buildActionCard(Icons.medical_services, 'Sổ\ntiêm', AppColors.stone600)),
+        Expanded(
+            child: _buildActionCard(
+                Icons.medical_services, 'Sổ\ntiêm', AppColors.stone600)),
       ],
     );
   }
@@ -151,7 +159,7 @@ class PetOwnerHomeScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               border: Border.all(color: AppColors.stone900, width: 2),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -171,7 +179,8 @@ class PetOwnerHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, String actionText) {
+  Widget _buildSectionHeader(
+      BuildContext context, String title, String actionText) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -301,9 +310,12 @@ class PetOwnerHomeScreen extends StatelessWidget {
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
-            BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHAM PHA'),
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TAI KHOAN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.explore), label: 'KHAM PHA'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person), label: 'TAI KHOAN'),
           ],
         ),
       ),
