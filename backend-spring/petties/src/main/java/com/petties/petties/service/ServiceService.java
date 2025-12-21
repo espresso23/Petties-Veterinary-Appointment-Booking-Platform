@@ -239,6 +239,26 @@ public class ServiceService {
     }
 
     /**
+     * Update price per km for all home visit services
+     */
+    @Transactional
+    public void updateBulkPricePerKm(String pricePerKm) {
+        Clinic clinic = getCurrentUserClinic();
+        
+        List<com.petties.petties.model.Service> homeVisitServices = serviceRepository
+                .findByClinicAndIsHomeVisit(clinic, true);
+        
+        for (com.petties.petties.model.Service service : homeVisitServices) {
+            service.setPricePerKm(pricePerKm);
+        }
+        
+        serviceRepository.saveAll(homeVisitServices);
+        
+        log.info("Bulk updated price per km for {} home visit services. New price: {} by user: {}", 
+                homeVisitServices.size(), pricePerKm, getCurrentUser().getUserId());
+    }
+
+    /**
      * Map Service entity to ServiceResponse DTO
      */
     private ServiceResponse mapToResponse(com.petties.petties.model.Service service) {

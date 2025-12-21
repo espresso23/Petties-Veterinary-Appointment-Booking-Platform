@@ -1,19 +1,15 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.auth.AuthResponse;
-import com.petties.petties.dto.auth.ForgotPasswordRequest;
 import com.petties.petties.dto.auth.GoogleSignInRequest;
 import com.petties.petties.dto.auth.LoginRequest;
-import com.petties.petties.dto.auth.MessageResponse;
 import com.petties.petties.dto.auth.RegisterRequest;
-import com.petties.petties.dto.auth.ResetPasswordRequest;
 import com.petties.petties.dto.auth.SendOtpRequest;
 import com.petties.petties.dto.auth.SendOtpResponse;
 import com.petties.petties.dto.auth.VerifyOtpRequest;
 import com.petties.petties.dto.auth.UserResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.service.AuthService;
-import com.petties.petties.service.PasswordResetService;
 import com.petties.petties.service.RegistrationOtpService;
 import com.petties.petties.service.UserService;
 import jakarta.validation.Valid;
@@ -21,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 
 @RestController
 @RequestMapping("/auth")
@@ -30,7 +27,6 @@ public class AuthController {
     private final AuthService authService;
     private final UserService userService;
     private final RegistrationOtpService registrationOtpService;
-    private final PasswordResetService passwordResetService;
 
     /**
      * [DEPRECATED] Direct registration without email verification
@@ -80,6 +76,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
@@ -115,44 +112,6 @@ public class AuthController {
     public ResponseEntity<UserResponse> getCurrentUser() {
         User currentUser = authService.getCurrentUser();
         UserResponse response = userService.getUserById(currentUser.getUserId());
-        return ResponseEntity.ok(response);
-    }
-
-    // ==================== Password Reset Endpoints ====================
-
-    /**
-     * Step 1: Send OTP to email for password reset
-     *
-     * @param request Email of the user requesting password reset
-     * @return SendOtpResponse with email and expiry info
-     */
-    @PostMapping("/forgot-password")
-    public ResponseEntity<SendOtpResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        SendOtpResponse response = passwordResetService.sendPasswordResetOtp(request);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Step 2: Verify OTP and reset password
-     *
-     * @param request Email, OTP code, new password and confirm password
-     * @return MessageResponse confirming password has been reset
-     */
-    @PostMapping("/reset-password")
-    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        MessageResponse response = passwordResetService.verifyOtpAndResetPassword(request);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Resend OTP for password reset
-     *
-     * @param email Email to resend OTP to
-     * @return SendOtpResponse with new expiry info
-     */
-    @PostMapping("/forgot-password/resend-otp")
-    public ResponseEntity<SendOtpResponse> resendPasswordResetOtp(@RequestParam String email) {
-        SendOtpResponse response = passwordResetService.resendPasswordResetOtp(email);
         return ResponseEntity.ok(response);
     }
 }

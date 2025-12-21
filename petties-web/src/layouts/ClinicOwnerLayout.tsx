@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { PricingModal, type PricingData } from '../components/clinic-owner'
+import { updateBulkPricePerKm } from '../services/endpoints/service'
 import '../styles/brutalist.css'
 
 interface NavItem {
@@ -21,17 +22,20 @@ export const ClinicOwnerLayout = () => {
     
     const [isPricingModalOpen, setIsPricingModalOpen] = useState(false)
     const [pricingData, setPricingData] = useState<PricingData>({
-        range0to5: 0,
-        range5to10: 0,
-        range10to20: 0,
-        range20plus: 0,
+        pricePerKm: 5000,
     })
 
-    const handleSavePricing = (data: PricingData) => {
-        setPricingData(data)
-        setIsPricingModalOpen(false)
-        console.log('Pricing saved:', data)
-        // TODO: Send to backend API
+    const handleSavePricing = async (data: PricingData) => {
+        try {
+            await updateBulkPricePerKm(data.pricePerKm)
+            setPricingData(data)
+            setIsPricingModalOpen(false)
+            console.log('Pricing saved successfully:', data)
+            // TODO: Show success toast
+        } catch (error) {
+            console.error('Failed to update pricing:', error)
+            // TODO: Show error toast
+        }
     }
 
     const navItems: NavItem[] = [

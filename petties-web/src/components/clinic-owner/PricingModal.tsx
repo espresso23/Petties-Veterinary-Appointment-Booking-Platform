@@ -2,10 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 
 export interface PricingData {
-  range0to5: number
-  range5to10: number
-  range10to20: number
-  range20plus: number
+  pricePerKm: number
 }
 
 interface PricingModalProps {
@@ -20,10 +17,7 @@ export function PricingModal({
   onClose,
   onSave,
   initialData = {
-    range0to5: 10000,
-    range5to10: 15000,
-    range10to20: 20000,
-    range20plus: 25000,
+    pricePerKm: 5000,
   },
 }: PricingModalProps) {
   const [data, setData] = useState<PricingData>(initialData)
@@ -40,13 +34,6 @@ export function PricingModal({
     e.preventDefault()
     onSave(data)
     onClose()
-  }
-
-  const handleChange = (key: keyof PricingData, value: string) => {
-    setData((prev) => ({
-      ...prev,
-      [key]: Number(value),
-    }))
   }
 
   return (
@@ -69,7 +56,7 @@ export function PricingModal({
             <p 
               style={{ color: 'rgba(0,0,0,0.8)', fontWeight: '700', fontSize: '12px', marginTop: '4px' }}
             >
-              Thiết lập giá cước theo khoảng cách
+              Thiết lập giá cố định cho mọi khoảng cách
             </p>
           </div>
           <button
@@ -85,19 +72,19 @@ export function PricingModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <label 
-                style={{ display: 'block', fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', color: '#000000' }}
+                style={{ display: 'block', fontWeight: '900', fontSize: '16px', textTransform: 'uppercase', color: '#000000' }}
               >
-                0 - 5 km
+                Giá mỗi KM (VNĐ)
               </label>
               <input
                 type="number"
                 required
                 min="0"
                 step="1000"
-                value={data.range0to5}
-                onChange={(e) => handleChange('range0to5', e.target.value)}
+                value={data.pricePerKm}
+                onChange={(e) => setData({ pricePerKm: Number(e.target.value) })}
                 className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-                placeholder="Nhập số tiền"
+                placeholder="Ví dụ: 5000"
                 style={{
                   fontWeight: '700',
                   fontSize: '16px',
@@ -105,78 +92,17 @@ export function PricingModal({
                   backgroundColor: '#ffffff'
                 }}
               />
-            </div>
-
-            <div className="space-y-2">
-              <label 
-                style={{ display: 'block', fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', color: '#000000' }}
-              >
-                5 - 10 km
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                step="1000"
-                value={data.range5to10}
-                onChange={(e) => handleChange('range5to10', e.target.value)}
-                className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-                placeholder="Nhập số tiền"
-                style={{
-                  fontWeight: '700',
-                  fontSize: '16px',
-                  color: '#000000',
-                  backgroundColor: '#ffffff'
+              <p 
+                style={{ 
+                  fontSize: '14px', 
+                  fontWeight: '700', 
+                  color: '#4b5563', 
+                  paddingLeft: '8px',
+                  marginTop: '8px'
                 }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label 
-                style={{ display: 'block', fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', color: '#000000' }}
               >
-                10 - 20 km
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                step="1000"
-                value={data.range10to20}
-                onChange={(e) => handleChange('range10to20', e.target.value)}
-                className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-                placeholder="Nhập số tiền"
-                style={{
-                  fontWeight: '700',
-                  fontSize: '16px',
-                  color: '#000000',
-                  backgroundColor: '#ffffff'
-                }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label 
-                style={{ display: 'block', fontWeight: '900', fontSize: '14px', textTransform: 'uppercase', color: '#000000' }}
-              >
-                Trên 20 km
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                step="1000"
-                value={data.range20plus}
-                onChange={(e) => handleChange('range20plus', e.target.value)}
-                className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-                placeholder="Nhập số tiền"
-                style={{
-                  fontWeight: '700',
-                  fontSize: '16px',
-                  color: '#000000',
-                  backgroundColor: '#ffffff'
-                }}
-              />
+                Giá này sẽ được áp dụng cho tất cả khoảng cách di chuyển
+              </p>
             </div>
           </div>
 

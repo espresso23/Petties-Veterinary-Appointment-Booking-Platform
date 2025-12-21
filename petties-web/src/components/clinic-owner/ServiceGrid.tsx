@@ -27,6 +27,7 @@ function mapResponseToService(response: ServiceResponse): Service {
     duration: response.durationTime,
     isActive: response.isActive,
     isHomeVisit: response.isHomeVisit,
+    pricePerKm: response.pricePerKm ? Number(response.pricePerKm) : undefined,
     serviceCategory: response.serviceCategory,
     petType: response.petType,
     weightPrices: response.weightPrices,
@@ -45,7 +46,7 @@ function mapServiceToRequest(service: Partial<Service>): ServiceRequest {
     slotsRequired: calculatedSlots,
     isActive: service.isActive ?? true,
     isHomeVisit: service.isHomeVisit ?? false,
-    pricePerKm: service.isHomeVisit ? '0' : undefined,
+    pricePerKm: '0', // Will be set via global pricing modal
     serviceCategory: service.serviceCategory,
     petType: service.petType,
     weightPrices: service.weightPrices,

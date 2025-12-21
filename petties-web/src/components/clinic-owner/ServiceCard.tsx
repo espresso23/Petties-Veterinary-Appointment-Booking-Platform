@@ -9,6 +9,7 @@ export interface Service {
   duration: number // in minutes
   isActive: boolean
   isHomeVisit: boolean
+  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]
