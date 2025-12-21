@@ -1,9 +1,9 @@
-# PETTIES  ERD - Professional Complete Edition
+# PETTIES MVP ERD - Professional Complete Edition
 
-**Version:** 3.0  (Updated Service Pricing Model)  
+**Version:** 3.0 MVP (Updated Service Pricing Model)  
 **Last Updated:** 2025-12-21 13:56 UTC+07  
-**Scope:** Core Features (Sprint 1-9) + Chat Extension + AI Service Layer  
-**Total Entities:** 22 (Full  + AI Service Architecture)  
+**Scope:** Core Features (Sprint 1-9) + Chat Extension  
+**Total Entities:** 16 (Optimized for Service-Centric Pricing)  
 **Status:** Production-Ready Documentation  
 
 ---
@@ -110,8 +110,13 @@ erDiagram
         time start_time "NOT NULL"
         time end_time "NOT NULL"
         enum status "AVAILABLE|BOOKED|BLOCKED"
-        uuid booking_id FK "nullable"
         timestamp created_at
+    }
+
+    BOOKING_SLOT {
+        uuid id PK
+        uuid booking_id FK
+        uuid slot_id FK
     }
 
     %% ========== BOOKING (SIMPLIFIED) ==========
@@ -227,74 +232,6 @@ erDiagram
         timestamp created_at
     }
 
-    %% ========== AI SERVICE LAYER ==========
-    AI_AGENT {
-        uuid id PK
-        varchar name UK "NOT NULL"
-        text system_prompt "NOT NULL"
-        decimal temperature "DEFAULT 0.2"
-        int max_tokens "DEFAULT 1000"
-        enum role "SUPERVISOR|WORKER"
-        boolean is_active "DEFAULT TRUE"
-    }
-
-    AI_TOOL {
-        uuid id PK
-        varchar name UK "NOT NULL"
-        varchar description "NOT NULL"
-        json request_schema "NOT NULL"
-        json response_schema "NOT NULL"
-        boolean is_enabled "DEFAULT TRUE"
-    }
-
-    AI_AGENT_TOOL {
-        uuid agent_id FK
-        uuid tool_id FK
-    }
-
-    AI_ROUTING_EXAMPLE {
-        uuid id PK
-        text query "NOT NULL"
-        uuid target_agent_id FK
-        timestamp created_at
-    }
-
-    AI_SYSTEM_CONFIG {
-        uuid id PK
-        varchar key UK "NOT NULL"
-        text value_encrypted "NOT NULL"
-        varchar description
-        timestamp updated_at
-    }
-
-    AI_KNOWLEDGE_SOURCE {
-        uuid id PK
-        varchar filename "NOT NULL"
-        varchar file_path "NOT NULL"
-        enum status "PENDING|INDEXING|COMPLETED|FAILED"
-        int chunk_count
-        timestamp created_at
-    }
-
-    AI_CONVERSATION {
-        uuid id PK
-        uuid user_id FK
-        uuid pet_id FK "nullable"
-        varchar session_id UK
-        timestamp created_at
-        timestamp last_interaction_at
-    }
-
-    AI_MESSAGE {
-        uuid id PK
-        uuid conversation_id FK
-        enum sender "USER|AI"
-        text content "NOT NULL"
-        json tool_calls "nullable"
-        json metadata "nullable (source citations)"
-        timestamp created_at
-    }
-
     %% ========== RELATIONSHIPS ==========
     
     %% USER relationships
@@ -310,7 +247,6 @@ erDiagram
     USER ||--o{ NOTIFICATION : "receives"
     USER ||--o{ CHAT_CONVERSATION : "participates_in"
     USER ||--o{ CHAT_MESSAGE : "sends"
-    USER ||--o{ AI_CONVERSATION : "interacts_with"
 
     %% CLINIC relationships
     CLINIC ||--o{ SERVICE : "offers"
@@ -323,11 +259,11 @@ erDiagram
     PET ||--o{ BOOKING : "has"
     PET ||--o{ EMR : "has"
     PET ||--o{ VACCINATION : "receives"
-    PET ||--o| AI_CONVERSATION : "subject_of"
 
     %% SCHEDULING relationships
     VET_SHIFT ||--|{ SLOT : "contains"
-    SLOT }o--|| BOOKING : "reserved_by"
+    SLOT ||--o{ BOOKING_SLOT : "reserved_in"
+    BOOKING ||--|{ BOOKING_SLOT : "uses"
 
     %% BOOKING relationships
     BOOKING ||--|| PAYMENT : "has"
@@ -349,12 +285,6 @@ erDiagram
     %% CHAT relationships
     CHAT_CONVERSATION ||--|{ CHAT_MESSAGE : "has"
     CHAT_MESSAGE ||--o{ NOTIFICATION : "triggers"
-
-    %% AI relationships
-    AI_AGENT ||--o{ AI_AGENT_TOOL : "uses"
-    AI_TOOL ||--o{ AI_AGENT_TOOL : "assigned_to"
-    AI_AGENT ||--o{ AI_ROUTING_EXAMPLE : "target_for"
-    AI_CONVERSATION ||--|{ AI_MESSAGE : "contains"
 ```
 
 ---
@@ -531,95 +461,30 @@ Stores comprehensive information about pet owners' pets, including basic attribu
 
 ---
 
-### **2.16 AI_AGENT** – Agent Configuration
+### **2.16 BOOKING_SLOT** – Multi-slot Junction
 
 **Purpose:**
-Stores the configuration for each node in the LangGraph orchestration (Main Agent, Medical Agent, etc.).
+Junction table enabling a single booking to occupy multiple time slots (e.g., a 60-minute SPA service occupying two 30-minute slots).
 
-**Key Attributes:**
-- `system_prompt`: Instructions defining agent behavior and domain knowledge.
-- `role`: Distinguishes between the Supervisor (Orchestrator) and Worker agents.
-- `temperature`: Controls randomness in AI response.
-
----
-
-### **2.17 AI_TOOL** – Code-based Tool Definition
-
-**Purpose:**
-Defines valid tools (Python functions) that agents can call to perform specific tasks.
-
-**Attributes:**
-- `request_schema` & `response_schema`: JSON schemas used for validation and helping LLM understand input/output.
-- Mapping: Assigned to agents via `AI_AGENT_TOOL` join table.
-
----
-
-### **2.18 AI_ROUTING_EXAMPLE** – Few-shot Routing Pattern
-
-**Purpose:**
-Used for semantic routing. Stores example queries matched to target agents, used by the Supervisor to decide where to route user requests.
-
----
-
-### **2.19 AI_SYSTEM_CONFIG** – Encrypted Global Settings
-
-**Purpose:**
-Centralized storage for critical API keys and system-wide settings, replacing static `.env` files for production security.
-
-**Note:** Key-value pairs are encrypted in PostgreSQL.
-
----
-
-### **2.20 AI_KNOWLEDGE_SOURCE** – RAG Source Documents
-
-**Purpose:**
-Tracks the state of uploaded documents used for the RAG (Retrieval-Augmented Generation) pipeline.
-
-**History:**
-Files are chunked and embedded then pushed to Qdrant Cloud. This table manages the indexing status.
-
----
-
-### **2.21 AI_CONVERSATION** – AI Interaction Session
-
-**Purpose:**
-Stores a session of interaction between a Pet Owner and the AI Advisor.
+**Business Role:**
+- Created during booking process based on `SERVICE.slots_required`.
+- Ensures that complex services block the appropriate amount of time on a vet's calendar.
 
 **Key Relationships:**
-- Linked to `USER` (pet owner).
-- Optionally linked to a specific `PET` for contextual medical advice.
-- Contains multiple `AI_MESSAGE` records.
+- Belongs to BOOKING – N:1
+- Belongs to SLOT – N:1
 
 ---
 
-### **2.22 AI_MESSAGE** – AI Message & Execution Log
+### Design Decision 7: Multi-Slot Booking Lifecycle
 
-**Purpose:**
-Stores each turn in an AI conversation, including the logic execution and citations.
+**Decision:** When a multi-slot booking (e.g., 2 slots) is completed, the slots remain linked to the booking and their status remains `BOOKED`.
 
-**Key Attributes:**
-- `tool_calls`: Stores JSON descriptions of any tools triggered during this turn.
-- `metadata`: Contains source citations (URLs or document names) for transparency.
-
----
-
-## 3. Complete Relationship Matrix with Cardinality
-
-### User & Ownership Tier
-... (Matrix updated below) ...
-
-### AI Service Tier
-
-| From | To | Relationship | Cardinality | Description |
-|------|-----|-----------|-------------|-------------|
-| USER | AI_CONVERSATION | interacts_with | 1–N | User has multiple AI consultation sessions |
-| PET | AI_CONVERSATION | subject_of | 1–0..1 | Conversation may focus on a specific pet |
-| AI_CONVERSATION | AI_MESSAGE | contains | 1–N | Conversation has a timeline of messages |
-| AI_AGENT | AI_AGENT_TOOL | uses | 1–N | Agent has access to multiple tools |
-| AI_TOOL | AI_AGENT_TOOL | assigned_to | 1–N | Tool is assigned to multiple agents |
-| AI_AGENT | AI_ROUTING_EXAMPLE | target_for | 1–N | Agent is the target of routing examples |
-
----
+**Justification:**
+- **Audit Trail**: Preserves the historical record of which slots were used by which booking.
+- **Calendar Logic**: Past slots do not need to be returned to `AVAILABLE` because they are in the past; "availability" is a function of time flow, not just status.
+- **UI Rendering**: Allows the calendar to correctly render completed appointments as blocks of time (e.g., a 09:00–10:00 block for a 2-slot service).
+- **Concurrency**: Prevents accidental double-booking of reached/past time slots.
 
 ---
 
@@ -660,12 +525,12 @@ Represents a single 30-minute time slot within a veterinarian's shift, used as t
 
 **Key Relationships:**
 - Belongs to VET_SHIFT – N:1
-- Reserved by BOOKING – 1:0..1 (one slot holds zero or one booking)
+- Occupied by BOOKING_SLOT – 1:0..1 (one slot holds zero or one booking record)
 
 **Design Notes:**
 - Fixed 30-minute duration ensures consistent availability display
 - Status field tracks actual vs. reserved time
-- Simple 1:0..1 relationship with BOOKING keeps model straightforward
+- Multi-slot support: A single service (like SPA) may occupy 2+ consecutive slots.
 
 ---
 
@@ -697,9 +562,9 @@ Core entity representing a pet appointment, now with simplified pricing (delegat
 - Created by USER (pet owner role) – N:1
 - For PET – N:1
 - At CLINIC – N:1
-- Uses SERVICE – N:1 (service determines pricing)
+- Uses SERVICE – N:1 (service determines pricing and required slots)
 - Assigned to USER (vet role, assigned_vet_id) – N:1, optional initially
-- Reserves SLOT – 1:1
+- Occupies BOOKING_SLOT – 1:N
 - Has PAYMENT – 1:1
 - Documented by EMR – 1:0..1
 - Receives REVIEW – 1:N
@@ -807,7 +672,7 @@ Documents specific medication and instructions within an EMR, enabling pet owner
 
 **Design Notes:**
 - Simple structure focused on essential medication information
-- No drug database integration in  (free-text medicine_name)
+- No drug database integration in MVP (free-text medicine_name)
 
 ---
 
@@ -896,7 +761,7 @@ Delivers system-generated alerts to users about important events (booking change
 ### **2.14 CHAT_CONVERSATION** – 1-to-1 Dialog
 
 **Purpose:**
-Represents a single conversation thread between exactly two users (never group chat).
+Represents a single conversation thread between exactly two users (never group chat in MVP).
 
 **Business Role:**
 - Created when two users initiate communication
@@ -915,7 +780,7 @@ Represents a single conversation thread between exactly two users (never group c
 - Contains CHAT_MESSAGE – 1:N
 
 **Design Notes:**
-- 1-to-1 design (not group) simplifies , supports future scaling
+- 1-to-1 design (not group) simplifies MVP, supports future scaling
 - Dual FK (user1_id, user2_id) stores both participants
 - booking_id optional; null if conversation is general/not appointment-specific
 
@@ -928,7 +793,7 @@ Individual message within a conversation, supporting async communication between
 
 **Business Role:**
 - Sent by one USER to another (within a CHAT_CONVERSATION)
-- Stores plain text content (no file attachments in )
+- Stores plain text content (no file attachments in MVP)
 - Tracks read status for "seen" indicators
 - Triggers notification to conversation partner
 
@@ -938,7 +803,7 @@ Individual message within a conversation, supporting async communication between
 - Triggers NOTIFICATION – 1:N (notify the other party)
 
 **Design Notes:**
-- Simple text-only implementation for 
+- Simple text-only implementation for MVP
 - Read status supports UX feedback (message seen/unseen)
 - timestamp enables message ordering and timeline display
 
@@ -963,13 +828,7 @@ Individual message within a conversation, supporting async communication between
 | 13 | NOTIFICATION | Core | System alert | to USER (1:N), triggered by BOOKING/PAYMENT/VET_SHIFT/CHAT_MESSAGE |
 | 14 | CHAT_CONVERSATION | Chat | 1-1 dialog | between USER (user1, user2), related to BOOKING (opt), contains CHAT_MESSAGE |
 | 15 | CHAT_MESSAGE | Chat | Conversation message | in CHAT_CONVERSATION (1:N), sent by USER (1:N), triggers NOTIFICATION |
-| 16 | AI_AGENT | AI | Agent configuration | used by LangGraph for orchestration (Supervisor/Worker) |
-| 17 | AI_TOOL | AI | Code-based tool definition | assigned to agents (Request/Response schemas) |
-| 18 | AI_ROUTING_EXAMPLE | AI | Few-shot routing pattern | Query to Target Agent mapping for semantic routing |
-| 19 | AI_SYSTEM_CONFIG | AI | Encrypted API keys | Stores OpenRouter, Cohere, Qdrant keys safely |
-| 20 | AI_KNOWLEDGE_SOURCE | AI | RAG source documents | Track PDF/Docx indexing into Qdrant |
-| 21 | AI_CONVERSATION | AI | AI user interaction session | Session tracking for AI health advisor |
-| 22 | AI_MESSAGE | AI | AI individual message | Message within AI conversation, includes tool calls and citations |
+| 16 | BOOKING_SLOT | Core | Multi-slot link | Links one BOOKING to multiple SLOTs |
 
 ---
 
@@ -1201,7 +1060,7 @@ BOOKING 2 (HOME_VISIT, 2 km):
 
 **Justification:**
 - **Simplification**: One less table, simpler schema
-- **Business Constraint**: Each staff member (VET, CLINIC_MANAGER) belongs to exactly one clinic in 
+- **Business Constraint**: Each staff member (VET, CLINIC_MANAGER) belongs to exactly one clinic in MVP
 - **Query Efficiency**: Direct clinic_id on USER enables simpler queries
 - **Future Scalability**: If multi-clinic staff needed, re-introduce CLINIC_STAFF without breaking existing schema
 
@@ -1231,15 +1090,15 @@ Pet: "Milo" Vaccination Card
 
 ---
 
-### Design Decision 4: 1-1 Chat (No Group Chat) in 
+### Design Decision 4: 1-1 Chat (No Group Chat) in MVP
 
 **Decision:** CHAT_CONVERSATION restricted to exactly 2 users; no group messaging.
 
 **Justification:**
-- ** Scope**: Simplifies initial implementation
+- **MVP Scope**: Simplifies initial implementation
 - **Primary Use Case**: Owner-to-clinic communication (owner ↔ vet, owner ↔ manager)
 - **Future Extensibility**: Can upgrade to N-M via CHAT_PARTICIPANT table without breaking existing data
-- **Performance**: No need for complex permission matrices in 
+- **Performance**: No need for complex permission matrices in MVP
 
 **Upgrade Path:**
 - Introduce CHAT_PARTICIPANT join table
@@ -1272,6 +1131,18 @@ Pet: "Milo" Vaccination Card
 
 ---
 
+### Design Decision 7: Multi-Slot Booking Lifecycle
+
+**Decision:** When a multi-slot booking (e.g., 2 slots) is completed, the slots remain linked to the booking and their status remains `BOOKED`.
+
+**Justification:**
+- **Audit Trail**: Preserves the historical record of which slots were used by which booking.
+- **Calendar Logic**: Past slots do not need to be returned to `AVAILABLE` because they are in the past; "availability" is a function of time flow, not just status.
+- **UI Rendering**: Allows the calendar to correctly render completed appointments as blocks of time (e.g., a 09:00–10:00 block for a 2-slot service).
+- **Concurrency**: Prevents accidental double-booking of reached/past time slots.
+
+---
+
 ## 9. Implementation Notes & Best Practices
 
 ### Database Considerations
@@ -1301,18 +1172,17 @@ Pet: "Milo" Vaccination Card
 
 ---
 
-## 10. Future Enhancements (Out of  Scope)
+## 10. Future Enhancements (Out of MVP Scope)
 
-1. **Multi-Slot Bookings**: Allow one BOOKING to reserve multiple consecutive SLOTs
-2. **Group Chat**: Introduce CHAT_PARTICIPANT to enable multiple users in one conversation
-3. **Recurring Appointments**: Template-based booking generation for regular check-ups
-4. **Dynamic Pricing**: Time-of-day surcharges, promotional discounts, loyalty programs
-5. **Multi-Clinic Staff**: CLINIC_STAFF table for vets working across multiple clinics
-6. **Appointment Cancellation Policy**: Refund rules based on cancellation timing
-7. **Service Packages**: Bundle multiple services with combined pricing
-8. **Waitlist Management**: Queue for fully booked slots
-9. **Telemedicine Consultations**: Virtual appointments via video call
-10. **Prescription Fulfillment**: Integration with pet pharmacies
+1. **Group Chat**: Introduce CHAT_PARTICIPANT to enable multiple users in one conversation
+2. **Recurring Appointments**: Template-based booking generation for regular check-ups
+3. **Dynamic Pricing**: Time-of-day surcharges, promotional discounts, loyalty programs
+4. **Multi-Clinic Staff**: CLINIC_STAFF table for vets working across multiple clinics
+5. **Appointment Cancellation Policy**: Refund rules based on cancellation timing
+6. **Service Packages**: Bundle multiple services with combined pricing
+7. **Waitlist Management**: Queue for fully booked slots
+8. **Telemedicine Consultations**: Virtual appointments via video call
+9. **Prescription Fulfillment**: Integration with pet pharmacies
 
 ---
 
@@ -1320,10 +1190,10 @@ Pet: "Milo" Vaccination Card
 
 | Property | Value |
 |----------|-------|
-| **Document Title** | Petties ERD – Professional Complete Edition |
-| **Version** | 3.0 |
+| **Document Title** | Petties MVP ERD – Professional Complete Edition |
+| **Version** | 3.1 |
 | **Status** | Final – Ready for Development |
-| **Last Updated** | 2025-12-21 13:56 UTC+07 |
+| **Last Updated** | 2025-12-21 15:25 UTC+07 |
 | **Author** | Petties Product Team |
 | **Review Cycle** | Quarterly or upon major feature changes |
 | **Target Audience** | Engineers, Product Managers, Stakeholders |
