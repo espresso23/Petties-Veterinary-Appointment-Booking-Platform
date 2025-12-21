@@ -110,8 +110,13 @@ erDiagram
         time start_time "NOT NULL"
         time end_time "NOT NULL"
         enum status "AVAILABLE|BOOKED|BLOCKED"
-        uuid booking_id FK "nullable"
         timestamp created_at
+    }
+
+    BOOKING_SLOT {
+        uuid id PK
+        uuid booking_id FK
+        uuid slot_id FK
     }
 
     %% ========== BOOKING (SIMPLIFIED) ==========
@@ -257,7 +262,8 @@ erDiagram
 
     %% SCHEDULING relationships
     VET_SHIFT ||--|{ SLOT : "contains"
-    SLOT }o--|| BOOKING : "reserved_by"
+    SLOT ||--o{ BOOKING_SLOT : "reserved_in"
+    BOOKING ||--|{ BOOKING_SLOT : "occupies"
 
     %% BOOKING relationships
     BOOKING ||--|| PAYMENT : "has"
@@ -455,6 +461,33 @@ Stores comprehensive information about pet owners' pets, including basic attribu
 
 ---
 
+### **2.16 BOOKING_SLOT** – Multi-slot Junction
+
+**Purpose:**
+Junction table enabling a single booking to occupy multiple time slots (e.g., a 60-minute SPA service occupying two 30-minute slots).
+
+**Business Role:**
+- Created during booking process based on `SERVICE.slots_required`.
+- Ensures that complex services block the appropriate amount of time on a vet's calendar.
+
+**Key Relationships:**
+- Belongs to BOOKING – N:1
+- Belongs to SLOT – N:1
+
+---
+
+### Design Decision 7: Multi-Slot Booking Lifecycle
+
+**Decision:** When a multi-slot booking (e.g., 2 slots) is completed, the slots remain linked to the booking and their status remains `BOOKED`.
+
+**Justification:**
+- **Audit Trail**: Preserves the historical record of which slots were used by which booking.
+- **Calendar Logic**: Past slots do not need to be returned to `AVAILABLE` because they are in the past; "availability" is a function of time flow, not just status.
+- **UI Rendering**: Allows the calendar to correctly render completed appointments as blocks of time (e.g., a 09:00–10:00 block for a 2-slot service).
+- **Concurrency**: Prevents accidental double-booking of reached/past time slots.
+
+---
+
 ### **2.5 VET_SHIFT** – Veterinarian Work Schedule
 
 **Purpose:**
@@ -492,12 +525,12 @@ Represents a single 30-minute time slot within a veterinarian's shift, used as t
 
 **Key Relationships:**
 - Belongs to VET_SHIFT – N:1
-- Reserved by BOOKING – 1:0..1 (one slot holds zero or one booking)
+- Occupied by BOOKING_SLOT – 1:0..1 (one slot holds zero or one booking record)
 
 **Design Notes:**
 - Fixed 30-minute duration ensures consistent availability display
 - Status field tracks actual vs. reserved time
-- Simple 1:0..1 relationship with BOOKING keeps model straightforward
+- Multi-slot support: A single service (like SPA) may occupy 2+ consecutive slots.
 
 ---
 
@@ -529,9 +562,9 @@ Core entity representing a pet appointment, now with simplified pricing (delegat
 - Created by USER (pet owner role) – N:1
 - For PET – N:1
 - At CLINIC – N:1
-- Uses SERVICE – N:1 (service determines pricing)
+- Uses SERVICE – N:1 (service determines pricing and required slots)
 - Assigned to USER (vet role, assigned_vet_id) – N:1, optional initially
-- Reserves SLOT – 1:1
+- Occupies BOOKING_SLOT – 1:N
 - Has PAYMENT – 1:1
 - Documented by EMR – 1:0..1
 - Receives REVIEW – 1:N
@@ -795,6 +828,7 @@ Individual message within a conversation, supporting async communication between
 | 13 | NOTIFICATION | Core | System alert | to USER (1:N), triggered by BOOKING/PAYMENT/VET_SHIFT/CHAT_MESSAGE |
 | 14 | CHAT_CONVERSATION | Chat | 1-1 dialog | between USER (user1, user2), related to BOOKING (opt), contains CHAT_MESSAGE |
 | 15 | CHAT_MESSAGE | Chat | Conversation message | in CHAT_CONVERSATION (1:N), sent by USER (1:N), triggers NOTIFICATION |
+| 16 | BOOKING_SLOT | Core | Multi-slot link | Links one BOOKING to multiple SLOTs |
 
 ---
 
