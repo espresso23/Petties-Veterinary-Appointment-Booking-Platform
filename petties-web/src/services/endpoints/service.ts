@@ -81,3 +81,13 @@ export async function toggleServiceStatus(
   )
   return data
 }
+
+/**
+ * Update price per km for all home visit services
+ * PATCH /api/services/bulk/price-per-km?pricePerKm={value}
+ */
+export async function updateBulkPricePerKm(pricePerKm: number): Promise<void> {
+  await apiClient.patch('/services/bulk/price-per-km', null, {
+    params: { pricePerKm: pricePerKm.toString() },
+  })
+}

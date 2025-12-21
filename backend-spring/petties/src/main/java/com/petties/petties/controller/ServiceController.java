@@ -116,5 +116,16 @@ public class ServiceController {
         ServiceResponse response = serviceService.updatePricePerKm(serviceId, pricePerKm);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Update price per km for all home visit services
+     * PATCH /api/services/bulk/price-per-km
+     */
+    @PatchMapping("/bulk/price-per-km")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<Void> updateBulkPricePerKm(@RequestParam String pricePerKm) {
+        serviceService.updateBulkPricePerKm(pricePerKm);
+        return ResponseEntity.ok().build();
+    }
 }
 

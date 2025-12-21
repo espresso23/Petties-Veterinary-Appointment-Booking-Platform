@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -80,6 +81,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(response);
     }
@@ -155,8 +157,4 @@ public class AuthController {
         SendOtpResponse response = passwordResetService.resendPasswordResetOtp(email);
         return ResponseEntity.ok(response);
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 0d3bfe1 (sua lai tra ve auth giong develop, repostion file tai lieu)
