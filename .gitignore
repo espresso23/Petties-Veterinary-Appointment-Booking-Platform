@@ -11,3 +11,4 @@ petties-key.pem
 devpetties.pem
 *.txt
 *.log
+logs
