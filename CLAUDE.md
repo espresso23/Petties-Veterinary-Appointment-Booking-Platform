@@ -24,8 +24,7 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
-**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), Ollama (hybrid local for dev/cloud for prod), LlamaIndex for RAG
-
+**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG and use Hybrid Qdrant Retrive.
 ## Development Commands
 
 ### Quick Start (Databases only, services local)
@@ -97,7 +96,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Global exception handling via `GlobalExceptionHandler`
 - Validation with Vietnamese messages on DTOs (`@NotBlank`, `@Size`, etc.)
 - Profiles: `dev` (local Docker DBs), `test` (Cloud DBs), `prod` (Neon/Atlas/Redis Cloud)
-- Redis for OTP storage with TTL (Registration & Password Reset)
+- Redis for OTP storage with TTL (Registration & Password Reset,..)
 
 ### Frontend (React)
 - State management: Zustand stores (`src/store/`)
@@ -108,7 +107,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 ### AI Service (FastAPI)
 - Multi-agent: LangGraph with supervisor pattern
 - Config: DB-based dynamic configuration (agents, prompts, tools)
-- Tools: Code-based only (scanned from `app/core/tools/`)
+- Tools: Code-based only (scanned from `app/core/tools/`),use FastMCP host internal and use @mcp.tool
 - LLM: Ollama hybrid (local `http://localhost:11434` or cloud with `OLLAMA_API_KEY`)
 
 ### Mobile (Flutter)
@@ -139,9 +138,11 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 
 | Workflow | Trigger | Purpose |
 |----------|---------|--------|
-| `ci.yml` | PR → develop/main | Build + Test (gate before merge) |
-| `deploy-test.yml` | Push develop | Auto deploy Test Env |
-| `deploy-ec2.yml` | Push main | Auto deploy Production |
+| `ci.yml` | PR → develop, main | Build + Lint + Test (Frontend, Backend, AI Service) |
+| `deploy-test.yml` | Push → develop | Auto Deploy to EC2 Test Environment |
+| `deploy-ec2.yml` | Push → main | Auto Deploy to EC2 Production |
+| `mobile-ci-cd.yml` | Manual Dispatch | Build & Deploy Mobile App (Android/iOS) to Firebase/TestFlight |
+
 
 ### Docker Compose Files
 
@@ -157,7 +158,7 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 0. Always response in Vietnamese.
 1. Always references in `docs-references/` folder to avoid out of scope.
 2. Always comprehensive all plan and got a user accepted before execute code.
-3. Always clearly dev environment and production environment, make sure best practice project structure.
+3. Always clearly dev environment, test environment and production environment, make sure best practice project structure.
 4. Pet owner not use web (only mobile app), vet also use mobile app, clinic owner only use web, clinic manager only use web, admin web only.
 5. Always comprehensive project structure, never missing any folder and file, always follows best practice.
 6. Always ensure APIs Spring Boot design have API documentation (Swagger).
@@ -188,33 +189,60 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 
 ## Sub-Agent Routing Rules
 
-Dự án có 6 specialized sub-agents để xử lý các task phức tạp. Claude Code PHẢI delegate task đến đúng agent dựa trên routing rules sau:
+Dự án có **9 specialized sub-agents** để xử lý các task phức tạp. Claude Code PHẢI delegate task đến đúng agent dựa trên routing rules sau:
 
 ### Agent Overview
 
-| Agent | Model | Directory | Chuyên môn |
-|-------|-------|-----------|------------|
-| `spring-boot-api-developer` | opus | `backend-spring/petties/` | Spring Boot REST APIs, Entity, Service, Controller |
-| `frontend-web-developer` | sonnet | `petties-web/` | React 19, TypeScript, Neobrutalism UI |
-| `flutter-mobile-dev` | opus | `petties_mobile/` | Flutter, Riverpod, GoRouter |
-| `petties-ai-agent-developer` | opus | `petties-agent-serivce/` | LangGraph, FastMCP, RAG, WebSocket |
-| `api-testing-agent` | sonnet | `backend-spring/petties/src/test/` | JUnit 5, Mockito, Integration tests |
-| `petties-report-writer` | sonnet | `docs-references/` | SRS, SDD, Testing docs, Diagrams |
+**Petties-Specific Agents (6):**
+| Agent | Model | Color | Directory | Chuyên môn |
+|-------|-------|-------|-----------|------------|
+| `spring-boot-api-developer` | opus | green | `backend-spring/petties/` | Spring Boot REST APIs, Entity, Service, Controller, DTOs |
+| `frontend-web-developer` | sonnet | purple | `petties-web/` | React 19, TypeScript, Zustand, Neobrutalism UI |
+| `flutter-mobile-dev` | opus | default | `petties_mobile/` | Flutter, Dart, Riverpod, GoRouter, Mobile UI |
+| `petties-ai-agent-developer` | opus | orange | `petties-agent-serivce/` | LangGraph, FastMCP, RAG, WebSocket, Qdrant |
+| `api-testing-agent` | sonnet | yellow | `backend-spring/petties/src/test/` | JUnit 5, Mockito, @WebMvcTest, API Testing |
+| `petties-report-writer` | sonnet | pink | `docs-references/` | SRS, SDD, Testing docs, Use Cases, Mermaid diagrams |
+
+**General-Purpose Agents (3):**
+| Agent | Model | Color | Use Case |
+|-------|-------|-------|----------|
+| `architect-reviewer` | opus | gray | Architecture review, SOLID principles, design patterns |
+| `mobile-developer` | sonnet | default | Cross-platform mobile (React Native/Flutter), offline sync |
+| `fullstack-developer` | opus | default | Full-stack end-to-end features (Node.js, React, databases) |
 
 ### Routing Decision Matrix
 
 ```mermaid
 flowchart TD
-    A[User Request] --> B{Request Type?}
+    A[User Request] --> B{Request Category?}
 
-    B -->|API/Backend| C{Spring Boot?}
+    B -->|Backend API| C{What Task?}
     C -->|Implement API| D[spring-boot-api-developer]
     C -->|Write Tests| E[api-testing-agent]
 
-    B -->|Frontend Web| F[frontend-web-developer]
-    B -->|Mobile App| G[flutter-mobile-dev]
-    B -->|AI Service| H[petties-ai-agent-developer]
-    B -->|Documentation| I[petties-report-writer]
+    B -->|Frontend| F{Platform?}
+    F -->|Web Dashboard| G[frontend-web-developer]
+    F -->|Mobile App| H[flutter-mobile-dev]
+
+    B -->|AI/ML| I[petties-ai-agent-developer]
+
+    B -->|Documentation| J{Doc Type?}
+    J -->|Technical Docs| K[petties-report-writer]
+
+    B -->|Code Review| L{Review Type?}
+    L -->|Architecture| M[architect-reviewer]
+
+    B -->|Full Feature| N{Scope?}
+    N -->|End-to-End| O[fullstack-developer]
+    N -->|Mobile Cross-platform| P[mobile-developer]
+
+    style D fill:#90EE90
+    style E fill:#FFFFE0
+    style G fill:#DDA0DD
+    style H fill:#87CEEB
+    style I fill:#FFA500
+    style K fill:#FFB6C1
+    style M fill:#D3D3D3
 ```
 
 ### Routing Rules Chi Tiết
@@ -326,23 +354,269 @@ flowchart TD
 
 ---
 
+#### 7. `architect-reviewer` - Architecture Review
+**Trigger khi user yêu cầu:**
+- Review code cho architectural consistency
+- Kiểm tra SOLID principles violations
+- Phân tích service boundaries và dependencies
+- Review pull request với structural changes
+- Đánh giá design patterns trong codebase
+- Validate refactoring approach
+
+**Keywords:** architecture, review, SOLID, design pattern, refactoring, dependency, modularity
+
+**Ví dụ:**
+- "Review architecture của booking service"
+- "Kiểm tra code có vi phạm SOLID principles không"
+- "Phân tích dependencies giữa các modules"
+
+**Lưu ý:** Dùng khi cần architectural perspective, KHÔNG dùng cho feature implementation.
+
+---
+
+#### 8. `mobile-developer` - Cross-Platform Mobile
+**Trigger khi user yêu cầu:**
+- Implement React Native features (nếu project có RN)
+- Tích hợp native modules (iOS/Android)
+- Thiết lập offline-first data sync
+- Cấu hình push notifications cross-platform
+- Optimize app performance và bundle size
+- Setup build configuration cho app stores
+
+**Keywords:** React Native, native module, offline sync, push notification, app performance, cross-platform
+
+**Ví dụ:**
+- "Setup push notifications cho cả iOS và Android"
+- "Implement offline sync với SQLite"
+- "Tích hợp native camera module"
+
+**Lưu ý:** Dùng khi cần cross-platform mobile expertise. Nếu chỉ Flutter, dùng `flutter-mobile-dev`.
+
+---
+
+#### 9. `fullstack-developer` - Full-Stack End-to-End
+**Trigger khi user yêu cầu:**
+- Implement complete feature từ database đến UI
+- Setup new microservice với Node.js/Express/FastAPI
+- Integrate frontend với backend APIs
+- Design database schema và migrations
+- Setup CI/CD pipeline cho full stack
+- Implement authentication flow end-to-end
+
+**Keywords:** full-stack, end-to-end, microservice, Node.js, Express, database design, CI/CD
+
+**Ví dụ:**
+- "Implement payment feature từ database đến UI"
+- "Setup new microservice cho notifications"
+- "Tạo authentication flow hoàn chỉnh"
+
+**Lưu ý:** Dùng khi cần end-to-end implementation NGOÀI các agents Petties-specific. Ưu tiên dùng Petties agents trước.
+
+---
+
+### Agent Collaboration Patterns
+
+Một số tasks phức tạp cần nhiều agents làm việc cùng nhau. Dưới đây là các collaboration patterns khuyến nghị:
+
+#### Pattern 1: Feature Implementation (Sequential)
+```
+petties-report-writer (Use Cases)
+  → spring-boot-api-developer (APIs)
+  → api-testing-agent (Tests)
+  → frontend-web-developer/flutter-mobile-dev (UI)
+  → petties-report-writer (Update docs)
+```
+
+**Ví dụ:** Implement feature "Pet Vaccination Management"
+1. `petties-report-writer`: Viết Use Cases, Requirements
+2. `spring-boot-api-developer`: Tạo Vaccination Entity, Service, Controller
+3. `api-testing-agent`: Viết tests cho Vaccination endpoints
+4. `flutter-mobile-dev`: Tạo màn hình vaccination records cho pet owner
+5. `petties-report-writer`: Cập nhật SDD với API docs
+
+---
+
+#### Pattern 2: Parallel Development (Concurrent)
+```
+[spring-boot-api-developer] + [frontend-web-developer] + [flutter-mobile-dev]
+  (Chạy song song khi API contract đã được define)
+```
+
+**Điều kiện:** API contract (endpoints, request/response schemas) đã rõ ràng
+
+**Ví dụ:** Implement "Clinic Search" feature
+- Backend dev implement search API
+- Web dev tạo search UI cho admin
+- Mobile dev tạo search screen cho pet owner
+(Cả 3 agents chạy song song dựa trên API contract đã định nghĩa)
+
+---
+
+#### Pattern 3: AI-Enhanced Feature (Hybrid)
+```
+spring-boot-api-developer (REST APIs)
+  + petties-ai-agent-developer (AI Service)
+  → flutter-mobile-dev (Mobile UI with AI chat)
+```
+
+**Ví dụ:** Implement "AI Symptom Checker"
+1. `spring-boot-api-developer`: Tạo API lưu chat history, pet medical records
+2. `petties-ai-agent-developer`: Tạo Medical Agent với RAG pipeline
+3. `flutter-mobile-dev`: Tạo chat UI với WebSocket streaming
+
+---
+
+#### Pattern 4: Code Quality Assurance (Review → Fix)
+```
+spring-boot-api-developer (Implement feature)
+  → architect-reviewer (Review architecture)
+  → api-testing-agent (Add tests)
+  → spring-boot-api-developer (Refactor based on feedback)
+```
+
+**Ví dụ:** Implement new Payment Service
+1. `spring-boot-api-developer`: Implement PaymentService
+2. `architect-reviewer`: Review service boundaries, dependency injection
+3. `api-testing-agent`: Add comprehensive test coverage
+4. `spring-boot-api-developer`: Refactor theo architectural feedback
+
+---
+
+### Priority Matrix
+
+Khi một user request có thể trigger nhiều agents, sử dụng priority matrix này để chọn agent phù hợp:
+
+| Request Type | Primary Agent | Fallback Agent | Notes |
+|-------------|---------------|----------------|-------|
+| Spring Boot API implementation | `spring-boot-api-developer` | `fullstack-developer` | Luôn ưu tiên Petties-specific agent |
+| React Web UI | `frontend-web-developer` | `fullstack-developer` | Petties agent hiểu Neobrutalism design |
+| Flutter Mobile | `flutter-mobile-dev` | `mobile-developer` | flutter-mobile-dev biết Petties architecture |
+| AI Agent/RAG | `petties-ai-agent-developer` | - | Chỉ có agent này có LangGraph expertise |
+| API Testing | `api-testing-agent` | - | Specialized cho Petties testing strategy |
+| Documentation | `petties-report-writer` | - | Hiểu Petties docs structure |
+| Architecture Review | `architect-reviewer` | - | General agent, không Petties-specific |
+| Cross-platform Mobile | `flutter-mobile-dev` | `mobile-developer` | Petties dùng Flutter, không RN |
+| Full-stack Feature | Combine Petties agents | `fullstack-developer` | Break down thành subtasks cho specific agents |
+
+**Quy tắc vàng:** LUÔN ưu tiên Petties-specific agents (1-6) trước khi dùng general agents (7-9).
+
+---
+
 ### Workflow Khuyến Nghị
 
-Khi implement feature mới, follow thứ tự sau:
+#### Workflow A: New Feature Implementation (Full Cycle)
+```
+1. Plan          → petties-report-writer (Use Cases, Requirements)
+2. Backend       → spring-boot-api-developer (APIs)
+3. Test Backend  → api-testing-agent (Unit & Integration tests)
+4. Frontend/Mobile:
+   - Web         → frontend-web-developer
+   - Mobile      → flutter-mobile-dev
+5. AI (if needed) → petties-ai-agent-developer
+6. Documentation → petties-report-writer (Update SDD, Testing docs)
+```
 
-1. **Plan** - Dùng `petties-report-writer` để viết Use Cases, Requirements
-2. **Backend** - Dùng `spring-boot-api-developer` để implement APIs
-3. **Test Backend** - Dùng `api-testing-agent` để viết tests cho APIs
-4. **Frontend/Mobile** - Dùng `frontend-web-developer` hoặc `flutter-mobile-dev`
-5. **AI Integration** - Dùng `petties-ai-agent-developer` nếu cần AI features
-6. **Documentation** - Dùng `petties-report-writer` để update docs
+**Thời điểm:** Khi implement feature mới hoàn chỉnh
 
-### Parallel Execution
+---
+
+#### Workflow B: Bug Fix (Quick Fix)
+```
+1. Identify Layer → Grep/Read tools
+2. Fix Code:
+   - Backend Bug  → spring-boot-api-developer
+   - Web Bug      → frontend-web-developer
+   - Mobile Bug   → flutter-mobile-dev
+3. Add Test      → api-testing-agent (prevent regression)
+```
+
+**Thời điểm:** Khi fix bug trong existing code
+
+---
+
+#### Workflow C: Refactoring (Quality Improvement)
+```
+1. Review        → architect-reviewer (architectural analysis)
+2. Plan Refactor → List files and approach
+3. Refactor:
+   - Backend     → spring-boot-api-developer
+   - Frontend    → frontend-web-developer
+4. Test Coverage → api-testing-agent (ensure no regression)
+```
+
+**Thời điểm:** Khi cải thiện code quality
+
+---
+
+#### Workflow D: AI Feature Addition
+```
+1. Backend API   → spring-boot-api-developer (endpoints for AI service)
+2. AI Service    → petties-ai-agent-developer (LangGraph agent, tools, RAG)
+3. Frontend:
+   - Web         → frontend-web-developer (admin dashboard)
+   - Mobile      → flutter-mobile-dev (chat UI với WebSocket)
+4. Testing       → api-testing-agent (API tests)
+5. Documentation → petties-report-writer (AI architecture diagrams)
+```
+
+**Thời điểm:** Khi thêm AI-powered features
+
+---
+
+### Parallel Execution Strategy
 
 Có thể chạy song song các agents khi tasks độc lập:
-- `spring-boot-api-developer` + `frontend-web-developer` (nếu API contract đã rõ)
-- `api-testing-agent` cho nhiều controllers cùng lúc
-- `petties-report-writer` cho nhiều diagrams khác nhau
+
+**Scenario 1: API Contract Ready**
+```bash
+# Chạy song song sau khi define API contract
+spring-boot-api-developer + frontend-web-developer + flutter-mobile-dev
+```
+
+**Scenario 2: Multiple Controllers Testing**
+```bash
+# Test nhiều controllers cùng lúc
+api-testing-agent (BookingController) + api-testing-agent (ClinicController) + api-testing-agent (VetController)
+```
+
+**Scenario 3: Documentation Parallel**
+```bash
+# Tạo nhiều diagrams/docs đồng thời
+petties-report-writer (Sequence Diagrams) + petties-report-writer (Test Cases) + petties-report-writer (API Docs)
+```
+
+**Lưu ý:** Chỉ chạy parallel khi tasks KHÔNG phụ thuộc lẫn nhau.
+
+---
+
+### Decision Guidelines
+
+**Khi không chắc chắn agent nào phù hợp, hỏi bản thân:**
+
+1. **Task thuộc layer nào?**
+   - Database/Entity → `spring-boot-api-developer`
+   - Business Logic/Service → `spring-boot-api-developer`
+   - REST API/Controller → `spring-boot-api-developer`
+   - Web UI → `frontend-web-developer`
+   - Mobile UI → `flutter-mobile-dev`
+   - AI/ML → `petties-ai-agent-developer`
+
+2. **Task liên quan đến test?**
+   - API Testing → `api-testing-agent`
+   - Frontend Testing → `frontend-web-developer` (có thể tự test)
+   - Mobile Testing → `flutter-mobile-dev` (có thể tự test)
+
+3. **Task liên quan đến docs?**
+   - Use Cases/Requirements/Diagrams → `petties-report-writer`
+
+4. **Task cần architectural review?**
+   - Code review, SOLID, patterns → `architect-reviewer`
+
+5. **Task là end-to-end feature mới?**
+   - Break down thành subtasks cho các Petties agents
+   - Nếu quá phức tạp → `fullstack-developer` (as fallback)
+
+**Rule of thumb:** Khi có doubt, luôn ưu tiên Petties-specific agents (1-6) vì chúng hiểu rõ project architecture và conventions.
 
 ## Important Documentation
 

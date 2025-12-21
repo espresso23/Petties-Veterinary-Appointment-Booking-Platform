@@ -124,11 +124,15 @@ class VetHomeScreen extends StatelessWidget {
   Widget _buildStatsRow(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _buildStatCard('—', 'Bookings\nhôm nay', AppColors.primary)),
+        Expanded(
+            child: _buildStatCard('—', 'Bookings\nhôm nay', AppColors.primary)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('—', 'Chờ phê\nduyệt', AppColors.primaryLight)),
+        Expanded(
+            child:
+                _buildStatCard('—', 'Chờ phê\nduyệt', AppColors.primaryLight)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('—', 'Hoàn\nthành', AppColors.primaryDark)),
+        Expanded(
+            child: _buildStatCard('—', 'Hoàn\nthành', AppColors.primaryDark)),
       ],
     );
   }
@@ -148,7 +152,7 @@ class VetHomeScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               border: Border.all(color: AppColors.stone900, width: 2),
             ),
             child: Text(
@@ -277,9 +281,12 @@ class VetHomeScreen extends StatelessWidget {
             }
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
-            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LICH'),
-            BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'BENH NHAN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'LICH'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.assignment), label: 'BENH NHAN'),
             BottomNavigationBarItem(icon: Icon(Icons.person), label: 'HO SO'),
           ],
         ),
