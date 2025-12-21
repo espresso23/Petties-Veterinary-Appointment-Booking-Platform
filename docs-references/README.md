@@ -38,6 +38,7 @@ Quick reference, commands, và cheat sheets:
 
 ### 📋 Documentation (`/documentation`)
 Technical documentation, features, và architecture:
+- `SRS/PETTIES_SRS.md` - 🆕 Software Requirements Specification (SRS) hoàn chỉnh
 - `PETTIES_Features.md` - Danh sách features của hệ thống
 - `TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - Technical scope về Agent Management
 - `SP26_Petties_Capstone.md` - Tài liệu Capstone project

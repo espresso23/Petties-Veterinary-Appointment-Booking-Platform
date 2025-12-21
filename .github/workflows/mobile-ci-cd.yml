@@ -6,8 +6,6 @@
 #   - iOS: TestFlight hoặc Firebase App Distribution
 # 
 # Triggers:
-#   - Push to develop: Build DEV flavor → Deploy to testers
-#   - Push to main: Build PROD flavor → Deploy to production testers
 #   - Manual dispatch: Chọn flavor, platform và deployment target
 #
 # Jobs:
