@@ -375,7 +375,7 @@ export function ServiceModal({
                 paddingRight: '8px' 
               }}
             >
-              Cho phép khách hàng đặt dịch vụ này tại nhà
+              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu.
             </p>
           </div>
 

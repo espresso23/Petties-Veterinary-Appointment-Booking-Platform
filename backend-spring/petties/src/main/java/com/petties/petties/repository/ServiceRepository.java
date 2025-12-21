@@ -19,5 +19,7 @@ public interface ServiceRepository extends JpaRepository<Service, UUID> {
     boolean existsByServiceIdAndClinic(UUID serviceId, Clinic clinic);
     
     List<Service> findByClinicAndIsActiveTrue(Clinic clinic);
+    
+    List<Service> findByClinicAndIsHomeVisit(Clinic clinic, Boolean isHomeVisit);
 }
 
