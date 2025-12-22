@@ -205,7 +205,7 @@ export function ServiceCard({
               }}
               className="p-1 bg-white border-2 border-black hover:bg-gray-100"
             >
-              <X size={20} className="text-black" />
+              <X size={20} className="text-white" />
             </button>
           </div>
 
