@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { PricingModal, type PricingData } from '../components/clinic-owner'
+import { updateBulkPricePerKm } from '../services/endpoints/service'
 import '../styles/brutalist.css'
 
 interface NavItem {
@@ -16,6 +19,24 @@ export const ClinicOwnerLayout = () => {
     const navigate = useNavigate()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
+    
+    const [isPricingModalOpen, setIsPricingModalOpen] = useState(false)
+    const [pricingData, setPricingData] = useState<PricingData>({
+        pricePerKm: 5000,
+    })
+
+    const handleSavePricing = async (data: PricingData) => {
+        try {
+            await updateBulkPricePerKm(data.pricePerKm)
+            setPricingData(data)
+            setIsPricingModalOpen(false)
+            console.log('Pricing saved successfully:', data)
+            // TODO: Show success toast
+        } catch (error) {
+            console.error('Failed to update pricing:', error)
+            // TODO: Show error toast
+        }
+    }
 
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
@@ -42,7 +63,7 @@ export const ClinicOwnerLayout = () => {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 py-4 overflow-y-auto">
+                <nav className="py-4 overflow-y-auto">
                     {navItems.map((link) => (
                         <NavLink
                             key={link.path}
@@ -59,6 +80,41 @@ export const ClinicOwnerLayout = () => {
                         </NavLink>
                     ))}
                 </nav>
+
+                {/* Pricing Button */}
+                <div style={{ padding: '16px 24px' }}>
+                    <button
+                        onClick={() => setIsPricingModalOpen(true)}
+                        style={{
+                            width: '100%',
+                            padding: '16px',
+                            backgroundColor: '#FFFFFF',
+                            color: '#000000',
+                            border: '4px solid #000000',
+                            boxShadow: '6px 6px 0 #000000',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            gap: '12px',
+                            transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f5f5f4'
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFFFFF'
+                        }}
+                    >
+                        <span style={{ fontSize: '24px', fontWeight: '900', lineHeight: '1' }}>$</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: '1.2' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>CHỈNH SỬA GIÁ</span>
+                            <span style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>KM</span>
+                        </div>
+                    </button>
+                </div>
+                
+                <div style={{ flex: 1 }}></div>
 
                 {/* User & Logout */}
                 <div className="px-6 py-4 border-t-4 border-stone-900">
@@ -79,6 +135,16 @@ export const ClinicOwnerLayout = () => {
             <main className="flex-1 overflow-auto">
                 <Outlet />
             </main>
+            
+            {/* Pricing Modal */}
+            {isPricingModalOpen && (
+                <PricingModal
+                    isOpen={isPricingModalOpen}
+                    onClose={() => setIsPricingModalOpen(false)}
+                    onSave={handleSavePricing}
+                    initialData={pricingData}
+                />
+            )}
         </div>
     )
 }
