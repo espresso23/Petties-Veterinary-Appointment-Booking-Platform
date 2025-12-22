@@ -1,13 +1,23 @@
 {
 	"info": {
 		"name": "PETTIES Service API - Simple Test",
-		"description": "Simple Postman collection for testing PETTIES Service Management API\n\n**Quick Start:**\n1. Run 'Login' to get token\n2. Run 'Create Service' to test\n3. Run 'Get All Services' to verify\n\n**Credentials:**\n- Username: {{username}}\n- Password: {{password}}\n- Role: CLINIC_OWNER",
+		"description": "Simple Postman collection for testing PETTIES Service Management API\n\n**Quick Start:**\n1. Update username/password in request body\n2. Run 'Login' to get token\n3. Run 'Create Service' to test\n4. Run 'Get All Services' to verify\n\n**Note:** Use CLINIC_OWNER role credentials",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
 		{
 			"key": "baseUrl",
 			"value": "http://localhost:8080/api",
+			"type": "string"
+		},
+		{
+			"key": "username",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "password",
+			"value": "",
 			"type": "string"
 		},
 		{
