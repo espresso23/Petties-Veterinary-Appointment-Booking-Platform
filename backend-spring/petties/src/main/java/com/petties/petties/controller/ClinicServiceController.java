@@ -1,9 +1,9 @@
 package com.petties.petties.controller;
 
-import com.petties.petties.dto.service.ServiceRequest;
-import com.petties.petties.dto.service.ServiceResponse;
-import com.petties.petties.dto.service.ServiceUpdateRequest;
-import com.petties.petties.service.ServiceService;
+import com.petties.petties.dto.clinicService.ClinicServiceRequest;
+import com.petties.petties.dto.clinicService.ClinicServiceResponse;
+import com.petties.petties.dto.clinicService.ClinicServiceUpdateRequest;
+import com.petties.petties.service.ClinicServiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -11,15 +11,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/services")
 @RequiredArgsConstructor
-public class ServiceController {
+public class ClinicServiceController {
 
-    private final ServiceService serviceService;
+    private final ClinicServiceService serviceService;
 
     /**
      * Create a new service
@@ -27,8 +28,8 @@ public class ServiceController {
      */
     @PostMapping
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> createService(@Valid @RequestBody ServiceRequest request) {
-        ServiceResponse response = serviceService.createService(request);
+    public ResponseEntity<ClinicServiceResponse> createService(@Valid @RequestBody ClinicServiceRequest request) {
+        ClinicServiceResponse response = serviceService.createService(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
@@ -38,8 +39,8 @@ public class ServiceController {
      */
     @GetMapping
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<List<ServiceResponse>> getAllServices() {
-        List<ServiceResponse> services = serviceService.getAllServices();
+    public ResponseEntity<List<ClinicServiceResponse>> getAllServices() {
+        List<ClinicServiceResponse> services = serviceService.getAllServices();
         return ResponseEntity.ok(services);
     }
 
@@ -49,8 +50,8 @@ public class ServiceController {
      */
     @GetMapping("/{serviceId}")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> getServiceById(@PathVariable UUID serviceId) {
-        ServiceResponse service = serviceService.getServiceById(serviceId);
+    public ResponseEntity<ClinicServiceResponse> getServiceById(@PathVariable UUID serviceId) {
+        ClinicServiceResponse service = serviceService.getServiceById(serviceId);
         return ResponseEntity.ok(service);
     }
 
@@ -60,10 +61,10 @@ public class ServiceController {
      */
     @PutMapping("/{serviceId}")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> updateService(
+    public ResponseEntity<ClinicServiceResponse> updateService(
             @PathVariable UUID serviceId,
-            @Valid @RequestBody ServiceUpdateRequest request) {
-        ServiceResponse response = serviceService.updateService(serviceId, request);
+            @Valid @RequestBody ClinicServiceUpdateRequest request) {
+        ClinicServiceResponse response = serviceService.updateService(serviceId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -84,10 +85,10 @@ public class ServiceController {
      */
     @PatchMapping("/{serviceId}/status")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> updateServiceStatus(
+    public ResponseEntity<ClinicServiceResponse> updateServiceStatus(
             @PathVariable UUID serviceId,
             @RequestParam Boolean isActive) {
-        ServiceResponse response = serviceService.updateServiceStatus(serviceId, isActive);
+        ClinicServiceResponse response = serviceService.updateServiceStatus(serviceId, isActive);
         return ResponseEntity.ok(response);
     }
 
@@ -97,10 +98,10 @@ public class ServiceController {
      */
     @PatchMapping("/{serviceId}/home-visit")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> updateHomeVisitStatus(
+    public ResponseEntity<ClinicServiceResponse> updateHomeVisitStatus(
             @PathVariable UUID serviceId,
             @RequestParam Boolean isHomeVisit) {
-        ServiceResponse response = serviceService.updateHomeVisitStatus(serviceId, isHomeVisit);
+        ClinicServiceResponse response = serviceService.updateHomeVisitStatus(serviceId, isHomeVisit);
         return ResponseEntity.ok(response);
     }
 
@@ -110,10 +111,10 @@ public class ServiceController {
      */
     @PatchMapping("/{serviceId}/price-per-km")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ServiceResponse> updatePricePerKm(
+    public ResponseEntity<ClinicServiceResponse> updatePricePerKm(
             @PathVariable UUID serviceId,
-            @RequestParam String pricePerKm) {
-        ServiceResponse response = serviceService.updatePricePerKm(serviceId, pricePerKm);
+            @RequestParam BigDecimal pricePerKm) {
+        ClinicServiceResponse response = serviceService.updatePricePerKm(serviceId, pricePerKm);
         return ResponseEntity.ok(response);
     }
 
@@ -123,9 +124,8 @@ public class ServiceController {
      */
     @PatchMapping("/bulk/price-per-km")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<Void> updateBulkPricePerKm(@RequestParam String pricePerKm) {
+    public ResponseEntity<Void> updateBulkPricePerKm(@RequestParam BigDecimal pricePerKm) {
         serviceService.updateBulkPricePerKm(pricePerKm);
         return ResponseEntity.ok().build();
     }
 }
-

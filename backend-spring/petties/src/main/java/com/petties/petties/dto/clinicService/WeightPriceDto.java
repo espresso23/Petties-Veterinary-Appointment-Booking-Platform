@@ -1,4 +1,4 @@
-package com.petties.petties.dto.service;
+package com.petties.petties.dto.clinicService;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,13 +6,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class WeightPriceDto {
-    private String minWeight;
-    private String maxWeight;
-    private String price;
+    private BigDecimal minWeight;
+    private BigDecimal maxWeight;
+    private BigDecimal price;
 }

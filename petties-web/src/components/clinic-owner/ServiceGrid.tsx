@@ -6,8 +6,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { Plus, Loader2, AlertCircle } from 'lucide-react'
-import { ServiceCard, type Service } from './ServiceCard'
+import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
+import { PricingModal, type PricingData } from './PricingModal'
+import { ConfirmDialog } from '../ConfirmDialog'
 import {
   getAllServices,
   getServiceById,
@@ -15,38 +17,36 @@ import {
   updateService,
   deleteService,
   toggleServiceStatus,
+  updateBulkPricePerKm,
 } from '../../services/endpoints/service'
-import type { ServiceResponse, ServiceRequest } from '../../types/service'
+import { useToast } from '../../components/Toast'
+import type { ClinicServiceResponse, ClinicServiceRequest } from '../../types/service'
 
-// Convert ServiceResponse to local Service type for backward compatibility
-function mapResponseToService(response: ServiceResponse): Service {
+// Convert ClinicServiceResponse to local ClinicService type
+function mapResponseToService(response: ClinicServiceResponse): ClinicService {
   return {
     id: response.serviceId,
     name: response.name,
-    price: Number(response.basePrice),
+    price: response.basePrice,
+    slotsRequired: response.slotsRequired,
     duration: response.durationTime,
     isActive: response.isActive,
     isHomeVisit: response.isHomeVisit,
-    pricePerKm: response.pricePerKm ? Number(response.pricePerKm) : undefined,
+    pricePerKm: response.pricePerKm,
     serviceCategory: response.serviceCategory,
     petType: response.petType,
     weightPrices: response.weightPrices,
   }
 }
 
-function mapServiceToRequest(service: Partial<Service>): ServiceRequest {
-  // Calculate slots based on duration: 30 minutes = 1 slot
-  const duration = service.duration || 30
-  const calculatedSlots = Math.ceil(duration / 30)
-  
+function mapServiceToRequest(service: any): ClinicServiceRequest {
   return {
     name: service.name || '',
-    basePrice: service.price?.toString() || '0',
-    durationTime: duration,
-    slotsRequired: calculatedSlots,
+    basePrice: service.basePrice || 0,
+    slotsRequired: service.slotsRequired || 1,
     isActive: service.isActive ?? true,
     isHomeVisit: service.isHomeVisit ?? false,
-    pricePerKm: '0', // Will be set via global pricing modal
+    pricePerKm: 0,
     serviceCategory: service.serviceCategory,
     petType: service.petType,
     weightPrices: service.weightPrices,
@@ -54,12 +54,19 @@ function mapServiceToRequest(service: Partial<Service>): ServiceRequest {
 }
 
 export function ServiceGrid() {
-  const [services, setServices] = useState<Service[]>([])
+  const [services, setServices] = useState<ClinicService[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [selectedService, setSelectedService] = useState<ClinicServiceResponse | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false)
+  const [pricingData, setPricingData] = useState<PricingData>({
+    pricePerKm: 5000,
+  })
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null)
+  const { showToast } = useToast()
 
   // Fetch services on mount
   useEffect(() => {
@@ -88,25 +95,36 @@ export function ServiceGrid() {
     setIsModalOpen(true)
   }
 
-  const handleEditService = (e: React.MouseEvent, service: Service) => {
+  const handleEditService = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    setSelectedService(service)
-    setIsModalOpen(true)
+    try {
+      const service = await getServiceById(id)
+      setSelectedService(service)
+      setIsModalOpen(true)
+    } catch (err) {
+      showToast('error', 'Không thể tải thông tin dịch vụ')
+    }
   }
 
-  const handleDeleteService = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteService = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation()
-    if (!window.confirm('Bạn có chắc chắn muốn xóa dịch vụ này?')) {
-      return
-    }
+    setServiceToDelete({ id, name })
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteService = async () => {
+    if (!serviceToDelete) return
 
     try {
-      await deleteService(id)
-      // Remove from local state immediately
-      setServices((prev) => prev.filter((s) => s.id !== id))
+      await deleteService(serviceToDelete.id)
+      setServices((prev) => prev.filter((s) => s.id !== serviceToDelete.id))
+      showToast('success', 'Đã xóa dịch vụ thành công')
     } catch (err) {
       console.error('Failed to delete service:', err)
-      alert('Không thể xóa dịch vụ. Vui lòng thử lại.')
+      showToast('error', 'Không thể xóa dịch vụ. Vui lòng thử lại.')
+    } finally {
+      setServiceToDelete(null)
+      setIsDeleteDialogOpen(false)
     }
   }
 
@@ -114,52 +132,71 @@ export function ServiceGrid() {
     e.stopPropagation()
 
     try {
-      // Get current service data from API
       const currentService = await getServiceById(id)
-      
-      // Toggle status via PATCH endpoint
       const updated = await toggleServiceStatus(currentService)
-      
-      // Update local state
+
       setServices((prev) =>
         prev.map((s) => (s.id === id ? mapResponseToService(updated) : s)),
       )
+      showToast('success', 'Đã cập nhật trạng thái dịch vụ')
     } catch (err) {
       console.error('Failed to toggle service status:', err)
-      alert('Không thể thay đổi trạng thái dịch vụ. Vui lòng thử lại.')
+      showToast('error', 'Không thể thay đổi trạng thái dịch vụ. Vui lòng thử lại.')
     }
   }
 
   const handleSaveService = async (
-    serviceData: Omit<Service, 'id' | 'isActive'>,
+    serviceData: any
   ) => {
     try {
       setIsSubmitting(true)
       const requestData = mapServiceToRequest(serviceData)
 
       if (selectedService) {
-        // Update existing service
-        const updated = await updateService(selectedService.id, requestData)
+        // Update existing service - preserve pricePerKm
+        const updatePayload = {
+          ...requestData,
+          pricePerKm: selectedService.pricePerKm, // Keep existing pricePerKm
+        }
+        const updated = await updateService(selectedService.serviceId, updatePayload)
         setServices((prev) =>
           prev.map((s) =>
-            s.id === selectedService.id ? mapResponseToService(updated) : s,
+            s.id === selectedService.serviceId ? mapResponseToService(updated) : s,
           ),
         )
+        showToast('success', 'Đã cập nhật dịch vụ thành công')
       } else {
         // Create new service
         const created = await createService(requestData)
         setServices((prev) => [...prev, mapResponseToService(created)])
+        showToast('success', 'Đã thêm dịch vụ mới thành công')
       }
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save service:', err)
-      alert(
-        selectedService
-          ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
-          : 'Không thể tạo dịch vụ. Vui lòng thử lại.',
-      )
+      const serverMessage = err.response?.data?.message || (selectedService
+        ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
+        : 'Không thể tạo dịch vụ. Vui lòng thử lại.')
+      showToast('error', serverMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSavePricing = async (data: PricingData) => {
+    try {
+      setIsSubmitting(true)
+      await updateBulkPricePerKm(data.pricePerKm)
+      setPricingData(data)
+      setIsPricingModalOpen(false)
+      showToast('success', 'Đã cập nhật đơn giá di chuyển (KM)')
+      // Reload services to show updated prices on cards
+      await loadServices()
+    } catch (error) {
+      console.error('Failed to update pricing:', error)
+      showToast('error', 'Không thể cập nhật đơn giá di chuyển')
     } finally {
       setIsSubmitting(false)
     }
@@ -220,17 +257,33 @@ export function ServiceGrid() {
             </p>
           </div>
 
-          <button
-            onClick={handleAddService}
-            disabled={isSubmitting}
-            style={{ backgroundColor: '#FF6B35' }}
-            className="group flex items-center gap-2 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus size={24} strokeWidth={3} />
-            <span className="font-black text-lg uppercase tracking-wide">
-              Thêm dịch vụ
-            </span>
-          </button>
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={handleAddService}
+              disabled={isSubmitting}
+              style={{ backgroundColor: '#FF6B35' }}
+              className="group flex items-center gap-2 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus size={24} strokeWidth={3} />
+              <span className="font-black text-lg uppercase tracking-wide">
+                Thêm dịch vụ
+              </span>
+            </button>
+
+            <button
+              onClick={() => setIsPricingModalOpen(true)}
+              disabled={isSubmitting}
+              className="flex items-center gap-2 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl leading-none">
+                $
+              </div>
+              <div className="flex flex-col items-start leading-tight">
+                <span className="font-black text-xs uppercase">Chỉnh sửa giá</span>
+                <span className="font-black text-xs uppercase">Kilômét (KM)</span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Empty State */}
@@ -256,16 +309,18 @@ export function ServiceGrid() {
 
         {/* Grid Section */}
         {services.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">{services.map((service) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+            {services.map((service) => (
               <ServiceCard
                 key={service.id}
                 service={service}
-                onClick={() => {
-                  setSelectedService(service)
+                onClick={async () => {
+                  const fullService = await getServiceById(service.id)
+                  setSelectedService(fullService)
                   setIsModalOpen(true)
                 }}
-                onEdit={(e) => handleEditService(e, service)}
-                onDelete={(e) => handleDeleteService(e, service.id)}
+                onEdit={(e) => handleEditService(e, service.id)}
+                onDelete={(e) => handleDeleteService(e, service.id, service.name)}
                 onToggleStatus={(e) => handleToggleStatus(e, service.id)}
               />
             ))}
@@ -308,6 +363,31 @@ export function ServiceGrid() {
         onSave={handleSaveService}
         initialData={selectedService}
         isSubmitting={isSubmitting}
+      />
+
+      {/* Pricing Modal */}
+      {isPricingModalOpen && (
+        <PricingModal
+          isOpen={isPricingModalOpen}
+          onClose={() => setIsPricingModalOpen(false)}
+          onSave={handleSavePricing}
+          initialData={pricingData}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false)
+          setServiceToDelete(null)
+        }}
+        onConfirm={confirmDeleteService}
+        title="Xác nhận xóa dịch vụ"
+        message={`Bạn có chắc chắn muốn xóa dịch vụ "${serviceToDelete?.name}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa dịch vụ"
+        cancelText="Hủy bỏ"
+        variant="danger"
       />
     </div>
   )
