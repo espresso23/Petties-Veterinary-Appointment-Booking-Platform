@@ -85,7 +85,7 @@ services:
       ENVIRONMENT: test
       APP_DEBUG: "true"
       # Neon PostgreSQL - TEST Branch
-      DATABASE_URL: ${DATABASE_URL_TEST:-postgresql://user:pass@test-branch.neon.tech:5432/postgres?sslmode=require}
+      DATABASE_URL: ${DATABASE_URL_TEST:-}
       # Qdrant Cloud (can share with prod or use separate collection)
       QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
