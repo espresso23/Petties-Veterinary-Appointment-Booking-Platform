@@ -1,4 +1,4 @@
-package com.petties.petties.dto.service;
+package com.petties.petties.dto.clinicService;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -15,21 +16,20 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ServiceResponse {
-    
+public class ClinicServiceResponse {
+
     private UUID serviceId;
     private UUID clinicId;
     private String name;
-    private String basePrice;
+    private BigDecimal basePrice;
     private Integer durationTime;
     private Integer slotsRequired;
     private Boolean isActive;
     private Boolean isHomeVisit;
-    private String pricePerKm;
+    private BigDecimal pricePerKm;
     private String serviceCategory;
     private String petType;
     private List<WeightPriceDto> weightPrices;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

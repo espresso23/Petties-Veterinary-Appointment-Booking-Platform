@@ -68,30 +68,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-<<<<<<< HEAD
         </dependency>
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> 2db5890 (Done feature\service)
         <!-- Mail Sender for OTP emails -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
-<<<<<<< HEAD
-=======
-        </dependency>
-
-        <!-- Mail Sender for OTP emails -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-
->>>>>>> origin/intergrationFeature
         <!-- Redis for OTP/Session storage -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -117,25 +100,11 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
-<<<<<<< HEAD
-=======
->>>>>>> 2db5890 (Done feature\service)
-=======
->>>>>>> origin/intergrationFeature
         <!-- Jackson JSR310 for Java 8 Date/Time support -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-        <!-- H2 Database for in-memory database -->
-=======
->>>>>>> 2db5890 (Done feature\service)
-=======
-        <!-- H2 Database for in-memory database -->
->>>>>>> origin/intergrationFeature
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -167,29 +136,6 @@
         </dependency>
 
         <!-- Test Dependencies -->
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
->>>>>>> 2db5890 (Done feature\service)
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-<<<<<<< HEAD
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
-=======
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security-test</artifactId>
->>>>>>> 2db5890 (Done feature\service)
-=======
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -198,7 +144,6 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
->>>>>>> origin/intergrationFeature
             <scope>test</scope>
         </dependency>
     </dependencies>

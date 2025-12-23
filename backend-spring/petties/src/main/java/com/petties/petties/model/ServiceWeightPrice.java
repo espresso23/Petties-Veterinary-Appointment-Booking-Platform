@@ -9,6 +9,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -28,16 +29,16 @@ public class ServiceWeightPrice {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
-    private Service service;
+    private ClinicService service;
 
-    @Column(name = "min_weight", nullable = false, length = 20)
-    private String minWeight;
+    @Column(name = "min_weight", nullable = false, precision = 10, scale = 2)
+    private BigDecimal minWeight;
 
-    @Column(name = "max_weight", nullable = false, length = 20)
-    private String maxWeight;
+    @Column(name = "max_weight", nullable = false, precision = 10, scale = 2)
+    private BigDecimal maxWeight;
 
-    @Column(name = "price", nullable = false, length = 50)
-    private String price;
+    @Column(name = "price", nullable = false, precision = 19, scale = 2)
+    private BigDecimal price;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

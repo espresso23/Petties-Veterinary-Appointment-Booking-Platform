@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext, useContext, useCallback, useRef, type ReactNode } from 'react'
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
 import '../styles/brutalist.css'
 
 // Toast types
@@ -83,27 +84,27 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
         switch (toast.type) {
             case 'success':
                 return {
-                    bg: 'bg-green-500',
-                    icon: '✅',
-                    border: 'border-green-700'
+                    bg: 'bg-[#22c55e]',
+                    icon: CheckCircle2,
+                    iconBg: 'bg-[#15803d]',
                 }
             case 'error':
                 return {
-                    bg: 'bg-red-500',
-                    icon: '❌',
-                    border: 'border-red-700'
+                    bg: 'bg-[#ef4444]',
+                    icon: AlertCircle,
+                    iconBg: 'bg-[#b91c1c]',
                 }
             case 'warning':
                 return {
-                    bg: 'bg-amber-500',
-                    icon: '⚠️',
-                    border: 'border-amber-700'
+                    bg: 'bg-[#f59e0b]',
+                    icon: AlertTriangle,
+                    iconBg: 'bg-[#b45309]',
                 }
             case 'info':
                 return {
-                    bg: 'bg-blue-500',
-                    icon: 'ℹ️',
-                    border: 'border-blue-700'
+                    bg: 'bg-[#3b82f6]',
+                    icon: Info,
+                    iconBg: 'bg-[#1d4ed8]',
                 }
         }
     }
@@ -113,23 +114,27 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
     return (
         <div
             className={`
-        ${styles.bg} ${styles.border}
-        border-4 border-stone-900 shadow-brutal
-        p-4 flex items-start gap-3
-        transform transition-all duration-300
-        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        ${styles.bg} 
+        border-[4px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]
+        p-4 flex items-center gap-4 min-w-[320px]
+        transform transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)]
+        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}
       `}
         >
-            <span className="text-xl flex-shrink-0">{styles.icon}</span>
-            <p className="text-white font-semibold text-sm flex-1">{toast.message}</p>
+            <div className={`p-1.5 border-2 border-black ${styles.iconBg} shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}>
+                <styles.icon size={20} className="text-white" strokeWidth={3} />
+            </div>
+
+            <p className="text-black font-black uppercase text-sm flex-1 tracking-tight">{toast.message}</p>
+
             <button
                 onClick={() => {
                     setIsVisible(false)
                     setTimeout(() => onClose(toast.id), 300)
                 }}
-                className="text-white hover:text-stone-200 font-bold text-lg leading-none"
+                className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all active:translate-x-[2px] active:translate-y-[2px]"
             >
-                ×
+                <X size={18} strokeWidth={3} />
             </button>
         </div>
     )

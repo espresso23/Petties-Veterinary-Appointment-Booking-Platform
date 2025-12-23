@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react'
-import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle, Minus } from 'lucide-react'
-import type { Service } from './ServiceCard'
+import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle, Minus, Stethoscope, HeartPulse, Syringe, Scissors, Home, ChevronDown, Scale } from 'lucide-react'
+import type { ClinicServiceResponse } from '../../types/service'
 import type { WeightPriceDto } from '../../types/service'
 
 interface ServiceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (service: Omit<Service, 'id' | 'isActive'>) => void
-  initialData?: Service | null
+  onSave: (service: any) => void
+  initialData?: ClinicServiceResponse | null
   isSubmitting?: boolean
-  defaultPricePerKm?: number
+ defaultPricePerKm?: number
 }
 
 export function ServiceModal({
@@ -21,42 +21,76 @@ export function ServiceModal({
   defaultPricePerKm = 0,
 }: ServiceModalProps) {
   const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
-  const [duration, setDuration] = useState('')
+  const [basePrice, setBasePrice] = useState('')
+  const [slotsRequired, setSlotsRequired] = useState(1)
   const [isHomeVisit, setIsHomeVisit] = useState(false)
   const [pricePerKm, setPricePerKm] = useState<number>(defaultPricePerKm)
   const [serviceCategory, setServiceCategory] = useState('')
   const [petType, setPetType] = useState('')
+  const [customPetType, setCustomPetType] = useState('')
   const [weightPrices, setWeightPrices] = useState<WeightPriceDto[]>([])
   const [showWeightPriceModal, setShowWeightPriceModal] = useState(false)
   const [editingTierIndex, setEditingTierIndex] = useState<number | null>(null)
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false)
+  const [isPetTypeOpen, setIsPetTypeOpen] = useState(false)
+
+  const categories = [
+    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: Stethoscope, color: '#e0f2fe' },
+    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartPulse, color: '#fef2f2' },
+    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: Syringe, color: '#ecfdf5' },
+    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: Scissors, color: '#f5f3ff' },
+    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: Home, color: '#fffbeb' },
+  ]
+
+  const petTypes = [
+    { id: 'Chó', label: 'Chó' },
+    { id: 'Mèo', label: 'Mèo' },
+    { id: 'Khác', label: 'Khác (Tự nhập)' },
+  ]
+
+  const selectedCategory = categories.find(c => c.id === serviceCategory)
+  const selectedPetType = petTypes.find(p => p.id === petType)
 
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         setName(initialData.name)
-        setPrice(initialData.price.toString())
-        setDuration(initialData.duration.toString())
+        setBasePrice(initialData.basePrice.toString())
+        setSlotsRequired(initialData.slotsRequired)
         setIsHomeVisit(initialData.isHomeVisit)
         setPricePerKm(initialData.pricePerKm || 0)
         setServiceCategory(initialData.serviceCategory || '')
-        setPetType(initialData.petType || '')
+
+        // Handle petType: check if it's predefined or custom
+        const predefinedPet = petTypes.find(p => p.id === initialData.petType)
+        if (predefinedPet) {
+          setPetType(initialData.petType || '')
+          setCustomPetType('')
+        } else if (initialData.petType) {
+          setPetType('Khác')
+          setCustomPetType(initialData.petType)
+        } else {
+          setPetType('')
+          setCustomPetType('')
+        }
+
         setWeightPrices(initialData.weightPrices || [])
       } else {
         setName('')
-        setPrice('')
-        setDuration('')
+        setBasePrice('')
+        setSlotsRequired(1)
         setIsHomeVisit(false)
         setPricePerKm(defaultPricePerKm)
         setServiceCategory('')
         setPetType('')
+        setCustomPetType('')
         setWeightPrices([])
       }
     }
   }, [isOpen, initialData, defaultPricePerKm])
 
   const handleAddWeightPrice = () => {
-    setWeightPrices([...weightPrices, { minWeight: '', maxWeight: '', price: '' }])
+    setWeightPrices([...weightPrices, { minWeight: 0, maxWeight: 0, price: 0 }])
   }
 
   const handleRemoveWeightPrice = (index: number) => {
@@ -65,8 +99,20 @@ export function ServiceModal({
 
   const handleWeightPriceChange = (index: number, field: keyof WeightPriceDto, value: string) => {
     const updated = [...weightPrices]
-    updated[index] = { ...updated[index], [field]: value }
+    if (field === 'price') {
+      const numericValue = value.replace(/\D/g, '')
+      updated[index] = { ...updated[index], [field]: numericValue === '' ? 0 : Number(numericValue) }
+    } else {
+      updated[index] = { ...updated[index], [field]: value === '' ? 0 : Number(value) }
+    }
     setWeightPrices(updated)
+  }
+
+  const formatVNDInput = (value: string) => {
+    if (!value) return ''
+    const numeric = value.replace(/\D/g, '')
+    if (!numeric) return ''
+    return new Intl.NumberFormat('vi-VN').format(Number(numeric))
   }
 
   if (!isOpen) return null
@@ -74,16 +120,20 @@ export function ServiceModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (isSubmitting) return
-    
+
     onSave({
       name,
-      price: Number(price),
-      duration: Number(duration),
+      basePrice: Number(basePrice),
+      slotsRequired: Number(slotsRequired),
       isHomeVisit,
       pricePerKm: isHomeVisit ? pricePerKm : undefined,
       serviceCategory: serviceCategory || undefined,
-      petType: petType || undefined,
-      weightPrices: weightPrices.length > 0 ? weightPrices : undefined,
+      petType: petType === 'Khác' ? (customPetType || undefined) : (petType || undefined),
+      weightPrices: weightPrices.length > 0 ? weightPrices.map(wp => ({
+        minWeight: Number(wp.minWeight),
+        maxWeight: Number(wp.maxWeight),
+        price: Number(wp.price)
+      })) : undefined,
     })
   }
 
@@ -94,7 +144,7 @@ export function ServiceModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div 
+        <div
           style={{ backgroundColor: '#FF6B35' }}
           className="flex items-center justify-between border-b-4 border-black p-6"
         >
@@ -103,20 +153,20 @@ export function ServiceModal({
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-black hover:text-white transition-colors border-2 border-black bg-white"
+            className="w-10 h-10 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.4)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
           >
-            <X size={24} />
+            <X size={24} strokeWidth={3} />
           </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto flex-1">
           <div className="space-y-2">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
                 display: 'block',
                 color: '#000000',
                 marginBottom: '8px'
@@ -141,11 +191,11 @@ export function ServiceModal({
           </div>
 
           <div className="space-y-2">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
                 display: 'block',
                 color: '#000000',
                 marginBottom: '8px'
@@ -153,102 +203,98 @@ export function ServiceModal({
             >
               Giá (VND)
             </label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-              placeholder="Ví dụ: 150000"
-              style={{
-                fontWeight: '700',
-                fontSize: '16px',
-                color: '#000000',
-                backgroundColor: '#ffffff'
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
-                display: 'block',
-                color: '#000000',
-                marginBottom: '8px'
-              }}
-            >
-              Thời gian (Phút)
-            </label>
-            <div className="flex items-center gap-2">
+            <div className="relative">
               <input
-                type="number"
+                type="text"
                 required
-                readOnly
-                value={duration}
-                className="flex-1 p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow cursor-not-allowed bg-gray-50"
-                placeholder="15"
+                value={formatVNDInput(basePrice)}
+                onChange={(e) => setBasePrice(e.target.value.replace(/\D/g, ''))}
+                className="w-full p-3 pr-16 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
+                placeholder="Ví dụ: 150.000"
                 style={{
                   fontWeight: '700',
                   fontSize: '16px',
-                  color: '#000000'
+                  color: '#000000',
+                  backgroundColor: '#ffffff'
                 }}
               />
-              <button
-                type="button"
-                onClick={() => {
-                  const currentValue = parseInt(duration) || 0;
-                  if (currentValue >= 15) {
-                    setDuration(String(currentValue - 15));
-                  }
-                }}
-                className="p-3 bg-red-500 text-white border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!duration || parseInt(duration) <= 15}
-                style={{ fontWeight: '900' }}
-              >
-                <Minus size={24} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const currentValue = parseInt(duration) || 0;
-                  setDuration(String(currentValue + 15));
-                }}
-                className="p-3 bg-green-500 text-white border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
-                style={{ fontWeight: '900' }}
-              >
-                <Plus size={24} />
-              </button>
-            </div>
-            {duration && parseInt(duration) > 0 && (
-              <div className="text-sm font-bold text-gray-700">
-                📊 Số slots: {Math.ceil(parseInt(duration) / 30)} slot(s)
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-gray-400">
+                VNĐ
               </div>
-            )}
-            <div className="flex items-start gap-2 p-3 bg-yellow-50 border-2 border-yellow-500">
-              <AlertCircle size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-bold text-yellow-800 mb-1">LƯU Ý QUAN TRỌNG:</p>
-                <ul className="text-yellow-700 space-y-1 list-disc list-inside">
-                  <li>Chỉ nhập bội số của 15 (15, 30, 45, 60, 75, 90...)</li>
-                  <li>30 phút = 1 slot thời gian</li>
-                  <li>15 phút được tính là 1 slot</li>
-                  <li>45-60 phút được tính là 2 slots</li>
-                  <li>75-90 phút được tính là 3 slots</li>
+            </div>
+          </div>
+
+          {/* Slots Configuration Card */}
+          <div className="p-6 border-4 border-black bg-orange-50/30 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-4">
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '16px',
+                textTransform: 'uppercase',
+                display: 'block',
+                color: '#000000',
+              }}
+            >
+              Số slot thực hiện (1 slot = 30 phút)
+            </label>
+
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-6">
+                <button
+                  type="button"
+                  onClick={() => setSlotsRequired(Math.max(1, slotsRequired - 1))}
+                  className="w-12 h-12 flex items-center justify-center bg-[#ffcdd2] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#ef9a9a]"
+                  disabled={slotsRequired <= 1}
+                >
+                  <Minus size={24} strokeWidth={3} className="text-black" />
+                </button>
+
+                <div className="w-24 h-14 border-4 border-black bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                  <span className="text-3xl font-black text-[#FF6B35]">{slotsRequired}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSlotsRequired(slotsRequired + 1)}
+                  className="w-12 h-12 flex items-center justify-center bg-[#c8e6c9] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all hover:bg-[#a5d6a7]"
+                >
+                  <Plus size={24} strokeWidth={3} className="text-black" />
+                </button>
+              </div>
+
+              <div className="text-sm font-bold text-gray-600 bg-white border-2 border-black py-1 px-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                Tổng thời gian dự kiến: <span className="text-[#FF6B35] font-black">{slotsRequired * 30} phút</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#fff9c4] border-4 border-black flex items-start gap-3">
+              <AlertCircle size={24} className="text-amber-700 flex-shrink-0" />
+              <div className="space-y-1">
+                <p className="font-black text-amber-900 text-sm uppercase">Quy tắc tính thời gian</p>
+                <ul className="text-xs font-bold text-amber-800 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-600 rounded-full" />
+                    Hệ thống Petties sử dụng cơ chế chia Slot (30 phút/slot)
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-600 rounded-full" />
+                    Mỗi dịch vụ cần ít nhất 1 slot
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-600 rounded-full" />
+                    Thời gian sẽ được tự động tính theo số slot bạn chọn
+                  </li>
                 </ul>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
+          <div className="space-y-2 relative">
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
                 display: 'block',
                 color: '#000000',
                 marginBottom: '8px'
@@ -256,32 +302,71 @@ export function ServiceModal({
             >
               Loại dịch vụ
             </label>
-            <select
-              value={serviceCategory}
-              onChange={(e) => setServiceCategory(e.target.value)}
-              className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-              style={{
-                fontWeight: '700',
-                fontSize: '16px',
-                color: '#000000',
-                backgroundColor: '#ffffff'
-              }}
+
+            {/* Custom Dropdown Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+              className="w-full p-4 border-4 border-black bg-white flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
             >
-              <option value="">-- Chọn loại dịch vụ --</option>
-              <option value="Y Tế & Chăm Sóc Sức Khỏe">Y Tế & Chăm Sóc Sức Khỏe</option>
-              <option value="Chăm sóc sức khỏe chuyên sâu">Chăm sóc sức khỏe chuyên sâu</option>
-              <option value="Tiêm phòng">Tiêm phòng</option>
-              <option value="Làm Đẹp (Grooming) & Spa">Làm Đẹp (Grooming) & Spa</option>
-              <option value="Trông Giữ & Lưu Trú">Trông Giữ & Lưu Trú</option>
-            </select>
+              <div className="flex items-center gap-3">
+                {selectedCategory ? (
+                  <>
+                    <div
+                      className="p-2 border-2 border-black"
+                      style={{ backgroundColor: selectedCategory.color }}
+                    >
+                      <selectedCategory.icon size={20} className="text-black" />
+                    </div>
+                    <span className="font-bold text-black">{selectedCategory.label}</span>
+                  </>
+                ) : (
+                  <span className="font-bold text-gray-400">-- Chọn loại dịch vụ --</span>
+                )}
+              </div>
+              <ChevronDown
+                size={24}
+                className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Custom Dropdown Menu */}
+            {isCategoryOpen && (
+              <div className="absolute z-10 top-full left-0 right-0 mt-2 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setServiceCategory(cat.id)
+                      setIsCategoryOpen(false)
+                    }}
+                    className={`w-full p-4 flex items-center gap-4 hover:bg-gray-100 transition-colors border-b-2 border-black last:border-b-0 text-left ${serviceCategory === cat.id ? 'bg-orange-50' : ''}`}
+                  >
+                    <div
+                      className="p-2 border-2 border-black"
+                      style={{ backgroundColor: cat.color }}
+                    >
+                      <cat.icon size={20} className="text-black" />
+                    </div>
+                    <span className={`font-black uppercase text-sm ${serviceCategory === cat.id ? 'text-[#FF6B35]' : 'text-black'}`}>
+                      {cat.label}
+                    </span>
+                    {serviceCategory === cat.id && (
+                      <div className="ml-auto w-3 h-3 bg-[#FF6B35] border-2 border-black rotate-45" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
+          <div className="space-y-2 relative">
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
                 display: 'block',
                 color: '#000000',
                 marginBottom: '8px'
@@ -289,27 +374,88 @@ export function ServiceModal({
             >
               Loại thú nuôi
             </label>
-            <input
-              type="text"
-              value={petType}
-              onChange={(e) => setPetType(e.target.value)}
-              className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-              placeholder="Ví dụ: Chó, Mèo, Thỏ..."
-              style={{
-                fontWeight: '700',
-                fontSize: '16px',
-                color: '#000000',
-                backgroundColor: '#ffffff'
-              }}
-            />
+
+            {/* Custom Dropdown Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsPetTypeOpen(!isPetTypeOpen)}
+              className="w-full p-4 border-4 border-black bg-white flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+            >
+              <span className={`font-bold ${selectedPetType ? 'text-black' : 'text-gray-400'}`}>
+                {selectedPetType ? selectedPetType.label : '-- Chọn loại thú nuôi --'}
+                {petType === 'Khác' && customPetType && ` (${customPetType})`}
+              </span>
+              <ChevronDown
+                size={24}
+                className={`transition-transform duration-200 ${isPetTypeOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Custom Dropdown Menu */}
+            {isPetTypeOpen && (
+              <div className="absolute z-10 top-full left-0 right-0 mt-2 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+                {petTypes.map((pet) => (
+                  <button
+                    key={pet.id}
+                    type="button"
+                    onClick={() => {
+                      setPetType(pet.id)
+                      if (pet.id !== 'Khác') {
+                        setCustomPetType('')
+                      }
+                      setIsPetTypeOpen(false)
+                    }}
+                    className={`w-full p-4 flex items-center justify-between hover:bg-gray-100 transition-colors border-b-2 border-black last:border-b-0 text-left ${petType === pet.id ? 'bg-orange-50' : ''}`}
+                  >
+                    <span className={`font-black uppercase text-sm ${petType === pet.id ? 'text-[#FF6B35]' : 'text-black'}`}>
+                      {pet.label}
+                    </span>
+                    {petType === pet.id && (
+                      <div className="ml-auto w-3 h-3 bg-[#FF6B35] border-2 border-black rotate-45" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Custom Input for "Khác" */}
+            {petType === 'Khác' && (
+              <div className="mt-3">
+                <label
+                  style={{
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    display: 'block',
+                    color: '#4b5563',
+                    marginBottom: '8px'
+                  }}
+                >
+                  Nhập tên thú nuôi
+                </label>
+                <input
+                  type="text"
+                  value={customPetType}
+                  onChange={(e) => setCustomPetType(e.target.value)}
+                  className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
+                  placeholder="Ví dụ: Thỏ, Hamster, Rùa..."
+                  style={{
+                    fontWeight: '700',
+                    fontSize: '16px',
+                    color: '#000000',
+                    backgroundColor: '#ffffff'
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
-            <label 
-              style={{ 
-                fontWeight: '900', 
-                fontSize: '18px', 
-                textTransform: 'uppercase', 
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
                 color: '#000000',
                 display: 'block'
               }}
@@ -337,15 +483,15 @@ export function ServiceModal({
           </div>
 
           <div className="space-y-2">
-            <label 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '12px', 
-                cursor: 'pointer', 
-                padding: '16px', 
-                border: '4px solid #000000', 
-                backgroundColor: '#f9fafb' 
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                padding: '16px',
+                border: '4px solid #000000',
+                backgroundColor: '#f9fafb'
               }}
               className="hover:bg-gray-100 transition-colors"
             >
@@ -353,39 +499,69 @@ export function ServiceModal({
                 type="checkbox"
                 checked={isHomeVisit}
                 onChange={(e) => setIsHomeVisit(e.target.checked)}
-                style={{ 
-                  width: '24px', 
-                  height: '24px', 
-                  border: '4px solid #000000', 
-                  accentColor: '#FF6B35', 
-                  cursor: 'pointer' 
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  border: '4px solid #000000',
+                  accentColor: '#d97706',
+                  cursor: 'pointer'
                 }}
               />
-              <span 
-                style={{ 
-                  fontWeight: '900', 
-                  fontSize: '18px', 
+              <span
+                style={{
+                  fontWeight: '900',
+                  fontSize: '18px',
                   textTransform: 'uppercase',
-                  color: '#000000'
+                  color: isHomeVisit ? '#000000' : '#4b5563'
                 }}
               >
-                Dịch vụ tận nhà
+                {isHomeVisit ? 'Dịch vụ tận nhà' : 'Tại phòng khám'}
               </span>
+              {!isHomeVisit && (
+                <div className="ml-auto text-[10px] font-black bg-stone-200 px-2 py-0.5 border-2 border-black uppercase" style={{ color: '#000000' }}>
+                  Mặc định
+                </div>
+              )}
             </label>
             {isHomeVisit && (
               <div 
                 style={{ 
-                  fontSize: '13px', 
+                  fontSize: '14px', 
                   fontWeight: '700', 
                   color: '#059669',
                   backgroundColor: '#d1fae5',
                   padding: '12px',
                   border: '2px solid #10b981',
+                  marginTop: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>✓</span>
+                <div>
+                  <div style={{ fontWeight: '900', marginBottom: '4px' }}>
+                    Giá di chuyển mặc định: {defaultPricePerKm?.toLocaleString('vi-VN')}đ/km
+                  </div>
+                  <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                    Giá này sẽ được áp dụng tự động khi khách đặt dịch vụ tận nhà. Bạn có thể thay đổi trong phần "Chỉnh sửa giá KM".
+                  </div>
+                </div>
+              </div>
+            )}
+            {!isHomeVisit && (
+              <p
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  color: '#4b5563',
+                  paddingLeft: '8px',
+                  paddingRight: '8px',
                   marginTop: '8px'
                 }}
               >
-                ✓ Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu và áp dụng khi khách đặt dịch vụ tận nhà
-              </div>
+                Khách hàng sẽ đến phòng khám để sử dụng dịch vụ.
+              </p>
             )}
           </div>
 
@@ -393,7 +569,7 @@ export function ServiceModal({
             <button
               type="button"
               onClick={onClose}
-              style={{ 
+              style={{
                 flex: 1,
                 padding: '12px 24px',
                 backgroundColor: '#ffffff',
@@ -417,12 +593,12 @@ export function ServiceModal({
             <button
               disabled={isSubmitting}
               className="flex-1 py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              style={{ 
-                backgroundColor: '#FF6B35',
+              style={{
+                backgroundColor: '#d97706',
                 fontWeight: '900',
                 fontSize: '18px',
                 textTransform: 'uppercase',
-                color: '#000000'
+                color: '#ffffff'
               }}
             >
               {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}
@@ -438,18 +614,18 @@ export function ServiceModal({
 
       {/* Weight Price Management Modal Overlay */}
       {showWeightPriceModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
           onClick={() => setShowWeightPriceModal(false)}
         >
-          <div 
+          <div
             className="bg-white border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] max-w-2xl w-full max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div 
+            <div
               className="border-b-4 border-black p-4 flex justify-between items-center"
-              style={{ backgroundColor: '#FF6B35' }}
+              style={{ backgroundColor: '#d97706' }}
             >
               <h3 className="text-2xl font-black text-white uppercase flex items-center gap-2">
                 <Info size={28} className="text-white" />
@@ -457,117 +633,117 @@ export function ServiceModal({
               </h3>
               <button
                 onClick={() => setShowWeightPriceModal(false)}
-                className="p-2 bg-black bg-opacity-20 border-2 border-white hover:bg-opacity-30"
+                className="w-10 h-10 flex items-center justify-center bg-black text-white border-2 border-white hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.3)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
               >
-                <X size={20} className="text-white" />
+                <X size={20} strokeWidth={3} />
               </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {weightPrices.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📊</div>
-                  <p className="text-xl font-black text-gray-400 mb-2">
-                    Chưa có mốc giá theo cân nặng nào
+                <div className="text-center py-16 px-8 border-4 border-dashed border-gray-300 bg-gray-50/50">
+                  <div className="flex justify-center mb-6">
+                    <div className="p-6 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <Scale size={48} className="text-[#FF6B35]" strokeWidth={2.5} />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-black text-black uppercase mb-3">
+                    Bảng giá cân nặng trống
                   </p>
-                  <p className="text-sm text-gray-500">
-                    Nhấn nút "Thêm mốc giá" bên dưới để bắt đầu
+                  <p className="text-base font-bold text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Bạn chưa thiết lập mốc giá nào. Nhấn nút <span className="text-green-600">"Thêm mốc giá"</span> bên dưới để thiết lập phụ phí theo cân nặng cho thú cưng.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {weightPrices.map((tier, index) => (
-                    <div 
+                    <div
                       key={index}
-                      className="border-4 border-black p-4 bg-white hover:bg-gray-50 transition-colors"
+                      className="border-4 border-black p-5 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
                     >
                       {editingTierIndex === index ? (
                         // Edit Mode
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-3 gap-3">
-                            <div>
-                              <label className="block text-sm font-bold mb-2 text-gray-700">
-                                Cân nặng tối thiểu (kg)
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Edit2 size={18} className="text-[#FF6B35]" />
+                            <span className="font-black uppercase text-sm">Đang chỉnh sửa mức {index + 1}</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-black uppercase text-gray-500">
+                                Min (kg)
                               </label>
                               <input
-                                type="text"
+                                type="number"
                                 value={tier.minWeight}
                                 onChange={(e) => handleWeightPriceChange(index, 'minWeight', e.target.value)}
-                                className="w-full p-3 border-4 border-black bg-white text-black font-bold focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                                className="w-full p-2 border-2 border-black bg-white text-black font-bold focus:bg-orange-50 outline-none"
                                 placeholder="0"
                               />
                             </div>
-                            <div>
-                              <label className="block text-sm font-bold mb-2 text-gray-700">
-                                Cân nặng tối đa (kg)
+                            <div className="space-y-1">
+                              <label className="block text-xs font-black uppercase text-gray-500">
+                                Max (kg)
                               </label>
                               <input
-                                type="text"
+                                type="number"
                                 value={tier.maxWeight}
                                 onChange={(e) => handleWeightPriceChange(index, 'maxWeight', e.target.value)}
-                                className="w-full p-3 border-4 border-black bg-white text-black font-bold focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                                className="w-full p-2 border-2 border-black bg-white text-black font-bold focus:bg-orange-50 outline-none"
                                 placeholder="10"
                               />
                             </div>
-                            <div>
-                              <label className="block text-sm font-bold mb-2 text-gray-700">
+                            <div className="space-y-1">
+                              <label className="block text-xs font-black uppercase text-gray-500">
                                 Phụ phí (VNĐ)
                               </label>
                               <input
                                 type="text"
-                                value={tier.price}
+                                value={formatVNDInput(tier.price.toString())}
                                 onChange={(e) => handleWeightPriceChange(index, 'price', e.target.value)}
-                                className="w-full p-3 border-4 border-black bg-white text-black font-bold focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
-                                placeholder="50000"
+                                className="w-full p-2 border-2 border-black bg-white text-black font-bold focus:bg-orange-50 outline-none"
+                                placeholder="50.000"
                               />
                             </div>
                           </div>
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex justify-end gap-2 pt-2">
                             <button
                               onClick={() => setEditingTierIndex(null)}
-                              className="px-4 py-2 bg-gray-200 border-2 border-black font-bold hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                              className="px-6 py-2 bg-black text-white font-black uppercase text-xs border-2 border-black hover:bg-gray-800 transition-colors"
                             >
-                              Xong
+                              Hoàn thành
                             </button>
                           </div>
                         </div>
                       ) : (
                         // View Mode
                         <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <div 
-                                className="text-white px-3 py-1 border-2 border-black font-black"
-                                style={{ backgroundColor: '#FF6B35' }}
-                              >
-                                MỨC {index + 1}
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 border-2 border-black bg-[#e0f2fe] flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                              <Scale size={20} className="text-black" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-black text-xs uppercase bg-black text-white px-2 py-0.5">Mức {index + 1}</span>
+                                <span className="font-black text-lg text-black">{tier.minWeight} - {tier.maxWeight} kg</span>
                               </div>
-                              <div>
-                                <div className="font-black text-lg text-gray-800">
-                                  {tier.minWeight} - {tier.maxWeight} kg
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                  Phụ phí: <span className="font-bold text-green-600">
-                                    +{Number(tier.price || 0).toLocaleString('vi-VN')}đ
-                                  </span>
-                                </div>
+                              <div className="text-sm font-bold text-gray-600">
+                                Phụ phí cộng thêm: <span className="text-green-600 font-black">+{Number(tier.price || 0).toLocaleString('vi-VN')} VNĐ</span>
                               </div>
                             </div>
                           </div>
                           <div className="flex gap-2">
                             <button
                               onClick={() => setEditingTierIndex(index)}
-                              className="p-2 border-2 border-black hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                              style={{ backgroundColor: '#fb923c' }}
+                              className="w-10 h-10 flex items-center justify-center border-2 border-black bg-[#fff9c4] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
                               title="Chỉnh sửa"
                             >
                               <Edit2 size={18} className="text-black" />
                             </button>
                             <button
                               onClick={() => handleRemoveWeightPrice(index)}
-                              className="p-2 border-2 border-black hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-                              style={{ backgroundColor: '#f87171' }}
+                              className="w-10 h-10 flex items-center justify-center border-2 border-black bg-[#ffcdd2] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
                               title="Xóa"
                             >
                               <Trash2 size={18} className="text-black" />
@@ -585,9 +761,9 @@ export function ServiceModal({
             <div className="border-t-4 border-black p-4 bg-gray-50 flex justify-between items-center">
               <button
                 onClick={handleAddWeightPrice}
-                className="flex items-center gap-2 px-4 py-3 bg-green-500 text-white font-black border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow uppercase"
+                className="flex items-center gap-2 px-4 py-3 bg-[#c8e6c9] text-black font-black border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase"
               >
-                <Plus size={20} />
+                <Plus size={20} strokeWidth={3} />
                 Thêm mốc giá
               </button>
               <button

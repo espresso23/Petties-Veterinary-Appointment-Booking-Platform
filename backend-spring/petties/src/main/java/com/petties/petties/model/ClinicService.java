@@ -5,25 +5,24 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "services")
+@Table(name = "clinic_services")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Service {
+public class ClinicService {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -37,8 +36,8 @@ public class Service {
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 
-    @Column(name = "base_price", nullable = false, length = 50)
-    private String basePrice;
+    @Column(name = "base_price", nullable = false, precision = 19, scale = 2)
+    private BigDecimal basePrice;
 
     @Column(name = "duration_time", nullable = false)
     private Integer durationTime;
@@ -52,8 +51,8 @@ public class Service {
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
-    @Column(name = "price_per_km", length = 50)
-    private String pricePerKm;
+    @Column(name = "price_per_km", precision = 19, scale = 2)
+    private BigDecimal pricePerKm;
 
     @Column(name = "service_category", length = 100)
     private String serviceCategory;
@@ -72,4 +71,3 @@ public class Service {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 }
-

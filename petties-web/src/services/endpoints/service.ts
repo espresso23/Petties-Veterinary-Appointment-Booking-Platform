@@ -6,17 +6,17 @@
 
 import { apiClient } from '../api/client'
 import type {
-  ServiceResponse,
-  ServiceRequest,
-  ServiceUpdateRequest,
+  ClinicServiceResponse,
+  ClinicServiceRequest,
+  ClinicServiceUpdateRequest,
 } from '../../types/service'
 
 /**
  * Get all services for the authenticated clinic owner
  * GET /api/services
  */
-export async function getAllServices(): Promise<ServiceResponse[]> {
-  const { data } = await apiClient.get<ServiceResponse[]>('/services')
+export async function getAllServices(): Promise<ClinicServiceResponse[]> {
+  const { data } = await apiClient.get<ClinicServiceResponse[]>('/services')
   return data
 }
 
@@ -26,8 +26,8 @@ export async function getAllServices(): Promise<ServiceResponse[]> {
  */
 export async function getServiceById(
   serviceId: string,
-): Promise<ServiceResponse> {
-  const { data } = await apiClient.get<ServiceResponse>(`/services/${serviceId}`)
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.get<ClinicServiceResponse>(`/services/${serviceId}`)
   return data
 }
 
@@ -36,9 +36,9 @@ export async function getServiceById(
  * POST /api/services
  */
 export async function createService(
-  payload: ServiceRequest,
-): Promise<ServiceResponse> {
-  const { data } = await apiClient.post<ServiceResponse>('/services', payload)
+  payload: ClinicServiceRequest,
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.post<ClinicServiceResponse>('/services', payload)
   return data
 }
 
@@ -48,9 +48,9 @@ export async function createService(
  */
 export async function updateService(
   serviceId: string,
-  payload: ServiceUpdateRequest,
-): Promise<ServiceResponse> {
-  const { data } = await apiClient.put<ServiceResponse>(
+  payload: ClinicServiceUpdateRequest,
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.put<ClinicServiceResponse>(
     `/services/${serviceId}`,
     payload,
   )
@@ -70,9 +70,9 @@ export async function deleteService(serviceId: string): Promise<void> {
  * PATCH /api/services/{serviceId}/status?isActive={value}
  */
 export async function toggleServiceStatus(
-  service: ServiceResponse,
-): Promise<ServiceResponse> {
-  const { data } = await apiClient.patch<ServiceResponse>(
+  service: ClinicServiceResponse,
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.patch<ClinicServiceResponse>(
     `/services/${service.serviceId}/status`,
     null,
     {

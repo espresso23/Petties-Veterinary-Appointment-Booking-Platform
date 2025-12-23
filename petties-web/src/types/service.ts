@@ -1,22 +1,23 @@
 /**
- * Service Types - matching backend DTOs
+ * Clinic Service Types - matching backend DTOs
  */
 
 export interface WeightPriceDto {
-  minWeight: string
-  maxWeight: string
-  price: string
+  minWeight: number
+  maxWeight: number
+  price: number
 }
 
-export interface ServiceResponse {
+export interface ClinicServiceResponse {
   serviceId: string
+  clinicId: string
   name: string
-  basePrice: string
+  basePrice: number
   durationTime: number
   slotsRequired: number
   isActive: boolean
   isHomeVisit: boolean
-  pricePerKm?: string
+  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]
@@ -24,19 +25,18 @@ export interface ServiceResponse {
   updatedAt: string
 }
 
-export interface ServiceRequest {
+export interface ClinicServiceRequest {
   name: string
-  basePrice: string
-  durationTime: number
+  basePrice: number
   slotsRequired: number
   isActive?: boolean
   isHomeVisit?: boolean
-  pricePerKm?: string
+  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]
 }
 
-export interface ServiceUpdateRequest extends ServiceRequest {
-  // Same as create request
+export interface ClinicServiceUpdateRequest extends Partial<ClinicServiceRequest> {
+  // Same as create request but all fields optional
 }

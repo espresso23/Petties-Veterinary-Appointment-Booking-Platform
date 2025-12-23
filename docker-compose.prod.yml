@@ -25,17 +25,17 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       # Neon PostgreSQL
-      DB_HOST: ${DB_HOST:-ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech}
+      DB_HOST: ${DB_HOST:-}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-postgres}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-petties-prod}
       # MongoDB Atlas
-      MONGO_URI: ${MONGO_URI:-mongodb+srv://petties_db_user:CYHnmwUJ5KbH3qTj@petites.vgpt2yx.mongodb.net/petties_nosql?retryWrites=true&w=majority}
+      MONGO_URI: ${MONGO_URI:-}
       # AI Service
       AI_SERVICE_URL: http://ai-service:8000
       # JWT (64 chars)
-      JWT_SECRET: ${JWT_SECRET:-PettiesSecure2025ProductionJWTSecretKey64CharsLongForSecurity!!}
+      JWT_SECRET: ${JWT_SECRET:-}
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS - Production domains only
@@ -83,9 +83,9 @@ services:
       ENVIRONMENT: production
       APP_DEBUG: "false"
       # Neon PostgreSQL
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:petties-prod@ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech:5432/postgres?sslmode=require}
+      DATABASE_URL: ${DATABASE_URL:-}
       # Qdrant Cloud
-      QDRANT_URL: ${QDRANT_URL:-https://df017fa3-1522-4456-b1a8-7a799bdfd1dc.eu-central-1-0.aws.cloud.qdrant.io}
+      QDRANT_URL: ${QDRANT_URL:-o}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
       # Ollama Configuration (Hybrid: Local or Cloud)
       # RECOMMENDED: Use Ollama Cloud (set OLLAMA_API_KEY)

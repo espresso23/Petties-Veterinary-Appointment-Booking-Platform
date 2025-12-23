@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, MapPin, Navigation } from 'lucide-react'
 
 export interface PricingData {
   pricePerKm: number
@@ -37,33 +37,35 @@ export function PricingModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div
         className="relative w-full max-w-md bg-white border-4 border-black shadow-[16px_16px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div 
+        <div
           style={{ backgroundColor: '#FF6B35' }}
-          className="flex items-center justify-between border-b-4 border-black p-6"
+          className="flex items-center justify-between border-b-4 border-black p-5"
         >
-          <div>
-            <h2 
-              style={{ color: '#000000', fontWeight: '900', fontSize: '20px', textTransform: 'uppercase', lineHeight: '1.2' }}
-            >
-              Định giá di chuyển
-            </h2>
-            <p 
-              style={{ color: 'rgba(0,0,0,0.8)', fontWeight: '700', fontSize: '12px', marginTop: '4px' }}
-            >
-              Thiết lập giá cố định cho mọi khoảng cách
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white border-2 border-black flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <MapPin size={24} className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-black font-[900] text-xl uppercase leading-tight">
+                Giá Di Chuyển
+              </h2>
+              <p className="text-black/70 font-bold text-[11px] uppercase tracking-wider">
+                Cấu hình phí mỗi kilomet
+              </p>
+            </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1 hover:bg-black hover:text-white transition-colors border-2 border-black bg-white"
+            className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black hover:bg-gray-100 transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none active:translate-x-[3px] active:translate-y-[3px]"
           >
-            <X size={24} />
+            <X size={20} strokeWidth={3} className="text-black" />
           </button>
         </div>
 
@@ -71,54 +73,45 @@ export function PricingModal({
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label 
-                style={{ display: 'block', fontWeight: '900', fontSize: '16px', textTransform: 'uppercase', color: '#000000' }}
-              >
+              <label className="flex items-center gap-2 font-[900] text-sm uppercase text-black">
+                <Navigation size={16} />
                 Giá mỗi KM (VNĐ)
               </label>
-              <input
-                type="number"
-                required
-                min="0"
-                step="1000"
-                value={data.pricePerKm}
-                onChange={(e) => setData({ pricePerKm: Number(e.target.value) })}
-                className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow"
-                placeholder="Ví dụ: 5000"
-                style={{
-                  fontWeight: '700',
-                  fontSize: '16px',
-                  color: '#000000',
-                  backgroundColor: '#ffffff'
-                }}
-              />
-              <p 
-                style={{ 
-                  fontSize: '14px', 
-                  fontWeight: '700', 
-                  color: '#4b5563', 
-                  paddingLeft: '8px',
-                  marginTop: '8px'
-                }}
-              >
-                Giá này sẽ được áp dụng cho tất cả khoảng cách di chuyển
-              </p>
+
+              <div className="relative group">
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="1000"
+                  value={data.pricePerKm}
+                  onChange={(e) => setData({ pricePerKm: Number(e.target.value) })}
+                  className="w-full p-4 bg-white border-4 border-black font-black text-xl text-black focus:outline-none focus:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all placeholder:text-gray-400 pr-16"
+                  placeholder="5,000"
+                  style={{ color: '#000000' }}
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-sm text-black bg-gray-100 px-2 py-1 border-2 border-black">
+                  VNĐ
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border-2 border-blue-200 p-3 flex gap-3 items-start mt-4">
+                <div className="mt-1">
+                  <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                </div>
+                <p className="text-[13px] font-bold text-blue-800 leading-snug">
+                  Lưu ý: Giá này sẽ được áp dụng tự động cho tất cả các dịch vụ tận nhà của phòng khám.
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="pt-4">
+          <div className="pt-2">
             <button
               type="submit"
-              className="w-full py-3 px-6 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
-              style={{ 
-                backgroundColor: '#FF6B35',
-                fontWeight: '900',
-                fontSize: '18px',
-                textTransform: 'uppercase',
-                color: '#000000'
-              }}
+              className="w-full py-4 bg-[#FF6B35] border-4 border-black text-black font-[900] text-lg uppercase shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all flex items-center justify-center gap-2"
             >
-              XÁC NHẬN
+              Lưu cấu hình
             </button>
           </div>
         </form>

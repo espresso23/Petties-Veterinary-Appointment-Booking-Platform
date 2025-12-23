@@ -1,5 +1,6 @@
-package com.petties.petties.dto.service;
+package com.petties.petties.dto.clinicService;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -9,25 +10,24 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ServiceRequest {
+public class ClinicServiceRequest {
 
     @NotBlank(message = "Tên dịch vụ không được để trống")
     @Size(max = 200, message = "Tên dịch vụ không được quá 200 ký tự")
     private String name;
 
-    @NotBlank(message = "Giá cơ bản không được để trống")
-    @Size(max = 50, message = "Giá cơ bản không được quá 50 ký tự")
-    private String basePrice;
+    @NotNull(message = "Giá cơ bản không được để trống")
+    @Min(value = 0, message = "Giá cơ bản không được nhỏ hơn 0")
+    private BigDecimal basePrice;
 
-    @NotNull(message = "Thời gian thực hiện không được để trống")
-    @Positive(message = "Thời gian thực hiện phải là số dương")
-    private Integer durationTime;
+    private Integer durationTime; // Optional: can be sent by FE or calculated by BE
 
     @NotNull(message = "Số slot yêu cầu không được để trống")
     @Positive(message = "Số slot yêu cầu phải là số dương")
@@ -37,8 +37,8 @@ public class ServiceRequest {
 
     private Boolean isHomeVisit = false;
 
-    @Size(max = 50, message = "Giá theo km không được quá 50 ký tự")
-    private String pricePerKm;
+    @Min(value = 0, message = "Giá theo km không được nhỏ hơn 0")
+    private BigDecimal pricePerKm;
 
     @Size(max = 100, message = "Loại dịch vụ không được quá 100 ký tự")
     private String serviceCategory;
