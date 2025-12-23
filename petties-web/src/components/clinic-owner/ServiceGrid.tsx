@@ -5,9 +5,10 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Loader2, AlertCircle } from 'lucide-react'
+import { Plus, Loader2, AlertCircle, DollarSign } from 'lucide-react'
 import { ServiceCard, type Service } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
+import { PricingModal, type PricingData } from './PricingModal'
 import {
   getAllServices,
   getServiceById,
@@ -15,6 +16,7 @@ import {
   updateService,
   deleteService,
   toggleServiceStatus,
+  updateBulkPricePerKm,
 } from '../../services/endpoints/service'
 import type { ServiceResponse, ServiceRequest } from '../../types/service'
 
@@ -46,7 +48,7 @@ function mapServiceToRequest(service: Partial<Service>): ServiceRequest {
     slotsRequired: calculatedSlots,
     isActive: service.isActive ?? true,
     isHomeVisit: service.isHomeVisit ?? false,
-    pricePerKm: '0', // Will be set via global pricing modal
+    pricePerKm: service.pricePerKm?.toString() || '0',
     serviceCategory: service.serviceCategory,
     petType: service.petType,
     weightPrices: service.weightPrices,
@@ -60,11 +62,51 @@ export function ServiceGrid() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false)
+  const [globalPricePerKm, setGlobalPricePerKm] = useState<number>(10000)
+  const [isGlobalPriceInitialized, setIsGlobalPriceInitialized] = useState(false)
 
   // Fetch services on mount
   useEffect(() => {
     loadServices()
+    
+    // Load saved price from localStorage
+    const savedPrice = localStorage.getItem('globalPricePerKm')
+    if (savedPrice) {
+      setGlobalPricePerKm(Number(savedPrice))
+      setIsGlobalPriceInitialized(true)
+    }
   }, [])
+
+  // Listen for price updates from sidebar
+  useEffect(() => {
+    const handlePriceUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ pricePerKm: number }>
+      if (customEvent.detail?.pricePerKm) {
+        setGlobalPricePerKm(customEvent.detail.pricePerKm)
+        setIsGlobalPriceInitialized(true)
+        // Reload services to show updated prices
+        loadServices()
+      }
+    }
+
+    window.addEventListener('pricePerKmUpdated', handlePriceUpdate)
+    return () => window.removeEventListener('pricePerKmUpdated', handlePriceUpdate)
+  }, [])
+
+  // Update global price per km from existing home visit services (only on first load if not in localStorage)
+  useEffect(() => {
+    if (!isGlobalPriceInitialized && services.length > 0) {
+      const homeVisitServices = services.filter((s) => s.isHomeVisit && s.pricePerKm && s.pricePerKm > 0)
+      if (homeVisitServices.length > 0) {
+        // Get the most recent price (first service in the list)
+        const latestPrice = homeVisitServices[0].pricePerKm!
+        setGlobalPricePerKm(latestPrice)
+        localStorage.setItem('globalPricePerKm', latestPrice.toString())
+        setIsGlobalPriceInitialized(true)
+      }
+    }
+  }, [services, isGlobalPriceInitialized])
 
   const loadServices = async () => {
     try {
@@ -162,6 +204,22 @@ export function ServiceGrid() {
       )
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleSaveGlobalPricing = async (data: PricingData) => {
+    try {
+      // Update all home visit services with new price
+      await updateBulkPricePerKm(data.pricePerKm)
+      // Update state and localStorage
+      setGlobalPricePerKm(data.pricePerKm)
+      localStorage.setItem('globalPricePerKm', data.pricePerKm.toString())
+      // Reload services to get updated data from backend
+      await loadServices()
+      alert('Đã cập nhật giá di chuyển thành công!')
+    } catch (err) {
+      console.error('Failed to update bulk price per km:', err)
+      alert('Không thể cập nhật giá di chuyển. Vui lòng thử lại.')
     }
   }
 
@@ -308,6 +366,14 @@ export function ServiceGrid() {
         onSave={handleSaveService}
         initialData={selectedService}
         isSubmitting={isSubmitting}
+        defaultPricePerKm={globalPricePerKm}
+      />
+
+      <PricingModal
+        isOpen={isPricingModalOpen}
+        onClose={() => setIsPricingModalOpen(false)}
+        onSave={handleSaveGlobalPricing}
+        initialData={{ pricePerKm: globalPricePerKm }}
       />
     </div>
   )

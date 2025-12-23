@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { PricingModal, type PricingData } from '../components/clinic-owner'
@@ -25,16 +25,29 @@ export const ClinicOwnerLayout = () => {
         pricePerKm: 5000,
     })
 
+    // Load saved price from localStorage on mount
+    useEffect(() => {
+        const savedPrice = localStorage.getItem('globalPricePerKm')
+        if (savedPrice) {
+            setPricingData({ pricePerKm: Number(savedPrice) })
+        }
+    }, [])
+
     const handleSavePricing = async (data: PricingData) => {
         try {
             await updateBulkPricePerKm(data.pricePerKm)
             setPricingData(data)
+            // Save to localStorage for sync across components
+            localStorage.setItem('globalPricePerKm', data.pricePerKm.toString())
+            // Dispatch custom event to notify ServiceGrid
+            window.dispatchEvent(new CustomEvent('pricePerKmUpdated', { 
+                detail: { pricePerKm: data.pricePerKm } 
+            }))
             setIsPricingModalOpen(false)
-            console.log('Pricing saved successfully:', data)
-            // TODO: Show success toast
+            alert('Đã cập nhật giá di chuyển thành công!')
         } catch (error) {
             console.error('Failed to update pricing:', error)
-            // TODO: Show error toast
+            alert('Không thể cập nhật giá di chuyển. Vui lòng thử lại.')
         }
     }
 

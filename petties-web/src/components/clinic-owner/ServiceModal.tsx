@@ -9,6 +9,7 @@ interface ServiceModalProps {
   onSave: (service: Omit<Service, 'id' | 'isActive'>) => void
   initialData?: Service | null
   isSubmitting?: boolean
+  defaultPricePerKm?: number
 }
 
 export function ServiceModal({
@@ -17,11 +18,13 @@ export function ServiceModal({
   onSave,
   initialData,
   isSubmitting = false,
+  defaultPricePerKm = 0,
 }: ServiceModalProps) {
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const [duration, setDuration] = useState('')
   const [isHomeVisit, setIsHomeVisit] = useState(false)
+  const [pricePerKm, setPricePerKm] = useState<number>(defaultPricePerKm)
   const [serviceCategory, setServiceCategory] = useState('')
   const [petType, setPetType] = useState('')
   const [weightPrices, setWeightPrices] = useState<WeightPriceDto[]>([])
@@ -35,6 +38,7 @@ export function ServiceModal({
         setPrice(initialData.price.toString())
         setDuration(initialData.duration.toString())
         setIsHomeVisit(initialData.isHomeVisit)
+        setPricePerKm(initialData.pricePerKm || 0)
         setServiceCategory(initialData.serviceCategory || '')
         setPetType(initialData.petType || '')
         setWeightPrices(initialData.weightPrices || [])
@@ -43,12 +47,13 @@ export function ServiceModal({
         setPrice('')
         setDuration('')
         setIsHomeVisit(false)
+        setPricePerKm(defaultPricePerKm)
         setServiceCategory('')
         setPetType('')
         setWeightPrices([])
       }
     }
-  }, [isOpen, initialData])
+  }, [isOpen, initialData, defaultPricePerKm])
 
   const handleAddWeightPrice = () => {
     setWeightPrices([...weightPrices, { minWeight: '', maxWeight: '', price: '' }])
@@ -75,6 +80,7 @@ export function ServiceModal({
       price: Number(price),
       duration: Number(duration),
       isHomeVisit,
+      pricePerKm: isHomeVisit ? pricePerKm : undefined,
       serviceCategory: serviceCategory || undefined,
       petType: petType || undefined,
       weightPrices: weightPrices.length > 0 ? weightPrices : undefined,
@@ -366,17 +372,21 @@ export function ServiceModal({
                 Dịch vụ tận nhà
               </span>
             </label>
-            <p 
-              style={{ 
-                fontSize: '14px', 
-                fontWeight: '700', 
-                color: '#4b5563', 
-                paddingLeft: '8px', 
-                paddingRight: '8px' 
-              }}
-            >
-              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu.
-            </p>
+            {isHomeVisit && (
+              <div 
+                style={{ 
+                  fontSize: '13px', 
+                  fontWeight: '700', 
+                  color: '#059669',
+                  backgroundColor: '#d1fae5',
+                  padding: '12px',
+                  border: '2px solid #10b981',
+                  marginTop: '8px'
+                }}
+              >
+                ✓ Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu và áp dụng khi khách đặt dịch vụ tận nhà
+              </div>
+            )}
           </div>
 
           <div style={{ paddingTop: '16px', display: 'flex', gap: '16px' }}>
