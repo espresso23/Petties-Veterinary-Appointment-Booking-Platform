@@ -11,9 +11,11 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		82910C245E929FA99331CF2E /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2BAF0753FB88FED54ED94919 /* Pods_Runner.framework */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		FAAAE3DD2EFA3E8300FAAB61 /* Pods.xcodeproj in Resources */ = {isa = PBXBuildFile; fileRef = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,6 +25,356 @@
 			proxyType = 1;
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
+		};
+		FAAAE4152EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3FD1B4C1246D643E9476438C28048FA8;
+			remoteInfo = AppAuth;
+		};
+		FAAAE4172EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = EF9852680BCD6EC8B15F622B5B92A838;
+			remoteInfo = "AppAuth-AppAuthCore_Privacy";
+		};
+		FAAAE4192EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B46CC14F5020A277B322D80BA336BC10;
+			remoteInfo = AppCheckCore;
+		};
+		FAAAE41B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F3B74672DAE304DCA370B761FBD5B2D7;
+			remoteInfo = firebase_core;
+		};
+		FAAAE41D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 626B91FA30530F8DA0D892C01BC22133;
+			remoteInfo = firebase_messaging;
+		};
+		FAAAE41F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 75CF387A098437DDEB77C4DD2B48D012;
+			remoteInfo = "firebase_messaging-firebase_messaging_Privacy";
+		};
+		FAAAE4212EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = E2B63D462DB7F827C4B11FD51E4F8E2D;
+			remoteInfo = FirebaseCore;
+		};
+		FAAAE4232EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 8BB937B1C0DFFCF92F41861C2BC54DDA;
+			remoteInfo = "FirebaseCore-FirebaseCore_Privacy";
+		};
+		FAAAE4252EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 148D0F9E8C7373FEAF40D800FC5F1BAA;
+			remoteInfo = FirebaseCoreInternal;
+		};
+		FAAAE4272EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 4DB03FD262B678178A44272143846563;
+			remoteInfo = "FirebaseCoreInternal-FirebaseCoreInternal_Privacy";
+		};
+		FAAAE4292EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 13C8C8B254851998F9289F71229B28A2;
+			remoteInfo = FirebaseInstallations;
+		};
+		FAAAE42B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 47C581450CDB4A6111CB97EEE0711A8C;
+			remoteInfo = "FirebaseInstallations-FirebaseInstallations_Privacy";
+		};
+		FAAAE42D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 5B654B4B042BA7DC93766943A643E42B;
+			remoteInfo = FirebaseMessaging;
+		};
+		FAAAE42F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B0B6501341FD6783C6874C54AB31A9CF;
+			remoteInfo = "FirebaseMessaging-FirebaseMessaging_Privacy";
+		};
+		FAAAE4312EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 502E20F09A7CAFBD1DE1AA882DCC550C;
+			remoteInfo = geolocator_apple;
+		};
+		FAAAE4332EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = FA845F80B3847B22ACF63FD7E64E6D03;
+			remoteInfo = "geolocator_apple-geolocator_apple_privacy";
+		};
+		FAAAE4352EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 5CA9E6FE438CE79CD76FA3B34CC95836;
+			remoteInfo = "Google-Maps-iOS-Utils";
+		};
+		FAAAE4372EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 5AD0AC4A33D20F30B33A4FE1D1CB00DD;
+			remoteInfo = google_maps_flutter_ios;
+		};
+		FAAAE4392EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 0FD38D7DC33502604A03434A753CFA52;
+			remoteInfo = "google_maps_flutter_ios-google_maps_flutter_ios_privacy";
+		};
+		FAAAE43B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B0B9B9F9A300B05C115A98B19C78F963;
+			remoteInfo = google_sign_in_ios;
+		};
+		FAAAE43D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 6CD9092A49AA3ADE44EEA2885E36D82F;
+			remoteInfo = "google_sign_in_ios-google_sign_in_ios_privacy";
+		};
+		FAAAE43F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 856B5CD56F194FAD26EA91620B66D614;
+			remoteInfo = GoogleDataTransport;
+		};
+		FAAAE4412EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F73AA961F4AEFF2B46B00AE435DF6BE3;
+			remoteInfo = "GoogleDataTransport-GoogleDataTransport_Privacy";
+		};
+		FAAAE4432EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 21BC9DE5EE18F27517C52ABD3FBF38ED;
+			remoteInfo = "GoogleMaps-GoogleMapsResources";
+		};
+		FAAAE4452EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = FD56AB51475BC5F592781EE2692D1412;
+			remoteInfo = GoogleSignIn;
+		};
+		FAAAE4472EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = E5BA41B7F2E1FE47F9ABCAC27C9E4281;
+			remoteInfo = "GoogleSignIn-GoogleSignIn";
+		};
+		FAAAE4492EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B43874C6CBB50E7134FBEC24BABFE14F;
+			remoteInfo = GoogleUtilities;
+		};
+		FAAAE44B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 44E291D18340EAC3F761346198515323;
+			remoteInfo = "GoogleUtilities-GoogleUtilities_Privacy";
+		};
+		FAAAE44D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 6FD122EA0AB9AB2A8FFA5F676C795DF0;
+			remoteInfo = GTMAppAuth;
+		};
+		FAAAE44F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = DA0C8E4A1DAFC158C8B8845D021E6531;
+			remoteInfo = "GTMAppAuth-GTMAppAuth_Privacy";
+		};
+		FAAAE4512EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C1998E0D8085221AD87F89B614C10E52;
+			remoteInfo = GTMSessionFetcher;
+		};
+		FAAAE4532EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = E826FA0DCB9AA6E7829C68391B323B78;
+			remoteInfo = "GTMSessionFetcher-GTMSessionFetcher_Core_Privacy";
+		};
+		FAAAE4552EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 097A1F5B958C73856FCF44A3F4A839C6;
+			remoteInfo = "GTMSessionFetcher-GTMSessionFetcher_Full_Privacy";
+		};
+		FAAAE4572EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 768975E636D1D2FB85622FB67DB04E5A;
+			remoteInfo = image_picker_ios;
+		};
+		FAAAE4592EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F0C7EFBFF01CFAAB52BA74E6CB40CE2C;
+			remoteInfo = "image_picker_ios-image_picker_ios_privacy";
+		};
+		FAAAE45B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 06FC5C9CF96D60C50FCD47D339C91951;
+			remoteInfo = nanopb;
+		};
+		FAAAE45D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3227F3FC45681D7CEE5D1355A532398A;
+			remoteInfo = "nanopb-nanopb_Privacy";
+		};
+		FAAAE45F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AE157A33FEF959A214796BFF348717F6;
+			remoteInfo = path_provider_foundation;
+		};
+		FAAAE4612EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3DBD4BADE27F8B91024E4B4B4DD75DB5;
+			remoteInfo = "path_provider_foundation-path_provider_foundation_privacy";
+		};
+		FAAAE4632EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = C7AD28D5FB25A8DEDF61F78996932FA6;
+			remoteInfo = permission_handler_apple;
+		};
+		FAAAE4652EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 4683C6A6BA60720F17CAD71C28988BDC;
+			remoteInfo = "permission_handler_apple-permission_handler_apple_privacy";
+		};
+		FAAAE4672EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 669E8F25E1897672BDB80B7EB784DA24;
+			remoteInfo = "Pods-Runner";
+		};
+		FAAAE4692EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3347A1AB6546F0A3977529B8F199DC41;
+			remoteInfo = PromisesObjC;
+		};
+		FAAAE46B2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 3F238BB22C5201CE689CAF2F766AED95;
+			remoteInfo = "PromisesObjC-FBLPromises_Privacy";
+		};
+		FAAAE46D2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 93C6A45C6E4792269BE9BE0073839BF0;
+			remoteInfo = shared_preferences_foundation;
+		};
+		FAAAE46F2EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 0652FCE3FC19056983AABE058B3CC45B;
+			remoteInfo = "shared_preferences_foundation-shared_preferences_foundation_privacy";
+		};
+		FAAAE4712EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 4FE20B1CF8B318A8D9591ED1587D7592;
+			remoteInfo = sqflite_darwin;
+		};
+		FAAAE4732EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 071549DBDD4BFC0BD7D2715539015DC2;
+			remoteInfo = "sqflite_darwin-sqflite_darwin_privacy";
+		};
+		FAAAE4752EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = F30519B33821643382CCBFBCFA6B7525;
+			remoteInfo = video_player_avfoundation;
+		};
+		FAAAE4772EFA417300FAAB61 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 337652A9806A3FED0B8DC4CD2DE81878;
+			remoteInfo = "video_player_avfoundation-video_player_avfoundation_privacy";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -42,9 +394,13 @@
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		2BAF0753FB88FED54ED94919 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		43F50978941B6E1296C6C00C /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
+		5712A781E2378B20BD4368F5 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
+		717BA96E8DF6926C83AA068E /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
@@ -55,10 +411,19 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Pods.xcodeproj; path = ../Pods/Pods.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		97C146EB1CF9000F007C117D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				82910C245E929FA99331CF2E /* Pods_Runner.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DC4AEDBA4836FD195E8EFAC8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -68,12 +433,30 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		31A40F54A7DFEECC594B96D6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2BAF0753FB88FED54ED94919 /* Pods_Runner.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		57BFC238B6F1F7F6C9A19BA5 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				43F50978941B6E1296C6C00C /* Pods-Runner.debug.xcconfig */,
+				5712A781E2378B20BD4368F5 /* Pods-Runner.release.xcconfig */,
+				717BA96E8DF6926C83AA068E /* Pods-Runner.profile.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -94,6 +477,8 @@
 				97C146F01CF9000F007C117D /* Runner */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
+				57BFC238B6F1F7F6C9A19BA5 /* Pods */,
+				31A40F54A7DFEECC594B96D6 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -115,10 +500,68 @@
 				97C147021CF9000F007C117D /* Info.plist */,
 				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
 				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
+				FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */,
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		FAAAE3DE2EFA417300FAAB61 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FAAAE4162EFA417300FAAB61 /* AppAuth.framework */,
+				FAAAE4182EFA417300FAAB61 /* AppAuthCore_Privacy.bundle */,
+				FAAAE41A2EFA417300FAAB61 /* AppCheckCore.framework */,
+				FAAAE41C2EFA417300FAAB61 /* firebase_core.framework */,
+				FAAAE41E2EFA417300FAAB61 /* firebase_messaging.framework */,
+				FAAAE4202EFA417300FAAB61 /* firebase_messaging_Privacy.bundle */,
+				FAAAE4222EFA417300FAAB61 /* FirebaseCore.framework */,
+				FAAAE4242EFA417300FAAB61 /* FirebaseCore_Privacy.bundle */,
+				FAAAE4262EFA417300FAAB61 /* FirebaseCoreInternal.framework */,
+				FAAAE4282EFA417300FAAB61 /* FirebaseCoreInternal_Privacy.bundle */,
+				FAAAE42A2EFA417300FAAB61 /* FirebaseInstallations.framework */,
+				FAAAE42C2EFA417300FAAB61 /* FirebaseInstallations_Privacy.bundle */,
+				FAAAE42E2EFA417300FAAB61 /* FirebaseMessaging.framework */,
+				FAAAE4302EFA417300FAAB61 /* FirebaseMessaging_Privacy.bundle */,
+				FAAAE4322EFA417300FAAB61 /* geolocator_apple.framework */,
+				FAAAE4342EFA417300FAAB61 /* geolocator_apple_privacy.bundle */,
+				FAAAE4362EFA417300FAAB61 /* GoogleMapsUtils.framework */,
+				FAAAE4382EFA417300FAAB61 /* google_maps_flutter_ios.framework */,
+				FAAAE43A2EFA417300FAAB61 /* google_maps_flutter_ios_privacy.bundle */,
+				FAAAE43C2EFA417300FAAB61 /* google_sign_in_ios.framework */,
+				FAAAE43E2EFA417300FAAB61 /* google_sign_in_ios_privacy.bundle */,
+				FAAAE4402EFA417300FAAB61 /* GoogleDataTransport.framework */,
+				FAAAE4422EFA417300FAAB61 /* GoogleDataTransport_Privacy.bundle */,
+				FAAAE4442EFA417300FAAB61 /* GoogleMapsResources.bundle */,
+				FAAAE4462EFA417300FAAB61 /* GoogleSignIn.framework */,
+				FAAAE4482EFA417300FAAB61 /* GoogleSignIn.bundle */,
+				FAAAE44A2EFA417300FAAB61 /* GoogleUtilities.framework */,
+				FAAAE44C2EFA417300FAAB61 /* GoogleUtilities_Privacy.bundle */,
+				FAAAE44E2EFA417300FAAB61 /* GTMAppAuth.framework */,
+				FAAAE4502EFA417300FAAB61 /* GTMAppAuth_Privacy.bundle */,
+				FAAAE4522EFA417300FAAB61 /* GTMSessionFetcher.framework */,
+				FAAAE4542EFA417300FAAB61 /* GTMSessionFetcher_Core_Privacy.bundle */,
+				FAAAE4562EFA417300FAAB61 /* GTMSessionFetcher_Full_Privacy.bundle */,
+				FAAAE4582EFA417300FAAB61 /* image_picker_ios.framework */,
+				FAAAE45A2EFA417300FAAB61 /* image_picker_ios_privacy.bundle */,
+				FAAAE45C2EFA417300FAAB61 /* nanopb.framework */,
+				FAAAE45E2EFA417300FAAB61 /* nanopb_Privacy.bundle */,
+				FAAAE4602EFA417300FAAB61 /* path_provider_foundation.framework */,
+				FAAAE4622EFA417300FAAB61 /* path_provider_foundation_privacy.bundle */,
+				FAAAE4642EFA417300FAAB61 /* permission_handler_apple.framework */,
+				FAAAE4662EFA417300FAAB61 /* permission_handler_apple_privacy.bundle */,
+				FAAAE4682EFA417300FAAB61 /* Pods_Runner.framework */,
+				FAAAE46A2EFA417300FAAB61 /* FBLPromises.framework */,
+				FAAAE46C2EFA417300FAAB61 /* FBLPromises_Privacy.bundle */,
+				FAAAE46E2EFA417300FAAB61 /* shared_preferences_foundation.framework */,
+				FAAAE4702EFA417300FAAB61 /* shared_preferences_foundation_privacy.bundle */,
+				FAAAE4722EFA417300FAAB61 /* sqflite_darwin.framework */,
+				FAAAE4742EFA417300FAAB61 /* sqflite_darwin_privacy.bundle */,
+				FAAAE4762EFA417300FAAB61 /* video_player_avfoundation.framework */,
+				FAAAE4782EFA417300FAAB61 /* video_player_avfoundation_privacy.bundle */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -130,6 +573,7 @@
 			buildPhases = (
 				331C807D294A63A400263BE5 /* Sources */,
 				331C807F294A63A400263BE5 /* Resources */,
+				DC4AEDBA4836FD195E8EFAC8 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -145,12 +589,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
 			buildPhases = (
+				2BC60D8AD4721086ADD85CB1 /* [CP] Check Pods Manifest.lock */,
 				9740EEB61CF901F6004384FC /* Run Script */,
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				2833839EC9D7586EBC405D04 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -192,6 +638,12 @@
 			mainGroup = 97C146E51CF9000F007C117D;
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = FAAAE3DE2EFA417300FAAB61 /* Products */;
+					ProjectRef = FAAAE3DC2EFA3E8300FAAB61 /* Pods.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
@@ -199,6 +651,359 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		FAAAE4162EFA417300FAAB61 /* AppAuth.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = AppAuth.framework;
+			remoteRef = FAAAE4152EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4182EFA417300FAAB61 /* AppAuthCore_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = AppAuthCore_Privacy.bundle;
+			remoteRef = FAAAE4172EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE41A2EFA417300FAAB61 /* AppCheckCore.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = AppCheckCore.framework;
+			remoteRef = FAAAE4192EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE41C2EFA417300FAAB61 /* firebase_core.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = firebase_core.framework;
+			remoteRef = FAAAE41B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE41E2EFA417300FAAB61 /* firebase_messaging.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = firebase_messaging.framework;
+			remoteRef = FAAAE41D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4202EFA417300FAAB61 /* firebase_messaging_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = firebase_messaging_Privacy.bundle;
+			remoteRef = FAAAE41F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4222EFA417300FAAB61 /* FirebaseCore.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = FirebaseCore.framework;
+			remoteRef = FAAAE4212EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4242EFA417300FAAB61 /* FirebaseCore_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = FirebaseCore_Privacy.bundle;
+			remoteRef = FAAAE4232EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4262EFA417300FAAB61 /* FirebaseCoreInternal.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = FirebaseCoreInternal.framework;
+			remoteRef = FAAAE4252EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4282EFA417300FAAB61 /* FirebaseCoreInternal_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = FirebaseCoreInternal_Privacy.bundle;
+			remoteRef = FAAAE4272EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE42A2EFA417300FAAB61 /* FirebaseInstallations.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = FirebaseInstallations.framework;
+			remoteRef = FAAAE4292EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE42C2EFA417300FAAB61 /* FirebaseInstallations_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = FirebaseInstallations_Privacy.bundle;
+			remoteRef = FAAAE42B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE42E2EFA417300FAAB61 /* FirebaseMessaging.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = FirebaseMessaging.framework;
+			remoteRef = FAAAE42D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4302EFA417300FAAB61 /* FirebaseMessaging_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = FirebaseMessaging_Privacy.bundle;
+			remoteRef = FAAAE42F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4322EFA417300FAAB61 /* geolocator_apple.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = geolocator_apple.framework;
+			remoteRef = FAAAE4312EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4342EFA417300FAAB61 /* geolocator_apple_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = geolocator_apple_privacy.bundle;
+			remoteRef = FAAAE4332EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4362EFA417300FAAB61 /* GoogleMapsUtils.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GoogleMapsUtils.framework;
+			remoteRef = FAAAE4352EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4382EFA417300FAAB61 /* google_maps_flutter_ios.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = google_maps_flutter_ios.framework;
+			remoteRef = FAAAE4372EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE43A2EFA417300FAAB61 /* google_maps_flutter_ios_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = google_maps_flutter_ios_privacy.bundle;
+			remoteRef = FAAAE4392EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE43C2EFA417300FAAB61 /* google_sign_in_ios.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = google_sign_in_ios.framework;
+			remoteRef = FAAAE43B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE43E2EFA417300FAAB61 /* google_sign_in_ios_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = google_sign_in_ios_privacy.bundle;
+			remoteRef = FAAAE43D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4402EFA417300FAAB61 /* GoogleDataTransport.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GoogleDataTransport.framework;
+			remoteRef = FAAAE43F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4422EFA417300FAAB61 /* GoogleDataTransport_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GoogleDataTransport_Privacy.bundle;
+			remoteRef = FAAAE4412EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4442EFA417300FAAB61 /* GoogleMapsResources.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GoogleMapsResources.bundle;
+			remoteRef = FAAAE4432EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4462EFA417300FAAB61 /* GoogleSignIn.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GoogleSignIn.framework;
+			remoteRef = FAAAE4452EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4482EFA417300FAAB61 /* GoogleSignIn.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GoogleSignIn.bundle;
+			remoteRef = FAAAE4472EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE44A2EFA417300FAAB61 /* GoogleUtilities.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GoogleUtilities.framework;
+			remoteRef = FAAAE4492EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE44C2EFA417300FAAB61 /* GoogleUtilities_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GoogleUtilities_Privacy.bundle;
+			remoteRef = FAAAE44B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE44E2EFA417300FAAB61 /* GTMAppAuth.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GTMAppAuth.framework;
+			remoteRef = FAAAE44D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4502EFA417300FAAB61 /* GTMAppAuth_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GTMAppAuth_Privacy.bundle;
+			remoteRef = FAAAE44F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4522EFA417300FAAB61 /* GTMSessionFetcher.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = GTMSessionFetcher.framework;
+			remoteRef = FAAAE4512EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4542EFA417300FAAB61 /* GTMSessionFetcher_Core_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GTMSessionFetcher_Core_Privacy.bundle;
+			remoteRef = FAAAE4532EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4562EFA417300FAAB61 /* GTMSessionFetcher_Full_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = GTMSessionFetcher_Full_Privacy.bundle;
+			remoteRef = FAAAE4552EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4582EFA417300FAAB61 /* image_picker_ios.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = image_picker_ios.framework;
+			remoteRef = FAAAE4572EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE45A2EFA417300FAAB61 /* image_picker_ios_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = image_picker_ios_privacy.bundle;
+			remoteRef = FAAAE4592EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE45C2EFA417300FAAB61 /* nanopb.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = nanopb.framework;
+			remoteRef = FAAAE45B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE45E2EFA417300FAAB61 /* nanopb_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = nanopb_Privacy.bundle;
+			remoteRef = FAAAE45D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4602EFA417300FAAB61 /* path_provider_foundation.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = path_provider_foundation.framework;
+			remoteRef = FAAAE45F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4622EFA417300FAAB61 /* path_provider_foundation_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = path_provider_foundation_privacy.bundle;
+			remoteRef = FAAAE4612EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4642EFA417300FAAB61 /* permission_handler_apple.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = permission_handler_apple.framework;
+			remoteRef = FAAAE4632EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4662EFA417300FAAB61 /* permission_handler_apple_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = permission_handler_apple_privacy.bundle;
+			remoteRef = FAAAE4652EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4682EFA417300FAAB61 /* Pods_Runner.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = Pods_Runner.framework;
+			remoteRef = FAAAE4672EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE46A2EFA417300FAAB61 /* FBLPromises.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = FBLPromises.framework;
+			remoteRef = FAAAE4692EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE46C2EFA417300FAAB61 /* FBLPromises_Privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = FBLPromises_Privacy.bundle;
+			remoteRef = FAAAE46B2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE46E2EFA417300FAAB61 /* shared_preferences_foundation.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = shared_preferences_foundation.framework;
+			remoteRef = FAAAE46D2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4702EFA417300FAAB61 /* shared_preferences_foundation_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = shared_preferences_foundation_privacy.bundle;
+			remoteRef = FAAAE46F2EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4722EFA417300FAAB61 /* sqflite_darwin.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = sqflite_darwin.framework;
+			remoteRef = FAAAE4712EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4742EFA417300FAAB61 /* sqflite_darwin_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = sqflite_darwin_privacy.bundle;
+			remoteRef = FAAAE4732EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4762EFA417300FAAB61 /* video_player_avfoundation.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = video_player_avfoundation.framework;
+			remoteRef = FAAAE4752EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FAAAE4782EFA417300FAAB61 /* video_player_avfoundation_privacy.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = video_player_avfoundation_privacy.bundle;
+			remoteRef = FAAAE4772EFA417300FAAB61 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		331C807F294A63A400263BE5 /* Resources */ = {
@@ -215,6 +1020,7 @@
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
+				FAAAE3DD2EFA3E8300FAAB61 /* Pods.xcodeproj in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -222,6 +1028,45 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		2833839EC9D7586EBC405D04 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		2BC60D8AD4721086ADD85CB1 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-Runner-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -327,6 +1172,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -349,6 +1195,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -362,8 +1209,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -372,6 +1221,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Profile;
@@ -383,6 +1233,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = world.petties.mobile.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -400,6 +1251,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = world.petties.mobile.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -415,6 +1267,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = world.petties.mobile.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -447,6 +1300,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -476,6 +1330,7 @@
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -504,6 +1359,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -526,6 +1382,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -541,8 +1398,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -552,6 +1411,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -563,8 +1423,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 8PA993XYV8;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -573,6 +1435,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;

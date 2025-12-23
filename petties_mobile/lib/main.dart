@@ -17,6 +17,7 @@ void main() async {
     debugPrint('Firebase not configured: $e');
   }
   
+  
   // Initialize local storage
   await StorageService().init();
   
