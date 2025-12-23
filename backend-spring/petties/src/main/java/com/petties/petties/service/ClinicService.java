@@ -91,5 +91,10 @@ public interface ClinicService {
      * Update clinic logo
      */
     ClinicResponse updateClinicLogo(UUID clinicId, String logoUrl, UUID ownerId);
+
+    /**
+     * Set an existing clinic image as primary
+     */
+    ClinicResponse setPrimaryClinicImage(UUID clinicId, UUID imageId, UUID ownerId);
 }
 

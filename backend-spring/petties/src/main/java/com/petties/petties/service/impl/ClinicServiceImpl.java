@@ -355,6 +355,31 @@ public class ClinicServiceImpl implements ClinicService {
 
     @Override
     @Transactional
+    public ClinicResponse setPrimaryClinicImage(UUID clinicId, UUID imageId, UUID ownerId) {
+        Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+
+        // Check ownership
+        if (!clinic.getOwner().getUserId().equals(ownerId)) {
+            throw new ForbiddenException("You can only update images for your own clinic");
+        }
+
+        ClinicImage targetImage = clinicImageRepository.findByImageIdAndClinicClinicId(imageId, clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic image not found"));
+
+        // Set all images isPrimary=false, then set target true
+        clinic.getImages().forEach(img -> img.setIsPrimary(false));
+        targetImage.setIsPrimary(true);
+
+        clinicImageRepository.saveAll(clinic.getImages());
+        clinic = clinicRepository.save(clinic);
+
+        log.info("Clinic image set as primary: {} for clinic: {} by owner: {}", imageId, clinicId, ownerId);
+        return mapToResponse(clinic);
+    }
+
+    @Override
+    @Transactional
     public ClinicResponse updateClinicLogo(UUID clinicId, String logoUrl, UUID ownerId) {
         Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
@@ -389,14 +414,32 @@ public class ClinicServiceImpl implements ClinicService {
     }
 
     private ClinicResponse mapToResponse(Clinic clinic) {
-        List<String> imageUrls = clinic.getImages().stream()
+        List<ClinicImage> sortedImages = clinic.getImages().stream()
                 .sorted((a, b) -> {
-                    // Sort by isPrimary first, then by displayOrder
-                    if (Boolean.TRUE.equals(a.getIsPrimary())) return -1;
-                    if (Boolean.TRUE.equals(b.getIsPrimary())) return 1;
-                    return a.getDisplayOrder().compareTo(b.getDisplayOrder());
+                    boolean aPrimary = Boolean.TRUE.equals(a.getIsPrimary());
+                    boolean bPrimary = Boolean.TRUE.equals(b.getIsPrimary());
+                    if (aPrimary != bPrimary) {
+                        return aPrimary ? -1 : 1;
+                    }
+                    Integer aOrder = a.getDisplayOrder() != null ? a.getDisplayOrder() : Integer.MAX_VALUE;
+                    Integer bOrder = b.getDisplayOrder() != null ? b.getDisplayOrder() : Integer.MAX_VALUE;
+                    return aOrder.compareTo(bOrder);
                 })
-                .map(com.petties.petties.model.ClinicImage::getImageUrl)
+                .collect(Collectors.toList());
+
+        List<String> imageUrls = sortedImages.stream()
+                .map(ClinicImage::getImageUrl)
+                .collect(Collectors.toList());
+
+        List<ClinicResponse.ImageInfo> imageDetails = sortedImages.stream()
+                .map(img -> ClinicResponse.ImageInfo.builder()
+                        .imageId(img.getImageId())
+                        .clinicId(clinic.getClinicId())
+                        .imageUrl(img.getImageUrl())
+                        .caption(img.getCaption())
+                        .displayOrder(img.getDisplayOrder())
+                        .isPrimary(img.getIsPrimary())
+                        .build())
                 .collect(Collectors.toList());
 
         ClinicResponse.OwnerInfo ownerInfo = ClinicResponse.OwnerInfo.builder()
@@ -426,6 +469,7 @@ public class ClinicServiceImpl implements ClinicService {
                 .ratingCount(clinic.getRatingCount())
                 .approvedAt(clinic.getApprovedAt())
                 .images(imageUrls)
+                .imageDetails(imageDetails)
                 .createdAt(clinic.getCreatedAt())
                 .updatedAt(clinic.getUpdatedAt())
                 .build();

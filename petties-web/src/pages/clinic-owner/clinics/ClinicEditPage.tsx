@@ -60,11 +60,18 @@ export function ClinicEditPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="heading-brutal text-stone-900 mb-2">EDIT CLINIC</h1>
-          <p className="text-stone-600 font-bold uppercase text-sm">Update clinic information</p>
+    <div className="min-h-screen bg-[#FFFDF8] text-black">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="mb-8 border-b-[3px] border-black pb-4">
+          <div className="inline-block bg-black text-white px-3 py-1 text-xs font-black uppercase tracking-widest">
+            Edit Clinic
+          </div>
+          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mt-3 leading-tight">
+            Chỉnh sửa phòng khám
+          </h1>
+          <p className="text-sm md:text-base font-semibold text-gray-700 mt-2">
+            Cập nhật thông tin phòng khám hiện có
+          </p>
         </div>
 
         {error && (
@@ -88,7 +95,7 @@ export function ClinicEditPage() {
               operatingHours: currentClinic.operatingHours,
             }}
             clinicId={currentClinic.clinicId}
-            initialImages={currentClinic.images || []}
+            initialImages={currentClinic.imageDetails || currentClinic.images || []}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             isLoading={isLoading}

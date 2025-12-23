@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   MapPinIcon,
@@ -7,6 +7,8 @@ import {
   StarIcon,
   PencilIcon,
   TrashIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
@@ -18,12 +20,50 @@ export function ClinicDetailPage() {
   const { clinicId } = useParams<{ clinicId: string }>()
   const navigate = useNavigate()
   const { currentClinic, fetchClinicById, deleteClinic, isLoading, error } = useClinicStore()
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
 
   useEffect(() => {
     if (clinicId) {
       fetchClinicById(clinicId)
     }
   }, [clinicId])
+
+  const updateScrollState = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const { scrollLeft, scrollWidth, clientWidth } = el
+    const maxScrollLeft = scrollWidth - clientWidth - 1
+    setCanScrollLeft(scrollLeft > 0)
+    setCanScrollRight(scrollLeft < maxScrollLeft)
+  }
+
+  const handleScrollRight = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const delta = el.clientWidth * 0.8
+    el.scrollBy({ left: delta, behavior: 'smooth' })
+  }
+
+  const handleScrollLeft = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const delta = el.clientWidth * 0.8
+    el.scrollBy({ left: -delta, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    updateScrollState()
+    el.addEventListener('scroll', updateScrollState, { passive: true })
+    window.addEventListener('resize', updateScrollState)
+    return () => {
+      el.removeEventListener('scroll', updateScrollState)
+      window.removeEventListener('resize', updateScrollState)
+    }
+  }, [currentClinic?.images])
 
   const handleDelete = async () => {
     if (!clinicId) return
@@ -94,29 +134,50 @@ export function ClinicDetailPage() {
   ] as const
 
   return (
-    <div className="p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#FFFDF8] text-black">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <Link
-              to={ROUTES.clinicOwner.clinics}
-              className="text-amber-600 font-bold uppercase text-sm mb-4 inline-block hover:text-amber-700"
-            >
-              ← BACK TO LIST
-            </Link>
-            <div className="flex items-center gap-4 mb-2">
-              {/* Clinic Logo */}
-              <div className="relative w-16 h-16 border-4 border-stone-900 bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
-                <ClinicLogoDisplay logoUrl={currentClinic.logo} alt={`${currentClinic.name} Logo`} size="md" />
+        <div className="flex items-start justify-between mb-6 gap-4">
+          <div className="flex-1">
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <Link
+                to={ROUTES.clinicOwner.clinics}
+                className="btn-brutal-outline px-3 py-2 text-sm shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+              >
+                ← BACK TO LIST
+              </Link>
+              <div className="flex gap-2">
+                <Link
+                  to={`${ROUTES.clinicOwner.clinics}/${clinicId}/edit`}
+                  className="btn-brutal-outline"
+                >
+                  <PencilIcon className="w-4 h-4 mr-2" />
+                  EDIT
+                </Link>
+                <button
+                  onClick={handleDelete}
+                  className="btn-brutal-outline text-red-600 border-red-600 hover:bg-red-50"
+                >
+                  <TrashIcon className="w-4 h-4 mr-2" />
+                  DELETE
+                </button>
               </div>
+            </div>
+            <div className="flex items-center gap-4 mb-3">
+              {/* Clinic Logo */}
+              <ClinicLogoDisplay logoUrl={currentClinic.logo} alt={`${currentClinic.name} Logo`} size="md" />
               <div className="flex-1">
-                <h1 className="heading-brutal text-stone-900">{currentClinic.name}</h1>
+                <h1 className="text-3xl md:text-4xl font-extrabold uppercase text-stone-900 leading-tight">
+                  {currentClinic.name}
+                </h1>
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <div className="text-xs font-bold uppercase text-stone-600">Trạng thái</div>
               <div
-                className={`inline-block px-3 py-1 border-2 font-bold text-xs uppercase ${statusColors[currentClinic.status] || statusColors.PENDING}`}
+                className={`inline-block px-3 py-1 border-[3px] border-black font-black text-xs uppercase bg-white shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] ${
+                  statusColors[currentClinic.status] || statusColors.PENDING
+                }`}
               >
                 {statusLabels[currentClinic.status] || currentClinic.status}
               </div>
@@ -129,49 +190,98 @@ export function ClinicDetailPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2">
-            <Link
-              to={`${ROUTES.clinicOwner.clinics}/${clinicId}/edit`}
-              className="btn-brutal-outline"
-            >
-              <PencilIcon className="w-4 h-4 mr-2" />
-              EDIT
-            </Link>
-            <button onClick={handleDelete} className="btn-brutal-outline text-red-600 border-red-600 hover:bg-red-50">
-              <TrashIcon className="w-4 h-4 mr-2" />
-              DELETE
-            </button>
-          </div>
         </div>
 
         {/* Clinic Images Gallery */}
-        {currentClinic.images && currentClinic.images.length > 0 && (
+        {(() => {
+          const images =
+            currentClinic.imageDetails?.length
+              ? currentClinic.imageDetails.map((img) => ({
+                  url: img.imageUrl,
+                  isPrimary: img.isPrimary,
+                }))
+              : currentClinic.images?.map((img, idx) =>
+                  typeof img === 'string'
+                    ? { url: img, isPrimary: idx === 0 }
+                    : { url: img.imageUrl, isPrimary: img.isPrimary },
+                )
+
+          if (!images || images.length === 0) return null
+
+          return (
           <div className="card-brutal p-6 mb-6">
             <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">ẢNH PHÒNG KHÁM</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {currentClinic.images.map((imageUrl, index) => (
-                <div key={index} className="relative group">
-                  <div className="card-brutal overflow-hidden aspect-square">
-                    <img
-                      src={imageUrl}
-                      alt={`${currentClinic.name} - Image ${index + 1}`}
-                      className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                      onClick={() => {
-                        // Open image in new tab for full view
-                        window.open(imageUrl, '_blank')
-                      }}
-                    />
-                  </div>
-                  {index === 0 && (
-                    <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                      PRIMARY
-                    </div>
-                  )}
+            {images.length === 1 ? (
+              <div className="relative">
+                <div className="card-brutal overflow-hidden w-full">
+                  <img
+                    src={images[0].url}
+                    alt={`${currentClinic.name} - Image 1`}
+                    className="w-full h-auto max-h-[480px] object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                    onClick={() => window.open(images?.[0].url, '_blank')}
+                  />
                 </div>
-              ))}
-            </div>
+                <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
+                  PRIMARY
+                </div>
+              </div>
+            ) : (
+              <div className="relative">
+                {/* Horizontal gallery without native scrollbar */}
+                <div
+                  ref={scrollRef}
+                  className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {images.map((image, index) => (
+                    <div key={index} className="relative group min-w-[240px] md:min-w-[280px] snap-start">
+                      <div className="card-brutal overflow-hidden aspect-square">
+                        <img
+                          src={image.url}
+                          alt={`${currentClinic.name} - Image ${index + 1}`}
+                          className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                          onClick={() => window.open(image.url, '_blank')}
+                        />
+                      </div>
+                      {(image.isPrimary || index === 0) && (
+                        <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
+                          PRIMARY
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Arrows with glassmorphism, only when can scroll */}
+                {canScrollLeft && (
+                  <button
+                    type="button"
+                    onClick={handleScrollLeft}
+                    className="hidden md:flex items-center justify-center absolute left-2 top-1/2 -translate-y-1/2 w-10 h-14 bg-white/30 backdrop-blur border-2 border-white/60 shadow-xl transition hover:bg-white/70 hover:scale-105 active:scale-100"
+                  >
+                    <ChevronLeftIcon className="w-6 h-6 text-stone-900" />
+                  </button>
+                )}
+                {canScrollRight && (
+                  <button
+                    type="button"
+                    onClick={handleScrollRight}
+                    className="hidden md:flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 w-10 h-14 bg-white/30 backdrop-blur border-2 border-white/60 shadow-xl transition hover:bg-white/70 hover:scale-105 active:scale-100"
+                  >
+                    <ChevronRightIcon className="w-6 h-6 text-stone-900" />
+                  </button>
+                )}
+
+                {/* Mobile hint (right arrow) */}
+                {canScrollRight && (
+                  <div className="absolute right-2 bottom-2 md:hidden flex items-center justify-center w-8 h-12 bg-white/30 backdrop-blur border-2 border-white/60 shadow-lg animate-pulse">
+                    <ChevronRightIcon className="w-5 h-5 text-stone-900" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
+          )
+        })()}
 
         {/* Basic Information */}
         <div className="card-brutal p-6 mb-6">

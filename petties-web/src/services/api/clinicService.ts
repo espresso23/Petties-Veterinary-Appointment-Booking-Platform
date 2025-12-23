@@ -184,6 +184,14 @@ export const clinicService = {
   },
 
   /**
+   * Set clinic image as primary
+   */
+  setPrimaryClinicImage: async (clinicId: string, imageId: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/${clinicId}/images/${imageId}/primary`)
+    return response.data
+  },
+
+  /**
    * Upload logo for clinic
    */
   uploadClinicLogo: async (clinicId: string, file: File): Promise<ClinicResponse> => {

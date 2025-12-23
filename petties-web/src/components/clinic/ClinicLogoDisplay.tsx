@@ -20,7 +20,7 @@ export function ClinicLogoDisplay({ logoUrl, alt = 'Clinic Logo', className = ''
     <img
       src={displayLogo}
       alt={alt}
-      className={`${sizeClasses[size]} object-contain ${className}`}
+      className={`${sizeClasses[size]} object-contain border-4 border-stone-900 bg-white ${className}`}
       onError={(e) => {
         const target = e.target as HTMLImageElement
         // Fallback to default logo if image fails to load

@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import type { ClinicRequest, OperatingHours } from '../../types/clinic'
 import { AddressAutocompleteOSM } from './AddressAutocompleteOSM'
-import { clinicService } from '../../services/api/clinicService'
 import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
 
@@ -50,8 +49,6 @@ export function ClinicForm({
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleChange = (field: keyof ClinicRequest, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -98,56 +95,6 @@ export function ClinicForm({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0 || !clinicId) return
-
-    setUploading(true)
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        await clinicService.uploadClinicImage(
-          clinicId,
-          file,
-          undefined,
-          undefined,
-          initialImages.length === 0 && i === 0, // First image is primary if no existing images
-        )
-      }
-      // Refetch clinic to get updated images list
-      if (onImageUploaded) {
-        onImageUploaded()
-      }
-    } catch (error: any) {
-      console.error('Failed to upload image:', error)
-      console.error('Error response:', error.response?.data)
-      console.error('Error status:', error.response?.status)
-      
-      // Extract error message from response
-      const errorMessage = error.response?.data?.message 
-        || error.response?.data?.error 
-        || error.message 
-        || 'Không thể upload ảnh. Vui lòng thử lại.'
-      
-      setErrors((prev) => ({ ...prev, images: errorMessage }))
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-  }
-
-  const handleDeleteImage = async (imageUrl: string) => {
-    if (!clinicId) return
-
-    // Note: We need imageId to delete, but backend only returns URLs
-    // For now, we'll need to find imageId by matching URL
-    // This is a limitation - ideally backend should return imageId in response
-    // For now, we'll show a message that deletion requires page refresh
-    alert('Để xóa ảnh, vui lòng tải lại trang và sử dụng chức năng xóa trong trang chi tiết clinic.')
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
@@ -158,8 +105,6 @@ export function ClinicForm({
       // Error handled by parent
     }
   }
-
-  const allImages = initialImages
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -300,63 +245,11 @@ export function ClinicForm({
       {clinicId && (
         <div className="card-brutal p-6">
           <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">ẢNH PHÒNG KHÁM</h3>
-
-          <div className="space-y-4">
-            {/* Upload Button */}
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                multiple
-                onChange={handleFileChange}
-                disabled={uploading}
-                className="hidden"
-                id="clinic-image-upload"
-              />
-              <label
-                htmlFor="clinic-image-upload"
-                className={`btn-brutal-outline cursor-pointer inline-block ${
-                  uploading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {uploading ? 'UPLOADING...' : '+ UPLOAD ẢNH'}
-              </label>
-              {errors.images && (
-                <p className="text-red-600 text-sm mt-1 font-bold">{errors.images}</p>
-              )}
-            </div>
-
-            {/* Image Preview Grid */}
-            {allImages.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {allImages.map((imageUrl, index) => (
-                  <div key={index} className="relative group">
-                    <div className="card-brutal overflow-hidden aspect-square">
-                      <img
-                        src={imageUrl}
-                        alt={`Clinic image ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteImage(imageUrl)}
-                      className="absolute top-2 right-2 bg-red-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal hover:bg-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      X
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {allImages.length === 0 && (
-              <div className="text-stone-500 text-sm font-bold uppercase text-center py-8 border-2 border-dashed border-stone-300">
-                Chưa có ảnh nào. Click "UPLOAD ẢNH" để thêm ảnh.
-              </div>
-            )}
-          </div>
+          <ClinicImageUpload
+            clinicId={clinicId}
+            initialImages={initialImages}
+            onImageUploaded={onImageUploaded}
+          />
         </div>
       )}
 

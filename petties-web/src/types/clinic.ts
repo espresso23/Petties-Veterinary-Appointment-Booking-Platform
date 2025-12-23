@@ -33,7 +33,8 @@ export interface Clinic {
   approvedAt?: string
   createdAt: string
   updatedAt?: string
-  images?: ClinicImage[]
+  images?: ClinicImage[] | string[]
+  imageDetails?: ClinicImage[]
   services?: ClinicService[]
 }
 
@@ -96,7 +97,8 @@ export interface ClinicResponse {
   approvedAt?: string
   createdAt: string
   updatedAt?: string
-  images?: ClinicImage[]
+  images?: ClinicImage[] | string[]
+  imageDetails?: ClinicImage[]
   services?: ClinicService[]
 }
 

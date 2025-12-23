@@ -44,6 +44,7 @@ public class ClinicResponse {
     private Integer ratingCount;
     private LocalDateTime approvedAt;
     private List<String> images;
+    private List<ImageInfo> imageDetails;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Double distance; // For nearby search results
@@ -57,6 +58,20 @@ public class ClinicResponse {
         private UUID userId;
         private String fullName;
         private String email;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ImageInfo {
+        private UUID imageId;
+        private UUID clinicId;
+        private String imageUrl;
+        private String caption;
+        private Integer displayOrder;
+        private Boolean isPrimary;
     }
 }
 

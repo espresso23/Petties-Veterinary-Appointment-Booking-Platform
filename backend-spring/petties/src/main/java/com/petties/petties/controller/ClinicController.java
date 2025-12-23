@@ -325,5 +325,21 @@ public class ClinicController {
         
         return ResponseEntity.ok(Map.of("message", "Image deleted successfully"));
     }
+
+    /**
+     * POST /api/clinics/{id}/images/{imageId}/primary
+     * Set an image as primary for the clinic
+     * CLINIC_OWNER can only update their own clinic
+     */
+    @PostMapping("/{id}/images/{imageId}/primary")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<ClinicResponse> setPrimaryClinicImage(
+            @PathVariable UUID id,
+            @PathVariable UUID imageId) {
+
+        User currentUser = authService.getCurrentUser();
+        ClinicResponse clinic = clinicService.setPrimaryClinicImage(id, imageId, currentUser.getUserId());
+        return ResponseEntity.ok(clinic);
+    }
 }
 
