@@ -24,7 +24,7 @@ export function MainLayout() {
           {isAuthenticated && user ? (
             <>
               <span style={{ color: '#0369a1', fontWeight: 500 }}>
-                👤 {user.username} ({user.role})
+                {user.username} ({user.role})
               </span>
               <button 
                 onClick={handleLogout}

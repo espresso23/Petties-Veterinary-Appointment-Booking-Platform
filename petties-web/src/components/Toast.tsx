@@ -84,25 +84,25 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
             case 'success':
                 return {
                     bg: 'bg-green-500',
-                    icon: '✅',
+                    icon: '',
                     border: 'border-green-700'
                 }
             case 'error':
                 return {
                     bg: 'bg-red-500',
-                    icon: '❌',
+                    icon: '',
                     border: 'border-red-700'
                 }
             case 'warning':
                 return {
                     bg: 'bg-amber-500',
-                    icon: '⚠️',
+                    icon: '',
                     border: 'border-amber-700'
                 }
             case 'info':
                 return {
                     bg: 'bg-blue-500',
-                    icon: 'ℹ️',
+                    icon: '',
                     border: 'border-blue-700'
                 }
         }

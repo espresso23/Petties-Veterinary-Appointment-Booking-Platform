@@ -44,13 +44,13 @@ export const AgentFlowVisualization = ({ nodes, edges: _edges }: AgentFlowVisual
   const getNodeIcon = (type: FlowNode['type']) => {
     switch (type) {
       case 'user':
-        return '👤'
+        return 'U'
       case 'main':
-        return '👑'
+        return 'M'
       case 'sub':
-        return '⚙️'
+        return 'S'
       case 'tool':
-        return '🔧'
+        return 'T'
       default:
         return '●'
     }
@@ -118,7 +118,7 @@ export const AgentFlowVisualization = ({ nodes, edges: _edges }: AgentFlowVisual
               {/* Info Notice */}
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs text-amber-800">
-                  💡 <strong>Coming Soon:</strong> Interactive React Flow visualization with detailed node inspection, 
+                  <strong>Coming Soon:</strong> Interactive React Flow visualization with detailed node inspection, 
                   timeline view, and tool call details.
                 </p>
               </div>

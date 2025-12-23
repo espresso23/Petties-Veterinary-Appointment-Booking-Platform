@@ -8,67 +8,140 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Data Initializer - Tự động tạo admin user mặc định
- * 
- * Chức năng:
- * - Tự động chạy khi Spring Boot khởi động (cả dev và prod)
- * - Chỉ tạo admin user nếu chưa tồn tại trong database
- * - Không cần config hay bật/tắt thủ công
- * 
- * Default credentials:
- * - Username: admin
- * - Password: admin
- * - Email: admin@petties.world
- * 
- * ⚠️ Lưu ý: Nên đổi password ngay sau lần đăng nhập đầu tiên!
+ * Data Initializer - Insert sample users for testing
+ * Runs automatically on application startup
  */
-@Slf4j
-@Component
+// @Component  // Temporarily disabled to allow backend to start
 @RequiredArgsConstructor
+@Slf4j
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public void run(String... args) throws Exception {
-        initializeAdminUser();
+    @Transactional
+    public void run(String... args) {
+        log.info("🚀 Starting data initialization...");
+
+        // Create ADMIN user
+        createUserIfNotExists(
+            "admin",
+            "admin123",
+            "admin@petties.com",
+            "Admin User",
+            "+84123456789",
+            Role.ADMIN
+        );
+
+        // Create CLINIC_OWNER users
+        createUserIfNotExists(
+            "owner1",
+            "owner123",
+            "owner1@petties.com",
+            "Clinic Owner 1",
+            "+84987654321",
+            Role.CLINIC_OWNER
+        );
+
+        createUserIfNotExists(
+            "owner2",
+            "owner123",
+            "owner2@petties.com",
+            "Clinic Owner 2",
+            "+84987654322",
+            Role.CLINIC_OWNER
+        );
+
+        // Create VET users
+        createUserIfNotExists(
+            "vet1",
+            "vet123",
+            "vet1@petties.com",
+            "Veterinarian 1",
+            "+84987654330",
+            Role.VET
+        );
+
+        createUserIfNotExists(
+            "vet2",
+            "vet123",
+            "vet2@petties.com",
+            "Veterinarian 2",
+            "+84987654331",
+            Role.VET
+        );
+
+        // Create PET_OWNER users
+        createUserIfNotExists(
+            "petowner1",
+            "petowner123",
+            "petowner1@petties.com",
+            "Pet Owner 1",
+            "+84987654340",
+            Role.PET_OWNER
+        );
+
+        createUserIfNotExists(
+            "petowner2",
+            "petowner123",
+            "petowner2@petties.com",
+            "Pet Owner 2",
+            "+84987654341",
+            Role.PET_OWNER
+        );
+
+        // Create CLINIC_MANAGER user
+        createUserIfNotExists(
+            "manager1",
+            "manager123",
+            "manager1@petties.com",
+            "Clinic Manager 1",
+            "+84987654350",
+            Role.CLINIC_MANAGER
+        );
+
+        log.info("✅ Data initialization completed!");
+        log.info("📝 Sample users created:");
+        log.info("   - admin / admin123 (ADMIN)");
+        log.info("   - owner1 / owner123 (CLINIC_OWNER)");
+        log.info("   - owner2 / owner123 (CLINIC_OWNER)");
+        log.info("   - vet1 / vet123 (VET)");
+        log.info("   - vet2 / vet123 (VET)");
+        log.info("   - petowner1 / petowner123 (PET_OWNER)");
+        log.info("   - petowner2 / petowner123 (PET_OWNER)");
+        log.info("   - manager1 / manager123 (CLINIC_MANAGER)");
     }
 
-    /**
-     * Khởi tạo admin user mặc định
-     * Chỉ tạo nếu chưa có admin user trong database
-     */
-    private void initializeAdminUser() {
-        final String adminUsername = "admin";
+    private void createUserIfNotExists(
+            String username,
+            String password,
+            String email,
+            String fullName,
+            String phone,
+            Role role) {
 
-        // Kiểm tra xem đã có admin user chưa
-        if (userRepository.existsByUsername(adminUsername)) {
-            log.info("✅ Admin user '{}' already exists. Skipping initialization.", adminUsername);
+        // Check if user already exists
+        if (userRepository.existsByUsername(username) ||
+            userRepository.existsByEmail(email)) {
+            log.debug("User {} already exists, skipping...", username);
             return;
         }
 
-        // Tạo admin user mới
-        User admin = new User();
-        admin.setUsername(adminUsername);
-        admin.setPassword(passwordEncoder.encode("admin"));
-        admin.setEmail("admin@petties.world");
-        admin.setPhone("0000000000");
-        admin.setFullName("Thuong em la dieu anh khong the ngo");
-        admin.setRole(Role.ADMIN);
+        // Create new user
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password)); // Hash password
+        user.setEmail(email);
+        user.setFullName(fullName);
+        user.setPhone(phone);
+        user.setRole(role);
+        // createdAt and updatedAt will be set automatically by JPA Auditing
 
-        try {
-            User savedAdmin = userRepository.save(admin);
-            log.info("✅ Default admin user created successfully!");
-            log.info("   Username: {}", adminUsername);
-            log.info("   Password: admin (⚠️ Please change after first login!)");
-            log.info("   Email: admin@petties.world");
-            log.info("   User ID: {}", savedAdmin.getUserId());
-            log.warn("⚠️  IMPORTANT: Please change the default password after first login!");
-        } catch (Exception e) {
-            log.error("❌ Failed to create default admin user: {}", e.getMessage(), e);
-        }
+        userRepository.save(user);
+        log.info("✅ Created user: {} ({})", username, role);
     }
 }

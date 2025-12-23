@@ -23,6 +23,7 @@ export const ROUTES = {
   clinicOwner: {
     dashboard: '/clinic-owner',
     profile: '/clinic-owner/profile',
+    clinics: '/clinic-owner/clinics',
   },
 
   // Clinic Manager routes

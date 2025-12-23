@@ -10,11 +10,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceAlreadyExistsException.class)
@@ -147,16 +150,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex,
             HttpServletRequest request) {
+        // Log full error details
+        log.error("Unhandled exception: {}", ex.getMessage(), ex);
+        ex.printStackTrace();
+        
+        // Return more detailed error message in development
+        String errorMessage = "An unexpected error occurred";
+        if (ex.getMessage() != null && !ex.getMessage().isEmpty()) {
+            errorMessage = ex.getMessage();
+        }
+        
         ErrorResponse error = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("Internal Server Error")
-                .message("An unexpected error occurred")
+                .message(errorMessage)
                 .path(request.getRequestURI())
                 .build();
-        
-        // Log error for debugging
-        ex.printStackTrace();
         
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }

@@ -16,3 +16,6 @@ export { useAuthStore } from './authStore'
 // Export userStore
 export { useUserStore } from './userStore'
 
+// Export clinicStore
+export { useClinicStore } from './clinicStore'
+

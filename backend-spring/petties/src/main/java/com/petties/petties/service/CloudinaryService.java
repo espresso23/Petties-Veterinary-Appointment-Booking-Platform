@@ -96,6 +96,37 @@ public class CloudinaryService {
     }
 
     /**
+     * Upload clinic image với transformation tối ưu
+     */
+    public UploadResponse uploadClinicImage(MultipartFile file) {
+        validateFile(file);
+        checkCloudinaryConfig();
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "petties/clinics",
+                            "resource_type", "image",
+                            "transformation", new Transformation<>()
+                                    .width(1200)
+                                    .height(800)
+                                    .crop("limit")
+                                    .quality("auto:good")
+                                    .fetchFormat("auto")));
+
+            log.info("Clinic image uploaded successfully: {}", uploadResult.get("public_id"));
+
+            return mapUploadResult(uploadResult);
+
+        } catch (Exception e) {
+            log.error("Failed to upload clinic image to Cloudinary: {}", e.getMessage(), e);
+            throw new BadRequestException("Không thể upload ảnh phòng khám: " + e.getMessage());
+        }
+    }
+
+    /**
      * Xóa file trên Cloudinary
      */
     public boolean deleteFile(String publicId) {

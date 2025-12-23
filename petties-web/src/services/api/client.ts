@@ -10,6 +10,9 @@ export const apiClient = axios.create({
   },
 })
 
+// Export for use in services
+export { apiClient as default }
+
 // Request interceptor: Tự động thêm access token vào header
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -17,6 +20,12 @@ apiClient.interceptors.request.use(
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
+    
+    // If data is FormData, remove Content-Type to let browser set it with boundary
+    if (config.data instanceof FormData && config.headers) {
+      delete config.headers['Content-Type']
+    }
+    
     return config
   },
   (error) => {

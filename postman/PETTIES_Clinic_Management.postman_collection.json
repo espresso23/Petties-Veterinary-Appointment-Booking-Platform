@@ -1,0 +1,507 @@
+{
+    "info": {
+        "_postman_id": "petties-clinic-collection",
+        "name": "PETTIES Clinic Management APIs",
+        "description": "Collection for Clinic Management APIs - CRUD operations, search, geocoding, distance calculation",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "petties-team"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080/api",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "clinicId",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "1. Authentication",
+            "item": [
+                {
+                    "name": "Login CLINIC_OWNER",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.collectionVariables.set(\"authToken\", jsonData.accessToken);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"owner1\",\n    \"password\": \"owner123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/login",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["auth", "login"]
+                        },
+                        "description": "Login as CLINIC_OWNER to get access token"
+                    }
+                },
+                {
+                    "name": "Login ADMIN",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.collectionVariables.set(\"authToken\", jsonData.accessToken);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/login",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["auth", "login"]
+                        },
+                        "description": "Login as ADMIN to get access token"
+                    }
+                }
+            ],
+            "description": "Authentication endpoints to get JWT token"
+        },
+        {
+            "name": "2. Clinic CRUD",
+            "item": [
+                {
+                    "name": "Create Clinic",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.collectionVariables.set(\"clinicId\", jsonData.clinicId);",
+                                    "}"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Phòng khám thú y ABC\",\n    \"description\": \"Phòng khám chuyên về chó mèo với đội ngũ bác sĩ giàu kinh nghiệm\",\n    \"address\": \"123 Đường Lê Lợi, Quận Hải Châu, Đà Nẵng\",\n    \"phone\": \"0901234567\",\n    \"email\": \"contact@clinicabc.com\",\n    \"licenseNumber\": \"123456789\",\n    \"operatingHours\": {\n        \"MONDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"17:00\",\n            \"isClosed\": false\n        },\n        \"TUESDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"17:00\",\n            \"isClosed\": false\n        },\n        \"WEDNESDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"17:00\",\n            \"isClosed\": false\n        },\n        \"THURSDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"17:00\",\n            \"isClosed\": false\n        },\n        \"FRIDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"17:00\",\n            \"isClosed\": false\n        },\n        \"SATURDAY\": {\n            \"openTime\": \"08:00\",\n            \"closeTime\": \"12:00\",\n            \"isClosed\": false\n        },\n        \"SUNDAY\": {\n            \"isClosed\": true\n        }\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics"]
+                        },
+                        "description": "Create a new clinic (CLINIC_OWNER only). Address will be automatically geocoded."
+                    }
+                },
+                {
+                    "name": "Get All Clinics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics?page=0&size=20&status=APPROVED",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics"],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "0"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "20"
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "APPROVED",
+                                    "description": "PENDING, APPROVED, REJECTED, SUSPENDED"
+                                },
+                                {
+                                    "key": "name",
+                                    "value": "",
+                                    "description": "Optional: Search by name",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Get all clinics with filters and pagination"
+                    }
+                },
+                {
+                    "name": "Get Clinic By ID",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}"]
+                        },
+                        "description": "Get clinic details by ID"
+                    }
+                },
+                {
+                    "name": "Update Clinic",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Phòng khám thú y ABC - Updated\",\n    \"description\": \"Mô tả đã được cập nhật\",\n    \"address\": \"456 Đường Nguyễn Văn Linh, Quận Thanh Khê, Đà Nẵng\",\n    \"phone\": \"0901234567\",\n    \"email\": \"contact@clinicabc.com\",\n    \"licenseNumber\": \"123456789\",\n    \"operatingHours\": {\n        \"MONDAY\": {\n            \"openTime\": \"09:00\",\n            \"closeTime\": \"18:00\",\n            \"isClosed\": false\n        }\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}"]
+                        },
+                        "description": "Update clinic (CLINIC_OWNER can only update their own clinic)"
+                    }
+                },
+                {
+                    "name": "Delete Clinic",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}"]
+                        },
+                        "description": "Delete clinic (soft delete, CLINIC_OWNER can only delete their own clinic)"
+                    }
+                },
+                {
+                    "name": "Get My Clinics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/owner/my-clinics?page=0&size=20",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "owner", "my-clinics"],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "0"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get all clinics owned by current CLINIC_OWNER"
+                    }
+                }
+            ],
+            "description": "CRUD operations for clinics"
+        },
+        {
+            "name": "3. Search & Filter",
+            "item": [
+                {
+                    "name": "Search Clinics by Name",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/search?name=ABC&page=0&size=20",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "search"],
+                            "query": [
+                                {
+                                    "key": "name",
+                                    "value": "ABC"
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "0"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Search clinics by name (case-insensitive)"
+                    }
+                },
+                {
+                    "name": "Find Nearby Clinics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/nearby?latitude=16.0544&longitude=108.2022&radius=10&page=0&size=20",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "nearby"],
+                            "query": [
+                                {
+                                    "key": "latitude",
+                                    "value": "16.0544",
+                                    "description": "Da Nang center"
+                                },
+                                {
+                                    "key": "longitude",
+                                    "value": "108.2022",
+                                    "description": "Da Nang center"
+                                },
+                                {
+                                    "key": "radius",
+                                    "value": "10",
+                                    "description": "Radius in kilometers (default: 10)"
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "0"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Find clinics within radius (km) from given coordinates. Results include distance field."
+                    }
+                }
+            ],
+            "description": "Search and filter clinics"
+        },
+        {
+            "name": "4. Google Maps Integration",
+            "item": [
+                {
+                    "name": "Geocode Address",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"address\": \"123 Đường Lê Lợi, Quận Hải Châu, Đà Nẵng\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}/geocode",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}", "geocode"]
+                        },
+                        "description": "Geocode address to lat/lng coordinates. Requires Google Maps API key configured."
+                    }
+                },
+                {
+                    "name": "Calculate Distance",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}/distance?latitude=16.0544&longitude=108.2022",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}", "distance"],
+                            "query": [
+                                {
+                                    "key": "latitude",
+                                    "value": "16.0544",
+                                    "description": "Origin latitude"
+                                },
+                                {
+                                    "key": "longitude",
+                                    "value": "108.2022",
+                                    "description": "Origin longitude"
+                                }
+                            ]
+                        },
+                        "description": "Calculate distance from point A to clinic. Uses Google Distance Matrix API if available, otherwise Haversine formula."
+                    }
+                }
+            ],
+            "description": "Google Maps API integration endpoints"
+        },
+        {
+            "name": "5. Admin Operations",
+            "item": [
+                {
+                    "name": "Approve Clinic",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}/approve",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}", "approve"]
+                        },
+                        "description": "Approve clinic (ADMIN only). Changes status from PENDING to APPROVED."
+                    }
+                },
+                {
+                    "name": "Reject Clinic",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"reason\": \"Thiếu giấy phép kinh doanh\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics/{{clinicId}}/reject",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics", "{{clinicId}}", "reject"]
+                        },
+                        "description": "Reject clinic (ADMIN only). Changes status from PENDING to REJECTED."
+                    }
+                },
+                {
+                    "name": "Get Pending Clinics",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{authToken}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/clinics?status=PENDING&page=0&size=20",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["clinics"],
+                            "query": [
+                                {
+                                    "key": "status",
+                                    "value": "PENDING"
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "0"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "20"
+                                }
+                            ]
+                        },
+                        "description": "Get all pending clinics for admin approval"
+                    }
+                }
+            ],
+            "description": "Admin-only operations for clinic approval/rejection"
+        }
+    ]
+}
+
