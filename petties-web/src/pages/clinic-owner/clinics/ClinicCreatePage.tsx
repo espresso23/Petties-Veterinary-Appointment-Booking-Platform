@@ -89,7 +89,7 @@ export function ClinicCreatePage() {
               <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">UPLOAD ẢNH PHÒNG KHÁM</h3>
               <ClinicImageUpload
                 clinicId={displayClinic.clinicId}
-                initialImages={displayClinic.images || []}
+                initialImages={displayClinic.imageDetails || []}
                 onImageUploaded={handleImageUploaded}
               />
             </div>

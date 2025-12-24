@@ -4,6 +4,7 @@ import { sendRegistrationOtp, verifyOtpAndRegister, resendOtp } from '../../serv
 import type { SendOtpRequest } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
+import { parseApiError } from '../../utils/errorHandler'
 import { OtpInput } from '../../components/OtpInput'
 import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon, EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
@@ -117,12 +118,8 @@ export function RegisterPage() {
             showToast('success', response.message)
             startResendCountdown(response.resendCooldownSeconds)
             setStep('otp')
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Không thể gửi mã OTP. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
         } finally {
             setIsLoading(false)
         }
@@ -160,12 +157,8 @@ export function RegisterPage() {
             // Redirect to role-based dashboard
             const dashboardPath = getRoleDashboard(response.role)
             navigate(dashboardPath, { replace: true })
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Mã OTP không đúng. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
             // Reset OTP input on error
             setOtpCode('')
         } finally {
@@ -185,12 +178,8 @@ export function RegisterPage() {
             showToast('success', response.message)
             startResendCountdown(response.resendCooldownSeconds)
             setOtpCode('')
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Không thể gửi lại mã OTP. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
         } finally {
             setIsLoading(false)
         }

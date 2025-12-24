@@ -64,8 +64,58 @@ Khi tạo Service, Clinic Owner cần định nghĩa:
 
 **Quy tắc tính `slots_required`:**
 - Mỗi slot = 30 phút
-- `slots_required = CEIL(thời_gian_phút / 30)`
+- `slots_required = MAX(1, CEIL(thời_gian_phút / 30))`
 - Ví dụ: 45 phút → CEIL(45/30) = 2 slots
+- Ví dụ: 10 phút → MAX(1, CEIL(10/30)) = 1 slot (minimum)
+
+---
+
+### 2.3 Design Decision: Minimum Slot Rule ✅
+
+**Quyết định:** Mọi dịch vụ dù ngắn hơn 30 phút vẫn chiếm **tối thiểu 1 slot (30 phút)**.
+
+**Ví dụ thực tế:**
+
+| Service | Thời gian thực | Slots Required | Thời gian slot | Ghi chú |
+|---------|----------------|----------------|----------------|---------|
+| Tiêm vaccine | 10 phút | **1 slot** | 30 phút | +20 phút buffer |
+| Khám nhanh | 15 phút | **1 slot** | 30 phút | +15 phút buffer |
+| Tư vấn | 20 phút | **1 slot** | 30 phút | +10 phút buffer |
+| Khám tổng quát | 30 phút | **1 slot** | 30 phút | Vừa đủ |
+
+**Lý do chọn phương án này:**
+
+1. **Buffer Time cho Vet:**
+   - Chuẩn bị dụng cụ trước khi khám
+   - Ghi chú EMR, vaccination record sau khi khám
+   - Vệ sinh, khử trùng thiết bị
+   - Nghỉ ngơi giữa các ca
+
+2. **Tính biến động của dịch vụ:**
+   - Pet có thể không hợp tác → thời gian kéo dài
+   - Phát hiện vấn đề bất ngờ → cần thêm thời gian
+   - Chủ pet có câu hỏi → tư vấn thêm
+
+3. **Đơn giản hóa hệ thống:**
+   - Không cần thêm entity SUB_SLOT
+   - Logic assign Vet đơn giản
+   - Calendar UI dễ render
+   - Dễ debug và maintain
+
+4. **Chất lượng dịch vụ:**
+   - Không áp lực thời gian cho Vet
+   - Pet owner không phải chờ đợi
+   - Trải nghiệm tốt hơn rushed service
+
+**Các phương án đã cân nhắc:**
+
+| Phương án | Mô tả | Lý do không chọn |
+|-----------|-------|------------------|
+| Sub-Slot | Chia slot 30 phút thành 3 sub-slot 10 phút | Complexity cao, áp lực thời gian |
+| Dynamic Duration | Slot duration linh hoạt theo service | Refactor lớn, overlap check phức tạp |
+| Slot Grouping | Nhiều booking nhỏ share 1 slot | Delay cascading, khó quản lý |
+
+> 📌 **Final Decision:** Chấp nhận "lãng phí" thời gian để đổi lấy sự đơn giản và chất lượng dịch vụ.
 
 ---
 

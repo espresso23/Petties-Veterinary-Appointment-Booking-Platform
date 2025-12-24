@@ -89,6 +89,7 @@ export interface ClinicResponse {
   email?: string
   latitude?: number
   longitude?: number
+  logo?: string // URL to clinic logo
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string

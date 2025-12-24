@@ -12,14 +12,14 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 - `petties-web/` - React 19 + Vite + TypeScript (Admin/Clinic dashboards)
 - `backend-spring/petties/` - Spring Boot 4.0 + Java 21 (REST API)
-- `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Multi-Agent System)
+- `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Single Agent + ReAct)
 - `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
 
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
 
-**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG and use Hybrid Qdrant Retrive
+**AI Layer:** Single Agent với ReAct pattern (LangGraph), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG, Qdrant Cloud for vectors, Cohere for embeddings
 
 ## Development Commands
 
@@ -113,10 +113,17 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes da
 
 
 ### AI Service (FastAPI)
-- Multi-agent: LangGraph with supervisor pattern
-- Config: DB-based dynamic configuration (agents, prompts, tools)
-- Tools: Code-based only (scanned from `app/core/tools/`) use FastMCP host internal and use mcp.tool
-- LLM: Ollama hybrid (local `http://localhost:11434` or cloud with `OLLAMA_API_KEY`)
+- Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
+- Config: DB-based dynamic configuration (prompt, parameters, tools)
+- Tools: FastMCP với @mcp.tool decorator
+  - `pet_care_qa` - RAG-based Q&A
+  - `symptom_search` - Symptom → Disease lookup
+  - `search_clinics` - Find nearby clinics
+  - `check_slots` - Check available slots
+  - `create_booking` - Create booking via chat
+- LLM: OpenRouter Cloud API (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
+- RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
+
 
 
 ### Mobile (Flutter)

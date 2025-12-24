@@ -95,7 +95,7 @@ export function ClinicEditPage() {
               operatingHours: currentClinic.operatingHours,
             }}
             clinicId={currentClinic.clinicId}
-            initialImages={currentClinic.imageDetails || currentClinic.images || []}
+            initialImages={currentClinic.imageDetails || []}
             onSubmit={handleSubmit}
             onCancel={handleCancel}
             isLoading={isLoading}

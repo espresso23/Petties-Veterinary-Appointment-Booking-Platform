@@ -19,12 +19,12 @@ Petties is a veterinary appointment booking platform connecting pet owners with 
 
 - `petties-web/` - React 19 + Vite + TypeScript (Admin/Clinic dashboards)
 - `backend-spring/petties/` - Spring Boot 4.0 + Java 21 (REST API)
-- `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Multi-Agent System)
+- `petties-agent-serivce/` - FastAPI + Python 3.12 (AI Single Agent + ReAct)
 - `petties_mobile/` - Flutter 3.5 (Pet Owner/Vet mobile app)
 
 **Databases:** PostgreSQL 16 (primary), MongoDB 7 (documents), Redis 7 (OTP/cache), Qdrant Cloud (vectors), Firebase (push messages)
 
-**AI Layer:** LangGraph multi-agent system (Main/Booking/Medical/Research agents), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG and use Hybrid Qdrant Retrive.
+**AI Layer:** Single Agent với ReAct pattern (LangGraph), **LLM Provider (Cloud API Only):** **OpenRouter**, LlamaIndex for RAG, Qdrant Cloud for vectors, Cohere for embeddings.
 ## Development Commands
 
 ### Quick Start (Databases only, services local)
@@ -105,10 +105,17 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 - Styling: Tailwind CSS v4 with **Neobrutalism** design (no rounded corners, thick black borders, offset shadows)
 
 ### AI Service (FastAPI)
-- Multi-agent: LangGraph with supervisor pattern
-- Config: DB-based dynamic configuration (agents, prompts, tools)
-- Tools: Code-based only (scanned from `app/core/tools/`),use FastMCP host internal and use @mcp.tool
-- LLM: Ollama hybrid (local `http://localhost:11434` or cloud with `OLLAMA_API_KEY`)
+- Single Agent: LangGraph với ReAct pattern (Thought → Action → Observation)
+- Config: DB-based dynamic configuration (prompt, parameters, tools)
+- Tools: FastMCP với @mcp.tool decorator
+  - `pet_care_qa` - RAG-based Q&A
+  - `symptom_search` - Symptom → Disease lookup
+  - `search_clinics` - Find nearby clinics
+  - `check_slots` - Check available slots
+  - `create_booking` - Create booking via chat
+- LLM: OpenRouter Cloud API (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
+- RAG: LlamaIndex + Qdrant Cloud + Cohere embed-multilingual-v3
+
 
 ### Mobile (Flutter)
 - State: Provider pattern
@@ -199,7 +206,7 @@ Dự án có **9 specialized sub-agents** để xử lý các task phức tạp.
 | `spring-boot-api-developer` | opus | green | `backend-spring/petties/` | Spring Boot REST APIs, Entity, Service, Controller, DTOs |
 | `frontend-web-developer` | sonnet | purple | `petties-web/` | React 19, TypeScript, Zustand, Neobrutalism UI |
 | `flutter-mobile-dev` | opus | default | `petties_mobile/` | Flutter, Dart, Riverpod, GoRouter, Mobile UI |
-| `petties-ai-agent-developer` | opus | orange | `petties-agent-serivce/` | LangGraph, FastMCP, RAG, WebSocket, Qdrant |
+| `petties-ai-agent-developer` | opus | orange | `petties-agent-serivce/` | Single Agent, ReAct (LangGraph), FastMCP, RAG, OpenRouter, Qdrant |
 | `api-testing-agent` | sonnet | yellow | `backend-spring/petties/src/test/` | JUnit 5, Mockito, @WebMvcTest, API Testing |
 | `petties-report-writer` | sonnet | pink | `docs-references/` | SRS, SDD, Testing docs, Use Cases, Mermaid diagrams |
 
@@ -303,18 +310,33 @@ flowchart TD
 
 #### 4. `petties-ai-agent-developer` - AI Agent Service
 **Trigger khi user yêu cầu:**
-- Tạo/modify LangGraph agents (Main, Booking, Medical, Research)
-- Implement FastMCP tools với @mcp.tool decorator
-- Xây dựng RAG pipeline (LlamaIndex + Cohere + Qdrant)
-- Cấu hình WebSocket streaming
-- Tích hợp OpenRouter API
+- Develop/modify **Single Agent** với **ReAct pattern** (LangGraph)
+- Implement FastMCP tools với `@mcp.tool` decorator (code-based, NOT Swagger import)
+- Xây dựng RAG pipeline (LlamaIndex + Cohere embeddings + Qdrant Cloud)
+- Cấu hình WebSocket streaming cho real-time chat
+- Tích hợp **OpenRouter Cloud API** (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
+- Develop Admin Dashboard cho Agent Management:
+  - Agent enable/disable, system prompt editor
+  - Hyperparameters config (Temperature, Max Tokens, Top-P)
+  - Tool governance (enable/disable individual tools)
+  - Knowledge base management (upload docs, test retrieval)
+  - ReAct flow visualization & debugging
 
-**Keywords:** agent, LangGraph, MCP tool, RAG, Qdrant, WebSocket, AI service, embedding
+**Important Notes:**
+- ❌ **KHÔNG phải Multi-Agent** (no supervisor, no specialized agents)
+- ✅ **Single Agent + Multiple Tools** architecture
+- ❌ **KHÔNG dùng local Ollama** - Cloud API only (OpenRouter)
+- ✅ **Tools are code-based** với semantic descriptions, NOT auto-imported từ Swagger
+
+**Keywords:** Single Agent, ReAct, LangGraph, @mcp.tool, RAG, Qdrant Cloud, OpenRouter, WebSocket, system prompt, hyperparameters, knowledge base
 
 **Ví dụ:**
-- "Tạo Booking Agent xử lý đặt lịch"
-- "Thêm tool tìm kiếm phòng khám gần đây"
-- "Thiết lập RAG pipeline cho tư vấn y tế"
+- "Thêm tool `search_clinics` để agent tìm phòng khám gần user"
+- "Thiết lập RAG pipeline với Qdrant Cloud cho pet care Q&A"
+- "Config ReAct flow visualization trong Admin Dashboard"
+- "Implement system prompt versioning cho agent"
+- "Thêm hyperparameters slider cho Temperature tuning"
+- "Debug ReAct loop: Thought → Action → Observation"
 
 ---
 
@@ -461,8 +483,8 @@ spring-boot-api-developer (REST APIs)
 
 **Ví dụ:** Implement "AI Symptom Checker"
 1. `spring-boot-api-developer`: Tạo API lưu chat history, pet medical records
-2. `petties-ai-agent-developer`: Tạo Medical Agent với RAG pipeline
-3. `flutter-mobile-dev`: Tạo chat UI với WebSocket streaming
+2. `petties-ai-agent-developer`: Implement Single Agent với `symptom_search` tool + RAG pipeline
+3. `flutter-mobile-dev`: Tạo chat UI với WebSocket streaming + ReAct flow display
 
 ---
 
@@ -551,12 +573,12 @@ Khi một user request có thể trigger nhiều agents, sử dụng priority ma
 #### Workflow D: AI Feature Addition
 ```
 1. Backend API   → spring-boot-api-developer (endpoints for AI service)
-2. AI Service    → petties-ai-agent-developer (LangGraph agent, tools, RAG)
+2. AI Service    → petties-ai-agent-developer (Single Agent + ReAct, @mcp.tool tools, RAG)
 3. Frontend:
-   - Web         → frontend-web-developer (admin dashboard)
-   - Mobile      → flutter-mobile-dev (chat UI với WebSocket)
+   - Web         → frontend-web-developer (admin dashboard: agent config, tool management)
+   - Mobile      → flutter-mobile-dev (chat UI với WebSocket + ReAct flow display)
 4. Testing       → api-testing-agent (API tests)
-5. Documentation → petties-report-writer (AI architecture diagrams)
+5. Documentation → petties-report-writer (Single Agent architecture diagrams)
 ```
 
 **Thời điểm:** Khi thêm AI-powered features

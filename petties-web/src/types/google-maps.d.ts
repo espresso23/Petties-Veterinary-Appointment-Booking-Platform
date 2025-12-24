@@ -5,6 +5,8 @@
  * See: https://developers.google.com/maps/documentation/javascript/place-autocomplete-element
  */
 
+/// <reference types="@types/google.maps" />
+
 declare namespace google.maps.places {
   /**
    * PlaceAutocompleteElement - New API replacing deprecated Autocomplete
@@ -51,10 +53,19 @@ declare namespace google.maps.places {
     ): void
 
     /**
+     * Event fired when API has errors (billing, etc.)
+     */
+    addEventListener(
+      type: 'gmp-error',
+      listener: (event: Event) => void,
+      options?: boolean | AddEventListenerOptions
+    ): void
+
+    /**
      * Remove event listener
      */
     removeEventListener(
-      type: 'gmp-placeselect' | 'input',
+      type: 'gmp-placeselect' | 'input' | 'gmp-error',
       listener: EventListener,
       options?: boolean | EventListenerOptions
     ): void
@@ -119,4 +130,11 @@ declare namespace google.maps.places {
   }
 }
 
+// Extend Window interface for Google Maps
+declare global {
+  interface Window {
+    google: typeof google
+  }
+}
 
+export { }

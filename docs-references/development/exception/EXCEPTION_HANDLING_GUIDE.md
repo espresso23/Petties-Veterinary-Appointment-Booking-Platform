@@ -1,34 +1,37 @@
 # Exception Handling Guide - Backend Spring
 
-Tài liệu hướng dẫn cách xử lý Exception trong Backend Spring Boot của dự án Petties.
+Tai lieu huong dan cach xu ly Exception trong Backend Spring Boot cua du an Petties.
 
 ---
 
-## Tổng Quan Kiến Trúc
+## Tong Quan Kien Truc
 
-```
-Client Request
-    ↓
-Controller (@Valid validation)
-    ↓
-GlobalExceptionHandler (catch exceptions)
-    ↓
-ErrorResponse (standardized format)
-    ↓
-Client Response (JSON)
+```mermaid
+flowchart TD
+    A[Client Request] --> B[Controller]
+    B -->|@Valid validation| C{Validation OK?}
+    C -->|No| D[MethodArgumentNotValidException]
+    C -->|Yes| E[Service Layer]
+    E -->|Business Error| F[Custom Exception]
+    E -->|Success| G[Response 2xx]
+    D --> H[GlobalExceptionHandler]
+    F --> H
+    H --> I[ErrorResponse JSON]
+    I --> J[Client Response]
 ```
 
 ---
 
-## Cấu Trúc Files
+## Cau Truc Files
 
 ```
 backend-spring/petties/src/main/java/com/petties/petties/exception/
-├── GlobalExceptionHandler.java    # Xử lý tất cả exceptions
-├── ErrorResponse.java             # Format response lỗi chuẩn
-├── BadRequestException.java       # 400 Bad Request
-├── UnauthorizedException.java     # 401 Unauthorized
-├── ResourceNotFoundException.java # 404 Not Found
+├── GlobalExceptionHandler.java       # Xu ly tat ca exceptions
+├── ErrorResponse.java                # Format response loi chuan
+├── BadRequestException.java          # 400 Bad Request
+├── UnauthorizedException.java        # 401 Unauthorized
+├── ForbiddenException.java           # 403 Forbidden
+├── ResourceNotFoundException.java    # 404 Not Found
 └── ResourceAlreadyExistsException.java # 409 Conflict
 ```
 
@@ -204,18 +207,47 @@ if (userRepository.existsByEmail(email)) {
 
 ---
 
-### 6. Internal Server Error (500 Internal Server Error)
+### 6. Forbidden Exception (403 Forbidden)
 
-**Khi xảy ra:** Lỗi không xác định (catch-all)
+**Khi xay ra:** User da dang nhap nhung khong co quyen
+
+**Exception:** `ForbiddenException`, `AccessDeniedException`
+
+**Cach su dung:**
+```java
+if (!user.hasPermission(resource)) {
+    throw new ForbiddenException("Ban khong co quyen truy cap tai nguyen nay");
+}
+```
+
+**Response:**
+```json
+{
+    "status": 403,
+    "error": "Forbidden",
+    "message": "Ban khong co quyen truy cap tai nguyen nay"
+}
+```
+
+---
+
+### 7. Internal Server Error (500 Internal Server Error)
+
+**Khi xay ra:** Loi khong xac dinh (catch-all)
 
 **Exception:** `Exception` (generic)
+
+**Xu ly:** GlobalExceptionHandler se:
+- Log full stack trace voi `log.error()` (khong dung `printStackTrace()`)
+- Tra ve message tieng Viet cho user
+- Khong expose chi tiet loi noi bo
 
 **Response:**
 ```json
 {
     "status": 500,
     "error": "Internal Server Error",
-    "message": "An unexpected error occurred"
+    "message": "Da xay ra loi khong mong muon. Vui long thu lai sau hoac lien he bo phan ho tro"
 }
 ```
 
@@ -414,6 +446,7 @@ try {
 
 ## Testing Exceptions
 
+### Controller Integration Test
 ```java
 @Test
 void register_WithShortUsername_ShouldReturnValidationError() throws Exception {
@@ -431,7 +464,143 @@ void register_WithShortUsername_ShouldReturnValidationError() throws Exception {
 }
 ```
 
+### GlobalExceptionHandler Unit Test
+
+File: `src/test/java/com/petties/petties/exception/GlobalExceptionHandlerTest.java`
+
+```java
+@ExtendWith(MockitoExtension.class)
+class GlobalExceptionHandlerTest {
+
+    @InjectMocks
+    private GlobalExceptionHandler exceptionHandler;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @BeforeEach
+    void setUp() {
+        when(request.getRequestURI()).thenReturn("/api/v1/test");
+    }
+
+    @Test
+    void handleBadCredentialsException_ShouldReturnVietnameseMessage() {
+        BadCredentialsException ex = new BadCredentialsException("Bad credentials");
+
+        ResponseEntity<ErrorResponse> response = exceptionHandler.handleBadCredentials(ex, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().getMessage())
+            .isEqualTo("Ten dang nhap hoac mat khau khong dung");
+    }
+
+    @Test
+    void handleForbiddenException_WithNullMessage_ShouldUseFallback() {
+        ForbiddenException ex = new ForbiddenException(null);
+
+        ResponseEntity<ErrorResponse> response = exceptionHandler.handleForbidden(ex, request);
+
+        assertThat(response.getBody().getMessage())
+            .isEqualTo("Ban khong co quyen truy cap tai nguyen nay");
+    }
+}
+```
+
 ---
 
-**Last Updated:** 2025-12-14
+## Logging Best Practices
+
+### DO: Su dung SLF4J Logger
+
+```java
+@Slf4j
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
+        // Log full stack trace voi logger
+        log.error("Unexpected error occurred at {}: ", request.getRequestURI(), ex);
+
+        // Tra ve message generic cho user
+        ErrorResponse error = ErrorResponse.builder()
+                .message("Da xay ra loi khong mong muon...")
+                .build();
+        return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+```
+
+### DON'T: Su dung printStackTrace()
+
+```java
+// KHONG LAM
+@ExceptionHandler(Exception.class)
+public ResponseEntity<ErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
+    ex.printStackTrace();  // KHONG - khong production-ready
+    // ...
+}
+```
+
+### Log Levels
+
+| Level | Khi su dung | Vi du |
+|-------|-------------|-------|
+| `log.error()` | 500 Internal Server Error | Unexpected exceptions |
+| `log.warn()` | 401, 403, security events | Bad credentials, access denied |
+| `log.info()` | Business events | User registered, order created |
+| `log.debug()` | Development debugging | Request/response details |
+
+---
+
+## Vietnamese Message Guidelines
+
+### Quy tac 1: Tat ca user-facing messages phai bang tieng Viet
+
+```java
+// TOT
+throw new BadRequestException("Mat khau khong chinh xac");
+
+// KHONG TOT
+throw new BadRequestException("Invalid password");
+```
+
+### Quy tac 2: Fallback message khi null/empty
+
+```java
+@ExceptionHandler(ForbiddenException.class)
+public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
+    String message = ex.getMessage();
+    if (message == null || message.trim().isEmpty()) {
+        message = "Ban khong co quyen truy cap tai nguyen nay";  // Fallback
+    }
+    // ...
+}
+```
+
+### Quy tac 3: Internal logs co the bang tieng Anh
+
+```java
+// User-facing message - tieng Viet
+throw new BadRequestException("Mat khau khong chinh xac");
+
+// Internal logging - tieng Anh OK
+log.warn("Bad credentials attempt for user: {}", username);
+```
+
+---
+
+## HTTP Status Codes Summary
+
+| Status | Ten | Khi su dung | Exception Class |
+|--------|-----|-------------|-----------------|
+| 400 | Bad Request | Validation failed, invalid request | `BadRequestException`, `MethodArgumentNotValidException` |
+| 401 | Unauthorized | Chua dang nhap, token invalid | `UnauthorizedException`, `BadCredentialsException` |
+| 403 | Forbidden | Da dang nhap nhung khong co quyen | `ForbiddenException`, `AccessDeniedException` |
+| 404 | Not Found | Resource khong ton tai | `ResourceNotFoundException` |
+| 409 | Conflict | Resource da ton tai (duplicate) | `ResourceAlreadyExistsException` |
+| 500 | Internal Server Error | Loi server khong xac dinh | `Exception` (generic) |
+
+---
+
+**Last Updated:** 2025-12-24
 **Maintained By:** Petties Team

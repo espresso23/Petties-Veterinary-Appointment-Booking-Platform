@@ -167,6 +167,9 @@ graph TB
 | UC-PO-14 | Chat với AI Chatbot | Medium | 10 |
 | UC-PO-15 | SOS - Cấp cứu khẩn cấp | Low | 11 |
 | UC-PO-16 | Báo cáo vi phạm Clinic/Vet | Low | 9 |
+| UC-PO-17 | **[Home Visit] Xem bản đồ realtime vị trí bác sĩ** | High | 6 |
+| UC-PO-18 | **[Home Visit] Xem đường di chuyển của bác sĩ** | High | 6 |
+| UC-PO-19 | **[Home Visit] Nhận thông báo khi bác sĩ sắp đến/đến nơi** | High | 6 |
 
 #### 2.2.2 Vet Use Cases
 
@@ -181,6 +184,8 @@ graph TB
 | UC-VT-07 | Ghi đơn thuốc | Medium | 7 |
 | UC-VT-08 | Cập nhật sổ tiêm chủng | Medium | 7 |
 | UC-VT-09 | Checkout bệnh nhân | High | 6 |
+| UC-VT-10 | **[Home Visit] Bắt đầu di chuyển (Start Travel)** | High | 6 |
+| UC-VT-11 | **[Home Visit] Thông báo đến nơi** | High | 6 |
 
 #### 2.2.3 Clinic Manager Use Cases
 
@@ -382,7 +387,7 @@ flowchart TB
 | NSF-008 | Distance Calculation | Tính khoảng cách cho Home Visit | Khi tạo booking Home Visit |
 | NSF-009 | Dynamic Pricing | Tính giá dựa trên base + distance fee | Khi tạo booking |
 | NSF-010 | Rating Aggregation | Cập nhật rating_avg của Clinic/Vet | Khi có review mới |
-| NSF-011 | AI Chatbot Processing | Xử lý tin nhắn qua Multi-Agent System | User gửi message |
+| NSF-011 | AI Chatbot Processing | Xử lý tin nhắn qua Single Agent + ReAct | User gửi message |
 | NSF-012 | RAG Retrieval | Tìm kiếm trong Knowledge Base | AI Chat query |
 
 #### 3.1.5 Entity Relationship Diagram

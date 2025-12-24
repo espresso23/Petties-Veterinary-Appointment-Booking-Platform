@@ -111,12 +111,12 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │      AI LAYER (Python)              │
 │  - Python 3.12                      │
 │  - FastAPI + Uvicorn                │
-│  - LangGraph (Multi-agent)          │
+│  - Single Agent + ReAct Pattern LangGraph│
 │  - OpenRouter API (Cloud LLM)       │
 │  - Cohere Embeddings (Cloud)        │
 │  - LlamaIndex (RAG)                 │
 │  - Qdrant Cloud (Vector Database)   │
-│  - FastMCP (Protocol)               │
+│  - FastMCP (@mcp.tool)              │
 └─────────────────────────────────────┘
 ```
 
@@ -200,11 +200,12 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Xây dựng uy tín cho phòng khám và bác sĩ
 
 ### 🔐 Thêm Tính Năng Đặc Biệt
-- **AI Chatbot**: Trợ lý chăm sóc pet thông minh với Multi-Agent Architecture
-- **Admin Dashboard**: Quản lý AI Agents, Tools, Knowledge Base
-- **Định giá động**: Tính giá dựa trên khoảng cách
+- **AI Chatbot**: Trợ lý chăm sóc pet thông minh với Single Agent + ReAct Pattern
+- **Admin Dashboard**: Quản lý AI Agent Config, Tools, Knowledge Base
+- **Định giá động**: Tính giá dựa trên khoảng cách + cân nặng
+- **Chat 1-1**: Pet Owner chat trực tiếp với Manager/Vet
+- **Home Visit Tracking**: GPS tracking realtime khi bác sĩ đến nhà
 - **Đa ngôn ngữ**: Hỗ trợ nhiều ngôn ngữ và múi giờ
-- **Analytics**: Báo cáo chi tiết cho quản trị viên
 
 ---
 
@@ -233,21 +234,20 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │  │ ├─ Vet Service                      │       │
 │  │ ├─ Payment Service (Stripe)         │       │
 │  │ ├─ Notification Service             │       │
+│  │ ├─ Chat Service (1-1 messaging)     │       │
 │  │ └─ Admin Dashboard Service          │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
 │  ┌─────────────────────────────────────┐       │
 │  │ AI Agent Service (Port 8000)        │       │
 │  │ ├─ FastAPI Server                   │       │
-│  │ ├─ Multi-Agent System (LangGraph)   │       │
-│  │ │  ├─ Main Agent (Supervisor)       │       │
-│  │ │  ├─ Booking Agent                 │       │
-│  │ │  ├─ Medical Agent                 │       │
-│  │ │  └─ Research Agent                │       │
+│  │ ├─ Single Agent (ReAct Pattern)     │       │
+│  │ │  ├─ Chain-of-Thought Reasoning    │       │
+│  │ │  └─ Tools (@mcp.tool)             │       │
 │  │ ├─ RAG Engine (LlamaIndex)          │       │
 │  │ ├─ Vector Search (Qdrant Cloud)     │       │
 │  │ ├─ Tool Registry (FastMCP)          │       │
-│  │ └─ WebSocket Orchestrator           │       │
+│  │ └─ Admin Config (Hot-reload)        │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
 └────────────────────────────────────────────────┘
@@ -268,7 +268,6 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
      │ Cloud AI Services   │
      │ - OpenRouter (LLM)  │
      │ - Cohere (Embed)    │
-     │ - Tavily (Search)   │
      └─────────────────────┘
 ```
 

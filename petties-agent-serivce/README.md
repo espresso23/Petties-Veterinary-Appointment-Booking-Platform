@@ -12,100 +12,118 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
 
 ## Overview
 
-**Petties Agent Service** là hệ thống quản trị, tinh chỉnh và giám sát AI Agents theo mô hình **Supervisor-Worker (Chỉ huy - Nhân viên)** với **Delegation (Ủy quyền)**.
+**Petties Agent Service** là AI Chatbot sử dụng **Single Agent + ReAct Pattern** với nhiều tools được config bởi Admin.
 
 > **Core Philosophy:** Thay vì xây dựng công cụ tạo Agent (No-code builder), hệ thống tập trung vào việc **Quản trị, Tinh chỉnh và Giám sát (Management, Tuning & Monitoring)**.
 > - **Backend (Code-first):** Cấu trúc luồng Agent được lập trình viên code sẵn (LangGraph/Python)
-> - **Frontend (Config-first):** Admin Dashboard dùng để cấu hình tham số, chọn công cụ và kiểm thử
+> - **Frontend (Config-first):** Admin Dashboard dùng để cấu hình tham số, bật/tắt tools và kiểm thử
 
 ### Core Capabilities
 
 | Capability | Description | Status |
 |------------|-------------|--------|
-| **Hierarchical Agent Architecture** | Supervisor-Worker pattern với LangGraph | ✅ Implemented |
-| **Dynamic Configuration Loader** | Load prompts & settings từ DB (thay .env) | ✅ Implemented |
-| **Intent Classification** | Phân loại user request (Booking/Medical/Research) | ✅ Implemented |
+| **Single Agent + ReAct** | Thought → Action → Observation → Loop | ✅ Implemented |
+| **FastMCP Tools** | @mcp.tool decorator cho tools | ✅ Implemented |
+| **Dynamic Configuration** | Load prompts & settings từ DB | ✅ Implemented |
 | **System Prompt Management** | Quản lý prompts từ DB với versioning | ✅ Implemented |
-| **Tool Management** | Code-based tools với FastMCP | ✅ Implemented |
+| **Tool Management** | Bật/tắt tools qua Admin Dashboard | ✅ Implemented |
 | **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | 🔄 In Progress |
 | **Cloud LLM Integration** | OpenRouter API (Cloud-Only) | ✅ Implemented |
 | **Cloud Embeddings** | Cohere embed-multilingual-v3 | ✅ Implemented |
-| **Real-time Streaming** | WebSocket streaming responses | 🔄 In Progress |
 
 ---
 
 ## Architecture
 
-### Hierarchical Agent Architecture (Supervisor-Worker Pattern)
+### Single Agent + ReAct Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        USER (Mobile/Web)                         │
-│                    Single Point of Contact                       │
+│                    PETTIES AI AGENT (ReAct + LangGraph)             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🧠 LLM Core (OpenRouter Cloud API)                                  │
+│  ├── ReAct Pattern: Thought → Action → Observation → Loop          │
+│  ├── Chain-of-Thought Reasoning                                     │
+│  └── System Prompt (Admin Configurable via DB)                      │
+│                                                                     │
+│  🔧 Tools (FastMCP @mcp.tool)                                       │
+│  ├── pet_care_qa       → RAG-based Q&A                             │
+│  ├── symptom_search    → Symptom → Disease lookup                  │
+│  ├── search_clinics    → Find nearby clinics                       │
+│  ├── check_slots       → Check available slots                     │
+│  └── create_booking    → Create booking via chat                   │
+│                                                                     │
+│  📚 RAG Engine (LlamaIndex + Qdrant Cloud)                          │
+│  ├── LlamaIndex: Document processing, chunking, retrieval          │
+│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
+│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│                                                                     │
+│  ⚙️ Admin Config (Hot-reload)                                       │
+│  ├── Enable/Disable Agent                                           │
+│  ├── System Prompt (editable, versioned)                            │
+│  ├── Parameters: Temperature, Max Tokens, Top-P                     │
+│  ├── Tool Management: Enable/Disable individual tools              │
+│  └── Knowledge Base: Upload/Remove documents                        │
+│                                                                     │
 └─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              MAIN AGENT (Supervisor/Orchestrator)                │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Intent Classification (Semantic Router + LLM)            │  │
-│  │  Context-Aware Routing (với tóm tắt ngữ cảnh)            │  │
-│  │  Synthesis & Smoothing (Rewrite thành brand voice)        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  State Manager: Giữ toàn bộ lịch sử cuộc hội thoại              │
-│  Quality Controller: Đánh giá câu trả lời trước khi gửi user    │
-└─────────────────────────────────────────────────────────────────┘
-         │                    │                    │
-         │ Context Summary    │ Context Summary    │ Context Summary
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  Booking Agent  │  │  Medical Agent  │  │  Research Agent │
-│  (Sub-Worker)   │  │  (Semi-Auto)    │  │  (Web Only)     │
-│  ─────────────  │  │  ─────────────  │  │  ─────────────  │
-│  • check_slot   │  │  • search_sympt │  │  • web_search   │
-│  • create_book  │  │  • RAG_search   │  │  • youtube_srch │
-│  • cancel_book  │  │  • get_vaccine  │  │  • extract_url  │
-│                 │  │                 │  │                 │
-│                 │  │  Auto-Escalate: │  │  Phục vụ:       │
-│                 │  │  Low Conf →     │  │  • Main Agent   │
-│                 │  │  Call Research  │  │  • Medical Agent│
-│                 │  └────────┬────────┘  │                 │
-│                 │           │           │  Bắt buộc:      │
-│                 │           └───────────┼─ Trích dẫn URL │
-│                 │                       │                 │
-│                 └───────────────────────┴─────────────────┘
-│                                   │
-│                                   ▼
-│                      ┌─────────────────────┐
-│                      │   Spring Boot API   │
-│                      │   (via Swagger)     │
-│                      └─────────────────────┘
+```
+
+### ReAct Flow (Reason + Act)
+
+```
+User: "Mèo bị sổ mũi nên làm gì?"
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ THOUGHT: User hỏi về triệu chứng sổ mũi    │
+│ Cần gọi tool pet_care_qa để tìm thông tin │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ ACTION: Call pet_care_qa("mèo sổ mũi")     │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ OBSERVATION: RAG trả về 3 chunks...       │
+│ "Mèo sổ mũi có thể do cảm lạnh, dị ứng..." │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ THOUGHT: Có đủ thông tin để trả lời        │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ ANSWER: "Mèo sổ mũi có thể do..."          │
+└─────────────────────────────────────────────┘
 ```
 
 ### Key Architectural Components
 
-1. **Dynamic Configuration Loader**
+1. **Single Agent + ReAct Pattern**
+   - LangGraph implement ReAct loop: Think → Act → Observe
+   - StateGraph với AgentState lưu messages, tool_calls, observations
+   - Agent tự động chọn tool phù hợp dựa trên context
+
+2. **FastMCP Tool Framework**
+   - Tools được define với @mcp.tool decorator
+   - Agent gọi trực tiếp hàm Python thông qua ReAct loop
+   - Admin bật/tắt từng tool qua Dashboard
+
+3. **Dynamic Configuration Loader**
    - Module thay thế `python-dotenv`
    - Load API Keys và settings từ PostgreSQL `system_settings` table
    - Inject vào Runtime Context của Agent khi khởi tạo
    - Không cần restart server khi thay đổi config
 
-2. **Agent Factory Pattern**
-   - Tạo Agent instances với prompts từ DB
-   - Load system settings (API keys, URLs) từ DB
-   - Database là **Single Source of Truth** cho prompts
-
-3. **System Prompt Management**
-   - Prompts được lưu trong PostgreSQL với versioning
-   - Admin chỉnh sửa qua Dashboard → Cập nhật DB → Agent tự động load khi runtime
-   - Template files chỉ dùng để seed ban đầu
-
 4. **Cloud AI Services (Cloud-Only Architecture)**
    - **LLM Provider:** OpenRouter API (gateway đến nhiều LLM providers)
    - **Models:** gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet
    - **Embeddings:** Cohere embed-multilingual-v3
-   - **Web Search:** Tavily API
    - Zero infrastructure - không cần GPU/RAM local
 
 ---
@@ -471,8 +489,8 @@ Response:
 |-----------|------------|---------|
 | Runtime | Python 3.12 | Primary language |
 | Framework | FastAPI 0.115 | REST API + WebSocket |
-| Agent Orchestration | LangGraph 0.2.60 | ⭐ Supervisor-Worker pattern |
-| Tool Protocol | FastMCP 0.2.0 | MCP tool framework |
+| Agent Orchestration | LangGraph 0.2.60 | ⭐ Single Agent + ReAct pattern |
+| Tool Protocol | FastMCP 0.2.0 | @mcp.tool decorator |
 
 ### AI Layer (Cloud-Only)
 
@@ -744,4 +762,4 @@ services:
 
 ---
 
-**Last Updated:** 2025-12-18
+**Last Updated:** 2025-12-25

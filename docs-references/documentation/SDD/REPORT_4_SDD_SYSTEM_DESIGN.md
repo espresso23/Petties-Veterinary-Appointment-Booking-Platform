@@ -145,9 +145,9 @@ flowchart TB
   - Port: 8080 (dev), 8081 (test), 8080 (production)
 
 - **AI Agent Service (FastAPI):**
-  - Multi-agent system với LangGraph (Main Agent + Sub-Agents)
-  - RAG Pipeline với LlamaIndex
-  - FastMCP tools cho agent capabilities
+  - Single Agent with ReAct pattern (LangGraph orchestration)
+  - RAG Pipeline with LlamaIndex
+  - FastMCP tools (@mcp.tool decorator)
   - WebSocket streaming responses
   - Port: 8000 (dev), 8001 (test), 8000 (production)
 
@@ -505,13 +505,10 @@ flowchart TB
             WebSocketAPI["api/websocket/chat.py<br/>WebSocket Streaming"]
         end
 
-        subgraph "Core - Agent Orchestration"
+        subgraph "Core - Agent Orchestration (Single Agent + ReAct)"
             direction LR
-            MainAgent["agents/main_agent.py<br/>(Supervisor)<br/>Intent Classification,<br/>Routing, Synthesis"]
-            BookingAgent["agents/booking_agent.py<br/>(Worker)<br/>Booking Specialist"]
-            MedicalAgent["agents/medical_agent.py<br/>(Semi-Autonomous)<br/>Medical/Triage,<br/>Auto-call Research"]
-            ResearchAgent["agents/research_agent.py<br/>(Worker)<br/>Web Search Specialist"]
-            AgentState["agents/state.py<br/>LangGraph State Schema"]
+            SingleAgent["agents/single_agent.py<br/>(ReAct Pattern)<br/>Thought → Action → Observation"]
+            AgentState["agents/state.py<br/>LangGraph State Schema<br/>messages, tool_calls"]
             AgentFactory["agents/factory.py<br/>Dynamic Agent Builder"]
         end
 
@@ -961,11 +958,11 @@ sequenceDiagram
 ### AI Agent Service (petties-agent-service) `[MVP]`
 - **Framework:** FastAPI 0.115.x
 - **Language:** Python 3.12
-- **Agent Framework:** LangGraph 0.2.x (Hierarchical Multi-Agent)
+- **Agent Framework:** LangGraph 0.2.x (Single Agent + ReAct Pattern)
 - **RAG Framework:** LlamaIndex 0.11.x
-- **Tool Protocol:** FastMCP 2.3.x (Embedded/In-process execution, mcp.tools)
+- **Tool Protocol:** FastMCP 2.3.x (@mcp.tool() decorator)
 - **LLM Provider:** OpenRouter API (Gemini, Llama, Claude)
-- **Embeddings:** OpenRouter / LangChain embeddings
+- **Embeddings:** Cohere embed-multilingual-v3
 - **Vector DB:** Qdrant Cloud (Binary Quantization)
 - **Web Search:** DuckDuckGo Search API
 - **Real-time:** WebSocket streaming

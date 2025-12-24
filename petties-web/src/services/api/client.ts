@@ -1,6 +1,7 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios'
+import axios, { type InternalAxiosRequestConfig, type AxiosError } from 'axios'
 import { env } from '../../config/env'
 import { useAuthStore } from '../../store/authStore'
+import { parseApiError } from '../../utils/errorHandler'
 
 export const apiClient = axios.create({
   baseURL: env.API_BASE_URL,
@@ -33,19 +34,20 @@ apiClient.interceptors.request.use(
   },
 )
 
-// Response interceptor: Tự động refresh token khi 401
+// Response interceptor: Tự động refresh token khi 401 và parse errors
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  async (error: AxiosError) => {
     const originalRequest = error.config
 
     // Nếu lỗi 401 và chưa retry, và không phải là request auth
     if (
       error.response?.status === 401 &&
-      !originalRequest._retry &&
+      originalRequest &&
+      !(originalRequest as any)._retry &&
       !originalRequest.url?.includes('/auth/')
     ) {
-      originalRequest._retry = true
+      ;(originalRequest as any)._retry = true
 
       try {
         const refreshToken = useAuthStore.getState().refreshToken
@@ -87,10 +89,16 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Parse error và attach userMessage vào error object
+    const userMessage = parseApiError(error)
+    ;(error as any).userMessage = userMessage
+
     // Log error trong dev mode
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
       console.error('API error', error)
+      // eslint-disable-next-line no-console
+      console.error('User message:', userMessage)
     }
 
     return Promise.reject(error)
