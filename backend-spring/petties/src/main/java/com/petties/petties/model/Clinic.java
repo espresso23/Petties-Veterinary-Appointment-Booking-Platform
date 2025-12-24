@@ -43,7 +43,7 @@ public class Clinic {
     private UUID clinicId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false)
+    @JoinColumn(name = "owner_id", nullable = false, unique = true)
     private User owner;
 
     @OneToMany(mappedBy = "workingClinic", cascade = CascadeType.ALL)
@@ -119,6 +119,6 @@ public class Clinic {
     private List<ClinicImage> images = new ArrayList<>();
 
     @OneToMany(mappedBy = "clinic")
-    private List<Service> services = new ArrayList<>();
-    
+    private List<ClinicService> services = new ArrayList<>();
+
 }

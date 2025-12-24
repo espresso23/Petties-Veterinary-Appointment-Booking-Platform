@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -50,10 +51,11 @@ public class GlobalExceptionHandler {
                 return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 
-        @ExceptionHandler(UnauthorizedException.class) // Code: 403
+        @ExceptionHandler(UnauthorizedException.class) // Code: 401
         public ResponseEntity<ErrorResponse> handleUnauthorized(
                         UnauthorizedException ex,
                         HttpServletRequest request) {
+                log.warn("Unauthorized access to {}: {}", request.getRequestURI(), ex.getMessage());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -82,11 +84,27 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleForbidden(
                         ForbiddenException ex,
                         HttpServletRequest request) {
+                log.warn("Forbidden access to {}: {}", request.getRequestURI(), ex.getMessage());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.FORBIDDEN.value())
                                 .error("Forbidden")
                                 .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
+
+        @ExceptionHandler(AccessDeniedException.class)
+        public ResponseEntity<ErrorResponse> handleAccessDenied(
+                        AccessDeniedException ex,
+                        HttpServletRequest request) {
+                log.warn("Access Denied to {}: {}", request.getRequestURI(), ex.getMessage());
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.FORBIDDEN.value())
+                                .error("Forbidden")
+                                .message("Bạn không có quyền thực hiện hành động này")
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);

@@ -333,7 +333,7 @@ export function ServiceModal({
                   <span className="font-bold text-gray-400">-- Chọn loại dịch vụ --</span>
                 )}
               </div>
-              <ChevronDownIconIcon
+              <ChevronDownIcon
                 className={`w-6 h-6 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`}
               />
             </button>

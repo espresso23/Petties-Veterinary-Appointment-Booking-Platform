@@ -49,19 +49,20 @@ public class ClinicStaffService {
 
         // 2. Business Rules for Role Management (Phân quyền)
         User currentUser = authService.getCurrentUser();
-        
+
         // Rule 1: No one can add an ADMIN via this endpoint
         if (request.getRole() == Role.ADMIN) {
             throw new ForbiddenException("Không thể tạo tài khoản ADMIN qua chức năng này");
         }
-        
+
         // Rule 2: CLINIC_MANAGER can ONLY add VETs
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
             if (request.getRole() != Role.VET) {
                 throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Bác sĩ");
             }
             // Ensure manager belongs to this clinic
-            if (currentUser.getWorkingClinic() == null || !currentUser.getWorkingClinic().getId().equals(clinicId)) {
+            if (currentUser.getWorkingClinic() == null
+                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
                 throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
             }
         }
@@ -72,7 +73,7 @@ public class ClinicStaffService {
         newUser.setFullName(request.getFullName());
         newUser.setPhone(request.getPhone());
         newUser.setRole(request.getRole());
-        
+
         // Default password: last 6 digits of phone
         String defaultPass = request.getPhone().substring(Math.max(0, request.getPhone().length() - 6));
         newUser.setPassword(passwordEncoder.encode(defaultPass));
@@ -109,7 +110,8 @@ public class ClinicStaffService {
 
         // Security Check: If current user is a MANAGER, they must belong to this clinic
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
-            if (currentUser.getWorkingClinic() == null || !currentUser.getWorkingClinic().getId().equals(clinicId)) {
+            if (currentUser.getWorkingClinic() == null
+                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
                 throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
             }
         }
@@ -128,7 +130,7 @@ public class ClinicStaffService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
 
-        if (user.getWorkingClinic() == null || !user.getWorkingClinic().getId().equals(clinicId)) {
+        if (user.getWorkingClinic() == null || !user.getWorkingClinic().getClinicId().equals(clinicId)) {
             throw new IllegalArgumentException("User does not belong to this clinic");
         }
 

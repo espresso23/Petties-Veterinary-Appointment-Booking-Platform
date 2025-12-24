@@ -24,8 +24,8 @@ public class ServiceWeightPrice {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    @Column(name = "weight_price_id", updatable = false, nullable = false)
+    private UUID weightPriceId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
