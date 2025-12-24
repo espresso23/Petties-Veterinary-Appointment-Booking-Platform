@@ -157,10 +157,13 @@ erDiagram
         date booking_date "NOT NULL"
         time booking_time "NOT NULL"
         enum type "IN_CLINIC|HOME_VISIT"
-        varchar home_address "nullable"
+        varchar home_address "nullable (for HOME_VISIT)"
+        decimal home_lat "nullable (Home latitude)"
+        decimal home_long "nullable (Home longitude)"
         decimal distance_km "nullable"
-        decimal vet_current_lat "nullable (for tracking)"
-        decimal vet_current_long "nullable (for tracking)"
+        decimal vet_current_lat "nullable (GPS tracking)"
+        decimal vet_current_long "nullable (GPS tracking)"
+        timestamp vet_location_updated_at "nullable (Last GPS update)"
         decimal total_price "NOT NULL"
         enum status "PENDING|ASSIGNED|CONFIRMED|ON_THE_WAY|CHECK_IN|IN_PROGRESS|CHECK_OUT|COMPLETED|CANCELLED|NO_SHOW"
         varchar cancellation_reason "nullable"
@@ -1143,6 +1146,50 @@ Pet: "Milo" Vaccination Card
 - **Calendar Logic**: Past slots do not need to be returned to `AVAILABLE` because they are in the past; "availability" is a function of time flow, not just status.
 - **UI Rendering**: Allows the calendar to correctly render completed appointments as blocks of time (e.g., a 09:00–10:00 block for a 2-slot service).
 - **Concurrency**: Prevents accidental double-booking of reached/past time slots.
+
+---
+
+### Design Decision 8: Home Visit Geo-Tracking Architecture
+
+**Decision:** Lưu trữ vị trí GPS realtime của Vet trong BOOKING entity, không tạo bảng riêng cho location history.
+
+**Justification:**
+- **Simplicity (MVP)**: Không cần lưu lịch sử toàn bộ đường đi, chỉ cần vị trí hiện tại.
+- **Performance**: Giảm số lượng writes vào DB (update 1 record thay vì insert liên tục).
+- **Privacy**: Không giữ dữ liệu vị trí lâu dài sau khi booking hoàn thành.
+- **Data Lifecycle**: Clear `vet_current_lat/long` khi status chuyển từ ON_THE_WAY → CHECK_IN.
+
+**Fields Added:**
+| Field | Type | Purpose |
+|-------|------|----------|
+| `home_lat` | DECIMAL | Latitude của địa chỉ nhà Pet Owner |
+| `home_long` | DECIMAL | Longitude của địa chỉ nhà Pet Owner |
+| `vet_current_lat` | DECIMAL | Vị trí hiện tại của Vet (cập nhật mỗi 30s) |
+| `vet_current_long` | DECIMAL | Longitude hiện tại của Vet |
+| `vet_location_updated_at` | TIMESTAMP | Thời điểm cập nhật GPS lần cuối |
+
+**Business Rules:**
+1. Home Visit bắt buộc: `home_address`, `home_lat`, `home_long` NOT NULL khi `type = HOME_VISIT`
+2. GPS tracking chỉ active khi `status = ON_THE_WAY`
+3. System tính ETA dựa trên: `vet_current_lat/long` → `home_lat/home_long`
+4. Notification trigger khi distance <= 500m (Vet sắp đến)
+5. Clear GPS data khi CHECK_IN (privacy)
+
+**Status Flow for HOME_VISIT:**
+```
+CONFIRMED
+    ↓ (Vet click "Bắt đầu di chuyển")
+ON_THE_WAY  ← GPS tracking ACTIVE, update every 30s
+    ↓ (Vet click "Check-in")
+CHECK_IN    ← GPS tracking STOPPED, vet_current_lat/long = NULL
+    ↓
+IN_PROGRESS → CHECK_OUT → COMPLETED
+```
+
+**Future Enhancement (Post-MVP):**
+- VET_LOCATION_HISTORY table: lưu toàn bộ GPS points để render lại đường đi
+- Geofencing: Auto-detect khi Vet đến gần
+- Firebase Realtime Database: Thay thế polling bằng realtime sync
 
 ---
 

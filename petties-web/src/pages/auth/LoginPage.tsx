@@ -4,6 +4,7 @@ import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from '@reac
 import { login, googleSignIn } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
+import { parseApiError } from '../../utils/errorHandler'
 import { HomeIcon, CpuChipIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -77,12 +78,8 @@ export function LoginPage() {
       showToast('success', `Đăng nhập thành công! Chào mừng ${response.username}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-        err.message ||
-        'Đăng nhập thất bại. Vui lòng thử lại.',
-      )
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }
@@ -112,8 +109,8 @@ export function LoginPage() {
       showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.username}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.')
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { resetPassword, resendPasswordResetOtp } from '../../services/endpoints/auth'
 import { useToast } from '../../components/Toast'
+import { parseApiError } from '../../utils/errorHandler'
 import { OtpInput } from '../../components/OtpInput'
 import { KeyIcon, ArrowLeftIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
@@ -103,15 +104,11 @@ export function ResetPasswordPage() {
       setTimeout(() => {
         navigate('/login', { replace: true })
       }, 2000)
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-        err.message ||
-        'Không thể đổi mật khẩu. Vui lòng thử lại.'
-      )
+    } catch (err: unknown) {
+      setError(parseApiError(err))
       // Reset OTP input on error
       setOtpCode('')
-    } finally {
+    } finally{
       setIsLoading(false)
     }
   }
@@ -127,12 +124,8 @@ export function ResetPasswordPage() {
       showToast('success', response.message)
       setResendCountdown(response.resendCooldownSeconds)
       setOtpCode('')
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-        err.message ||
-        'Không thể gửi lại mã OTP. Vui lòng thử lại.'
-      )
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }

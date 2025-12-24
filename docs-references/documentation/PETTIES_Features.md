@@ -25,6 +25,9 @@
 18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
 19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
 20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
+21. **[Home Visit] Xem bản đồ realtime vị trí bác sĩ**
+22. **[Home Visit] Tracking đường di chuyển của bác sĩ** (giống tracking tài xế)
+23. **[Home Visit] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
 
 ---
 
@@ -37,12 +40,15 @@
 6. Từ chối booking
 7. Check-in bệnh nhân
 8. Check-out bệnh nhân
-9. Xem hồ sơ y tế thú cưng (Nếu được pet owner SHARED)
+9. Xem hồ sơ y tế thú cưng
 10. Xem sổ tiêm chủng của pet
 11. Ghi chú hồ sơ bệnh án (tạo EMR)
 12. Cập nhật sổ tiêm chủng
 13. Video Consultation với pet owner(optionally)
 14. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
+15. **[Home Visit] Bắt đầu di chuyển (Start Travel)** → Chuyển booking sang ON_THE_WAY
+16. **[Home Visit] Tự động cập nhật vị trí GPS realtime** khi đang di chuyển
+17. **[Home Visit] Thông báo đến nơi** → Pet Owner được notify
 
 ---
 
@@ -89,31 +95,32 @@
 4. Từ chối clinic
 5. Xem thống kê nền tảng, doanh thu
 6. Thống kê người dùng và giao dịch
-9. Xem đơn tố cáo xử lý vi phạm của clinic, người dùng.
-11. **Agent Configuration**
-    - Quản lý Agent theo cấu trúc phân cấp (Main Agent + Sub-Agents)
-    - Chỉnh sửa System Prompt với version control (không ưu tiên)
-    - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
+
+#### **AI Agent Configuration (Single Agent + ReAct)**
+7. **Agent Configuration**
     - Bật/tắt Agent (Enable/Disable)
+    - Chỉnh sửa System Prompt (với version control)
+    - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
+    - Chọn LLM Model (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
 
-11. **Tool Management (Code-based)**
-    - Quét và đồng bộ Code-based Tools từ Python (@mcp.tool)
+8. **Tool Management (@mcp.tool)**
+    - Xem danh sách Tools được code sẵn
+    - Bật/tắt từng Tool riêng lẻ
     - Xem Request/Response Schema cho mỗi tool
-    - Gán Tools cho Agents
-    - Bật/tắt Tools (Enable/Disable)
 
-12. **Knowledge Base Management (RAG)**
+9. **Knowledge Base Management (RAG)**
     - Upload tài liệu (PDF, DOCX, TXT, MD)
     - Theo dõi trạng thái indexing (chunking & vectorization)
     - Test RAG retrieval với query examples
     - Xem vector count và storage usage
 
-13. **Agent Playground & Debugging**
-    - Interactive Chat Simulator để test agents
-    - Hierarchical Flow Visualization (agent handoffs)
-    - Xem Thinking Process và Tool Calls
-    - Citation View (RAG sources + Web URLs)
+10. **Agent Testing & Debugging**
+    - Interactive Chat Simulator để test agent
+    - Xem ReAct Flow (Thought → Action → Observation)
+    - Xem Tool Calls và Results
+    - Citation View (RAG sources)
     - Feedback system (Good/Bad responses)
+
 
 14. **System & Security Configuration**
     - Dynamic API Key Management (OpenRouter, Cohere, Qdrant, Tavily)
@@ -127,70 +134,79 @@
 
 ## 🤖 AI & AGENT FEATURES (Petties AI Layer)
 
+> **Architecture:** Single Agent + ReAct Pattern + MCP Tools
+> 
+> **Note:** MVP sử dụng **Single Agent** (không phải Multi-Agent) với nhiều skills/tools, có thể config bởi Admin.
+
 ### AI Chatbot - Pet Care Assistant
 - 🤖 Chat với AI Chatbot thông minh
 - 🤖 Tư vấn chăm sóc thú cưng
 - 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search)
-- 🤖 RAG Engine - Tra cứu kiến thức y tế thú y
-- 🤖 Multi-agent Architecture (LangGraph)
+- 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant)
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại
 
-### Multi-Agent Architecture
-- 🧠 **Main Agent (Supervisor/Orchestrator)**
-  - Single Point of Contact - Mọi tương tác bắt đầu và kết thúc tại đây
-  - Intent Classification - Phân loại ý định user (Tư vấn? Đặt lịch? Tìm kiếm thông tin?)
-  - Context-Aware Routing - Điều phối đến đúng Sub-Agent với context đầy đủ
-  - Response Synthesis - Tổng hợp và làm mượt câu trả lời từ Sub-Agents
-  - Quality Control - Đánh giá và từ chối câu trả lời không đạt chất lượng
+### Single Agent Architecture (ReAct Pattern)
 
-- 🏥 **Medical/Triage Agent (Semi-Autonomous)**
-  - Chẩn đoán sơ bộ dựa trên triệu chứng
-  - Internal RAG Search - Tra cứu kiến thức nội bộ trước
-  - Confidence Check - Tự động gọi Research Agent nếu confidence < 80%
-  - Solution Expansion - Tìm mẹo chăm sóc và video hướng dẫn
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PETTIES AI AGENT (ReAct)                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🧠 LLM Core (OpenRouter / Cohere)                                  │
+│  ├── ReAct Pattern: Thought → Action → Observation → Loop          │
+│  ├── Chain-of-Thought Reasoning                                     │
+│  └── System Prompt (Admin Configurable)                             │
+│                                                                     │
+│  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
+│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
+│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
+│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
+│  ├── @mcp.tool: check_slots       → Check available slots          │
+│  └── @mcp.tool: create_booking    → Create booking via chat        │
+│                                                                     │
+│  📚 RAG Engine (LlamaIndex + Qdrant)                                │
+│  ├── LlamaIndex: Document processing, chunking, retrieval          │
+│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
+│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│                                                                     │
+│  ⚙️ Admin Config                                                    │
+│  ├── Enable/Disable Agent                                           │
+│  ├── System Prompt (editable)                                       │
+│  ├── Parameters: Temperature, Max Tokens, Top-P                     │
+│  ├── Tool Management: Enable/Disable individual tools              │
+│  └── Knowledge Base: Upload/Remove documents                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-- 🔍 **Research Agent (Web Researcher)**
-  - **Vai trò:** Chuyên gia tìm kiếm thông tin Internet (Web Researcher)
-  - **Web Search Strategy:** Sử dụng Search Engine (Tavily/DuckDuckGo) để tìm kiếm real-time
-  - **Phục vụ Main Agent:** Khi user cần thông tin chung, tin tức, kiến thức bên ngoài
-  - **Phục vụ Medical Agent:** Khi cần tra cứu bệnh lạ, tìm bài viết y khoa mới nhất, biện pháp sơ cứu
-  - **Use Cases:**
-    - Tìm kiếm bài viết y khoa và tài liệu tham khảo uy tín
-    - Tìm mẹo chăm sóc, kinh nghiệm từ chuyên gia (Tips & Tricks)
-    - Tìm video hướng dẫn trên YouTube
-    - Tra cứu home remedies và biện pháp dân gian
-  - **Video Integration:** Tự động tìm và nhúng link YouTube videos vào câu trả lời
-  - **Attribution Required:** Bắt buộc trích dẫn nguồn (URL) cho mọi thông tin tìm được
+### ReAct Pattern (Reason + Act)
 
-- 📅 **Booking Agent**
-  - Xử lý đặt lịch khám
-  - Kiểm tra slot trống
-  - Hủy lịch hẹn
+- 🧠 **Thought**: Agent suy luận về câu hỏi/yêu cầu của user
+- 🔧 **Action**: Gọi tool phù hợp (RAG search, symptom lookup, booking, etc.)
+- 👁️ **Observation**: Nhận kết quả từ tool
+- 🔄 **Loop**: Lặp lại cho đến khi có đủ thông tin để trả lời
+- ✅ **Answer**: Tổng hợp và trả lời user
 
 ### AI Tools (FastMCP Protocol)
-- 🔧 `create_booking` - Chọn service và tạo lịch hẹn tự động
-- 🔧 `search_symptoms` - Tìm bệnh dựa trên triệu chứng
-- 🔧 `RAG_search` - Tra cứu thông tin y tế
+- 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
+- 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
+- 🔧 `search_clinics` - Tìm phòng khám gần đây
+- 🔧 `check_slots` - Kiểm tra slot trống
+- 🔧 `create_booking` - Tạo lịch hẹn qua chat
 
-### Admin Tool Management
-- 📊 **Tool Scanner** - Tự động quét và đồng bộ Code-based tools từ Python (@mcp.tool)
-- 📊 **Tool Assignment** - Gán tools cho specific agents (Main Agent hoặc Sub-Agents)
-- 📊 **Schema Viewer** - Xem Request/Response schema cho mỗi tool
-- 📊 **Tool Enable/Disable** - Bật/tắt tools cho từng agent
+### Admin Agent Configuration (Simple UI)
+- ⚙️ **Agent Status** - Bật/Tắt Agent
+- 📝 **System Prompt** - Chỉnh sửa prompt hướng dẫn Agent
+- 🎛️ **Model Parameters** - Temperature, Max Tokens, Top-P, Model selection
+- 🔧 **Tool Management** - Bật/Tắt từng tool riêng lẻ
+- 📚 **Knowledge Base** - Upload/Remove documents cho RAG
 
-### Agent Architecture
-- 🏗️ **Hierarchical Agent System** - Main Agent (Supervisor) + Sub-Agents (Workers)
-- 🏗️ **Main Agent (Supervisor)** - Intent Classification, Context-Aware Routing, Response Synthesis
-- 🏗️ **Sub-Agents** - Booking Agent, Medical/Triage Agent, Research Agent
-- 🏗️ **Semi-Autonomous Flow** - Medical Agent tự động gọi Research Agent khi confidence thấp
-- 🏗️ **State Management** - Main Agent quản lý toàn bộ conversation context
-
-
-### Monitoring & Debugging
-- 🔍 **Agent Playground** - Test agents trong môi trường an toàn
-- 🔍 **Flow Visualization** - Xem hierarchical execution flow (Main → Sub-Agent → Tool calls)
-- 🔍 **Thinking Process Log** - Xem quá trình suy luận của agents
-- 🔍 **Citation Tracking** - Theo dõi nguồn trích dẫn (RAG chunks + Web URLs)
-- 🔍 **Response Feedback** - Đánh giá chất lượng câu trả lời (Good/Bad)
+### RAG Engine (LlamaIndex + Qdrant)
+- 📄 **Document Ingestion** - Upload PDF, DOCX, TXT, MD
+- ✂️ **Chunking** - Tự động chia nhỏ documents
+- 🔢 **Embedding** - Cohere embed-multilingual-v3
+- 🔍 **Vector Search** - Qdrant Cloud với Binary Quantization
+- 📖 **Retrieval** - Top-K similarity search
 
 ---
 
@@ -281,31 +297,33 @@
 4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
 
 
-## 🔑 KEY FEATURES SUMMARY
+## 🔑 KEY FEATURES SUMMARY (MVP 1-Month Scope)
 
+### ✅ CORE FEATURES (In Scope)
 ✅ **Clinic-based vets** (NO freelancers)  
 ✅ **Shared EMR** (All clinics see medical history)  
 ✅ **Shared vaccination records** (Across clinics)  
-✅ **Dynamic pricing** (Base + fees)  
-✅ **Hybrid Service Model** (Master Services + Custom Services)
+✅ **Dynamic pricing** (Base + Weight-based + Distance fees)  
+✅ **Hybrid Service Model** (Master Services + Custom Services)  
 ✅ **Slot management** (Auto reduce/restore)  
-✅ **Excel import** (Batch schedule)  
-✅ **Manual import** (Thêm lịch thủ công)  
+✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ **Booking workflow** (PENDING → ASSIGNED → CONFIRMED → CHECK_IN -> IN_PROGRESS → CHECK_OUT/COMPLETED)  
-✅ **Rating system** (Pet owner đánh giá Dr)  
-✅ **AI Chatbot** (Pet Care Assistant với Multi-agent Architecture)  
-✅ **SOS Emergency** (Cấp cứu khẩn cấp)  
-✅ **Video Consultation** (Tư vấn từ xa)  
+✅ **Booking workflow** (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)  
+✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
+✅ **Chat 1-1** (Pet Owner ↔ Manager/Vet)  
+✅ **Home Visit Geo-Tracking** (GPS realtime tracking)  
+✅ **AI Chatbot** (Single Agent + ReAct Pattern + MCP Tools)  
 ✅ **EMR với đơn thuốc** (Prescription trong hồ sơ bệnh án)  
-✅ **Push/Email/SMS Notifications** (Firebase)  
-✅ **Multi-language & Timezone** (Đa ngôn ngữ)  
-✅ **Admin Agent Management Dashboard** (Quản lý, Tinh chỉnh & Giám sát Agents)  
-✅ **Dynamic Few-Shot Routing** (Zero Training, Cross-lingual)  
-✅ **Tool Management** (Code-based Tools only)  
-✅ **Knowledge Base RAG** (Qdrant Cloud với Binary Quantization)  
-✅ **Agent Playground** (Interactive Testing & Debugging)  
-✅ **Dynamic Secrets Management** (API Keys, Ollama Config)
+✅ **Push Notifications** (Firebase)  
+✅ **Admin Agent Config** (Prompt, Parameters, Tools, Knowledge Base)  
+✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
+
+### ❌ DEFERRED (Phase 2)
+❌ ~~SOS Emergency~~ (Deferred - Logic phức tạp)  
+❌ ~~Video Consultation~~ (Deferred - WebRTC phức tạp)  
+❌ ~~Excel Import~~ (Deferred - Manual đủ cho MVP)  
+❌ ~~Multi-Agent Architecture~~ (Simplified to Single Agent)  
+❌ ~~Email/SMS Notifications~~ (Push đủ cho MVP)  
 
 ---
 
@@ -313,18 +331,18 @@
 
 | Layer | Technologies |
 |-------|-------------|
-| **Web Frontend** | React 18+ Vite, TypeScript, Tailwind CSS, Zustand |
+| **Web Frontend** | React 19+ Vite, TypeScript, Tailwind CSS, Zustand |
 | **Mobile** | Flutter 3.5, iOS & Android |
-| **Backend** | Java 21, Spring Boot 3.x, Spring Security (JWT) |
-| **AI Layer** | Python 3.12, FastAPI, LangGraph, FastMCP, LlamaIndex |
-| **Databases** | PostgreSQL, MongoDB, Redis, Qdrant (Vector) |
+| **Backend** | Java 21, Spring Boot 4.x, Spring Security (JWT) |
+| **AI Layer** | Python 3.12, FastAPI, Single Agent (ReAct), FastMCP, LlamaIndex |
+| **Databases** | PostgreSQL, MongoDB, Redis, Qdrant Cloud (Vector) |
 | **Infrastructure** | Docker, Cloudinary, GitHub Actions |
 | **Payment** | Stripe | 
-| **Notifications** | Firebase (Push), Email, SMS |
+| **Notifications** | Firebase (Push) |
 
 ---
 
-**Version: 7.0 - PETTIES COMPREHENSIVE FEATURES + AI AGENT MANAGEMENT**  
+**Version: 8.0 - PETTIES MVP SCOPE (1-MONTH)**  
 **Status: ✅ READY FOR DEV**  
-**Total Features: 90+ (V0.0.1)**  
-**Last Updated: December 6, 2025**
+**Total Features: ~48 (MVP Scope)**  
+**Last Updated: December 24, 2025**

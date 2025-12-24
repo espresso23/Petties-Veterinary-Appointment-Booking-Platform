@@ -21,3 +21,16 @@ export interface UserResponse {
   updatedAt: string
 }
 
+/**
+ * Backend API Error Response Format
+ * Follows Spring Boot GlobalExceptionHandler error structure
+ */
+export interface ApiErrorResponse {
+  timestamp: string
+  status: number
+  error: string
+  message: string
+  path: string
+  errors?: Record<string, string> // Validation errors (field -> message)
+}
+
