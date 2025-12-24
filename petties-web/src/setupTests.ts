@@ -22,16 +22,16 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-// Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
-  constructor() {}
-  disconnect() {}
-  observe() {}
-  takeRecords() {
-    return []
-  }
-  unobserve() {}
-} as any
+  // Mock IntersectionObserver
+  ; (globalThis as any).IntersectionObserver = class IntersectionObserver {
+    constructor() { }
+    disconnect() { }
+    observe() { }
+    takeRecords() {
+      return []
+    }
+    unobserve() { }
+  } as any
 
 // Extend Vitest expect with jest-dom matchers
 export { expect }

@@ -1,4 +1,3 @@
-import React from 'react'
 import { ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/solid'
 
 interface ConfirmDialogProps {

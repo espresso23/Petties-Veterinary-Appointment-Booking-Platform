@@ -6,19 +6,19 @@ import { env } from '../../config/env'
 // Helper function to parse district and province from address string
 const parseAddressFromString = (address: string): { district?: string; province?: string } => {
   const result: { district?: string; province?: string } = {}
-  
+
   // Common patterns for Vietnamese addresses
   // Format: ..., Quận/Huyện X, Tỉnh/Thành phố Y
   const districtPatterns = [
     /(?:Quận|Huyện|Q\.|H\.)\s*([^,]+)/i,
     /(?:Quận|Huyện)\s*(\d+)/i,
   ]
-  
+
   const provincePatterns = [
     /(?:Tỉnh|Thành phố|TP\.|T\.)\s*([^,]+)/i,
     /(?:TP\.|Tp\.)\s*([^,]+)/i,
   ]
-  
+
   // Try to find district
   for (const pattern of districtPatterns) {
     const match = address.match(pattern)
@@ -27,7 +27,7 @@ const parseAddressFromString = (address: string): { district?: string; province?
       break
     }
   }
-  
+
   // Try to find province
   for (const pattern of provincePatterns) {
     const match = address.match(pattern)
@@ -36,7 +36,7 @@ const parseAddressFromString = (address: string): { district?: string; province?
       break
     }
   }
-  
+
   // If not found, try common city names
   const cities = ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ']
   for (const city of cities) {
@@ -45,7 +45,7 @@ const parseAddressFromString = (address: string): { district?: string; province?
       break
     }
   }
-  
+
   return result
 }
 
@@ -83,7 +83,7 @@ export function AddressAutocompleteOSM({
   onChange,
   onPlaceSelect,
   placeholder = 'Nhập địa chỉ...',
-  className = '',
+  className: _className = '',
   disabled = false,
 }: AddressAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<GoongPlaceResult[]>([])
@@ -94,7 +94,7 @@ export function AddressAutocompleteOSM({
   const mapInstanceRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.Marker | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<NodeJS.Timeout>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Debounced search function using Goong Places API
   const searchAddress = async (query: string) => {
@@ -119,11 +119,11 @@ export function AddressAutocompleteOSM({
           method: 'GET',
         }
       )
-      
+
       if (!response.ok) {
         throw new Error(`Goong API error: ${response.status}`)
       }
-      
+
       const data = await response.json()
       // Goong API returns { predictions: [...] }
       const predictions: GoongPlaceResult[] = data.predictions || []
@@ -170,11 +170,11 @@ export function AddressAutocompleteOSM({
       const response = await fetch(
         `https://rsapi.goong.io/Place/Detail?place_id=${suggestion.place_id}&api_key=${env.GOONG_API_KEY}`
       )
-      
+
       if (!response.ok) {
         throw new Error(`Goong API error: ${response.status}`)
       }
-      
+
       const data = await response.json()
       const place = data.result
       const address = suggestion.description
@@ -264,13 +264,13 @@ export function AddressAutocompleteOSM({
       if (env.GOONG_MAP_TILES_KEY) {
         // Goong raster tiles format - thử nhiều format
         const goongTileUrl = `https://tiles.goong.io/assets/goong_map_web/{z}/{x}/{y}.png?api_key=${env.GOONG_MAP_TILES_KEY}`
-        
+
         console.log('[AddressAutocomplete] Initializing Goong map tiles...', {
           hasKey: !!env.GOONG_MAP_TILES_KEY,
           keyLength: env.GOONG_MAP_TILES_KEY?.length || 0,
           tileUrl: goongTileUrl.replace(env.GOONG_MAP_TILES_KEY, '***'),
         })
-        
+
         const tileLayer = L.tileLayer(goongTileUrl, {
           maxZoom: 20,
           minZoom: 1,
@@ -278,7 +278,7 @@ export function AddressAutocompleteOSM({
           tileSize: 256,
           zoomOffset: 0,
         })
-        
+
         tileLayer.on('tileerror', (error) => {
           console.error('[AddressAutocomplete] Goong tile error:', error)
           // Fallback to OpenStreetMap if Goong fails
@@ -294,7 +294,7 @@ export function AddressAutocompleteOSM({
           })
           osmLayer.addTo(mapInstanceRef.current)
         })
-        
+
         tileLayer.addTo(mapInstanceRef.current)
       } else {
         console.warn('[AddressAutocomplete] No Goong Map Tiles Key, using OpenStreetMap fallback')

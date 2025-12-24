@@ -26,7 +26,14 @@ export function ClinicCard({ clinic, showActions = false, onEdit, onDelete }: Cl
     SUSPENDED: 'SUSPENDED',
   }
 
-  const primaryImage = clinic.images && clinic.images.length > 0 ? clinic.images[0] : null
+  const getImageUrl = (image: string | { imageUrl: string }): string => {
+    if (typeof image === 'string') return image
+    return image.imageUrl
+  }
+
+  const primaryImage = clinic.images && clinic.images.length > 0
+    ? getImageUrl(clinic.images[0])
+    : null
 
   return (
     <div className="card-brutal overflow-hidden">
@@ -89,43 +96,43 @@ export function ClinicCard({ clinic, showActions = false, onEdit, onDelete }: Cl
         )}
 
         <div className="space-y-2 mb-4">
-        <div className="flex items-start gap-2">
-          <MapPinIcon className="w-5 h-5 text-stone-600 mt-0.5 flex-shrink-0" />
-          <span className="text-stone-700 text-sm">{clinic.address}</span>
-        </div>
-        {clinic.phone && (
-          <div className="flex items-center gap-2">
-            <PhoneIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
-            <span className="text-stone-700 text-sm">{clinic.phone}</span>
+          <div className="flex items-start gap-2">
+            <MapPinIcon className="w-5 h-5 text-stone-600 mt-0.5 flex-shrink-0" />
+            <span className="text-stone-700 text-sm">{clinic.address}</span>
           </div>
-        )}
-        {clinic.email && (
-          <div className="flex items-center gap-2">
-            <EnvelopeIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
-            <span className="text-stone-700 text-sm">{clinic.email}</span>
-          </div>
-        )}
+          {clinic.phone && (
+            <div className="flex items-center gap-2">
+              <PhoneIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
+              <span className="text-stone-700 text-sm">{clinic.phone}</span>
+            </div>
+          )}
+          {clinic.email && (
+            <div className="flex items-center gap-2">
+              <EnvelopeIcon className="w-5 h-5 text-stone-600 flex-shrink-0" />
+              <span className="text-stone-700 text-sm">{clinic.email}</span>
+            </div>
+          )}
         </div>
 
         {showActions && (onEdit || onDelete) && (
-        <div className="flex gap-2 pt-4 border-t-4 border-stone-900">
-          {onEdit && (
-            <button
-              onClick={() => onEdit(clinic.clinicId)}
-              className="btn-brutal-outline flex-1"
-            >
-              EDIT
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={() => onDelete(clinic.clinicId)}
-              className="btn-brutal-outline flex-1 text-red-600 border-red-600 hover:bg-red-50"
-            >
-              DELETE
-            </button>
-          )}
-        </div>
+          <div className="flex gap-2 pt-4 border-t-4 border-stone-900">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(clinic.clinicId)}
+                className="btn-brutal-outline flex-1"
+              >
+                EDIT
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(clinic.clinicId)}
+                className="btn-brutal-outline flex-1 text-red-600 border-red-600 hover:bg-red-50"
+              >
+                DELETE
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ClinicRequest, OperatingHours } from '../../types/clinic'
+import type { ClinicRequest, OperatingHours, ClinicImage } from '../../types/clinic'
 import { AddressAutocompleteOSM } from './AddressAutocompleteOSM'
 import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
@@ -7,7 +7,7 @@ import { ClinicLogoUpload } from './ClinicLogoUpload'
 interface ClinicFormProps {
   initialData?: Partial<ClinicRequest>
   clinicId?: string // For uploading images after clinic is created
-  initialImages?: string[] // Existing images URLs
+  initialImages?: ClinicImage[] // Existing images with imageId for setPrimary
   onSubmit: (data: ClinicRequest) => Promise<void>
   onCancel?: () => void
   isLoading?: boolean

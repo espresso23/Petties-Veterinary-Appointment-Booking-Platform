@@ -1,12 +1,9 @@
 import { create } from 'zustand'
 import { clinicService } from '../services/api/clinicService'
 import type {
-  Clinic,
   ClinicResponse,
   ClinicRequest,
-  ClinicListResponse,
   ClinicFilters,
-  ClinicStatus,
 } from '../types/clinic'
 
 interface ClinicState {
