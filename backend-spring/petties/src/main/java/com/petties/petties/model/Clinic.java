@@ -115,9 +115,6 @@ public class Clinic {
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClinicImage> images = new ArrayList<>();
 
-    @OneToMany(mappedBy = "clinic")
-    private List<ClinicStaff> staff = new ArrayList<>();
-
     // Note: Service and Booking relationships will be added when those entities are created
     // @OneToMany(mappedBy = "clinic")
     // private List<Service> services = new ArrayList<>();
@@ -125,4 +122,3 @@ public class Clinic {
     // @OneToMany(mappedBy = "clinic")
     // private List<Booking> bookings = new ArrayList<>();
 }
-

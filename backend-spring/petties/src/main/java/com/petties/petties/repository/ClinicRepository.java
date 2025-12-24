@@ -29,9 +29,14 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
     Page<Clinic> findByStatus(ClinicStatus status, Pageable pageable);
 
     /**
-     * Find clinics by owner
+     * Find clinics by owner (with pagination)
      */
     Page<Clinic> findByOwnerUserId(UUID ownerId, Pageable pageable);
+
+    /**
+     * Find a single clinic by owner (for current user's clinic)
+     */
+    Optional<Clinic> findFirstByOwnerUserId(UUID ownerId);
 
     /**
      * Search clinics by name (case-insensitive)
@@ -81,6 +86,11 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
      * Check if clinic exists and belongs to owner
      */
     boolean existsByClinicIdAndOwnerUserId(UUID clinicId, UUID ownerId);
+
+    /**
+     * Check if owner has any clinic
+     */
+    boolean existsByOwnerUserId(UUID ownerId);
 
     /**
      * Count clinics by status

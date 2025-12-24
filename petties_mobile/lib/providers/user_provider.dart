@@ -161,6 +161,51 @@ class UserProvider extends ChangeNotifier {
   }
 
   /// Clear error message
+  /// Request email change
+  Future<void> requestEmailChange(String newEmail) async {
+    try {
+      await _userService.requestEmailChange(newEmail);
+      _successMessage = 'OTP sent to new email';
+      notifyListeners();
+    } catch (e) {
+      _error = _parseErrorMessage(e);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Verify email change OTP
+  Future<void> verifyEmailChange(String newEmail, String otp) async {
+    try {
+      final newProfile = await _userService.verifyEmailChange(newEmail, otp);
+      _profile = _profile?.merge(newProfile) ?? newProfile;
+      _successMessage = 'Email changed successfully';
+      notifyListeners();
+    } catch (e) {
+      _error = _parseErrorMessage(e);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Resend email change OTP
+  Future<void> resendEmailChangeOtp() async {
+    try {
+      await _userService.resendEmailChangeOtp();
+      _successMessage = 'OTP resent';
+      notifyListeners();
+    } catch (e) {
+      _error = _parseErrorMessage(e);
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  /// Cancel email change request (delete Redis OTP record)
+  Future<void> cancelEmailChange() async {
+    await _userService.cancelEmailChange();
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();

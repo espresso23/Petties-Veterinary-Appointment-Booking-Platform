@@ -41,7 +41,8 @@ public class CloudinaryService {
         checkCloudinaryConfig();
 
         try {
-            String cloudinaryFolder = "petties/" + (folder != null ? folder : "general");
+            String cloudinaryFolder = "petties/" + (folder != null ? folder : "general");// biến này dùng để tạo folder
+                                                                                         // trong cloudinary
 
             @SuppressWarnings("unchecked")
             Map<String, Object> uploadResult = cloudinary.uploader().upload(

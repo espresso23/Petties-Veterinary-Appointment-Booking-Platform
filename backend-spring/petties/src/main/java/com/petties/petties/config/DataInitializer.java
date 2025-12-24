@@ -1,14 +1,15 @@
 package com.petties.petties.config;
 
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Data Initializer - Insert sample users for testing
@@ -20,128 +21,85 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
+    private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    @Transactional
-    public void run(String... args) {
+    public void run(String... args) throws Exception {
         log.info("🚀 Starting data initialization...");
 
-        // Create ADMIN user
-        createUserIfNotExists(
-            "admin",
-            "admin123",
-            "admin@petties.com",
-            "Admin User",
-            "+84123456789",
-            Role.ADMIN
-        );
+        // Initialize users for all roles for testing
+        initializeUser("admin", "admin", "admin@petties.world", "System Admin", Role.ADMIN);
+        initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+        User clinicOwner = initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User",
+                Role.CLINIC_OWNER);
+        initializeUser("clinicManager", "clinicmanager", "manager@clinic.com", "Clinic Manager User",
+                Role.CLINIC_MANAGER);
+        initializeUser("vet", "vet123", "vet@clinic.com", "Dr. Vet User", Role.VET);
 
-        // Create CLINIC_OWNER users
-        createUserIfNotExists(
-            "owner1",
-            "owner123",
-            "owner1@petties.com",
-            "Clinic Owner 1",
-            "+84987654321",
-            Role.CLINIC_OWNER
-        );
-
-        createUserIfNotExists(
-            "owner2",
-            "owner123",
-            "owner2@petties.com",
-            "Clinic Owner 2",
-            "+84987654322",
-            Role.CLINIC_OWNER
-        );
-
-        // Create VET users
-        createUserIfNotExists(
-            "vet1",
-            "vet123",
-            "vet1@petties.com",
-            "Veterinarian 1",
-            "+84987654330",
-            Role.VET
-        );
-
-        createUserIfNotExists(
-            "vet2",
-            "vet123",
-            "vet2@petties.com",
-            "Veterinarian 2",
-            "+84987654331",
-            Role.VET
-        );
-
-        // Create PET_OWNER users
-        createUserIfNotExists(
-            "petowner1",
-            "petowner123",
-            "petowner1@petties.com",
-            "Pet Owner 1",
-            "+84987654340",
-            Role.PET_OWNER
-        );
-
-        createUserIfNotExists(
-            "petowner2",
-            "petowner123",
-            "petowner2@petties.com",
-            "Pet Owner 2",
-            "+84987654341",
-            Role.PET_OWNER
-        );
-
-        // Create CLINIC_MANAGER user
-        createUserIfNotExists(
-            "manager1",
-            "manager123",
-            "manager1@petties.com",
-            "Clinic Manager 1",
-            "+84987654350",
-            Role.CLINIC_MANAGER
-        );
+        // Initialize a clinic for the clinic owner
+        if (clinicOwner != null) {
+            initializeClinic(clinicOwner, "Petties Central Hospital", "123 Pet Street, Hanoi", "0123456789");
+        }
 
         log.info("✅ Data initialization completed!");
-        log.info("📝 Sample users created:");
-        log.info("   - admin / admin123 (ADMIN)");
-        log.info("   - owner1 / owner123 (CLINIC_OWNER)");
-        log.info("   - owner2 / owner123 (CLINIC_OWNER)");
-        log.info("   - vet1 / vet123 (VET)");
-        log.info("   - vet2 / vet123 (VET)");
-        log.info("   - petowner1 / petowner123 (PET_OWNER)");
-        log.info("   - petowner2 / petowner123 (PET_OWNER)");
-        log.info("   - manager1 / manager123 (CLINIC_MANAGER)");
     }
 
-    private void createUserIfNotExists(
-            String username,
-            String password,
-            String email,
-            String fullName,
-            String phone,
-            Role role) {
+    /**
+     * Helper method to initialize a user if they don't exist
+     */
+    private User initializeUser(String username, String password, String email, String fullName, Role role) {
+        // Check by username
+        if (userRepository.existsByUsername(username)) {
+            log.info("   - User with username '{}' ({}) already exists.", username, role);
+            return userRepository.findByUsername(username).orElse(null);
+        }
 
-        // Check if user already exists
-        if (userRepository.existsByUsername(username) ||
-            userRepository.existsByEmail(email)) {
-            log.debug("User {} already exists, skipping...", username);
+        // Check by email to prevent duplicate key error
+        if (userRepository.existsByEmail(email)) {
+            log.info("   - User with email '{}' ({}) already exists.", email, role);
+            return userRepository.findByEmail(email).orElse(null);
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setEmail(email);
+        user.setPhone("0" + (long) (Math.random() * 1000000000L)); // Random valid-looking phone
+        user.setFullName(fullName);
+        user.setRole(role);
+
+        try {
+            User savedUser = userRepository.save(user);
+            log.info("   + Created {} user: {} / {}", role, username, password);
+            return savedUser;
+        } catch (Exception e) {
+            log.error("   x Failed to create user {}: {}", username, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Helper method to initialize a clinic if owner doesn't have one
+     */
+    private void initializeClinic(User owner, String name, String address, String phone) {
+        if (clinicRepository.existsByOwnerUserId(owner.getUserId())) {
+            log.info("   - Clinic for '{}' already exists.", owner.getUsername());
             return;
         }
 
-        // Create new user
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(password)); // Hash password
-        user.setEmail(email);
-        user.setFullName(fullName);
-        user.setPhone(phone);
-        user.setRole(role);
-        // createdAt and updatedAt will be set automatically by JPA Auditing
+        Clinic clinic = new Clinic();
+        clinic.setOwner(owner);
+        clinic.setName(name);
+        clinic.setAddress(address);
+        clinic.setPhone(phone);
+        clinic.setStatus(ClinicStatus.APPROVED);
 
-        userRepository.save(user);
-        log.info("✅ Created user: {} ({})", username, role);
+        try {
+            clinicRepository.save(clinic);
+            log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
+        } catch (Exception e) {
+            log.error("   x Failed to create clinic: {}", e.getMessage());
+        }
     }
 }

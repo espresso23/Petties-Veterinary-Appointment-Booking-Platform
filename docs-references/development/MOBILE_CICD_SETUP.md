@@ -318,18 +318,28 @@ Testers cần gửi UDID của device:
 
 ## 🚀 PHẦN 3: SỬ DỤNG PIPELINE
 
-### Trigger (Bấm nút thủ công) 👆
+### 3.1 Manual Dispatch là gì?
 
-Hiện tại, pipeline đã được chuyển sang chế độ **chạy thủ công** để tránh tình trạng tạo ra hàng chục bản APK thừa khi merge code.
+**Manual Dispatch** (`workflow_dispatch`) là cơ chế cho phép bạn **chủ động kích hoạt** quy trình CI/CD bằng cách nhấn nút chạy trên giao diện GitHub, thay vì chờ hệ thống tự động chạy mỗi khi có code mới. Điều này giúp:
+*   **Tiết kiệm tài nguyên:** Tránh lãng phí build quota cho các commit nhỏ lẻ.
+*   **Kiểm soát release:** Chỉ tạo bản build Tester khi tính năng đã thực sự hoàn thiện.
+*   **Linh hoạt:** Cho phép bạn tùy chọn môi trường và nền tảng build ngay lúc chạy.
 
-1. Vào **GitHub Actions** → **Mobile CI/CD**
-2. Click **Run workflow**
-3. Chọn:
-   - **Branch**: develop (cho staging) hoặc main (cho production)
-   - **Flavor**: dev/staging/prod
-   - **Platform**: android/ios/both
-   - **iOS distribution**: testflight/firebase
-4. Click **Run workflow**
+### 3.2 Hướng dẫn chạy Pipeline (Từng bước)
+
+1.  Truy cập vào tab **Actions** trên GitHub Repository của dự án.
+2.  Ở cột bên trái, chọn workflow tên là **Mobile CI/CD**.
+3.  Nhìn sang bên phải, nhấn vào nút **Run workflow** (dropdown menu).
+4.  Điền/Chọn các thông số cấu hình (Inputs):
+
+| Tùy chọn (Input) | Ý nghĩa | Lựa chọn khuyên dùng |
+| :--- | :--- | :--- |
+| **Use workflow from** | Chọn nhánh code nguồn để build | `develop` (cho Test/Staging)<br>`main` (cho Production) |
+| **Build flavor** | Chọn môi trường cấu hình app | `dev` (Developer - trỏ local/test server)<br>`staging` (QA Tester - trỏ test server)<br>`prod` (Release - trỏ real server) |
+| **Target platform** | Hệ điều hành muốn build | `android` (Build APK)<br>`ios` (Build IPA)<br>`both` (Chạy cả hai song song) |
+| **iOS distribution** | Nơi upload bản build iOS | `testflight` (Khuyên dùng - Chuẩn Apple)<br>`firebase` (Nội bộ - cần UDID) |
+
+5.  Nhấn nút **Run workflow** màu xanh lá cây để bắt đầu tiến trình.
 
 > **Lưu ý:** Sau khi merge code xong, nếu Team muốn có APK mới để test thì Leader hoặc người phụ trách cần vào bấm nút này.
 
@@ -340,7 +350,7 @@ Hiện tại, pipeline đã được chuyển sang chế độ **chạy thủ c�
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │                      TRIGGER                                    │
-│  (Push to develop/main OR Manual dispatch)                     │
+│  (Manual dispatch only)                                          │
 └───────────────────────┬────────────────────────────────────────┘
                         │
                         ▼

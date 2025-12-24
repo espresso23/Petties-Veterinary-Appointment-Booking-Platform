@@ -11,10 +11,13 @@ Mobile app hỗ trợ 3 environments thông qua flavor:
 | Environment | Flavor | API URL | AI Service URL |
 |-------------|--------|---------|----------------|
 | **Dev** | `dev` | `http://10.0.2.2:8080/api` | `http://10.0.2.2:8000` |
-| **Staging/Test** | `staging` | `https://api-test.petties.world/api` | `https://ai-test.petties.world` |
+| **Staging/Test** | `staging` | `https://api-test.petties.world/api` | `https://api-test.petties.world/ai` |
 | **Prod** | `prod` | `https://api.petties.world/api` | `https://ai.petties.world` |
 
-> **Lưu ý**: `10.0.2.2` là alias cho localhost khi chạy Android emulator
+> **Lưu ý**: 
+> - `10.0.2.2` là alias cho localhost khi chạy Android emulator
+> - Test environment dùng path-based routing (`/api`, `/ai`) trên cùng 1 domain
+
 
 ---
 
@@ -41,6 +44,14 @@ flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://l
 
 # 3. Chạy trên Thiết bị thật qua LAN/Wifi (Cần tắt Firewall)
 # Thay 192.168.1.XXX bằng IP LAN của máy tính bạn
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
+
+# 1. Tìm IP LAN của máy Mac
+# macOS: Mở System Preferences > Network > WiFi > IP Address
+# Hoặc chạy:
+ifconfig | grep "inet " | grep -v 127.0.0.1
+
+# 2. Chạy Flutter với IP LAN
 flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
 ```
 
