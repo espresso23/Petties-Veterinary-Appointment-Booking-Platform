@@ -1,5 +1,17 @@
 import React, { useState } from 'react'
-import { Edit2, Trash2, Power, Clock, Home, Info, X, Stethoscope, HeartPulse, Syringe, Scissors, Scale } from 'lucide-react'
+import {
+  PencilIcon,
+  TrashIcon,
+  PowerIcon,
+  ClockIcon,
+  HomeIcon,
+  InformationCircleIcon,
+  XMarkIcon,
+  BeakerIcon,
+  HeartIcon,
+  ScissorsIcon,
+  ScaleIcon,
+} from '@heroicons/react/24/solid'
 import type { WeightPriceDto } from '../../types/service'
 
 export interface ClinicService {
@@ -41,11 +53,11 @@ export function ServiceCard({
   const formattedPrice = getPriceDisplay()
 
   const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: Stethoscope, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartPulse, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: Syringe, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: Scissors, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: Home, color: '#fffbeb' },
+    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
+    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
+    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
+    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
+    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
   ]
 
   const categoryInfo = categories.find(c => c.id === service.serviceCategory)
@@ -62,7 +74,7 @@ export function ServiceCard({
             style={{ backgroundColor: '#60a5fa' }}
             className="absolute top-4 left-4 z-10 border-2 border-black px-2 py-1 flex items-center gap-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
           >
-            <Home size={14} className="text-black" strokeWidth={3} />
+            <HomeIcon className="w-3.5 h-3.5 text-black" />
             <span className="text-xs font-black text-black uppercase">Tận nhà</span>
           </div>
         ) : (
@@ -83,7 +95,7 @@ export function ServiceCard({
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title={service.isActive ? 'Disable Service' : 'Enable Service'}
           >
-            <Power size={16} className="text-black" />
+            <PowerIcon className="w-4 h-4 text-black" />
           </button>
           <button
             onClick={onEdit}
@@ -91,7 +103,7 @@ export function ServiceCard({
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title="Edit Service"
           >
-            <Edit2 size={16} className="text-black" />
+            <PencilIcon className="w-4 h-4 text-black" />
           </button>
           <button
             onClick={onDelete}
@@ -99,7 +111,7 @@ export function ServiceCard({
             className="p-2 border-2 border-black transition-colors hover:opacity-80"
             title="Delete Service"
           >
-            <Trash2 size={16} className="text-black" />
+            <TrashIcon className="w-4 h-4 text-black" />
           </button>
         </div>
 
@@ -126,7 +138,7 @@ export function ServiceCard({
 
             <div className="flex items-center justify-between">
               <span className="font-bold text-gray-600 flex items-center gap-2">
-                <Clock size={18} /> THỜI GIAN
+                <ClockIcon className="w-5 h-5" /> THỜI GIAN
               </span>
               <span className="font-bold text-black">
                 {service.duration} phút
@@ -142,7 +154,7 @@ export function ServiceCard({
                       className="p-1 border border-black"
                       style={{ backgroundColor: categoryInfo.color }}
                     >
-                      <categoryInfo.icon size={12} className="text-black" strokeWidth={3} />
+                      <categoryInfo.icon className="w-3 h-3 text-black" />
                     </div>
                   )}
                   <span className="font-black text-black text-[11px] uppercase truncate max-w-[120px]">
@@ -174,7 +186,7 @@ export function ServiceCard({
                   style={{ backgroundColor: '#FF6B35' }}
                 >
                   <span className="font-bold text-white flex items-center gap-2">
-                    <Info size={16} />
+                    <InformationCircleIcon className="w-4 h-4" />
                     {service.weightPrices.length} MỨC GIÁ THEO CÂN NẶNG
                   </span>
                   <span className="text-xs font-bold text-white">XEM CHI TIẾT</span>
@@ -219,7 +231,7 @@ export function ServiceCard({
                 className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black hover:bg-gray-100 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
                 style={{ color: '#000000' }}
               >
-                <X size={20} strokeWidth={3} />
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
@@ -244,7 +256,7 @@ export function ServiceCard({
               <div className="bg-blue-50 border-b-2 border-black p-3">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
-                    <Home size={18} className="text-blue-600" strokeWidth={3} />
+                    <HomeIcon className="w-5 h-5 text-blue-600" />
                     <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
                   </div>
                   <span className="text-lg font-black text-green-600">
@@ -264,7 +276,7 @@ export function ServiceCard({
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 border-2 border-black bg-[#e0f2fe] flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                      <Scale size={20} className="text-black" />
+                      <ScaleIcon className="w-5 h-5 text-black" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">

@@ -31,6 +31,12 @@ import { SettingsPage } from './pages/admin/settings'
 import { VetDashboardPage } from './pages/vet/DashboardPage'
 import { ClinicOwnerDashboardPage, ServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
+import {
+  ClinicsListPage,
+  ClinicCreatePage,
+  ClinicEditPage,
+  ClinicDetailPage,
+} from './pages/clinic-owner/clinics'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -106,9 +112,12 @@ function App() {
           }>
             <Route index element={<ClinicOwnerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="clinics" element={<ClinicsListPage />} />
+            <Route path="clinics/new" element={<ClinicCreatePage />} />
+            <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
+            <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
             <Route path="services" element={<ServicesPage />} />
           </Route>
-
           {/* Clinic Manager Routes */}
           <Route path="/clinic-manager" element={
             <ProtectedRoute allowedRoles={['CLINIC_MANAGER']}>

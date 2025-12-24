@@ -1,8 +1,10 @@
 package com.petties.petties.model.enums;
 
+
 public enum ClinicStatus {
-    PENDING,
-    APPROVED,
-    REJECTED
+    PENDING,      // Chờ duyệt
+    APPROVED,     // Đã duyệt
+    REJECTED,     // Từ chối
+    SUSPENDED     // Tạm ngưng
 }
 

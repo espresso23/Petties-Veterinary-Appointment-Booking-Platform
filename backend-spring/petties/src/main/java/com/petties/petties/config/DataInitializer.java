@@ -10,26 +10,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
 /**
- * Data Initializer - Tự động tạo admin user mặc định
- * 
- * Chức năng:
- * - Tự động chạy khi Spring Boot khởi động (cả dev và prod)
- * - Chỉ tạo admin user nếu chưa tồn tại trong database
- * - Không cần config hay bật/tắt thủ công
- * 
- * Default credentials:
- * - Username: admin
- * - Password: admin
- * - Email: admin@petties.world
- * 
- * ⚠️ Lưu ý: Nên đổi password ngay sau lần đăng nhập đầu tiên!
+ * Data Initializer - Insert sample users for testing
+ * Runs automatically on application startup
  */
-@Slf4j
-@Component
+// @Component  // Temporarily disabled to allow backend to start
 @RequiredArgsConstructor
+@Slf4j
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;

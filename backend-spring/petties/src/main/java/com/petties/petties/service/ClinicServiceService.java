@@ -48,7 +48,7 @@ public class ClinicServiceService {
             throw new ForbiddenException("Chỉ Clinic Owner mới có quyền thực hiện thao tác này");
         }
 
-        return clinicRepository.findByOwnerUserId(currentUser.getUserId())
+        return clinicRepository.findFirstByOwnerUserId(currentUser.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy clinic cho user này. Vui lòng tạo clinic trước."));
     }
@@ -99,7 +99,7 @@ public class ClinicServiceService {
 
         ClinicService savedService = clinicServiceRepository.save(service);
         log.info("Service created: {} by user: {} for clinic: {}",
-                savedService.getServiceId(), getCurrentUser().getUserId(), clinic.getId());
+                savedService.getServiceId(), getCurrentUser().getUserId(), clinic.getClinicId());
 
         return mapToResponse(savedService);
     }
@@ -301,7 +301,7 @@ public class ClinicServiceService {
 
         return ClinicServiceResponse.builder()
                 .serviceId(service.getServiceId())
-                .clinicId(service.getClinic().getId())
+                .clinicId(service.getClinic().getClinicId())
                 .name(service.getName())
                 .basePrice(service.getBasePrice())
                 .durationTime(service.getDurationTime())

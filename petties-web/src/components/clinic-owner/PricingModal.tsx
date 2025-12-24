@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X, MapPin, Navigation } from 'lucide-react'
+import { XMarkIcon, MapPinIcon, ArrowUpIcon } from '@heroicons/react/24/solid'
 
 export interface PricingData {
   pricePerKm: number
@@ -49,7 +49,7 @@ export function PricingModal({
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white border-2 border-black flex items-center justify-center shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
-              <MapPin size={24} className="text-black" />
+              <MapPinIcon className="w-6 h-6 text-black" />
             </div>
             <div>
               <h2 className="text-black font-[900] text-xl uppercase leading-tight">
@@ -65,7 +65,7 @@ export function PricingModal({
             onClick={onClose}
             className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black hover:bg-gray-100 transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:shadow-none active:translate-x-[3px] active:translate-y-[3px]"
           >
-            <X size={20} strokeWidth={3} className="text-black" />
+            <XMarkIcon className="w-5 h-5 text-black" />
           </button>
         </div>
 
@@ -74,7 +74,7 @@ export function PricingModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="flex items-center gap-2 font-[900] text-sm uppercase text-black">
-                <Navigation size={16} />
+                <ArrowUpIcon className="w-4 h-4" />
                 Giá mỗi KM (VNĐ)
               </label>
 

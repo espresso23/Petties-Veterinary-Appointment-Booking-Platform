@@ -1,5 +1,11 @@
 import { useState, useEffect, createContext, useContext, useCallback, useRef, type ReactNode } from 'react'
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react'
+import {
+    CheckCircleIcon,
+    ExclamationCircleIcon,
+    ExclamationTriangleIcon,
+    InformationCircleIcon,
+    XMarkIcon,
+} from '@heroicons/react/24/solid'
 import '../styles/brutalist.css'
 
 // Toast types
@@ -85,25 +91,25 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
             case 'success':
                 return {
                     bg: 'bg-[#22c55e]',
-                    icon: CheckCircle2,
+                    icon: CheckCircleIcon,
                     iconBg: 'bg-[#15803d]',
                 }
             case 'error':
                 return {
                     bg: 'bg-[#ef4444]',
-                    icon: AlertCircle,
+                    icon: ExclamationCircleIcon,
                     iconBg: 'bg-[#b91c1c]',
                 }
             case 'warning':
                 return {
                     bg: 'bg-[#f59e0b]',
-                    icon: AlertTriangle,
+                    icon: ExclamationTriangleIcon,
                     iconBg: 'bg-[#b45309]',
                 }
             case 'info':
                 return {
                     bg: 'bg-[#3b82f6]',
-                    icon: Info,
+                    icon: InformationCircleIcon,
                     iconBg: 'bg-[#1d4ed8]',
                 }
         }
@@ -122,7 +128,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
       `}
         >
             <div className={`p-1.5 border-2 border-black ${styles.iconBg} shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]`}>
-                <styles.icon size={20} className="text-white" strokeWidth={3} />
+                <styles.icon className="w-5 h-5 text-white" />
             </div>
 
             <p className="text-black font-black uppercase text-sm flex-1 tracking-tight">{toast.message}</p>
@@ -134,7 +140,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all active:translate-x-[2px] active:translate-y-[2px]"
             >
-                <X size={18} strokeWidth={3} />
+                <XMarkIcon className="w-5 h-5" />
             </button>
         </div>
     )

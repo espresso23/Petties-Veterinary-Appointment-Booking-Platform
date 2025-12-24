@@ -1,5 +1,20 @@
 import React, { useEffect, useState } from 'react'
-import { X, Loader2, Plus, Trash2, Edit2, Info, AlertCircle, Minus, Stethoscope, HeartPulse, Syringe, Scissors, Home, ChevronDown, Scale } from 'lucide-react'
+import {
+  XMarkIcon,
+  ArrowPathIcon,
+  PlusIcon,
+  TrashIcon,
+  PencilIcon,
+  InformationCircleIcon,
+  ExclamationCircleIcon,
+  MinusIcon,
+  BeakerIcon,
+  HeartIcon,
+  ScissorsIcon,
+  HomeIcon,
+  ChevronDownIcon,
+  ScaleIcon,
+} from '@heroicons/react/24/solid'
 import type { ClinicServiceResponse } from '../../types/service'
 import type { WeightPriceDto } from '../../types/service'
 
@@ -32,11 +47,11 @@ export function ServiceModal({
   const [isPetTypeOpen, setIsPetTypeOpen] = useState(false)
 
   const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: Stethoscope, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartPulse, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: Syringe, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: Scissors, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: Home, color: '#fffbeb' },
+    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
+    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
+    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
+    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
+    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
   ]
 
   const petTypes = [
@@ -149,7 +164,7 @@ export function ServiceModal({
             onClick={onClose}
             className="w-10 h-10 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.4)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
           >
-            <X size={24} strokeWidth={3} />
+            <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
@@ -240,7 +255,7 @@ export function ServiceModal({
                   className="w-12 h-12 flex items-center justify-center bg-[#ffcdd2] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#ef9a9a]"
                   disabled={slotsRequired <= 1}
                 >
-                  <Minus size={24} strokeWidth={3} className="text-black" />
+                  <MinusIcon className="w-6 h-6 text-black" />
                 </button>
 
                 <div className="w-24 h-14 border-4 border-black bg-white flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
@@ -252,7 +267,7 @@ export function ServiceModal({
                   onClick={() => setSlotsRequired(slotsRequired + 1)}
                   className="w-12 h-12 flex items-center justify-center bg-[#c8e6c9] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all hover:bg-[#a5d6a7]"
                 >
-                  <Plus size={24} strokeWidth={3} className="text-black" />
+                  <PlusIcon className="w-6 h-6 text-black" />
                 </button>
               </div>
 
@@ -262,7 +277,7 @@ export function ServiceModal({
             </div>
 
             <div className="p-4 bg-[#fff9c4] border-4 border-black flex items-start gap-3">
-              <AlertCircle size={24} className="text-amber-700 flex-shrink-0" />
+              <ExclamationCircleIcon className="w-6 h-6 text-amber-700 flex-shrink-0" />
               <div className="space-y-1">
                 <p className="font-black text-amber-900 text-sm uppercase">Quy tắc tính thời gian</p>
                 <ul className="text-xs font-bold text-amber-800 space-y-1">
@@ -310,7 +325,7 @@ export function ServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: selectedCategory.color }}
                     >
-                      <selectedCategory.icon size={20} className="text-black" />
+                      <selectedCategory.icon className="w-5 h-5 text-black" />
                     </div>
                     <span className="font-bold text-black">{selectedCategory.label}</span>
                   </>
@@ -318,9 +333,8 @@ export function ServiceModal({
                   <span className="font-bold text-gray-400">-- Chọn loại dịch vụ --</span>
                 )}
               </div>
-              <ChevronDown
-                size={24}
-                className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`}
+              <ChevronDownIconIcon
+                className={`w-6 h-6 transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
@@ -341,7 +355,7 @@ export function ServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: cat.color }}
                     >
-                      <cat.icon size={20} className="text-black" />
+                      <cat.icon className="w-5 h-5 text-black" />
                     </div>
                     <span className={`font-black uppercase text-sm ${serviceCategory === cat.id ? 'text-[#FF6B35]' : 'text-black'}`}>
                       {cat.label}
@@ -379,9 +393,8 @@ export function ServiceModal({
                 {selectedPetType ? selectedPetType.label : '-- Chọn loại thú nuôi --'}
                 {petType === 'Khác' && customPetType && ` (${customPetType})`}
               </span>
-              <ChevronDown
-                size={24}
-                className={`transition-transform duration-200 ${isPetTypeOpen ? 'rotate-180' : ''}`}
+              <ChevronDownIcon
+                className={`w-6 h-6 transition-transform duration-200 ${isPetTypeOpen ? 'rotate-180' : ''}`}
               />
             </button>
 
@@ -472,7 +485,7 @@ export function ServiceModal({
                   Click để quản lý bảng giá theo cân nặng
                 </div>
               </div>
-              <Edit2 size={24} className="text-white" />
+              <PencilIcon className="w-6 h-6 text-white" />
             </button>
           </div>
 
@@ -566,7 +579,7 @@ export function ServiceModal({
                 color: '#000000'
               }}
             >
-              {isSubmitting && <Loader2 className="w-5 h-5 animate-spin" />}
+              {isSubmitting && <ArrowPathIcon className="w-5 h-5 animate-spin" />}
               {isSubmitting
                 ? 'ĐANG XỬ LÝ...'
                 : initialData
@@ -593,14 +606,14 @@ export function ServiceModal({
               style={{ backgroundColor: '#FF6B35' }}
             >
               <h3 className="text-2xl font-black text-white uppercase flex items-center gap-2">
-                <Info size={28} className="text-white" />
+                <InformationCircleIcon className="w-7 h-7 text-white" />
                 Quản lý giá theo cân nặng
               </h3>
               <button
                 onClick={() => setShowWeightPriceModal(false)}
                 className="w-10 h-10 flex items-center justify-center bg-black text-white border-2 border-white hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.3)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
               >
-                <X size={20} strokeWidth={3} />
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
@@ -610,7 +623,7 @@ export function ServiceModal({
                 <div className="text-center py-16 px-8 border-4 border-dashed border-gray-300 bg-gray-50/50">
                   <div className="flex justify-center mb-6">
                     <div className="p-6 bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <Scale size={48} className="text-[#FF6B35]" strokeWidth={2.5} />
+                      <ScaleIcon className="w-12 h-12 text-[#FF6B35]" />
                     </div>
                   </div>
                   <p className="text-2xl font-black text-black uppercase mb-3">
@@ -631,7 +644,7 @@ export function ServiceModal({
                         // Edit Mode
                         <div className="space-y-4">
                           <div className="flex items-center gap-2 mb-2">
-                            <Edit2 size={18} className="text-[#FF6B35]" />
+                            <PencilIcon className="w-5 h-5 text-[#FF6B35]" />
                             <span className="font-black uppercase text-sm">Đang chỉnh sửa mức {index + 1}</span>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -686,7 +699,7 @@ export function ServiceModal({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 border-2 border-black bg-[#e0f2fe] flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                              <Scale size={20} className="text-black" />
+                              <ScaleIcon className="w-5 h-5 text-black" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2 mb-1">
@@ -704,14 +717,14 @@ export function ServiceModal({
                               className="w-10 h-10 flex items-center justify-center border-2 border-black bg-[#fff9c4] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
                               title="Chỉnh sửa"
                             >
-                              <Edit2 size={18} className="text-black" />
+                              <PencilIcon className="w-5 h-5 text-black" />
                             </button>
                             <button
                               onClick={() => handleRemoveWeightPrice(index)}
                               className="w-10 h-10 flex items-center justify-center border-2 border-black bg-[#ffcdd2] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
                               title="Xóa"
                             >
-                              <Trash2 size={18} className="text-black" />
+                              <TrashIcon className="w-5 h-5 text-black" />
                             </button>
                           </div>
                         </div>
@@ -728,7 +741,7 @@ export function ServiceModal({
                 onClick={handleAddWeightPrice}
                 className="flex items-center gap-2 px-4 py-3 bg-[#c8e6c9] text-black font-black border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase"
               >
-                <Plus size={20} strokeWidth={3} />
+                <PlusIcon className="w-5 h-5" />
                 Thêm mốc giá
               </button>
               <button

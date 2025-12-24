@@ -1,5 +1,5 @@
 import React from 'react'
-import { AlertCircle, X } from 'lucide-react'
+import { ExclamationCircleIcon, XMarkIcon } from '@heroicons/react/24/solid'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -48,7 +48,7 @@ export function ConfirmDialog({
               className="p-2 bg-white border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
               style={{ color: colors.icon }}
             >
-              <AlertCircle size={24} strokeWidth={3} />
+              <ExclamationCircleIcon className="w-6 h-6" />
             </div>
             <div>
               <h3 className="text-xl font-black uppercase text-black leading-tight">
@@ -61,7 +61,7 @@ export function ConfirmDialog({
             className="w-8 h-8 flex items-center justify-center bg-white border-2 border-black hover:bg-gray-100 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
             style={{ color: '#000000' }}
           >
-            <X size={18} strokeWidth={3} />
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
 

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { Plus, Loader2, AlertCircle } from 'lucide-react'
+import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
@@ -207,7 +207,7 @@ export function ServiceGrid() {
     return (
       <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-black" />
+          <ArrowPathIcon className="w-12 h-12 animate-spin text-black" />
           <p className="text-xl font-black uppercase text-gray-600">
             Đang tải dịch vụ...
           </p>
@@ -223,7 +223,7 @@ export function ServiceGrid() {
         <div className="max-w-2xl mx-auto">
           <div className="bg-red-100 border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <div className="flex items-start gap-4">
-              <AlertCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+              <ExclamationCircleIcon className="w-8 h-8 text-red-600 flex-shrink-0" />
               <div>
                 <h2 className="text-2xl font-black uppercase mb-2">
                   Lỗi tải dữ liệu
@@ -264,7 +264,7 @@ export function ServiceGrid() {
               style={{ backgroundColor: '#FF6B35' }}
               className="group flex items-center gap-2 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Plus size={24} strokeWidth={3} />
+              <PlusIcon className="w-6 h-6" />
               <span className="font-black text-lg uppercase tracking-wide">
                 Thêm dịch vụ
               </span>
@@ -341,7 +341,7 @@ export function ServiceGrid() {
                 style={{ backgroundColor: '#ffffff' }}
                 className="p-4 rounded-full border-2 border-black transition-colors"
               >
-                <Plus size={32} className="text-black" />
+                <PlusIcon className="w-8 h-8 text-black" />
               </div>
               <span
                 style={{ color: '#6b7280' }}
