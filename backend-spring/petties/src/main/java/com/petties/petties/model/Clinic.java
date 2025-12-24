@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,7 +37,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Clinic {
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "clinic_id", updatable = false, nullable = false)
@@ -45,6 +45,9 @@ public class Clinic {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
+
+    @OneToMany(mappedBy = "workingClinic", cascade = CascadeType.ALL)
+    private List<User> staff;
 
     @Column(name = "name", nullable = false, length = 200)
     private String name;
@@ -115,10 +118,7 @@ public class Clinic {
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClinicImage> images = new ArrayList<>();
 
-    // Note: Service and Booking relationships will be added when those entities are created
-    // @OneToMany(mappedBy = "clinic")
-    // private List<Service> services = new ArrayList<>();
+    @OneToMany(mappedBy = "clinic")
+    private List<Service> services = new ArrayList<>();
     
-    // @OneToMany(mappedBy = "clinic")
-    // private List<Booking> bookings = new ArrayList<>();
 }

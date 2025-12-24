@@ -85,7 +85,8 @@ flowchart TB
     
     %% Clinic Owner flows
     CO -->|"Register Clinic"| SYSTEM
-    CO -->|"Create/Update Services, Pricing"| SYSTEM
+    CO -->|"Manage Master Services (Templates + Weight Tiers)"| SYSTEM
+    CO -->|"Configure Clinic Services (Inherit or Custom)"| SYSTEM
     CO -->|"Add Clinic Manager"| SYSTEM
     SYSTEM -->|"Clinic Status, Revenue Report"| CO
     SYSTEM -->|"Dashboard Analytics"| CO
@@ -187,7 +188,8 @@ graph TB
 |-------|----------|----------|--------|
 | UC-CM-01 | Đăng nhập | High | 1 |
 | UC-CM-02 | Xem danh sách bác sĩ | High | 3 |
-| UC-CM-03 | Thêm bác sĩ (gửi email mời) | High | 3 |
+| UC-CM-03 | Thêm nhanh bác sĩ (Quick Add) | High | 3 |
+| UC-CM-03b| Gán bác sĩ từ tài khoản có sẵn | Medium | 3 |
 | UC-CM-04 | Import lịch bác sĩ từ Excel | Medium | 3 |
 | UC-CM-05 | Tạo lịch bác sĩ thủ công | High | 3 |
 | UC-CM-06 | Xem booking mới | High | 4 |
@@ -200,10 +202,13 @@ graph TB
 |-------|----------|----------|--------|
 | UC-CO-01 | Đăng ký phòng khám | High | 2 |
 | UC-CO-02 | Quản lý thông tin phòng khám | High | 2 |
-| UC-CO-03 | Tạo/Sửa/Xóa dịch vụ | High | 2 |
-| UC-CO-04 | Cấu hình giá dịch vụ | High | 2 |
+| UC-CO-03 | Quản lý Dịch vụ tại phòng khám (Hybrid) | High | 2 |
+| UC-CO-04 | Cấu hình giá & Khung cân nặng | High | 2 |
+| UC-CO-08 | Quản lý Danh mục Dịch vụ (Master Services) | High | 2 |
+| UC-CO-09 | Cài đặt Khung giá Cân nặng (Weight Tiers) | High | 2 |
 | UC-CO-05 | Xem Dashboard doanh thu | Medium | 9 |
-| UC-CO-06 | Thêm Clinic Manager | Medium | 3 |
+| UC-CO-06 | Thêm nhanh quản lý (Quick Add) | Medium | 3 |
+| UC-CO-07 | Quản lý nhân sự (Manager & Vet) | Medium | 3 |
 
 #### 2.2.5 Admin Use Cases
 
@@ -415,22 +420,42 @@ erDiagram
 
 #### 3.1.6 Entities Description
 
-| Entity | Description | Key Attributes |
-|--------|-------------|----------------|
-| **USER** | Người dùng hệ thống (5 roles) | id, username, email, password, role, avatar |
-| **PET** | Thú cưng của Pet Owner | id, owner_id, name, species, breed, birth_date |
-| **CLINIC** | Phòng khám thú y | id, owner_id, name, address, phone, status, rating_avg |
-| **CLINIC_STAFF** | Nhân viên phòng khám | id, clinic_id, user_id, role (VET/MANAGER), specialization |
-| **SERVICE** | Dịch vụ khám | id, clinic_id, name, base_price, duration_minutes, slots_required |
-| **VET_SHIFT** | Ca làm việc bác sĩ | id, vet_id, clinic_id, work_date, start_time, end_time |
-| **SLOT** | Slot thời gian (30 phút) | id, shift_id, slot_number, start_time, end_time, status |
-| **BOOKING** | Lịch hẹn khám | id, pet_id, clinic_id, service_id, assigned_vet_id, booking_date, type, status, total_price |
-| **PAYMENT** | Thanh toán | id, booking_id, amount, method, status, stripe_payment_id |
-| **EMR** | Hồ sơ bệnh án điện tử | id, booking_id, pet_id, vet_id, diagnosis, treatment_plan |
-| **PRESCRIPTION** | Đơn thuốc | id, emr_id, medicine_name, dosage, frequency, duration_days |
-| **VACCINATION** | Tiêm chủng | id, pet_id, vet_id, vaccine_name, vaccination_date, next_due_date |
-| **REVIEW** | Đánh giá | id, booking_id, reviewer_id, type (VET/CLINIC), rating, comment |
 | **NOTIFICATION** | Thông báo | id, user_id, title, content, is_read |
+| **MASTER_SERVICE**| Danh mục dịch vụ chung (Template) | id, owner_id, name, service_type, default_base_price |
+| **SERVICE_WEIGHT_PRICE** | Khung giá theo cân nặng | id, service_id, min_weight, max_weight, price |
+
+---
+
+### 3.2 Use Case Specifications
+
+#### 3.2.1 UC-CO-08: Quản lý Danh mục Dịch vụ (Master Services)
+
+- **Actor:** Clinic Owner
+- **Description:** Chủ phòng khám tạo các bản mẫu dịch vụ (Template) để áp dụng nhanh cho nhiều chi nhánh/phòng khám con.
+- **Pre-conditions:** Clinic Owner đã đăng nhập thành công.
+- **Basic Flow:**
+    1. Actor truy cập màn hình "Quản lý Danh mục Dịch vụ".
+    2. Actor chọn "Thêm dịch vụ mới".
+    3. Actor nhập thông tin: Tên, Loại dịch vụ, Mô tả, Icon, Giá mặc định, Khung cân nặng mặc định.
+    4. Hệ thống kiểm tra tính hợp lệ của dữ liệu.
+    5. Hệ thống lưu dịch vụ vào bảng `MASTER_SERVICE`.
+- **Post-conditions:** Dịch vụ mới xuất hiện trong danh sách Danh mục chung, sẵn sàng để gán cho các Clinic.
+
+#### 3.2.2 UC-CO-03: Quản lý Dịch vụ tại phòng khám (Hybrid Model)
+
+- **Actor:** Clinic Owner/Manager
+- **Description:** Cấu hình dịch vụ thực tế cho một phòng khám cụ thể dựa trên danh mục chung hoặc tạo dịch vụ riêng biệt.
+- **Basic Flow:**
+    1. Actor truy cập màn hình "Quản lý Dịch vụ" của một phòng khám cụ thể.
+    2. Actor có 2 lựa chọn:
+        - **Option A (Thừa hưởng):** Actor chọn từ danh sách "Master Services". Hệ thống tự động điền các thông tin và giá đã cấu hình sẵn. Actor có thể ghi đè (Override) giá nếu cần.
+        - **Option B (Tùy chỉnh):** Actor tự nhập toàn bộ thông tin cho một dịch vụ riêng biệt (master_service_id = null).
+    3. Actor thiết lập trạng thái Hoạt động (Active/Inactive).
+    4. Hệ thống lưu vào bảng `SERVICE`.
+- **Business Rules:**
+    - Giá dịch vụ tại phòng khám = Base Price + Tiered Weight Price (nếu có).
+    - Mọi thay đổi ở Master Service sẽ không tự động ghi đè các giá đã được Override ở Clinic Service (để bảo toàn cấu hình riêng của chi nhánh).
+
 
 ---
 
@@ -559,11 +584,22 @@ erDiagram
 
 | Rule ID | Rule Description |
 |---------|-----------------|
-| BR-003-01 | Email là unique, có thể thay đổi thông qua quy trình xác thực OTP (gửi về email mới) |
+| BR-003-01 | Số điện thoại là định danh chính (Username). Email là optional (có thể để trống) |
 | BR-003-02 | Password tối thiểu 8 ký tự, có chữ và số |
 | BR-003-03 | OTP có hiệu lực 5 phút, tối đa 5 lần thử |
-| BR-003-04 | Vet account được tạo bởi Clinic Manager, không tự đăng ký |
+| BR-003-04 | Staff account (Manager/Vet) được tạo bởi Owner/Manager qua tính năng Quick Add |
 | BR-003-05 | Clinic phải được Admin approve trước khi hoạt động |
+
+#### BR-008: Staff Management Rules (Quản lý nhân sự)
+
+| Rule ID | Rule Description |
+|---------|-----------------|
+| BR-008-01 | Quick Add Staff: Chỉ yêu cầu Họ tên, Số điện thoại và Vai trò |
+| BR-008-02 | Mật khẩu mặc định khi Quick Add là **6 số cuối của số điện thoại** |
+| BR-008-03 | Clinic Owner có quyền thêm cả Manager và Vet; Clinic Manager chỉ có quyền thêm Vet |
+| BR-008-04 | Một nhân viên chỉ thuộc về (đang làm việc tại) duy nhất một chi nhánh phòng khám tại một thời điểm |
+| BR-008-05 | Sau khi được thêm, nhân viên có thể đăng nhập ngay lập tức bằng SĐT và MK mặc định |
+| BR-008-06 | Hệ thống khuyến khích nhân viên cập nhật email và đổi mật khẩu trong lần đầu đăng nhập |
 
 #### BR-004: Scheduling Rules
 

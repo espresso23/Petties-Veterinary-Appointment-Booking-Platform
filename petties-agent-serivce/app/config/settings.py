@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="0.0.1", description="Version của service")
     APP_DEBUG: bool = Field(default=True, description="Debug mode")
 
-    # Environment flag (Render sẽ set ENVIRONMENT=production)
     ENVIRONMENT: str = Field(default="development", description="Environment name")
 
     # ==================== Server Configuration ====================

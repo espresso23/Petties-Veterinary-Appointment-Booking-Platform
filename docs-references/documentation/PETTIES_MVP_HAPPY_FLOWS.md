@@ -161,12 +161,11 @@
 **Actor:** Clinic Owner (Web)
 
 ```
-1. Dashboard → "Quản lý dịch vụ"
-2. Thêm dịch vụ: Tên, giá, thời lượng
-3. Sửa giá / Bật-tắt dịch vụ
-4. "Quản lý nhân viên" → Thêm bác sĩ
-5. Nhập email bác sĩ → Hệ thống gửi email mời
-6. Bác sĩ nhận email → Đặt mật khẩu → Đăng nhập
+1. Dashboard → "Quản lý nhân viên" (Staff Management)
+2. Chọn "Thêm nhân viên" (Quick Add)
+3. Nhập: Họ tên, Số điện thoại, Vai trò (Vet/Manager)
+4. Lưu → Tài khoản được tạo ngay lập tức
+5. Nhân viên đăng nhập bằng: SĐT / [6 số cuối SĐT]
 ```
 
 ---
