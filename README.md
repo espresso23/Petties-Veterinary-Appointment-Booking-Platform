@@ -111,7 +111,7 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │      AI LAYER (Python)              │
 │  - Python 3.12                      │
 │  - FastAPI + Uvicorn                │
-│  - Single Agent + ReAct Pattern     │
+│  - Single Agent + ReAct Pattern LangGraph│
 │  - OpenRouter API (Cloud LLM)       │
 │  - Cohere Embeddings (Cloud)        │
 │  - LlamaIndex (RAG)                 │
