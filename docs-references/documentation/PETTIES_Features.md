@@ -5,8 +5,8 @@
 ## 🎯 5 ROLES & CORE FEATURES
 
 ### 🐕 **ROLE 1: PET_OWNER (Customer đồng thời là chủ thú cưng) MOBILE ONLY**
-1. Đăng ký / Đăng nhập
-2. Quản lý hồ sơ cá nhân
+1. Đăng ký / Đăng nhập ✅
+2. Quản lý hồ sơ cá nhân ✅
 3. Tạo/sửa hồ sơ thú cưng
 4. Tìm kiếm phòng khám
 5. Tìm kiếm bác sĩ
@@ -19,18 +19,18 @@
 12. Xem hồ sơ y tế thú cưng (EMR)
 13. Xem sổ tiêm chủng
 14. Đánh giá & review bác sĩ
-15. 🆕 Chat với AI Chatbot (Pet Care Assistant)
-16. 🆕 SOS - Cấp cứu khẩn cấp
-17. 🆕 Video Consultation (Tư vấn video từ xa)
-18. 🆕 Xem đơn thuốc trong hồ sơ bệnh án (EMR)
-19. 🆕 Nhận thông báo & nhắc nhở (Push/Email/SMS)
-20. 🆕 Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
+15. Chat với AI Chatbot (Pet Care Assistant)
+16. SOS - Cấp cứu khẩn cấp
+17. Video Consultation (Tư vấn video từ xa)
+18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
+19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
+20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
 
 ---
 
 ### 👨‍⚕️ **ROLE 2: VET (Bác sĩ thú y) MOBILE + WEB**
-1. Đăng nhập từ account được cấp
-2. Xem hồ sơ của tôi
+1. Đăng nhập từ account được cấp ✅
+2. Xem hồ sơ của tôi ✅
 3. Xem lịch làm việc của tôi
 4. Xem booking được gán
 5. Phê duyệt booking
@@ -41,17 +41,16 @@
 10. Xem sổ tiêm chủng của pet
 11. Ghi chú hồ sơ bệnh án (tạo EMR)
 12. Cập nhật sổ tiêm chủng
-13. 🆕 Video Consultation với pet owner
-14. 🆕 Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
-15. 🆕 Cập nhật EMR từ xa
+13. Video Consultation với pet owner(optionally)
+14. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
 
 ---
 
 ### 👨‍💼 **ROLE 3: CLINIC_MANAGER (Quản lý phòng khám) WEB-ONLY**
-1. Đăng nhập
-2. Xem danh sách bác sĩ
-3. Thêm bác sĩ thủ công (bác sĩ sẽ được cấp tài khoản để đăng nhập sau khi thêm)
-4. Xóa/bỏ liên kết bác sĩ
+1. Đăng nhập ✅
+2. Xem danh sách bác sĩ ✅ (BE)
+3. Thêm bác sĩ thủ công ✅ (BE)
+4. Xóa/bỏ liên kết bác sĩ ✅ (BE)
 5. Import lịch bác sĩ từ Excel
 6. Import lịch bác sĩ thủ công
 7. Xem booking mới
@@ -66,14 +65,17 @@
 ---
 
 ### 🏥 **ROLE 4: CLINIC_OWNER (Chủ phòng khám) WEB-ONLY**
-1. Đăng nhập
+1. Đăng nhập ✅
 2. Quản lý thông tin phòng khám
-3. Tạo dịch vụ
-4. Sửa dịch vụ
-5. Xóa dịch vụ
-6. Cấu hình giá dịch vụ(giá cơ bản + giá theo số km)
-7. Xem Dashboard Phòng Khám
-8. Theo dõi doanh thu
+3. **Quản lý Danh mục Dịch vụ (Master Services):**
+    - Tạo danh mục dịch vụ tiêu chuẩn (Tên, Category, Mô tả, Icon, Giá mặc định).
+    - Cấu hình giá sẵn để gán nhanh cho các phòng khám.
+4. **Quản lý Dịch vụ tại Phòng khám (Clinic Services):**
+    - **Thừa hưởng (Inherit):** Áp dụng từ Master Services với giá đã cấu hình sẵn (có thể ghi đè/override giá riêng nếu muốn).
+    - **Tự tạo (Custom):** Tạo các dịch vụ riêng biệt chỉ có tại phòng khám đó.
+    - Cấu hình giá chi tiết (Base price, Price per KM) và trạng thái (Active/Inactive) cho từng dịch vụ cụ thể.
+5. Xem Dashboard Phòng Khám
+6. Theo dõi doanh thu ✅ (BE)
 
 
 ---
@@ -81,39 +83,39 @@
 ### 👨‍💻 **ROLE 5: ADMIN (Admin nền tảng) WEB ONLY**
 
 #### **Platform Management (Quản lý Nền tảng)**
-1. Đăng nhập
+1. Đăng nhập ✅
 2. Xem danh sách các clinic pending chờ duyệt
 3. Phê duyệt clinic
 4. Từ chối clinic
 5. Xem thống kê nền tảng, doanh thu
 6. Thống kê người dùng và giao dịch
 9. Xem đơn tố cáo xử lý vi phạm của clinic, người dùng.
-10. 🆕 **Agent Configuration**
+11. **Agent Configuration**
     - Quản lý Agent theo cấu trúc phân cấp (Main Agent + Sub-Agents)
     - Chỉnh sửa System Prompt với version control (không ưu tiên)
     - Điều chỉnh Model Hyperparameters (Temperature, Max Tokens, Top-P)
     - Bật/tắt Agent (Enable/Disable)
 
-11. 🆕 **Tool Management (Code-based)**
+11. **Tool Management (Code-based)**
     - Quét và đồng bộ Code-based Tools từ Python (@mcp.tool)
     - Xem Request/Response Schema cho mỗi tool
     - Gán Tools cho Agents
     - Bật/tắt Tools (Enable/Disable)
 
-12. 🆕 **Knowledge Base Management (RAG)**
+12. **Knowledge Base Management (RAG)**
     - Upload tài liệu (PDF, DOCX, TXT, MD)
     - Theo dõi trạng thái indexing (chunking & vectorization)
     - Test RAG retrieval với query examples
     - Xem vector count và storage usage
 
-13. 🆕 **Agent Playground & Debugging**
+13. **Agent Playground & Debugging**
     - Interactive Chat Simulator để test agents
     - Hierarchical Flow Visualization (agent handoffs)
     - Xem Thinking Process và Tool Calls
     - Citation View (RAG sources + Web URLs)
     - Feedback system (Good/Bad responses)
 
-14. 🆕 **System & Security Configuration**
+14. **System & Security Configuration**
     - Dynamic API Key Management (OpenRouter, Cohere, Qdrant, Tavily)
     - LLM Provider Configuration (OpenRouter Cloud API)
     - Model Selection (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet)
@@ -165,9 +167,8 @@
   - Hủy lịch hẹn
 
 ### AI Tools (FastMCP Protocol)
-- 🔧 `check_slot` - Kiểm tra slot trống cho booking
+- 🔧 `create_booking` - Chọn service và tạo lịch hẹn tự động
 - 🔧 `search_symptoms` - Tìm bệnh dựa trên triệu chứng
-- 🔧 `create_booking` - Tạo lịch hẹn tự động
 - 🔧 `RAG_search` - Tra cứu thông tin y tế
 
 ### Admin Tool Management
@@ -232,64 +233,53 @@
 - Hỗ trợ đa ngôn ngữ
 - Timezone support - Múi giờ
 
-### 👨‍⚕️ Vet Account Creation Flow (Clinic Manager → Vet)
+### 👨‍⚕️ Vet/Manager Account Creation Flow (Quick Add) ✅ (Backend Done)
+**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh và cấp tài khoản cho nhân sự (thông qua SĐT).
 
-**Mô tả:** Quy trình để CLINIC_MANAGER thêm và cấp tài khoản cho VET
+#### Screen Flows:
+1. Owner/Manager truy cập màn hình "Quản lý nhân sự" (Staff Management).
+2. Chọn "Thêm nhân viên" (Quick Add).
+3. Nhập các thông tin tối giản:
+    - Họ và tên
+    - Số điện thoại (Bắt buộc, dùng làm Username)
+    - Vai trò (Clinic Manager hoặc Vet)
+4. Hệ thống:
+    - Kiểm tra SĐT đã tồn tại chưa.
+    - Tạo tài khoản với `username = phone`.
+    - Tạo mật khẩu mặc định = **6 số cuối SĐT**.
+    - Gán `workingClinic` trỏ về chi nhánh hiện tại.
+5. Nhân viên sử dụng SĐT và mật khẩu mặc định để đăng nhập vào Web/Mobile ngay lập tức.
 
-#### Flow Diagram:
-```
-1. CLINIC_MANAGER điền form thêm Vet
-         ↓
-2. Hệ thống validate email
-         ↓
-3. Tạo account với status = PENDING_ACTIVATION
-         ↓
-4. Gửi email kích hoạt cho Vet (có link + token)
-         ↓
-5. VET click link, đặt mật khẩu mới
-         ↓
-6. Account status = ACTIVE → Có thể đăng nhập
-```
-
-#### Form thêm Vet (CLINIC_MANAGER nhập):
+#### Form thêm nhanh (Quick Add Form):
 | Field | Required | Description |
 |-------|----------|-------------|
-| Họ và tên | ✅ | Tên đầy đủ của bác sĩ |
-| Email | ✅ | Email để gửi thông tin đăng nhập |
-| Số điện thoại | ✅ | Liên hệ |
-| Chuyên khoa | ✅ | Nội khoa, Ngoại khoa, Da liễu, Mắt, Răng... |
-| Bằng cấp/Chứng chỉ | ❌ | Upload file (optional) |
-
-#### API Design:
-```
-POST /api/clinics/{clinicId}/vets
-{
-  "fullName": "Nguyễn Văn A",
-  "email": "vet@example.com",
-  "phone": "0901234567",
-  "specialization": "INTERNAL_MEDICINE"
-}
-```
-
-#### Email Template cho Vet:
-- **Subject:** 🎉 Bạn đã được thêm vào [Tên Phòng Khám] trên Petties
-- **Content:** Link kích hoạt (hết hạn sau 72 giờ)
-- **Action:** Click link → Trang đặt mật khẩu mới
+| Họ và tên | ✅ | Tên đầy đủ |
+| Số điện thoại | ✅ | Định danh đăng nhập, mã xác thực sau này |
+| Vai trò | ✅ | Chọn Clinic Manager hoặc Vet |
 
 #### Account States:
 | Status | Mô tả | Đăng nhập? |
 |--------|-------|------------|
-| `PENDING_ACTIVATION` | Mới tạo, chưa kích hoạt | ❌ |
-| `ACTIVE` | Đã kích hoạt, hoạt động | ✅ |
-| `DEACTIVATED` | Bị vô hiệu hóa | ❌ |
-
-#### Bảo mật:
-- ✅ Không gửi mật khẩu qua email
-- ✅ Token hết hạn sau 72 giờ
-- ✅ Vet tự đặt mật khẩu
-- ✅ 1 email = 1 account
+| `ACTIVE` | Hoạt động bình thường | ✅ |
+| `DEACTIVATED` | Nghỉ việc / Bị vô hiệu hóa | ❌ |
 
 ---
+
+### 👨‍💼 Quản lý Lịch làm việc (Manual Scheduling Flow)
+**Mô tả:** Quy trình CLINIC_MANAGER tạo lịch làm việc cho bác sĩ và hệ thống tự động sinh Slot.
+
+#### Quy trình chi tiết:
+1. **Manager chọn Bác sĩ & Ngày**: Chọn bác sĩ từ danh sách và chọn ngày trên Calendar.
+2. **Nhập thời gian**:
+    - Giờ bắt đầu (Start Time): ví dụ 08:00
+    - Giờ kết thúc (End Time): ví dụ 17:00
+    - Thời gian nghỉ (Break Start/End): ví dụ 12:00 - 13:00 (Hệ thống sẽ không tạo Slot trong lúc này).
+3. **Hệ thống xử lý (Background)**:
+    - Kiểm tra Overlap: Bác sĩ đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
+    - Chia nhỏ thời gian thành các Slot 30 phút.
+    - Lưu vào DB: 1 bản ghi `VetShift` và danh sách các `Slot`.
+4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
+
 
 ## 🔑 KEY FEATURES SUMMARY
 
@@ -297,6 +287,7 @@ POST /api/clinics/{clinicId}/vets
 ✅ **Shared EMR** (All clinics see medical history)  
 ✅ **Shared vaccination records** (Across clinics)  
 ✅ **Dynamic pricing** (Base + fees)  
+✅ **Hybrid Service Model** (Master Services + Custom Services)
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Excel import** (Batch schedule)  
 ✅ **Manual import** (Thêm lịch thủ công)  

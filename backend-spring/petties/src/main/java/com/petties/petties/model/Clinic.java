@@ -16,6 +16,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,9 +36,12 @@ public class Clinic {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false, updatable = false)
     private User owner;
+
+    @OneToMany(mappedBy = "workingClinic", cascade = CascadeType.ALL)
+    private List<User> staff;
 
     @Column(name = "name", nullable = false, length = 200)
     private String name;
@@ -76,4 +80,3 @@ public class Clinic {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 }
-

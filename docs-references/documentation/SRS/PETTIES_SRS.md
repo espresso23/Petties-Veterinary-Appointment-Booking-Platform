@@ -187,7 +187,8 @@ graph TB
 |-------|----------|----------|--------|
 | UC-CM-01 | Đăng nhập | High | 1 |
 | UC-CM-02 | Xem danh sách bác sĩ | High | 3 |
-| UC-CM-03 | Thêm bác sĩ (gửi email mời) | High | 3 |
+| UC-CM-03 | Thêm nhanh bác sĩ (Quick Add) | High | 3 |
+| UC-CM-03b| Gán bác sĩ từ tài khoản có sẵn | Medium | 3 |
 | UC-CM-04 | Import lịch bác sĩ từ Excel | Medium | 3 |
 | UC-CM-05 | Tạo lịch bác sĩ thủ công | High | 3 |
 | UC-CM-06 | Xem booking mới | High | 4 |
@@ -203,7 +204,8 @@ graph TB
 | UC-CO-03 | Tạo/Sửa/Xóa dịch vụ | High | 2 |
 | UC-CO-04 | Cấu hình giá dịch vụ | High | 2 |
 | UC-CO-05 | Xem Dashboard doanh thu | Medium | 9 |
-| UC-CO-06 | Thêm Clinic Manager | Medium | 3 |
+| UC-CO-06 | Thêm nhanh quản lý (Quick Add) | Medium | 3 |
+| UC-CO-07 | Quản lý nhân sự (Manager & Vet) | Medium | 3 |
 
 #### 2.2.5 Admin Use Cases
 
@@ -559,11 +561,22 @@ erDiagram
 
 | Rule ID | Rule Description |
 |---------|-----------------|
-| BR-003-01 | Email là unique, có thể thay đổi thông qua quy trình xác thực OTP (gửi về email mới) |
+| BR-003-01 | Số điện thoại là định danh chính (Username). Email là optional (có thể để trống) |
 | BR-003-02 | Password tối thiểu 8 ký tự, có chữ và số |
 | BR-003-03 | OTP có hiệu lực 5 phút, tối đa 5 lần thử |
-| BR-003-04 | Vet account được tạo bởi Clinic Manager, không tự đăng ký |
+| BR-003-04 | Staff account (Manager/Vet) được tạo bởi Owner/Manager qua tính năng Quick Add |
 | BR-003-05 | Clinic phải được Admin approve trước khi hoạt động |
+
+#### BR-008: Staff Management Rules (Quản lý nhân sự)
+
+| Rule ID | Rule Description |
+|---------|-----------------|
+| BR-008-01 | Quick Add Staff: Chỉ yêu cầu Họ tên, Số điện thoại và Vai trò |
+| BR-008-02 | Mật khẩu mặc định khi Quick Add là **6 số cuối của số điện thoại** |
+| BR-008-03 | Clinic Owner có quyền thêm cả Manager và Vet; Clinic Manager chỉ có quyền thêm Vet |
+| BR-008-04 | Một nhân viên chỉ thuộc về (đang làm việc tại) duy nhất một chi nhánh phòng khám tại một thời điểm |
+| BR-008-05 | Sau khi được thêm, nhân viên có thể đăng nhập ngay lập tức bằng SĐT và MK mặc định |
+| BR-008-06 | Hệ thống khuyến khích nhân viên cập nhật email và đổi mật khẩu trong lần đầu đăng nhập |
 
 #### BR-004: Scheduling Rules
 

@@ -43,10 +43,10 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
-    @Column(name = "phone", length = 20)
+    @Column(name = "phone", unique = true, length = 20)
     private String phone;
 
-    @Column(name = "email", nullable = false, unique = true, length = 100)
+    @Column(name = "email", unique = true, length = 100)
     private String email;
 
     @Column(name = "full_name", length = 100)
@@ -72,4 +72,14 @@ public class User {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    // For Clinic Owners: The clinic they own
+    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL)
+    private Clinic ownedClinic;
+
+    // For Managers and Vets: The clinic they belong to
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "working_clinic_id")
+    private Clinic workingClinic;
+
 }
