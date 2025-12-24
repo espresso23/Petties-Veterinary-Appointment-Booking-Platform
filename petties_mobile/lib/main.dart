@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
+import 'providers/user_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
 import 'core/utils/storage_service.dart';
@@ -10,11 +12,13 @@ import 'core/utils/storage_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase (skip if not configured - for development)
+  // Initialize Firebase with platform-specific options
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (e) {
-    debugPrint('Firebase not configured: $e');
+    debugPrint('Firebase initialization error: $e');
   }
   
   
@@ -23,10 +27,16 @@ void main() async {
   
   // Create AuthProvider instance (singleton)
   final authProvider = AuthProvider();
-  
+
+  // Create UserProvider instance
+  final userProvider = UserProvider();
+
   runApp(
-    ChangeNotifierProvider.value(
-      value: authProvider,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: authProvider),
+        ChangeNotifierProvider.value(value: userProvider),
+      ],
       child: PettiesApp(authProvider: authProvider),
     ),
   );

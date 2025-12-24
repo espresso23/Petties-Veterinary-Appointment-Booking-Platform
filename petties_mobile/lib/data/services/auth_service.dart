@@ -242,5 +242,59 @@ class AuthService {
     final accessToken = await _storage.getString(AppConstants.accessTokenKey);
     return accessToken != null && accessToken.isNotEmpty;
   }
+
+  // ===== FORGOT PASSWORD FLOW =====
+
+  /// Step 1: Gửi OTP đến email để reset password
+  /// POST /auth/forgot-password
+  Future<SendOtpResponse> forgotPassword({required String email}) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/forgot-password',
+        data: {'email': email},
+      );
+      return SendOtpResponse.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Step 2: Reset password với OTP
+  /// POST /auth/reset-password
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String otpCode,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/reset-password',
+        data: {
+          'email': email,
+          'otpCode': otpCode,
+          'newPassword': newPassword,
+          'confirmPassword': confirmPassword,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Gửi lại OTP cho forgot password
+  /// POST /auth/forgot-password/resend-otp?email=xxx
+  Future<SendOtpResponse> resendPasswordResetOtp({required String email}) async {
+    try {
+      final response = await _apiClient.post(
+        '/auth/forgot-password/resend-otp',
+        queryParameters: {'email': email},
+      );
+      return SendOtpResponse.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
 

@@ -1,15 +1,5 @@
 # Petties - Development Commands
 
-## Quick Reference
-
-| Môi trường | Command |
-|------------|---------|
-| **Full Dev (Docker)** | `.\scripts\dev-start.bat` |
-| **DB Only** | `.\scripts\dev-db-only.bat` |
-| **Stop All** | `.\scripts\dev-stop.bat` |
-| **Test Prod** | `.\scripts\prod-test.bat` |
-
----
 
 ## 1. Development với Docker (Recommended)
 
@@ -17,10 +7,11 @@
 
 ```bash
 # Start all (PostgreSQL, MongoDB, Backend, AI Service)
-.\scripts\dev-start.bat
-
-# Hoặc manually:
 docker-compose -f docker-compose.dev.yml up --build -d
+
+docker-compose -f docker-compose.dev.yml up backend --build -d
+
+docker-compose -f docker-compose.dev.yml up ai-service --build -d
 
 # View logs
 docker-compose -f docker-compose.dev.yml logs -f
@@ -28,9 +19,8 @@ docker-compose -f docker-compose.dev.yml logs -f
 # View specific service logs
 docker-compose -f docker-compose.dev.yml logs -f backend
 docker-compose -f docker-compose.dev.yml logs -f ai-service
-
 # Stop all
-.\scripts\dev-stop.bat
+docker-compose -f docker-compose.dev.yml down -v
 ```
 
 **Services sẽ chạy tại:**
@@ -45,9 +35,6 @@ docker-compose -f docker-compose.dev.yml logs -f ai-service
 
 ```bash
 # Start databases only
-.\scripts\dev-db-only.bat
-
-# Hoặc manually:
 docker-compose -f docker-compose.db-only.yml up -d
 ```
 
@@ -68,7 +55,12 @@ npm run dev
 
 # Terminal 4 - Mobile
 cd petties_mobile
-flutter run
+
+# Option 1: Android Emulator (default 10.0.2.2)
+flutter run --flavor dev --dart-define=FLAVOR=dev
+
+# Option 2: Real Device / LAN (thay IP)
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
 ```
 
 ---
@@ -81,6 +73,7 @@ flutter run
 |------|---------|----------|
 | `application.properties` | Base | Config chung |
 | `application-dev.properties` | dev | Local Docker DBs |
+| `application-test.properties` | test | Test Env cho System Test) |
 | `application-prod.properties` | prod | Cloud DBs (Neon, Atlas) |
 
 **Cách switch profile:**
@@ -129,8 +122,11 @@ cp .env.development .env
 
 **Build modes:**
 ```bash
-# Development
-flutter run
+# Development (Emulator)
+flutter run --flavor dev --dart-define=FLAVOR=dev
+
+# Development (Real Device - LAN)
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://<YOUR_LAN_IP>:8080/api
 
 # Production (uses prod URLs automatically)
 flutter build apk --release
@@ -166,6 +162,19 @@ db.collection_name.find()
 exit
 ```
 
+### Redis
+```bash
+# Access container
+docker exec -it petties-dev-redis redis-cli
+
+# Common commands
+ping                    # Check connection
+keys *                  # List all keys
+get key_name            # Get value
+flushall                # Clear all data
+exit
+```
+
 ### Reset Databases (xóa hết data!)
 ```bash
 docker-compose -f docker-compose.dev.yml down -v
@@ -174,47 +183,79 @@ docker-compose -f docker-compose.dev.yml up -d
 
 ---
 
-## 4. Ollama (Local LLM)
+## 4. Cloud AI Services (Production)
 
-### Setup
+### Cấu hình Cloud APIs
+
+Petties sử dụng **Cloud-Only Architecture** - không cần cài đặt local AI.
+
+**Các API cần cấu hình:**
+
+| Service | Provider | Free Tier | Mục đích |
+|---------|----------|-----------|----------|
+| **LLM** | OpenRouter | Free models | Chat, reasoning |
+| **Embeddings** | Cohere | 1,000/month | Vector search |
+| **Vector DB** | Qdrant Cloud | 1GB | RAG storage |
+| **Web Search** | Tavily | 1,000/month | Research agent |
+
+### Environment Variables (AI Service)
+
 ```bash
-# Install Ollama
-# https://ollama.ai/download
+# .env cho petties-agent-service
+# LLM Provider (OpenRouter)
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-your-openrouter-key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
 
-# Pull PRIMARY models (theo Technical Scope)
-ollama pull kimi-k2              # Primary LLM (Vietnamese reasoning + tool calling)
-ollama pull nomic-embed-text     # Embeddings (RAG, multilingual)
+# Embeddings (Cohere)
+EMBEDDING_PROVIDER=cohere
+COHERE_API_KEY=your-cohere-key
+EMBEDDING_MODEL=embed-multilingual-v3
 
-# Pull ALTERNATIVE models (optional)
-ollama pull llama3               # Fallback LLM
-ollama pull mistral              # Fallback LLM
-ollama pull gemma                # Fallback LLM
-ollama pull qwen2.5:7b           # Alternative LLM
+# Vector Database (Qdrant Cloud)
+QDRANT_URL=https://xxx.qdrant.io
+QDRANT_API_KEY=your-qdrant-key
+QDRANT_COLLECTION=petties_knowledge
 
-# Start Ollama
-ollama serve
-# Chạy tại http://localhost:11434
+# Web Search (Tavily)
+TAVILY_API_KEY=your-tavily-key
 ```
 
-### Test
+### Lấy API Keys
+
+1. **OpenRouter:** https://openrouter.ai/keys
+2. **Cohere:** https://dashboard.cohere.com/api-keys
+3. **Qdrant Cloud:** https://cloud.qdrant.io
+4. **Tavily:** https://tavily.com
+
+### Test API Connections
+
 ```bash
-# Test primary model
-ollama run kimi-k2 "Xin chào, bạn khỏe không?"
+# Test OpenRouter
+curl https://openrouter.ai/api/v1/models \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY"
 
-# Test embedding model
-ollama run nomic-embed-text "Test embedding"
+# Test Cohere
+curl https://api.cohere.ai/v1/embed \
+  -H "Authorization: Bearer $COHERE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"texts": ["Test"], "model": "embed-multilingual-v3"}'
 
-# List models
-ollama list
+# Test Qdrant
+curl "$QDRANT_URL/collections" \
+  -H "api-key: $QDRANT_API_KEY"
 ```
 
-### Model Selection (theo Technical Scope)
-| Model | Purpose | Khi nào dùng |
-|-------|---------|--------------|
-| `kimi-k2` | **Primary LLM** | Mặc định cho tất cả Agents |
-| `nomic-embed-text` | **Embeddings** | RAG, Vector search |
-| `llama3` | Fallback | Khi kimi-k2 không available |
-| `qwen2.5:7b` | Alternative | Testing, comparison |
+### Model Selection
+
+| Model | Provider | Cost | Best For |
+|-------|----------|------|----------|
+| `google/gemini-2.0-flash-exp:free` | OpenRouter | Free | Development, testing |
+| `meta-llama/llama-3.3-70b-instruct` | OpenRouter | $0.1/1M | Vietnamese, production |
+| `anthropic/claude-3.5-sonnet` | OpenRouter | $3/1M | Best quality |
+| `embed-multilingual-v3` | Cohere | Free tier | Embeddings |
 
 ---
 

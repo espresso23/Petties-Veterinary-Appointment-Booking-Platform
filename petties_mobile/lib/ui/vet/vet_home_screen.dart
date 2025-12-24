@@ -124,11 +124,15 @@ class VetHomeScreen extends StatelessWidget {
   Widget _buildStatsRow(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _buildStatCard('—', 'Bookings\nhôm nay', AppColors.primary)),
+        Expanded(
+            child: _buildStatCard('—', 'Bookings\nhôm nay', AppColors.primary)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('—', 'Chờ phê\nduyệt', AppColors.primaryLight)),
+        Expanded(
+            child:
+                _buildStatCard('—', 'Chờ phê\nduyệt', AppColors.primaryLight)),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatCard('—', 'Hoàn\nthành', AppColors.primaryDark)),
+        Expanded(
+            child: _buildStatCard('—', 'Hoàn\nthành', AppColors.primaryDark)),
       ],
     );
   }
@@ -148,7 +152,7 @@ class VetHomeScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               border: Border.all(color: AppColors.stone900, width: 2),
             ),
             child: Text(
@@ -251,20 +255,41 @@ class VetHomeScreen extends StatelessWidget {
           top: BorderSide(color: AppColors.stone900, width: 4),
         ),
       ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primaryDark,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-        currentIndex: 0,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'LỊCH'),
-          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'BỆNH NHÂN'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'HỒ SƠ'),
-        ],
+      child: Builder(
+        builder: (context) => BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primaryDark,
+          unselectedItemColor: AppColors.stone400,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+          currentIndex: 0,
+          elevation: 0,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                // Already on dashboard
+                break;
+              case 1:
+                // TODO: Navigate to schedule
+                break;
+              case 2:
+                // TODO: Navigate to patients
+                break;
+              case 3:
+                context.push(AppRoutes.profile);
+                break;
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard), label: 'DASHBOARD'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'LICH'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.assignment), label: 'BENH NHAN'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'HO SO'),
+          ],
+        ),
       ),
     );
   }

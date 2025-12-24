@@ -27,7 +27,7 @@ plugins {
 android {
     namespace = "world.petties.mobile"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"  // Fixed version for plugin compatibility
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -40,20 +40,24 @@ android {
 
     defaultConfig {
         applicationId = "world.petties.mobile"
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion  // Firebase Messaging requires minimum SDK 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
-    // Flavor configuration for dev/prod environments
+    // Flavor configuration for dev/test/prod environments
     flavorDimensions += "environment"
     productFlavors {
         create("dev") {
             dimension = "environment"
-            // Không dùng applicationIdSuffix vì chỉ test trên emulator
             versionNameSuffix = "-dev"
             resValue("string", "app_name", "Petties Dev")
+        }
+        create("staging") {
+            dimension = "environment"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "Petties Staging")
         }
         create("prod") {
             dimension = "environment"

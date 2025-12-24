@@ -289,7 +289,63 @@ flowchart TB
 
 ---
 
-## 8. Import Lịch từ Excel
+## 8. Clinic 24/7 & Ca Đêm
+
+### 8.1 Mô hình Clinic 24/7
+
+Clinic hoạt động 24/7 nhưng bác sĩ **làm theo ca** (không làm 24h liên tục).
+
+**Ví dụ chia ca:**
+
+| Ca | Giờ | Bác sĩ |
+|----|-----|--------|
+| Ca sáng | 06:00 - 14:00 | Dr. Minh |
+| Ca chiều | 14:00 - 22:00 | Dr. Lan |
+| Ca đêm | 22:00 - 06:00 | Dr. Hùng |
+
+### 8.2 Xử lý ca đêm (qua 00:00)
+
+**Quy tắc:** Nếu `end_time < start_time` → Ca đêm, kết thúc ngày hôm sau.
+
+**Ví dụ VET_SHIFT:**
+
+| Vet | work_date | start_time | end_time | Ý nghĩa |
+|-----|-----------|------------|----------|---------|
+| Dr. Hùng | 17/12 | 22:00 | 06:00 | Ca đêm 17/12 22:00 → 18/12 06:00 |
+
+**Logic Backend:**
+```java
+// Kiểm tra ca đêm
+boolean isNightShift = endTime.isBefore(startTime);
+
+if (isNightShift) {
+    // Slots từ startTime → 24:00 (ngày work_date)
+    // + Slots từ 00:00 → endTime (ngày work_date + 1)
+    actualEndDate = workDate.plusDays(1);
+}
+```
+
+### 8.3 Cấu hình CLINIC.operating_hours
+
+```json
+{
+  "monday": { "open": "00:00", "close": "24:00", "is24h": true },
+  "tuesday": { "open": "00:00", "close": "24:00", "is24h": true },
+  "wednesday": { "open": "08:00", "close": "20:00", "is24h": false }
+}
+```
+
+### 8.4 Template Excel cho Clinic 24/7
+
+| Vet Name | Date | Start | End | Break Start | Break End | Note |
+|----------|------|-------|-----|-------------|-----------|------|
+| Dr. Minh | 17/12 | 06:00 | 14:00 | 10:00 | 10:30 | Ca sáng |
+| Dr. Lan | 17/12 | 14:00 | 22:00 | 18:00 | 18:30 | Ca chiều |
+| Dr. Hùng | 17/12 | 22:00 | 06:00 | 02:00 | 02:30 | Ca đêm (→18/12) |
+
+---
+
+## 9. Import Lịch từ Excel
 
 ### 8.1 Template Excel
 

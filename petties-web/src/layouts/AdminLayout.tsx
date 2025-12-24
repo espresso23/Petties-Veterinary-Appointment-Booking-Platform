@@ -46,6 +46,12 @@ export const AdminLayout = () => {
         { path: '/admin/reports', label: 'REPORTS' },
         { path: '/admin/settings', label: 'CẤU HÌNH' },
       ]
+    },
+    {
+      title: 'CÁ NHÂN',
+      items: [
+        { path: '/admin/profile', label: 'HỒ SƠ' },
+      ]
     }
   ]
 
@@ -101,7 +107,7 @@ export const AdminLayout = () => {
           </p>
           <button
             onClick={handleLogout}
-            className="w-full py-2 px-4 bg-stone-900 text-white text-sm font-bold uppercase tracking-wide border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] hover:bg-stone-700 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_#1c1917] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[2px_2px_0_#1c1917] transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-offset-2"
+            className="w-full py-2 px-4 bg-white text-stone-950 text-sm font-black uppercase tracking-widest border-4 border-stone-950 shadow-[4px_4px_0_#000] hover:bg-amber-400 hover:shadow-[6px_6px_0_#000] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_#000] transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-amber-500"
           >
             ĐĂNG XUẤT
           </button>

@@ -3,7 +3,7 @@
 
 **Project Duration:** 13 Sprints (1 Week/Sprint)  
 **Timeline:** 10/12/2025 - 11/03/2026  
-**Last Updated:** December 16, 2025
+**Last Updated:** December 19, 2025
 
 ---
 
@@ -34,14 +34,14 @@
 |--------|---------------------|------|-------------|-----------|---|-----|--------|--------------|---------------|-------|-----|--------------|------------|--------|
 | Sprint 1 | Set CI/CD for project | CI/CD for Web | Tạo workflow cho Web, kết nối Vercel auto-deploy khi push main branch. Domain: petties.world | DevOps | 1 | TânPIC | Medium | 4 | 4 | 10/12/2025 | 10/12/2025 | 10/12/2025 | 10/12/2025 | Done |
 | | | CI/CD for Test Environment | Tạo ci.yml (build+test), deploy-test.yml, docker-compose.test.yml, nginx config cho api-test.petties.world | DevOps | 1.1 | TânPIC | Complex | 8 | 8 | 15/12/2025 | 16/12/2025 | 15/12/2025 | 16/12/2025 | Done |
-| | | CI/CD for Mobile | Tạo workflow build APK/IPA, upload to Firebase App Distribution cho internal testing | DevOps | 2 | TânPIC | Medium | 4 | | 10/12/2025 | 10/12/2025 | | | Pending |
+| | | CI/CD for Mobile | Tạo workflow build APK/IPA, upload to Firebase App Distribution cho internal testing | DevOps | 2 | TânPIC | Medium | 4 | 6 | 10/12/2025 | 10/12/2025 | 16/12/2025 | 18/12/2025 | Done |
 | | Design database schema | Design database system | Thiết kế ERD diagram với 15+ tables: users, pets, clinics, vets, services, bookings, emr, payments, reviews, notifications | Design | 3 | TânPIC | Complex | 16 | 16 | 10/12/2025 | 11/12/2025 | 10/12/2025 | 11/12/2025 | Done |
-| | Draft Report | Draft Report 1 - Project Introduction | Viết bản nháp giới thiệu dự án: tên dự án, team members, problem statement, project objectives, scope, stakeholders, expected outcomes | Docs | 4 | Ổn | Medium | 4 | | 14/12/2025 | 15/12/2025 | | | Pending |
-| | | Draft Report 2 - Project Planning | Viết bản nháp kế hoạch dự án: project timeline (Gantt chart), milestones, resource allocation, risk management plan, communication plan | Docs | 5 | | Medium | 4 | | 15/12/2025 | 16/12/2025 | | | Pending |
-| | | Draft Report 3 - Software Requirements | Viết bản nháp tài liệu yêu cầu phần mềm: functional requirements (use cases), non-functional requirements, user stories, acceptance criteria | Docs | 6 | | Medium | 4 | | 15/12/2025 | 16/12/2025 | | | Pending |
+| | Draft Report | Draft Report 1 - Project Introduction | Viết bản nháp giới thiệu dự án: tên dự án, team members, problem statement, project objectives, scope, stakeholders, expected outcomes | Docs | 4 | Ổn | Medium | 4 | 4 | 14/12/2025 | 15/12/2025 | 14/12/2025 | 18/12/2025 | Done |
+| | | Draft Report 2 - Project Planning | Viết bản nháp kế hoạch dự án: project timeline (Gantt chart), milestones, resource allocation, risk management plan, communication plan | Docs | 5 | Ổn | Medium | 4 | 4 | 15/12/2025 | 16/12/2025 | 15/12/2025 | 18/12/2025 | Done |
+| | | Draft Report 3 - Software Requirements | Viết bản nháp tài liệu yêu cầu phần mềm: functional requirements (use cases), non-functional requirements, user stories, acceptance criteria | Docs | 6 | Ổn | Medium | 4 | 4 | 15/12/2025 | 16/12/2025 | 15/12/2025 | 18/12/2025 | Done |
 | | Code Authentication | JWT Authentication | Tạo AuthController với endpoints: /auth/login, /auth/register, /auth/refresh-token. Implement JwtTokenProvider | Backend | 7 | All | Medium | 4 | 4 | 10/12/2025 | 10/12/2025 | 10/12/2025 | 10/12/2025 | Done |
 | | | Google OAuth Integration | Tạo endpoint /auth/google nhận ID token từ Google, verify với Google API, tự động tạo user nếu chưa có | Backend | 8 | | Medium | 4 | 4 | 10/12/2025 | 10/12/2025 | 10/12/2025 | 10/12/2025 | Done |
-| | | Password Reset | Tạo endpoints: /auth/forgot-password gửi OTP email, /auth/verify-otp kiểm tra mã, /auth/reset-password đổi mật khẩu mới | Backend | 9 | TânPIC | Medium | 4 | | 15/12/2025 | 16/12/2025 | | | Pending |
+| | | Password Reset | Tạo endpoints: /auth/forgot-password gửi OTP email, /auth/reset-password đổi mật khẩu mới | Backend | 9 | TânPIC | Medium | 4 | 4 | 15/12/2025 | 16/12/2025 | 18/12/2025 | 18/12/2025 | Done |
 | | | Role-based Authorization | Tạo enum Role với 5 giá trị: PET_OWNER, VET, CLINIC_MANAGER, CLINIC_OWNER, ADMIN. Implement UserDetailsService | Backend | 10 | | Medium | 4 | 4 | 10/12/2025 | 10/12/2025 | 10/12/2025 | 10/12/2025 | Done |
 | | Code Web UI for Authentication | Onboarding & Auth Screens for web | Tạo Onboarding Page và Login Page chung cho tất cả roles (VET, CLINIC_MANAGER, CLINIC_OWNER, ADMIN) với Google OAuth, Register Page | Frontend Web | 11 | Frontend Web | Medium | 8 | 8 | 10/12/2025 | 11/12/2025 | 10/12/2025 | 11/12/2025 | Done |
 | | | Role Protection Components | Tạo ProtectedRoute và RoleGuard components: bảo vệ routes theo role, chặn PET_OWNER (chỉ dùng mobile) | Frontend | 12 | TânPIC | Medium | 8 | 8 | 11/12/2025 | 12/12/2025 | 11/12/2025 | 12/12/2025 | Done |
@@ -49,11 +49,13 @@
 | | | Role-based Routing | Cấu hình GoRouter: PET_OWNER → Pet Owner Home, VET → Vet Home, other roles → redirect về login (chỉ dùng Web) | Mobile | 14 | TânPIC | Medium | 4 | 4 | 11/12/2025 | 11/12/2025 | 11/12/2025 | 11/12/2025 | Done |
 | | Code Web Dashboard layout for Admin, Clinic Owner, Clinic Manager, Vet | Admin Dashboard Layout | Dashboard cho ADMIN: stats cards (users, clinics, bookings, revenue), charts, recent activities, pending approvals | Frontend Web | 15 | Frontend Web | Medium | 4 | 4 | 11/12/2025 | 12/12/2025 | 11/12/2025 | 12/12/2025 | Done |
 | | | Clinic Owner Dashboard Layout | Dashboard cho CLINIC_OWNER: clinic stats, revenue overview, service management entry point | Frontend Web | 16 | | Medium | 4 | 4 | 12/12/2025 | 12/12/2025 | 12/12/2025 | 12/12/2025 | Done |
-| | | Clinic Manager Dashboard Layout | Dashboard cho CLINIC_MANAGER: today bookings, vet schedules, pending tasks | Frontend Web | 17 | TânPIC | Medium | 4 | | 12/12/2025 | 13/12/2025 | | | Pending |
-| | | Vet Dashboard Layout | Dashboard cho VET: assigned appointments, schedule view, quick actions | Frontend Web | 18 | TânPIC | Medium | 4 | | 13/12/2025 | 13/12/2025 | | | Pending |
+| | | Clinic Manager Dashboard Layout | Dashboard cho CLINIC_MANAGER: today bookings, vet schedules, pending tasks | Frontend Web | 17 | TânPIC | Medium | 4 | 4 | 12/12/2025 | 13/12/2025 | 16/12/2025 | 18/12/2025 | Done |
+| | | Vet Dashboard Layout | Dashboard cho VET: assigned appointments, schedule view, quick actions | Frontend Web | 18 | TânPIC | Medium | 4 | 4 | 13/12/2025 | 13/12/2025 | 16/12/2025 | 18/12/2025 | Done |
 | | Code Mobile Screen for Pet Owner and Vet | Pet Owner Home Screen | Màn hình chính cho PET_OWNER: pet cards, quick actions (đặt lịch, tìm phòng khám), bottom navigation | Mobile | 19 | | Medium | 6 | 6 | 13/12/2025 | 14/12/2025 | 13/12/2025 | 14/12/2025 | Done |
 | | | Vet Home Screen | Màn hình chính cho VET: today appointments, schedule calendar, notifications | Mobile | 20 | | Medium | 6 | 6 | 14/12/2025 | 14/12/2025 | 14/12/2025 | 14/12/2025 | Done |
-| | Code User Profile | User Profile APIs | APIs: get/update user profile, upload avatar Cloudinary, change password | Backend | 21 | TânPIC | Medium | 4 | | 15/12/2025 | 16/12/2025 | | | Pending |
+| | Code User Profile | User Profile APIs | APIs: get/update user profile, upload avatar Cloudinary, change password | Backend | 21 | TânPIC | Medium | 4 | 4 | 15/12/2025 | 16/12/2025 | 18/12/2025 | 18/12/2025 | Done |
+| | | User Profile Web UI | Trang Profile cho VET, CLINIC_OWNER, CLINIC_MANAGER, ADMIN với edit profile, avatar upload, change password | Frontend Web | 21.1 | TânPIC | Medium | 4 | 4 | 18/12/2025 | 18/12/2025 | 18/12/2025 | 18/12/2025 | Done |
+| | | User Profile Mobile UI | Màn hình Profile cho PET_OWNER và VET với edit profile, avatar upload, change password | Mobile | 21.2 | TânPIC | Medium | 4 | 4 | 18/12/2025 | 18/12/2025 | 18/12/2025 | 18/12/2025 | Done |
 
 ---
 
@@ -219,7 +221,7 @@
 
 | Sprint | Week | Start Date | End Date | Total Tasks | Done | Pending | Progress |
 |--------|------|------------|----------|-------------|------|---------|----------|
-| Sprint 1 | 1 | 10/12/2025 | 16/12/2025 | 22 | 14 | 8 | 64% |
+| Sprint 1 | 1 | 10/12/2025 | 16/12/2025 | 24 | 24 | 0 | 100% |
 | Sprint 2 | 2 | 17/12/2025 | 23/12/2025 | 11 | 0 | 11 | 0% |
 | Sprint 3 | 3 | 24/12/2025 | 30/12/2025 | 8 | 0 | 8 | 0% |
 | Sprint 4 | 4 | 31/12/2025 | 06/01/2026 | 5 | 0 | 5 | 0% |
@@ -232,7 +234,70 @@
 | Sprint 11 | 11 | 18/02/2026 | 24/02/2026 | 4 | 0 | 4 | 0% |
 | Sprint 12 | 12 | 25/02/2026 | 03/03/2026 | 6 | 0 | 6 | 0% |
 | Sprint 13 | 13 | 04/03/2026 | 11/03/2026 | 10 | 0 | 10 | 0% |
-| **Total** | **13** | **10/12/2025** | **11/03/2026** | **96** | **14** | **82** | **14.6%** |
+| **Total** | **13** | **10/12/2025** | **11/03/2026** | **98** | **24** | **74** | **24.5%** |
+
+---
+
+## 🔄 Sprint Development Workflow
+
+Mỗi Sprint tuân theo quy trình phát triển lặp đi lặp lại (Iterative Development Cycle):
+
+```mermaid
+flowchart LR
+    subgraph SPRINT["SPRINT DEVELOPMENT CYCLE"]
+        A["1. Chia Việc 📋"] --> B["2. Implement Tính Năng 💻"]
+        B --> C["3. Viết Docs RP3/RP4 📝"]
+        C --> D["4. Viết Test Case 🧪"]
+        D --> E["5. Code & Test ⌨️"]
+        E --> F["6. Merge 🔀"]
+        F --> G["7. Fix Bug 🐛"]
+        G --> H["✅ Sprint Done"]
+    end
+    
+    H --> A
+```
+
+### Các bước chi tiết:
+
+| Step | Phase | Mô tả | Output | Responsible |
+|------|-------|-------|--------|-------------|
+| **1** | 📋 **Chia Việc** | Sprint Planning: phân công tasks cho từng thành viên dựa trên WBS | Task assignments, Sprint backlog | Team Lead |
+| **2** | 💻 **Implement Tính Năng** | Phát triển Backend APIs, Frontend UI, Mobile screens theo task được giao | Working code trên feature branch | Developers |
+| **3** | 📝 **Viết Docs RP3/RP4** | Cập nhật SRS (Report 3) và SDD (Report 4) với các features mới | Updated documentation | PIC của feature |
+| **4** | 🧪 **Viết Test Case** | Tạo unit tests, integration tests, và test cases trong Report 5 | Test cases, test code | Tester/Developer |
+| **5** | ⌨️ **Code & Test** | Hoàn thiện code, chạy tests locally, đảm bảo pass tất cả tests | Tested code ready for review | Developer |
+| **6** | 🔀 **Merge** | Code review → Approve → Merge vào develop branch → Deploy test env | Code merged, deployed to staging | Team |
+| **7** | 🐛 **Fix Bug** | Test trên staging, phát hiện và fix bugs trước khi close Sprint | Bug-free release | All |
+
+### Branch Strategy trong Workflow:
+
+```mermaid
+gitGraph
+    commit id: "initial"
+    branch develop
+    checkout develop
+    commit id: "staging setup"
+    branch feature/pet-management
+    commit id: "pet CRUD"
+    checkout develop
+    branch feature/booking-api
+    commit id: "booking API"
+    checkout develop
+    merge feature/pet-management
+    merge feature/booking-api
+    checkout main
+    merge develop tag: "v1.0.0"
+```
+
+### Definition of Done (DoD) cho mỗi Task:
+
+- [ ] Code đã implement đúng requirements
+- [ ] Unit tests đã viết và pass 100%
+- [ ] Code review đã approve
+- [ ] Documentation (RP3/RP4) đã cập nhật
+- [ ] Merge vào develop branch thành công
+- [ ] Deploy lên test environment và test pass
+- [ ] Không còn critical/high bugs
 
 ---
 
@@ -269,6 +334,6 @@
 
 ---
 
-**Document Version:** 11.0  
-**Last Updated:** December 16, 2025  
+**Document Version:** 12.1
+**Last Updated:** December 19, 2025
 **Maintained By:** Petties Team

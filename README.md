@@ -12,7 +12,7 @@
 | **Tên Dự Án** | Petties: Veterinary Appointment Booking Platform |
 | **Viết Tắt** | PVABP |
 | **Lớp** | CP_SEP490 |
-| **Thời Gian** | 05/01/2026 - 30/04/2026 (13 Sprints) |
+| **Thời Gian** | 10/12/2025 - 11/03/2026 (13 Sprints) |
 | **Chuyên Ngành** | Software Engineering |
 | **Địa Điểm** | Da Nang |
 
@@ -101,7 +101,7 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │  - PostgreSQL 16 (Relational Data) │
 │  - MongoDB 7 (NoSQL, Flexible Data)│
 │  - Qdrant Cloud (Vector Database)  │
-│  - Redis (Caching - Optional)      │
+│  - Redis (OTP & Session Storage)   │
 └─────────────────────────────────────┘
 ```
 
@@ -112,7 +112,8 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │  - Python 3.12                      │
 │  - FastAPI + Uvicorn                │
 │  - LangGraph (Multi-agent)          │
-│  - Ollama (Hybrid: Local/Cloud)     │
+│  - OpenRouter API (Cloud LLM)       │
+│  - Cohere Embeddings (Cloud)        │
 │  - LlamaIndex (RAG)                 │
 │  - Qdrant Cloud (Vector Database)   │
 │  - FastMCP (Protocol)               │
@@ -258,15 +259,17 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
     │(Primary) │                  │ (Document) │
     └──────────┘                  └────────────┘
          │
-    ┌────▼────────────────┐
-    │   Qdrant Cloud      │
-    │ (Vector Database)   │
-    └─────────────────────┘
-         │
-    ┌────▼────────────────┐
-    │ Ollama (Hybrid)     │
-    │ Local / Cloud LLM   │
-    └─────────────────────┘
+     ┌────▼────────────────────┐
+     │   Qdrant Cloud      │
+     │ (Vector Database)   │
+     └─────────────────────┘
+          │
+     ┌────▼────────────────────┐
+     │ Cloud AI Services   │
+     │ - OpenRouter (LLM)  │
+     │ - Cohere (Embed)    │
+     │ - Tavily (Search)   │
+     └─────────────────────┘
 ```
 
 ---
@@ -280,7 +283,7 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Flutter SDK 3.5+ (Mobile)
 - PostgreSQL 16+ & MongoDB 7+
 - Docker & Docker Compose
-- Ollama (Optional - for local LLM mode)
+- Cloud API Keys (OpenRouter, Cohere, Qdrant, Tavily)
 
 ### Web Frontend Setup
 
@@ -367,9 +370,12 @@ python -m uvicorn app.main:app --reload --port 8000
 # Swagger UI: http://localhost:8000/docs
 # Health check: http://localhost:8000/health
 
-# Note: Ollama Configuration
-# - Local Mode: Set OLLAMA_BASE_URL=http://localhost:11434 (default)
-# - Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
+# Note: Cloud AI Configuration
+# Set these environment variables (or configure via Dashboard):
+# - OPENROUTER_API_KEY (LLM provider)
+# - COHERE_API_KEY (Embeddings)
+# - QDRANT_URL + QDRANT_API_KEY (Vector DB)
+# - TAVILY_API_KEY (Web Search)
 ```
 
 ## 🐳 Docker Compose Files
@@ -462,16 +468,22 @@ cp .env.example .env
 
 Xem `.env.example` để biết tất cả environment variables cần thiết.
 
-**Ollama Configuration (Hybrid Mode):**
-- **Local Mode (Default)**: 
-  - Set `OLLAMA_BASE_URL=http://localhost:11434` (hoặc IP server riêng)
-  - Model: `kimi-k2` (hoặc model đã pull về)
-  - Cần chạy Ollama server local hoặc self-hosted
-- **Cloud Mode (Recommended for Production)**: 
-  - Set `OLLAMA_API_KEY=sk-...` (lấy từ https://ollama.com)
-  - Auto-switches base URL to `https://ollama.com`
-  - Model: `kimi-k2:1t-cloud` (256K context window)
-  - Không cần Ollama server local
+**Cloud AI Configuration:**
+
+Petties sử dụng **Cloud-Only Architecture** - không cần cài đặt local AI:
+
+| Service | Provider | Free Tier | Environment Variable |
+|---------|----------|-----------|---------------------|
+| **LLM** | OpenRouter | Free models | `OPENROUTER_API_KEY` |
+| **Embeddings** | Cohere | 1,000/month | `COHERE_API_KEY` |
+| **Vector DB** | Qdrant Cloud | 1GB | `QDRANT_URL`, `QDRANT_API_KEY` |
+| **Web Search** | Tavily | 1,000/month | `TAVILY_API_KEY` |
+
+Lấy API keys tại:
+- OpenRouter: https://openrouter.ai/keys
+- Cohere: https://dashboard.cohere.com/api-keys
+- Qdrant Cloud: https://cloud.qdrant.io
+- Tavily: https://tavily.com
 
 ---
 
@@ -671,11 +683,11 @@ The project uses Docker Compose to orchestrate multiple services:
 | **backend** | Custom (Java 21, Spring Boot 4.0.0) | 8080 | Spring Boot REST API |
 | **ai-service** | Custom (Python 3.12) | 8000 | FastAPI AI Agent Service |
 | **Qdrant** | Cloud (External) | - | Vector database for AI embeddings |
-| **Ollama** | Local/Cloud (Hybrid) | 11434 | LLM inference (Local or Cloud API) |
+| **Cloud AI** | OpenRouter/Cohere | - | LLM inference & embeddings (Cloud APIs) |
 
 **Note:** 
 - Qdrant sử dụng Qdrant Cloud (không chạy local)
-- Ollama có thể chạy local hoặc dùng Ollama Cloud API
+- AI sử dụng Cloud APIs (OpenRouter, Cohere) - không cần GPU/RAM local
 - Web frontend và Mobile app chạy ngoài Docker trong development
 
 ### Dockerfile Optimization
@@ -733,18 +745,13 @@ Persistent data is stored in Docker volumes:
 ```
 POST   /api/auth/register          - Đăng ký tài khoản ✅
 POST   /api/auth/login             - Đăng nhập ✅
-POST   /api/auth/google            - Đăng nhập bằng Google ✅ (NEW)
+POST   /api/auth/google            - Đăng nhập bằng Google ✅
 POST   /api/auth/logout            - Đăng xuất ✅
 POST   /api/auth/refresh           - Làm mới token ✅
 GET    /api/auth/me                - Lấy thông tin user hiện tại ✅
 ```
 
-> 🔐 **Google Sign-In**: Hỗ trợ đăng nhập bằng Google cho cả Mobile và Web.
-> - Mobile (Flutter) → Auto-assign role `PET_OWNER`
-> - Web (React) → Auto-assign role `CLINIC_OWNER`
-> - Xem chi tiết: [`petties_mobile/GOOGLE_SIGNIN_SETUP.md`](petties_mobile/GOOGLE_SIGNIN_SETUP.md)
-
-### Pet Management ⚠️ (Not Yet Implemented)
+### Pet Management 🔄 (In Progress)
 ```
 GET    /api/pets                   - Lấy danh sách pet ⚠️
 POST   /api/pets                   - Thêm pet mới ⚠️
@@ -753,7 +760,7 @@ PUT    /api/pets/{id}              - Cập nhật pet ⚠️
 DELETE /api/pets/{id}              - Xóa pet ⚠️
 ```
 
-### Booking ⚠️ (Not Yet Implemented)
+### Booking ⚠️ (Planned - S4)
 ```
 GET    /api/bookings               - Danh sách appointment ⚠️
 POST   /api/bookings               - Tạo appointment mới ⚠️
@@ -762,7 +769,7 @@ PUT    /api/bookings/{id}          - Cập nhật appointment ⚠️
 POST   /api/bookings/{id}/cancel   - Hủy appointment ⚠️
 ```
 
-### Vet ⚠️ (Not Yet Implemented)
+### Vet ⚠️ (Planned - S3)
 ```
 GET    /api/vets                   - Danh sách bác sĩ thú y ⚠️
 GET    /api/vets/available         - Bác sĩ có sẵn ⚠️

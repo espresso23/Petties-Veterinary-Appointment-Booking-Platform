@@ -21,6 +21,7 @@ This document tracks all pending tasks and features required to complete the AI 
 | **System & Security** | SYS-01 ✅, SYS-02 ✅ |
 | **Agent Orchestration** | AG-01 ✅, AG-02 ✅, AG-03 ✅ |
 | **Tools & Integrations** | TL-01 ✅, TL-02 ✅, TL-03 ✅ |
+| **Cloud AI Integration** | OpenRouter ✅, Cohere ✅, Qdrant Cloud ✅ |
 | **Infrastructure** | Dynamic Config Loader ✅, Agent Factory ✅, Prompt Management ✅ |
 
 ---
@@ -49,8 +50,8 @@ This document tracks all pending tasks and features required to complete the AI 
   - [ ] `POST /api/v1/routing-examples/{id}/embed` - Generate embedding and sync to Qdrant
 
 - [ ] **Backend: Qdrant Integration**
-  - [ ] Create `routing_examples` collection in Qdrant
-  - [ ] Generate embeddings cho mỗi routing example (dùng nomic-embed-text-v1.5)
+  - [ ] Create `routing_examples` collection in Qdrant Cloud
+  - [ ] Generate embeddings cho mỗi routing example (dùng Cohere embed-multilingual-v3)
   - [ ] Upsert vectors vào Qdrant với payload: `{query, target_agent, language}`
   - [ ] Implement semantic search trong Main Agent để tìm similar routing examples
 
@@ -92,7 +93,7 @@ This document tracks all pending tasks and features required to complete the AI 
 - [ ] **Document Processing Pipeline**
   - [ ] Implement LlamaIndex document loader (PDF, DOCX, TXT, MD)
   - [ ] Text chunking strategy (overlap, chunk size)
-  - [ ] Generate embeddings với nomic-embed-text-v1.5 (via Ollama)
+  - [ ] Generate embeddings với Cohere embed-multilingual-v3 (Cloud API)
   - [ ] Batch upsert vectors vào Qdrant Cloud
 
 - [ ] **RAG Engine Implementation**
@@ -510,10 +511,10 @@ This document tracks all pending tasks and features required to complete the AI 
 
 ### Dependencies
 
-- **AG-04** requires Qdrant Cloud account và nomic-embed-text-v1.5 model
-- **KB-01** requires Qdrant Cloud và Ollama server (for embeddings)
+- **AG-04** requires Qdrant Cloud account và Cohere API key (for embeddings)
+- **KB-01** requires Qdrant Cloud và Cohere API key
 - **KB-02** requires Petagraph API access
-- **Research Agent** requires YouTube Data API v3 key (optional: Tavily API)
+- **Research Agent** requires Tavily API key (for web search)
 
 ### Testing Requirements
 
@@ -532,6 +533,6 @@ Sau mỗi feature completion:
 
 ---
 
-**Last Updated:** 2025-12-08  
-**Next Review:** 2025-12-15
+**Last Updated:** 2025-12-18  
+**Next Review:** 2025-12-25
 

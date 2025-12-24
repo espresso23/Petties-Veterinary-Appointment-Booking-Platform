@@ -80,17 +80,18 @@ Admin sẽ thấy danh sách phân cấp: Main Agent ở trên cùng, và các S
 
 Module này thay thế việc quản lý cấu hình bằng file .env truyền thống, cho phép Admin thay đổi key ngay trên giao diện mà không cần restart server thủ công.
 
-1. **API Key Management (Quản lý Key):**  
-   * Giao diện nhập liệu an toàn cho các dịch vụ bên thứ 3\.  
-   * Các key bao gồm: QDRANT\_API\_KEY, QDRANT\_URL, TAVILY\_API\_KEY (hoặc Search API khác), SLACK\_BOT\_TOKEN, v.v.  
-   * **Cơ chế:** Key được mã hóa và lưu trong Database (PostgreSQL). Khi Backend khởi động hoặc Runtime cần dùng, nó sẽ fetch trực tiếp từ DB thay vì đọc biến môi trường OS.  
-2. **Ollama Connection Config (Hybrid: Local & Cloud):**  
-   * **Local Mode:** Cấu hình URL kết nối đến Ollama Server (Ví dụ: http://localhost:11434 hoặc IP server riêng).  
-   * **Cloud Mode:** Sử dụng Ollama Cloud API với API key (https://ollama.com). Admin có thể nhập API key qua Dashboard, hệ thống tự động chuyển sang Cloud mode.  
-   * **Model Management:**  
-     * Local: Quản lý danh sách Model đã pull về (ví dụ: kimi-k2, llama3).  
-     * Cloud: Tự động fetch danh sách Cloud models (ví dụ: kimi-k2:1t-cloud) từ Ollama Cloud API.  
-   * **Auto-switching:** Khi admin nhập API key → tự động chuyển sang Cloud mode và model `kimi-k2` → `kimi-k2:1t-cloud` (256K context window).
+1.  **API Key Management (Quản lý Key):**
+    *   Giao diện nhập liệu an toàn cho các dịch vụ bên thứ 3\.
+    *   Các key bao gồm: QDRANT\_API\_KEY, QDRANT\_URL, TAVILY\_API\_KEY (hoặc Search API khác), v.v.
+    *   **Cơ chế:** Key được mã hóa và lưu trong Database (PostgreSQL). Khi Backend khởi động hoặc Runtime cần dùng, nó sẽ fetch trực tiếp từ DB thay vì đọc biến môi trường OS.
+2.  **LLM API Configuration (Cloud-Only):**
+    *   **Primary Provider:** OpenRouter API (https://openrouter.ai) - Gateway đến nhiều LLM providers.
+    *   **Model Selection:** Admin chọn model từ danh sách hỗ trợ:
+        *   `google/gemini-2.0-flash-exp:free` (Free, 1M context)
+        *   `meta-llama/llama-3.3-70b-instruct` (Cheap, Vietnamese good)
+        *   `anthropic/claude-3.5-sonnet` (Best quality, higher cost)
+    *   **Configuration:** API key được lưu encrypted trong PostgreSQL, admin config qua Dashboard.
+    *   **Fallback:** Nếu primary model fail → tự động switch sang model backup.
 
 ### **C. Tool Management (Quản lý Công cụ - Code-based Only)**
 
@@ -214,12 +215,12 @@ Các tính năng này được thực hiện bởi các Sub-Agent chuyên trách
    * **Sản phẩm/Bài viết:** Phải cung cấp URL trực tiếp đến trang sản phẩm hoặc bài báo tham khảo.  
    * **Hình ảnh:** Cung cấp URL gốc của hình ảnh hoặc trang chứa hình ảnh đó.  
    * **Video:** Cung cấp URL trực tiếp (ví dụ: link YouTube) cho các video hướng dẫn hoặc review.  
-3. **Format (Định dạng hiển thị):** Câu trả lời của Agent phải tách bạch rõ ràng, ví dụ:💡 Giải pháp tìm được:  
-   Bạn có thể cho chó uống nước đường loãng để cấp cứu hạ đường huyết...**🔗 Nguồn tham khảo & Mua sắm:**  
+3. **Format (Định dạng hiển thị):** Câu trả lời của Agent phải tách bạch rõ ràng, ví dụ: **Giải pháp tìm được:**  
+   Bạn có thể cho chó uống nước đường loãng để cấp cứu hạ đường huyết...**Nguồn tham khảo & Mua sắm:**  
    * [Bài viết: Sơ cứu chó bị tụt đường huyết \- PetMart](https://example.com)  
    * \[liên kết đáng ngờ đã bị xóa\]
 
-   **📺 Video hướng dẫn:**
+   **Video hướng dẫn:**
 
    * \[liên kết đáng ngờ đã bị xóa\]
 
@@ -233,10 +234,12 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 * **Framework:** FastAPI (High-performance API framework).  
 * **Agent Orchestration:** LangGraph (Xây dựng luồng xử lý Agent có trạng thái \- Stateful Multi-Agent Orchestrator).  
 * **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline và Web Scraping/Indexing dữ liệu phi cấu trúc).  
-* **Tool Framework:** FastMCP
-  * Cơ chế: Sử dụng FastMCP để chạy Server Tools.
-  * Code-based Tools: Viết trực tiếp bằng Python (@mcp.tool).
-  * **Lưu ý:** Tất cả Tools được code thủ công. KHÔNG sử dụng Swagger auto-import (xem Section C - Tool Management).
+* **Tool Framework:** FastMCP (Embedded Mode)
+  * **Cơ chế:** FastMCP được nhúng trực tiếp vào AI Service (FastAPI) như một thư viện.
+  * **Architecture:** In-process Execution. Agent gọi trực tiếp hàm Python thông qua `call_mcp_tool`.
+  * **Deployment:** KHÔNG cần deploy MCP Server riêng biệt. `AI Agent Service` bao gồm cả Agent Logic và Tool Runtime.
+  * **Code-based Tools:** Viết trực tiếp bằng Python (@mcp.tool) trong folder `mcp_tools/`.
+  * **Lưu ý:** Tất cả Tools được code thủ công để đảm bảo semantic descriptions tốt nhất cho LLM. KHÔNG sử dụng Swagger auto-import.
 
 ### **B. Frontend (Admin Dashboard)**
 
@@ -255,49 +258,58 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
     * **Flow Highlighting:** Hiển thị trực quan luồng đi của dữ liệu. Đặc biệt làm nổi bật logic **"Semi-Autonomous"**: Main Agent \-\> Medical Agent \-\> (Low Conf) \-\> Research Agent.  
 * **Interaction:** React Beautiful DnD hoặc Dnd-kit (Dùng cho việc sắp xếp danh sách Tools, thứ tự ưu tiên, hoặc quản lý danh sách Agent \- List management).
 
-### **C. AI & Intelligence Layer (Brain & Memory) \- QUAN TRỌNG**
+### **C. AI & Intelligence Layer (Brain & Memory) - Cloud-Only Architecture**
 
-* **Model Serving (Hybrid: Local/Self-hosted OR Cloud):** **Ollama**.  
-  * Hệ thống tuyệt đối **KHÔNG** sử dụng các model closed-source đắt đỏ như GPT-4o.  
-  * Toàn bộ mô hình được vận hành thông qua **Ollama** server (Local) hoặc **Ollama Cloud API** (Cloud).  
-  * **Local Mode (Self-hosted):**  
-    * Vận hành Ollama server trên local machine hoặc server riêng.  
-  * **Primary Model:** kimi-k2 (hoặc các biến thể tương đương được tải về từ thư viện Ollama) cho khả năng suy luận tiếng Việt và tool calling tốt.  
-  * **Fallback/Specialized Models:** Có thể tải thêm llama3, mistral từ Ollama nếu cần cho các tác vụ cụ thể.  
-  * **Cloud Mode (Ollama Cloud API):**  
-    * Sử dụng Ollama Cloud thông qua API key authentication.  
-    * **Base URL:** https://ollama.com/api  
-    * **Authentication:** Bearer token (OLLAMA_API_KEY)  
-    * **Primary Model:** kimi-k2:1t-cloud (256K context window, hỗ trợ tốt tiếng Việt).  
-    * **Lợi ích:**  
-      * Không cần setup local Ollama server hoặc tunnel/Cloudflare.  
-      * Phù hợp với Render free tier (service chỉ gọi API, không tốn GPU/RAM).  
-      * Context window lớn hơn (256K vs 128K local).  
-      * Admin có thể switch mode qua Dashboard mà không cần restart server.  
-    * **Configuration:** API key được lưu encrypted trong PostgreSQL `system_settings` table, admin config qua Frontend Dashboard.  
-* **Vector Database:** **Qdrant Cloud**.  
-  * Sử dụng phiên bản Cloud (SaaS) của Qdrant.  
-  * Kết nối thông qua HTTPS Endpoint và API Key (được cấu hình trên Frontend).  
-* **Embeddings & Performance Strategy (Chiến lược Hiệu năng):**  
-  * **Primary Model (Speed-Optimized):** **nomic-embed-text-v1.5**.  
-    * *Lý do:* Đây là model "Best Balance" hiện nay, có kích thước nhẹ và tốc độ inference nhanh hơn nhiều so với bge-m3 hay mxbai-large, nhưng vẫn đảm bảo chất lượng ngữ nghĩa tốt cho RAG tiếng Việt/Anh.  
-    * *Tính năng Đa ngôn ngữ (Multilingual):* Model này hỗ trợ tốt việc ánh xạ ngữ nghĩa xuyên ngôn ngữ (Cross-lingual Semantic Mapping). Ví dụ: Vector của "Dog sick" (EN) sẽ rất gần với "Chó ốm" (VN), giúp hệ thống RAG hoạt động tốt với cả tiếng Anh, Hàn, v.v. mà không cần nhập liệu lại.  
-    * *Phân phối:* Chạy trên Ollama server.  
-  * **Search Optimization Technique:** **Binary Quantization**.  
-    * *Cấu hình:* Bật tính năng Binary Quantization trong Qdrant Cloud.  
-    * *Tác dụng:* Nén vector xuống 32 lần (từ float32 sang bit), giúp **tốc độ tìm kiếm nhanh gấp 20-30 lần** và giảm chi phí RAM/Lưu trữ mà vẫn giữ độ chính xác trên 95%.  
-* **Web Search:** DuckDuckGo Search API (Miễn phí/Ẩn danh) hoặc Tavily (nếu cấu hình key).  
-* **Domain Knowledge:** Petagraph / Tashikin Veterinary Knowledge Graph (Sử dụng Knowledge Graph chuyên ngành thú y để kiểm chứng thông tin và giảm ảo giác \- Hallucination).
+* **LLM Provider (Cloud API Only):** **OpenRouter**
+  * Hệ thống sử dụng **Cloud API** để gọi LLM, **KHÔNG** cần GPU/RAM local.
+  * **Primary Provider:** OpenRouter (https://openrouter.ai) - Gateway đến nhiều LLM providers.
+  * **Model Options:**
+    * `google/gemini-2.0-flash-exp:free` - Free tier, 1M context, tốt cho prototype
+    * `meta-llama/llama-3.3-70b-instruct` - $0.1/1M tokens, Vietnamese tốt
+    * `anthropic/claude-3.5-sonnet` - $3/1M tokens, best quality
+  * **Fallback Strategy:** Nếu primary model fail → auto-switch sang backup model.
+  * **Configuration:** API key lưu encrypted trong PostgreSQL, admin config qua Dashboard.
 
-### **D. Infrastructure & Real-time**
+* **Vector Database:** **Qdrant Cloud** (Managed SaaS)
+  * Free tier: 1GB storage, 1M vectors
+  * Kết nối qua HTTPS Endpoint + API Key
+  * **Search Optimization:** Binary Quantization enabled
+    * Nén vector 32x (float32 → bit)
+    * Tốc độ search nhanh 20-30x
+    * Độ chính xác vẫn > 95%
 
-* **Relational Database:** PostgreSQL (Lưu trữ cấu hình, metadata, logs).  
-* **AI Runtime:**  
-  * **Local Mode:** Ollama Server (cần GPU VRAM phù hợp để chạy model Kimi/Llama).  
-  * **Cloud Mode:** Ollama Cloud API (không cần GPU/RAM, service chỉ gọi API - phù hợp Render free tier).  
-* **Real-time:** WebSocket (Streaming quá trình suy nghĩ "Thinking Process" thời gian thực lên Frontend).  
-* **Caching Layer:** **Redis** (Optional nhưng khuyến nghị) để cache các embedding vector và kết quả tìm kiếm web phổ biến.  
-* **Containerization:** Docker & Docker Compose.
+* **Embeddings (Cloud API):** **Cohere embed-multilingual-v3**
+  * **Provider:** Cohere API (https://cohere.com)
+  * **Free Tier:** 1,000 calls/month (đủ cho development)
+  * **Paid:** $0.1/1M tokens (rẻ nhất thị trường)
+  * **Multilingual:** Top-tier cho tiếng Việt, Anh, Hàn, Nhật
+  * **Dimension:** 1024 (cân bằng quality/storage)
+  * **Lợi ích so với nomic-embed-text:**
+    * Không cần Ollama server
+    * Chất lượng Vietnamese tốt hơn
+    * Cloud-native, zero infrastructure
+
+* **Web Search:** Tavily Search API
+  * Free tier: 1,000 searches/month
+  * Optimized cho AI agents (trả về structured data)
+
+* **Domain Knowledge:** Veterinary Knowledge Graph (future enhancement)
+
+### **D. Infrastructure & Real-time (AWS EC2 Production)**
+
+* **Relational Database:** PostgreSQL (Neon/Supabase managed service)
+* **AI Runtime:** Cloud APIs only (OpenRouter + Cohere + Qdrant Cloud)
+  * **KHÔNG cần GPU/RAM local**
+  * Deploy lên AWS EC2 với Docker
+  * CI/CD tự động qua GitHub Actions
+* **Real-time:** WebSocket (Streaming response lên Frontend)
+* **Caching Layer:** Redis Cloud (Upstash)
+* **Containerization:** Docker + Docker Compose
+* **Reverse Proxy:** Nginx với SSL (Let's Encrypt)
+* **Deployment:**
+  * **Backend API:** `https://api.petties.world` (Port 8080)
+  * **AI Service:** `https://ai.petties.world` (Port 8000)
+  * **Frontend:** Vercel at `https://petties.world`
 
 ## **9\. Detailed Feature List (Danh sách Tính năng Chi tiết)**
 
@@ -392,27 +404,26 @@ Mô tả các tình huống thực tế gắn liền với công nghệ sử d�
   2. Hệ thống kích hoạt LlamaIndex Pipeline: Doc Parsing \-\> Text Chunking \-\> Embedding (**Ollama/Nomic**) \-\> Upsert vào **Qdrant Cloud**.  
   3. Admin vào mục "Retrieval Test", nhập từ khóa. Hệ thống query Qdrant và hiển thị các chunks.
 
-### **UC-04: Cấu hình Hệ thống & Kết nối AI (Dynamic System Config)**
+### **UC-04: Cấu hình Hệ thống Cloud APIs (Dynamic System Config)**
 
-* **Actor:** Admin (DevOps hoặc Lead Dev).  
-* **Context:** Hệ thống vừa được deploy lên server mới (ví dụ: Render free tier). Cần kết nối tới Qdrant Cloud và trỏ tới model Ollama phù hợp mà không được phép SSH vào sửa file .env.  
-* **Process (Local Mode):**  
-  1. Admin truy cập Dashboard, vào mục **"System Settings"**.  
-  2. Tại tab **"Secrets"**, Admin nhập URL của Qdrant Cloud Cluster và API Key mới cấp.  
-  3. Tại tab **"Ollama Configuration"**, chọn **"Local Ollama"** mode.  
-  4. Hệ thống tự động liệt kê các model đang có trong Ollama Server (qua API GET /api/tags). Admin chọn kimi-k2 làm model mặc định cho Main Agent.  
-  5. Admin nhấn **"Save & Reload Context"**.  
-  6. Backend cập nhật DB, refresh lại LangGraph Runtime với cấu hình mới ngay lập tức.  
-* **Process (Cloud Mode - MỚI):**  
-  1. Admin truy cập Dashboard, vào mục **"System Settings"**.  
-  2. Tại tab **"Secrets"**, Admin nhập URL của Qdrant Cloud Cluster và API Key mới cấp.  
-  3. Tại tab **"Ollama Configuration"**, chọn **"Ollama Cloud"** mode.  
-  4. Admin nhập **Ollama Cloud API Key** (tạo tại https://ollama.com).  
-  5. Hệ thống tự động:  
-     * Chuyển base URL sang `https://ollama.com`  
-     * Chuyển model từ `kimi-k2` → `kimi-k2:1t-cloud` (256K context window)  
-     * Fetch danh sách Cloud models từ Ollama Cloud API  
-  6. Admin test connection để verify API key hoạt động.  
-  7. Admin nhấn **"Save & Reload Context"**.  
-  8. Backend cập nhật DB (lưu API key encrypted), refresh lại LangGraph Runtime với Cloud config ngay lập tức.  
-  9. **Lợi ích:** Không cần setup Ollama server hoặc tunnel trên Render, deployment đơn giản hơn.
+* **Actor:** Admin (DevOps hoặc Lead Dev).
+* **Context:** Hệ thống đã deploy lên AWS EC2 với Docker. Cần cấu hình Cloud APIs qua Dashboard thay vì SSH sửa file .env.
+* **Process:**
+  1. Admin truy cập Dashboard, vào mục **"System Settings"**.
+  2. Tại tab **"API Keys"**, Admin nhập:
+     * **OpenRouter API Key** (LLM provider)
+     * **Cohere API Key** (Embeddings)
+     * **Qdrant Cloud URL + API Key** (Vector DB)
+     * **Tavily API Key** (Web Search)
+  3. Tại tab **"Model Configuration"**:
+     * Chọn Primary LLM model (e.g., `google/gemini-2.0-flash-exp:free`)
+     * Chọn Fallback model (e.g., `meta-llama/llama-3.3-70b-instruct`)
+     * Set temperature, max_tokens cho từng agent
+  4. Admin nhấn **"Test Connections"** để verify tất cả APIs hoạt động.
+  5. Admin nhấn **"Save & Reload Context"**.
+  6. Backend cập nhật DB (mã hóa API keys), refresh LangGraph Runtime ngay lập tức.
+* **Lợi ích:**
+  * Cloud-native AI stack (không cần GPU/Ollama server local)
+  * Deploy production-ready trên AWS EC2
+  * CI/CD tự động qua GitHub Actions
+  * Thay đổi config không cần restart server
