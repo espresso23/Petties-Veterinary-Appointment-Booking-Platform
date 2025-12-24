@@ -59,21 +59,47 @@ erDiagram
         timestamp deleted_at
     }
 
-    SERVICE {
+    MASTER_SERVICE {
         uuid id PK
-        uuid clinic_id FK
+        uuid owner_id FK "CLINIC_OWNER"
         varchar name "NOT NULL"
         varchar image_url "nullable"
         text description "nullable"
         enum service_type "SPA|VACCINATION|CHECK_UP|SURGERY|OTHER"
+        decimal default_base_price "NOT NULL"
+        decimal default_price_per_kg "nullable"
+        decimal default_distance_fee_per_km "nullable"
+        int duration_minutes "NOT NULL"
+        int slots_required "DEFAULT 1"
+        boolean is_active "DEFAULT TRUE"
+        timestamp created_at
+    }
+
+    SERVICE {
+        uuid id PK
+        uuid clinic_id FK
+        uuid master_service_id FK "nullable (Linked to Master Service)"
+        varchar name "NOT NULL (Master or Custom)"
+        varchar image_url "nullable"
+        text description "nullable"
+        enum service_type "SPA|VACCINATION|CHECK_UP|SURGERY|OTHER"
         decimal base_price "NOT NULL"
-        decimal price_per_kg "nullable (for weight-based pricing)"
-        decimal distance_fee_per_km "nullable (for home visit)"
+        decimal distance_fee_per_km "nullable"
         int duration_minutes "NOT NULL"
         int slots_required "DEFAULT 1"
         boolean is_active "DEFAULT TRUE"
         timestamp created_at
         timestamp deleted_at
+    }
+
+    SERVICE_WEIGHT_PRICE {
+        uuid id PK
+        uuid service_id FK
+        decimal min_weight "NOT NULL"
+        decimal max_weight "NOT NULL"
+        decimal price "NOT NULL (Tiered Price)"
+        timestamp created_at
+        timestamp updated_at
     }
 
     %% ========== PET MANAGEMENT ==========
@@ -248,8 +274,11 @@ erDiagram
     USER ||--o{ CHAT_CONVERSATION : "participates_in"
     USER ||--o{ CHAT_MESSAGE : "sends"
 
-    %% CLINIC relationships
+    %% CLINIC & SERVICE relationships
+    USER ||--o{ MASTER_SERVICE : "defines"
+    MASTER_SERVICE ||--o{ SERVICE : "templated_to"
     CLINIC ||--o{ SERVICE : "offers"
+    SERVICE ||--o{ SERVICE_WEIGHT_PRICE : "has_tiered_pricing"
     CLINIC ||--o{ VET_SHIFT : "schedules"
     CLINIC ||--o{ BOOKING : "receives"
     CLINIC ||--o{ VACCINATION : "hosts"
@@ -354,79 +383,53 @@ Represents a veterinary clinic entity, including basic information, location, op
 
 ---
 
-### **2.3 SERVICE** – Veterinary Service (UPDATED)
+### **2.17 MASTER_SERVICE** – Service Template (NEW)
 
 **Purpose:**
-Defines veterinary services offered by each clinic with comprehensive pricing model. **This entity is the single source of truth for all pricing calculations.**
+Provides a blueprint for standard services across a clinic owner's chain. Stores default configurations and prices to enable rapid synchronization across multiple clinics.
 
 **Business Role:**
-- Each service has a type (SPA, VACCINATION, CHECK_UP, SURGERY, OTHER)
-- Pricing managed centrally: base_price, optional weight-based pricing (price_per_kg), optional distance fees (distance_fee_per_km)
-- Each service has an image and detailed description for owner clarity
-- Services can be customized per clinic (same service type, different clinics may have different prices)
-- Specifies duration and required slots (1 slot = 30 minutes)
+- Managed by CLINIC_OWNER.
+- Defines common services (e.g., "Standard Vaccination", "Basic SPA").
+- Stores default prices (`default_base_price`, etc.) which clinics can use as-is or override.
+- Ensures consistency in service naming and categorization (for RAG and Search).
 
-**Key Pricing Components:**
-- `base_price` – Mandatory base cost of the service
-- `price_per_kg` – Optional, for weight-based services (SPA, grooming); NULL for fixed-price services
-- `distance_fee_per_km` – Optional, applied when booking.type = HOME_VISIT
-- These three components are summed to calculate BOOKING.total_price
+**Key Relationships:**
+- Defined by USER (Clinic Owner) – N:1
+- Acts as template for SERVICE – 1:N
 
-**Example Services:**
-```
-Clinic A - SPA Service:
-  name: "SPA cơ bản"
-  service_type: SPA
-  base_price: 500,000 VND
-  price_per_kg: 50,000 VND (added per kg of pet weight)
-  distance_fee_per_km: 30,000 VND (if home visit)
-  duration_minutes: 60
-  slots_required: 2
+---
 
-Clinic A - Vaccination Service:
-  name: "Tiêm vaccine dại"
-  service_type: VACCINATION
-  base_price: 300,000 VND
-  price_per_kg: NULL (no weight-based pricing)
-  distance_fee_per_km: 20,000 VND (if home visit)
-  duration_minutes: 30
-  slots_required: 1
+### **2.3 SERVICE** – Clinic-Specific Service (HYBRID MODEL)
 
-Clinic A - Check-up Service:
-  name: "Khám tổng quát"
-  service_type: CHECK_UP
-  base_price: 200,000 VND
-  price_per_kg: NULL
-  distance_fee_per_km: 20,000 VND (if home visit)
-  duration_minutes: 30
-  slots_required: 1
+**Purpose:**
+The actual service instance offered by a specific clinic. It can either be linked to a `MASTER_SERVICE` (Hybrid) or be a completely custom service.
 
-Clinic A - Surgery Service:
-  name: "Phẫu thuật triệt sản"
-  service_type: SURGERY
-  base_price: 2,500,000 VND
-  price_per_kg: NULL
-  distance_fee_per_km: 30,000 VND (if home visit)
-  duration_minutes: 120
-  slots_required: 4
-```
-
-**Price Calculation Logic (at Booking Time):**
-```
-total_price = SERVICE.base_price 
-            + (SERVICE.price_per_kg * PET.weight_kg if SERVICE.price_per_kg is NOT NULL else 0)
-            + (SERVICE.distance_fee_per_km * BOOKING.distance_km if BOOKING.type = HOME_VISIT else 0)
-```
+**Business Role:**
+- **Hybrid Service:** Linked to `master_service_id`. Inherits properties from Master Service but allows overriding `base_price`, `duration`, etc.
+- **Custom Service:** `master_service_id` is NULL. All fields are defined specifically for this clinic.
+- **Pricing:** Uses a combination of `base_price`, `distance_fee_per_km` (for home visits), and tiered pricing defined in `SERVICE_WEIGHT_PRICE`.
 
 **Key Relationships:**
 - Belongs to CLINIC – N:1
+- Derived from MASTER_SERVICE – N:1 (optional)
+- Has multiple tiers in SERVICE_WEIGHT_PRICE – 1:N
 - Used in BOOKING – 1:N
 
-**Design Notes:**
-- Centralized pricing eliminates redundancy and ensures consistency
-- SERVICE changes automatically apply to future bookings, not past ones
-- Type-based categorization enables revenue analytics and filtering
-- **Soft Delete**: `deleted_at` field supported; inactive services are hidden from new bookings
+---
+
+### **2.18 SERVICE_WEIGHT_PRICE** – Tiered Pricing Model (NEW)
+
+**Purpose:**
+Enables flexible, bracket-based pricing for services where the cost depends on the pet's weight (common in SPA and grooming).
+
+**Business Role:**
+- Defines weight brackets (e.g., 0–5kg, 5–10kg, 10–20kg).
+- Each bracket has a specific `price` that will be added to the `base_price`.
+- Allows precise control over costs for different animal sizes.
+
+**Key Relationships:**
+- Belongs to SERVICE – N:1 (each tier is linked to one specific clinic service)
 
 ---
 
