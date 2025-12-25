@@ -268,7 +268,7 @@ public class ClinicServiceImpl implements ClinicService {
     @Override
     @Transactional(readOnly = true)
     public Page<ClinicResponse> getClinicsByOwner(UUID ownerId, Pageable pageable) {
-        Page<Clinic> clinics = clinicRepository.findByOwnerUserId(ownerId, pageable);
+        Page<Clinic> clinics = clinicRepository.findByOwnerUserIdAndStatus(ownerId, ClinicStatus.APPROVED, pageable);
         return clinics.map(this::mapToResponse);
     }
 

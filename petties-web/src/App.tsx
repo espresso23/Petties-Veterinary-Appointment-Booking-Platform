@@ -29,7 +29,7 @@ import { SettingsPage } from './pages/admin/settings'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
-import { ClinicOwnerDashboardPage, ServicesPage } from './pages/clinic-owner'
+import { ClinicOwnerDashboardPage, ServicesPage, MasterServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
 import {
   ClinicsListPage,
@@ -117,6 +117,7 @@ function App() {
             <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
             <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
             <Route path="services" element={<ServicesPage />} />
+            <Route path="master-services" element={<MasterServicesPage />} />
           </Route>
           {/* Clinic Manager Routes */}
           <Route path="/clinic-manager" element={

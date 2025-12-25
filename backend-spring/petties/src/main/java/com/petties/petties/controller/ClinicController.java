@@ -341,5 +341,22 @@ public class ClinicController {
         ClinicResponse clinic = clinicService.setPrimaryClinicImage(id, imageId, currentUser.getUserId());
         return ResponseEntity.ok(clinic);
     }
+
+    /**
+     * GET /api/clinics/owner/approved
+     * Get APPROVED clinics owned by current user
+     * CLINIC_OWNER only
+     */
+    @GetMapping("/owner/approved")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<Page<ClinicResponse>> getMyApprovedClinics(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+
+        User currentUser = authService.getCurrentUser();
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ClinicResponse> clinics = clinicService.getClinicsByOwner(currentUser.getUserId(), pageable);
+        return ResponseEntity.ok(clinics);
+    }
 }
 

@@ -29,9 +29,9 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
     Page<Clinic> findByStatus(ClinicStatus status, Pageable pageable);
 
     /**
-     * Find clinics by owner (with pagination)
+     * Find clinics by owner and status (with pagination)
      */
-    Page<Clinic> findByOwnerUserId(UUID ownerId, Pageable pageable);
+    Page<Clinic> findByOwnerUserIdAndStatus(UUID ownerId, ClinicStatus status, Pageable pageable);
 
     /**
      * Find a single clinic by owner (for current user's clinic)

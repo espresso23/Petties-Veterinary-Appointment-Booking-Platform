@@ -20,7 +20,8 @@ export const ClinicOwnerLayout = () => {
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
         { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM' },
-        { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
+        { path: '/clinic-owner/master-services', label: 'DỊCH VỤ MẪU' },
+        { path: '/clinic-owner/services', label: 'DỊCH VỤ PHÒNG KHÁM' },
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
         { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
     ]

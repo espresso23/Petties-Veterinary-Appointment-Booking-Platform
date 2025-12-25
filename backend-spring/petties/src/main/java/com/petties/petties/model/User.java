@@ -15,6 +15,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import com.petties.petties.model.Clinic;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -73,9 +76,11 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // For Clinic Owners: The clinic they own
-    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL)
-    private Clinic ownedClinic;
+
+    // For Clinic Owners: The clinics they own
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    private List<Clinic> ownedClinics = new ArrayList<>();
+
 
     // For Managers and Vets: The clinic they belong to
     @ManyToOne(fetch = FetchType.LAZY)
