@@ -221,4 +221,33 @@ class ClinicServiceControllerUnitTest {
                 mockMvc.perform(delete("/services/{serviceId}", testServiceId))
                                 .andExpect(status().isNoContent());
         }
+
+        // ==================== NEW ENDPOINT TESTS ====================
+
+        @Test
+        @DisplayName("TC-UNIT-SERVICE-050: Success - inherit master service")
+        void inheritFromMasterService_valid_returns201() throws Exception {
+                UUID masterServiceId = UUID.randomUUID();
+                when(clinicServiceService.inheritFromMasterService(eq(masterServiceId), eq(testClinicId), any(), any()))
+                                .thenReturn(testServiceResponse);
+
+                mockMvc.perform(post("/services/inherit/{masterServiceId}", masterServiceId)
+                                .param("clinicId", testClinicId.toString())
+                                .param("clinicPrice", "180000")
+                                .param("clinicPricePerKm", "4000"))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.serviceId").value(testServiceId.toString()))
+                                .andExpect(jsonPath("$.name").value(containsString("Khám")));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-SERVICE-051: Success - get services by clinic id")
+        void getServicesByClinicId_returns200() throws Exception {
+                when(clinicServiceService.getServicesByClinicId(testClinicId)).thenReturn(List.of(testServiceResponse));
+
+                mockMvc.perform(get("/services/by-clinic/{clinicId}", testClinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].clinicId").value(testClinicId.toString()))
+                                .andExpect(jsonPath("$[0].name").value(containsString("Khám")));
+        }
 }

@@ -2,6 +2,7 @@ package com.petties.petties.repository;
 
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicService;
+import com.petties.petties.model.MasterService;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,4 +17,6 @@ public interface ClinicServiceRepository extends JpaRepository<ClinicService, UU
     Optional<ClinicService> findByServiceIdAndClinic(UUID serviceId, Clinic clinic);
 
     List<ClinicService> findByClinicAndIsHomeVisit(Clinic clinic, Boolean isHomeVisit);
+
+    boolean existsByClinicAndMasterService(Clinic clinic, MasterService masterService);
 }

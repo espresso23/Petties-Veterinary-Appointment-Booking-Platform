@@ -43,7 +43,7 @@ public class Clinic {
     private UUID clinicId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "owner_id", nullable = false, unique = true)
+    @JoinColumn(name = "owner_id", nullable = false, unique = false)
     private User owner;
 
     @OneToMany(mappedBy = "workingClinic", cascade = CascadeType.ALL)

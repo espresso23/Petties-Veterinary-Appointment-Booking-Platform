@@ -61,8 +61,9 @@ export async function updateService(
  * Delete a service (soft delete)
  * DELETE /api/services/{serviceId}
  */
-export async function deleteService(serviceId: string): Promise<void> {
-  await apiClient.delete(`/services/${serviceId}`)
+export async function deleteService(serviceId: string, clinicId?: string): Promise<void> {
+  const config = clinicId ? { params: { clinicId } } : undefined
+  await apiClient.delete(`/services/${serviceId}`, config)
 }
 
 /**
@@ -83,6 +84,22 @@ export async function toggleServiceStatus(
 }
 
 /**
+ * Update home visit status
+ * PATCH /api/services/{serviceId}/home-visit?isHomeVisit={value}
+ */
+export async function updateHomeVisitStatus(
+  serviceId: string,
+  isHomeVisit: boolean,
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.patch<ClinicServiceResponse>(
+    `/services/${serviceId}/home-visit`,
+    null,
+    { params: { isHomeVisit } },
+  )
+  return data
+}
+
+/**
  * Update price per km for all home visit services
  * PATCH /api/services/bulk/price-per-km?pricePerKm={value}
  */
@@ -90,4 +107,40 @@ export async function updateBulkPricePerKm(pricePerKm: number): Promise<void> {
   await apiClient.patch('/services/bulk/price-per-km', null, {
     params: { pricePerKm: pricePerKm.toString() },
   })
+}
+
+/**
+ * NEW: Inherit service from Master Service
+ * POST /api/services/inherit/{masterServiceId}?clinicId={clinicId}&clinicPrice={price}&clinicPricePerKm={pricePerKm}
+ */
+export async function inheritFromMasterService(
+  masterServiceId: string,
+  clinicId?: string,
+  clinicPrice?: number,
+  clinicPricePerKm?: number,
+): Promise<ClinicServiceResponse> {
+  const params: { clinicId?: string; clinicPrice?: string; clinicPricePerKm?: string } = {}
+  if (clinicId) params.clinicId = clinicId
+  if (clinicPrice) params.clinicPrice = clinicPrice.toString()
+  if (clinicPricePerKm) params.clinicPricePerKm = clinicPricePerKm.toString()
+
+  const { data } = await apiClient.post<ClinicServiceResponse>(
+    `/services/inherit/${masterServiceId}`,
+    null,
+    { params },
+  )
+  return data
+}
+
+/**
+ * NEW: Get all services for a specific clinic
+ * GET /api/services/by-clinic/{clinicId}
+ */
+export async function getServicesByClinicId(
+  clinicId: string,
+): Promise<ClinicServiceResponse[]> {
+  const { data } = await apiClient.get<ClinicServiceResponse[]>(
+    `/services/by-clinic/${clinicId}`,
+  )
+  return data
 }
