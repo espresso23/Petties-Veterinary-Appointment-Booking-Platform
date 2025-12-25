@@ -26,10 +26,11 @@ import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
 import { SettingsPage } from './pages/admin/settings'
+import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
-import { ClinicOwnerDashboardPage, ServicesPage } from './pages/clinic-owner'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
 import {
   ClinicsListPage,
@@ -90,6 +91,7 @@ function App() {
             <Route path="tools" element={<ToolsPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="playground" element={<PlaygroundPage />} />
+            <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
@@ -117,6 +119,7 @@ function App() {
             <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
             <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
             <Route path="services" element={<ServicesPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
           </Route>
           {/* Clinic Manager Routes */}
           <Route path="/clinic-manager" element={

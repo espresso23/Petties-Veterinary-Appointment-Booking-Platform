@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { useNotificationPolling } from '../hooks/useNotificationPolling'
 import '../styles/brutalist.css'
 
 interface NavItem {
@@ -16,11 +17,13 @@ export const ClinicOwnerLayout = () => {
     const navigate = useNavigate()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
+    const { unreadCount } = useNotificationPolling({ interval: 30000, fetchLimit: 5 })
 
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
         { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM' },
         { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
+        { path: '/clinic-owner/notifications', label: 'THÔNG BÁO' },
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
         { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
     ]
@@ -48,13 +51,18 @@ export const ClinicOwnerLayout = () => {
                             to={link.path}
                             end={link.end}
                             className={({ isActive }) =>
-                                `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${isActive
+                                `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 relative ${isActive
                                     ? 'bg-amber-500 !text-white border-stone-900'
                                     : '!text-stone-900 border-transparent hover:bg-amber-200 hover:border-stone-900 hover:translate-x-[-2px]'
                                 }`
                             }
                         >
                             {String(link.label)}
+                            {link.path === '/clinic-owner/notifications' && unreadCount > 0 && (
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-red-600 text-white text-xs font-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                                    {unreadCount}
+                                </span>
+                            )}
                         </NavLink>
                     ))}
                 </nav>

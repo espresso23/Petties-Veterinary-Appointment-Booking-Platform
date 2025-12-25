@@ -1,9 +1,11 @@
 package com.petties.petties.controller;
 
+import com.petties.petties.dto.clinic.ApproveClinicRequest;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
+import com.petties.petties.dto.clinic.RejectClinicRequest;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.ClinicStatus;
@@ -184,14 +186,37 @@ public class ClinicController {
     }
 
     /**
+     * GET /api/clinics/admin/pending
+     * Get all pending clinics for admin approval
+     * ADMIN only
+     */
+    @GetMapping("/admin/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<ClinicResponse>> getPendingClinics(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
+        
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
+        Page<ClinicResponse> clinics = clinicService.getPendingClinics(pageable);
+        return ResponseEntity.ok(clinics);
+    }
+
+    /**
      * POST /api/clinics/{id}/approve
      * Approve clinic
      * ADMIN only
+     * Request body is optional - can send empty body or {"reason": "optional reason"}
      */
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ClinicResponse> approveClinic(@PathVariable UUID id) {
-        ClinicResponse clinic = clinicService.approveClinic(id);
+    public ResponseEntity<ClinicResponse> approveClinic(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ApproveClinicRequest request) {
+        
+        String reason = (request != null && request.getReason() != null) ? request.getReason() : null;
+        ClinicResponse clinic = clinicService.approveClinic(id, reason);
         return ResponseEntity.ok(clinic);
     }
 
@@ -204,14 +229,9 @@ public class ClinicController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ClinicResponse> rejectClinic(
             @PathVariable UUID id,
-            @RequestBody Map<String, String> request) {
+            @Valid @RequestBody RejectClinicRequest request) {
         
-        String reason = request.get("reason");
-        if (reason == null || reason.isEmpty()) {
-            throw new IllegalArgumentException("Rejection reason is required");
-        }
-        
-        ClinicResponse clinic = clinicService.rejectClinic(id, reason);
+        ClinicResponse clinic = clinicService.rejectClinic(id, request.getReason());
         return ResponseEntity.ok(clinic);
     }
 

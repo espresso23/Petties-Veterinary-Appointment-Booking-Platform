@@ -63,9 +63,14 @@ public interface ClinicService {
     DistanceResponse calculateDistance(UUID clinicId, BigDecimal latitude, BigDecimal longitude);
 
     /**
+     * Get pending clinics for admin approval (ADMIN only)
+     */
+    Page<ClinicResponse> getPendingClinics(Pageable pageable);
+
+    /**
      * Approve clinic (ADMIN only)
      */
-    ClinicResponse approveClinic(UUID clinicId);
+    ClinicResponse approveClinic(UUID clinicId, String reason);
 
     /**
      * Reject clinic (ADMIN only)
