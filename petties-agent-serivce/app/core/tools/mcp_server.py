@@ -202,7 +202,17 @@ def get_server_info() -> Dict[str, Any]:
     }
 
 
+# ===== TRIGGER TOOL DISCOVERY =====
+# Import mcp_tools package to trigger @mcp_server.tool decorators
+try:
+    from app.core.tools import mcp_tools
+    logger.info(f"🚀 Registered {len(mcp_server.list_tools())} tools to FastMCP server")
+except Exception as e:
+    logger.error(f"❌ Failed to register tools: {e}")
+
+
 if __name__ == "__main__":
+    mcp.run()
     # Test MCP server
     print("🔧 FastMCP Server Info:")
     print(get_server_info())

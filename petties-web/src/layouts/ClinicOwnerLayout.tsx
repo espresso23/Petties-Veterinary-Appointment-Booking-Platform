@@ -20,6 +20,7 @@ export const ClinicOwnerLayout = () => {
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
         { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM' },
+        { path: '/clinic-owner/staff', label: 'NHÂN SỰ' },
         { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
         { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
@@ -64,7 +65,7 @@ export const ClinicOwnerLayout = () => {
                 {/* User & Logout */}
                 <div className="px-6 py-4 border-t-4 border-stone-900">
                     <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
-                        {user?.username || 'User'}
+                        {user?.fullName || 'Owner'}
                     </p>
                     <button
                         onClick={handleLogout}

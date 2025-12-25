@@ -26,6 +26,15 @@ public class ClinicStaffController {
     }
 
     /**
+     * Check if clinic already has a manager
+     */
+    @GetMapping("/has-manager")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    public ResponseEntity<Boolean> hasManager(@PathVariable UUID clinicId) {
+        return ResponseEntity.ok(staffService.hasManager(clinicId));
+    }
+
+    /**
      * Quick add a new staff member (creates account and assigns to clinic)
      */
     @PostMapping("/quick-add")

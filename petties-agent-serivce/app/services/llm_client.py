@@ -1,15 +1,26 @@
 """
 PETTIES AGENT SERVICE - LLM Client Wrapper
-Unified interface cho Ollama và OpenAI
+Unified interface cho OpenRouter, Ollama va OpenAI
 
 Package: app.services
-Purpose: Abstract LLM calls với support cho streaming
-Version: v0.0.1
+Purpose: Abstract LLM calls voi support cho streaming
+Version: v1.0.0 (Added OpenRouter Cloud API)
+
+Supported Providers:
+- OpenRouter (RECOMMENDED): Cloud API voi multi-model routing
+- Ollama: Local LLM (backup)
+- OpenAI: Fallback
+
+OpenRouter Models:
+- google/gemini-2.0-flash-exp:free (1M context, FREE)
+- meta-llama/llama-3.3-70b-instruct (Vietnamese good)
+- anthropic/claude-3.5-sonnet (Best quality)
 """
 
 from typing import Optional, Dict, Any, List, AsyncIterator
 from abc import ABC, abstractmethod
 import httpx
+import json
 from loguru import logger
 from pydantic import BaseModel
 
@@ -28,23 +39,33 @@ except ImportError:
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 
+# ============================================================
+# CONFIG MODELS
+# ============================================================
+
 class LLMConfig(BaseModel):
     """Configuration cho LLM client"""
-    provider: str = "ollama"  # ollama | openai
-    model: str = "kimi-k2-thinking"
-    temperature: float = 0.5
+    provider: str = "openrouter"  # openrouter | ollama | openai
+    model: str = "google/gemini-2.0-flash-exp:free"  # Default: Free Gemini
+    fallback_model: str = "meta-llama/llama-3.3-70b-instruct"  # Fallback model
+    temperature: float = 0.7
     max_tokens: int = 2000
-    base_url: Optional[str] = "http://localhost:11434"  # Ollama default
-    api_key: Optional[str] = None  # For OpenAI
+    top_p: float = 0.9
+    base_url: Optional[str] = None  # Auto-set based on provider
+    api_key: Optional[str] = None
 
 
 class LLMResponse(BaseModel):
-    """Response từ LLM"""
+    """Response tu LLM"""
     content: str
     model: str
     usage: Optional[Dict[str, int]] = None
     finish_reason: Optional[str] = None
 
+
+# ============================================================
+# BASE CLASS
+# ============================================================
 
 class BaseLLMClient(ABC):
     """Abstract base class cho LLM clients"""
@@ -59,7 +80,7 @@ class BaseLLMClient(ABC):
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
-        """Generate response từ LLM"""
+        """Generate response tu LLM"""
         pass
 
     @abstractmethod
@@ -79,54 +100,60 @@ class BaseLLMClient(ABC):
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
-        """Chat với message history"""
+        """Chat voi message history"""
         pass
 
 
-class OllamaClient(BaseLLMClient):
-    """
-    Ollama LLM Client (Hybrid: Local or Cloud)
+# ============================================================
+# OPENROUTER CLIENT (RECOMMENDED)
+# ============================================================
 
-    Purpose:
-        - Connect to local Ollama instance OR Ollama Cloud
-        - Support streaming cho real-time responses
-        - Dùng cho kimi-k2 model (local: kimi-k2, cloud: kimi-k2:1t-cloud)
+class OpenRouterClient(BaseLLMClient):
+    """
+    OpenRouter LLM Client (Cloud API)
+
+    OpenRouter cho phep access nhieu models tu 1 API:
+    - Google Gemini (free tier available)
+    - Meta Llama 3.3
+    - Anthropic Claude
+    - Mistral, DeepSeek, Qwen, etc.
 
     Usage:
         ```python
-        # Local mode
-        client = OllamaClient(LLMConfig(model="kimi-k2"))
-        
-        # Cloud mode
-        client = OllamaClient(LLMConfig(
-            model="kimi-k2:1t-cloud",
-            base_url="https://ollama.com",
-            api_key="your_api_key"
+        client = OpenRouterClient(LLMConfig(
+            api_key="sk-or-...",
+            model="google/gemini-2.0-flash-exp:free"
         ))
+        response = await client.generate("Hello, how are you?")
         ```
+
+    Reference: https://openrouter.ai/docs
     """
+
+    BASE_URL = "https://openrouter.ai/api/v1"
 
     def __init__(self, config: LLMConfig):
         super().__init__(config)
-        
-        # Cloud mode: Nếu có API key → dùng Ollama Cloud
-        if config.api_key:
-            self.base_url = "https://ollama.com"
-            headers = {"Authorization": f"Bearer {config.api_key}"}
-            mode = "☁️ Cloud"
-        else:
-            # Local mode
-            self.base_url = config.base_url or "http://localhost:11434"
-            headers = {}
-            mode = "🦙 Local"
-        
+
+        if not config.api_key:
+            raise ValueError("OpenRouter API key is required")
+
+        self.api_key = config.api_key
+        self.model = config.model
+        self.fallback_model = config.fallback_model
+
         self.client = httpx.AsyncClient(
-            base_url=self.base_url,
+            base_url=self.BASE_URL,
             timeout=120.0,
-            headers=headers
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "HTTP-Referer": "https://petties.world",
+                "X-Title": "Petties AI Agent",
+                "Content-Type": "application/json"
+            }
         )
-        
-        logger.info(f"{mode} OllamaClient initialized: {config.model} @ {self.base_url}")
+
+        logger.info(f"OpenRouterClient initialized: {config.model}")
 
     async def generate(
         self,
@@ -135,16 +162,252 @@ class OllamaClient(BaseLLMClient):
         **kwargs
     ) -> LLMResponse:
         """
-        Generate response from Ollama
+        Generate response from OpenRouter
 
         Args:
             prompt: User prompt
             system_prompt: System prompt (optional)
-            **kwargs: Additional params (temperature, etc.)
+            **kwargs: temperature, max_tokens, top_p
 
         Returns:
-            LLMResponse với content và metadata
+            LLMResponse voi content va metadata
         """
+        logger.debug(f"Generating with {self.model}: {prompt[:50]}...")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+        }
+
+        try:
+            response = await self.client.post("/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+
+            return LLMResponse(
+                content=content,
+                model=data.get("model", self.model),
+                usage={
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0)
+                },
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+            )
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"OpenRouter HTTP error: {e.response.status_code} - {e.response.text}")
+            # Try fallback model
+            if kwargs.get("model") != self.fallback_model:
+                logger.info(f"Trying fallback model: {self.fallback_model}")
+                return await self.generate(
+                    prompt, system_prompt,
+                    model=self.fallback_model, **kwargs
+                )
+            raise
+
+        except httpx.HTTPError as e:
+            logger.error(f"OpenRouter HTTP error: {e}")
+            raise
+
+    async def stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """
+        Stream response tokens from OpenRouter
+
+        Args:
+            prompt: User prompt
+            system_prompt: System prompt (optional)
+
+        Yields:
+            Token strings
+        """
+        logger.debug(f"Streaming with {self.model}: {prompt[:50]}...")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+            "stream": True
+        }
+
+        try:
+            async with self.client.stream("POST", "/chat/completions", json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]  # Remove "data: " prefix
+                        if data_str.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.HTTPError as e:
+            logger.error(f"OpenRouter stream error: {e}")
+            raise
+
+    async def chat(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """
+        Chat voi full message history
+
+        Args:
+            messages: List of {"role": "user"|"assistant", "content": "..."}
+            system_prompt: System prompt (optional)
+
+        Returns:
+            LLMResponse
+        """
+        formatted_messages = []
+
+        if system_prompt:
+            formatted_messages.append({"role": "system", "content": system_prompt})
+
+        for msg in messages:
+            formatted_messages.append({
+                "role": msg.get("role", "user"),
+                "content": msg.get("content", "")
+            })
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": formatted_messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+        }
+
+        try:
+            response = await self.client.post("/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+
+            return LLMResponse(
+                content=content,
+                model=data.get("model", self.model),
+                usage={
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0)
+                },
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+            )
+
+        except httpx.HTTPError as e:
+            logger.error(f"OpenRouter chat error: {e}")
+            raise
+
+    async def close(self):
+        """Close HTTP client"""
+        await self.client.aclose()
+
+    async def test_connection(self) -> Dict[str, Any]:
+        """
+        Test OpenRouter connection va list available models
+
+        Returns:
+            Dict voi status va model info
+        """
+        try:
+            # Test with a simple completion
+            response = await self.generate(
+                prompt="Hello",
+                max_tokens=5
+            )
+            return {
+                "status": "success",
+                "model": self.model,
+                "response_length": len(response.content)
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+
+# ============================================================
+# OLLAMA CLIENT (BACKUP)
+# ============================================================
+
+class OllamaClient(BaseLLMClient):
+    """
+    Ollama LLM Client (Local or Cloud)
+
+    Purpose:
+        - Fallback to local Ollama instance
+        - Support streaming cho real-time responses
+
+    Usage:
+        ```python
+        # Local mode
+        client = OllamaClient(LLMConfig(
+            provider="ollama",
+            model="llama3.2",
+            base_url="http://localhost:11434"
+        ))
+        ```
+    """
+
+    def __init__(self, config: LLMConfig):
+        super().__init__(config)
+
+        self.base_url = config.base_url or "http://localhost:11434"
+        headers = {}
+
+        if config.api_key:
+            headers["Authorization"] = f"Bearer {config.api_key}"
+
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=120.0,
+            headers=headers
+        )
+
+        logger.info(f"OllamaClient initialized: {config.model} @ {self.base_url}")
+
+    async def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """Generate response from Ollama"""
         logger.debug(f"Generating with {self.config.model}: {prompt[:50]}...")
 
         messages = []
@@ -187,16 +450,7 @@ class OllamaClient(BaseLLMClient):
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> AsyncIterator[str]:
-        """
-        Stream response tokens from Ollama
-
-        Args:
-            prompt: User prompt
-            system_prompt: System prompt (optional)
-
-        Yields:
-            Token strings
-        """
+        """Stream response tokens from Ollama"""
         logger.debug(f"Streaming with {self.config.model}: {prompt[:50]}...")
 
         messages = []
@@ -218,7 +472,6 @@ class OllamaClient(BaseLLMClient):
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line:
-                        import json
                         data = json.loads(line)
                         content = data.get("message", {}).get("content", "")
                         if content:
@@ -234,16 +487,7 @@ class OllamaClient(BaseLLMClient):
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
-        """
-        Chat với full message history
-
-        Args:
-            messages: List of {"role": "user"|"assistant", "content": "..."}
-            system_prompt: System prompt (optional)
-
-        Returns:
-            LLMResponse
-        """
+        """Chat voi full message history"""
         formatted_messages = []
 
         if system_prompt:
@@ -289,6 +533,10 @@ class OllamaClient(BaseLLMClient):
         await self.client.aclose()
 
 
+# ============================================================
+# OPENAI CLIENT (FALLBACK)
+# ============================================================
+
 class OpenAIClient(BaseLLMClient):
     """
     OpenAI LLM Client (for embeddings or backup)
@@ -314,7 +562,7 @@ class OpenAIClient(BaseLLMClient):
             api_key=config.api_key,
         )
 
-        logger.info(f"🤖 OpenAIClient initialized: {config.model}")
+        logger.info(f"OpenAIClient initialized: {config.model}")
 
     async def generate(
         self,
@@ -369,7 +617,7 @@ class OpenAIClient(BaseLLMClient):
         system_prompt: Optional[str] = None,
         **kwargs
     ) -> LLMResponse:
-        """Chat với message history"""
+        """Chat voi message history"""
         formatted_messages = []
 
         if system_prompt:
@@ -402,104 +650,87 @@ class OpenAIClient(BaseLLMClient):
 
 
 # ============================================================
-# FACTORY FUNCTION
+# FACTORY FUNCTIONS
 # ============================================================
 
 def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
     """
     Factory function to create LLM client
-    
-    Loads configuration from settings (env vars)
-    For DB-loaded config, use async version or pass config directly
 
     Args:
         config: LLMConfig (optional, will load from settings if None)
 
     Returns:
-        LLM client instance
+        LLM client instance (OpenRouterClient, OllamaClient, or OpenAIClient)
     """
     from app.config.settings import settings
-    
+
     if config is None:
-        # Load from settings (env vars)
-        base_url = settings.OLLAMA_BASE_URL
-        api_key = settings.OLLAMA_API_KEY
-        model = settings.OLLAMA_MODEL
-        
-        # Auto-detect Cloud mode: if API key set → Cloud mode
-        if api_key:
-            base_url = "https://ollama.com"
-            # Auto-update model to cloud version if using kimi-k2
-            if model in ["kimi-k2", "kimi-k2:latest"]:
-                model = "kimi-k2:1t-cloud"
-                logger.info(f"🌤️ Auto-switched to Cloud model: {model}")
-        
+        # Default to OpenRouter
         config = LLMConfig(
-            provider="ollama",
-            model=model,
-            base_url=base_url,
-            api_key=api_key if api_key else None
+            provider="openrouter",
+            model=getattr(settings, 'OPENROUTER_MODEL', 'google/gemini-2.0-flash-exp:free'),
+            api_key=getattr(settings, 'OPENROUTER_API_KEY', ''),
+            temperature=0.7,
+            max_tokens=2000
         )
 
-    if config.provider == "openai":
+    provider = config.provider.lower()
+
+    if provider == "openrouter":
+        return OpenRouterClient(config)
+    elif provider == "ollama":
+        return OllamaClient(config)
+    elif provider == "openai":
         return OpenAIClient(config)
     else:
-        return OllamaClient(config)
+        raise ValueError(f"Unknown LLM provider: {provider}")
 
 
 async def create_llm_client_from_db(db_session) -> BaseLLMClient:
     """
     Async factory function to create LLM client from DB settings
-    
+
     Args:
         db_session: Async DB session to load settings from SystemSettings table
 
     Returns:
         LLM client instance
     """
-    from app.config.settings import settings
     from app.api.routes.settings import get_setting
-    
-    # Load from env first
-    base_url = settings.OLLAMA_BASE_URL
-    api_key = settings.OLLAMA_API_KEY
-    model = settings.OLLAMA_MODEL
-    
-    # Try to load from DB (higher priority than env)
-    try:
-        db_api_key = await get_setting("OLLAMA_API_KEY", db_session)
-        if db_api_key:
-            api_key = db_api_key
-        
-        db_model = await get_setting("OLLAMA_MODEL", db_session)
-        if db_model:
-            model = db_model
-            
-        db_base_url = await get_setting("OLLAMA_BASE_URL", db_session)
-        if db_base_url:
-            base_url = db_base_url
-    except Exception as e:
-        logger.warning(f"Could not load settings from DB: {e}, using env defaults")
-    
-    # Auto-detect Cloud mode: if API key set → Cloud mode
-    if api_key:
-        base_url = "https://ollama.com"
-        # Auto-update model to cloud version if using kimi-k2
-        if model in ["kimi-k2", "kimi-k2:latest"]:
-            model = "kimi-k2:1t-cloud"
-            logger.info(f"🌤️ Auto-switched to Cloud model: {model}")
-    
+
+    # Try to get OpenRouter settings first (preferred)
+    openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
+
+    if openrouter_api_key:
+        # Use OpenRouter
+        model = await get_setting("OPENROUTER_DEFAULT_MODEL", db_session) or "google/gemini-2.0-flash-exp:free"
+        fallback_model = await get_setting("OPENROUTER_FALLBACK_MODEL", db_session) or "meta-llama/llama-3.3-70b-instruct"
+
+        config = LLMConfig(
+            provider="openrouter",
+            model=model,
+            fallback_model=fallback_model,
+            api_key=openrouter_api_key,
+            temperature=0.7,
+            max_tokens=2000
+        )
+        return OpenRouterClient(config)
+
+    # Fallback to Ollama
+    ollama_base_url = await get_setting("OLLAMA_BASE_URL", db_session) or "http://localhost:11434"
+    ollama_model = await get_setting("OLLAMA_MODEL", db_session) or "llama3.2"
+    ollama_api_key = await get_setting("OLLAMA_API_KEY", db_session)
+
     config = LLMConfig(
         provider="ollama",
-        model=model,
-        base_url=base_url,
-        api_key=api_key if api_key else None
+        model=ollama_model,
+        base_url=ollama_base_url,
+        api_key=ollama_api_key if ollama_api_key else None,
+        temperature=0.7,
+        max_tokens=2000
     )
-    
-    if config.provider == "openai":
-        return OpenAIClient(config)
-    else:
-        return OllamaClient(config)
+    return OllamaClient(config)
 
 
 # ============================================================
@@ -524,6 +755,12 @@ def get_llm_client() -> BaseLLMClient:
     return _llm_client
 
 
+def reset_llm_client():
+    """Reset singleton LLM client (for testing/reconfiguration)"""
+    global _llm_client
+    _llm_client = None
+
+
 # ============================================================
 # EXPORTS
 # ============================================================
@@ -532,9 +769,11 @@ __all__ = [
     "LLMConfig",
     "LLMResponse",
     "BaseLLMClient",
+    "OpenRouterClient",
     "OllamaClient",
     "OpenAIClient",
     "create_llm_client",
     "create_llm_client_from_db",
     "get_llm_client",
+    "reset_llm_client",
 ]

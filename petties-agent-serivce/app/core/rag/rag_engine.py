@@ -2,22 +2,30 @@
 PETTIES AGENT SERVICE - RAG Engine
 
 Main RAG (Retrieval Augmented Generation) engine.
-Combines Qdrant vector search with LlamaIndex processing.
+Combines Qdrant vector search with LlamaIndex processing and Cohere embeddings.
+
+Package: app.core.rag
+Purpose: Document indexing and retrieval for pet care knowledge
+Version: v1.0.0 (Migrated to Cohere embeddings)
+
+Changes from v0.x:
+- Uses Cohere embed-multilingual-v3.0 (1024 dimensions)
+- Better Vietnamese text support
+- Async operations throughout
 """
 
 from typing import List, Optional
 from dataclasses import dataclass
-import logging
+from loguru import logger
 
-from app.core.rag.qdrant_client import QdrantManager
-from app.core.rag.document_processor import DocumentProcessor
+from app.core.rag.qdrant_client import QdrantManager, get_qdrant_manager, COHERE_EMBED_DIMENSION
+from app.core.rag.document_processor import DocumentProcessor, get_document_processor
 from app.config.settings import settings
+from app.core.config_helper import get_setting
+from app.db.postgres.session import AsyncSessionLocal
 
-logger = logging.getLogger(__name__)
 
-
-# Collection name for knowledge base
-KNOWLEDGE_COLLECTION = "petties_knowledge"
+# Collection name for knowledge base is loaded from settings
 
 
 @dataclass
@@ -33,38 +41,44 @@ class RetrievedChunk:
 class RAGEngine:
     """
     RAG Engine - Document indexing and retrieval
-    
+
     Usage:
         engine = RAGEngine()
-        await engine.index_document(file_bytes, "doc.pdf")
+        await engine.index_document(file_bytes, "doc.pdf", doc_id=1)
         results = await engine.query("pet symptoms")
     """
-    
+
     _instance: Optional["RAGEngine"] = None
-    
+
     def __new__(cls):
         """Singleton pattern"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
-            
-        self.qdrant = QdrantManager()
-        self.processor = DocumentProcessor()
-        self._ensure_collection()
+
+        self.qdrant = get_qdrant_manager()
+        self.processor = get_document_processor()
+        # Initial check, will be updated dynamically during operations
         self._initialized = True
-    
-    def _ensure_collection(self):
-        """Ensure knowledge collection exists"""
+
+    async def _get_collection_name(self, db=None) -> str:
+        """Get collection name from DB with fallback to settings"""
+        return await get_setting("QDRANT_COLLECTION_NAME", db, settings.QDRANT_COLLECTION_NAME)
+
+    async def _ensure_collection_dynamic(self, db=None):
+        """Ensure knowledge collection exists (dynamic check)"""
+        col_name = await self._get_collection_name(db)
         self.qdrant.create_collection(
-            collection_name=KNOWLEDGE_COLLECTION,
-            dimension=1536  # OpenAI ada-002 dimension
+            collection_name=col_name,
+            dimension=COHERE_EMBED_DIMENSION
         )
-    
+        return col_name
+
     async def index_document(
         self,
         file_content: bytes,
@@ -74,32 +88,36 @@ class RAGEngine:
     ) -> int:
         """
         Index a document into the knowledge base
-        
+
         Args:
             file_content: Raw file bytes
             filename: Original filename
             document_id: Database document ID
             metadata: Additional metadata
-            
+
         Returns:
             Number of chunks indexed
         """
         # Process document into chunks
         chunks = self.processor.process_file(
-            file_content, 
+            file_content,
             filename,
             metadata={
                 "document_id": document_id,
                 **(metadata or {})
             }
         )
-        
+
         if not chunks:
+            logger.warning(f"No chunks generated for {filename}")
             return 0
-        
-        # Generate embeddings
+
+        # Ensure collection exists
+        col_name = await self._ensure_collection_dynamic()
+
+        # Generate embeddings with Cohere
         embeddings = await self.processor.embed_chunks(chunks)
-        
+
         # Prepare payloads
         payloads = [
             {
@@ -111,19 +129,19 @@ class RAGEngine:
             }
             for c in chunks
         ]
-        
+
         # Upsert to Qdrant
         success = self.qdrant.upsert_vectors(
-            collection_name=KNOWLEDGE_COLLECTION,
+            collection_name=col_name,
             vectors=embeddings,
             payloads=payloads
         )
-        
+
         if success:
             logger.info(f"Indexed {len(chunks)} chunks for document {document_id}")
             return len(chunks)
         return 0
-    
+
     async def query(
         self,
         query: str,
@@ -133,31 +151,40 @@ class RAGEngine:
     ) -> List[RetrievedChunk]:
         """
         Query the knowledge base
-        
+
         Args:
             query: Search query text
             top_k: Number of results
             min_score: Minimum similarity score
             document_ids: Filter by specific documents
-            
+
         Returns:
             List of retrieved chunks
         """
-        # Generate query embedding
+        # Generate query embedding with Cohere
         query_vector = await self.processor.embed_query(query)
-        
+
+        # Build filter conditions
+        filter_conditions = None
+        if document_ids and len(document_ids) == 1:
+            filter_conditions = {"document_id": document_ids[0]}
+
+        # Get dynamic collection name
+        col_name = await self._get_collection_name()
+
         # Search Qdrant
         results = self.qdrant.search(
-            collection_name=KNOWLEDGE_COLLECTION,
+            collection_name=col_name,
             query_vector=query_vector,
             top_k=top_k,
-            score_threshold=min_score
+            score_threshold=min_score,
+            filter_conditions=filter_conditions
         )
-        
-        # Filter by document_ids if specified
-        if document_ids:
+
+        # Filter by document_ids if multiple
+        if document_ids and len(document_ids) > 1:
             results = [r for r in results if r.get("document_id") in document_ids]
-        
+
         # Convert to RetrievedChunk objects
         chunks = [
             RetrievedChunk(
@@ -169,38 +196,40 @@ class RAGEngine:
             )
             for r in results
         ]
-        
+
         logger.info(f"Query '{query[:50]}...' returned {len(chunks)} results")
         return chunks
-    
+
     async def delete_document(self, document_id: int) -> bool:
         """Delete all chunks for a document"""
         try:
-            # Qdrant delete filter
-            from qdrant_client.models import Filter, FieldCondition, MatchValue
-            
-            self.qdrant.client.delete(
-                collection_name=KNOWLEDGE_COLLECTION,
-                points_selector=Filter(
-                    must=[
-                        FieldCondition(
-                            key="document_id",
-                            match=MatchValue(value=document_id)
-                        )
-                    ]
-                )
+            col_name = await self._get_collection_name()
+            success = self.qdrant.delete_by_filter(
+                collection_name=col_name,
+                filter_conditions={"document_id": document_id}
             )
-            logger.info(f"Deleted chunks for document {document_id}")
-            return True
+            if success:
+                logger.info(f"Deleted chunks for document {document_id}")
+            return success
+
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return False
-    
-    def get_stats(self) -> dict:
+
+    async def get_stats(self) -> dict:
         """Get knowledge base stats"""
-        info = self.qdrant.get_collection_info(KNOWLEDGE_COLLECTION)
+        col_name = await self._get_collection_name()
+        info = self.qdrant.get_collection_info(col_name)
         return {
-            "collection": KNOWLEDGE_COLLECTION,
+            "collection": col_name,
             "total_chunks": info.get("points_count", 0),
-            "status": info.get("status", "unknown")
+            "status": info.get("status", "unknown"),
+            "embedding_model": "cohere/embed-multilingual-v3.0",
+            "dimension": COHERE_EMBED_DIMENSION
         }
+
+
+# Singleton accessor
+def get_rag_engine() -> RAGEngine:
+    """Get singleton RAGEngine instance"""
+    return RAGEngine()

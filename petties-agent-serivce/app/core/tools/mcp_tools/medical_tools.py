@@ -1,269 +1,286 @@
 """
-PETTIES AGENT SERVICE - Medical Tools (FastMCP)
-Code-based tools cho Medical/Triage Agent - Viết bằng FastMCP
+PETTIES AGENT SERVICE - Pet Care RAG Tools (FastMCP)
+
+Code-based tools for Single Agent - RAG-based Q&A and symptom checking.
+Uses Cohere embeddings + Qdrant vector search.
 
 Package: app.core.tools.mcp_tools
 Purpose:
-    - Chẩn đoán sơ bộ dựa trên triệu chứng
-    - Tra cứu lịch sử bệnh từ EMR (Electronic Medical Records)
-    - RAG search từ knowledge base (Qdrant)
+    - RAG-based Q&A for pet care knowledge
+    - Symptom search using knowledge base
+    - Vietnamese language support via Cohere multilingual
 
 Tools:
-    - search_symptoms: Tìm bệnh dựa trên triệu chứng
-    - RAG_search: Tìm kiếm kiến thức y tế từ vector store
-    - get_medical_history: Lấy lịch sử khám bệnh
+    - pet_care_qa: RAG-based Q&A for pet care questions
+    - symptom_search: Search diseases based on symptoms using RAG
 
-Reference: Section 6 - Medical Agent features
-Version: v0.0.1
+Reference: Technical Scope - Single Agent with ReAct pattern
+Version: v1.0.0 (Migrated from Multi-Agent medical_tools)
+
+Changes:
+- Removed API-based tools (booking, history, vaccine) - not for RAG
+- Implemented real RAG search using Qdrant + Cohere
+- Added pet_care_qa tool
+- Renamed to focus on RAG functionality
 """
 
 from app.core.tools.mcp_server import mcp_server
-from typing import Dict, Any, List
-import httpx
-import logging
-
-from app.config.settings import settings
-
-logger = logging.getLogger(__name__)
+from typing import Dict, Any, List, Optional
+from loguru import logger
 
 
-# ===== MEDICAL TOOLS =====
+# ===== RAG TOOLS =====
 
 @mcp_server.tool()
-async def search_symptoms(symptoms: List[str], pet_type: str = "dog") -> Dict[str, Any]:
+async def pet_care_qa(
+    query: str,
+    top_k: int = 5,
+    min_score: float = 0.5
+) -> Dict[str, Any]:
     """
-    Tìm bệnh dựa trên triệu chứng (Symptom Checker)
+    Tim kiem kien thuc cham soc thu cung tu knowledge base (RAG Q&A)
+
+    Su dung tool nay khi user hoi cac cau hoi ve:
+    - Cach cham soc thu cung (cho an, tam rua, tap luyen)
+    - Thong tin ve giong loai
+    - Dieu tri benh thuong gap
+    - Dinh duong va thuc pham
 
     Args:
-        symptoms: Danh sách triệu chứng (ví dụ: ["sốt", "nôn mửa", "mệt mỏi"])
-        pet_type: Loại thú cưng (dog, cat, bird, rabbit)
+        query: Cau hoi hoac tu khoa tim kiem (tieng Viet hoac English)
+        top_k: So luong ket qua tra ve (default: 5)
+        min_score: Diem tuong dong toi thieu (default: 0.5)
 
     Returns:
-        Dict chứa:
-            - diseases: List[Dict] - Danh sách bệnh có thể
-                - name: str - Tên bệnh
-                - probability: float - Xác suất (0.0-1.0)
-                - severity: str - Mức độ nghiêm trọng (mild, moderate, severe, critical)
-                - recommendations: str - Khuyến nghị
-            - urgent: bool - Cần khám gấp không
-
-    Example:
-        >>> await search_symptoms(["sốt cao", "nôn mửa", "tiêu chảy"], "dog")
-        {
-            "diseases": [
-                {
-                    "name": "Parvovirus",
-                    "probability": 0.85,
-                    "severity": "critical",
-                    "recommendations": "Cần đến phòng khám NGAY LẬP TỨC"
-                },
-                {
-                    "name": "Viêm dạ dày ruột",
-                    "probability": 0.65,
-                    "severity": "moderate",
-                    "recommendations": "Nên đặt lịch khám trong 24h"
-                }
-            ],
-            "urgent": True
-        }
-
-    Purpose:
-        - Medical Agent dùng để chẩn đoán sơ bộ
-        - Call AI model hoặc knowledge graph để match symptoms
-    """
-    try:
-        # Call Spring Boot backend API (có thể có ML model)
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{settings.SPRING_BACKEND_URL}/medical/symptom-checker",
-                json={
-                    "symptoms": symptoms,
-                    "petType": pet_type
-                },
-                timeout=settings.MCP_TIMEOUT
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        logger.info(f"✅ Searched symptoms: {symptoms}")
-        return data
-
-    except httpx.HTTPError as e:
-        logger.error(f"❌ Error searching symptoms: {e}")
-        return {
-            "diseases": [],
-            "urgent": False,
-            "error": str(e)
-        }
-
-
-@mcp_server.tool()
-async def RAG_search(query: str, top_k: int = 5) -> Dict[str, Any]:
-    """
-    Tìm kiếm kiến thức y tế từ RAG (Retrieval-Augmented Generation)
-
-    Args:
-        query: Câu hỏi hoặc từ khóa tìm kiếm
-        top_k: Số lượng documents trả về (default: 5)
-
-    Returns:
-        Dict chứa:
-            - query: str - Query gốc
-            - results: List[Dict] - Danh sách documents
-                - content: str - Nội dung document
+        Dict chua:
+            - query: str - Query goc
+            - results: List[Dict] - Danh sach documents
+                - content: str - Noi dung document
                 - score: float - Similarity score
-                - source: str - Nguồn (tên file PDF/Docx)
-                - page: int - Số trang (nếu có)
-            - answer: str - Câu trả lời được synthesize từ RAG
+                - source: str - Nguon (ten file)
+                - chunk_index: int - So thu tu chunk
+            - answer: str - Tong hop tu cac documents tim duoc
+            - sources_used: int - So documents duoc su dung
 
     Example:
-        >>> await RAG_search("Cách điều trị Parvo ở chó con")
+        >>> await pet_care_qa("Cach tam cho cho con 2 thang tuoi")
         {
-            "query": "Cách điều trị Parvo ở chó con",
+            "query": "Cach tam cho cho con 2 thang tuoi",
             "results": [
                 {
-                    "content": "Parvovirus được điều trị bằng...",
-                    "score": 0.92,
-                    "source": "vet_handbook_2024.pdf",
-                    "page": 145
+                    "content": "Cho con 2 thang tuoi chua nen tam nuoc...",
+                    "score": 0.89,
+                    "source": "huong_dan_cham_soc_cho.pdf",
+                    "chunk_index": 12
                 }
             ],
-            "answer": "Điều trị Parvo cần: 1) Nhập viện, 2) Truyền dịch..."
+            "answer": "Cho con 2 thang tuoi chua nen tam nuoc vi...",
+            "sources_used": 3
         }
 
     Purpose:
-        - Medical Agent dùng để tra cứu kiến thức chuyên môn
-        - Query Qdrant vector store → LLM synthesis
+        - Single Agent dung de tra loi cau hoi ve cham soc thu cung
+        - Tim kiem trong knowledge base da duoc upload
+        - Su dung Cohere multilingual embeddings cho tieng Viet
     """
     try:
-        from qdrant_client import QdrantClient
+        from app.core.rag.rag_engine import get_rag_engine
 
-        # Connect to Qdrant Cloud
-        client = QdrantClient(
-            url=settings.QDRANT_URL,
-            api_key=settings.QDRANT_API_KEY
+        # Get RAG engine
+        rag = get_rag_engine()
+
+        # Query knowledge base
+        results = await rag.query(
+            query=query,
+            top_k=top_k,
+            min_score=min_score
         )
 
-        # TODO: Implement actual RAG search
-        # 1. Generate query embedding (OpenAI or SentenceTransformer)
-        # 2. Search Qdrant collection
-        # 3. Retrieve top_k documents
-        # 4. Synthesize answer using LLM
+        # Format results
+        formatted_results = [
+            {
+                "content": r.content,
+                "score": r.score,
+                "source": r.document_name,
+                "chunk_index": r.chunk_index
+            }
+            for r in results
+        ]
 
-        logger.info(f"✅ RAG search: {query}")
+        # Generate synthesized answer from top results
+        if formatted_results:
+            # Combine top 3 chunks for answer
+            context = "\n\n".join([r["content"] for r in formatted_results[:3]])
+            answer = f"Dua tren kien thuc trong knowledge base:\n\n{context[:1000]}..."
+        else:
+            answer = "Khong tim thay thong tin phu hop trong knowledge base. Vui long hoi cau hoi khac hoac lien he bac si thu y."
 
-        # Placeholder response
+        logger.info(f"pet_care_qa: Found {len(results)} results for query: {query[:50]}...")
+
         return {
             "query": query,
-            "results": [],
-            "answer": "RAG search chưa được implement. Coming soon!"
+            "results": formatted_results,
+            "answer": answer,
+            "sources_used": len(formatted_results)
         }
 
     except Exception as e:
-        logger.error(f"❌ Error in RAG search: {e}")
+        logger.error(f"Error in pet_care_qa: {e}")
         return {
             "query": query,
             "results": [],
+            "answer": f"Loi khi tim kiem: {str(e)}. Vui long thu lai sau.",
+            "sources_used": 0,
             "error": str(e)
         }
 
 
 @mcp_server.tool()
-async def get_medical_history(pet_id: str, limit: int = 10) -> Dict[str, Any]:
+async def symptom_search(
+    symptoms: List[str],
+    pet_type: str = "dog",
+    top_k: int = 5
+) -> Dict[str, Any]:
     """
-    Lấy lịch sử khám bệnh từ EMR (Electronic Medical Records)
+    Tim benh dua tren trieu chung su dung RAG (Symptom Checker)
+
+    Su dung tool nay khi user mo ta trieu chung cua thu cung:
+    - Thu cung bi sot, non, tieu chay
+    - Thu cung bo an, met moi
+    - Cac van de ve da, long
+    - Van de ho hap, mat
 
     Args:
-        pet_id: ID của thú cưng (format: PET_xxxxx)
-        limit: Số lượng records tối đa (default: 10)
+        symptoms: Danh sach trieu chung (vi du: ["sot", "non mua", "met moi"])
+        pet_type: Loai thu cung (dog, cat, bird, rabbit, hamster)
+        top_k: So luong ket qua (default: 5)
 
     Returns:
-        Dict chứa:
-            - pet_id: str
-            - pet_name: str
-            - records: List[Dict] - Lịch sử khám bệnh
-                - date: str - Ngày khám
-                - doctor_name: str - Bác sĩ
-                - diagnosis: str - Chẩn đoán
-                - treatment: str - Phương pháp điều trị
-                - prescriptions: List[str] - Đơn thuốc
+        Dict chua:
+            - symptoms: List[str] - Trieu chung da nhap
+            - pet_type: str - Loai thu cung
+            - possible_conditions: List[Dict] - Cac benh co the
+                - name: str - Ten benh
+                - description: str - Mo ta
+                - severity: str - Muc do (mild, moderate, severe, critical)
+                - source: str - Nguon thong tin
+                - score: float - Do phu hop
+            - urgent: bool - Can kham gap khong
+            - recommendations: str - Khuyen nghi
 
-    Purpose:
-        - Medical Agent tra cứu lịch sử để context cho chẩn đoán
-    """
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{settings.SPRING_BACKEND_URL}/medical/history/{pet_id}",
-                params={"limit": limit},
-                timeout=settings.MCP_TIMEOUT
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        logger.info(f"✅ Retrieved medical history for pet {pet_id}")
-        return data
-
-    except httpx.HTTPError as e:
-        logger.error(f"❌ Error getting medical history: {e}")
-        return {
-            "pet_id": pet_id,
-            "records": [],
-            "error": str(e)
+    Example:
+        >>> await symptom_search(["sot cao", "non mua", "tieu chay"], "dog")
+        {
+            "symptoms": ["sot cao", "non mua", "tieu chay"],
+            "pet_type": "dog",
+            "possible_conditions": [
+                {
+                    "name": "Parvo virus",
+                    "description": "Benh truyen nhiem nguy hiem...",
+                    "severity": "critical",
+                    "source": "vet_handbook.pdf",
+                    "score": 0.92
+                }
+            ],
+            "urgent": True,
+            "recommendations": "Can den phong kham NGAY LAP TUC"
         }
 
-
-@mcp_server.tool()
-async def get_vaccine_schedule(pet_id: str) -> Dict[str, Any]:
-    """
-    Lấy lịch tiêm chủng (Vaccination Schedule)
-
-    Args:
-        pet_id: ID của thú cưng (format: PET_xxxxx)
-
-    Returns:
-        Dict chứa:
-            - pet_id: str
-            - pet_name: str
-            - pet_age_months: int
-            - completed_vaccines: List[Dict] - Vaccine đã tiêm
-            - upcoming_vaccines: List[Dict] - Vaccine sắp tới
-                - vaccine_name: str
-                - due_date: str
-                - status: str (overdue, upcoming, completed)
-
     Purpose:
-        - Medical Agent check lịch tiêm chủng
-        - Nhắc nhở user về vaccine sắp tới hoặc quá hạn
+        - Single Agent dung de chan doan so bo
+        - Tim kiem benh trong knowledge base dua tren trieu chung
+        - KHONG thay the chan doan cua bac si thu y
 
-    Reference: UC-02 Example - get_vaccine_schedule tool
+    WARNING:
+        Tool nay chi cung cap thong tin tham khao.
+        Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.
     """
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{settings.SPRING_BACKEND_URL}/medical/vaccine-schedule/{pet_id}",
-                timeout=settings.MCP_TIMEOUT
-            )
-            response.raise_for_status()
-            data = response.json()
+        from app.core.rag.rag_engine import get_rag_engine
 
-        logger.info(f"✅ Retrieved vaccine schedule for pet {pet_id}")
-        return data
+        # Get RAG engine
+        rag = get_rag_engine()
 
-    except httpx.HTTPError as e:
-        logger.error(f"❌ Error getting vaccine schedule: {e}")
+        # Build search query from symptoms
+        symptoms_text = ", ".join(symptoms)
+        query = f"{pet_type} trieu chung {symptoms_text} benh chan doan"
+
+        # Query knowledge base
+        results = await rag.query(
+            query=query,
+            top_k=top_k,
+            min_score=0.4  # Lower threshold for symptom search
+        )
+
+        # Analyze results for possible conditions
+        possible_conditions = []
+        urgent = False
+
+        # Keywords indicating urgency
+        urgent_keywords = ["nguy hiem", "cap cuu", "ngay lap tuc", "parvo", "distemper",
+                          "ngo doc", "xuat huyet", "suy ho hap", "co giat", "bat tinh"]
+
+        for r in results:
+            content_lower = r.content.lower()
+
+            # Check severity based on content
+            severity = "mild"
+            if any(kw in content_lower for kw in ["nang", "nguy hiem", "cap cuu"]):
+                severity = "severe"
+                urgent = True
+            elif any(kw in content_lower for kw in ["vua", "can theo doi"]):
+                severity = "moderate"
+
+            # Check for urgent keywords
+            if any(kw in content_lower for kw in urgent_keywords):
+                urgent = True
+                severity = "critical"
+
+            possible_conditions.append({
+                "name": f"Phat hien tu {r.document_name}",
+                "description": r.content[:300] + "..." if len(r.content) > 300 else r.content,
+                "severity": severity,
+                "source": r.document_name,
+                "score": r.score
+            })
+
+        # Generate recommendations
+        if urgent:
+            recommendations = "CANH BAO: Cac trieu chung nay co the nghiem trong. Can den phong kham thu y NGAY LAP TUC de duoc kham va dieu tri kip thoi."
+        elif possible_conditions:
+            recommendations = "Nen dat lich kham trong 24-48 gio de bac si thu y chan doan chinh xac. Theo doi them cac trieu chung khac."
+        else:
+            recommendations = "Khong tim thay thong tin phu hop. Neu trieu chung nghiem trong, nen den phong kham thu y de duoc tu van."
+
+        logger.info(f"symptom_search: Found {len(possible_conditions)} conditions for symptoms: {symptoms}")
+
         return {
-            "pet_id": pet_id,
-            "completed_vaccines": [],
-            "upcoming_vaccines": [],
+            "symptoms": symptoms,
+            "pet_type": pet_type,
+            "possible_conditions": possible_conditions,
+            "urgent": urgent,
+            "recommendations": recommendations,
+            "disclaimer": "Thong tin nay chi mang tinh chat tham khao. Vui long den phong kham thu y de duoc chan doan va dieu tri chinh xac."
+        }
+
+    except Exception as e:
+        logger.error(f"Error in symptom_search: {e}")
+        return {
+            "symptoms": symptoms,
+            "pet_type": pet_type,
+            "possible_conditions": [],
+            "urgent": False,
+            "recommendations": f"Loi khi tim kiem: {str(e)}. Nen den phong kham thu y de duoc tu van.",
             "error": str(e)
         }
 
 
 # ===== TOOL METADATA =====
 if __name__ == "__main__":
-    print("🔧 Medical Tools registered in FastMCP:")
-    print("  - search_symptoms")
-    print("  - RAG_search")
-    print("  - get_medical_history")
-    print("  - get_vaccine_schedule")
+    print("Pet Care RAG Tools registered in FastMCP:")
+    print("  - pet_care_qa: RAG-based Q&A for pet care knowledge")
+    print("  - symptom_search: Search diseases based on symptoms")
+    print("\nThese tools use:")
+    print("  - Cohere embed-multilingual-v3.0 for Vietnamese support")
+    print("  - Qdrant vector database for similarity search")
+    print("  - LlamaIndex for document processing")

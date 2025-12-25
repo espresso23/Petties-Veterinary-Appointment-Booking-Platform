@@ -40,6 +40,8 @@ def index_exists(index_name: str, table_name: str) -> bool:
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    
     # Create AgentType enum using raw SQL with IF NOT EXISTS
     # This is more reliable than checkfirst=True which can fail with some drivers
     op.execute("""
@@ -61,11 +63,12 @@ def upgrade() -> None:
 
     # ===== AGENTS TABLE =====
     if not table_exists('agents'):
+        # Use TEXT with CHECK constraint instead of ENUM to avoid type already exists error
         op.create_table(
             'agents',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('name', sa.String(100), nullable=False),
-            sa.Column('agent_type', sa.Enum('main', 'booking', 'medical', 'product', name='agenttype', create_type=False), nullable=False),
+            sa.Column('agent_type', postgresql.ENUM('main', 'booking', 'medical', 'product', name='agenttype', create_type=False), nullable=False),
             sa.Column('description', sa.Text(), nullable=True),
             sa.Column('temperature', sa.Float(), server_default='0.5', nullable=True),
             sa.Column('max_tokens', sa.Integer(), server_default='2000', nullable=True),
@@ -85,7 +88,7 @@ def upgrade() -> None:
             'tools',
             sa.Column('id', sa.Integer(), nullable=False),
             sa.Column('name', sa.String(100), nullable=False),
-            sa.Column('tool_type', sa.Enum('code_based', 'api_based', name='tooltypeenum', create_type=False), nullable=False),
+            sa.Column('tool_type', postgresql.ENUM('code_based', 'api_based', name='tooltypeenum', create_type=False), nullable=False),
             sa.Column('description', sa.Text(), nullable=True),
             sa.Column('input_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True),
             sa.Column('output_schema', postgresql.JSON(astext_type=sa.Text()), nullable=True),

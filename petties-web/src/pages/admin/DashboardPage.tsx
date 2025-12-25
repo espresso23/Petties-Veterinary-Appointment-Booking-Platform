@@ -53,9 +53,9 @@ export const AdminDashboardPage = () => {
 
     const getStatusStyle = (status: ServiceHealth['status']) => {
         switch (status) {
-            case 'healthy': return 'bg-green-100 border-green-600 text-green-800'
-            case 'error': return 'bg-red-100 border-red-600 text-red-800'
-            default: return 'bg-amber-100 border-amber-600 text-amber-800'
+            case 'healthy': return 'bg-amber-100 text-stone-900'
+            case 'error': return 'bg-red-100 text-stone-900'
+            default: return 'bg-stone-100 text-stone-700'
         }
     }
 

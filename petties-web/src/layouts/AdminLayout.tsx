@@ -30,21 +30,21 @@ export const AdminLayout = () => {
       ]
     },
     {
-      title: 'AI AGENT MANAGEMENT',
-      items: [
-        { path: '/admin/agents', label: 'AGENTS' },
-        { path: '/admin/tools', label: 'TOOLS' },
-        { path: '/admin/knowledge', label: 'KNOWLEDGE BASE' },
-        { path: '/admin/playground', label: 'PLAYGROUND' },
-      ]
-    },
-    {
       title: 'PLATFORM MANAGEMENT',
       items: [
         { path: '/admin/clinics', label: 'QUẢN LÝ CLINIC' },
         { path: '/admin/users', label: 'USERS' },
         { path: '/admin/reports', label: 'REPORTS' },
         { path: '/admin/settings', label: 'CẤU HÌNH' },
+      ]
+    },
+    {
+      title: 'AI AGENT MANAGEMENT',
+      items: [
+        { path: '/admin/agents', label: 'AGENTS' },
+        { path: '/admin/tools', label: 'TOOLS' },
+        { path: '/admin/knowledge', label: 'KNOWLEDGE BASE' },
+        { path: '/admin/playground', label: 'PLAYGROUND' },
       ]
     },
     {
@@ -103,7 +103,7 @@ export const AdminLayout = () => {
         {/* User & Logout */}
         <div className="px-6 py-4 border-t-4 border-stone-900">
           <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
-            {user?.username || 'Admin'}
+            {user?.fullName || 'Admin'}
           </p>
           <button
             onClick={handleLogout}

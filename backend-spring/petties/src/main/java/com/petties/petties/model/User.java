@@ -22,7 +22,6 @@ import java.util.UUID;
         @UniqueConstraint(columnNames = "email")
 })
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING)
 @SQLDelete(sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = ?")
 @SQLRestriction("deleted_at IS NULL")
 @EntityListeners(AuditingEntityListener.class)
@@ -73,9 +72,9 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // For Clinic Owners: The clinic they own
-    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL)
-    private Clinic ownedClinic;
+    // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();
 
     // For Managers and Vets: The clinic they belong to
     @ManyToOne(fetch = FetchType.LAZY)

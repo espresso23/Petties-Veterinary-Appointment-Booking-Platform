@@ -1,7 +1,12 @@
 # ============================================
 # PETTIES AI AGENT SERVICE - Python Dependencies
-# Core dependencies for production (Render free tier compatible)
-# Use requirements-full.txt for local development with all features
+# Single Agent + ReAct + OpenRouter + Cohere
+#
+# Architecture:
+# - Single Agent with ReAct pattern (LangGraph)
+# - OpenRouter Cloud API for LLM (gemini, llama, claude)
+# - Cohere embed-multilingual-v3.0 for embeddings
+# - Qdrant Cloud for vector storage
 # ============================================
 
 # ==================== FastAPI Framework ====================
@@ -18,37 +23,38 @@ python-multipart>=0.0.19
 langchain>=0.3.13
 langchain-community>=0.3.13
 langchain-core>=0.3.28
-langchain-openai>=0.2.0
-langchain-ollama>=0.1.9
-langgraph>=0.2.60
-llama-index>=0.11.20
+langchain-openai>=0.2.0  # For OpenRouter compatibility
+langgraph>=0.2.60  # ReAct pattern implementation
 
-# ==================== LLM Clients ====================
-openai>=1.54.4
-ollama>=0.4.5  # For Ollama Cloud support
+# ==================== RAG Pipeline ====================
+llama-index-core>=0.11.20  # Document processing & chunking
+llama-index-embeddings-cohere>=0.4.0  # Cohere embeddings integration
+
+# ==================== LLM & Embedding Providers ====================
+openai>=1.54.4  # OpenRouter uses OpenAI-compatible API
+cohere>=5.11.0  # Cohere embed-multilingual-v3.0 for Vietnamese support
 
 # ==================== MCP Framework ====================
-fastmcp>=2.3.3
+fastmcp>=2.3.3  # @mcp.tool decorator for agent tools
 
 # ==================== Database ====================
 sqlalchemy[asyncio]>=2.0.36
-alembic>=1.14.0
 asyncpg>=0.30.0
-psycopg2-binary>=2.9.9  # Required for Alembic migrations (sync driver)
 
 # ==================== Vector Database ====================
-qdrant-client>=1.12.1
+qdrant-client>=1.12.1  # Qdrant Cloud for vector storage
 
 # ==================== Document Processing ====================
-pypdf2>=3.0.1
-python-docx>=1.1.2
+pypdf2>=3.0.1  # PDF text extraction
+python-docx>=1.1.2  # DOCX text extraction
+PyMuPDF>=1.24.0  # Better PDF parsing (optional but recommended)
 
 # ==================== Web Search ====================
 duckduckgo-search>=7.2.1
 beautifulsoup4>=4.12.3
 
 # ==================== HTTP Clients ====================
-httpx>=0.27.2
+httpx>=0.27.2  # Async HTTP for OpenRouter & Cohere API calls
 aiohttp>=3.11.2
 requests>=2.32.3
 

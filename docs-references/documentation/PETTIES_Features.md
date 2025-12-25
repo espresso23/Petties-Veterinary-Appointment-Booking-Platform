@@ -139,11 +139,24 @@
 > **Note:** MVP sử dụng **Single Agent** (không phải Multi-Agent) với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
-- 🤖 Chat với AI Chatbot thông minh
-- 🤖 Tư vấn chăm sóc thú cưng
-- 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search)
-- 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant)
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại
+- 🤖 Chat với AI Chatbot thông minh ✅
+- 🤖 Tư vấn chăm sóc thú cưng ✅
+- 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
+- 🤖 Citation & Attribution - Trích dẫn nguồn (Research Agent) 🔄
+- 🤖 Web Search - Tìm kiếm realtime 🔄
+- 🤖 SOS - Cấp cứu khẩn cấp ❌ (Deferred)
+- 🤖 Video Consultation ❌ (Deferred)
+- 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
+- 🤖 Vaccination Tracker - Xem sổ tiêm chủng ✅ (FE/BE)
+- 🤖 Home Visit Tracking ✅ (FE/BE)
+- 🤖 Dynamic Pricing ✅ (BE)
+- 🤖 Manual Scheduling ✅ (FE/BE)
+- 🤖 Admin AI Config Board ✅ (FE/BE)
+- 🤖 Knowledge Base Management ✅ (FE/BE)
+- 🤖 Tool Registry ✅ (FE/BE)
+- 🤖 Agent Playground ✅ (FE/BE)
 
 ### Single Agent Architecture (ReAct Pattern)
 
@@ -345,4 +358,4 @@
 **Version: 8.0 - PETTIES MVP SCOPE (1-MONTH)**  
 **Status: ✅ READY FOR DEV**  
 **Total Features: ~48 (MVP Scope)**  
-**Last Updated: December 24, 2025**
+**Last Updated: December 26, 2025**

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ApiKeyManager } from '../../../components/admin/ApiKeyManager'
-import { OllamaConfig } from '../../../components/admin/OllamaConfig'
-import { ArrowPathIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, LockClosedIcon, BeakerIcon, ExclamationTriangleIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 interface Setting {
   key: string
@@ -23,24 +22,22 @@ const getAuthHeaders = (): Record<string, string> => {
 }
 
 /**
- * System Settings Page
- * 
- * Features:
- * - API Key Management (Qdrant, Tavily, etc.)
- * - Ollama Connection Configuration
- * - Model Selection
- * - Dynamic Secrets Management
+ * System Settings Page - Neobrutalism Edition
  */
 export const SettingsPage = () => {
   const [settings, setSettings] = useState<Setting[]>([])
   const [loading, setLoading] = useState(true)
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434')
-  const [ollamaApiKey, setOllamaApiKey] = useState('')
-  const [selectedModel, setSelectedModel] = useState<string>('kimi-k2')
+  const [seeding, setSeeding] = useState(false)
+  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
 
   useEffect(() => {
     loadSettings()
   }, [])
+
+  const showAlert = (type: 'success' | 'error' | 'info', message: string) => {
+    setAlert({ type, message })
+    setTimeout(() => setAlert(null), 5000)
+  }
 
   const loadSettings = async () => {
     try {
@@ -51,30 +48,6 @@ export const SettingsPage = () => {
       if (response.ok) {
         const data = await response.json()
         setSettings(data)
-        
-        // Extract Ollama URL if exists
-        const ollamaUrlSetting = data.find((s: Setting) => s.key === 'OLLAMA_BASE_URL' || s.key === 'OLLAMA_URL')
-        if (ollamaUrlSetting) {
-          setOllamaUrl(ollamaUrlSetting.value || 'http://localhost:11434')
-        }
-        
-        // Extract Ollama API key if exists
-        const apiKeySetting = data.find((s: Setting) => s.key === 'OLLAMA_API_KEY')
-        if (apiKeySetting) {
-          // Value is masked if is_sensitive, we can't get real value
-          // Just track if it's set (not empty and not masked)
-          if (apiKeySetting.is_sensitive && apiKeySetting.value.includes('****')) {
-            setOllamaApiKey('SET') // Indicates key exists but is masked
-          } else if (apiKeySetting.value) {
-            setOllamaApiKey(apiKeySetting.value)
-          }
-        }
-        
-        // Extract selected model if exists
-        const modelSetting = data.find((s: Setting) => s.key === 'OLLAMA_MODEL')
-        if (modelSetting) {
-          setSelectedModel(modelSetting.value || 'kimi-k2')
-        }
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -95,142 +68,191 @@ export const SettingsPage = () => {
       })
       if (!response.ok) throw new Error('Failed to save')
       await loadSettings()
+      showAlert('success', `Cấu hình ${key} đã được cập nhật!`)
     } catch (error) {
       console.error('Save failed:', error)
+      showAlert('error', 'Không thể lưu cấu hình. Vui lòng thử lại.')
       throw error
     }
   }
 
-  const handleTestConnection = async (category: string) => {
+  const handleTestConnection = async (endpoint: string) => {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-${category}`, {
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${endpoint}`, {
         method: 'POST',
         headers: getAuthHeaders()
       })
       const result = await response.json()
       return result
     } catch (error) {
-      return { status: 'error', message: 'Test failed' }
+      return { status: 'error', message: 'Kết nối thất bại' }
     }
   }
 
-  const handleUpdateOllamaUrl = async (url: string) => {
-    await handleSaveKey('OLLAMA_BASE_URL', url)
-    setOllamaUrl(url)
-  }
+  const handleSeedDatabase = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn reset toàn bộ cấu hình về mặc định?')) return
 
-  const handleUpdateOllamaApiKey = async (apiKey: string) => {
-    await handleSaveKey('OLLAMA_API_KEY', apiKey)
-    setOllamaApiKey(apiKey)
-  }
-
-  const handleSelectModel = async (model: string) => {
-    await handleSaveKey('OLLAMA_MODEL', model)
-    setSelectedModel(model)
+    try {
+      setSeeding(true)
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/seed?force=true`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      })
+      if (response.ok) {
+        showAlert('success', 'Đã khởi tạo dữ liệu mặc định thành công!')
+        await loadSettings()
+      } else {
+        showAlert('error', 'Khởi tạo thất bại')
+      }
+    } catch (error) {
+      showAlert('error', 'Lỗi kết nối server')
+    } finally {
+      setSeeding(false)
+    }
   }
 
   const groupedSettings = {
     llm: settings.filter(s => s.category === 'llm'),
     vector_db: settings.filter(s => s.category === 'vector_db'),
+    rag: settings.filter(s => s.category === 'rag'),
     embeddings: settings.filter(s => s.category === 'embeddings'),
-    search: settings.filter(s => s.category === 'search'),
+    general: settings.filter(s => s.category === 'general'),
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center">
-          <ArrowPathIcon className="w-8 h-8 animate-spin text-amber-600 mx-auto mb-4" />
-          <p className="text-stone-600">Loading settings...</p>
+        <div className="p-8 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-pulse">
+          <ArrowPathIcon className="w-12 h-12 animate-spin text-black mx-auto mb-4" />
+          <p className="text-xl font-black uppercase italic tracking-tighter">ĐANG TẢI CẤU HÌNH...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="p-6 space-y-8 max-w-6xl mx-auto">
+      {/* Alert Component */}
+      {alert && (
+        <div className={`fixed top-6 right-6 z-50 p-4 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center gap-3 min-w-[300px] animate-in slide-in-from-right duration-300 ${alert.type === 'success' ? 'bg-green-400' :
+          alert.type === 'error' ? 'bg-red-400' : 'bg-blue-400'
+          }`}>
+          {alert.type === 'success' ? <CheckCircleIcon className="w-6 h-6" /> : <ExclamationTriangleIcon className="w-6 h-6" />}
+          <span className="font-bold uppercase text-sm">{alert.message}</span>
+          <button onClick={() => setAlert(null)} className="ml-auto font-black cursor-pointer">×</button>
+        </div>
+      )}
+
       {/* Page Header */}
-      <div className="bg-white border-b border-stone-200">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-stone-900">System Settings</h1>
-              <p className="text-sm text-stone-500 mt-1">
-                Configure API keys, service connections, and AI models. All keys are encrypted and stored securely.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-              <LockClosedIcon className="w-4 h-4 text-amber-600" />
-              <span className="text-xs font-medium text-amber-700">Encrypted Storage</span>
-            </div>
+      <div className="bg-yellow-400 border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="text-5xl font-black text-black uppercase italic tracking-tighter mb-2">SYSTEM SETTINGS</h1>
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 bg-black text-white font-bold text-xs uppercase tracking-widest">ENCRYPTED VAULT</div>
+            <p className="text-sm font-bold text-black uppercase opacity-80">Quản lý API Keys và cấu hình AI Models</p>
           </div>
         </div>
+
+        <button
+          onClick={handleSeedDatabase}
+          disabled={seeding}
+          className="bg-black text-white px-6 py-4 border-4 border-black font-black uppercase text-sm shadow-[4px_4px_0px_0px_rgba(255,255,255,0.3)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+        >
+          {seeding ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <BeakerIcon className="w-5 h-5" />}
+          {seeding ? 'ĐANG KHỞI TẠO...' : 'RESET MẶC ĐỊNH'}
+        </button>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
-        {/* Ollama Configuration */}
-        <OllamaConfig
-          ollamaUrl={ollamaUrl}
-          ollamaApiKey={ollamaApiKey}
-          onUpdateUrl={handleUpdateOllamaUrl}
-          onUpdateApiKey={handleUpdateOllamaApiKey}
-          onSelectModel={handleSelectModel}
-          selectedModel={selectedModel}
-        />
+      <div className="grid grid-cols-1 gap-8">
+        {/* Render empty state if no settings */}
+        {settings.length === 0 && !loading && (
+          <div className="bg-white border-4 border-black p-12 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center">
+            <BeakerIcon className="w-16 h-16 mx-auto mb-6 opacity-20" />
+            <h2 className="text-2xl font-black uppercase mb-4">CHƯA CÓ DỮ LIỆU CẤU HÌNH</h2>
+            <p className="font-bold text-stone-600 mb-8 uppercase">Hệ thống chưa được khởi tạo. Vui lòng bấm RESET MẶC ĐỊNH để bắt đầu.</p>
+            <button
+              onClick={handleSeedDatabase}
+              className="bg-purple-500 text-white px-8 py-4 border-4 border-black font-black uppercase shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[6px] hover:translate-y-[6px] transition-all cursor-pointer"
+            >
+              KHỞI TẠO NGAY
+            </button>
+          </div>
+        )}
 
-        {/* LLM Settings (Ollama) */}
+        {/* LLM Settings */}
         {groupedSettings.llm.length > 0 && (
           <ApiKeyManager
             apiKeys={groupedSettings.llm}
             onSave={handleSaveKey}
-            onTest={() => handleTestConnection('ollama')}
+            onTest={() => handleTestConnection('test-openrouter')}
             category="llm"
-            categoryLabel="Local LLM (Ollama)"
+            categoryLabel="LLM Provider (OpenRouter/Ollama)"
           />
         )}
 
-        {/* Vector Database (Qdrant) */}
+        {/* RAG Settings */}
+        {groupedSettings.rag.length > 0 && (
+          <ApiKeyManager
+            apiKeys={groupedSettings.rag}
+            onSave={handleSaveKey}
+            onTest={() => handleTestConnection('test-cohere')}
+            category="rag"
+            categoryLabel="RAG & Knowledge Base"
+          />
+        )}
+
+        {/* Vector Database */}
         {groupedSettings.vector_db.length > 0 && (
           <ApiKeyManager
             apiKeys={groupedSettings.vector_db}
             onSave={handleSaveKey}
-            onTest={() => handleTestConnection('qdrant')}
+            onTest={() => handleTestConnection('test-qdrant')}
             category="vector_db"
-            categoryLabel="Vector Database (Qdrant Cloud)"
+            categoryLabel="Vector DB (Qdrant Cloud)"
           />
         )}
 
-        {/* Embeddings */}
+        {/* Other Embeddings */}
         {groupedSettings.embeddings.length > 0 && (
           <ApiKeyManager
             apiKeys={groupedSettings.embeddings}
             onSave={handleSaveKey}
-            onTest={() => handleTestConnection('embeddings')}
+            onTest={() => handleTestConnection('test-embeddings')}
             category="embeddings"
-            categoryLabel="Embeddings Service"
+            categoryLabel="Additional Embeddings Providers"
           />
         )}
 
-        {/* Search API (Tavily, etc.) */}
-        {groupedSettings.search.length > 0 && (
+        {/* General Settings */}
+        {groupedSettings.general.length > 0 && (
           <ApiKeyManager
-            apiKeys={groupedSettings.search}
+            apiKeys={groupedSettings.general}
             onSave={handleSaveKey}
-            category="search"
-            categoryLabel="Web Search API"
+            category="general"
+            categoryLabel="General System Config"
           />
         )}
 
-        {/* Security Notice */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">Security Information</h3>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li>All API keys are encrypted using AES-256 encryption before storage</li>
-            <li>Keys are never displayed in plain text unless explicitly revealed</li>
-            <li>Configuration changes take effect immediately without server restart</li>
-            <li>Only users with Admin role can access this page</li>
-          </ul>
+        {/* Security Info Card */}
+        <div className="bg-blue-400 border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex items-center gap-3 mb-4">
+            <LockClosedIcon className="w-8 h-8 text-black" />
+            <h3 className="text-2xl font-black uppercase italic tracking-tighter">SECURITY PROTOCOL</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white/30 p-4 border-2 border-black font-bold uppercase text-sm">
+              Tất cả API keys đều được mã hóa AES-256 trước khi lưu vào PostgreSQL.
+            </div>
+            <div className="bg-white/30 p-4 border-2 border-black font-bold uppercase text-sm">
+              Dữ liệu nhạy cảm chỉ được hiển thị khi Admin thực hiện hành động UNMASK.
+            </div>
+            <div className="bg-white/30 p-4 border-2 border-black font-bold uppercase text-sm">
+              Mọi thay đổi có hiệu lực ngay lập tức (Hot-Reload) mà không cần khởi động lại Server.
+            </div>
+            <div className="bg-white/30 p-4 border-2 border-black font-bold uppercase text-sm">
+              Truy cập bị giới hạn nghiêm ngặt chỉ dành cho Platform Administrators.
+            </div>
+          </div>
         </div>
       </div>
     </div>

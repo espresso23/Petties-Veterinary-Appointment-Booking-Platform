@@ -7,8 +7,11 @@ interface AuthState {
   user: {
     userId: string
     username: string
+    fullName: string
     email: string
     role: string
+    workingClinicId?: string
+    workingClinicName?: string
   } | null
   isAuthenticated: boolean
   isLoading: boolean
@@ -27,7 +30,7 @@ const loadTokensFromStorage = () => {
     const refreshToken = localStorage.getItem('refreshToken')
     const userStr = localStorage.getItem('user')
     const user = userStr ? JSON.parse(userStr) : null
-    
+
     // Validate tokens before loading
     if (accessToken && isTokenExpired(accessToken)) {
       // Token expired, clear storage
@@ -36,7 +39,7 @@ const loadTokensFromStorage = () => {
       localStorage.removeItem('user')
       return null
     }
-    
+
     return { accessToken, refreshToken, user }
   } catch {
     // Parse error, clear corrupted data
@@ -54,19 +57,19 @@ const saveTokensToStorage = (
   user: AuthState['user'] | null,
 ) => {
   if (typeof window === 'undefined') return
-  
+
   if (accessToken) {
     localStorage.setItem('accessToken', accessToken)
   } else {
     localStorage.removeItem('accessToken')
   }
-  
+
   if (refreshToken) {
     localStorage.setItem('refreshToken', refreshToken)
   } else {
     localStorage.removeItem('refreshToken')
   }
-  
+
   if (user) {
     localStorage.setItem('user', JSON.stringify(user))
   } else {
@@ -77,13 +80,13 @@ const saveTokensToStorage = (
 export const useAuthStore = create<AuthState>((set, get) => {
   // Initialize từ localStorage
   const stored = loadTokensFromStorage()
-  
+
   // Helper to check if authenticated (with token validation)
   const checkAuthenticated = (accessToken: string | null, user: AuthState['user']): boolean => {
     if (!accessToken || !user) return false
     return isTokenValid(accessToken)
   }
-  
+
   return {
     accessToken: stored?.accessToken || null,
     refreshToken: stored?.refreshToken || null,
@@ -95,7 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (!isTokenValid(accessToken)) {
         console.warn('Setting expired access token')
       }
-      
+
       const currentUser = get().user
       saveTokensToStorage(accessToken, refreshToken, currentUser)
       set({
@@ -149,12 +152,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
     validateTokens: () => {
       const state = get()
       const isValid = checkAuthenticated(state.accessToken, state.user)
-      
+
       if (!isValid && state.accessToken) {
         // Token exists but invalid, clear auth
         get().clearAuth()
       }
-      
+
       return isValid
     },
   }

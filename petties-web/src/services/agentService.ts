@@ -33,10 +33,11 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
 export interface Agent {
     id: number
     name: string
-    agent_type: 'main' | 'booking' | 'medical' | 'research'
+    agent_type: string // No longer restricted to specific types
     description?: string
     temperature: number
     max_tokens: number
+    top_p: number // Added top_p support
     model: string
     system_prompt?: string
     enabled: boolean
@@ -47,8 +48,7 @@ export interface Agent {
 
 export interface AgentListResponse {
     total: number
-    main_agent?: Agent
-    sub_agents: Agent[]
+    agents: Agent[]
 }
 
 export interface Tool {
@@ -251,14 +251,14 @@ export const createChatWebSocket = (sessionId: string): WebSocket => {
     } else if (wsUrl.startsWith('http://')) {
         wsUrl = wsUrl.replace('http://', 'ws://')
     }
-    
+
     const fullWsUrl = `${wsUrl}/ws/chat/${sessionId}`
-    
+
     // Debug log in development
     if (import.meta.env.DEV) {
         console.log('🔌 WebSocket URL:', fullWsUrl)
     }
-    
+
     return new WebSocket(fullWsUrl)
 }
 

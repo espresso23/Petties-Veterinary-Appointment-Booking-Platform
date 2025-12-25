@@ -109,7 +109,7 @@ public class AuthService {
                                 userPrincipal.getUsername(),
                                 userPrincipal.getRole());
 
-                User user = userRepository.findById(userPrincipal.getUserId())
+                User user = userRepository.findByIdWithWorkingClinic(userPrincipal.getUserId())
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
                 // Generate refresh token
@@ -132,6 +132,10 @@ public class AuthService {
                                 .email(user.getEmail())
                                 .fullName(user.getFullName())
                                 .role(user.getRole().name())
+                                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
+                                                : null)
+                                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
+                                                : null)
                                 .build();
         }
 
@@ -190,6 +194,10 @@ public class AuthService {
                                 .email(user.getEmail())
                                 .fullName(user.getFullName())
                                 .role(user.getRole().name())
+                                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
+                                                : null)
+                                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
+                                                : null)
                                 .build();
         }
 

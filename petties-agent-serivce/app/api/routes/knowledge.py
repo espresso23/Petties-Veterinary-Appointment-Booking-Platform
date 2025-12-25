@@ -4,7 +4,13 @@ REST API endpoints for Document Upload and RAG Query (KB-01)
 
 Package: app.api.routes
 Purpose: Knowledge Management APIs
-Version: v0.0.1
+Version: v1.0.0 (Updated with Cohere + Qdrant integration)
+
+Changes from v0.0.1:
+- Added /documents/{id}/process endpoint for real indexing
+- Implemented Qdrant integration for vector storage
+- Using Cohere embed-multilingual-v3.0 for Vietnamese support
+- Real RAG query with similarity search
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
@@ -41,6 +47,12 @@ router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
 STORAGE_DIR = Path("storage/documents")
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def get_rag_engine():
+    """Lazy import RAG engine to avoid circular imports"""
+    from app.core.rag.rag_engine import get_rag_engine as _get_rag_engine
+    return _get_rag_engine()
 
 
 # ===== UPLOAD DOCUMENT =====
@@ -122,7 +134,7 @@ async def upload_document(
         await db.refresh(document)
         
         logger.info(f"Uploaded document: {filename} (ID: {document.id})")
-        
+
         return UploadDocumentResponse(
             success=True,
             message=f"Document '{filename}' uploaded successfully",
@@ -132,11 +144,114 @@ async def upload_document(
             file_type=extension,
             status="pending"
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error uploading document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== PROCESS DOCUMENT (INDEX TO QDRANT) =====
+
+@router.post(
+    "/documents/{document_id}/process",
+    response_model=ProcessDocumentResponse,
+    summary="[KB-01] Process document for RAG",
+    description="""
+    Process uploaded document and create vector embeddings.
+
+    This endpoint:
+    1. Reads the document file
+    2. Chunks the content using LlamaIndex
+    3. Creates embeddings using Cohere embed-multilingual-v3.0
+    4. Stores vectors in Qdrant Cloud
+
+    After processing, the document can be queried via RAG.
+    """
+)
+async def process_document(
+    document_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process document and index to Qdrant
+
+    Path params:
+        - document_id: ID of the uploaded document
+
+    Returns:
+        - chunks_created: Number of chunks indexed
+        - processing_time_ms: Time taken to process
+    """
+    try:
+        import time
+        start_time = time.time()
+
+        # Get document from database
+        result = await db.execute(
+            select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+        )
+        document = result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+
+        if document.processed:
+            return ProcessDocumentResponse(
+                success=True,
+                message=f"Document '{document.filename}' already processed",
+                document_id=document_id,
+                chunks_created=document.vector_count,
+                processing_time_ms=0
+            )
+
+        # Read file content
+        file_path = document.file_path
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document file not found at {file_path}"
+            )
+
+        with open(file_path, "rb") as f:
+            file_content = f.read()
+
+        # Get RAG engine and index document
+        rag = get_rag_engine()
+        chunks_count = await rag.index_document(
+            file_content=file_content,
+            filename=document.filename,
+            document_id=document.id,
+            metadata={
+                "file_type": document.file_type,
+                "uploaded_by": document.uploaded_by,
+                "notes": document.notes
+            }
+        )
+
+        # Update document status
+        document.processed = True
+        document.vector_count = chunks_count
+        document.processed_at = datetime.utcnow()
+        await db.commit()
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        logger.info(f"Processed document {document_id}: {chunks_count} chunks in {processing_time}ms")
+
+        return ProcessDocumentResponse(
+            success=True,
+            message=f"Document '{document.filename}' processed successfully",
+            document_id=document_id,
+            chunks_created=chunks_count,
+            processing_time_ms=processing_time
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -259,14 +374,21 @@ async def delete_document(
         filename = document.filename
         vector_count = document.vector_count
         file_path = document.file_path
-        
+
         # Delete file if exists
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
             logger.info(f"Deleted file: {file_path}")
-        
-        # TODO: Delete vectors from Qdrant when implemented
-        
+
+        # Delete vectors from Qdrant if document was processed
+        if document.processed and vector_count > 0:
+            try:
+                rag = get_rag_engine()
+                await rag.delete_document(document_id)
+                logger.info(f"Deleted {vector_count} vectors from Qdrant for document {document_id}")
+            except Exception as e:
+                logger.warning(f"Failed to delete vectors from Qdrant: {e}")
+
         # Delete database record
         await db.delete(document)
         await db.commit()
@@ -295,12 +417,14 @@ async def delete_document(
     response_model=QueryKnowledgeResponse,
     summary="[KB-01] Test RAG retrieval",
     description="""
-    Test RAG retrieval query.
-    
+    Test RAG retrieval query using Cohere embeddings + Qdrant.
+
     Admin can test what chunks are retrieved for a given query.
     This helps verify that the knowledge base is working correctly.
-    
-    NOTE: Returns placeholder data until Qdrant is integrated.
+
+    Uses:
+    - Cohere embed-multilingual-v3.0 for query embedding
+    - Qdrant Cloud for vector similarity search
     """
 )
 async def query_knowledge(
@@ -308,7 +432,7 @@ async def query_knowledge(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Test RAG retrieval
+    Test RAG retrieval with Qdrant + Cohere
 
     Body:
         {
@@ -316,7 +440,7 @@ async def query_knowledge(
             "top_k": 5,
             "min_score": 0.5
         }
-    
+
     Response includes:
         - Retrieved chunks with relevance scores
         - Source document info
@@ -325,49 +449,67 @@ async def query_knowledge(
     try:
         import time
         start_time = time.time()
-        
-        # TODO: Implement actual Qdrant retrieval
-        # For now, return placeholder response
-        
-        # Get some documents for placeholder
-        result = await db.execute(
-            select(KnowledgeDocument).where(KnowledgeDocument.processed == True).limit(3)
+
+        # Get RAG engine
+        rag = get_rag_engine()
+
+        # Query knowledge base using Qdrant
+        results = await rag.query(
+            query=request.query,
+            top_k=request.top_k,
+            min_score=request.min_score
         )
-        documents = result.scalars().all()
-        
-        # Create placeholder chunks
-        placeholder_chunks = []
-        for i, doc in enumerate(documents):
-            placeholder_chunks.append(RetrievedChunk(
-                document_id=doc.id,
-                document_name=doc.filename,
-                chunk_index=0,
-                content=f"[Placeholder] This is a sample chunk from {doc.filename}. Actual content will be retrieved from Qdrant when integrated.",
-                score=0.95 - (i * 0.1),
-                metadata={"file_type": doc.file_type}
-            ))
-        
-        # If no processed documents, add demo chunk
-        if not placeholder_chunks:
-            placeholder_chunks.append(RetrievedChunk(
-                document_id=0,
-                document_name="demo.txt",
-                chunk_index=0,
-                content=f"[Placeholder] No processed documents yet. Upload and process documents to see actual retrieval results. Query was: {request.query}",
-                score=0.85,
-                metadata={"demo": True}
-            ))
-        
+
+        # Convert to response format
+        chunks = [
+            RetrievedChunk(
+                document_id=r.document_id,
+                document_name=r.document_name,
+                chunk_index=r.chunk_index,
+                content=r.content,
+                score=r.score,
+                metadata={"source": r.document_name}
+            )
+            for r in results
+        ]
+
+        # If no results, provide helpful message
+        if not chunks:
+            # Check if there are any processed documents
+            result = await db.execute(
+                select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.processed == True)
+            )
+            processed_count = result.scalar() or 0
+
+            if processed_count == 0:
+                chunks.append(RetrievedChunk(
+                    document_id=0,
+                    document_name="system",
+                    chunk_index=0,
+                    content=f"Chua co document nao duoc processed. Vui long upload va process document truoc khi query. Query: {request.query}",
+                    score=0.0,
+                    metadata={"type": "info"}
+                ))
+            else:
+                chunks.append(RetrievedChunk(
+                    document_id=0,
+                    document_name="system",
+                    chunk_index=0,
+                    content=f"Khong tim thay ket qua phu hop voi min_score={request.min_score}. Thu giam min_score hoac dung query khac. Query: {request.query}",
+                    score=0.0,
+                    metadata={"type": "info"}
+                ))
+
         retrieval_time = int((time.time() - start_time) * 1000)
-        
+
         return QueryKnowledgeResponse(
             success=True,
             query=request.query,
-            total_chunks=len(placeholder_chunks),
-            chunks=placeholder_chunks[:request.top_k],
+            total_chunks=len(chunks),
+            chunks=chunks,
             retrieval_time_ms=retrieval_time
         )
-    
+
     except Exception as e:
         logger.error(f"Error querying knowledge base: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -379,13 +521,19 @@ async def query_knowledge(
     "/status",
     response_model=KnowledgeBaseStatusResponse,
     summary="Get knowledge base status",
-    description="Overall status of the knowledge base"
+    description="Overall status of the knowledge base including Qdrant info"
 )
 async def get_status(
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get overall knowledge base status
+
+    Returns:
+    - Document counts (total, processed, pending)
+    - Vector counts from Qdrant
+    - Storage size
+    - Embedding model info
     """
     try:
         # Count documents
@@ -393,25 +541,25 @@ async def get_status(
             select(func.count(KnowledgeDocument.id))
         )
         total_documents = total_result.scalar() or 0
-        
+
         # Count processed
         processed_result = await db.execute(
             select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.processed == True)
         )
         processed_documents = processed_result.scalar() or 0
-        
-        # Sum vectors
+
+        # Sum vectors from database
         vectors_result = await db.execute(
             select(func.sum(KnowledgeDocument.vector_count))
         )
         total_vectors = vectors_result.scalar() or 0
-        
+
         # Sum file sizes
         size_result = await db.execute(
             select(func.sum(KnowledgeDocument.file_size))
         )
         storage_size = size_result.scalar() or 0
-        
+
         # Get last updated
         last_result = await db.execute(
             select(KnowledgeDocument.uploaded_at)
@@ -419,16 +567,26 @@ async def get_status(
             .limit(1)
         )
         last_updated = last_result.scalar()
-        
+
+        # Get Qdrant stats if available
+        qdrant_info = {}
+        try:
+            rag = get_rag_engine()
+            qdrant_info = await rag.get_stats()
+        except Exception as e:
+            logger.warning(f"Could not get Qdrant stats: {e}")
+            qdrant_info = {"status": "unavailable", "error": str(e)}
+
         return KnowledgeBaseStatusResponse(
             total_documents=total_documents,
             processed_documents=processed_documents,
             pending_documents=total_documents - processed_documents,
             total_vectors=total_vectors,
             storage_size_bytes=storage_size,
-            last_updated=last_updated
+            last_updated=last_updated,
+            qdrant_info=qdrant_info
         )
-    
+
     except Exception as e:
         logger.error(f"Error getting knowledge base status: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -299,13 +299,17 @@ flowchart TB
 | **components/profile** | Profile management components | `AvatarUpload.tsx`, `ProfileForm.tsx`, `PasswordChange.tsx`, `AccountSettings.tsx` | `[MVP]` |
 | **components/dashboard** | Dashboard widgets | `StatCard.tsx`, `ChartWidget.tsx` | `[MVP]` |
 | **components/admin** | Admin-specific components (AI Agent Management) | `AgentConfigEditor.tsx`, `ToolManager.tsx`, `RAGUploader.tsx`, `PlaygroundChat.tsx`, `SettingsPanel.tsx` | `[MVP]` |
+| **components/clinic-staff** | Staff management components cho Clinic Owner/Manager | `StaffTable.tsx` (Bảng nhân viên), `QuickAddStaffModal.tsx` (Form thêm nhanh), `index.ts` | `[MVP]` |
+| **pages/clinic-owner/staff** | Trang quản lý nhân sự cho Clinic Owner | `StaffManagementPage.tsx` (Quản lý Manager + Vet) | `[MVP]` |
+| **pages/clinic-manager/vets** | Trang quản lý bác sĩ cho Clinic Manager | `VetsManagementPage.tsx` (Chỉ quản lý Vet) | `[MVP]` |
 | **services/api** | Centralized Axios client với interceptors | `apiClient.ts`, `interceptors.ts` | `[MVP]` |
 | **services/authService** | Authentication business logic | `authService.ts` (login, register, googleAuth, refresh) | `[MVP]` |
 | **services/agentService** | AI Agent API calls | `agentService.ts` (chat, tools, knowledge, settings) | `[MVP]` |
+| **services/clinicStaffService** | Staff management API calls | `clinicStaffService.ts` (getClinicStaff, hasManager, quickAddStaff, removeStaff) | `[MVP]` |
 | **services/endpoints** | API endpoint functions by domain | `authAPI.ts`, `agentAPI.ts` | `[MVP]` |
 | **services/websocket** | WebSocket client cho AI streaming | `websocketClient.ts` | `[MVP]` |
 | **store** | Zustand stores cho state management | `authStore.ts`, `userStore.ts`, `index.ts` | `[MVP]` |
-| **types** | TypeScript type definitions | `api.ts`, `user.ts`, `index.ts` | `[MVP]` |
+| **types** | TypeScript type definitions | `api.ts`, `user.ts`, `clinicStaff.ts` (StaffMember, QuickAddStaffRequest), `index.ts` | `[MVP]` |
 | **utils** | Utility functions | `formatters.ts`, `validators.ts`, `helpers.ts` | `[MVP]` |
 | **hooks** | Custom React Hooks | `useAuth.ts`, `index.ts` | `[MVP]` |
 | **layouts** | Page layouts per role | `AdminLayout.tsx`, `VetLayout.tsx`, `ClinicOwnerLayout.tsx`, `ClinicManagerLayout.tsx`, `AuthLayout.tsx`, `MainLayout.tsx` | `[MVP]` |
@@ -467,13 +471,16 @@ flowchart TB
 | Package | Responsibility | Key Classes | Status |
 |---------|----------------|-------------|--------|
 | **PettiesApplication** | Application entry point, Spring Boot bootstrap | `PettiesApplication.java` | `[MVP]` |
-| **controller** | REST API endpoints, HTTP request handling | `AuthController`, `UserController`, `FileController` | `[MVP]` |
-| **controller (planned)** | Future controllers cho business features | `ClinicController`, `VetController`, `BookingController`, `PetController`, `EMRController` | `[Planned]` |
-| **service** | Business logic implementation | `AuthService`, `UserService`, `CloudinaryService`, `EmailService`, `OtpRedisService`, `PasswordResetService`, `GoogleAuthService`, `RegistrationOtpService` | `[MVP]` |
-| **repository** | Data access layer với Spring Data JPA | `UserRepository`, `RefreshTokenRepository`, `BlacklistedTokenRepository` | `[MVP]` |
-| **model (entity)** | JPA entities mapping to database tables | `User`, `RefreshToken`, `BlacklistedToken`, `enums/Role` | `[MVP]` |
+| **controller** | REST API endpoints, HTTP request handling | `AuthController`, `UserController`, `FileController`, `ClinicController`, `ClinicStaffController` | `[MVP]` |
+| **controller/ClinicStaffController** | Staff management API cho Clinic Owner/Manager | `GET /clinics/{clinicId}/staff`, `GET /clinics/{clinicId}/staff/has-manager`, `POST /clinics/{clinicId}/staff/quick-add`, `DELETE /clinics/{clinicId}/staff/{userId}` | `[MVP]` |
+| **controller (planned)** | Future controllers cho business features | `VetController`, `BookingController`, `PetController`, `EMRController` | `[Planned]` |
+| **service** | Business logic implementation | `AuthService`, `UserService`, `CloudinaryService`, `EmailService`, `OtpRedisService`, `PasswordResetService`, `GoogleAuthService`, `RegistrationOtpService`, `ClinicService`, `ClinicStaffService` | `[MVP]` |
+| **service/ClinicStaffService** | Staff management logic | `getClinicStaff()`, `hasManager()`, `quickAddStaff()`, `assignManager()`, `assignVet()`, `removeStaff()` | `[MVP]` |
+| **repository** | Data access layer với Spring Data JPA | `UserRepository`, `RefreshTokenRepository`, `BlacklistedTokenRepository`, `ClinicRepository` | `[MVP]` |
+| **model (entity)** | JPA entities mapping to database tables | `User`, `Clinic`, `RefreshToken`, `BlacklistedToken`, `enums/Role` | `[MVP]` |
 | **dto/auth** | Auth DTOs cho login/register/token | `LoginRequest`, `RegisterRequest`, `TokenResponse`, `GoogleAuthRequest`, `RefreshTokenRequest`, `ResetPasswordRequest`, `ChangePasswordRequest`, `RegisterOtpRequest`, `VerifyOtpRequest` | `[MVP]` |
 | **dto/user** | User profile DTOs | `UserResponse`, `UpdateProfileRequest`, `UserInfoResponse` | `[MVP]` |
+| **dto/clinic** | Clinic & Staff DTOs | `QuickAddStaffRequest` (fullName, phone, role), `StaffResponse` (userId, fullName, username, email, role, phone, avatar) | `[MVP]` |
 | **dto/otp** | OTP verification DTOs | `OtpVerificationRequest`, `OtpResponse` | `[MVP]` |
 | **dto/file** | File upload DTOs | `FileUploadResponse` | `[MVP]` |
 | **config** | Application configuration beans | `SecurityConfig`, `RedisConfig`, `CloudinaryConfig`, `WebMvcConfig`, `DataInitializer` | `[MVP]` |

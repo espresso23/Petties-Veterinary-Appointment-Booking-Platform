@@ -4,7 +4,11 @@ Pydantic schemas for Document Upload and RAG Query
 
 Package: app.api.schemas
 Purpose: Knowledge Management API request/response models
-Version: v0.0.1
+Version: v1.0.0 (Updated for Cohere + Qdrant integration)
+
+Changes from v0.0.1:
+- Added qdrant_info to KnowledgeBaseStatusResponse
+- Updated ProcessDocumentResponse fields
 """
 
 from pydantic import BaseModel, Field
@@ -83,13 +87,11 @@ class ProcessDocumentRequest(BaseModel):
 
 
 class ProcessDocumentResponse(BaseModel):
-    """Response after processing"""
+    """Response after processing document into vectors"""
     success: bool
     message: str
     document_id: int
-    filename: str
     chunks_created: int
-    vectors_stored: int
     processing_time_ms: int
 
 
@@ -135,10 +137,11 @@ class DeleteDocumentResponse(BaseModel):
 # ===== Status Schemas =====
 
 class KnowledgeBaseStatusResponse(BaseModel):
-    """Overall knowledge base status"""
+    """Overall knowledge base status with Qdrant info"""
     total_documents: int
     processed_documents: int
     pending_documents: int
     total_vectors: int
     storage_size_bytes: int
     last_updated: Optional[datetime] = None
+    qdrant_info: Optional[Dict[str, Any]] = None  # Qdrant collection stats

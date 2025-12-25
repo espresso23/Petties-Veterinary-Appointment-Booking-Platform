@@ -2,7 +2,7 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform  
 **Version:** 1.0.0  
-**Last Updated:** 2025-12-19  
+**Last Updated:** 2025-12-25  
 **Document Status:** In Progress
 
 ---
@@ -461,6 +461,162 @@ erDiagram
     - Giá dịch vụ tại phòng khám = Base Price + Tiered Weight Price (nếu có).
     - Mọi thay đổi ở Master Service sẽ không tự động ghi đè các giá đã được Override ở Clinic Service (để bảo toàn cấu hình riêng của chi nhánh).
 
+#### 3.2.3 UC-CO-06: Thêm nhanh Nhân viên (Quick Add Staff)
+
+- **Actor:** Clinic Owner, Clinic Manager
+- **Description:** Tạo tài khoản mới cho nhân viên (Manager/Vet) và tự động gán vào phòng khám.
+- **Pre-conditions:** 
+    - Actor đã đăng nhập thành công.
+    - Clinic Owner phải sở hữu phòng khám đó.
+    - Clinic Manager phải thuộc phòng khám đó (workingClinic).
+- **Basic Flow:**
+    1. Actor truy cập màn hình "Quản lý Nhân sự" → Click "THÊM NHÂN VIÊN".
+    2. Modal hiển thị form với các trường: Họ tên, Số điện thoại, Vai trò.
+    3. Actor nhập thông tin và chọn vai trò:
+        - **Clinic Owner:** Có thể chọn VET hoặc CLINIC_MANAGER
+        - **Clinic Manager:** Chỉ có thể chọn VET
+    4. Hệ thống validate dữ liệu:
+        - Họ tên: Bắt buộc, 2-100 ký tự
+        - SĐT: 10-11 số, chưa tồn tại trong hệ thống (kể cả tài khoản đã xóa)
+    5. Hệ thống tạo tài khoản với mật khẩu mặc định = 6 số cuối SĐT.
+    6. Hệ thống gán nhân viên vào `workingClinic`.
+- **Alternative Flows:**
+    - **AF-1:** SĐT đã tồn tại → Hiển thị lỗi "Số điện thoại này đã được đăng ký".
+    - **AF-2:** Phòng khám đã có Manager → Hiển thị lỗi "Mỗi phòng khám chỉ được có 1 Quản lý".
+    - **AF-3:** CO không sở hữu clinic → 403 Forbidden.
+    - **AF-4:** CM không thuộc clinic → 403 Forbidden.
+- **Post-conditions:** Nhân viên mới xuất hiện trong danh sách, có thể đăng nhập ngay.
+- **Business Rules:** BR-008-01 đến BR-008-07
+
+---
+
+#### 3.2.4 UC-CO-07: Quản lý Nhân sự (Staff Management)
+
+- **Actor:** Clinic Owner, Clinic Manager
+- **Description:** Xem và quản lý danh sách nhân viên thuộc phòng khám.
+- **Pre-conditions:** 
+    - Actor đã đăng nhập.
+    - Clinic Owner phải sở hữu phòng khám.
+    - Clinic Manager phải thuộc phòng khám (workingClinic).
+- **Basic Flow:**
+    1. Actor truy cập màn hình "Quản lý Nhân sự" (sidebar: NHÂN SỰ).
+    2. Hệ thống hiển thị danh sách nhân viên với thông tin:
+        - Họ tên, Avatar, Tên đăng nhập
+        - Vai trò (badge: BÁC SĨ / QUẢN LÝ)
+        - Số điện thoại, Email
+        - Actions: Xóa
+    3. Actor có thể:
+        - Thêm nhân viên mới (UC-CO-06)
+        - Xóa nhân viên khỏi phòng khám
+- **Delete Flow:**
+    1. Actor click icon Xóa trên dòng nhân viên.
+    2. Hệ thống hiển thị confirm dialog.
+    3. Hệ thống kiểm tra quyền:
+        - CO chỉ xóa staff của clinic mình sở hữu
+        - CM chỉ xóa VET, không được xóa MANAGER
+    4. Actor xác nhận → Hệ thống set `workingClinic = null`.
+    5. Nhân viên bị xóa khỏi danh sách (tài khoản vẫn tồn tại).
+- **Authorization Matrix:**
+
+| Actor | Xem Staff | Thêm Manager | Thêm Vet | Xóa Manager | Xóa Vet |
+|-------|:---------:|:------------:|:--------:|:-----------:|:-------:|
+| **Clinic Owner** | ✅ Của clinic mình | ✅ | ✅ | ✅ | ✅ |
+| **Clinic Manager** | ✅ Của clinic mình | ❌ | ✅ | ❌ | ✅ |
+
+- **API Endpoints:**
+
+| Method | Endpoint | Description | Roles |
+|--------|----------|-------------|-------|
+| GET | `/clinics/{clinicId}/staff` | Lấy danh sách nhân viên | CO, CM, ADMIN |
+| GET | `/clinics/{clinicId}/staff/has-manager` | Kiểm tra đã có Manager | CO, CM, ADMIN |
+| POST | `/clinics/{clinicId}/staff/quick-add` | Thêm nhanh nhân viên | CO, CM |
+| DELETE | `/clinics/{clinicId}/staff/{userId}` | Xóa nhân viên | CO, CM |
+
+---
+
+#### 3.2.5 UC-VT-10: [Home Visit] Bắt đầu di chuyển (Start Travel)
+
+- **Actor:** Vet
+- **Description:** Bác sĩ xác nhận bắt đầu di chuyển đến địa chỉ Pet Owner, bật tracking GPS.
+- **Pre-conditions:** 
+    - Vet đã được gán booking loại Home Visit.
+    - Booking status = CONFIRMED hoặc READY.
+- **Basic Flow:**
+    1. Vet mở booking detail trên app.
+    2. Vet nhấn "BẮT ĐẦU DI CHUYỂN".
+    3. App yêu cầu quyền GPS (nếu chưa có).
+    4. Hệ thống cập nhật booking status = IN_TRANSIT.
+    5. App bắt đầu gửi location updates **mỗi 10 giây** qua WebSocket.
+    6. Pet Owner nhận notification "Bác sĩ đang trên đường đến".
+- **Post-conditions:** 
+    - Booking status = IN_TRANSIT.
+    - Pet Owner có thể xem realtime location trên bản đồ.
+- **API/Events:**
+    - `POST /bookings/{id}/start-travel` - Cập nhật status
+    - WebSocket: `vet.location.{bookingId}` - Stream location
+
+---
+
+#### 3.2.6 UC-VT-11: [Home Visit] Thông báo đến nơi (Arrived)
+
+- **Actor:** Vet
+- **Description:** Bác sĩ xác nhận đã đến nơi, dừng tracking GPS.
+- **Pre-conditions:** 
+    - Booking status = IN_TRANSIT.
+    - Vet đang trong phạm vi gần địa chỉ (< 100m).
+- **Basic Flow:**
+    1. Vet nhấn "ĐÃ ĐẾN NƠI" khi đến địa chỉ.
+    2. Hệ thống validate vị trí (tùy chọn).
+    3. Hệ thống cập nhật booking status = ARRIVED.
+    4. Dừng location streaming.
+    5. Pet Owner nhận notification "Bác sĩ đã đến".
+- **Post-conditions:** Booking status = ARRIVED, Vet có thể Check-in.
+
+---
+
+#### 3.2.7 UC-PO-17: [Home Visit] Xem bản đồ realtime vị trí bác sĩ
+
+- **Actor:** Pet Owner
+- **Description:** Pet Owner theo dõi vị trí bác sĩ realtime trên bản đồ khi có booking Home Visit.
+- **Pre-conditions:** 
+    - Booking loại Home Visit với status = IN_TRANSIT.
+- **Basic Flow:**
+    1. Pet Owner mở booking detail.
+    2. Hệ thống hiển thị bản đồ với:
+        - Marker vị trí nhà Pet Owner (điểm đến)
+        - Marker vị trí Vet (cập nhật realtime)
+        - Đường đi ước tính (polyline)
+    3. Location cập nhật mỗi 10 giây qua WebSocket.
+    4. Hiển thị ETA (thời gian ước tính đến nơi).
+- **UI Components:**
+    - Google Maps / Mapbox integration
+    - Custom markers (Vet avatar, Home icon)
+    - ETA card overlay
+
+---
+
+#### 3.2.8 UC-PO-18: [Home Visit] Xem đường di chuyển của bác sĩ
+
+- **Actor:** Pet Owner
+- **Description:** Xem lịch sử đường đi của bác sĩ (sau khi hoàn thành).
+- **Pre-conditions:** Booking đã hoàn thành (status = COMPLETED).
+- **Basic Flow:**
+    1. Pet Owner mở booking history.
+    2. Hệ thống hiển thị polyline đường đi từ clinic → nhà.
+    3. Hiển thị thời gian di chuyển thực tế.
+
+---
+
+#### 3.2.9 UC-PO-19: [Home Visit] Nhận thông báo cập nhật
+
+- **Actor:** Pet Owner
+- **Description:** Nhận push notification về tiến trình di chuyển của bác sĩ.
+- **Notifications:**
+    | Trigger | Title | Body |
+    |---------|-------|------|
+    | Vet starts travel | 🚗 Bác sĩ đang đến | Bác sĩ [name] đang trên đường đến. Ước tính: [ETA] |
+    | Vet 1km away | 📍 Sắp đến nơi | Bác sĩ còn khoảng 1km. Vui lòng chuẩn bị! |
+    | Vet arrived | ✅ Bác sĩ đã đến | Bác sĩ [name] đã đến. Vui lòng ra đón! |
 
 ---
 
@@ -605,6 +761,7 @@ erDiagram
 | BR-008-04 | Một nhân viên chỉ thuộc về (đang làm việc tại) duy nhất một chi nhánh phòng khám tại một thời điểm |
 | BR-008-05 | Sau khi được thêm, nhân viên có thể đăng nhập ngay lập tức bằng SĐT và MK mặc định |
 | BR-008-06 | Hệ thống khuyến khích nhân viên cập nhật email và đổi mật khẩu trong lần đầu đăng nhập |
+| BR-008-07 | **Mỗi phòng khám chỉ được có tối đa 1 Quản lý (CLINIC_MANAGER)**. Nếu đã có Manager, nút thêm Manager sẽ bị ẩn/disable |
 
 #### BR-004: Scheduling Rules
 

@@ -43,7 +43,7 @@ Mỗi đầu mục bao gồm trọn gói: **Backend (API)**, **Frontend (UI)**, 
 | | | | | | | | |
 | **Sprint 3** | **Staff & Scheduling** | | | | | | |
 | | 1. **[BE]** Staff Management (Quick Add, Role API) | Backend | Tân | Medium | 6 | **✅ Done** | - |
-| | 2. **[Web]** Màn hình Quản lý & Quick Add nhân viên (Owner) | Web | Tân | Medium | 14 | 🔄 In Progress | List UI thiếu |
+| | 2. **[Web]** Màn hình Quản lý & Quick Add nhân viên (Owner) | Web | Tân | Medium | 14 | **✅ Done** | - |
 | | 3. **[BE]** VetShift CRUD & Logic tự động chia Slot 30p | Backend | Tuân | Complex| 16 | ⏳ Pending | BE + FE + Test |
 | | 4. **[Web]** Calendar View: Quản lý Ca làm việc (Manager) | Web | Huyền | Complex| 16 | ⏳ Pending | FE thiếu |
 | | 5. **[Mobile]** Màn hình Lịch làm việc cá nhân (Vet) | Mobile | Uyên | Medium | 12 | ⏳ Pending | Mobile FE |
@@ -100,9 +100,9 @@ Mỗi đầu mục bao gồm trọn gói: **Backend (API)**, **Frontend (UI)**, 
 
 | Status | Count | Percentage |
 |--------|:-----:|:----------:|
-| ✅ Done | 10 | 20% |
+| ✅ Done | 11 | 22% |
 | 🔶 BE Done | 1 | 2% |
-| 🔄 In Progress | 2 | 4% |
+| 🔄 In Progress | 1 | 2% |
 | ⏳ Pending | 33 | 66% |
 | ❌ Deferred | 4 | 8% |
 | **Total** | 50 | 100% |
@@ -120,7 +120,6 @@ Mỗi đầu mục bao gồm trọn gói: **Backend (API)**, **Frontend (UI)**, 
 ### Sprint 3 - Chưa hoàn thành:
 | Item | Missing | Priority |
 |------|---------|:--------:|
-| Staff List UI (Web) | FE component | 🟡 Medium |
 | VetShift CRUD + Slot 30p | BE + FE | 🔴 High |
 | Calendar View (Manager) | Web FE | 🔴 High |
 | Vet Schedule (Mobile) | Mobile FE | 🔴 High |

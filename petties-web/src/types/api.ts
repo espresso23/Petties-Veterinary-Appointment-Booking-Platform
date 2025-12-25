@@ -5,18 +5,22 @@ export interface AuthResponse {
   userId: string
   username: string
   email: string
-  fullName?: string
+  fullName: string
   role: string
+  workingClinicId?: string
+  workingClinicName?: string
 }
 
 export interface UserResponse {
   userId: string
   username: string
   email: string
-  fullName?: string
+  fullName: string
   phone?: string
   avatar?: string
   role: string
+  workingClinicId?: string
+  workingClinicName?: string
   createdAt: string
   updatedAt: string
 }

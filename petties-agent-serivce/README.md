@@ -3,8 +3,8 @@
 **AI Agent Service cho Petties - Veterinary Appointment Booking Platform**
 
 ```
-Version: v0.0.1 (MVP Foundation)
-Status:  In Development
+Version: v1.0.0 (Cloud-Only Ready)
+Status:  ✅ Multi-Agent to Single Agent Migration Complete
 Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
 ```
 
@@ -27,7 +27,7 @@ Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud
 | **Dynamic Configuration** | Load prompts & settings từ DB | ✅ Implemented |
 | **System Prompt Management** | Quản lý prompts từ DB với versioning | ✅ Implemented |
 | **Tool Management** | Bật/tắt tools qua Admin Dashboard | ✅ Implemented |
-| **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | 🔄 In Progress |
+| **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | ✅ Implemented |
 | **Cloud LLM Integration** | OpenRouter API (Cloud-Only) | ✅ Implemented |
 | **Cloud Embeddings** | Cohere embed-multilingual-v3 | ✅ Implemented |
 
@@ -216,16 +216,15 @@ ALGORITHM=HS256
 
 ### Database Setup
 
-```bash
-# Run database migrations
-alembic upgrade head
+Hệ thống tự động tạo bảng (Database Tables) khi khởi chạy lần đầu thông qua hàm `init_db()`.
 
-# Seed initial data (agents, tools, settings)
+```bash
+# Seed initial data (agents, tools, settings) sau khi tables đã được tạo
 # Option 1: Via API
 curl -X POST http://localhost:8000/api/v1/settings/seed?force=true \
   -H "Authorization: Bearer <admin_token>"
 
-# Option 2: Via script (if mounted in container)
+# Option 2: Via script (nếu chạy trong container)
 docker-compose exec ai-service python scripts/seed_db.py
 ```
 
@@ -532,8 +531,8 @@ Response:
 |----|---------|--------|-------|
 | **AG-01** | Hierarchical Agent Management | ✅ Done | `/api/v1/agents` - CRUD |
 | **AG-02** | System Prompt Editor | ✅ Done | ⭐ DB-based, versioned, editable via Dashboard |
-| **AG-03** | Model Parameter Tuning | ✅ Done | `/api/v1/agents/{id}` - temp, model, max_tokens |
-| **AG-04** | LLM Intent Classification | 🔄 In Progress | LLM + Prompt based routing |
+| **AG-03** | Model Parameter Tuning | ✅ Done | `/api/v1/agents/{id}` - temp, model, max_tokens, top_p |
+| **AG-04** | LLM Intent Classification | ✅ Done | ReAct pattern with Tool descriptions |
 
 ### Tools & Integrations
 
@@ -546,16 +545,16 @@ Response:
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| **KB-01** | Cloud Vector Sync (RAG) | 🔄 In Progress | Qdrant Cloud integration |
-| **KB-02** | Knowledge Graph Integration | 🔴 TODO | Petagraph integration |
+| **KB-01** | Cloud Vector Sync (RAG) | ✅ Done | Qdrant Cloud integration (LlamaIndex) |
+| **KB-02** | Knowledge Graph Integration | 🔴 TODO | Petagraph integration (Post-MVP) |
 
 ### Playground & Monitoring
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| **PG-01** | Real-time Chat Simulator | 🔄 In Progress | WebSocket endpoint exists |
-| **PG-02** | Thinking Process Visualization | 🔄 In Progress | Logging implemented |
-| **PG-03** | Traceability & Citation View | 🔴 TODO | URL citation for Research Agent |
+| **PG-01** | Real-time Chat Simulator | ✅ Done | WebSocket + REST test endpoints |
+| **PG-02** | Thinking Process Visualization | ✅ Done | ReAct trace logs implemented |
+| **PG-03** | Traceability & Citation View | 🔄 In Progress | Link citation for Research Agent |
 
 ---
 
@@ -646,18 +645,9 @@ PUT /api/v1/settings/OPENROUTER_API_KEY
 
 ## Development
 
-### Database Migrations
+### Database Management
 
-```bash
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
+Hệ thống sử dụng `sqlalchemy.run_sync(Base.metadata.create_all)` để tự động tạo bảng tại Startup. Nếu có thay đổi về Schema (thêm cột, đổi kiểu dữ liệu), bạn cần thực hiện ALTER TABLE thủ công hoặc xóa và tạo lại Database trong giai đoạn phát triển.
 
 ### Testing
 
@@ -762,4 +752,4 @@ services:
 
 ---
 
-**Last Updated:** 2025-12-25
+**Last Updated:** 2025-12-26

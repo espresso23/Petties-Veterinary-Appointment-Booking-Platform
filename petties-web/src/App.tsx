@@ -37,6 +37,8 @@ import {
   ClinicEditPage,
   ClinicDetailPage,
 } from './pages/clinic-owner/clinics'
+import { StaffManagementPage } from './pages/clinic-owner/staff'
+import { VetsManagementPage } from './pages/clinic-manager/vets'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -117,6 +119,7 @@ function App() {
             <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
             <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
             <Route path="services" element={<ServicesPage />} />
+            <Route path="staff" element={<StaffManagementPage />} />
           </Route>
           {/* Clinic Manager Routes */}
           <Route path="/clinic-manager" element={
@@ -126,6 +129,7 @@ function App() {
           }>
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="vets" element={<VetsManagementPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

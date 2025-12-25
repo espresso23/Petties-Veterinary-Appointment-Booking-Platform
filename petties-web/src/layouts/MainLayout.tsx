@@ -24,12 +24,12 @@ export function MainLayout() {
           {isAuthenticated && user ? (
             <>
               <span style={{ color: '#0369a1', fontWeight: 500 }}>
-                {user.username} ({user.role})
+                {user.fullName} ({user.role})
               </span>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="btn btn--ghost"
-                style={{ 
+                style={{
                   border: '1px solid rgba(15, 23, 42, 0.2)',
                   padding: '0.5rem 1rem',
                   cursor: 'pointer'
