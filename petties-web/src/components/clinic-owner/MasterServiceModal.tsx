@@ -585,6 +585,7 @@ export function MasterServiceModal({
 
           {/* Weight-based Pricing */}
           <div className="space-y-3">
+<<<<<<< HEAD
             <div>
               <label
                 style={{
@@ -601,6 +602,19 @@ export function MasterServiceModal({
                 Phụ phí này sẽ được cộng thêm vào giá cơ bản ({defaultPrice ? new Intl.NumberFormat('vi-VN').format(Number(defaultPrice)) : '0'} VNĐ)
               </p>
             </div>
+=======
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
+                color: '#000000',
+                display: 'block'
+              }}
+            >
+              Giá theo cân nặng (Tùy chọn)
+            </label>
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
             <button
               type="button"
               onClick={() => setShowWeightPriceModal(true)}
@@ -611,10 +625,17 @@ export function MasterServiceModal({
             >
               <div>
                 <div className="text-lg font-black text-white">
+<<<<<<< HEAD
                   {weightPrices.length === 0 ? 'Chưa có mốc phụ phí theo cân nặng' : `${weightPrices.length} mốc phụ phí đã thiết lập`}
                 </div>
                 <div className="text-sm text-white opacity-80 mt-1">
                   Click để quản lý bảng phụ phí theo cân nặng
+=======
+                  {weightPrices.length === 0 ? 'Chưa có mốc giá theo cân nặng' : `${weightPrices.length} mốc giá đã thiết lập`}
+                </div>
+                <div className="text-sm text-white opacity-80 mt-1">
+                  Click để quản lý bảng giá theo cân nặng
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
                 </div>
               </div>
               <PencilIcon className="w-6 h-6 text-white" />
@@ -705,10 +726,17 @@ export function MasterServiceModal({
                     </div>
                   </div>
                   <p className="text-2xl font-black text-black uppercase mb-3">
+<<<<<<< HEAD
                     Bảng phụ phí cân nặng trống
                   </p>
                   <p className="text-base font-bold text-gray-500 max-w-sm mx-auto leading-relaxed">
                     Bạn chưa thiết lập mốc phụ phí nào. Nhấn nút <span className="text-green-600">"Thêm mốc giá"</span> bên dưới để thiết lập phụ phí cộng thêm theo cân nặng cho thú cưng.
+=======
+                    Bảng giá cân nặng trống
+                  </p>
+                  <p className="text-base font-bold text-gray-500 max-w-sm mx-auto leading-relaxed">
+                    Bạn chưa thiết lập mốc giá nào. Nhấn nút <span className="text-green-600">"Thêm mốc giá"</span> bên dưới để thiết lập phụ phí theo cân nặng cho thú cưng.
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
                   </p>
                 </div>
               ) : (
@@ -752,7 +780,11 @@ export function MasterServiceModal({
                             </div>
                             <div className="space-y-1">
                               <label className="block text-xs font-black uppercase text-gray-500">
+<<<<<<< HEAD
                                 Phụ phí cộng thêm (VNĐ)
+=======
+                                Phụ phí (VNĐ)
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
                               </label>
                               <input
                                 type="text"

@@ -145,7 +145,10 @@ export function MasterServiceGrid() {
         serviceCategory: serviceData.serviceCategory,
         petType: serviceData.petType,
         icon: serviceData.icon,
+<<<<<<< HEAD
         weightPrices: serviceData.weightPrices, // FIX: Thêm weightPrices vào request
+=======
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
       }
 
       if (selectedService) {
@@ -176,6 +179,7 @@ export function MasterServiceGrid() {
       setIsSubmitting(false)
     }
   }
+<<<<<<< HEAD
   // Giả lập kiểm tra có phòng khám hay chưa (thực tế lấy từ store hoặc API)
   const [hasClinic, setHasClinic] = useState(true)
   useEffect(() => {
@@ -183,6 +187,8 @@ export function MasterServiceGrid() {
     // setHasClinic(!!clinicStore.clinic)
     setHasClinic(true)
   }, [])
+=======
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
 
   // Loading state
   if (isLoading) {
@@ -198,6 +204,7 @@ export function MasterServiceGrid() {
     )
   }
 
+<<<<<<< HEAD
   // Nếu chưa có phòng khám thì hiển thị thông báo và nút tạo phòng khám
   if (!hasClinic) {
     return (
@@ -215,6 +222,8 @@ export function MasterServiceGrid() {
       </div>
     )
   }
+=======
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
   // Error state
   if (error) {
     return (

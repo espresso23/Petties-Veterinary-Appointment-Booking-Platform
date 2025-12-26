@@ -169,9 +169,13 @@ export function ServiceCard({
 
           <div className="space-y-3 mt-4">
             <div className="flex items-start justify-between border-b-2 border-black pb-2">
+<<<<<<< HEAD
               <span className="font-bold text-black">
                 {priceRange.hasRange ? 'KHOẢNG GIÁ' : 'GIÁ DỊCH VỤ'}
               </span>
+=======
+              <span className="font-bold text-black">GIÁ DỊCH VỤ</span>
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
               <div className="text-right">
                 <span className="font-black text-xl text-[#FF6B35]">
                   {formattedPrice}
