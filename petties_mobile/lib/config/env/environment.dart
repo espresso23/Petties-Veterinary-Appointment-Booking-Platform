@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// Environment configuration for different build modes
 class Environment {
   Environment._();
@@ -8,14 +10,20 @@ class Environment {
   // ⚠️ CHÚ Ý: Nếu chạy trên máy ảo (Emulator) thì dùng 10.0.2.2
   // Nếu chạy trên điện thoại thật (Real Device) thì PHẢI dùng IP LAN của máy tính (ví dụ: 192.168.1.5)
   // Mở CMD gõ 'ipconfig' để xem IP
-  // static const String _devBaseUrl = 'http://10.0.2.2:8080/api'; // Cho Emulator
-  static const String _devBaseUrl = 'http://10.0.2.2:8080/api';
+  static String get _devBaseUrl {
+    if (Platform.isAndroid) {
+      // 10.0.2.2 is for Android Emulator to access host localhost
+      // If using PHYSICAL DEVICE, change this to your LAN IP (e.g. 192.168.1.9)
+      return 'http://10.0.2.2:8080/api';
+    }
+    // iOS Simulator uses localhost
+    return 'http://localhost:8080/api';
+  }
+
   static const String _stagingBaseUrl = 'https://api-test.petties.world/api';
   static const String _prodBaseUrl = 'https://api.petties.world/api';
   static const String _stagingAiServiceUrl =
       'https://api-test.petties.world/ai';
-
-  static const String _defaultDevUrl = 'http://10.0.2.2:8080/api';
 
   // Flavor from build arguments
   static const String _flavor =
@@ -51,7 +59,12 @@ class Environment {
   static String get flavor => _flavor;
 
   /// AI Service URL
-  static const String _devAiServiceUrl = 'http://10.0.2.2:8000';
+  static String get _devAiServiceUrl {
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000';
+    }
+    return 'http://localhost:8000';
+  }
   static const String _prodAiServiceUrl = 'https://ai.petties.world';
 
   static String get aiServiceUrl {

@@ -21,6 +21,7 @@ void main() async {
     debugPrint('Firebase initialization error: $e');
   }
   
+  
   // Initialize local storage
   await StorageService().init();
   
