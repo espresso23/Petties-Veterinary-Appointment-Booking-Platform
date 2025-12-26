@@ -237,7 +237,11 @@ class ClinicServiceControllerUnitTest {
                                 .param("clinicPricePerKm", "4000"))
                                 .andExpect(status().isCreated())
                                 .andExpect(jsonPath("$.serviceId").value(testServiceId.toString()))
-                                .andExpect(jsonPath("$.name").value(containsString("Khám")));
+                                .andExpect(jsonPath("$.name").value(containsString("Khám")))
+                                .andExpect(jsonPath("$.weightPrices").isArray())
+                                .andExpect(jsonPath("$.weightPrices[0].minWeight").value("0.0"))
+                                .andExpect(jsonPath("$.weightPrices[0].maxWeight").value("5.0"))
+                                .andExpect(jsonPath("$.weightPrices[0].price").value("100000.0"));
         }
 
         @Test

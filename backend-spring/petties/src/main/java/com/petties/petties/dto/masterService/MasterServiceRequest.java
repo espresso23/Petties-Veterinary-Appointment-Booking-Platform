@@ -50,4 +50,5 @@ public class MasterServiceRequest {
 
     @Size(max = 100, message = "Icon không được quá 100 ký tự")
     private String icon;
+    private java.util.List<com.petties.petties.dto.clinicService.WeightPriceDto> weightPrices;
 }

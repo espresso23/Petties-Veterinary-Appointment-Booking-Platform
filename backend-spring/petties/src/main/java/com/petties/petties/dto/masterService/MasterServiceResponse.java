@@ -28,4 +28,5 @@ public class MasterServiceResponse {
     private String icon;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private java.util.List<com.petties.petties.dto.clinicService.WeightPriceDto> weightPrices;
 }

@@ -375,10 +375,24 @@ public class ClinicServiceService {
         clinicService.setServiceCategory(masterService.getServiceCategory());
         clinicService.setPetType(masterService.getPetType());
 
+
+        // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan hệ JPA
+        if (masterService.getWeightPrices() != null && !masterService.getWeightPrices().isEmpty()) {
+            for (ServiceWeightPrice masterWeightPrice : masterService.getWeightPrices()) {
+                ServiceWeightPrice clinicWeightPrice = new ServiceWeightPrice();
+                clinicWeightPrice.setService(clinicService); // Liên kết với clinic service
+                clinicWeightPrice.setMinWeight(masterWeightPrice.getMinWeight());
+                clinicWeightPrice.setMaxWeight(masterWeightPrice.getMaxWeight());
+                clinicWeightPrice.setPrice(masterWeightPrice.getPrice());
+                // KHÔNG set masterWeightPrice cho clinicWeightPrice
+                clinicService.getWeightPrices().add(clinicWeightPrice);
+            }
+        }
+
         log.info("Saving clinic service for clinic {} and master {}", clinic.getClinicId(), masterService.getMasterServiceId());
         ClinicService savedService = clinicServiceRepository.save(clinicService);
         log.info("Saved clinic service with ID: {}", savedService.getServiceId());
-        
+
         log.info("Inherited service from master {} to clinic {} by user: {}",
                 masterServiceId, clinic.getClinicId(), getCurrentUser().getUserId());
 
