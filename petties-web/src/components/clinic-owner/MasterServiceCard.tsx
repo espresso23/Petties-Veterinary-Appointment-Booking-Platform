@@ -51,8 +51,37 @@ export function MasterServiceCard({
 }: MasterServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
 
+  // Calculate price range from base price + weight prices
+  const calculatePriceRange = () => {
+    const basePrice = service.defaultPrice
+    if (!service.weightPrices || service.weightPrices.length === 0) {
+      return {
+        min: basePrice,
+        max: basePrice,
+        hasRange: false
+      }
+    }
+    
+    const weightPrices = service.weightPrices.map(wp => wp.price)
+    const minWeightPrice = Math.min(...weightPrices)
+    const maxWeightPrice = Math.max(...weightPrices)
+    
+    return {
+      min: basePrice + minWeightPrice,
+      max: basePrice + maxWeightPrice,
+      hasRange: minWeightPrice !== maxWeightPrice
+    }
+  }
+
+  const priceRange = calculatePriceRange()
+
   // Format price display
   const getPriceDisplay = () => {
+    if (priceRange.hasRange) {
+      const minFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.min)
+      const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
+      return `${minFormatted} - ${maxFormatted} VNĐ`
+    }
     return new Intl.NumberFormat('vi-VN').format(service.defaultPrice) + ' VNĐ'
   }
 
@@ -162,7 +191,9 @@ export function MasterServiceCard({
 
         <div className="space-y-3 mt-4">
           <div className="flex items-start justify-between border-b-2 border-black pb-2">
-            <span className="font-bold text-gray-600">GIÁ MẶC ĐỊNH</span>
+            <span className="font-bold text-gray-600">
+              {priceRange.hasRange ? 'KHOẢNG GIÁ' : 'GIÁ MẶC ĐỊNH'}
+            </span>
             <div className="text-right">
               <span className="font-black text-xl text-[#FF6B35]">
                 {formattedPrice}
@@ -215,10 +246,14 @@ export function MasterServiceCard({
                   e.stopPropagation()
                   setShowPriceModal(true)
                 }}
-                className="flex items-center gap-2 text-xs font-black text-purple-600 hover:text-purple-800 transition-colors uppercase"
+                className="w-full flex items-center justify-between p-2 border-2 border-black hover:bg-opacity-90 transition-colors"
+                style={{ backgroundColor: '#FF6B35' }}
               >
-                <ScaleIcon className="w-4 h-4" />
-                Xem giá theo cân nặng
+                <span className="font-bold text-white flex items-center gap-2">
+                  <InformationCircleIcon className="w-4 h-4" />
+                  {service.weightPrices.length} MỨC GIÁ THEO CÂN NẶNG
+                </span>
+                <span className="text-xs font-bold text-white">XEM CHI TIẾT</span>
               </button>
             </div>
           )}
@@ -234,62 +269,102 @@ export function MasterServiceCard({
         </div>
       </div>
 
-      {/* Weight Price Modal */}
+      {/* Weight Prices Overlay Modal */}
       {showPriceModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             e.stopPropagation()
             setShowPriceModal(false)
           }}
         >
           <div
-            className="bg-white border-4 border-black p-6 max-w-md w-full mx-4 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)]"
+            className="bg-white border-4 border-black shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4 pb-3 border-b-4 border-black">
-              <h3 className="text-xl font-black uppercase flex items-center gap-2">
-                <ScaleIcon className="w-5 h-5" />
-                Giá theo cân nặng
+            {/* Header */}
+            <div className="bg-[#FF6B35] border-b-4 border-black p-4 flex justify-between items-center">
+              <h3 className="text-xl font-black text-white uppercase">
+                Bảng giá theo cân nặng
               </h3>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowPriceModal(false)
                 }}
-                className="p-2 hover:bg-gray-100 transition-colors border-2 border-black"
+                className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black hover:bg-gray-100 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                style={{ color: '#000000' }}
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              {service.weightPrices?.map((tier, index) => (
-                <div key={index} className="p-4 border-2 border-black bg-gray-50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-black uppercase text-gray-600">
-                      Cân nặng
-                    </span>
-                    <span className="text-lg font-black">
-                      {tier.minWeight} - {tier.maxWeight} kg
-                    </span>
+            {/* Service Name */}
+            <div className="bg-gray-50 border-b-2 border-black p-3">
+              <p className="text-sm font-bold text-gray-600">DỊCH VỤ MẪU</p>
+              <p className="text-lg font-black text-black">{service.name}</p>
+            </div>
+
+            {/* Base Price */}
+            <div className="bg-yellow-50 border-b-2 border-black p-3">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-gray-700">GIÁ CƠ BẢN</span>
+                <span className="text-xl font-black text-[#FF6B35]">
+                  {service.defaultPrice.toLocaleString('vi-VN')} VNĐ
+                </span>
+              </div>
+            </div>
+
+            {/* Price Per KM (only for home visit services) */}
+            {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0 && (
+              <div className="bg-blue-50 border-b-2 border-black p-3">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <HomeIcon className="w-5 h-5 text-blue-600" />
+                    <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-black uppercase text-gray-600">
-                      Giá
-                    </span>
-                    <span className="text-xl font-black text-purple-600">
-                      {tier.price.toLocaleString('vi-VN')} VNĐ
-                    </span>
+                  <span className="text-lg font-black text-green-600">
+                    +{service.defaultPricePerKm.toLocaleString('vi-VN')} VNĐ / KM
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Weight Price Tiers */}
+            <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+              <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Phụ phí theo cân nặng</p>
+              {service.weightPrices?.map((wp, idx) => (
+                <div
+                  key={idx}
+                  className="border-4 border-black p-4 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 border-2 border-black bg-[#e0f2fe] flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                      <ScaleIcon className="w-5 h-5 text-black" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-black text-[10px] uppercase bg-black text-white px-2 py-0.5">MỨC {idx + 1}</span>
+                        <span className="font-black text-lg text-black">{wp.minWeight} - {wp.maxWeight} kg</span>
+                      </div>
+                      <div className="text-sm font-bold text-gray-600">
+                        Phụ phí cộng thêm: <span className="text-green-600 font-black">+{Number(wp.price || 0).toLocaleString('vi-VN')} VNĐ</span>
+                      </div>
+                      <div className="text-[10px] font-bold text-gray-400 mt-1">
+                        Tổng cộng: {(service.defaultPrice + Number(wp.price)).toLocaleString('vi-VN')} VNĐ
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 p-3 bg-amber-100 border-2 border-black flex items-start gap-2">
-              <InformationCircleIcon className="w-5 h-5 text-amber-700 flex-shrink-0" />
-              <p className="text-xs font-bold text-amber-800">
-                Giá dịch vụ sẽ thay đổi dựa trên cân nặng thú cưng của bạn.
+            {/* Footer Note */}
+            <div className="bg-gray-100 border-t-2 border-black p-3">
+              <p className="text-xs font-bold text-gray-600">
+                {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0
+                  ? 'Giá cuối cùng = Giá cơ bản + Phụ phí cân nặng + Phụ phí di chuyển (KM x giá/KM)'
+                  : 'Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng'}
               </p>
             </div>
           </div>

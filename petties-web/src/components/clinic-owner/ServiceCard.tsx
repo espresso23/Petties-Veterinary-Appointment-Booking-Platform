@@ -49,8 +49,37 @@ export function ServiceCard({
 }: ServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
 
-  // Return only the formatted base price
+  // Calculate price range from base price + weight prices
+  const calculatePriceRange = () => {
+    const basePrice = service.price
+    if (!service.weightPrices || service.weightPrices.length === 0) {
+      return {
+        min: basePrice,
+        max: basePrice,
+        hasRange: false
+      }
+    }
+    
+    const weightPrices = service.weightPrices.map(wp => wp.price)
+    const minWeightPrice = Math.min(...weightPrices)
+    const maxWeightPrice = Math.max(...weightPrices)
+    
+    return {
+      min: basePrice + minWeightPrice,
+      max: basePrice + maxWeightPrice,
+      hasRange: minWeightPrice !== maxWeightPrice
+    }
+  }
+
+  const priceRange = calculatePriceRange()
+
+  // Format price display
   const getPriceDisplay = () => {
+    if (priceRange.hasRange) {
+      const minFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.min)
+      const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
+      return `${minFormatted} - ${maxFormatted} VNĐ`
+    }
     return new Intl.NumberFormat('vi-VN').format(service.price) + ' VNĐ'
   }
 
@@ -140,7 +169,9 @@ export function ServiceCard({
 
           <div className="space-y-3 mt-4">
             <div className="flex items-start justify-between border-b-2 border-black pb-2">
-              <span className="font-bold text-black">GIÁ DỊCH VỤ</span>
+              <span className="font-bold text-black">
+                {priceRange.hasRange ? 'KHOẢNG GIÁ' : 'GIÁ DỊCH VỤ'}
+              </span>
               <div className="text-right">
                 <span className="font-black text-xl text-[#FF6B35]">
                   {formattedPrice}

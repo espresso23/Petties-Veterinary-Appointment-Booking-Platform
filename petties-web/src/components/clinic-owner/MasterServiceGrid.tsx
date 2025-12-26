@@ -145,6 +145,7 @@ export function MasterServiceGrid() {
         serviceCategory: serviceData.serviceCategory,
         petType: serviceData.petType,
         icon: serviceData.icon,
+        weightPrices: serviceData.weightPrices, // FIX: Thêm weightPrices vào request
       }
 
       if (selectedService) {
@@ -175,6 +176,13 @@ export function MasterServiceGrid() {
       setIsSubmitting(false)
     }
   }
+  // Giả lập kiểm tra có phòng khám hay chưa (thực tế lấy từ store hoặc API)
+  const [hasClinic, setHasClinic] = useState(true)
+  useEffect(() => {
+    // TODO: Thay bằng kiểm tra thực tế từ store hoặc API
+    // setHasClinic(!!clinicStore.clinic)
+    setHasClinic(true)
+  }, [])
 
   // Loading state
   if (isLoading) {
@@ -190,6 +198,23 @@ export function MasterServiceGrid() {
     )
   }
 
+  // Nếu chưa có phòng khám thì hiển thị thông báo và nút tạo phòng khám
+  if (!hasClinic) {
+    return (
+      <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="text-2xl font-black text-black mb-4">Bạn chưa có phòng khám nào</div>
+          <div className="text-base font-bold text-gray-600 mb-6">Hãy tạo phòng khám để bắt đầu tạo dịch vụ mẫu cho phòng khám của bạn.</div>
+          <a
+            href="/clinic-owner/clinic-create"
+            className="px-8 py-4 bg-[#FF6B35] text-white font-black border-4 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-orange-500 transition-all text-lg uppercase"
+          >
+            Tạo phòng khám
+          </a>
+        </div>
+      </div>
+    )
+  }
   // Error state
   if (error) {
     return (
