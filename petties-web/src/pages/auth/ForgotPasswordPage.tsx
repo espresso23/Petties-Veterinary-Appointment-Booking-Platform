@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { forgotPassword } from '../../services/endpoints/auth'
 import { useToast } from '../../components/Toast'
+import { parseApiError } from '../../utils/errorHandler'
 import { EnvelopeIcon, ArrowLeftIcon, KeyIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -30,12 +31,8 @@ export function ForgotPasswordPage() {
           resendCooldownSeconds: response.resendCooldownSeconds
         }
       })
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-        err.message ||
-        'Không thể gửi mã OTP. Vui lòng thử lại.'
-      )
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }

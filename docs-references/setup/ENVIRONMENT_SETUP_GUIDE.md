@@ -154,9 +154,13 @@ DATABASE_URL=postgresql://neondb_owner:password@ep-quiet-rice-a1qxog6z-pooler.ap
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your-api-key
 
-# Ollama
-OLLAMA_API_KEY=your-ollama-key
-OLLAMA_MODEL=kimi-k2:1t-cloud
+# LLM Provider (OpenRouter - Cloud Only)
+OPENROUTER_API_KEY=your-openrouter-api-key
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
+
+# Embeddings (Cohere)
+COHERE_API_KEY=your-cohere-api-key
 
 # CORS
 CORS_ORIGINS=https://petties.world,https://www.petties.world

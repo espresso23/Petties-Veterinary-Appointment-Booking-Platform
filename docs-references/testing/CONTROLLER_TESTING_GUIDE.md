@@ -208,26 +208,22 @@ void uploadAvatar_validImage_returns200() throws Exception {
 ### ✅ DO:
 
 1. **Test HTTP layer only** - status codes, validation, serialization
-2. **Mock all services** - với `@MockBean`
+2. **Mock all services** - với `@MockitoBean`
 3. **Use descriptive test names** - `methodName_condition_expectedResult`
 4. **Test all status codes** - 200, 400, 401, 403, 404
 5. **Test validation annotations** - `@NotBlank`, `@Size`, `@Pattern`
-6. **Use @Nested classes** - group tests by endpoint
+6. **Group tests with comments** - group tests by endpoint for readability
+7. **Keep tests flat** - avoid using `@Nested` classes to keep the structure simple and direct.
 
+Example:
 ```java
-@Nested
-@DisplayName("POST /api/auth/login")
-class LoginTests {
+// ==================== LOGIN TESTS ====================
 
-    @Test
-    void login_validCredentials_returns200() { }
+@Test
+void login_validCredentials_returns200() { }
 
-    @Test
-    void login_blankEmail_returns400() { }
-
-    @Test
-    void login_wrongPassword_returns401() { }
-}
+@Test
+void login_blankEmail_returns400() { }
 ```
 
 ### ❌ DON'T:
@@ -342,7 +338,7 @@ void createPet_duplicateName_returns400() throws Exception {
 | **Purpose** | Test HTTP layer (không test business logic) |
 | **Annotation** | `@WebMvcTest(Controller.class)` |
 | **Speed** | Fast (~100ms/test) |
-| **Database** | NO - mock services with `@MockBean` |
+| **Database** | NO - mock services with `@MockitoBean` |
 | **Network** | NO - in-memory HTTP simulation |
 | **Coverage Target** | ≥ 80% for controller classes |
 

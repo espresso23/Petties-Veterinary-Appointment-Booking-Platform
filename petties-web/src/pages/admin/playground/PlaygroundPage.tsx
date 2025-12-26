@@ -172,7 +172,7 @@ export const PlaygroundPage = () => {
               >
                 {agents.map(agent => (
                   <option key={agent.id} value={agent.id}>
-                    {agent.agent_type === 'main' ? '👑 ' : ''}
+                    {agent.agent_type === 'main' ? '' : ''}
                     {agent.name} ({agent.agent_type})
                   </option>
                 ))}

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
+import 'react-easy-crop/react-easy-crop.css'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 
 interface ImageCropModalProps {

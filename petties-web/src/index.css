@@ -64,3 +64,26 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Leaflet custom marker styles */
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Leaflet map container fixes */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border: 2px solid #1c1917 !important;
+  box-shadow: 4px 4px 0 #1c1917 !important;
+  border-radius: 0 !important;
+}
+
+.leaflet-popup-tip {
+  background: #fff !important;
+  border: 2px solid #1c1917 !important;
+  box-shadow: 2px 2px 0 #1c1917 !important;
+}

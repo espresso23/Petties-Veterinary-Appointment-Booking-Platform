@@ -22,7 +22,7 @@
 │         Neon      MongoDB Atlas   Qdrant Cloud                  │
 │        (PostgreSQL)    (NoSQL DB)    (Vector DB)                │
 │                                                                  │
-│  Ollama Cloud (LLM) ────── API Key ────── EC2 Services          │
+│  Cloud AI APIs ────── OpenRouter (LLM) + Cohere (Embed)         │
 │                                                                  │
 │  Nginx (Reverse Proxy) ─── SSL (Let's Encrypt)                  │
 │                                                                  │
@@ -331,82 +331,51 @@ pip install -r requirements.txt --force-reinstall
 - iOS Simulator: Dùng `localhost`
 - Physical Device: Dùng IP của máy host (cùng WiFi)
 
-## 8. Ollama Setup (cho AI features)
+## 8. Cloud AI Setup (cho AI features)
 
-### Development (Local Mode)
+### Cloud-Only Architecture (Khuyến nghị)
 
-AI Service có thể sử dụng Ollama Local hoặc Ollama Cloud.
+AI Service sử dụng Cloud APIs - **KHÔNG cần GPU/RAM local**.
 
-**Option 1: Local Ollama (Khuyến nghị cho Development)**
+| Service | Provider | Purpose | Free Tier |
+|---------|----------|---------|-----------|
+| **LLM** | OpenRouter | Chat completion | Free models available |
+| **Embeddings** | Cohere | Text embeddings | 1,000/month |
+| **Vector DB** | Qdrant Cloud | Vector storage | 1GB storage |
+
+### Configuration
+
+**File `.env`:**
 
 ```bash
-# Cài Ollama
-# https://ollama.ai/download
+# LLM Provider (OpenRouter - Cloud API)
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-your-openrouter-api-key
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
 
-# Pull models
-ollama pull kimi-k2
-ollama pull nomic-embed-text
+# Embeddings (Cohere - Cloud API)
+COHERE_API_KEY=your-cohere-api-key
+EMBEDDING_MODEL=embed-multilingual-v3
 
-# Start Ollama (chạy trong background)
-ollama serve
-# Chạy tại http://localhost:11434
-
-# Verify
-curl http://localhost:11434/api/tags
+# Qdrant Cloud (Vector DB)
+QDRANT_URL=https://your-cluster.qdrant.io
+QDRANT_API_KEY=your-qdrant-api-key
 ```
 
-**Configuration:**
-- Set `OLLAMA_BASE_URL=http://localhost:11434` trong `.env`
-- Leave `OLLAMA_API_KEY` empty
-- Model: `kimi-k2`
+### Getting API Keys
 
-**Option 2: Ollama Cloud (Cũng có thể dùng cho Development)**
+1. **OpenRouter** (LLM): https://openrouter.ai/keys
+2. **Cohere** (Embeddings): https://dashboard.cohere.com/api-keys
+3. **Qdrant Cloud** (Vectors): https://cloud.qdrant.io
 
-1. Đăng ký tại https://ollama.com
-2. Lấy API Key
-3. Set `OLLAMA_API_KEY=sk-...` trong `.env`
-4. Hệ thống tự động:
-   - Switch sang `https://ollama.com`
-   - Chuyển model sang `kimi-k2:1t-cloud` (256K context)
+### Lợi ích Cloud-Only Architecture
 
-### Production (Ollama Cloud - Khuyến nghị)
-
-**EC2 Production sử dụng Ollama Cloud - Không cần setup Ollama server!**
-
-1. Đăng ký Ollama Cloud tại https://ollama.com
-2. Lấy API Key từ dashboard
-3. Set `OLLAMA_API_KEY` trong file `.env` trên EC2:
-   ```bash
-   # SSH vào EC2
-   ssh -i petties-key.pem ubuntu@15.134.219.97
-   
-   # Edit .env
-   cd ~/petties-backend/Petties-Veterinary-Appointment-Booking-Platform
-   nano .env
-   
-   # Thêm/sửa dòng:
-   OLLAMA_API_KEY=sk-your-api-key-here
-   OLLAMA_MODEL=kimi-k2:1t-cloud
-   
-   # Restart AI Service
-   docker-compose -f docker-compose.prod.yml restart ai-service
-   ```
-4. Hệ thống tự động:
-   - Switch sang `https://ollama.com`
-   - Chuyển model sang `kimi-k2:1t-cloud` (256K context window)
-   - Sử dụng Bearer token authentication
-
-**Lợi ích:**
-- ✅ Không cần GPU/RAM trên EC2 instance
-- ✅ Không cần setup tunnel/Cloudflare
-- ✅ Context window lớn hơn (256K vs 128K)
-- ✅ Phù hợp với EC2 t3.small (2GB RAM)
-- ✅ Auto-scaling và high availability
-
-**Note:** 
-- Không cần Cloudflare Tunnel cho Ollama Cloud mode
-- Ollama Cloud tự động xử lý authentication qua API key
-- Không cần expose local server ra internet
+- ✅ Không cần GPU/RAM local (chạy trên EC2 t3.small)
+- ✅ Free tiers đủ cho MVP development
+- ✅ Automatic scaling và high availability
+- ✅ Deploy đơn giản - chỉ cần API keys
+- ✅ Vietnamese language support (Cohere multilingual)
 
 ## 9. Useful Commands
 

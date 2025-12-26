@@ -14,14 +14,14 @@ export function HomePage() {
         {/* Hiển thị trạng thái đăng nhập */}
         {isAuthenticated && user ? (
           <div className="auth-status">
-            <h2>✅ Đã đăng nhập thành công!</h2>
+            <h2>Đã đăng nhập thành công!</h2>
             <div className="auth-status__details">
               <p><strong>Username:</strong> {user.username}</p>
               <p><strong>Email:</strong> {user.email}</p>
               <p><strong>Role:</strong> {user.role}</p>
               <p><strong>User ID:</strong> {user.userId}</p>
               <details className="auth-status__token-preview">
-                <summary>🔍 Xem Token (Debug)</summary>
+                <summary>Xem Token (Debug)</summary>
                 <pre className="auth-status__token-code">
                   {accessToken ? accessToken.substring(0, 50) + '...' : 'No token'}
                 </pre>

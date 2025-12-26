@@ -6,6 +6,8 @@
 .agent
 .vscode
 .env
+.env.*
+*.env
 .env.production
 petties-key.pem
 devpetties.pem

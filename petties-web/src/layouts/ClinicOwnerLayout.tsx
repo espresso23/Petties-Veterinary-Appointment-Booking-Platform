@@ -19,9 +19,8 @@ export const ClinicOwnerLayout = () => {
 
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
-        { path: '/clinic-owner/clinic-info', label: 'THÔNG TIN PHÒNG KHÁM' },
+        { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM' },
         { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
-        { path: '/clinic-owner/pricing', label: 'GIÁ DỊCH VỤ' },
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
         { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
     ]
@@ -42,7 +41,7 @@ export const ClinicOwnerLayout = () => {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 py-4 overflow-y-auto">
+                <nav className="py-4 overflow-y-auto">
                     {navItems.map((link) => (
                         <NavLink
                             key={link.path}
@@ -59,6 +58,8 @@ export const ClinicOwnerLayout = () => {
                         </NavLink>
                     ))}
                 </nav>
+
+                <div style={{ flex: 1 }}></div>
 
                 {/* User & Logout */}
                 <div className="px-6 py-4 border-t-4 border-stone-900">

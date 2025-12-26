@@ -213,7 +213,7 @@ export const ApiKeyManager = ({
         <div className="px-6 pb-6">
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-xs text-amber-800">
-              ⚠️ <strong>Note:</strong> Embeddings service is used ONLY for vector generation, not for LLM reasoning.
+              <strong>Note:</strong> Embeddings service is used ONLY for vector generation, not for LLM reasoning.
             </p>
           </div>
         </div>

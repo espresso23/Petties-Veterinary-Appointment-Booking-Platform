@@ -1,20 +1,45 @@
 package com.petties.petties.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Global Exception Handler for REST API
+ *
+ * Handles all exceptions thrown by controllers and returns consistent error responses.
+ * All error messages are in Vietnamese for better UX.
+ *
+ * Error Response Format:
+ * {
+ *   "timestamp": "2025-12-24T18:30:00",
+ *   "status": 400,
+ *   "error": "Bad Request",
+ *   "message": "Thong bao loi bang tieng Viet",
+ *   "path": "/api/v1/resource",
+ *   "errors": {"field": "message"}  // Optional, for validation errors
+ * }
+ *
+ * @author Petties Team
+ * @see ErrorResponse
+ */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
         @ExceptionHandler(ResourceAlreadyExistsException.class) // Code: 409
@@ -45,10 +70,11 @@ public class GlobalExceptionHandler {
                 return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 
-        @ExceptionHandler(UnauthorizedException.class) // Code: 403
+        @ExceptionHandler(UnauthorizedException.class) // Code: 401
         public ResponseEntity<ErrorResponse> handleUnauthorized(
                         UnauthorizedException ex,
                         HttpServletRequest request) {
+                log.warn("Unauthorized access to {}: {}", request.getRequestURI(), ex.getMessage());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -77,11 +103,34 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleForbidden(
                         ForbiddenException ex,
                         HttpServletRequest request) {
+                log.warn("Forbidden access to {}: {}", request.getRequestURI(), ex.getMessage());
+
+                // Fallback to Vietnamese if message is null/empty
+                String message = ex.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                        message = "Bạn không có quyền truy cập tài nguyên này";
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.FORBIDDEN.value())
                                 .error("Forbidden")
-                                .message(ex.getMessage())
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+        }
+
+        @ExceptionHandler(AccessDeniedException.class)
+        public ResponseEntity<ErrorResponse> handleAccessDenied(
+                        AccessDeniedException ex,
+                        HttpServletRequest request) {
+                log.warn("Access Denied to {}: {}", request.getRequestURI(), ex.getMessage());
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.FORBIDDEN.value())
+                                .error("Forbidden")
+                                .message("Bạn không có quyền thực hiện hành động này")
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
@@ -91,11 +140,12 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleBadCredentials(
                         BadCredentialsException ex,
                         HttpServletRequest request) {
+                log.warn("Bad credentials attempt at {}", request.getRequestURI());
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
                                 .error("Unauthorized")
-                                .message("Invalid username or password")
+                                .message("Tên đăng nhập hoặc mật khẩu không đúng")
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
@@ -105,11 +155,19 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleAuthenticationException(
                         AuthenticationException ex,
                         HttpServletRequest request) {
+                log.warn("Authentication failed at {}: {}", request.getRequestURI(), ex.getMessage());
+
+                // Fallback to Vietnamese if message is null/empty
+                String message = ex.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                        message = "Xác thực thất bại. Vui lòng đăng nhập lại";
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.UNAUTHORIZED.value())
                                 .error("Unauthorized")
-                                .message(ex.getMessage())
+                                .message(message)
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
@@ -143,6 +201,53 @@ public class GlobalExceptionHandler {
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
         }
 
+        @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+        public ResponseEntity<ErrorResponse> handleTypeMismatch(
+                        MethodArgumentTypeMismatchException ex,
+                        HttpServletRequest request) {
+                String message = String.format("Tham số '%s' có giá trị '%s' không đúng định dạng",
+                                ex.getName(), ex.getValue());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(MissingServletRequestParameterException.class)
+        public ResponseEntity<ErrorResponse> handleMissingParameter(
+                        MissingServletRequestParameterException ex,
+                        HttpServletRequest request) {
+                String message = String.format("Thiếu tham số bắt buộc: '%s'", ex.getParameterName());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(HttpMessageNotReadableException.class)
+        public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+                        HttpMessageNotReadableException ex,
+                        HttpServletRequest request) {
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message("Dữ liệu đầu vào không đúng định dạng hoặc giá trị không hợp lệ")
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
         @ExceptionHandler(Exception.class) // Code: 500
         public ResponseEntity<ErrorResponse> handleGenericException(
                         Exception ex,
@@ -151,12 +256,12 @@ public class GlobalExceptionHandler {
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                                 .error("Internal Server Error")
-                                .message("An unexpected error occurred")
+                                .message("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ")
                                 .path(request.getRequestURI())
                                 .build();
 
-                // Log error for debugging
-                ex.printStackTrace();
+                // Log error with logger instead of printStackTrace()
+                log.error("Unexpected error occurred at {}: ", request.getRequestURI(), ex);
 
                 return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
         }
