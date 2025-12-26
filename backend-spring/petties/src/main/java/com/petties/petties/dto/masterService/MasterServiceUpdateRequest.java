@@ -44,4 +44,7 @@ public class MasterServiceUpdateRequest {
 
     @Size(max = 100, message = "Icon không được quá 100 ký tự")
     private String icon;
+
+    // NEW: weightPrices cho cập nhật master service
+    private java.util.List<com.petties.petties.dto.clinicService.WeightPriceDto> weightPrices;
 }

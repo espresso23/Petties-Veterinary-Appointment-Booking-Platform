@@ -98,3 +98,4 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
     long countByStatus(ClinicStatus status);
 }
 
+

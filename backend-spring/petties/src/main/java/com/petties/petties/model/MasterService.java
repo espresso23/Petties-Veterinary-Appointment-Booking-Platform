@@ -59,8 +59,13 @@ public class MasterService {
     @Column(name = "pet_type", length = 100)
     private String petType;
 
+
     @Column(name = "icon", length = 100)
     private String icon;
+
+    // NEW: WeightPrices template cho master service
+    @OneToMany(mappedBy = "masterService", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private java.util.List<ServiceWeightPrice> weightPrices = new java.util.ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
