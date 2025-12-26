@@ -74,8 +74,8 @@ public class User {
     private LocalDateTime deletedAt;
 
     // For Clinic Owners: The clinic they own
-    @OneToOne(mappedBy = "owner", cascade = CascadeType.ALL)
-    private Clinic ownedClinic;
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();
 
     // For Managers and Vets: The clinic they belong to
     @ManyToOne(fetch = FetchType.LAZY)
