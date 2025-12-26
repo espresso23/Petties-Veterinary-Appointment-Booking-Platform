@@ -145,10 +145,9 @@ export const ApiKeyManager = ({
       {/* API Keys */}
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
         {filteredKeys.map(apiKey => {
-          const isEditing = editValues.hasOwnProperty(apiKey.key)
-          const currentValue = editValues[apiKey.key] ?? apiKey.value
+          const isEditing = Object.prototype.hasOwnProperty.call(editValues, apiKey.key)
           const isVisible = visibleKeys.has(apiKey.key) || !apiKey.is_sensitive
-          const hasChanges = editValues[apiKey.key] !== undefined && editValues[apiKey.key] !== apiKey.value
+          const hasChanges = isEditing && editValues[apiKey.key] !== apiKey.value
 
           return (
             <div key={apiKey.key} className="space-y-2 group">
@@ -179,13 +178,19 @@ export const ApiKeyManager = ({
               <div className="flex gap-0 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform focus-within:-translate-x-1 focus-within:-translate-y-1">
                 <div className="flex-1 relative bg-white">
                   <input
-                    type={isVisible ? 'text' : 'password'}
-                    value={isEditing ? currentValue : (isVisible ? currentValue : '••••••••••••••••')}
+                    type={apiKey.is_sensitive && !isVisible ? 'password' : 'text'}
+                    value={
+                      isEditing
+                        ? editValues[apiKey.key]
+                        : (apiKey.is_sensitive && !isVisible
+                          ? (apiKey.value ? '••••••••••••' : '')
+                          : (apiKey.value || ''))
+                    }
                     onChange={(e) => {
                       setEditValues(prev => ({ ...prev, [apiKey.key]: e.target.value }))
                     }}
-                    placeholder={apiKey.is_sensitive ? '••••••••••••••••' : 'Enter value...'}
-                    className="w-full px-4 py-3 outline-none text-sm font-black tracking-tight"
+                    placeholder={apiKey.is_sensitive ? 'Nhập API key...' : 'Nhập giá trị...'}
+                    className="w-full px-4 py-3 outline-none text-sm font-black tracking-tight text-black bg-white"
                   />
                   {!isVisible && apiKey.value && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -213,7 +218,7 @@ export const ApiKeyManager = ({
 
       {category === 'rag' && (
         <div className="px-6 pb-6">
-          <div className="p-4 bg-yellow-100 border-2 border-black font-bold text-xs uppercase">
+          <div className="p-4 bg-yellow-100 border-2 border-black font-bold text-xs uppercase text-black">
             <strong>MẸO:</strong> Đối với Tiếng Việt, hãy sử dụng Cohere Multilingual Embeddings để đạt hiệu quả cao nhất.
           </div>
         </div>

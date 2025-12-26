@@ -85,24 +85,50 @@ class QdrantManager:
         self,
         collection_name: str,
         dimension: int = COHERE_EMBED_DIMENSION,
-        distance: Distance = Distance.COSINE
+        distance: Distance = Distance.COSINE,
+        recreate_on_mismatch: bool = True
     ) -> bool:
         """
-        Create a new collection if not exists
+        Create a new collection if not exists, with dimension validation
 
         Args:
             collection_name: Name of the collection
             dimension: Vector dimension (1024 for Cohere multilingual)
             distance: Distance metric
+            recreate_on_mismatch: If True, delete and recreate on dimension mismatch
+
+        Returns:
+            True if collection is ready with correct dimension
         """
         try:
             collections = self._client.get_collections().collections
             existing = [c.name for c in collections]
 
             if collection_name in existing:
-                logger.info(f"Collection '{collection_name}' already exists")
-                return True
+                # Collection exists - verify dimension
+                collection_info = self._client.get_collection(collection_name)
 
+                # Extract current dimension from VectorParams
+                current_dimension = collection_info.config.params.vectors.size
+
+                if current_dimension == dimension:
+                    logger.info(f"Collection '{collection_name}' exists with correct dimension {dimension}")
+                    return True
+
+                # Dimension mismatch detected
+                logger.warning(
+                    f"Collection '{collection_name}' has wrong dimension: "
+                    f"expected {dimension}, got {current_dimension}"
+                )
+
+                if recreate_on_mismatch:
+                    logger.info(f"Deleting and recreating collection '{collection_name}' with dimension {dimension}")
+                    self._client.delete_collection(collection_name)
+                else:
+                    logger.error(f"Dimension mismatch and recreate_on_mismatch=False")
+                    return False
+
+            # Create new collection
             self._client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(
@@ -132,6 +158,12 @@ class QdrantManager:
             vectors: List of embedding vectors
             payloads: List of metadata dicts
             ids: Optional list of point IDs (UUIDs)
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception: If upsert fails (propagates for proper error handling)
         """
         try:
             if ids is None:
@@ -151,15 +183,24 @@ class QdrantManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to upsert vectors: {e}")
-            return False
+            error_msg = str(e)
+            logger.error(f"Failed to upsert vectors: {error_msg}")
+
+            # Check for common errors and provide helpful messages
+            if "dimension" in error_msg.lower():
+                raise RuntimeError(
+                    "Vector dimension mismatch detected. The Qdrant collection was created with a different "
+                    "embedding model. The collection will be recreated automatically on the next upload attempt."
+                ) from e
+            else:
+                raise RuntimeError(f"Failed to upsert vectors to Qdrant: {error_msg}") from e
 
     def search(
         self,
         collection_name: str,
         query_vector: List[float],
         top_k: int = 5,
-        score_threshold: float = 0.5,
+        score_threshold: float = 0.1,  # Lowered for Vietnamese Cohere embeddings
         filter_conditions: Optional[Dict[str, Any]] = None
     ) -> List[dict]:
         """
@@ -169,12 +210,13 @@ class QdrantManager:
             collection_name: Collection to search
             query_vector: Query embedding
             top_k: Number of results
-            score_threshold: Minimum similarity score
+            score_threshold: Minimum similarity score (default 0.1 for Vietnamese)
             filter_conditions: Optional filter dict (e.g., {"document_id": 123})
 
         Returns:
             List of results with payload and score
         """
+        logger.info(f"Search: query_vector dim={len(query_vector)}, top_k={top_k}, score_threshold={score_threshold}")
         try:
             # Build filter if provided
             qdrant_filter = None
@@ -185,13 +227,33 @@ class QdrantManager:
                 ]
                 qdrant_filter = Filter(must=must_conditions)
 
-            results = self._client.search(
-                collection_name=collection_name,
-                query_vector=query_vector,
-                limit=top_k,
-                score_threshold=score_threshold,
-                query_filter=qdrant_filter
-            )
+            # Try new API first (qdrant-client >= 1.7.0), then fallback to old API
+            try:
+                # New API: query_points (qdrant-client >= 1.7.0)
+                from qdrant_client.models import QueryResponse
+                response = self._client.query_points(
+                    collection_name=collection_name,
+                    query=query_vector,
+                    limit=top_k,
+                    score_threshold=score_threshold,
+                    query_filter=qdrant_filter
+                )
+                # query_points returns QueryResponse with .points
+                results = response.points if hasattr(response, 'points') else response
+                logger.info(f"Search (query_points API) returned {len(results)} results")
+            except (AttributeError, TypeError, ImportError):
+                # Old API: search (qdrant-client < 1.7.0)
+                results = self._client.search(
+                    collection_name=collection_name,
+                    query_vector=query_vector,
+                    limit=top_k,
+                    score_threshold=score_threshold,
+                    query_filter=qdrant_filter
+                )
+                logger.info(f"Search (old API) returned {len(results)} results")
+            
+            for i, r in enumerate(results[:3]):
+                logger.info(f"  Result {i}: score={r.score}, content_len={len(r.payload.get('content', ''))}")
 
             return [
                 {
@@ -204,6 +266,8 @@ class QdrantManager:
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
 
     def delete_by_filter(

@@ -3,7 +3,7 @@ import { MagnifyingGlassIcon, DocumentTextIcon } from '@heroicons/react/24/outli
 import type { QueryResult } from '../../services/agentService'
 
 interface RAGQueryTesterProps {
-  onQuery: (query: string, topK?: number) => Promise<QueryResult[]>
+  onQuery: (query: string, topK?: number, minScore?: number) => Promise<QueryResult[]>
 }
 
 /**
@@ -13,6 +13,7 @@ interface RAGQueryTesterProps {
 export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState(5)
+  const [minScore, setMinScore] = useState(0.1)  // Lower default for Vietnamese embeddings
   const [results, setResults] = useState<QueryResult[]>([])
   const [querying, setQuerying] = useState(false)
 
@@ -21,7 +22,7 @@ export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
 
     setQuerying(true)
     try {
-      const res = await onQuery(query, topK)
+      const res = await onQuery(query, topK, minScore)
       setResults(res)
     } catch (error) {
       console.error('Query failed:', error)
@@ -62,24 +63,42 @@ export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
               }}
               placeholder="e.g., Triệu chứng chó bị nôn? Hoặc: Cách chăm sóc mèo con..."
               rows={3}
-              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm resize-y"
+              className="w-full px-4 py-3 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm resize-y text-black bg-white"
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-stone-700">Top-K:</label>
-              <select
-                value={topK}
-                onChange={(e) => setTopK(parseInt(e.target.value))}
-                aria-label="Top-K results"
-                className="px-3 py-1.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm cursor-pointer"
-              >
-                <option value={3}>3</option>
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-              </select>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-stone-700">Top-K:</label>
+                <select
+                  value={topK}
+                  onChange={(e) => setTopK(parseInt(e.target.value))}
+                  aria-label="Top-K results"
+                  className="px-3 py-1.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm cursor-pointer text-black bg-white"
+                >
+                  <option value={3}>3</option>
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-stone-700">Min Score:</label>
+                <select
+                  value={minScore}
+                  onChange={(e) => setMinScore(parseFloat(e.target.value))}
+                  aria-label="Minimum similarity score"
+                  className="px-3 py-1.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm cursor-pointer text-black bg-white"
+                >
+                  <option value={0}>0.0 (All)</option>
+                  <option value={0.1}>0.1</option>
+                  <option value={0.2}>0.2</option>
+                  <option value={0.3}>0.3</option>
+                  <option value={0.5}>0.5</option>
+                  <option value={0.7}>0.7</option>
+                </select>
+              </div>
             </div>
             <button
               onClick={handleQuery}
@@ -126,7 +145,7 @@ export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
                       inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                       ${result.score > 0.8 ? 'bg-green-100 text-green-700' :
                         result.score > 0.6 ? 'bg-amber-100 text-amber-700' :
-                        'bg-stone-100 text-stone-700'}
+                          'bg-stone-100 text-stone-700'}
                     `}>
                       {(result.score * 100).toFixed(1)}% match
                     </span>

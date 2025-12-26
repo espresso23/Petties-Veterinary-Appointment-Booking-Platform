@@ -41,7 +41,6 @@ export const AdminLayout = () => {
     {
       title: 'AI AGENT MANAGEMENT',
       items: [
-        { path: '/admin/agents', label: 'AGENTS' },
         { path: '/admin/tools', label: 'TOOLS' },
         { path: '/admin/knowledge', label: 'KNOWLEDGE BASE' },
         { path: '/admin/playground', label: 'PLAYGROUND' },

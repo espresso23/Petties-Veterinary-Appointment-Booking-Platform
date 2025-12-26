@@ -54,17 +54,21 @@ class DocumentProcessor:
         self._embedding_client = None
 
     async def _get_embedding_client(self):
-        """Get Cohere embedding client (lazy initialization)"""
-        if self._embedding_client is None:
-            from app.services.embeddings import create_embedding_client, EmbeddingConfig
+        """
+        Get Cohere embedding client with dynamic API key loading from DB
 
-            self._embedding_client = create_embedding_client(EmbeddingConfig(
-                provider="cohere",
-                model="embed-multilingual-v3.0",
-                api_key=settings.COHERE_API_KEY
-            ))
+        This ensures we always use the latest API key from database,
+        not the stale value from .env file.
+        """
+        # Always create a fresh client from DB to avoid stale API keys
+        # Don't cache the client to ensure we get updated credentials
+        from app.services.embeddings import create_embedding_client_from_db
+        from app.db.postgres.session import AsyncSessionLocal
 
-        return self._embedding_client
+        async with AsyncSessionLocal() as db:
+            client = await create_embedding_client_from_db(db)
+            logger.info("Created fresh embedding client with API key from database")
+            return client
 
     def process_file(
         self,

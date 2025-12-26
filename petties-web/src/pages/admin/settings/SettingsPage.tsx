@@ -84,7 +84,7 @@ export const SettingsPage = () => {
       })
       const result = await response.json()
       return result
-    } catch (error) {
+    } catch (_error) {
       return { status: 'error', message: 'Kết nối thất bại' }
     }
   }
@@ -104,7 +104,7 @@ export const SettingsPage = () => {
       } else {
         showAlert('error', 'Khởi tạo thất bại')
       }
-    } catch (error) {
+    } catch (_error) {
       showAlert('error', 'Lỗi kết nối server')
     } finally {
       setSeeding(false)

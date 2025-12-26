@@ -534,6 +534,222 @@ class OllamaClient(BaseLLMClient):
 
 
 # ============================================================
+# DEEPSEEK CLIENT (FALLBACK)
+# ============================================================
+
+class DeepSeekClient(BaseLLMClient):
+    """
+    DeepSeek LLM Client (Cloud API)
+
+    DeepSeek provides high-quality LLM with excellent Vietnamese support.
+    API is compatible with OpenAI format.
+
+    Models:
+        - deepseek-chat: General conversation (recommended)
+        - deepseek-coder: Code generation
+
+    Usage:
+        ```python
+        client = DeepSeekClient(LLMConfig(
+            api_key="sk-...",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com"
+        ))
+        response = await client.generate("Xin chào!")
+        ```
+
+    Reference: https://platform.deepseek.com/api-docs
+    """
+
+    DEFAULT_BASE_URL = "https://api.deepseek.com"
+
+    def __init__(self, config: LLMConfig):
+        super().__init__(config)
+
+        if not config.api_key:
+            raise ValueError("DeepSeek API key is required")
+
+        self.api_key = config.api_key
+        self.model = config.model or "deepseek-chat"
+        self.base_url = config.base_url or self.DEFAULT_BASE_URL
+
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=120.0,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+        )
+
+        logger.info(f"DeepSeekClient initialized: {self.model} @ {self.base_url}")
+
+    async def generate(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """Generate response from DeepSeek"""
+        logger.debug(f"Generating with DeepSeek {self.model}: {prompt[:50]}...")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+        }
+
+        try:
+            response = await self.client.post("/v1/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+
+            return LLMResponse(
+                content=content,
+                model=data.get("model", self.model),
+                usage={
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0)
+                },
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+            )
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"DeepSeek HTTP error: {e.response.status_code} - {e.response.text}")
+            raise
+
+        except httpx.HTTPError as e:
+            logger.error(f"DeepSeek HTTP error: {e}")
+            raise
+
+    async def stream(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> AsyncIterator[str]:
+        """Stream response tokens from DeepSeek"""
+        logger.debug(f"Streaming with DeepSeek {self.model}: {prompt[:50]}...")
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+            "stream": True
+        }
+
+        try:
+            async with self.client.stream("POST", "/v1/chat/completions", json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]  # Remove "data: " prefix
+                        if data_str.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+
+        except httpx.HTTPError as e:
+            logger.error(f"DeepSeek stream error: {e}")
+            raise
+
+    async def chat(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """Chat with full message history"""
+        formatted_messages = []
+
+        if system_prompt:
+            formatted_messages.append({"role": "system", "content": system_prompt})
+
+        for msg in messages:
+            formatted_messages.append({
+                "role": msg.get("role", "user"),
+                "content": msg.get("content", "")
+            })
+
+        payload = {
+            "model": kwargs.get("model", self.model),
+            "messages": formatted_messages,
+            "temperature": kwargs.get("temperature", self.config.temperature),
+            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
+            "top_p": kwargs.get("top_p", self.config.top_p),
+        }
+
+        try:
+            response = await self.client.post("/v1/chat/completions", json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+
+            return LLMResponse(
+                content=content,
+                model=data.get("model", self.model),
+                usage={
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0)
+                },
+                finish_reason=data.get("choices", [{}])[0].get("finish_reason", "stop")
+            )
+
+        except httpx.HTTPError as e:
+            logger.error(f"DeepSeek chat error: {e}")
+            raise
+
+    async def close(self):
+        """Close HTTP client"""
+        await self.client.aclose()
+
+    async def test_connection(self) -> Dict[str, Any]:
+        """Test DeepSeek connection"""
+        try:
+            response = await self.generate(
+                prompt="Hello",
+                max_tokens=5
+            )
+            return {
+                "status": "success",
+                "model": self.model,
+                "response_length": len(response.content)
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+
+# ============================================================
 # OPENAI CLIENT (FALLBACK)
 # ============================================================
 
@@ -679,6 +895,8 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
 
     if provider == "openrouter":
         return OpenRouterClient(config)
+    elif provider == "deepseek":
+        return DeepSeekClient(config)
     elif provider == "ollama":
         return OllamaClient(config)
     elif provider == "openai":
@@ -770,6 +988,7 @@ __all__ = [
     "LLMResponse",
     "BaseLLMClient",
     "OpenRouterClient",
+    "DeepSeekClient",
     "OllamaClient",
     "OpenAIClient",
     "create_llm_client",

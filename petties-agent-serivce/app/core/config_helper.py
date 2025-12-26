@@ -40,10 +40,10 @@ async def get_setting(key: str, db: Optional[AsyncSession] = None, default: Opti
     
     # Fallback to common aliases
     if not env_val:
-        if key == "SECRET_KEY":
-            env_val = os.getenv("JWT_SECRET")
+        if key == "JWT_SECRET":
+            env_val = os.getenv("SECRET_KEY")
             if env_val:
-                logger.debug(f"Found alias JWT_SECRET for {key}")
+                logger.debug(f"Found alias SECRET_KEY for {key}")
         elif key == "DATABASE_URL" and not env_val:
             env_val = os.getenv("POSTGRES_URL")
     

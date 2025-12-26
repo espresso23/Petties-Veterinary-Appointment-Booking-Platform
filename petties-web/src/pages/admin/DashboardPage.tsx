@@ -19,12 +19,8 @@ export const AdminDashboardPage = () => {
     const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
     const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
 
-    useEffect(() => {
-        checkServices()
-    }, [])
-
     const checkServices = async () => {
-        // Check AI Service - FIX: Use env.AGENT_SERVICE_URL instead of hardcoded port 8001
+        // Check AI Service
         try {
             const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
             if (res.ok) {
@@ -50,6 +46,11 @@ export const AdminDashboardPage = () => {
             setSpringHealth({ status: 'error', message: 'Connection failed' })
         }
     }
+
+    useEffect(() => {
+        checkServices()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const getStatusStyle = (status: ServiceHealth['status']) => {
         switch (status) {

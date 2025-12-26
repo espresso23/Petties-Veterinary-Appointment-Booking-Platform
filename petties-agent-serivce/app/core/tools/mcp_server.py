@@ -9,129 +9,66 @@ Purpose:
     - Chuẩn hóa tool protocol theo MCP standard
 
 Reference: Section 8 - Tech Stack (Tool Framework: FastMCP)
-Version: v0.0.1
+Version: v2.0.0 - FastMCP 2.x Compatible
 """
 
 from fastmcp import FastMCP
 from typing import Any, Dict, List
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 # ===== CREATE FASTMCP SERVER =====
 # FastMCP server instance - single source of truth cho tất cả tools
-# FastMCP 2.x API: only accepts 'name' parameter
 mcp_server = FastMCP("Petties Agent Tools")
 
 
-# ===== HEALTH CHECK TOOL (EXAMPLE) =====
-@mcp_server.tool()
-async def health_check() -> Dict[str, Any]:
+# Note: health_check is NOT an MCP tool for agents
+# Use the /health endpoint for server health checks instead
+
+
+# ===== TOOL METADATA GETTER (ASYNC) =====
+async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
     """
-    Health check tool for MCP server
-
-    Returns:
-        Dict với server status
-    """
-    return {
-        "status": "healthy",
-        "server": "Petties MCP Server",
-        "version": "0.0.1"
-    }
-
-
-# ===== TOOL METADATA GETTER =====
-def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
-    """
-    Lấy metadata của tất cả tools đã register trong MCP server
-
-    Returns:
-        List of tool metadata (name, description, input_schema, output_schema)
-
-    Purpose:
-        - Tool Scanner service gọi function này để lấy danh sách tools
-        - Đồng bộ vào PostgreSQL database
-        - Hiển thị trên Admin Dashboard
+    Retrieve tool metadata from FastMCP server (async version for FastMCP 2.x).
+    Returns simplified metadata (no schema - not needed for Admin UI).
     """
     tools_metadata = []
-
-    # Get all registered tools from FastMCP server
-    for tool_name, tool_func in mcp_server.list_tools().items():
+    
+    # FastMCP 2.x uses async get_tools() method
+    tools = await mcp_server.get_tools()
+    
+    for tool_name, tool in tools.items():
         metadata = {
             "name": tool_name,
-            "description": tool_func.__doc__ or "",
-            "tool_type": "code_based",  # FastMCP tools are code-based
-            "input_schema": _extract_input_schema(tool_func),
-            "output_schema": _extract_output_schema(tool_func),
+            "description": tool.description or "",
+            "tool_type": "code_based",
         }
         tools_metadata.append(metadata)
 
-    logger.info(f"📋 Retrieved {len(tools_metadata)} tools from MCP server")
+    logger.info(f"📋 Retrieved {len(tools_metadata)} tools from FastMCP")
     return tools_metadata
 
 
-def _extract_input_schema(func) -> Dict[str, Any]:
+def get_mcp_tools_metadata_sync() -> List[Dict[str, Any]]:
     """
-    Extract input schema từ function signature (type hints)
-
-    Purpose: Generate JSON Schema cho tool input parameters
+    Synchronous wrapper for get_mcp_tools_metadata.
+    Use this when you need to call from sync code.
     """
-    import inspect
-    from typing import get_type_hints
-
-    sig = inspect.signature(func)
-    type_hints = get_type_hints(func)
-
-    properties = {}
-    required = []
-
-    for param_name, param in sig.parameters.items():
-        if param_name == "self":
-            continue
-
-        param_type = type_hints.get(param_name, str)
-
-        # Map Python types to JSON Schema types
-        type_mapping = {
-            str: "string",
-            int: "integer",
-            float: "number",
-            bool: "boolean",
-            list: "array",
-            dict: "object",
-        }
-
-        json_type = type_mapping.get(param_type, "string")
-
-        properties[param_name] = {"type": json_type}
-
-        # If parameter has no default value, it's required
-        if param.default == inspect.Parameter.empty:
-            required.append(param_name)
-
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required
-    }
-
-
-def _extract_output_schema(func) -> Dict[str, Any]:
-    """
-    Extract output schema từ return type hint
-
-    Purpose: Generate JSON Schema cho tool output
-    """
-    from typing import get_type_hints
-
-    type_hints = get_type_hints(func)
-    return_type = type_hints.get("return", dict)
-
-    # Simple output schema (có thể enhance sau)
-    return {
-        "type": "object",
-        "description": f"Output from {func.__name__}"
-    }
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're in an async context, create a new task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, get_mcp_tools_metadata())
+                return future.result()
+        else:
+            return loop.run_until_complete(get_mcp_tools_metadata())
+    except RuntimeError:
+        # No event loop
+        return asyncio.run(get_mcp_tools_metadata())
 
 
 # ===== TOOL EXECUTION =====
@@ -145,20 +82,12 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
 
     Returns:
         Tool execution result
-
-    Raises:
-        ValueError: If tool not found
-        Exception: If tool execution fails
-
-    Example:
-        >>> result = await call_mcp_tool("health_check", {})
-        >>> print(result)  # {"status": "healthy", ...}
     """
     if parameters is None:
         parameters = {}
 
-    # Get registered tools from MCP server
-    registered_tools = mcp_server.list_tools()
+    # Get registered tools using async API
+    registered_tools = await mcp_server.get_tools()
 
     if tool_name not in registered_tools:
         available_tools = list(registered_tools.keys())
@@ -166,19 +95,25 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
             f"Tool '{tool_name}' not found. Available tools: {available_tools}"
         )
 
-    # Get the tool function
-    tool_func = registered_tools[tool_name]
+    # Get the tool
+    tool = registered_tools[tool_name]
 
     logger.info(f"🔧 Executing MCP tool: {tool_name} with params: {parameters}")
 
     try:
-        # Execute the tool function with parameters
-        result = await tool_func(**parameters)
+        # Execute the tool - FastMCP handles both sync and async tools
+        if hasattr(tool, 'fn'):
+            result = tool.fn(**parameters)
+            if asyncio.iscoroutine(result):
+                result = await result
+        else:
+            # Fallback: try calling tool directly
+            result = await mcp_server._tool_manager.call_tool(tool_name, parameters)
+        
         logger.info(f"✅ Tool '{tool_name}' executed successfully")
         return result
 
     except TypeError as e:
-        # Handle parameter mismatch errors
         logger.error(f"❌ Parameter error for tool '{tool_name}': {e}")
         raise ValueError(f"Invalid parameters for tool '{tool_name}': {e}")
 
@@ -188,35 +123,61 @@ async def call_mcp_tool(tool_name: str, parameters: Dict[str, Any] = None) -> An
 
 
 # ===== MCP SERVER INFO =====
-def get_server_info() -> Dict[str, Any]:
-    """Get MCP server information"""
+async def get_server_info_async() -> Dict[str, Any]:
+    """Get MCP server information (async)"""
     try:
-        tools_count = len(mcp_server.list_tools())
+        tools = await mcp_server.get_tools()
+        tools_count = len(tools)
     except Exception:
         tools_count = 0
     return {
         "name": "Petties Agent Tools",
-        "version": "0.0.1",
+        "version": "2.0.0",
         "description": "MCP server providing tools for Petties AI Agents",
         "total_tools": tools_count,
     }
+
+
+def get_server_info() -> Dict[str, Any]:
+    """Get MCP server information (sync wrapper)"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Return minimal info if we can't run async
+            return {
+                "name": "Petties Agent Tools",
+                "version": "2.0.0",
+                "description": "MCP server providing tools for Petties AI Agents",
+                "total_tools": -1,  # Unknown
+            }
+        return loop.run_until_complete(get_server_info_async())
+    except RuntimeError:
+        return asyncio.run(get_server_info_async())
 
 
 # ===== TRIGGER TOOL DISCOVERY =====
 # Import mcp_tools package to trigger @mcp_server.tool decorators
 try:
     from app.core.tools import mcp_tools
-    logger.info(f"🚀 Registered {len(mcp_server.list_tools())} tools to FastMCP server")
+    logger.info(f"🚀 MCP tools module imported successfully")
 except Exception as e:
-    logger.error(f"❌ Failed to register tools: {e}")
+    logger.error(f"❌ Failed to import mcp_tools: {e}")
 
 
 if __name__ == "__main__":
-    mcp.run()
-    # Test MCP server
-    print("🔧 FastMCP Server Info:")
-    print(get_server_info())
-
-    print("\n📋 Available Tools:")
-    for tool in get_mcp_tools_metadata():
-        print(f"  - {tool['name']}: {tool['description'][:50]}...")
+    # Standard FastMCP 2.0 execution
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "info":
+        async def show_info():
+            print("🔧 FastMCP Server Info:")
+            print(await get_server_info_async())
+            print("\n📋 Available Tools:")
+            for tool in await get_mcp_tools_metadata():
+                desc = tool['description'][:50] if tool['description'] else 'No description'
+                print(f"  - {tool['name']}: {desc}...")
+        
+        asyncio.run(show_info())
+    else:
+        # Defaults to stdio mode for standard MCP clients
+        mcp_server.run()

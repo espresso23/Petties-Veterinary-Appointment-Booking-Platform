@@ -308,15 +308,15 @@ class SystemSetting(Base):
 # Updated for Single Agent + OpenRouter + Cohere
 
 DEFAULT_SETTINGS = [
-    # ===== LLM - OpenRouter (RECOMMENDED) =====
+    # ===== LLM - OpenRouter Cloud (PRIMARY) =====
     {"key": "OPENROUTER_API_KEY", "value": "", "category": "llm", "is_sensitive": True, "description": "OpenRouter Cloud API Key (https://openrouter.ai/keys)"},
     {"key": "OPENROUTER_DEFAULT_MODEL", "value": "google/gemini-2.0-flash-exp:free", "category": "llm", "is_sensitive": False, "description": "Default LLM model (free tier: gemini-2.0-flash-exp:free)"},
     {"key": "OPENROUTER_FALLBACK_MODEL", "value": "meta-llama/llama-3.3-70b-instruct", "category": "llm", "is_sensitive": False, "description": "Fallback model when primary fails"},
 
-    # ===== LLM - Ollama (Backup) =====
-    {"key": "OLLAMA_BASE_URL", "value": "http://localhost:11434", "category": "llm", "is_sensitive": False, "description": "Ollama server URL (backup if OpenRouter unavailable)"},
-    {"key": "OLLAMA_API_KEY", "value": "", "category": "llm", "is_sensitive": True, "description": "Ollama Cloud API key (leave empty for local)"},
-    {"key": "OLLAMA_MODEL", "value": "llama3.2", "category": "llm", "is_sensitive": False, "description": "Ollama model name"},
+    # ===== LLM - DeepSeek (FALLBACK) =====
+    {"key": "DEEPSEEK_API_KEY", "value": "", "category": "llm", "is_sensitive": True, "description": "DeepSeek API Key (https://platform.deepseek.com/api_keys)"},
+    {"key": "DEEPSEEK_MODEL", "value": "deepseek-chat", "category": "llm", "is_sensitive": False, "description": "DeepSeek model (deepseek-chat for general, deepseek-coder for code)"},
+    {"key": "DEEPSEEK_BASE_URL", "value": "https://api.deepseek.com", "category": "llm", "is_sensitive": False, "description": "DeepSeek API base URL"},
 
     # ===== RAG - Cohere Embeddings (RECOMMENDED) =====
     {"key": "COHERE_API_KEY", "value": "", "category": "rag", "is_sensitive": True, "description": "Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)"},
@@ -332,8 +332,9 @@ DEFAULT_SETTINGS = [
     {"key": "QDRANT_COLLECTION_NAME", "value": "petties_knowledge_base", "category": "vector_db", "is_sensitive": False, "description": "Qdrant collection name for RAG"},
     
     # ===== General Settings =====
-    {"key": "SECRET_KEY", "value": "", "category": "general", "is_sensitive": True, "description": "Secret key for JWT verification (Must match root .env JWT_SECRET)"},
+    {"key": "JWT_SECRET", "value": "", "category": "general", "is_sensitive": True, "description": "JWT Secret Key for token verification (Must match Spring Boot)"},
 ]
+
 
 
 # ===== LEGACY SUPPORT =====

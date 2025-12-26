@@ -38,3 +38,5 @@ logs/*.log
 .pytest_cache/
 .coverage
 htmlcov/
+
+str

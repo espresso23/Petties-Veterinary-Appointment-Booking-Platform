@@ -44,12 +44,16 @@ class AgentFactory:
     """
 
     @staticmethod
-    async def get_agent(db_session: AsyncSession) -> SingleAgent:
+    async def get_agent(
+        db_session: AsyncSession,
+        model_override: Optional[str] = None
+    ) -> SingleAgent:
         """
         Load Single Agent tu DB voi dynamic config
 
         Args:
             db_session: Database session
+            model_override: Optional model to override default (e.g., "google/gemini-2.0-flash-exp:free")
 
         Returns:
             SingleAgent instance voi:
@@ -77,7 +81,12 @@ class AgentFactory:
         # 2. Load LLM client tu DB settings (OpenRouter hoac Ollama)
         llm_client = await create_llm_client_from_db(db_session)
 
-        # 3. Load enabled tools tu DB
+        # 3. If model_override provided, update LLM client model
+        if model_override:
+            llm_client.model = model_override
+            logger.info(f"Model override applied: {model_override}")
+
+        # 4. Load enabled tools tu DB
         tools_result = await db_session.execute(
             select(Tool).where(Tool.enabled == True)
         )
@@ -85,7 +94,7 @@ class AgentFactory:
 
         logger.info(f"Enabled tools: {enabled_tools}")
 
-        # 4. Build Single Agent voi ReAct pattern
+        # 5. Build Single Agent voi ReAct pattern
         agent = build_react_agent(
             llm_client=llm_client,
             system_prompt=agent_config.system_prompt,
@@ -95,9 +104,10 @@ class AgentFactory:
             enabled_tools=enabled_tools
         )
 
+        actual_model = model_override or agent_config.model
         logger.info(
             f"SingleAgent created: {agent_config.name} | "
-            f"model={agent_config.model} | "
+            f"model={actual_model} | "
             f"tools={len(enabled_tools)}"
         )
 
@@ -106,7 +116,8 @@ class AgentFactory:
     @staticmethod
     async def get_agent_by_id(
         agent_id: int,
-        db_session: AsyncSession
+        db_session: AsyncSession,
+        model_override: Optional[str] = None
     ) -> SingleAgent:
         """
         Create agent by ID
@@ -114,6 +125,7 @@ class AgentFactory:
         Args:
             agent_id: Database ID cua agent
             db_session: Database session
+            model_override: Optional model to override default
 
         Returns:
             SingleAgent instance
@@ -134,6 +146,11 @@ class AgentFactory:
 
         # Load LLM client
         llm_client = await create_llm_client_from_db(db_session)
+
+        # Apply model override if provided
+        if model_override:
+            llm_client.model = model_override
+            logger.info(f"Model override applied: {model_override}")
 
         # Load enabled tools
         tools_result = await db_session.execute(

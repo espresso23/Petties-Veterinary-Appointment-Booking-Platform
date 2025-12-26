@@ -21,7 +21,6 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
-import { AgentsPage } from './pages/admin/agents'
 import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
@@ -88,7 +87,6 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<AdminDashboardPage />} />
-            <Route path="agents" element={<AgentsPage />} />
             <Route path="tools" element={<ToolsPage />} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="playground" element={<PlaygroundPage />} />

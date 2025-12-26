@@ -83,9 +83,9 @@ def get_user_from_gateway_headers(request: Request) -> Optional[CurrentUser]:
 async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
     """
     Decode JWT token directly (for development without Gateway)
-    
-    1. Tries to get SECRET_KEY from DB
-    2. Falls back to SECRET_KEY from settings (.env)
+
+    1. Tries to get JWT_SECRET from DB
+    2. Falls back to JWT_SECRET from settings (.env)
     """
     global _runtime_secret_key
     
@@ -93,10 +93,10 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
     if _runtime_secret_key is None:
         try:
             async with AsyncSessionLocal() as db:
-                db_key = await get_setting("SECRET_KEY", db)
+                db_key = await get_setting("JWT_SECRET", db)
                 if db_key:
                     _runtime_secret_key = db_key
-                    logger.info("🔑 Loaded SECRET_KEY from database")
+                    logger.info("🔑 Loaded JWT_SECRET from database")
         except Exception:
             pass
             

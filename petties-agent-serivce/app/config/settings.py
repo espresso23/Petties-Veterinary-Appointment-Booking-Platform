@@ -131,6 +131,20 @@ class Settings(BaseSettings):
         description="Fallback model when primary fails"
     )
 
+    # ===== DeepSeek (FALLBACK - Cloud API) =====
+    DEEPSEEK_API_KEY: str = Field(
+        default="",
+        description="DeepSeek API Key (https://platform.deepseek.com/api_keys)"
+    )
+    DEEPSEEK_BASE_URL: str = Field(
+        default="https://api.deepseek.com",
+        description="DeepSeek API base URL"
+    )
+    DEEPSEEK_MODEL: str = Field(
+        default="deepseek-chat",
+        description="DeepSeek model (deepseek-chat, deepseek-coder)"
+    )
+
     # ===== Cohere Embeddings (RECOMMENDED) =====
     COHERE_API_KEY: str = Field(
         default="",
@@ -206,13 +220,17 @@ class Settings(BaseSettings):
     # ==================== Authentication & Security ====================
     # CRITICAL: Generate a secure random key for production (min 32 characters)
     # Example: python -c "import secrets; print(secrets.token_urlsafe(32))"
-    SECRET_KEY: str = Field(
+    JWT_SECRET: str = Field(
         default="placeholder-key-for-dev-only",
-        validation_alias="JWT_SECRET",
-        description="Secret key cho JWT signing - MUST be set in .env as JWT_SECRET"
+        description="Secret key for JWT signing - synced with Spring Boot"
     )
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expire time")
+
+    @property
+    def SECRET_KEY(self) -> str:
+        """Backward compatibility property for code using settings.SECRET_KEY"""
+        return self.JWT_SECRET
 
     # ==================== File Upload Configuration ====================
     UPLOAD_DIR: str = Field(default="./uploads", description="Upload directory")

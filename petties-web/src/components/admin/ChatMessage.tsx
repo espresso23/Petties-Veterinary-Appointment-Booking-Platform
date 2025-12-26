@@ -122,48 +122,64 @@ export const ChatMessage = ({
           )}
         </div>
 
-        {/* Thinking Process (Collapsible) */}
+        {/* Thinking Process & Tool Calls (Expanded by default when available) */}
         {!isUser && (thinkingProcess.length > 0 || toolCalls.length > 0) && (
-          <details className="mt-2">
-            <summary className="text-xs text-stone-500 cursor-pointer hover:text-stone-700">
-              View thinking process & tool calls
-            </summary>
-            <div className="mt-2 p-3 bg-stone-50 rounded-lg border border-stone-200 text-xs font-mono">
-              {thinkingProcess.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-stone-600 font-semibold mb-1.5">Thinking Process:</p>
-                  <ul className="space-y-1 text-stone-700 list-disc list-inside">
-                    {thinkingProcess.map((step, idx) => (
-                      <li key={idx}>{step}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {toolCalls.length > 0 && (
-                <div>
-                  <p className="text-stone-600 font-semibold mb-1.5">Tool Calls:</p>
-                  <div className="space-y-2">
-                    {toolCalls.map((call, idx) => (
-                      <div key={idx} className="p-2 bg-white rounded border border-stone-200">
-                        <p className="text-stone-700">
-                          <span className="text-amber-600">Tool:</span> {call.tool}
-                        </p>
-                        <p className="text-stone-600 mt-1">
-                          <span className="text-amber-600">Input:</span> {JSON.stringify(call.input, null, 2)}
-                        </p>
-                        {call.output && (
-                          <p className="text-stone-600 mt-1">
-                            <span className="text-green-600">Output:</span> {JSON.stringify(call.output, null, 2)}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-semibold text-blue-800">🧠 Agent Thinking Process</span>
             </div>
-          </details>
+
+            {thinkingProcess.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">Reasoning Steps:</p>
+                <ol className="space-y-1.5 text-sm text-blue-900">
+                  {thinkingProcess.map((step, idx) => (
+                    <li key={idx} className="flex gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center text-xs font-bold">
+                        {idx + 1}
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            {toolCalls.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-purple-700 mb-2 uppercase tracking-wide">🔧 Tool Executions:</p>
+                <div className="space-y-2">
+                  {toolCalls.map((call, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-lg border border-purple-200 text-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-mono text-xs font-bold">
+                          {call.tool}
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-stone-600 mb-1">
+                        <span className="text-purple-600 font-semibold">Input:</span>{' '}
+                        <code className="bg-stone-100 px-1 py-0.5 rounded">
+                          {JSON.stringify(call.input)}
+                        </code>
+                      </div>
+                      {call.output && (
+                        <div className="text-xs font-mono text-stone-600">
+                          <span className="text-green-600 font-semibold">Output:</span>{' '}
+                          <code className="bg-green-50 px-1 py-0.5 rounded text-green-700">
+                            {typeof call.output === 'string'
+                              ? call.output.slice(0, 150) + (call.output.length > 150 ? '...' : '')
+                              : JSON.stringify(call.output).slice(0, 150)}
+                          </code>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
+
       </div>
 
       {isUser && (

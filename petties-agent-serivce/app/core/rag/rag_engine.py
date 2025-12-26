@@ -130,23 +130,54 @@ class RAGEngine:
             for c in chunks
         ]
 
-        # Upsert to Qdrant
-        success = self.qdrant.upsert_vectors(
-            collection_name=col_name,
-            vectors=embeddings,
-            payloads=payloads
-        )
+        # Validate embeddings
+        if not embeddings or len(embeddings) == 0:
+            error_msg = f"Failed to generate embeddings for {filename}. Check Cohere API key configuration."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
-        if success:
-            logger.info(f"Indexed {len(chunks)} chunks for document {document_id}")
-            return len(chunks)
-        return 0
+        if len(embeddings) != len(chunks):
+            error_msg = f"Embedding count mismatch: {len(embeddings)} embeddings for {len(chunks)} chunks"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # Upsert to Qdrant with auto-retry on dimension mismatch
+        try:
+            self.qdrant.upsert_vectors(
+                collection_name=col_name,
+                vectors=embeddings,
+                payloads=payloads
+            )
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "dimension mismatch" in error_msg.lower():
+                # Delete old collection and recreate with correct dimension
+                logger.warning(f"Dimension mismatch detected. Recreating collection '{col_name}'...")
+                self.qdrant.delete_collection(col_name)
+                self.qdrant.create_collection(
+                    collection_name=col_name,
+                    dimension=COHERE_EMBED_DIMENSION,
+                    recreate_on_mismatch=False  # Already deleted
+                )
+                # Retry upsert
+                logger.info(f"Retrying upsert to recreated collection '{col_name}'...")
+                self.qdrant.upsert_vectors(
+                    collection_name=col_name,
+                    vectors=embeddings,
+                    payloads=payloads
+                )
+                logger.info(f"Successfully indexed after collection recreation")
+            else:
+                raise
+
+        logger.info(f"Indexed {len(chunks)} chunks for document {document_id}")
+        return len(chunks)
 
     async def query(
         self,
         query: str,
         top_k: int = 5,
-        min_score: float = 0.5,
+        min_score: float = 0.1,  # Lowered for Vietnamese text with Cohere embeddings
         document_ids: Optional[List[int]] = None
     ) -> List[RetrievedChunk]:
         """
@@ -155,7 +186,7 @@ class RAGEngine:
         Args:
             query: Search query text
             top_k: Number of results
-            min_score: Minimum similarity score
+            min_score: Minimum similarity score (default 0.1 for Vietnamese Cohere embeddings)
             document_ids: Filter by specific documents
 
         Returns:
@@ -163,6 +194,7 @@ class RAGEngine:
         """
         # Generate query embedding with Cohere
         query_vector = await self.processor.embed_query(query)
+        logger.info(f"Query embedding dimension: {len(query_vector)}, first 5 values: {query_vector[:5]}")
 
         # Build filter conditions
         filter_conditions = None
@@ -171,6 +203,7 @@ class RAGEngine:
 
         # Get dynamic collection name
         col_name = await self._get_collection_name()
+        logger.info(f"Searching collection: {col_name} with min_score={min_score}")
 
         # Search Qdrant
         results = self.qdrant.search(
@@ -180,6 +213,7 @@ class RAGEngine:
             score_threshold=min_score,
             filter_conditions=filter_conditions
         )
+        logger.info(f"Qdrant search returned {len(results)} raw results")
 
         # Filter by document_ids if multiple
         if document_ids and len(document_ids) > 1:
@@ -200,21 +234,41 @@ class RAGEngine:
         logger.info(f"Query '{query[:50]}...' returned {len(chunks)} results")
         return chunks
 
-    async def delete_document(self, document_id: int) -> bool:
-        """Delete all chunks for a document"""
+    async def delete_document(self, document_id: int) -> int:
+        """
+        Delete all chunks for a document from Qdrant
+
+        Args:
+            document_id: Database document ID
+
+        Returns:
+            Number of vectors deleted
+
+        Raises:
+            RuntimeError: If delete operation fails
+        """
         try:
             col_name = await self._get_collection_name()
+
+            # First, count how many vectors will be deleted
+            # This helps verify the delete operation
+            count_before = self.qdrant.get_collection_info(col_name).get("points_count", 0)
+
             success = self.qdrant.delete_by_filter(
                 collection_name=col_name,
                 filter_conditions={"document_id": document_id}
             )
-            if success:
-                logger.info(f"Deleted chunks for document {document_id}")
-            return success
+
+            if not success:
+                raise RuntimeError(f"Failed to delete vectors for document {document_id} from Qdrant")
+
+            logger.info(f"Deleted vectors for document {document_id} from Qdrant")
+            return count_before  # Return estimated count
 
         except Exception as e:
-            logger.error(f"Delete failed: {e}")
-            return False
+            error_msg = f"Failed to delete document {document_id} from Qdrant: {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
     async def get_stats(self) -> dict:
         """Get knowledge base stats"""

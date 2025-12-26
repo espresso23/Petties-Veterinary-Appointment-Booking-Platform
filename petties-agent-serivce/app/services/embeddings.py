@@ -105,7 +105,7 @@ class CohereEmbeddings(BaseEmbeddingClient):
 
         self.client = httpx.AsyncClient(
             base_url=self.BASE_URL,
-            timeout=60.0,
+            timeout=httpx.Timeout(120.0, connect=30.0),  # Longer timeout for cold start
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
@@ -146,17 +146,30 @@ class CohereEmbeddings(BaseEmbeddingClient):
                 "truncate": "END"  # Truncate long texts at the end
             }
 
-            try:
-                response = await self.client.post("/embed", json=payload)
-                response.raise_for_status()
-                data = response.json()
+            # Retry logic for cold start issues
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = await self.client.post("/embed", json=payload)
+                    response.raise_for_status()
+                    data = response.json()
 
-                embeddings = data.get("embeddings", [])
-                all_embeddings.extend(embeddings)
+                    embeddings = data.get("embeddings", [])
+                    all_embeddings.extend(embeddings)
+                    break  # Success, exit retry loop
 
-            except httpx.HTTPError as e:
-                logger.error(f"Cohere embed error: {e}")
-                raise
+                except (httpx.ConnectError, httpx.TimeoutException) as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Cohere connection attempt {attempt + 1} failed: {e}. Retrying...")
+                        import asyncio
+                        await asyncio.sleep(1)  # Wait before retry
+                        continue
+                    logger.error(f"Cohere embed failed after {max_retries} attempts: {e}")
+                    raise
+
+                except httpx.HTTPError as e:
+                    logger.error(f"Cohere embed error: {e}")
+                    raise
 
         return EmbeddingResult(
             embeddings=all_embeddings,
@@ -185,19 +198,33 @@ class CohereEmbeddings(BaseEmbeddingClient):
             "truncate": "END"
         }
 
-        try:
-            response = await self.client.post("/embed", json=payload)
-            response.raise_for_status()
-            data = response.json()
+        # Retry logic for cold start issues (same as embed_documents)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = await self.client.post("/embed", json=payload)
+                response.raise_for_status()
+                data = response.json()
 
-            embeddings = data.get("embeddings", [])
-            if embeddings:
-                return embeddings[0]
-            return []
+                embeddings = data.get("embeddings", [])
+                if embeddings:
+                    return embeddings[0]
+                return []
 
-        except httpx.HTTPError as e:
-            logger.error(f"Cohere embed query error: {e}")
-            raise
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Cohere query embed attempt {attempt + 1} failed: {e}. Retrying...")
+                    import asyncio
+                    await asyncio.sleep(1)  # Wait before retry
+                    continue
+                logger.error(f"Cohere embed query failed after {max_retries} attempts: {e}")
+                raise
+
+            except httpx.HTTPError as e:
+                logger.error(f"Cohere embed query error: {e}")
+                raise
+        
+        return []  # Fallback
 
     async def close(self):
         """Close HTTP client"""
@@ -362,7 +389,7 @@ async def create_embedding_client_from_db(db_session) -> BaseEmbeddingClient:
     Returns:
         Embedding client instance
     """
-    from app.api.routes.settings import get_setting
+    from app.core.config_helper import get_setting
 
     # Try Cohere first (preferred)
     cohere_api_key = await get_setting("COHERE_API_KEY", db_session)

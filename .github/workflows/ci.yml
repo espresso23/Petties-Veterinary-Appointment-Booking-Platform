@@ -1,7 +1,7 @@
 # ============================================
 # CI - Build & Test Workflow
 # 
-# Purpose: Kiểm tra code trước khi merge vào develop/main
+# Purpose: Kiểm tra code trước khi merge vào integrationFeature/develop/main
 # Trigger: Pull Request tạo mới hoặc update
 # 
 # Jobs:
@@ -16,7 +16,7 @@ name: CI - Build & Test
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [integrationFeature, develop, main]
 
 jobs:
   # ================================

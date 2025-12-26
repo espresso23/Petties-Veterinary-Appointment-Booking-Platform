@@ -41,10 +41,22 @@ export default {
         'soft': '0 2px 8px rgba(0, 0, 0, 0.04)',
         'medium': '0 4px 16px rgba(0, 0, 0, 0.08)',
         'large': '0 8px 32px rgba(0, 0, 0, 0.12)',
+        // Neobrutalism shadows (offset, no blur)
+        'brutal': '4px 4px 0 #1c1917',
+        'brutal-lg': '6px 6px 0 #1c1917',
       },
       borderRadius: {
         'xl': '0.75rem',
         '2xl': '1rem',
+      },
+      keyframes: {
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+      },
+      animation: {
+        'slide-in-right': 'slide-in-right 0.3s ease-out',
       },
     },
   },

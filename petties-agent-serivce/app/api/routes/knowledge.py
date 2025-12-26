@@ -197,7 +197,8 @@ async def process_document(
         if not document:
             raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
 
-        if document.processed:
+        # Allow reprocessing if document has 0 vectors (failed previous attempt)
+        if document.processed and document.vector_count > 0:
             return ProcessDocumentResponse(
                 success=True,
                 message=f"Document '{document.filename}' already processed",
@@ -205,6 +206,12 @@ async def process_document(
                 chunks_created=document.vector_count,
                 processing_time_ms=0
             )
+
+        if document.processed and document.vector_count == 0:
+            logger.warning(f"Document {document_id} was marked processed with 0 vectors. Reprocessing...")
+            # Reset processed status for retry
+            document.processed = False
+            await db.commit()
 
         # Read file content
         file_path = document.file_path
@@ -230,7 +237,14 @@ async def process_document(
             }
         )
 
-        # Update document status
+        # Validate processing succeeded
+        if chunks_count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Document processing failed: No vectors were created. This usually means the Cohere API key is missing or invalid."
+            )
+
+        # Update document status (only if vectors were created successfully)
         document.processed = True
         document.vector_count = chunks_count
         document.processed_at = datetime.utcnow()
@@ -252,6 +266,33 @@ async def process_document(
         raise
     except Exception as e:
         logger.error(f"Error processing document {document_id}: {e}")
+
+        # Cleanup on failure: Delete file and database record
+        # Only cleanup if document was just uploaded (processed=False, vector_count=0)
+        try:
+            # Try to get document from database
+            result = await db.execute(
+                select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+            )
+            doc = result.scalar_one_or_none()
+
+            if doc and not doc.processed and doc.vector_count == 0:
+                logger.warning(f"Processing failed for new document {document_id}. Cleaning up...")
+
+                # Delete file from disk
+                if doc.file_path and os.path.exists(doc.file_path):
+                    os.remove(doc.file_path)
+                    logger.info(f"Deleted file: {doc.file_path}")
+
+                # Delete database record
+                await db.delete(doc)
+                await db.commit()
+                logger.info(f"Deleted database record for document {document_id}")
+
+        except Exception as cleanup_error:
+            logger.error(f"Cleanup failed: {cleanup_error}")
+            # Don't raise cleanup error, raise original error instead
+
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -374,33 +415,42 @@ async def delete_document(
         filename = document.filename
         vector_count = document.vector_count
         file_path = document.file_path
+        vectors_actually_deleted = 0
 
-        # Delete file if exists
+        # Delete vectors from Qdrant FIRST (most critical operation)
+        # If this fails, we abort the entire delete operation
+        if document.processed and vector_count > 0:
+            try:
+                rag = get_rag_engine()
+                vectors_actually_deleted = await rag.delete_document(document_id)
+                logger.info(f"Deleted {vectors_actually_deleted} vectors from Qdrant for document {document_id}")
+            except Exception as e:
+                # CRITICAL: If Qdrant delete fails, abort entire operation
+                error_msg = f"Failed to delete vectors from Qdrant: {str(e)}. Aborting document deletion to prevent orphaned data."
+                logger.error(error_msg)
+                raise HTTPException(
+                    status_code=500,
+                    detail=error_msg
+                )
+
+        # Only proceed with file and DB deletion if Qdrant delete succeeded
+        # Delete file from storage
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
             logger.info(f"Deleted file: {file_path}")
 
-        # Delete vectors from Qdrant if document was processed
-        if document.processed and vector_count > 0:
-            try:
-                rag = get_rag_engine()
-                await rag.delete_document(document_id)
-                logger.info(f"Deleted {vector_count} vectors from Qdrant for document {document_id}")
-            except Exception as e:
-                logger.warning(f"Failed to delete vectors from Qdrant: {e}")
-
         # Delete database record
         await db.delete(document)
         await db.commit()
-        
+
         logger.info(f"Deleted document: {filename} (ID: {document_id})")
-        
+
         return DeleteDocumentResponse(
             success=True,
-            message=f"Document '{filename}' deleted successfully",
+            message=f"Document '{filename}' and {vectors_actually_deleted} vectors deleted successfully",
             document_id=document_id,
             filename=filename,
-            vectors_deleted=vector_count
+            vectors_deleted=vectors_actually_deleted
         )
     
     except HTTPException:
@@ -495,9 +545,9 @@ async def query_knowledge(
                     document_id=0,
                     document_name="system",
                     chunk_index=0,
-                    content=f"Khong tim thay ket qua phu hop voi min_score={request.min_score}. Thu giam min_score hoac dung query khac. Query: {request.query}",
+                    content=f"Khong tim thay ket qua phu hop voi min_score={request.min_score}. Thu giam min_score xuong 0.0 de xem tat ca ket qua. Neu van khong co ket qua, co the do: (1) Vector dimension mismatch - can recreate collection, (2) Query khong lien quan den noi dung document. Query: {request.query}",
                     score=0.0,
-                    metadata={"type": "info"}
+                    metadata={"type": "info", "suggestion": "Try lowering min_score to 0.0"}
                 ))
 
         retrieval_time = int((time.time() - start_time) * 1000)
@@ -512,6 +562,160 @@ async def query_knowledge(
 
     except Exception as e:
         logger.error(f"Error querying knowledge base: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== RECREATE COLLECTION =====
+
+@router.post(
+    "/recreate-collection",
+    summary="[Admin] Recreate Qdrant collection",
+    description="""
+    Manually delete and recreate the Qdrant collection with correct dimensions.
+
+    Use this when:
+    - Switching embedding models (OpenAI ↔ Cohere)
+    - Fixing dimension mismatches
+    - Resetting the knowledge base
+
+    WARNING: This will delete ALL vectors. Documents in database will remain but need reprocessing.
+    """
+)
+async def recreate_collection(db: AsyncSession = Depends(get_db)):
+    """
+    Delete and recreate Qdrant collection
+
+    Returns:
+        Success message with collection info
+    """
+    try:
+        from app.core.rag.qdrant_client import get_qdrant_manager, COHERE_EMBED_DIMENSION
+        from app.core.config_helper import get_setting
+
+        # Get collection name from DB
+        col_name = await get_setting("QDRANT_COLLECTION_NAME", db, "petties_knowledge_base")
+
+        # Get Qdrant manager
+        qdrant = get_qdrant_manager()
+
+        # Delete existing collection if exists
+        existing_collections = qdrant.list_collections()
+        if col_name in existing_collections:
+            logger.info(f"Deleting existing collection '{col_name}'")
+            qdrant.delete_collection(col_name)
+
+        # Create new collection with correct dimension
+        success = qdrant.create_collection(
+            collection_name=col_name,
+            dimension=COHERE_EMBED_DIMENSION,
+            recreate_on_mismatch=True
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to create collection")
+
+        # Reset all documents to unprocessed
+        result = await db.execute(
+            select(KnowledgeDocument)
+        )
+        documents = result.scalars().all()
+
+        for doc in documents:
+            doc.processed = False
+            doc.vector_count = 0
+            doc.processed_at = None
+
+        await db.commit()
+
+        logger.info(f"Recreated collection '{col_name}' with dimension {COHERE_EMBED_DIMENSION}")
+        logger.info(f"Reset {len(documents)} documents to unprocessed")
+
+        return {
+            "success": True,
+            "message": f"Collection '{col_name}' recreated successfully",
+            "collection_name": col_name,
+            "dimension": COHERE_EMBED_DIMENSION,
+            "documents_reset": len(documents)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recreating collection: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== DEBUG QDRANT =====
+
+@router.get(
+    "/debug/qdrant",
+    summary="[Debug] Check Qdrant collection details",
+    description="Debug endpoint to verify Qdrant collection configuration and contents"
+)
+async def debug_qdrant(db: AsyncSession = Depends(get_db)):
+    """
+    Debug Qdrant collection
+
+    Returns detailed info about:
+    - Collection existence
+    - Vector dimensions
+    - Number of points
+    - Sample points
+    """
+    try:
+        from app.core.rag.qdrant_client import get_qdrant_manager, COHERE_EMBED_DIMENSION
+        from app.core.config_helper import get_setting
+
+        # Get collection name
+        col_name = await get_setting("QDRANT_COLLECTION_NAME", db, "petties_knowledge_base")
+
+        # Get Qdrant manager
+        qdrant = get_qdrant_manager()
+
+        # Check if collection exists
+        collections = qdrant.list_collections()
+
+        if col_name not in collections:
+            return {
+                "exists": False,
+                "collection_name": col_name,
+                "available_collections": collections,
+                "message": f"Collection '{col_name}' not found"
+            }
+
+        # Get collection info
+        info = qdrant.get_collection_info(col_name)
+
+        # Try to get a sample point
+        try:
+            sample_results = qdrant.client.scroll(
+                collection_name=col_name,
+                limit=3,
+                with_vectors=True  # Include vectors to verify they're stored
+            )
+            sample_points = [
+                {
+                    "id": str(point.id),
+                    "payload": point.payload,
+                    "vector_length": len(point.vector) if hasattr(point, 'vector') and point.vector else 0
+                }
+                for point in sample_results[0]
+            ]
+        except Exception as e:
+            sample_points = []
+            logger.warning(f"Could not get sample points: {e}")
+
+        return {
+            "exists": True,
+            "collection_name": col_name,
+            "collection_info": info,
+            "expected_dimension": COHERE_EMBED_DIMENSION,
+            "sample_points": sample_points,
+            "message": "Collection found and accessible"
+        }
+
+    except Exception as e:
+        logger.error(f"Error debugging Qdrant: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
