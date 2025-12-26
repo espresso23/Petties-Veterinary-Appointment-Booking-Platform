@@ -11,6 +11,9 @@ import '../ui/vet/vet_home_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
+import '../ui/pet/pet_list_screen.dart';
+import '../ui/pet/add_edit_pet_screen.dart';
+import '../ui/pet/pet_detail_screen.dart';
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -190,6 +193,30 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.changePassword,
           builder: (context, state) => const ChangePasswordScreen(),
+        ),
+
+        // Pet Management Routes
+        GoRoute(
+          path: AppRoutes.myPets,
+          builder: (context, state) => const PetListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.addPet,
+          builder: (context, state) => const AddEditPetScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.petDetails,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return PetDetailScreen(id: id);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.editPet,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return AddEditPetScreen(id: id);
+          },
         ),
       ],
       errorBuilder: (context, state) => Scaffold(
