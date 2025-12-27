@@ -15,6 +15,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import com.petties.petties.model.Clinic;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -22,7 +25,6 @@ import java.util.UUID;
         @UniqueConstraint(columnNames = "email")
 })
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@DiscriminatorColumn(name = "user_type", discriminatorType = DiscriminatorType.STRING)
 @SQLDelete(sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE user_id = ?")
 @SQLRestriction("deleted_at IS NULL")
 @EntityListeners(AuditingEntityListener.class)
@@ -43,10 +45,10 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
-    @Column(name = "phone", length = 20)
+    @Column(name = "phone", unique = true, length = 20)
     private String phone;
 
-    @Column(name = "email", nullable = false, unique = true, length = 100)
+    @Column(name = "email", unique = true, length = 100)
     private String email;
 
     @Column(name = "full_name", length = 100)
@@ -72,4 +74,14 @@ public class User {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();
+
+    // For Managers and Vets: The clinic they belong to
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "working_clinic_id")
+    private Clinic workingClinic;
+
 }

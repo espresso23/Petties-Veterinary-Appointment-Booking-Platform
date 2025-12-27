@@ -70,7 +70,7 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
           <h3 className="text-sm font-semibold text-stone-900 truncate mb-1">
             {document.filename}
           </h3>
-          
+
           <div className="flex items-center gap-4 text-xs text-stone-500 mb-3">
             <span>{formatFileSize(document.file_size)}</span>
             <span>•</span>
@@ -90,7 +90,7 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
                 Processing...
               </span>
             )}
-            
+
             {document.processed && (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                 {document.vector_count} vectors

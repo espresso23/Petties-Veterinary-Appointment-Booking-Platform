@@ -14,23 +14,23 @@ interface ToolCardProps {
 
 /**
  * Tool Card Component
- * Displays tool information with schema viewer and assignment controls
- * All tools are code-based (FastMCP)
+ * Displays tool information with enable/disable toggle
+ * Simplified UI - just name, description, toggle
  */
 export const ToolCard = ({ tool, onToggle, onAssign }: ToolCardProps) => {
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div className={`
-      bg-white rounded-xl border transition-all cursor-pointer
-      ${tool.enabled 
-        ? 'border-stone-200 shadow-soft hover:shadow-medium' 
+      bg-white rounded-xl border transition-all
+      ${tool.enabled
+        ? 'border-stone-200 shadow-soft hover:shadow-medium'
         : 'border-stone-200 opacity-60'
       }
     `}>
       {/* Header */}
-      <div 
-        className="px-5 py-4 flex items-start justify-between"
+      <div
+        className="px-5 py-4 flex items-start justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-start gap-4 flex-1 min-w-0">
@@ -39,37 +39,24 @@ export const ToolCard = ({ tool, onToggle, onAssign }: ToolCardProps) => {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-semibold text-stone-900 text-sm truncate">
+              <h3 className="font-semibold text-stone-900 text-sm">
                 {tool.name}
               </h3>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
-                FastMCP Code
+                FastMCP
               </span>
             </div>
-            {tool.description && (
-              <p className="text-xs text-stone-500 line-clamp-2">
-                {tool.description}
+            {tool.description && !expanded && (
+              <p className="text-xs text-stone-500 line-clamp-1">
+                {tool.description.slice(0, 80)}...
               </p>
-            )}
-            {tool.assigned_agents && tool.assigned_agents.length > 0 && (
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="text-xs text-stone-500">Assigned to:</span>
-                {tool.assigned_agents.map(agent => (
-                  <span 
-                    key={agent}
-                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
-                  >
-                    {agent}
-                  </span>
-                ))}
-              </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
           {/* Enable/Disable Toggle */}
-          <label 
+          <label
             className="relative inline-flex items-center cursor-pointer"
             onClick={(e) => e.stopPropagation()}
           >
@@ -104,37 +91,35 @@ export const ToolCard = ({ tool, onToggle, onAssign }: ToolCardProps) => {
         </div>
       </div>
 
-      {/* Expanded Content - Schema Viewer */}
+      {/* Expanded Content - Just description */}
       {expanded && (
         <div className="px-5 pb-5 border-t border-stone-200 pt-4">
-          <div className="space-y-4">
-            {/* Request Schema */}
-            <div>
-              <h4 className="text-xs font-semibold text-stone-700 mb-2 uppercase tracking-wider">
-                Request Schema (Input)
-              </h4>
-              <div className="bg-stone-50 rounded-lg p-3 border border-stone-200">
-                <pre className="text-xs font-mono text-stone-700 overflow-x-auto">
-                  {JSON.stringify({ /* TODO: Add schema from API */ }, null, 2)}
-                </pre>
-              </div>
-            </div>
+          <div className="space-y-3">
+            {/* Full Description */}
+            {tool.description && (
+              <p className="text-sm text-stone-700 leading-relaxed">
+                {tool.description}
+              </p>
+            )}
 
-            {/* Response Schema */}
-            <div>
-              <h4 className="text-xs font-semibold text-stone-700 mb-2 uppercase tracking-wider">
-                Response Schema (Output)
-              </h4>
-              <div className="bg-stone-50 rounded-lg p-3 border border-stone-200">
-                <pre className="text-xs font-mono text-stone-700 overflow-x-auto">
-                  {JSON.stringify({ /* TODO: Add schema from API */ }, null, 2)}
-                </pre>
+            {/* Assigned Agents */}
+            {tool.assigned_agents && tool.assigned_agents.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-stone-500 uppercase font-semibold">Assigned to:</span>
+                {tool.assigned_agents.map(agent => (
+                  <span
+                    key={agent}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700"
+                  >
+                    {agent}
+                  </span>
+                ))}
               </div>
-            </div>
+            )}
 
             {/* Actions */}
             {onAssign && (
-              <div className="flex items-center gap-2 pt-2">
+              <div className="pt-2">
                 <button
                   onClick={() => onAssign(tool.id)}
                   className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"

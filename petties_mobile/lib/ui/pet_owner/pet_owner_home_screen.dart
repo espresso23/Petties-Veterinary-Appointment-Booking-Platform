@@ -4,10 +4,41 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
+import '../../data/services/pet_service.dart';
+import '../../data/models/pet.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
-class PetOwnerHomeScreen extends StatelessWidget {
+class PetOwnerHomeScreen extends StatefulWidget {
   const PetOwnerHomeScreen({super.key});
+
+  @override
+  State<PetOwnerHomeScreen> createState() => _PetOwnerHomeScreenState();
+}
+
+class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
+  final PetService _petService = PetService();
+  List<Pet> _pets = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPets();
+  }
+
+  Future<void> _fetchPets() async {
+    setState(() => _isLoading = true);
+    try {
+      final pets = await _petService.getMyPets();
+      setState(() {
+        _pets = pets;
+        _isLoading = false;
+      });
+    } catch (e) {
+      // Handle error gently
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,32 +72,36 @@ class PetOwnerHomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Header - Brutal Card
-            _buildWelcomeCard(context, user?.username ?? 'Pet Owner'),
-            const SizedBox(height: 24),
+      body: RefreshIndicator(
+        onRefresh: _fetchPets,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Welcome Header - Brutal Card
+              _buildWelcomeCard(context, user?.username ?? 'Pet Owner'),
+              const SizedBox(height: 24),
 
-            // Quick Actions
-            _buildSectionTitle('HÀNH ĐỘNG NHANH'),
-            const SizedBox(height: 12),
-            _buildQuickActions(context),
-            const SizedBox(height: 24),
+              // Quick Actions
+              _buildSectionTitle('HÀNH ĐỘNG NHANH'),
+              const SizedBox(height: 12),
+              _buildQuickActions(context),
+              const SizedBox(height: 24),
 
-            // My Pets Section
-            _buildSectionHeader(context, 'THÚ CƯNG CỦA TÔI', 'Xem tất cả'),
-            const SizedBox(height: 12),
-            _buildMyPetsCard(context),
-            const SizedBox(height: 24),
+              // My Pets Section
+              _buildSectionHeader(context, 'THÚ CƯNG CỦA TÔI', 'Xem tất cả'),
+              const SizedBox(height: 12),
+              _buildMyPetsCard(context),
+              const SizedBox(height: 24),
 
-            // Upcoming Bookings
-            _buildSectionHeader(context, 'LỊCH HẸN SẮP TỚI', 'Xem tất cả'),
-            const SizedBox(height: 12),
-            _buildBookingsCard(context),
-          ],
+              // Upcoming Bookings
+              _buildSectionHeader(context, 'LỊCH HẸN SẮP TỚI', 'Xem tất cả'),
+              const SizedBox(height: 12),
+              _buildBookingsCard(context),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _buildBrutalNavBar(),
@@ -134,8 +169,14 @@ class PetOwnerHomeScreen extends StatelessWidget {
                 Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
         const SizedBox(width: 12),
         Expanded(
-            child: _buildActionCard(
-                Icons.pets, 'Thêm\npet', AppColors.primaryLight)),
+            child: GestureDetector(
+              onTap: () async {
+                await context.push(AppRoutes.addPet);
+                _fetchPets(); // Refresh after returning
+              },
+              child: _buildActionCard(
+                  Icons.pets, 'Thêm\npet', AppColors.primaryLight),
+            )),
         const SizedBox(width: 12),
         Expanded(
             child: _buildActionCard(
@@ -179,8 +220,7 @@ class PetOwnerHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionHeader(
-      BuildContext context, String title, String actionText) {
+  Widget _buildSectionHeader(BuildContext context, String title, String actionText) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -194,7 +234,12 @@ class PetOwnerHomeScreen extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: () {},
+          onPressed: () async {
+            if (title == 'THÚ CƯNG CỦA TÔI') {
+              await context.push(AppRoutes.myPets);
+              _fetchPets(); // Refresh when back from list
+            }
+          },
           child: Text(
             actionText,
             style: const TextStyle(
@@ -208,35 +253,112 @@ class PetOwnerHomeScreen extends StatelessWidget {
   }
 
   Widget _buildMyPetsCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        border: Border.all(color: AppColors.stone900, width: 3),
-        boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
-        ],
-      ),
-      child: const Center(
-        child: Column(
-          children: [
-            Icon(Icons.pets, size: 48, color: AppColors.stone400),
-            SizedBox(height: 12),
-            Text(
-              'CHƯA CÓ THÚ CƯNG',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: AppColors.stone900,
-                letterSpacing: 1,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Thêm thú cưng để bắt đầu',
-              style: TextStyle(color: AppColors.stone500),
-            ),
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_pets.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          border: Border.all(color: AppColors.stone900, width: 3),
+          boxShadow: const [
+            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
           ],
         ),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.pets, size: 48, color: AppColors.stone400),
+              SizedBox(height: 12),
+              Text(
+                'CHƯA CÓ THÚ CƯNG',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
+                  letterSpacing: 1,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Thêm thú cưng để bắt đầu',
+                style: TextStyle(color: AppColors.stone500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Horizontal List for Pets
+    return SizedBox(
+      height: 180,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _pets.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 16),
+        itemBuilder: (context, index) {
+          final pet = _pets[index];
+          return GestureDetector(
+            onTap: () {
+               context.push('/pets/${pet.id}');
+            },
+            child: Container(
+              width: 160,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                border: Border.all(color: AppColors.stone900, width: 3),
+                boxShadow: const [
+                  BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: pet.imageUrl != null
+                        ? Image.network(
+                            pet.imageUrl!,
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            color: AppColors.stone200,
+                            child: const Icon(Icons.pets, size: 40, color: AppColors.stone500),
+                          ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pet.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: AppColors.stone900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          pet.breed,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

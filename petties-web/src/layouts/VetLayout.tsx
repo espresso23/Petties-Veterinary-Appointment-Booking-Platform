@@ -93,7 +93,7 @@ export const VetLayout = () => {
                 {/* User & Logout */}
                 <div className="px-6 py-4 border-t-4 border-stone-900">
                     <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
-                        {user?.username || 'Vet'}
+                        {user?.fullName || 'Bác sĩ'}
                     </p>
                     <button
                         onClick={handleLogout}

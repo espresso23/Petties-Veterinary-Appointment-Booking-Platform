@@ -3,109 +3,127 @@
 **AI Agent Service cho Petties - Veterinary Appointment Booking Platform**
 
 ```
-Version: v0.0.1 (MVP Foundation)
-Status:  In Development
-Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
+Version: v2.0.0 (Full LlamaIndex RAG)
+Status:  ✅ Single Agent + Full LlamaIndex Integration
+Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter/DeepSeek | Cohere
 ```
 
 ---
 
 ## Overview
 
-**Petties Agent Service** là hệ thống quản trị, tinh chỉnh và giám sát AI Agents theo mô hình **Supervisor-Worker (Chỉ huy - Nhân viên)** với **Delegation (Ủy quyền)**.
+**Petties Agent Service** là AI Chatbot sử dụng **Single Agent + ReAct Pattern** với nhiều tools được config bởi Admin.
 
 > **Core Philosophy:** Thay vì xây dựng công cụ tạo Agent (No-code builder), hệ thống tập trung vào việc **Quản trị, Tinh chỉnh và Giám sát (Management, Tuning & Monitoring)**.
 > - **Backend (Code-first):** Cấu trúc luồng Agent được lập trình viên code sẵn (LangGraph/Python)
-> - **Frontend (Config-first):** Admin Dashboard dùng để cấu hình tham số, chọn công cụ và kiểm thử
+> - **Frontend (Config-first):** Admin Dashboard dùng để cấu hình tham số, bật/tắt tools và kiểm thử
 
 ### Core Capabilities
 
 | Capability | Description | Status |
 |------------|-------------|--------|
-| **Hierarchical Agent Architecture** | Supervisor-Worker pattern với LangGraph | ✅ Implemented |
-| **Dynamic Configuration Loader** | Load prompts & settings từ DB (thay .env) | ✅ Implemented |
-| **Intent Classification** | Phân loại user request (Booking/Medical/Research) | ✅ Implemented |
+| **Single Agent + ReAct** | Thought → Action → Observation → Loop | ✅ Implemented |
+| **FastMCP Tools** | @mcp.tool decorator cho tools | ✅ Implemented |
+| **Dynamic Configuration** | Load prompts & settings từ DB | ✅ Implemented |
 | **System Prompt Management** | Quản lý prompts từ DB với versioning | ✅ Implemented |
-| **Tool Management** | Code-based tools với FastMCP | ✅ Implemented |
-| **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | 🔄 In Progress |
+| **Tool Management** | Bật/tắt tools qua Admin Dashboard | ✅ Implemented |
+| **RAG Knowledge Base** | Veterinary knowledge retrieval (Qdrant Cloud) | ✅ Implemented |
 | **Cloud LLM Integration** | OpenRouter API (Cloud-Only) | ✅ Implemented |
 | **Cloud Embeddings** | Cohere embed-multilingual-v3 | ✅ Implemented |
-| **Real-time Streaming** | WebSocket streaming responses | 🔄 In Progress |
 
 ---
 
 ## Architecture
 
-### Hierarchical Agent Architecture (Supervisor-Worker Pattern)
+### Single Agent + ReAct Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        USER (Mobile/Web)                         │
-│                    Single Point of Contact                       │
+│                    PETTIES AI AGENT (ReAct + LangGraph)             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🧠 LLM Core (OpenRouter Cloud API)                                  │
+│  ├── ReAct Pattern: Thought → Action → Observation → Loop          │
+│  ├── Chain-of-Thought Reasoning                                     │
+│  └── System Prompt (Admin Configurable via DB)                      │
+│                                                                     │
+│  🔧 Tools (FastMCP @mcp.tool)                                       │
+│  ├── pet_care_qa       → RAG-based Q&A                             │
+│  ├── symptom_search    → Symptom → Disease lookup                  │
+│  ├── search_clinics    → Find nearby clinics                       │
+│  ├── check_slots       → Check available slots                     │
+│  └── create_booking    → Create booking via chat                   │
+│                                                                     │
+│  📚 RAG Engine (LlamaIndex + Qdrant Cloud)                          │
+│  ├── LlamaIndex: Document processing, chunking, retrieval          │
+│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
+│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│                                                                     │
+│  ⚙️ Admin Config (Hot-reload)                                       │
+│  ├── Enable/Disable Agent                                           │
+│  ├── System Prompt (editable, versioned)                            │
+│  ├── Parameters: Temperature, Max Tokens, Top-P                     │
+│  ├── Tool Management: Enable/Disable individual tools              │
+│  └── Knowledge Base: Upload/Remove documents                        │
+│                                                                     │
 └─────────────────────────────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              MAIN AGENT (Supervisor/Orchestrator)                │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Intent Classification (Semantic Router + LLM)            │  │
-│  │  Context-Aware Routing (với tóm tắt ngữ cảnh)            │  │
-│  │  Synthesis & Smoothing (Rewrite thành brand voice)        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  State Manager: Giữ toàn bộ lịch sử cuộc hội thoại              │
-│  Quality Controller: Đánh giá câu trả lời trước khi gửi user    │
-└─────────────────────────────────────────────────────────────────┘
-         │                    │                    │
-         │ Context Summary    │ Context Summary    │ Context Summary
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  Booking Agent  │  │  Medical Agent  │  │  Research Agent │
-│  (Sub-Worker)   │  │  (Semi-Auto)    │  │  (Web Only)     │
-│  ─────────────  │  │  ─────────────  │  │  ─────────────  │
-│  • check_slot   │  │  • search_sympt │  │  • web_search   │
-│  • create_book  │  │  • RAG_search   │  │  • youtube_srch │
-│  • cancel_book  │  │  • get_vaccine  │  │  • extract_url  │
-│                 │  │                 │  │                 │
-│                 │  │  Auto-Escalate: │  │  Phục vụ:       │
-│                 │  │  Low Conf →     │  │  • Main Agent   │
-│                 │  │  Call Research  │  │  • Medical Agent│
-│                 │  └────────┬────────┘  │                 │
-│                 │           │           │  Bắt buộc:      │
-│                 │           └───────────┼─ Trích dẫn URL │
-│                 │                       │                 │
-│                 └───────────────────────┴─────────────────┘
-│                                   │
-│                                   ▼
-│                      ┌─────────────────────┐
-│                      │   Spring Boot API   │
-│                      │   (via Swagger)     │
-│                      └─────────────────────┘
+```
+
+### ReAct Flow (Reason + Act)
+
+```
+User: "Mèo bị sổ mũi nên làm gì?"
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ THOUGHT: User hỏi về triệu chứng sổ mũi    │
+│ Cần gọi tool pet_care_qa để tìm thông tin │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ ACTION: Call pet_care_qa("mèo sổ mũi")     │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ OBSERVATION: RAG trả về 3 chunks...       │
+│ "Mèo sổ mũi có thể do cảm lạnh, dị ứng..." │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ THOUGHT: Có đủ thông tin để trả lời        │
+└─────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────┐
+│ ANSWER: "Mèo sổ mũi có thể do..."          │
+└─────────────────────────────────────────────┘
 ```
 
 ### Key Architectural Components
 
-1. **Dynamic Configuration Loader**
+1. **Single Agent + ReAct Pattern**
+   - LangGraph implement ReAct loop: Think → Act → Observe
+   - StateGraph với AgentState lưu messages, tool_calls, observations
+   - Agent tự động chọn tool phù hợp dựa trên context
+
+2. **FastMCP Tool Framework**
+   - Tools được define với @mcp.tool decorator
+   - Agent gọi trực tiếp hàm Python thông qua ReAct loop
+   - Admin bật/tắt từng tool qua Dashboard
+
+3. **Dynamic Configuration Loader**
    - Module thay thế `python-dotenv`
    - Load API Keys và settings từ PostgreSQL `system_settings` table
    - Inject vào Runtime Context của Agent khi khởi tạo
    - Không cần restart server khi thay đổi config
 
-2. **Agent Factory Pattern**
-   - Tạo Agent instances với prompts từ DB
-   - Load system settings (API keys, URLs) từ DB
-   - Database là **Single Source of Truth** cho prompts
-
-3. **System Prompt Management**
-   - Prompts được lưu trong PostgreSQL với versioning
-   - Admin chỉnh sửa qua Dashboard → Cập nhật DB → Agent tự động load khi runtime
-   - Template files chỉ dùng để seed ban đầu
-
 4. **Cloud AI Services (Cloud-Only Architecture)**
    - **LLM Provider:** OpenRouter API (gateway đến nhiều LLM providers)
    - **Models:** gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet
    - **Embeddings:** Cohere embed-multilingual-v3
-   - **Web Search:** Tavily API
    - Zero infrastructure - không cần GPU/RAM local
 
 ---
@@ -198,16 +216,15 @@ ALGORITHM=HS256
 
 ### Database Setup
 
-```bash
-# Run database migrations
-alembic upgrade head
+Hệ thống tự động tạo bảng (Database Tables) khi khởi chạy lần đầu thông qua hàm `init_db()`.
 
-# Seed initial data (agents, tools, settings)
+```bash
+# Seed initial data (agents, tools, settings) sau khi tables đã được tạo
 # Option 1: Via API
 curl -X POST http://localhost:8000/api/v1/settings/seed?force=true \
   -H "Authorization: Bearer <admin_token>"
 
-# Option 2: Via script (if mounted in container)
+# Option 2: Via script (nếu chạy trong container)
 docker-compose exec ai-service python scripts/seed_db.py
 ```
 
@@ -260,32 +277,19 @@ petties-agent-serivce/
 │   │   ├── agents/             # ⭐ LangGraph Agents
 │   │   │   ├── base.py         # Base Agent class
 │   │   │   ├── factory.py      # ⭐ Agent Factory (Dynamic Loading)
-│   │   │   ├── main_agent.py   # Supervisor/Orchestrator
-│   │   │   ├── booking_agent.py
-│   │   │   ├── medical_agent.py
-│   │   │   └── research_agent.py
+│   │   │   ├── single_agent.py # ⭐ ReAct Single Agent
+│   │   │   └── state.py        # Agent state management
 │   │   │
 │   │   ├── tools/              # Tool System (Code-based only)
 │   │   │   ├── mcp_server.py   # FastMCP server
 │   │   │   ├── scanner.py      # Tool scanner (TL-01)
 │   │   │   ├── executor.py     # Dynamic executor
 │   │   │   └── mcp_tools/
-│   │   │       ├── booking_tools.py
-│   │   │       ├── medical_tools.py
-│   │   │       └── research_tools.py
+│   │   │       └── medical_tools.py  # ⭐ 2 RAG tools only
 │   │   │
-│   │   ├── rag/                # RAG System
-│   │   │   ├── document_processor.py
-│   │   │   ├── qdrant_client.py
-│   │   │   └── rag_engine.py
-│   │   │
-│   │   └── prompts/            # Prompt Templates (seed only)
-│   │       ├── templates/
-│   │       │   ├── main_agent.txt
-│   │       │   ├── booking_agent.txt
-│   │       │   ├── medical_agent.txt
-│   │       │   └── research_agent.txt
-│   │       └── loader.py
+│   │   └── rag/                # ⭐ RAG System (Full LlamaIndex v2.0)
+│   │       ├── __init__.py     # Exports LlamaIndex engine
+│   │       └── rag_engine.py   # ⭐ Full LlamaIndex (replaces custom code)
 │   │
 │   ├── db/                     # Database Layer
 │   │   └── postgres/
@@ -293,7 +297,7 @@ petties-agent-serivce/
 │   │       └── session.py      # Async session
 │   │
 │   └── services/               # Services
-│       └── llm_client.py       # Ollama/OpenAI client wrapper
+│       └── llm_client.py       # OpenRouter/DeepSeek client wrapper
 │
 ├── scripts/
 │   └── seed_db.py              # ⭐ Database seeding (loads templates → DB)
@@ -471,19 +475,20 @@ Response:
 |-----------|------------|---------|
 | Runtime | Python 3.12 | Primary language |
 | Framework | FastAPI 0.115 | REST API + WebSocket |
-| Agent Orchestration | LangGraph 0.2.60 | ⭐ Supervisor-Worker pattern |
-| Tool Protocol | FastMCP 0.2.0 | MCP tool framework |
+| Agent Orchestration | LangGraph 0.2.60 | ⭐ Single Agent + ReAct pattern |
+| Tool Protocol | FastMCP 0.2.0 | @mcp.tool decorator |
 
 ### AI Layer (Cloud-Only)
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **LLM Provider** | **OpenRouter API** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
-| **Primary Models** | **gemini-2.0-flash, llama-3.3-70b** | ⭐ Free tier + Vietnamese support |
-| **Fallback** | **claude-3.5-sonnet** | Best quality khi cần |
+| **LLM Provider** | **OpenRouter API / DeepSeek** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
+| **Primary Models** | **gemini-2.0-flash, deepseek-chat** | ⭐ Free tier + Vietnamese support |
+| **Fallback** | **llama-3.3-70b** | Best quality khi cần |
 | **Embeddings** | **Cohere embed-multilingual-v3** | ⭐ Best for Vietnamese (Cloud API) |
-| **RAG Framework** | LlamaIndex 0.11.20 | Document processing |
-| **Web Search** | Tavily API | Web research |
+| **RAG Framework** | **LlamaIndex (Full)** | ⭐ Document processing, chunking, retrieval |
+| **Vector Store** | **llama-index-vector-stores-qdrant** | LlamaIndex ↔ Qdrant integration |
+| **Web Search** | DuckDuckGo Search | Web research (free, no API key) |
 
 > **✅ Cloud-Only Architecture:** Hệ thống sử dụng Cloud APIs - **KHÔNG cần GPU/RAM local**. Phù hợp Render/Railway free tier.
 
@@ -514,8 +519,8 @@ Response:
 |----|---------|--------|-------|
 | **AG-01** | Hierarchical Agent Management | ✅ Done | `/api/v1/agents` - CRUD |
 | **AG-02** | System Prompt Editor | ✅ Done | ⭐ DB-based, versioned, editable via Dashboard |
-| **AG-03** | Model Parameter Tuning | ✅ Done | `/api/v1/agents/{id}` - temp, model, max_tokens |
-| **AG-04** | LLM Intent Classification | 🔄 In Progress | LLM + Prompt based routing |
+| **AG-03** | Model Parameter Tuning | ✅ Done | `/api/v1/agents/{id}` - temp, model, max_tokens, top_p |
+| **AG-04** | LLM Intent Classification | ✅ Done | ReAct pattern with Tool descriptions |
 
 ### Tools & Integrations
 
@@ -528,16 +533,16 @@ Response:
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| **KB-01** | Cloud Vector Sync (RAG) | 🔄 In Progress | Qdrant Cloud integration |
-| **KB-02** | Knowledge Graph Integration | 🔴 TODO | Petagraph integration |
+| **KB-01** | Cloud Vector Sync (RAG) | ✅ Done | Qdrant Cloud integration (LlamaIndex) |
+| **KB-02** | Knowledge Graph Integration | 🔴 TODO | Petagraph integration (Post-MVP) |
 
 ### Playground & Monitoring
 
 | ID | Feature | Status | Notes |
 |----|---------|--------|-------|
-| **PG-01** | Real-time Chat Simulator | 🔄 In Progress | WebSocket endpoint exists |
-| **PG-02** | Thinking Process Visualization | 🔄 In Progress | Logging implemented |
-| **PG-03** | Traceability & Citation View | 🔴 TODO | URL citation for Research Agent |
+| **PG-01** | Real-time Chat Simulator | ✅ Done | WebSocket + REST test endpoints |
+| **PG-02** | Thinking Process Visualization | ✅ Done | ReAct trace logs implemented |
+| **PG-03** | Traceability & Citation View | 🔄 In Progress | Link citation for Research Agent |
 
 ---
 
@@ -628,18 +633,9 @@ PUT /api/v1/settings/OPENROUTER_API_KEY
 
 ## Development
 
-### Database Migrations
+### Database Management
 
-```bash
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
+Hệ thống sử dụng `sqlalchemy.run_sync(Base.metadata.create_all)` để tự động tạo bảng tại Startup. Nếu có thay đổi về Schema (thêm cột, đổi kiểu dữ liệu), bạn cần thực hiện ALTER TABLE thủ công hoặc xóa và tạo lại Database trong giai đoạn phát triển.
 
 ### Testing
 
@@ -744,4 +740,4 @@ services:
 
 ---
 
-**Last Updated:** 2025-12-18
+**Last Updated:** 2025-12-27 (Full LlamaIndex v2.0)

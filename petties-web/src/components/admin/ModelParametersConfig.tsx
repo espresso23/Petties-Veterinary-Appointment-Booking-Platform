@@ -42,31 +42,29 @@ export const ModelParametersConfig = ({
     }
   }
 
-  const hasChanges = 
-    localTemp !== temperature || 
-    localMaxTokens !== maxTokens || 
+  const hasChanges =
+    localTemp !== temperature ||
+    localMaxTokens !== maxTokens ||
     localTopP !== topP
 
   return (
-    <div className="bg-white rounded-xl border border-stone-200 shadow-soft">
-      <div className="px-6 py-4 border-b border-stone-200">
-        <div className="flex items-center gap-3">
-          <Cog6ToothIcon className="w-5 h-5 text-stone-600" />
-          <div>
-            <h3 className="text-lg font-semibold text-stone-900">Model Parameters</h3>
-            <p className="text-sm text-stone-500 mt-0.5">
-              Adjust inference parameters for optimal performance
-            </p>
-          </div>
+    <div className="bg-white border-4 border-stone-900">
+      <div className="px-6 py-4 border-b-4 border-stone-900 bg-stone-100 flex items-center gap-3">
+        <Cog6ToothIcon className="w-6 h-6 text-stone-900" />
+        <div>
+          <h3 className="text-lg font-black uppercase text-stone-900">Model Parameters</h3>
+          <p className="text-xs font-bold text-stone-600 uppercase mt-0.5">
+            Adjust inference parameters for optimal performance
+          </p>
         </div>
       </div>
 
       <div className="p-6 space-y-6">
         {/* Model Info */}
-        <div className="p-4 bg-stone-50 rounded-lg border border-stone-200">
+        <div className="p-4 bg-stone-50 border-2 border-stone-900">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-stone-700">Active Model</span>
-            <span className="text-sm font-mono text-stone-900 bg-white px-3 py-1 rounded border border-stone-300">
+            <span className="text-sm font-bold uppercase text-stone-700">Active Model</span>
+            <span className="text-sm font-mono font-black text-stone-900 bg-white px-3 py-1 border-2 border-stone-900">
               {model}
             </span>
           </div>
@@ -75,10 +73,10 @@ export const ModelParametersConfig = ({
         {/* Temperature */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-stone-900">
+            <label className="text-sm font-black uppercase text-stone-900">
               Temperature
             </label>
-            <span className="text-sm font-mono text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+            <span className="text-sm font-mono font-black text-amber-600 bg-amber-50 px-2 py-1 border-2 border-stone-900">
               {localTemp.toFixed(1)}
             </span>
           </div>
@@ -91,13 +89,13 @@ export const ModelParametersConfig = ({
             onChange={(e) => setLocalTemp(parseFloat(e.target.value))}
             disabled={readonly}
             aria-label="Temperature"
-            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-amber-600 disabled:opacity-50"
+            className="w-full h-2 bg-stone-200 appearance-none cursor-pointer accent-amber-600 disabled:opacity-50"
           />
-          <div className="flex items-center justify-between mt-1 text-xs text-stone-500">
+          <div className="flex items-center justify-between mt-1 text-xs text-stone-500 font-bold uppercase">
             <span>Deterministic (0.0)</span>
-            <span className="text-amber-600 font-medium">
+            <span className="text-amber-600 font-black">
               {localTemp < 0.3 ? 'Recommended for Main Agent' :
-               localTemp < 0.7 ? 'Balanced' : 'Creative'}
+                localTemp < 0.7 ? 'Balanced' : 'Creative'}
             </span>
             <span>Creative (1.0)</span>
           </div>
@@ -105,7 +103,7 @@ export const ModelParametersConfig = ({
 
         {/* Max Tokens */}
         <div>
-          <label className="block text-sm font-medium text-stone-900 mb-2">
+          <label className="block text-sm font-black uppercase text-stone-900 mb-2">
             Max Tokens
           </label>
           <input
@@ -117,9 +115,9 @@ export const ModelParametersConfig = ({
             onChange={(e) => setLocalMaxTokens(parseInt(e.target.value) || 0)}
             disabled={readonly}
             aria-label="Max Tokens"
-            className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none disabled:bg-stone-100 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 border-4 border-stone-900 bg-white text-stone-900 focus:outline-none focus:shadow-[4px_4px_0_#1c1917] disabled:bg-stone-100 disabled:cursor-not-allowed"
           />
-          <p className="text-xs text-stone-500 mt-1.5">
+          <p className="text-xs text-stone-500 font-bold uppercase mt-1.5">
             Maximum tokens in the response (100-4096)
           </p>
         </div>
@@ -127,10 +125,10 @@ export const ModelParametersConfig = ({
         {/* Top-P */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-stone-900">
+            <label className="text-sm font-black uppercase text-stone-900">
               Top-P (Nucleus Sampling)
             </label>
-            <span className="text-sm font-mono text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+            <span className="text-sm font-mono font-black text-amber-600 bg-amber-50 px-2 py-1 border-2 border-stone-900">
               {localTopP.toFixed(2)}
             </span>
           </div>
@@ -143,22 +141,22 @@ export const ModelParametersConfig = ({
             onChange={(e) => setLocalTopP(parseFloat(e.target.value))}
             disabled={readonly}
             aria-label="Top-P"
-            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-amber-600 disabled:opacity-50"
+            className="w-full h-2 bg-stone-200 appearance-none cursor-pointer accent-amber-600 disabled:opacity-50"
           />
-          <div className="flex items-center justify-between mt-1 text-xs text-stone-500">
+          <div className="flex items-center justify-between mt-1 text-xs text-stone-500 font-bold uppercase">
             <span>Focused (0.1)</span>
             <span>Diverse (1.0)</span>
           </div>
         </div>
 
         {hasChanges && !readonly && (
-          <div className="pt-4 border-t border-stone-200 flex items-center gap-3">
+          <div className="pt-4 border-t-4 border-stone-900 flex items-center gap-3">
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-stone-300 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="flex-1 px-6 py-3 text-sm font-black uppercase text-white bg-amber-600 border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] hover:shadow-[6px_6px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px] disabled:bg-stone-300 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
-              {isSaving ? 'Saving...' : 'Save Parameters'}
+              {isSaving ? 'Đang lưu...' : 'Lưu Parameters'}
             </button>
             <button
               onClick={() => {
@@ -167,7 +165,7 @@ export const ModelParametersConfig = ({
                 setLocalTopP(topP)
               }}
               disabled={isSaving}
-              className="px-4 py-2 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="px-6 py-3 text-sm font-black uppercase text-stone-900 bg-white border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] hover:shadow-[6px_6px_0_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
               Reset
             </button>

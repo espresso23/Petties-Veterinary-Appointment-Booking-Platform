@@ -44,7 +44,7 @@ flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://l
 
 # 3. Chạy trên Thiết bị thật qua LAN/Wifi (Cần tắt Firewall)
 # Thay 192.168.1.XXX bằng IP LAN của máy tính bạn
-flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.1.XXX:8080/api
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.18.39:8080/api
 
 # 1. Tìm IP LAN của máy Mac
 # macOS: Mở System Preferences > Network > WiFi > IP Address
@@ -66,7 +66,7 @@ flutter run --flavor staging --dart-define=FLAVOR=staging
 # Chạy với production backend
 flutter run --flavor prod --dart-define=FLAVOR=prod
 ```
-
+flutter run --dart-define=SENTRY_DSN=https://DAN_DSN_MOD_BAN_VUA_COPY_O_BUOC_1 --dart-define=ENVIRONMENT=development
 ### 3. Build APK
 
 ```bash

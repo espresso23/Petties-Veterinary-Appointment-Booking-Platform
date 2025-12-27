@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { toolApi } from '../../../services/agentService'
 import type { Tool } from '../../../services/agentService'
 import { ToolCard } from '../../../components/admin/ToolCard'
+import { useToast } from '../../../components/Toast'
+import { handleApiError } from '../../../utils/errorHandler'
 import { ArrowPathIcon, AdjustmentsHorizontalIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 /**
@@ -17,6 +19,7 @@ export const ToolsPage = () => {
   const [tools, setTools] = useState<Tool[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const toast = useToast()
 
   useEffect(() => {
     loadTools()
@@ -38,9 +41,9 @@ export const ToolsPage = () => {
     try {
       await toolApi.toggleTool(tool.id, enabled)
       await loadTools()
+      toast.showToast('success', `Tool "${tool.name}" đã được ${enabled ? 'bật' : 'tắt'}`)
     } catch (err) {
-      console.error('Failed to toggle tool', err)
-      alert('Failed to toggle tool')
+      handleApiError(err, toast, 'Không thể thay đổi trạng thái tool. Vui lòng thử lại.')
     }
   }
 
@@ -48,10 +51,10 @@ export const ToolsPage = () => {
     try {
       const result = await toolApi.scanTools()
       await loadTools()
+      toast.showToast('success', 'Quét tools thành công!')
       return result
     } catch (err) {
-      console.error('Failed to scan tools', err)
-      alert('Failed to scan tools')
+      handleApiError(err, toast, 'Không thể quét tools. Vui lòng thử lại.')
     }
   }
 

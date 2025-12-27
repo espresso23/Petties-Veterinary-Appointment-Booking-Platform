@@ -6,7 +6,6 @@ export const ROUTES = {
   admin: {
     dashboard: '/admin',
     profile: '/admin/profile',
-    agents: '/admin/agents',
     tools: '/admin/tools',
     knowledge: '/admin/knowledge',
     playground: '/admin/playground',
@@ -23,6 +22,7 @@ export const ROUTES = {
   clinicOwner: {
     dashboard: '/clinic-owner',
     profile: '/clinic-owner/profile',
+    clinics: '/clinic-owner/clinics',
   },
 
   // Clinic Manager routes

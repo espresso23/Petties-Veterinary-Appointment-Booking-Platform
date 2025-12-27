@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
-import '../../config/constants/app_constants.dart';
-import '../../config/env/environment.dart';  // ✅ Thêm import
+import '../../config/env/environment.dart'; // ✅ Thêm import
 
 /// Home screen
 class HomeScreen extends StatelessWidget {
@@ -68,7 +67,8 @@ class HomeScreen extends StatelessWidget {
               // Auth Status Card
               Consumer<AuthProvider>(
                 builder: (context, authProvider, _) {
-                  if (authProvider.isAuthenticated && authProvider.user != null) {
+                  if (authProvider.isAuthenticated &&
+                      authProvider.user != null) {
                     final user = authProvider.user!;
                     return Card(
                       color: Colors.blue.shade50,
@@ -80,11 +80,15 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.check_circle, color: Colors.green),
+                                const Icon(Icons.check_circle,
+                                    color: Colors.green),
                                 const SizedBox(width: 8),
                                 Text(
                                   '✅ Đã đăng nhập thành công!',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: Colors.green.shade700,
                                       ),
@@ -116,7 +120,8 @@ class HomeScreen extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: SelectableText(
-                                    authProvider.authResponse?.accessToken != null
+                                    authProvider.authResponse?.accessToken !=
+                                            null
                                         ? '${authProvider.authResponse!.accessToken.substring(0, 50)}...'
                                         : 'No token',
                                     style: const TextStyle(
@@ -127,20 +132,24 @@ class HomeScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4.0),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       SizedBox(
                                         width: 100,
                                         child: Text(
                                           'API Base URL:',
-                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold),
                                         ),
                                       ),
                                       Expanded(
                                         child: SelectableText(
-                                          Environment.baseUrl,  // ✅ Sửa: Dùng Environment thay AppConstants
+                                          Environment
+                                              .baseUrl, // ✅ Sửa: Dùng Environment thay AppConstants
                                           style: const TextStyle(
                                             fontFamily: 'monospace',
                                             fontSize: 12,
@@ -152,7 +161,8 @@ class HomeScreen extends StatelessWidget {
                                 ),
                                 _buildInfoRow(
                                   'Refresh Token',
-                                  authProvider.authResponse?.refreshToken != null
+                                  authProvider.authResponse?.refreshToken !=
+                                          null
                                       ? '${authProvider.authResponse!.refreshToken.substring(0, 30)}...'
                                       : 'No refresh token',
                                 ),
@@ -208,7 +218,8 @@ class HomeScreen extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               'Clinic ${index + 1}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const Text(
                               'Location',
@@ -288,4 +299,3 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-

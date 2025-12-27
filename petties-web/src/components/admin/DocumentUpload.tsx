@@ -54,16 +54,16 @@ export const DocumentUpload = ({ onUpload, accept = '.pdf,.docx,.txt,.md' }: Doc
 
   const isValidFile = (file: File): boolean => {
     const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown']
-    return validTypes.includes(file.type) || 
-           file.name.endsWith('.pdf') || 
-           file.name.endsWith('.docx') || 
-           file.name.endsWith('.txt') || 
-           file.name.endsWith('.md')
+    return validTypes.includes(file.type) ||
+      file.name.endsWith('.pdf') ||
+      file.name.endsWith('.docx') ||
+      file.name.endsWith('.txt') ||
+      file.name.endsWith('.md')
   }
 
   const handleUpload = async () => {
     if (!selectedFile) return
-    
+
     setUploading(true)
     try {
       await onUpload(selectedFile, notes || undefined)
@@ -95,8 +95,8 @@ export const DocumentUpload = ({ onUpload, accept = '.pdf,.docx,.txt,.md' }: Doc
         onDrop={handleDrop}
         className={`
           relative border-2 border-dashed rounded-xl p-8 text-center transition-colors
-          ${dragging 
-            ? 'border-amber-500 bg-amber-50' 
+          ${dragging
+            ? 'border-amber-500 bg-amber-50'
             : 'border-stone-300 bg-stone-50 hover:border-stone-400'
           }
           ${selectedFile ? 'bg-white border-stone-200' : ''}
@@ -160,7 +160,7 @@ export const DocumentUpload = ({ onUpload, accept = '.pdf,.docx,.txt,.md' }: Doc
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g., Phác đồ điều trị 2026"
-            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm"
+            className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm text-stone-900 bg-white"
           />
         </div>
       )}

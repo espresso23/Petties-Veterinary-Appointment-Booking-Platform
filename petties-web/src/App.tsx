@@ -21,22 +21,30 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
-import { AgentsPage } from './pages/admin/agents'
+
 import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
-import { SettingsPage } from './pages/admin/settings'
+import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
-import { ClinicOwnerDashboardPage } from './pages/clinic-owner/DashboardPage'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
+import {
+  ClinicsListPage,
+  ClinicCreatePage,
+  ClinicEditPage,
+  ClinicDetailPage,
+} from './pages/clinic-owner/clinics'
+import { StaffManagementPage } from './pages/clinic-owner/staff'
+import { VetsManagementPage } from './pages/clinic-manager/vets'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
 
 // Components
-import { ProtectedRoute } from './components/ProtectedRoute'
+import { ProtectedRoute } from './components/common/ProtectedRoute'
 
 // Styles
 import './styles/global.css'
@@ -80,46 +88,54 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<AdminDashboardPage />} />
-            <Route path="agents" element={<AgentsPage />} />
-            <Route path="tools" element={<ToolsPage />} />
+
             <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="tools" element={<ToolsPage />} />
             <Route path="playground" element={<PlaygroundPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="clinics" element={<ClinicApprovalPage />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
+          </Route >
 
           {/* Vet Routes */}
-          <Route path="/vet" element={
-            <ProtectedRoute allowedRoles={['VET']}>
+          < Route path="/vet" element={
+            < ProtectedRoute allowedRoles={['VET']} >
               <VetLayout />
-            </ProtectedRoute>
+            </ProtectedRoute >
           }>
             <Route index element={<VetDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
+          </Route >
 
           {/* Clinic Owner Routes */}
-          <Route path="/clinic-owner" element={
-            <ProtectedRoute allowedRoles={['CLINIC_OWNER']}>
+          < Route path="/clinic-owner" element={
+            < ProtectedRoute allowedRoles={['CLINIC_OWNER']} >
               <ClinicOwnerLayout />
-            </ProtectedRoute>
+            </ProtectedRoute >
           }>
             <Route index element={<ClinicOwnerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
-
+            <Route path="clinics" element={<ClinicsListPage />} />
+            <Route path="clinics/new" element={<ClinicCreatePage />} />
+            <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
+            <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
+            <Route path="services" element={<ServicesPage />} />
+            <Route path="staff" element={<StaffManagementPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="master-services" element={<MasterServicesPage />} />
+          </Route >
           {/* Clinic Manager Routes */}
-          <Route path="/clinic-manager" element={
-            <ProtectedRoute allowedRoles={['CLINIC_MANAGER']}>
+          < Route path="/clinic-manager" element={
+            < ProtectedRoute allowedRoles={['CLINIC_MANAGER']} >
               <ClinicManagerLayout />
-            </ProtectedRoute>
+            </ProtectedRoute >
           }>
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </ToastProvider>
+            <Route path="vets" element={<VetsManagementPage />} />
+          </Route >
+        </Routes >
+      </BrowserRouter >
+    </ToastProvider >
   )
 }
 

@@ -27,7 +27,7 @@ plugins {
 android {
     namespace = "world.petties.mobile"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"  // Fixed version for plugin compatibility
+    ndkVersion = "28.2.13676358"  // Fixed version for plugin compatibility
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

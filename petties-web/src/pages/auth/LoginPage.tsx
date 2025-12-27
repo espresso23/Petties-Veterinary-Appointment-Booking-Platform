@@ -4,6 +4,7 @@ import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from '@reac
 import { login, googleSignIn } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
+import { parseApiError } from '../../utils/errorHandler'
 import { HomeIcon, CpuChipIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -32,14 +33,14 @@ export function LoginPage() {
   const { showToast } = useToast()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
-  
+
   // Track if URL error has been handled to prevent infinite loop
   const hasHandledUrlError = useRef(false)
 
   // Check for URL error parameters on mount (run only once)
   useEffect(() => {
     if (hasHandledUrlError.current) return
-    
+
     const urlError = searchParams.get('error')
     if (urlError === 'pet_owner_mobile_only') {
       hasHandledUrlError.current = true
@@ -74,15 +75,11 @@ export function LoginPage() {
         return
       }
 
-      showToast('success', `Đăng nhập thành công! Chào mừng ${response.username}`)
+      showToast('success', `Đăng nhập thành công! Chào mừng ${response.fullName}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-        err.message ||
-        'Đăng nhập thất bại. Vui lòng thử lại.',
-      )
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }
@@ -109,11 +106,11 @@ export function LoginPage() {
         return
       }
 
-      showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.username}`)
+      showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.fullName}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.')
+    } catch (err: unknown) {
+      setError(parseApiError(err))
     } finally {
       setIsLoading(false)
     }

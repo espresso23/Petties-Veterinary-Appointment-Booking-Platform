@@ -1,123 +1,161 @@
-# **TECHNICAL SCOPE: PETTIES \- AGENT MANAGEMENT**
+# **TECHNICAL SCOPE: PETTIES - AGENT MANAGEMENT**
 
-## **1\. Định hướng cốt lõi (Core Philosophy)**
+## **1. Định hướng cốt lõi (Core Philosophy)**
 
 Thay vì xây dựng một công cụ tạo Agent (No-code builder), hệ thống sẽ tập trung vào việc **Quản trị, Tinh chỉnh và Giám sát (Management, Tuning & Monitoring)**.
 
 * **Backend (Code-first):** Cấu trúc luồng đi của Agent (Workflow/Graph) được lập trình viên code sẵn dưới Backend (sử dụng LangGraph/Python).  
 * **Frontend (Config-first):** Admin Dashboard chỉ dùng để cấu hình tham số, chọn công cụ và kiểm thử.
 
-## **2\. Kiến trúc Agent Phân tầng (Hierarchical Agent Architecture) \- QUAN TRỌNG**
+## **2. Kiến trúc Agent (Single Agent + ReAct + LangGraph) - QUAN TRỌNG**
 
-Hệ thống bắt buộc tuân theo mô hình **Supervisor-Worker (Chỉ huy \- Nhân viên)** kết hợp với **Delegation (Ủy quyền)** để xử lý các tác vụ phức tạp.
+> **MVP Architecture:** Single Agent với ReAct pattern, implemented bằng LangGraph.
+> 
+> **Lý do:** Đơn giản hóa cho MVP 1 tháng, dễ debug, dễ maintain, đủ capability cho use cases hiện tại.
 
-### **A. Main Agent (The Supervisor / Orchestrator)**
+### **A. Single Agent Architecture (ReAct Pattern)**
 
-* **Vai trò:**  
-  * **Single Point of Contact (Điểm tiếp nhận duy nhất):** Mọi tương tác của người dùng đều bắt đầu và kết thúc tại đây.  
-  * **State Manager (Quản lý trạng thái):** Nắm giữ toàn bộ lịch sử cuộc hội thoại (Context) để đảm bảo các Sub-Agent không bị "mất trí nhớ" giữa chừng.  
-  * **Quality Controller (Kiểm soát chất lượng):** Đánh giá câu trả lời của Sub-Agent trước khi gửi cho user (đảm bảo đúng tone giọng, đủ thông tin).  
-* **Nhiệm vụ chi tiết:**  
-  1. **Intent Classification (Phân loại ý định):**  
-     * **Cơ chế Hybrid:** Kết hợp Semantic Router (Ví dụ mẫu từ Qdrant) và LLM Structured Output.  
-     * **Mục tiêu:** Phân định rõ ràng nhu cầu user (Tư vấn bệnh? Đặt lịch? Mua sắm? Hay chỉ tán gẫu?).  
-  2. **Context-Aware Routing (Điều phối theo ngữ cảnh):**  
-     * Chuyển yêu cầu đến đúng Sub-Agent.  
-     * *Quan trọng:* Kèm theo tóm tắt ngữ cảnh cũ. Ví dụ: Nếu trước đó user nói "Con chó nhà tôi 5 tuổi", khi route sang Medical Agent, Main Agent phải gửi kèm thông tin "Subject: Dog, Age: 5".  
-  3. **Synthesis & Smoothing (Tổng hợp & Làm mượt):**  
-     * Nhận kết quả thô (Raw Data/JSON) từ Sub-Agent.  
-     * Viết lại (Rewrite) thành câu trả lời tự nhiên, đồng cảm, đúng văn phong thương hiệu (Brand Voice).  
-* **Quyền hạn:** Điều phối toàn quyền. Có thể từ chối câu trả lời của Sub-Agent và yêu cầu làm lại nếu thấy chưa đạt (Reflection).
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PETTIES AI AGENT (ReAct + LangGraph)             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🧠 LLM Core (OpenRouter / Cohere)                                  │
+│  ├── ReAct Pattern: Thought → Action → Observation → Loop          │
+│  ├── Chain-of-Thought Reasoning                                     │
+│  └── System Prompt (Admin Configurable)                             │
+│                                                                     │
+│  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
+│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
+│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
+│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
+│  ├── @mcp.tool: check_slots       → Check available slots          │
+│  ├── @mcp.tool: create_booking    → Create booking via chat        │
+│  └── (Extensible: Add more tools via @mcp.tool)                     │
+│                                                                     │
+│  📚 RAG Engine (LlamaIndex + Qdrant)                                │
+│  ├── LlamaIndex: Document processing, chunking, retrieval          │
+│  ├── Qdrant Cloud: Vector storage với Binary Quantization          │
+│  └── Cohere Embeddings (embed-multilingual-v3)                      │
+│                                                                     │
+│  ⚙️ Admin Config (Hot-reload)                                       │
+│  ├── Enable/Disable Agent                                           │
+│  ├── System Prompt (editable, versioned)                            │
+│  ├── Parameters: Temperature, Max Tokens, Top-P                     │
+│  ├── Tool Management: Enable/Disable individual tools              │
+│  └── Knowledge Base: Upload/Remove documents                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
-### **B. Sub-Agents (The Specialized Workers)**
+### **B. ReAct Pattern với LangGraph**
 
-Các Agent chuyên biệt, hoạt động độc lập dưới sự chỉ đạo của Main Agent:
+LangGraph được sử dụng để implement ReAct loop:
 
-1. **Booking Agent:** Chuyên xử lý đặt lịch, kiểm tra slot trống, hủy lịch. (Có quyền gọi Tool: check\_slot, create\_booking).  
-2. **Medical/Triage Agent (Semi-Autonomous):**  
-   * **Vai trò:** Chuyên gia chẩn đoán và tư vấn y tế.  
-   * **Luồng xử lý nâng cao (Advanced Flow):**  
-     * Bước 1: Tra cứu kiến thức nội bộ (Internal RAG).  
-     * Bước 2: **Confidence Check (Kiểm tra độ tin cậy):**  
-       * Nếu độ tự tin \> 80%: Trả lời luôn.  
-       * Nếu độ tự tin \< 80% (Bệnh lạ, thông tin thiếu): **Tự động gọi Research Agent** (Tool call) để tìm kiếm thêm thông tin y khoa uy tín trên mạng.  
-     * Bước 3: **Solution Expansion (Mở rộng giải pháp):** Sau khi chẩn đoán xong, có thể gọi Research Agent để tìm kiếm các mẹo chăm sóc hoặc video hướng dẫn cụ thể.  
-3. **Research Agent (Web & Content):**  
-   * **Vai trò:** Chuyên gia tìm kiếm thông tin Internet (Web Researcher).  
-   * **Phục vụ:**  
-     * Phục vụ Main Agent (khi user hỏi mua sắm, tin tức chung).  
-     * Phục vụ Medical Agent (khi cần tra cứu bệnh lạ, tìm video hướng dẫn).  
-   * **Nguyên tắc:** Bắt buộc trích dẫn nguồn (URL) cho mọi thông tin tìm được.
+```python
+# LangGraph State Graph for ReAct Agent
+from langgraph.graph import StateGraph, END
 
-## **3\. Các module chức năng chi tiết cho Admin Dashboard**
+class AgentState(TypedDict):
+    messages: list
+    tool_calls: list
+    observations: list
 
-### **A. Agent Configuration (Quản lý Cấu hình Agent)**
+graph = StateGraph(AgentState)
 
-Admin sẽ thấy danh sách phân cấp: Main Agent ở trên cùng, và các Sub-Agents bên dưới.
+# Nodes
+graph.add_node("think", think_node)      # LLM reasoning
+graph.add_node("act", act_node)          # Execute tool
+graph.add_node("observe", observe_node)  # Process result
 
-1. **Supervisor Routing Config (Cấu hình Điều phối & Câu mẫu):**  
-   * **System Prompt:** Admin điều chỉnh lời dẫn để dạy Main Agent cách tư duy.  
-   * **Dynamic Few-Shot Routing (Cấu hình Routing dựa trên Ví dụ \- RAG Approach):**  
-     * **Triết lý:** Không sử dụng training model. Sử dụng kỹ thuật **In-Context Learning** kết hợp RAG. Hệ thống sẽ tìm các tình huống tương tự trong quá khứ để "mớm" (prompt) cho Supervisor ngay tại thời điểm xử lý.  
-     * **Cơ chế hoạt động:**  
-       * Admin duy trì một danh sách các **"Cặp mẫu" (Routing Pairs):** User Query \-\> Target Agent.  
-       * Ví dụ:  
-         * "Con này bị sao vậy?" \-\> Medical Agent  
-         * "Có bán hạt Royal Canin không?" \-\> Research Agent  
-       * **Hỗ trợ Đa ngôn ngữ (Multilingual Support \- MỚI):**  
-         * Hệ thống sử dụng Cross-lingual Embeddings. Nếu User hỏi tiếng Anh "My cat is vomiting", hệ thống vẫn tự động khớp với ví dụ tiếng Việt "Mèo bị nôn" và điều hướng đúng.  
-         * Tuy nhiên, Admin **có thể (không bắt buộc)** nhập thêm ví dụ tiếng Hàn/Nhật nếu muốn tăng độ chính xác đặc thù cho các thị trường này.  
-     * **Lợi ích:**  
-       * **Zero Training:** Cập nhật có hiệu lực ngay lập tức.  
-       * **Global Scale:** Chỉ cần bộ ví dụ cốt lõi (Core Examples), hệ thống tự hiểu đa ngôn ngữ.  
-2. **Worker Instruction Config (Cấu hình Chuyên môn):**  
-   * Dành cho Sub-Agents: Admin chỉnh sửa System Prompt chuyên sâu cho từng nghiệp vụ.  
-   * *Ví dụ (Medical Agent):* "Bạn là bác sĩ thú y ảo. Hãy hỏi kỹ về cân nặng, tuổi trước khi đưa ra lời khuyên. Nếu không tìm thấy bệnh trong cơ sở dữ liệu, hãy sử dụng công cụ call\_research\_agent để tìm kiếm trên web."  
-3. **Model Hyperparameters:**  
-   * **Temperature Slider:** Main Agent nên để thấp (0.0 \- 0.2) để điều phối chính xác. Medical Agent nên để trung bình (0.5) để tư vấn tự nhiên.
+# Edges (ReAct Loop)
+graph.add_edge("think", "act")
+graph.add_conditional_edges("act", should_continue, {
+    "continue": "observe",
+    "end": END
+})
+graph.add_edge("observe", "think")
+```
 
-### **B. System & Security Configuration (MỚI \- Cấu hình Hệ thống & Bảo mật)**
+**ReAct Flow:**
+1. **Thought**: Agent suy luận về câu hỏi/yêu cầu của user
+2. **Action**: Gọi tool phù hợp (@mcp.tool)
+3. **Observation**: Nhận và xử lý kết quả từ tool
+4. **Loop**: Lặp lại nếu cần thêm thông tin
+5. **Answer**: Tổng hợp và trả lời user
+
+### **C. Khác biệt với Multi-Agent (Tham khảo)**
+
+| Aspect | Multi-Agent (Cũ) | Single Agent + ReAct (Mới) |
+|--------|-----------------|---------------------------|
+| **Complexity** | Cao (supervisor, handoffs) | Thấp |
+| **Development** | 3-4 tuần | 1-2 tuần |
+| **Debugging** | Khó (trace nhiều agents) | Dễ (1 agent) |
+| **LangGraph Usage** | Supervisor pattern | ReAct pattern |
+| **Capability** | Specialized agents | 1 agent với nhiều tools |
+| **Extensibility** | Thêm agent mới | Thêm @mcp.tool mới |
+
+## **3. Các module chức năng chi tiết cho Admin Dashboard**
+
+### **A. Agent Configuration (Single Agent)**
+
+Admin config một Single Agent với các tham số sau:
+
+1. **Agent Status:**
+   * Bật/tắt Agent (Enable/Disable)
+   * Khi tắt, user sẽ thấy message "Trợ lý AI đang bảo trì"
+
+2. **System Prompt:**
+   * Admin điều chỉnh prompt để hướng dẫn Agent cách xử lý
+   * Version control: Lưu lịch sử các phiên bản prompt
+   * Ví dụ: "Bạn là trợ lý Petties, chuyên về chăm sóc thú cưng..."
+
+3. **Model Hyperparameters:**
+   * **Temperature Slider:** 0.0 - 1.0 (mặc định 0.7)
+   * **Max Tokens:** Giới hạn độ dài response
+   * **Top-P:** Nucleus sampling parameter
+   * **Model Selection:** Chọn LLM model từ OpenRouter
+
+### **B. System & Security Configuration**
 
 Module này thay thế việc quản lý cấu hình bằng file .env truyền thống, cho phép Admin thay đổi key ngay trên giao diện mà không cần restart server thủ công.
 
-1.  **API Key Management (Quản lý Key):**
-    *   Giao diện nhập liệu an toàn cho các dịch vụ bên thứ 3\.
-    *   Các key bao gồm: QDRANT\_API\_KEY, QDRANT\_URL, TAVILY\_API\_KEY (hoặc Search API khác), v.v.
-    *   **Cơ chế:** Key được mã hóa và lưu trong Database (PostgreSQL). Khi Backend khởi động hoặc Runtime cần dùng, nó sẽ fetch trực tiếp từ DB thay vì đọc biến môi trường OS.
-2.  **LLM API Configuration (Cloud-Only):**
-    *   **Primary Provider:** OpenRouter API (https://openrouter.ai) - Gateway đến nhiều LLM providers.
-    *   **Model Selection:** Admin chọn model từ danh sách hỗ trợ:
-        *   `google/gemini-2.0-flash-exp:free` (Free, 1M context)
-        *   `meta-llama/llama-3.3-70b-instruct` (Cheap, Vietnamese good)
-        *   `anthropic/claude-3.5-sonnet` (Best quality, higher cost)
-    *   **Configuration:** API key được lưu encrypted trong PostgreSQL, admin config qua Dashboard.
-    *   **Fallback:** Nếu primary model fail → tự động switch sang model backup.
+1. **API Key Management (Quản lý Key):**
+   * Giao diện nhập liệu an toàn cho các dịch vụ bên thứ 3.
+   * Các key bao gồm: QDRANT_API_KEY, QDRANT_URL, COHERE_API_KEY, v.v.
+   * **Cơ chế:** Key được mã hóa và lưu trong Database (PostgreSQL). Khi Backend khởi động hoặc Runtime cần dùng, nó sẽ fetch trực tiếp từ DB thay vì đọc biến môi trường OS.
 
-### **C. Tool Management (Quản lý Công cụ - Code-based Only)**
+2. **LLM API Configuration (Cloud-Only):**
+   * **Primary Provider:** OpenRouter API (https://openrouter.ai) - Gateway đến nhiều LLM providers.
+   * **Model Selection:** Admin chọn model từ danh sách hỗ trợ:
+     * `google/gemini-2.0-flash-exp:free` (Free, 1M context)
+     * `meta-llama/llama-3.3-70b-instruct` (Cheap, Vietnamese good)
+     * `anthropic/claude-3.5-sonnet` (Best quality, higher cost)
+   * **Configuration:** API key được lưu encrypted trong PostgreSQL, admin config qua Dashboard.
+   * **Fallback:** Nếu primary model fail → tự động switch sang model backup.
 
-Module này đảm bảo tính nhất quán giữa Code và Cấu hình cho các Tools được code thủ công.
+### **C. Tool Management (@mcp.tool)**
 
-> **Triết lý Tool Design:** Tất cả Tools được code thủ công bằng Python với decorator `@tool` hoặc `@mcp.tool`. KHÔNG sử dụng Swagger/OpenAPI auto-import vì:
+Module này đảm bảo tính nhất quán giữa Code và Cấu hình cho các Tools.
+
+> **Triết lý Tool Design:** Tất cả Tools được code thủ công bằng Python với decorator `@mcp.tool`. KHÔNG sử dụng Swagger/OpenAPI auto-import vì:
 > - API endpoints được thiết kế cho Frontend/Mobile, KHÔNG phải cho LLM consumption
 > - Tools cần có mô tả ngữ nghĩa rõ ràng (semantic descriptions) để LLM hiểu khi nào nên dùng
-> - Parameters cần được thiết kế natural language friendly (VD: `date="hôm nay"` thay vì `date="2024-01-15"`)
+> - Parameters cần được thiết kế natural language friendly
 
-1. **Code-based Tools (Python Functions):**
-   * Là các hàm Python thuần túy được viết thủ công cho LLM consumption.
-   * Được quét tự động từ mã nguồn Python (Tool Scanner).
-   * Mỗi tool có mô tả semantic rõ ràng để LLM biết khi nào nên gọi.
-2. **Schema Definition (Định nghĩa Cấu trúc Dữ liệu):** Mỗi tool bắt buộc phải hiển thị rõ 2 loại schema JSON để Agent hiểu:  
-   * **Request Schema (Input):**  
-     * Định nghĩa: Agent cần gửi tham số gì? Kiểu dữ liệu là gì? (String, Int, Enum).  
-     * Mục đích: Giúp hệ thống validate dữ liệu Agent sinh ra trước khi thực thi thực tế.  
-     * *Ví dụ:* {"pet\_type": "string", "symptoms": \["string"\]}  
-   * **Response Schema (Output):**  
-     * Định nghĩa: Tool sẽ trả về dữ liệu dạng gì?  
-     * Mục đích: Giúp Agent biết trường nào chứa thông tin quan trọng để trích xuất trả lời user.  
-     * *Ví dụ:* {"status": "success", "clinics": \[{ "name": "ABC", "distance": "2km" }\]}  
-3. **Governance Dashboard (Giao diện Quản trị):**  
-   * **Activation Control:** Admin có thể bật/tắt (Enable/Disable) một tool cụ thể cho từng Agent.  
-   * *Lưu ý:* Thường chỉ gán Tool cho Sub-Agent, Main Agent ít khi dùng Tool trực tiếp trừ khi là Tool tra cứu thông tin chung.
+1. **Available Tools (Single Agent):**
+   * `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
+   * `symptom_search` - Tìm bệnh dựa trên triệu chứng
+   * `search_clinics` - Tìm phòng khám gần đây
+   * `check_slots` - Kiểm tra slot trống
+   * `create_booking` - Tạo lịch hẹn qua chat
+
+2. **Schema Definition:** Mỗi tool hiển thị rõ Request/Response schema để Admin hiểu.
+
+3. **Governance Dashboard:**
+   * **Activation Control:** Admin có thể bật/tắt từng tool riêng lẻ.
+   * Agent sẽ chỉ gọi được các tools đang được Enable.
+
 
 ### **D. Knowledge Base Management (RAG)**
 
@@ -127,36 +165,37 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 2. **Indexing Status:** Theo dõi trạng thái phân mảnh (chunking) và vector hóa vào **Qdrant Cloud**.  
 3. **Testing Retrieval:** Admin nhập thử câu hỏi để xem hệ thống RAG trích xuất đoạn văn bản nào từ tài liệu (để đảm bảo Agent lấy đúng kiến thức).
 
-### **E. Agent Playground & Debugging (Quan trọng nhất)**
+### **E. Agent Testing & Debugging**
 
 Đây là nơi Admin "duyệt" Agent trước khi cho end-user dùng.
 
 1. **Interactive Chat Simulator:** Khung chat giả lập người dùng thật.  
-2. **Hierarchical Visualization (Glass Box):**  
-   * Hiển thị rõ Luồng chuyển giao (Handoff) và **Luồng gọi nhau giữa các Sub-Agents**.  
-   * *Log Ví dụ:* User \-\> Main Agent \-\> Medical Agent (Internal RAG: Low Conf) \-\> **Calling Research Agent** \-\> Medical Agent \-\> Main Agent.  
-3. **Response Feedback:** Admin đánh giá câu trả lời (Good/Bad).
+2. **ReAct Flow Visualization:**  
+   * Hiển thị rõ luồng ReAct: **Thought → Action → Observation → Loop**
+   * *Log Ví dụ:* User → Agent (Thought: cần tìm bệnh) → Tool: symptom_search → Observation: kết quả → Answer
+3. **Tool Call Inspector:** Xem chi tiết parameters và response của mỗi tool call.
+4. **Response Feedback:** Admin đánh giá câu trả lời (Good/Bad).
 
-## **4\. Kiến trúc hệ thống (Updated Architecture)**
+## **4. Kiến trúc hệ thống (Single Agent Architecture)**
 
-### **Backend (Python/FastAPI \+ LangGraph)**
+### **Backend (Python/FastAPI + LangGraph)**
 
-* **LangGraph:** Sử dụng pattern Supervisor của LangGraph. State của cuộc hội thoại sẽ được truyền giữa các Node (Agents). Main Agent là Node điều hướng.  
-* **Nested Graph Execution:** Hỗ trợ Medical Agent gọi Research Agent như một Node con hoặc Tool để thực hiện tác vụ phụ (Sub-tasking).  
-* **Dynamic Configuration Loader:** Module thay thế python-dotenv. Khi khởi tạo, module này truy vấn bảng system\_configs trong Postgres để lấy API Keys và settings, sau đó inject vào Runtime Context của Agent.  
-* **Dynamic Tool Loading:** Hệ thống có service "Tool Scanner" để quét và update Code-based Tools từ mã nguồn Python.  
-* **MCP Integration:** Các module xử lý logic nghiệp vụ tuân thủ chuẩn MCP.
+* **LangGraph:** Sử dụng **ReAct pattern** với StateGraph. Single Agent với loop: Think → Act → Observe.
+* **State Management:** AgentState lưu messages, tool_calls, observations.
+* **Dynamic Configuration Loader:** Module thay thế python-dotenv. Khi khởi tạo, module này truy vấn bảng system_configs trong Postgres để lấy API Keys và settings.
+* **MCP Integration:** Tools được implement với @mcp.tool decorator.
 
-### **Frontend (React \+ Ant Design/MUI)**
+### **Frontend (React + Tailwind CSS)**
 
-* **Agent Manager UI:** Cây thư mục hiển thị Main Agent và các nhánh Sub-Agent.  
-* **Playground:** Chat Interface với Debug Panel hiển thị routing path.  
-* **Settings UI:** Form quản lý API Key và System Settings được bảo vệ (yêu cầu quyền Admin cao nhất).
+* **Agent Config UI:** Form đơn giản để config System Prompt, Model, Parameters.
+* **Playground:** Chat Interface với ReAct Debug Panel.
+* **Settings UI:** Form quản lý API Key và System Settings.
 
 ### **Database & Storage**
 
-* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools, Prompt Versions, Logs chat. **Bảng routing\_examples lưu trữ các cặp (query, target\_agent).**  
-* **Qdrant Cloud (Managed Service):** Lưu trữ vector của các routing\_examples để thực hiện Few-Shot Retrieval.
+* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools, Prompt Versions, Logs chat.
+* **Qdrant Cloud (Managed Service):** Lưu trữ vector cho RAG (documents & knowledge base).
+
 
 ## **5\. User Flow cho Admin (Người quản trị)**
 
@@ -182,12 +221,12 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
    * **Context:** Có phác đồ điều trị mới cần cập nhật cho Agent.  
    * **Process:**  
      1. Admin upload file phoc\_do\_2026.pdf lên Dashboard.  
-     2. Hệ thống kích hoạt LlamaIndex Pipeline: Doc Parsing \-\> Text Chunking \-\> Embedding (**Ollama/Nomic**) \-\> Upsert vào **Qdrant Cloud**.  
+     2. Hệ thống kích hoạt LlamaIndex Pipeline: Doc Parsing → Text Chunking → Embedding (**Cohere embed-multilingual-v3**) → Upsert vào **Qdrant Cloud**.  
      3. Admin vào mục "Retrieval Test", nhập từ khóa. Hệ thống query Qdrant và hiển thị các chunks.
 
 ## **6\. Các tính năng nghiệp vụ cốt lõi (Petties Core \- Updated)**
 
-Các tính năng này được thực hiện bởi các Sub-Agent chuyên trách:
+Các tính năng này được thực hiện thông qua các Tools của Single Agent:
 
 1. **Booking Agent:** Đặt lịch khám tại nhà, tại phòng khám.  
 2. **Medical Agent (Trọng tâm Y tế):**  
@@ -232,14 +271,57 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 
 * **Language:** Python 3.12 (Phiên bản ổn định, tối ưu cho AI/Data).  
 * **Framework:** FastAPI (High-performance API framework).  
-* **Agent Orchestration:** LangGraph (Xây dựng luồng xử lý Agent có trạng thái \- Stateful Multi-Agent Orchestrator).  
-* **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline và Web Scraping/Indexing dữ liệu phi cấu trúc).  
+* **Agent Orchestration:** LangGraph (Single Agent với ReAct Pattern)
+  * **Pattern:** ReAct (Reason + Act) - Thought → Action → Observation → Loop
+  * **State Management:** StateGraph với AgentState lưu messages, tool_calls, observations
+  * **Không Multi-Agent:** MVP sử dụng Single Agent với nhiều tools thay vì Supervisor-Worker
+* **Data Framework:** LlamaIndex (Framework chính cho RAG Pipeline).  
 * **Tool Framework:** FastMCP (Embedded Mode)
   * **Cơ chế:** FastMCP được nhúng trực tiếp vào AI Service (FastAPI) như một thư viện.
-  * **Architecture:** In-process Execution. Agent gọi trực tiếp hàm Python thông qua `call_mcp_tool`.
-  * **Deployment:** KHÔNG cần deploy MCP Server riêng biệt. `AI Agent Service` bao gồm cả Agent Logic và Tool Runtime.
-  * **Code-based Tools:** Viết trực tiếp bằng Python (@mcp.tool) trong folder `mcp_tools/`.
-  * **Lưu ý:** Tất cả Tools được code thủ công để đảm bảo semantic descriptions tốt nhất cho LLM. KHÔNG sử dụng Swagger auto-import.
+  * **Architecture:** In-process Execution. Agent gọi trực tiếp hàm Python thông qua ReAct loop.
+  * **Deployment:** KHÔNG cần deploy MCP Server riêng biệt.
+  * **Code-based Tools với @mcp.tool():**
+    ```python
+    from fastmcp import FastMCP
+    
+    mcp = FastMCP("PettiesToolServer")
+    
+    @mcp.tool()
+    def pet_care_qa(question: str) -> str:
+        """Hỏi đáp về chăm sóc thú cưng (RAG-based)."""
+        # Implementation: Gọi RAG engine để tìm câu trả lời
+        return "..."
+    
+    @mcp.tool()
+    def symptom_search(symptoms: str) -> str:
+        """Tìm bệnh dựa trên triệu chứng."""
+        # Implementation: Tra cứu DB bệnh theo triệu chứng
+        return "..."
+    
+    @mcp.tool()
+    def search_clinics(location: str) -> str:
+        """Tìm phòng khám gần đây."""
+        # Implementation: Gọi Spring Boot API
+        return "..."
+    
+    @mcp.tool()
+    def check_slots(clinic_id: str, date: str) -> str:
+        """Kiểm tra slot trống."""
+        # Implementation: Gọi Spring Boot API
+        return "..."
+    
+    @mcp.tool()
+    def create_booking(clinic_id: str, slot_id: str, pet_id: str) -> str:
+        """Tạo lịch hẹn thú y cho thú cưng."""
+        # Implementation: Gọi Spring Boot API để tạo booking
+        return f"Created booking at clinic {clinic_id}, slot {slot_id}, for pet {pet_id}"
+    ```
+  * **Lưu ý:** 
+    - Docstring sẽ được FastMCP dùng để sinh schema cho tool
+    - Type hints giúp LLM biết kiểu dữ liệu cần truyền
+    - Tất cả Tools được code thủ công với semantic descriptions cho LLM
+
+
 
 ### **B. Frontend (Admin Dashboard)**
 
@@ -311,7 +393,7 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
   * **AI Service:** `https://ai.petties.world` (Port 8000)
   * **Frontend:** Vercel at `https://petties.world`
 
-## **9\. Detailed Feature List (Danh sách Tính năng Chi tiết)**
+## **9. Detailed Feature List (Danh sách Tính năng Chi tiết)**
 
 Các tính năng được phân nhóm theo chức năng và mức độ ưu tiên (Critical là bắt buộc phải có cho MVP).
 
@@ -319,111 +401,118 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **SYS-01** | **Dynamic Secrets Management** | Giao diện Frontend cho phép nhập/sửa/xóa API Keys (Qdrant, Search...). Backend mã hóa và lưu vào DB. Agent runtime tự động load lại key khi có thay đổi mà không cần deploy lại. | **Critical** |
-| **SYS-02** | **Ollama Integration Manager** | Module kết nối tới Ollama Instance. Cho phép chọn Model active (ví dụ chuyển từ kimi-k2 sang gemma) ngay trên UI. | **High** |
+| **SYS-01** | **Dynamic Secrets Management** | Giao diện Frontend cho phép nhập/sửa/xóa API Keys (Qdrant, Cohere, OpenRouter...). Backend mã hóa và lưu vào DB. Agent runtime tự động load lại key khi có thay đổi mà không cần deploy lại. | **✅ Done** |
+| **SYS-02** | **LLM Model Selection** | Chọn LLM model từ OpenRouter (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet). Config fallback model. | **✅ Done** |
 
-### **Agent Orchestration (Quản lý Agent)**
-
-| ID | Feature Name | Tech Stack Context & Description | Priority |
-| :---- | :---- | :---- | :---- |
-| **AG-01** | **Hierarchical Agent Management** | Quản lý danh sách các Nodes trong LangGraph. Hiển thị cấu trúc cây Supervisor \-\> Workers. Cho phép kích hoạt/vô hiệu hóa từng Sub-Agent Node. | **Critical** |
-| **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Message cho từng Node. Dữ liệu được versioning và lưu trong PostgreSQL. Hỗ trợ biến động (Dynamic Variables). | **Critical** |
-| **AG-03** | **Model Parameter Tuning** | Cấu hình tham số inference cho Kimi k2/Gemma 3 (Temperature, Max Tokens, Top-P) thông qua API Config. | **High** |
-| **AG-04** | **LLM Intent Classification** | Main Agent sử dụng LLM + Well-crafted Prompt để phân loại intent và routing. Không cần RAG routing hay Few-Shot examples. | **High** |
-
-### **Tools & Integrations (Công cụ & Tích hợp)**
+### **Agent Configuration (Single Agent + ReAct)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **TL-01** | **Automated Tool Scanner** | Backend Service quét các hàm Python nội bộ (@mcp.tool) để tạo tool. Tất cả tools được code thủ công với semantic descriptions. | **Critical** |
-| **TL-02** | **Tool Assignment & Routing** | Map các MCP Tools cụ thể vào từng Sub-Agent Node trong LangGraph. Đảm bảo Agent chỉ nhìn thấy tool được cho phép. | **Critical** |
+| **AG-01** | **Agent Enable/Disable** | Bật/tắt Agent. Khi tắt, user thấy message "Trợ lý AI đang bảo trì". | **✅ Done** |
+| **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Prompt cho Single Agent. Dữ liệu được versioning và lưu trong PostgreSQL. | **✅ Done** |
+| **AG-03** | **Model Parameter Tuning** | Cấu hình tham số: Temperature, Max Tokens, Top-P, Model selection. | **✅ Done** |
+
+### **Tools Management (@mcp.tool)**
+
+| ID | Feature Name | Tech Stack Context & Description | Priority |
+| :---- | :---- | :---- | :---- |
+| **TL-01** | **Tool List View** | Hiển thị danh sách tools đã được code (@mcp.tool): pet_care_qa, symptom_search, search_clinics, check_slots, create_booking. | **✅ Done** |
+| **TL-02** | **Tool Enable/Disable** | Bật/tắt từng tool riêng lẻ. Agent chỉ gọi được tools đang Enable. | **✅ Done** |
+| **TL-03** | **Schema Viewer** | Xem Request/Response schema của mỗi tool để Admin hiểu tool làm gì. | **✅ Done** |
 
 ### **Knowledge Base & RAG (Kiến thức)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **KB-01** | **Cloud Vector Sync (RAG)** | Pipeline sử dụng LlamaIndex để đọc file (PDF/Docx), thực hiện Chunking và đẩy Vector vào **Qdrant Cloud**. Xử lý xác thực qua API Key động. | **Critical** |
-| **KB-02** | **Knowledge Graph Integration** | Tích hợp truy vấn Petagraph để xác thực thông tin y tế, giảm thiểu hallucination trong câu trả lời. | **High** |
+| **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **✅ Done** |
+| **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
+| **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 
-### **Playground & Monitoring (Kiểm thử & Giám sát)**
-
-| ID | Feature Name | Tech Stack Context & Description | Priority |
-| :---- | :---- | :---- | :---- |
-| **PG-01** | **Real-time Chat Simulator** | Giao diện Chat kết nối qua WebSocket. Hiển thị Streaming Response từ FastAPI backend. | **Critical** |
-| **PG-02** | **Thinking Process Visualization** | Hiển thị quá trình suy luận (Chain of Thought) và các bước gọi Tool (Tool Calls) của LangGraph dưới dạng log hoặc cây quyết định. | **Critical** |
-| **PG-03** | **Traceability & Citation View** | Hiển thị nguồn trích dẫn từ Qdrant (Metadata: filename, page number) hoặc Web Search (URL) ngay trong log chat. | **High** |
-
-### **Performance (Hiệu năng)**
+### **Agent Testing & Debugging**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **PERF-01** | **Binary Quantization Config** | Cấu hình tự động bật Binary Quantization khi tạo Collection mới trên Qdrant để tối ưu tốc độ search. | **High** |
+| **PG-01** | **Interactive Chat Simulator** | Giao diện Chat kết nối qua WebSocket / REST. Hiển thị Streaming Response từ FastAPI backend. | **✅ Done** |
+| **PG-02** | **ReAct Flow Visualization** | Hiển thị luồng ReAct: Thought → Action → Observation → Loop → Answer. | **✅ Done** |
+| **PG-03** | **Tool Call Inspector** | Xem chi tiết parameters và response của mỗi tool call. | **✅ Done** |
+| **PG-04** | **Citation View** | Hiển thị nguồn trích dẫn từ RAG (filename, chunks). | **🔄 In Progress** |
+| **PG-05** | **Response Feedback** | Admin đánh giá câu trả lời (Good/Bad) để improve prompt. | **Medium** |
+
 
 ## **10\. Use Case Descriptions (Mô tả Kịch bản Sử dụng)**
 
 Mô tả các tình huống thực tế gắn liền với công nghệ sử dụng.
 
-### **UC-01: Tinh chỉnh hành vi Điều phối (Supervisor Tuning with LangGraph)**
+### **UC-01: Tinh chỉnh System Prompt của Agent**
 
 * **Actor:** Admin Hệ thống.  
-* **Context:** Main Agent (Supervisor Node) sử dụng kimi-k2 đang phân loại sai ý định người dùng.  
+* **Context:** Single Agent đang trả lời không đúng tone hoặc thiếu context.  
 * **Process:**  
-  1. Admin truy cập Dashboard, chọn Node Supervisor.  
-  2. Admin chỉnh sửa System Prompt trong Editor: "Thêm quy tắc: Nếu query chứa từ khóa 'nôn', 'tiêu chảy', bắt buộc route sang Node MedicalAgent".  
-  3. Admin nhấn Save \-\> Backend cập nhật cấu hình vào PostgreSQL.  
-  4. Tại Playground, Admin chat thử. WebSocket trả về log cho thấy Supervisor đã route đúng sang MedicalAgent.
+  1. Admin truy cập Dashboard → "Agent Configuration".  
+  2. Admin chỉnh sửa System Prompt trong Editor: "Thêm quy tắc: Khi user hỏi về bệnh, hãy luôn hỏi thêm về tuổi và cân nặng của pet".  
+  3. Admin nhấn Save → Backend cập nhật prompt vào PostgreSQL.  
+  4. Tại Playground, Admin chat thử. Thấy Agent đã hỏi thêm thông tin như expected.
 
 ### **UC-02: Thêm Tool mới cho Agent (Code-based)**
 
 * **Actor:** Developer + Admin.
-* **Context:** Cần thêm tool `check_vaccine_history` để Medical Agent tra cứu lịch sử tiêm chủng.
+* **Context:** Cần thêm tool `check_vaccine_history` để Agent tra cứu lịch sử tiêm chủng.
 * **Process:**
-  1. Developer tạo function trong `mcp_tools/medical_tools.py`:
+  1. Developer tạo function trong `app/core/tools/medical_tools.py`:
      ```python
-     @tool
+     from fastmcp import FastMCP
+     
+     mcp = FastMCP("PettiesToolServer")
+     
+     @mcp.tool()
      def check_vaccine_history(pet_name: str) -> str:
          """
          Tra cứu lịch sử tiêm chủng của thú cưng.
          Sử dụng khi user hỏi về vaccine, tiêm phòng, hoặc lịch sử tiêm.
          """
-         # Gọi Spring Boot API bên trong
+         # Gọi Spring Boot API
          response = requests.get(f"{BACKEND_URL}/api/v1/vaccines/by-pet/{pet_name}")
          return format_vaccine_history(response.json())
      ```
-  2. Admin vào Dashboard → "Tool Management" → nhấn "Scan Tools".
-  3. Hệ thống quét và hiển thị tool mới `check_vaccine_history`.
-  4. Admin gán tool cho Medical Agent và bật Enable.
-* **Lưu ý:** Tool được thiết kế với semantic description cho LLM hiểu khi nào nên gọi.
+  2. Admin vào Dashboard → "Tool Management".
+  3. Hệ thống tự động hiển thị tool mới `check_vaccine_history`.
+  4. Admin bật Enable cho tool.
+* **Lưu ý:** 
+  - Docstring sẽ được FastMCP dùng để sinh schema cho tool
+  - Type hints giúp LLM biết kiểu dữ liệu cần truyền
+
 
 ### **UC-03: Thêm kiến thức mới vào Vector Store (RAG Update)**
 
 * **Actor:** Admin.  
 * **Context:** Có phác đồ điều trị mới cần cập nhật cho Agent.  
 * **Process:**  
-  1. Admin upload file phoc\_do\_2026.pdf lên Dashboard.  
-  2. Hệ thống kích hoạt LlamaIndex Pipeline: Doc Parsing \-\> Text Chunking \-\> Embedding (**Ollama/Nomic**) \-\> Upsert vào **Qdrant Cloud**.  
-  3. Admin vào mục "Retrieval Test", nhập từ khóa. Hệ thống query Qdrant và hiển thị các chunks.
+  1. Admin upload file `phac_do_2026.pdf` lên Dashboard → "Knowledge Base".  
+  2. Hệ thống kích hoạt LlamaIndex Pipeline: 
+     - Doc Parsing → Text Chunking → Embedding (**Cohere embed-multilingual-v3**) → Upsert vào **Qdrant Cloud**.  
+  3. Admin vào mục "RAG Retrieval Test", nhập query test.
+  4. Hệ thống query Qdrant và hiển thị các chunks relevant.
+  5. Admin verify Agent có thể trả lời câu hỏi dựa trên tài liệu mới.
 
 ### **UC-04: Cấu hình Hệ thống Cloud APIs (Dynamic System Config)**
 
 * **Actor:** Admin (DevOps hoặc Lead Dev).
 * **Context:** Hệ thống đã deploy lên AWS EC2 với Docker. Cần cấu hình Cloud APIs qua Dashboard thay vì SSH sửa file .env.
 * **Process:**
-  1. Admin truy cập Dashboard, vào mục **"System Settings"**.
+  1. Admin truy cập Dashboard → **"System Settings"**.
   2. Tại tab **"API Keys"**, Admin nhập:
      * **OpenRouter API Key** (LLM provider)
      * **Cohere API Key** (Embeddings)
      * **Qdrant Cloud URL + API Key** (Vector DB)
-     * **Tavily API Key** (Web Search)
-  3. Tại tab **"Model Configuration"**:
+  3. Tại tab **"Agent Configuration"**:
      * Chọn Primary LLM model (e.g., `google/gemini-2.0-flash-exp:free`)
      * Chọn Fallback model (e.g., `meta-llama/llama-3.3-70b-instruct`)
-     * Set temperature, max_tokens cho từng agent
+     * Set temperature, max_tokens cho Agent
   4. Admin nhấn **"Test Connections"** để verify tất cả APIs hoạt động.
-  5. Admin nhấn **"Save & Reload Context"**.
-  6. Backend cập nhật DB (mã hóa API keys), refresh LangGraph Runtime ngay lập tức.
+  5. Admin nhấn **"Save"**.
+  6. Backend cập nhật DB (mã hóa API keys), hot-reload config ngay lập tức.
 * **Lợi ích:**
-  * Cloud-native AI stack (không cần GPU/Ollama server local)
+  * Cloud-native AI stack (không cần GPU local)
   * Deploy production-ready trên AWS EC2
   * CI/CD tự động qua GitHub Actions
   * Thay đổi config không cần restart server

@@ -11,7 +11,7 @@
 
 import { env } from '../config/env'
 
-// ✅ Define AUTH_BASE từ env (env.API_BASE_URL đã có /api rồi)
+// Define AUTH_BASE từ env (env.API_BASE_URL đã có /api rồi)
 const AUTH_BASE = `${env.API_BASE_URL}/auth`
 
 // ===== TYPES =====
@@ -20,10 +20,12 @@ export interface User {
     userId: number
     username: string
     email: string
-    fullName?: string
+    fullName: string
     phoneNumber?: string
     role: 'ADMIN' | 'VET' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'PET_OWNER'
     enabled: boolean
+    workingClinicId?: string    // For CLINIC_MANAGER and VET
+    workingClinicName?: string  // Clinic name for display
     createdAt?: string
 }
 
