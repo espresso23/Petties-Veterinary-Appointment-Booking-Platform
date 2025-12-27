@@ -64,6 +64,7 @@ export interface ClinicServiceResponse {
 }
 
 export interface ClinicServiceRequest {
+  clinicId: string
   name: string
   basePrice: number
   slotsRequired: number

@@ -44,8 +44,9 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
   }
 }
 
-function mapServiceToRequest(service: any): ClinicServiceRequest {
+function mapServiceToRequest(service: any, clinicId: string): ClinicServiceRequest {
   return {
+    clinicId,
     name: service.name || '',
     basePrice: service.basePrice || 0,
     slotsRequired: service.slotsRequired || 1,
@@ -189,7 +190,7 @@ export function ServiceGrid() {
       const updated = await updateHomeVisitStatus(id, !currentService.isHomeVisit)
 
       setServices((prev) => prev.map((s) => (s.id === id ? mapResponseToService(updated) : s)))
-      showToast('success', 'Đã cập nhật trạng thái tận nhà cho dịch vụ')
+      showToast('success', 'Đã cập nhật trạng thái tại nhà cho dịch vụ')
     } catch (err) {
       console.error('Failed to toggle home visit:', err)
       showToast('error', 'Không thể cập nhật trạng thái dịch vụ. Vui lòng thử lại.')
@@ -201,7 +202,7 @@ export function ServiceGrid() {
   ) => {
     try {
       setIsSubmitting(true)
-      const requestData = mapServiceToRequest(serviceData)
+      const requestData = mapServiceToRequest(serviceData, selectedClinic!.clinicId)
 
       if (selectedService) {
         // Update existing service - preserve pricePerKm
@@ -342,14 +343,12 @@ export function ServiceGrid() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-4">
-
-
+          <div className="flex flex-col items-stretch gap-4 w-full md:w-80">
             <button
               onClick={handleAddService}
               disabled={!selectedClinic || isSubmitting}
               style={{ backgroundColor: '#FF6B35' }}
-              className="group flex items-center gap-2 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group flex items-center justify-center gap-3 text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
               <PlusIcon className="w-6 h-6" />
               <span className="font-black text-lg uppercase tracking-wide">
@@ -360,14 +359,14 @@ export function ServiceGrid() {
             <button
               onClick={() => setIsPricingModalOpen(true)}
               disabled={isSubmitting}
-              className="flex items-center gap-2 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
-              <div className="w-8 h-8 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl leading-none">
+              <div className="w-9 h-9 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl flex-shrink-0">
                 $
               </div>
-              <div className="flex flex-col items-start leading-tight">
-                <span className="font-black text-xs uppercase">Chỉnh sửa giá</span>
-                <span className="font-black text-xs uppercase">Kilômét (KM)</span>
+              <div className="flex flex-col items-start leading-[1.1]">
+                <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập đơn giá</span>
+                <span className="font-black text-sm uppercase whitespace-nowrap">Kilômét (KM)</span>
               </div>
             </button>
           </div>

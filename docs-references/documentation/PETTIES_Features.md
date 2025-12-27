@@ -42,7 +42,7 @@
 8. Check-out bệnh nhân
 9. Xem hồ sơ y tế thú cưng
 10. Xem sổ tiêm chủng của pet
-11. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 🆕
+11. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
 11. Ghi chú hồ sơ bệnh án (tạo EMR)
 12. Cập nhật sổ tiêm chủng
 13. Video Consultation với pet owner(optionally)

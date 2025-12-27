@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react'
 import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid'
 import { MasterServiceCard, type MasterService } from './MasterServiceCard'
 import { MasterServiceModal } from './MasterServiceModal'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 import {
   getAllMasterServices,
   getMasterServiceById,
@@ -106,10 +106,10 @@ export function MasterServiceGrid() {
       if (!service) return
 
       await updateMasterService(serviceId, { isHomeVisit: !service.isHomeVisit })
-      setServices(prev => prev.map(s => 
+      setServices(prev => prev.map(s =>
         s.id === serviceId ? { ...s, isHomeVisit: !s.isHomeVisit } : s
       ))
-      showToast('success', `Đã ${!service.isHomeVisit ? 'chuyển thành' : 'hủy'} dịch vụ tận nhà`)
+      showToast('success', `Đã ${!service.isHomeVisit ? 'chuyển thành' : 'hủy'} dịch vụ tại nhà`)
     } catch (err) {
       console.error('Failed to toggle home visit:', err)
       showToast('error', 'Không thể cập nhật trạng thái dịch vụ. Vui lòng thử lại.')
@@ -145,10 +145,7 @@ export function MasterServiceGrid() {
         serviceCategory: serviceData.serviceCategory,
         petType: serviceData.petType,
         icon: serviceData.icon,
-<<<<<<< HEAD
-        weightPrices: serviceData.weightPrices, // FIX: Thêm weightPrices vào request
-=======
->>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
+        weightPrices: serviceData.weightPrices,
       }
 
       if (selectedService) {
@@ -179,7 +176,6 @@ export function MasterServiceGrid() {
       setIsSubmitting(false)
     }
   }
-<<<<<<< HEAD
   // Giả lập kiểm tra có phòng khám hay chưa (thực tế lấy từ store hoặc API)
   const [hasClinic, setHasClinic] = useState(true)
   useEffect(() => {
@@ -187,8 +183,6 @@ export function MasterServiceGrid() {
     // setHasClinic(!!clinicStore.clinic)
     setHasClinic(true)
   }, [])
-=======
->>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
 
   // Loading state
   if (isLoading) {
@@ -204,7 +198,6 @@ export function MasterServiceGrid() {
     )
   }
 
-<<<<<<< HEAD
   // Nếu chưa có phòng khám thì hiển thị thông báo và nút tạo phòng khám
   if (!hasClinic) {
     return (
@@ -222,8 +215,6 @@ export function MasterServiceGrid() {
       </div>
     )
   }
-=======
->>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
   // Error state
   if (error) {
     return (
@@ -305,60 +296,60 @@ export function MasterServiceGrid() {
                     </span>
                   </button>
                 )}
-                    <ClinicSelectModal
-                      isOpen={isClinicModalOpen}
-                      onClose={() => setIsClinicModalOpen(false)}
-                      onApply={async (selectedClinics: ClinicApplyItem[]) => {
-                        setIsClinicModalOpen(false)
+                <ClinicSelectModal
+                  isOpen={isClinicModalOpen}
+                  onClose={() => setIsClinicModalOpen(false)}
+                  onApply={async (selectedClinics: ClinicApplyItem[]) => {
+                    setIsClinicModalOpen(false)
 
+                    try {
+                      // Prepare promises for applying master services
+                      const promises: Promise<any>[] = []
+
+                      // Prefetch missing per-km prices for clinics that didn't provide one using dedicated endpoint
+                      const clinicsNeedingFetch = selectedClinics.filter(c => c.clinicPricePerKm === undefined || c.clinicPricePerKm === null)
+                      const fetchedPriceMap: Record<string, number | undefined> = {}
+                      await Promise.all(clinicsNeedingFetch.map(async (c) => {
                         try {
-                          // Prepare promises for applying master services
-                          const promises: Promise<any>[] = []
-
-                          // Prefetch missing per-km prices for clinics that didn't provide one using dedicated endpoint
-                          const clinicsNeedingFetch = selectedClinics.filter(c => c.clinicPricePerKm === undefined || c.clinicPricePerKm === null)
-                          const fetchedPriceMap: Record<string, number | undefined> = {}
-                          await Promise.all(clinicsNeedingFetch.map(async (c) => {
-                            try {
-                              const p = await getClinicPricePerKm(c.clinicId)
-                              if (p !== null && p !== undefined) {
-                                fetchedPriceMap[c.clinicId] = p
-                                return
-                              }
-                              // fallback: try to infer from existing services
-                              try {
-                                const existingServices = await getServicesByClinicId(c.clinicId)
-                                const hv = existingServices.find(s => s.isHomeVisit && s.pricePerKm && Number(s.pricePerKm) > 0)
-                                if (hv && hv.pricePerKm) fetchedPriceMap[c.clinicId] = hv.pricePerKm
-                              } catch (err2) {
-                                console.warn('Failed to fetch existing services for clinic', c.clinicId, err2)
-                              }
-                            } catch (err) {
-                              console.warn('Failed to fetch price-per-km for clinic', c.clinicId, err)
-                            }
-                          }))
-
-                          for (const masterServiceId of selectedServiceIds) {
-                            for (const clinic of selectedClinics) {
-                              // Use clinic provided override first, then fetched stored value, otherwise undefined
-                              const clinicPricePerKm = clinic.clinicPricePerKm ?? fetchedPriceMap[clinic.clinicId] ?? undefined
-                              promises.push(inheritFromMasterService(masterServiceId, clinic.clinicId, undefined, clinicPricePerKm))
-                            }
+                          const p = await getClinicPricePerKm(c.clinicId)
+                          if (p !== null && p !== undefined) {
+                            fetchedPriceMap[c.clinicId] = p
+                            return
                           }
-
-                          await Promise.all(promises)
-
-                          showToast('success', `Đã áp dụng ${selectedServiceIds.size} dịch vụ mẫu cho ${selectedClinics.length} phòng khám thành công!`)
-
-                          // Reset selection
-                          setSelectedServiceIds(new Set())
-                          setIsApplyMode(false)
-                        } catch (error) {
-                          console.error('Failed to apply master services:', error)
-                          showToast('error', 'Có lỗi xảy ra khi áp dụng dịch vụ mẫu. Vui lòng thử lại.')
+                          // fallback: try to infer from existing services
+                          try {
+                            const existingServices = await getServicesByClinicId(c.clinicId)
+                            const hv = existingServices.find(s => s.isHomeVisit && s.pricePerKm && Number(s.pricePerKm) > 0)
+                            if (hv && hv.pricePerKm) fetchedPriceMap[c.clinicId] = hv.pricePerKm
+                          } catch (err2) {
+                            console.warn('Failed to fetch existing services for clinic', c.clinicId, err2)
+                          }
+                        } catch (err) {
+                          console.warn('Failed to fetch price-per-km for clinic', c.clinicId, err)
                         }
-                      }}
-                    />
+                      }))
+
+                      for (const masterServiceId of selectedServiceIds) {
+                        for (const clinic of selectedClinics) {
+                          // Use clinic provided override first, then fetched stored value, otherwise undefined
+                          const clinicPricePerKm = clinic.clinicPricePerKm ?? fetchedPriceMap[clinic.clinicId] ?? undefined
+                          promises.push(inheritFromMasterService(masterServiceId, clinic.clinicId, undefined, clinicPricePerKm))
+                        }
+                      }
+
+                      await Promise.all(promises)
+
+                      showToast('success', `Đã áp dụng ${selectedServiceIds.size} dịch vụ mẫu cho ${selectedClinics.length} phòng khám thành công!`)
+
+                      // Reset selection
+                      setSelectedServiceIds(new Set())
+                      setIsApplyMode(false)
+                    } catch (error) {
+                      console.error('Failed to apply master services:', error)
+                      showToast('error', 'Có lỗi xảy ra khi áp dụng dịch vụ mẫu. Vui lòng thử lại.')
+                    }
+                  }}
+                />
               </>
             )}
           </div>
@@ -395,7 +386,7 @@ export function MasterServiceGrid() {
                 onEdit={(e) => handleEditService(e, service.id)}
                 onDelete={(e) => handleDeleteService(e, service.id, service.name)}
                 onToggleHomeVisit={(e) => handleToggleHomeVisit(e, service.id)}
-                onClick={() => {}}
+                onClick={() => { }}
                 isSelectable={isApplyMode}
                 isSelected={selectedServiceIds.has(service.id)}
                 onSelect={(selected) => {

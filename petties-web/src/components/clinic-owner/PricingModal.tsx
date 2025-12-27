@@ -100,7 +100,7 @@ export function PricingModal({
                   <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
                 </div>
                 <p className="text-[13px] font-bold text-blue-800 leading-snug">
-                  Lưu ý: Giá này sẽ được áp dụng tự động cho tất cả các dịch vụ tận nhà của phòng khám.
+                  Lưu ý: Giá này sẽ được áp dụng tự động cho tất cả các dịch vụ tại nhà của phòng khám.
                 </p>
               </div>
             </div>

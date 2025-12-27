@@ -60,7 +60,7 @@ dependencies:
   
   # Logging & Error Monitoring
   logger: ^2.5.0
-  sentry_flutter: ^8.9.0
+  sentry_flutter: ^9.9.0
 
 dev_dependencies:
   flutter_test:

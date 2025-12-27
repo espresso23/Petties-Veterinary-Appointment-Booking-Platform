@@ -19,20 +19,16 @@ export const ClinicOwnerLayout = () => {
     const user = useAuthStore((state) => state.user)
     const { unreadCount } = useNotificationPolling({ interval: 30000, fetchLimit: 5 })
 
-        const navItems: NavItem[] = [
+    const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
         { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM' },
-<<<<<<< HEAD
         { path: '/clinic-owner/staff', label: 'NHÂN SỰ' },
-        { path: '/clinic-owner/services', label: 'DỊCH VỤ' },
-=======
         { path: '/clinic-owner/master-services', label: 'DỊCH VỤ MẪU' },
         { path: '/clinic-owner/services', label: 'DỊCH VỤ PHÒNG KHÁM' },
         { path: '/clinic-owner/notifications', label: 'THÔNG BÁO' },
->>>>>>> intergrationFeature
         { path: '/clinic-owner/revenue', label: 'DOANH THU' },
         { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN' },
-        ]
+    ]
 
     const handleLogout = () => {
         clearAuth()

@@ -522,7 +522,7 @@ export function ServiceModal({
                   color: isHomeVisit ? '#000000' : '#4b5563'
                 }}
               >
-                {isHomeVisit ? 'Dịch vụ tận nhà' : 'Tại phòng khám'}
+                {isHomeVisit ? 'Dịch vụ tại nhà' : 'Tại phòng khám'}
               </span>
               {!isHomeVisit && (
                 <div className="ml-auto text-[10px] font-black bg-stone-200 px-2 py-0.5 border-2 border-black uppercase">

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter/foundation.dart';
 
@@ -75,7 +76,7 @@ class SentryService {
   }
 
   /// Filter events before sending
-  static SentryEvent? _beforeSend(SentryEvent event, Hint hint) {
+  static FutureOr<SentryEvent?> _beforeSend(SentryEvent event, Hint hint) {
     // Don't send events in development
     if (_environment == 'development') {
       return null;
@@ -91,7 +92,7 @@ class SentryService {
   }
 
   /// Filter transactions before sending
-  static SentryTransaction? _beforeSendTransaction(
+  static FutureOr<SentryTransaction?> _beforeSendTransaction(
     SentryTransaction transaction,
     Hint hint,
   ) {

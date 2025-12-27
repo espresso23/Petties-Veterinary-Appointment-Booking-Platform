@@ -6,7 +6,6 @@ export const ROUTES = {
   admin: {
     dashboard: '/admin',
     profile: '/admin/profile',
-    agents: '/admin/agents',
     tools: '/admin/tools',
     knowledge: '/admin/knowledge',
     playground: '/admin/playground',

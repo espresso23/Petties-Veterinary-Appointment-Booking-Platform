@@ -45,6 +45,22 @@ public class ClinicServiceService {
     }
 
     /**
+     * Helper to find service by ID and validate that current user owns its clinic
+     */
+    private ClinicService getServiceAndValidateOwnership(UUID serviceId) {
+        ClinicService service = clinicServiceRepository.findById(serviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
+
+        User currentUser = getCurrentUser();
+        // Strictly for the Owner of the clinic associated with the service
+        if (service.getClinic().getOwner() == null
+                || !service.getClinic().getOwner().getUserId().equals(currentUser.getUserId())) {
+            throw new ForbiddenException("Bạn không có quyền thao tác trên dịch vụ này");
+        }
+        return service;
+    }
+
+    /**
      * Validate that current user is CLINIC_OWNER and get their clinic
      */
     private Clinic getCurrentUserClinic() {
@@ -63,8 +79,15 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse createService(ClinicServiceRequest request) {
+        Clinic clinic = clinicRepository.findById(request.getClinicId())
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + request.getClinicId()));
 
-        Clinic clinic = getCurrentUserClinic();
+        // Validate ownership
+        User currentUser = getCurrentUser();
+        if (clinic.getOwner() == null || !clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+            throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
+        }
 
         ClinicService service = new ClinicService();
         service.setClinic(clinic);
@@ -127,10 +150,7 @@ public class ClinicServiceService {
      */
     @Transactional(readOnly = true)
     public ClinicServiceResponse getServiceById(UUID serviceId) {
-        Clinic clinic = getCurrentUserClinic();
-        ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
-        return mapToResponse(service);
+        return mapToResponse(getServiceAndValidateOwnership(serviceId));
     }
 
     /**
@@ -138,10 +158,7 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse updateService(UUID serviceId, ClinicServiceUpdateRequest request) {
-        Clinic clinic = getCurrentUserClinic();
-
-        ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
+        ClinicService service = getServiceAndValidateOwnership(serviceId);
 
         if (request.getName() != null) {
             service.setName(request.getName());
@@ -210,7 +227,7 @@ public class ClinicServiceService {
 
             // Validate user has permission for this clinic
             User currentUser = getCurrentUser();
-            if (currentUser.getRole() != Role.ADMIN && (clinic.getOwner() == null || !clinic.getOwner().getUserId().equals(currentUser.getUserId()))) {
+            if (clinic.getOwner() == null || !clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
                 throw new ForbiddenException("Bạn không có quyền xóa dịch vụ cho clinic này");
             }
         } else {
@@ -229,10 +246,7 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse updateServiceStatus(UUID serviceId, Boolean isActive) {
-        Clinic clinic = getCurrentUserClinic();
-
-        ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
+        ClinicService service = getServiceAndValidateOwnership(serviceId);
 
         service.setIsActive(isActive);
         ClinicService updatedService = clinicServiceRepository.save(service);
@@ -247,10 +261,8 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse updateHomeVisitStatus(UUID serviceId, Boolean isHomeVisit) {
-        Clinic clinic = getCurrentUserClinic();
-
-        ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
+        ClinicService service = getServiceAndValidateOwnership(serviceId);
+        Clinic clinic = service.getClinic();
 
         service.setIsHomeVisit(isHomeVisit);
         // If enabling home-visit and pricePerKm is null or <= 0, set a common price
@@ -274,10 +286,7 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse updatePricePerKm(UUID serviceId, BigDecimal pricePerKm) {
-        Clinic clinic = getCurrentUserClinic();
-
-        ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
+        ClinicService service = getServiceAndValidateOwnership(serviceId);
 
         service.setPricePerKm(pricePerKm);
         ClinicService updatedService = clinicServiceRepository.save(service);
@@ -321,20 +330,23 @@ public class ClinicServiceService {
     }
 
     @Transactional
-    public ClinicServiceResponse inheritFromMasterService(UUID masterServiceId, UUID clinicId, BigDecimal clinicPrice, BigDecimal clinicPricePerKm) {
-        log.info("Starting inherit master service {} to clinic {} with price {}", masterServiceId, clinicId, clinicPrice);
-        
+    public ClinicServiceResponse inheritFromMasterService(UUID masterServiceId, UUID clinicId, BigDecimal clinicPrice,
+            BigDecimal clinicPricePerKm) {
+        log.info("Starting inherit master service {} to clinic {} with price {}", masterServiceId, clinicId,
+                clinicPrice);
+
         // Lấy master service
         MasterService masterService = masterServiceRepository.findById(masterServiceId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy dịch vụ mẫu với ID: " + masterServiceId));
 
-        // Lấy clinic - nếu clinicId được cung cấp, dùng đó; ngược lại dùng clinic của current user
+        // Lấy clinic - nếu clinicId được cung cấp, dùng đó; ngược lại dùng clinic của
+        // current user
         Clinic clinic;
         if (clinicId != null) {
             clinic = clinicRepository.findById(clinicId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
-            
+
             // Validate user có quyền thao tác với clinic này
             User currentUser = getCurrentUser();
             if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
@@ -363,10 +375,10 @@ public class ClinicServiceService {
         clinicService.setMasterService(masterService);
         clinicService.setIsCustom(false); // Inherited
         clinicService.setName(masterService.getName());
-        
+
         // Sử dụng giá clinic nếu được cung cấp, ngược lại dùng giá mặc định từ master
         clinicService.setBasePrice(clinicPrice != null ? clinicPrice : masterService.getDefaultPrice());
-        
+
         clinicService.setDurationTime(masterService.getDurationTime());
         clinicService.setSlotsRequired(masterService.getSlotsRequired());
         clinicService.setIsActive(true); // Mặc định active khi inherit
@@ -375,8 +387,8 @@ public class ClinicServiceService {
         clinicService.setServiceCategory(masterService.getServiceCategory());
         clinicService.setPetType(masterService.getPetType());
 
-
-        // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan hệ JPA
+        // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan
+        // hệ JPA
         if (masterService.getWeightPrices() != null && !masterService.getWeightPrices().isEmpty()) {
             for (ServiceWeightPrice masterWeightPrice : masterService.getWeightPrices()) {
                 ServiceWeightPrice clinicWeightPrice = new ServiceWeightPrice();
@@ -389,7 +401,8 @@ public class ClinicServiceService {
             }
         }
 
-        log.info("Saving clinic service for clinic {} and master {}", clinic.getClinicId(), masterService.getMasterServiceId());
+        log.info("Saving clinic service for clinic {} and master {}", clinic.getClinicId(),
+                masterService.getMasterServiceId());
         ClinicService savedService = clinicServiceRepository.save(clinicService);
         log.info("Saved clinic service with ID: {}", savedService.getServiceId());
 
@@ -407,11 +420,11 @@ public class ClinicServiceService {
     public List<ClinicServiceResponse> getServicesByClinicId(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
-        
-        // Validate user has permission: either ADMIN, or the clinic owner
+
+        // Validate user has permission: strictly the clinic owner
         User currentUser = getCurrentUser();
         boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
-        if (!(isOwner || currentUser.getRole() == Role.ADMIN)) {
+        if (!isOwner) {
             throw new ForbiddenException("Bạn không có quyền xem dịch vụ của clinic này");
         }
 
@@ -436,8 +449,8 @@ public class ClinicServiceService {
         return ClinicServiceResponse.builder()
                 .serviceId(service.getServiceId())
                 .clinicId(service.getClinic().getClinicId())
-                .masterServiceId(service.getMasterService() != null ? 
-                        service.getMasterService().getMasterServiceId() : null) // NEW
+                .masterServiceId(
+                        service.getMasterService() != null ? service.getMasterService().getMasterServiceId() : null) // NEW
                 .isCustom(service.getIsCustom()) // NEW
                 .name(service.getName())
                 .basePrice(service.getBasePrice())
