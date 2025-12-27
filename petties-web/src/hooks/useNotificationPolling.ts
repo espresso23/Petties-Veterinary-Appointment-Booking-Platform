@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { notificationService } from '../services/api/notificationService'
 import { useToast } from '../components/Toast'
+import { useNotificationStore } from '../store/notificationStore'
 
 interface UseNotificationPollingOptions {
   /** Polling interval in milliseconds. Default: 30000 (30 seconds) */
@@ -28,8 +29,9 @@ export function useNotificationPolling(
 ): UseNotificationPollingReturn {
   const { interval = 30000, fetchLimit = 5 } = options
   const { showToast } = useToast()
+  const setUnreadCount = useNotificationStore((state) => state.setUnreadCount)
+  const unreadCount = useNotificationStore((state) => state.unreadCount)
   
-  const [unreadCount, setUnreadCount] = useState(0)
   const previousCountRef = useRef(0)
   const shownNotificationIdsRef = useRef<Set<string>>(new Set())
 
@@ -64,7 +66,7 @@ export function useNotificationPolling(
         }
 
         previousCountRef.current = count
-        setUnreadCount(count)
+        setUnreadCount(count) // Update Zustand store (will trigger re-render for components using it)
       } catch (error) {
         console.error('Failed to check notifications', error)
       }
