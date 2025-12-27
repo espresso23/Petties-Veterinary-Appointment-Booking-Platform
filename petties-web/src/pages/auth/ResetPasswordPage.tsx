@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { resetPassword, resendPasswordResetOtp } from '../../services/endpoints/auth'
 import { useToast } from '../../components/Toast'
 import { parseApiError } from '../../utils/errorHandler'
-import { OtpInput } from '../../components/OtpInput'
+import { OtpInput } from '../../components/common/OtpInput'
 import { KeyIcon, ArrowLeftIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -108,7 +108,7 @@ export function ResetPasswordPage() {
       setError(parseApiError(err))
       // Reset OTP input on error
       setOtpCode('')
-    } finally{
+    } finally {
       setIsLoading(false)
     }
   }

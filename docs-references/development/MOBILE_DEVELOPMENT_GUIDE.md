@@ -66,7 +66,7 @@ flutter run --flavor staging --dart-define=FLAVOR=staging
 # Chạy với production backend
 flutter run --flavor prod --dart-define=FLAVOR=prod
 ```
-
+flutter run --dart-define=SENTRY_DSN=https://DAN_DSN_MOD_BAN_VUA_COPY_O_BUOC_1 --dart-define=ENVIRONMENT=development
 ### 3. Build APK
 
 ```bash

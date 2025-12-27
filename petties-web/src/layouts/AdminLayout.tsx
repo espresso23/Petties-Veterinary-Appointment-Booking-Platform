@@ -35,14 +35,13 @@ export const AdminLayout = () => {
         { path: '/admin/clinics', label: 'QUẢN LÝ CLINIC' },
         { path: '/admin/users', label: 'USERS' },
         { path: '/admin/reports', label: 'REPORTS' },
-        { path: '/admin/settings', label: 'CẤU HÌNH' },
       ]
     },
     {
       title: 'AI AGENT MANAGEMENT',
       items: [
-        { path: '/admin/tools', label: 'TOOLS' },
         { path: '/admin/knowledge', label: 'KNOWLEDGE BASE' },
+        { path: '/admin/tools', label: 'TOOLS' },
         { path: '/admin/playground', label: 'PLAYGROUND' },
       ]
     },
@@ -60,7 +59,7 @@ export const AdminLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex">
+    <div className="h-screen bg-stone-50 flex overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r-4 border-stone-900 flex flex-col">
         {/* Logo/Header */}
@@ -115,7 +114,7 @@ export const AdminLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 h-full overflow-y-auto flex flex-col">
         <Outlet />
       </main>
     </div>

@@ -13,7 +13,7 @@ interface RAGQueryTesterProps {
 export const RAGQueryTester = ({ onQuery }: RAGQueryTesterProps) => {
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState(5)
-  const [minScore, setMinScore] = useState(0.1)  // Lower default for Vietnamese embeddings
+  const [minScore, setMinScore] = useState(0.5)  // Production default - reduces false positives
   const [results, setResults] = useState<QueryResult[]>([])
   const [querying, setQuerying] = useState(false)
 

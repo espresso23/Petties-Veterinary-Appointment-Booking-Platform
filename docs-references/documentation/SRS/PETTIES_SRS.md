@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform  
-**Version:** 1.0.0  
-**Last Updated:** 2025-12-25  
+**Version:** 1.1.0 (AI Agent 100% LlamaIndex)  
+**Last Updated:** 2025-12-27  
 **Document Status:** In Progress
 
 ---
@@ -186,6 +186,8 @@ graph TB
 | UC-VT-09 | Checkout bệnh nhân | High | 6 |
 | UC-VT-10 | **[Home Visit] Bắt đầu di chuyển (Start Travel)** | High | 6 |
 | UC-VT-11 | **[Home Visit] Thông báo đến nơi** | High | 6 |
+| UC-VT-12 | **Tra cứu bệnh nhân đã khám** | Medium | 9 |
+| UC-VT-13 | **Xem Lịch sử Bệnh nhân (Mobile View)** | High | 6 |
 
 #### 2.2.3 Clinic Manager Use Cases
 
@@ -200,6 +202,8 @@ graph TB
 | UC-CM-06 | Xem booking mới | High | 4 |
 | UC-CM-07 | Gán bác sĩ cho booking | High | 5 |
 | UC-CM-08 | Quản lý hủy & hoàn tiền | Medium | 8 |
+| UC-CM-09 | **Xem danh sách bệnh nhân** | Medium | 9 |
+| UC-CM-10 | **Xem hồ sơ bệnh nhân (EMR/Vaccination)** | Medium | 9 |
 
 #### 2.2.4 Clinic Owner Use Cases
 
@@ -314,11 +318,13 @@ flowchart TB
 | V-002 | Dashboard | Tổng quan: hôm nay, bookings, schedule |
 | V-003 | My Schedule | Calendar view ca làm việc |
 | V-004 | Assigned Bookings | Danh sách booking được gán |
-| V-005 | Booking Detail | Chi tiết booking, pet info, owner info |
-| V-006 | Check-in | Xác nhận pet owner đến |
-| V-007 | Create EMR | Form nhập chẩn đoán, điều trị, đơn thuốc |
+| V-005 | Booking Detail | Chi tiết booking + Tab "Lịch sử bệnh án/Vaccine" (Mobile View) |
+| V-006 | Check-in | Xác nhận pet owner đến (hoặc Vet đến nhà) |
+| V-007 | Create EMR (SOAP) | Form nhập SOAP (S-O-A-P), kê đơn thuốc ngay trên mobile |
 | V-008 | Check-out | Hoàn thành khám, thu tiền (nếu Cash) |
 | V-009 | Profile | Thông tin bác sĩ |
+| V-010 | Pet History | Xem EMR/Vaccine + Menu Action (Thêm mới) |
+| V-011 | Add Vaccination | Form nhập thông tin mũi tiêm mới trên mobile |
 
 ##### Web App - Clinic Owner/Manager
 
@@ -334,6 +340,8 @@ flowchart TB
 | W-008 | Bookings | Danh sách booking, filter by status |
 | W-009 | Assign Vet | Popup gán bác sĩ cho booking |
 | W-010 | Revenue | Báo cáo doanh thu |
+| W-011 | Patient List | Danh sách bệnh nhân của phòng khám |
+| W-012 | Patient Detail | Hồ sơ thú cưng, lịch sử EMR & Vaccine |
 
 ##### Web App - Admin
 
@@ -617,6 +625,191 @@ erDiagram
     | Vet starts travel | 🚗 Bác sĩ đang đến | Bác sĩ [name] đang trên đường đến. Ước tính: [ETA] |
     | Vet 1km away | 📍 Sắp đến nơi | Bác sĩ còn khoảng 1km. Vui lòng chuẩn bị! |
     | Vet arrived | ✅ Bác sĩ đã đến | Bác sĩ [name] đã đến. Vui lòng ra đón! |
+    
+---
+
+---
+
+#### 3.2.10 UC-CM-09: Xem Danh sách Bệnh nhân (Patient List Sidebar)
+
+- **Actor:** Clinic Manager, Vet
+- **Description:** Sidebar bên trái hiển thị danh sách bệnh nhân để search và chuyển đổi nhanh.
+- **UI Design (Visual Reference):**
+    - **Header:** Title "Patient List" + Search Bar ("Search pet, owner...").
+    - **Filters:** Các chips lọc nhanh: [All] [Dogs] [Cats] [Overdue] (quá hạn tái khám/tiêm).
+    - **List Item:**
+        - Avatar tròn (Pet image).
+        - **Label:** Tên Pet (VD: Bella) + Giống (Golden Retriever) + Tuổi.
+        - **Sub-label:** Chủ nuôi (Owner: John Doe).
+        - **Status Badge:** [OK] (xanh), [Due] (đỏ - trễ lịch), [Soon] (vàng - sắp đến lịch).
+    - **Footer:** Nút [+ New Patient] để thêm nhanh khách vãng lai.
+- **Interaction:** Click vào item -> Load nội dung chi tiết sang khung bên phải (UC-CM-10).
+
+#### 3.2.11 UC-CM-10: Hồ sơ Chi tiết & EMR (Patient Detail Main View)
+
+- **Actor:** Clinic Manager, Vet
+- **Description:** Màn hình chính hiển thị thông tin y tế toàn diện.
+- **UI Design (Header Section):**
+    - **Pet Info:** Avatar lớn, Tên, Badge trạng thái (VD: "Compliant" - Tuân thủ lịch).
+    - **Owner Info:** Icon người + Tên + SĐT (Click để gọi).
+    - **Medical Alerts:** Các tag cảnh báo đỏ (VD: ⚠️ Allergy: Penicillin).
+    - **Info Bar:** Hiển thị 4 cột: Species, Breed, Age/Sex, Weight.
+    - **Actions:** Button [Edit] (sửa thông tin), [Message] (nhắn tin chủ).
+    - **Tabs Navigation:** [Overview] [**EMR/SOAP**] [**Vaccinations**] [Lab Results] [Documents].
+
+- **Tab 1: Medical History (EMR/SOAP):**
+    - **Header:** Button [+ Add SOAP Note] (chỉ Vet).
+    - **Card Layout (History Item):**
+        - Title: Loại khám (VD: Emergency Visit) - Chẩn đoán (Gastritis).
+        - Meta: Ngày khám • Bác sĩ thực hiện.
+        - **Source Badge:** Hiển thị nổi bật nếu từ nơi khác (VD: "🏷️ Nguồn: Phòng khám Thú Y Sài Gòn").
+        - **Content (SOAP Format):**
+            - **S**ubjective: Bệnh sử, than phiền của chủ.
+            - **O**bjective: Kết quả khám lâm sàng (Nhiệt độ, niêm mạc...).
+            - **A**ssessment: Chẩn đoán, đánh giá.
+            - **P**lan: Phác đồ điều trị, đơn thuốc.
+
+- **Tab 2: Vaccinations:**
+    - **Section "Record New Vaccination" (Form):**
+        - Input: Vaccine Type, Date Administered, Next Due Date, Batch No.
+        - Field "Notes/Reactions" để ghi nhận phản ứng thuốc.
+        - Button [Add Record].
+    - **Section "Vaccination History" (Table):**
+        - Columns: Vaccine Name, Administered, Next Due, Batch No, Vet, Status, Actions.
+        - **Status Badge:** [Valid] (xanh), [Expiring Soon] (vàng), [Overdue] (đỏ).
+        - **Action:** Dấu 3 chấm (Edit/Delete - chỉ với record của clinic mình).
+
+#### 3.2.11 UC-CM-10: Xem Hồ sơ Bệnh nhân (View Patient Detail)
+... (giữ nguyên UC-CM-10) ...
+
+#### 3.2.12 UC-CM-11: Quản lý Lịch làm việc (Manage Schedule)
+
+- **Actor:** Clinic Manager
+- **Description:** Xem, tạo, sửa, xóa ca làm việc (Shift) và phân công lịch trực cho các bác sĩ trong phòng khám.
+- **Pre-conditions:**
+    - Actor đã login với quyền `CLINIC_MANAGER` hoặc `CLINIC_OWNER`.
+    - Đã có danh sách Bác sĩ trong phòng khám.
+- **Basic Flow (Resource View):**
+    1. Actor truy cập màn hình "Lịch làm việc" (Scheduler).
+    2. Hệ thống hiển thị giao diện Timeline:
+        - Hàng ngang: Trục thời gian (0h - 24h).
+        - Cột dọc: Danh sách các bác sĩ.
+    3. **Tạo ca (Manual):**
+        - Actor click vào một khoảng trống trên timeline của Bác sĩ A.
+        - Hệ thống mở popup "Tạo ca làm việc".
+        - Actor chọn giờ bắt đầu, kết thúc.
+        - Actor nhấn "Lưu".
+    4. **Sửa ca:**
+        - Actor kéo thả (drag-drop) block ca làm việc để thay đổi giờ hoặc chuyển sang bác sĩ khác.
+        - Hoặc click vào block để sửa chi tiết.
+    5. **Xóa ca:**
+        - Actor click vào block -> chọn "Xóa".
+- **Alternative Flows:**
+    - **AF-1: Import Excel:**
+        - Actor nhấn nút "Import Lịch".
+        - Upload file Excel theo mẫu.
+        - Hệ thống validate và tạo hàng loạt ca.
+    - **AF-2: Xóa ca đã có Booking:**
+        - Hệ thống kiểm tra nếu Shift đã có Slot trạng thái `BOOKED`.
+        - Hiển thị lỗi: "Không thể xóa ca này vì đã có lịch hẹn. Vui lòng hủy lịch hẹn trước."
+- **Post-conditions:**
+    - Record `VET_SHIFT` được tạo/cập nhật.
+    - Hệ thống tự động generate các `SLOT` (30 phút/slot) tương ứng (NSF-001).
+
+#### 3.2.13 UC-VT-13: Xem Lịch sử Bệnh nhân (Mobile View V-010)
+
+- **Actor:** Vet (Mobile App)
+- **Context:** Sử dụng khi đi khám tại nhà (Home Visit) để tra cứu nhanh.
+- **UI Design (Mobile Optimized):**
+    - **Header:** Tên Pet + Avatar + Nút [Call Owner].
+    - **Warnings:** Hiển thị Dị ứng/Lưu ý ngay dưới Header (Màu đỏ).
+    - **Tabs (Vuốt ngang):**
+        - **[INFO]:** Thông tin cơ bản (Giống, Cân nặng, Tuổi).
+        - **[HISTORY]:** Timeline EMR dạng Card dọc (Ngày - Bác sĩ - Chẩn đoán). Click mở popup xem chi tiết thuốc.
+        - **[VACCINE]:** Danh sách mũi tiêm (Tên - Ngày tiêm - Ngày hết hạn). Highlight mũi sắp hết hạn.
+    - **Action (Expandable FAB):** Nút nổi **[+]** góc phải dưới. Khi bấm sẽ xòe ra 2 lựa chọn:
+        1.  **[Thêm EMR]:** Chuyển sang màn hình V-007.
+        2.  **[Thêm Vaccine]:** Chuyển sang màn hình V-011.
+- **Business Rule:** Áp dụng shared data rule như Web (BR-009).
+
+#### 3.2.14 UC-VT-14: Xem Lịch làm việc (View Personal Schedule)
+
+- **Actor:** Vet
+- **Description:** Xem lịch làm việc cá nhân sắp tới và danh sách các booking đã được phân công trong mỗi ca trực.
+- **Pre-conditions:**
+    - Actor đã login thành công vào Mobile App với quyền `VET`.
+- **Basic Flow (Mobile):**
+    1. Actor chọn tab "Lịch trực" (My Schedule) trên thanh điều hướng.
+    2. App hiển thị lịch làm việc dưới dạng Calendar (Lịch tháng) mặc định.
+        - Các ngày có ca trực được đánh dấu chấm màu.
+    3. Actor chọn một ngày cụ thể.
+    4. App hiển thị danh sách các ca trực trong ngày (Agenda View) ở nửa dưới màn hình.
+        - Thông tin ca: Giờ bắt đầu - Giờ kết thúc, Địa điểm (Clinic/Home).
+        - Trạng thái: Sắp tới / Đang diễn ra / Đã xong.
+    5. **Xem Booking:**
+        - Actor chạm vào một ca làm việc để xem chi tiết.
+        - App điều hướng sang màn hình "Chi tiết Ca trực", hiển thị danh sách các Booking đã được gán.
+- **Alternative Flows:**
+    - **AF-1: Không có lịch:**
+        - Trong tháng/tuần không có ca nào.
+        - Hiển thị Empty State: "Bạn chưa có lịch làm việc nào trong thời gian này."
+    - **AF-2: Mất kết nối:**
+        - Hiển thị dữ liệu cache từ lần sync gần nhất.
+        - Thông báo "Đang ngoại tuyến".
+- **Post-conditions:** Vet nắm được lịch làm việc của mình.
+
+#### 3.2.15 UC-VT-15: Tạo Bệnh án (Create EMR)
+
+- **Actor:** Vet
+- **Description:** Bác sĩ ghi lại kết quả khám bệnh, chẩn đoán và phác đồ điều trị vào hồ sơ bệnh nhân (theo chuẩn SOAP).
+- **Pre-conditions:**
+    - Vet đang thực hiện Booking (status = IN_PROGRESS) hoặc vừa hoàn thành.
+    - Vet đã chọn đúng hồ sơ Bệnh nhân.
+- **Basic Flow:**
+    1. Actor nhấn nút "Add SOAP Note" (Web) hoặc icon Tiêm/Khám (Mobile).
+    2. Hệ thống hiển thị form nhập liệu EMR:
+        - **Subjective (S):** Triệu chứng, lý do khám.
+        - **Objective (O):** Kết quả đo lường (Cân nặng, Nhiệt độ) và quan sát lâm sàng.
+        - **Assessment (A):** Chẩn đoán bệnh.
+        - **Plan (P):** Kê đơn thuốc, dặn dò.
+    3. Actor cập nhật Cân nặng mới nhất của thú cưng (nếu có đo).
+    4. Actor nhấn "Lưu".
+    5. Hệ thống lưu bản ghi EMR mới và liên kết với Booking hiện tại (nếu có).
+    6. Hệ thống cập nhật cân nặng vào hồ sơ gốc của Pet.
+- **Post-conditions:** EMR mới được lưu vào lịch sử khám và hiển thị ngay lập tức (Read-Only cho clinic khác).
+
+#### 3.2.16 UC-VT-16: Thêm Tiêm chủng (Add Vaccination)
+
+- **Actor:** Vet
+- **Description:** Ghi nhận mũi tiêm mới vào sổ tiêm chủng điện tử và thiết lập lịch tái chủng.
+- **Basic Flow:**
+    1. Actor truy cập tab "Vaccinations" -> Nhấn "Add Record".
+    2. Actor điền thông tin mũi tiêm:
+        - **Vaccine:** Chọn từ danh sách hoặc nhập mới.
+        - **Date Administered:** Ngày tiêm (Mặc định: Hôm nay).
+        - **Next Due Date:** Hệ thống tự động gợi ý dựa trên loại Vaccine (VD: +1 năm), Actor có thể sửa.
+        - **Batch No:** Số lô thuốc (để truy xuất nguồn gốc).
+        - **Notes:** Ghi chú phản ứng phụ (nếu có).
+    3. Actor nhấn "Lưu".
+    4. Hệ thống lưu record.
+    5. Hệ thống tạp lịch nhắc nhở (Notification Schedule) cho ngày tái chủng [BR-006-07].
+- **Post-conditions:** Sổ tiêm chủng được cập nhật.
+
+#### 3.2.17 API Specifications (Patient Module)
+
+> **Chi tiết kỹ thuật:** Vui lòng xem tài liệu **Software Design Document (SDD)** tại `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` (Mục 2. API Design Specifications).
+>
+> Bảng dưới đây chỉ tóm tắt các method chính để tham khảo nhanh logic nghiệp vụ.
+
+| Method | Resource | Action | Access |
+|--------|----------|--------|--------|
+| GET | `/patients` | List & Detail | CM, VET |
+| GET | `/emrs` | History View | CM, VET |
+| GET | `/vaccinations` | History View | CM, VET |
+| POST/PUT | `/emrs` | Create/Update | VET |
+| POST/PUT/DEL | `/vaccinations` | Manage Records | VET |
+
+- **Security Note:** CM của Clinic A không được xem patients của Clinic B (trừ khi pet đó cũng từng khám ở Clinic A).
 
 ---
 
@@ -646,10 +839,12 @@ erDiagram
 | Stripe API | Stripe | Payment processing |
 | Google Sign-In | Google | OAuth authentication |
 | Firebase | Google | Push notifications, analytics |
-| OpenRouter API | OpenRouter | LLM inference (Cloud) |
-| Cohere API | Cohere | Text embeddings (Cloud) |
-| Qdrant Cloud | Qdrant | Vector database |
-| DuckDuckGo Search | DuckDuckGo | Web search for AI (free) |
+| **OpenRouter API** | OpenRouter | LLM inference (Cloud) - Gemini, Llama, Claude |
+| **DeepSeek API** | DeepSeek | Alternative LLM provider (deepseek-chat) |
+| **LlamaIndex** | LlamaIndex | 100% RAG Framework (VectorStoreIndex, SentenceSplitter, CohereEmbedding, QdrantVectorStore) |
+| **Cohere Embeddings** | Cohere | Multilingual embeddings (embed-multilingual-v3, 1024 dims) |
+| **Qdrant Cloud** | Qdrant | Vector database with Binary Quantization |
+| DuckDuckGo Search | DuckDuckGo | Web search for AI (free, no API key) |
 | Gmail SMTP | Google | Email notifications |
 | Cloudinary | Cloudinary | Image storage & CDN |
 
@@ -811,6 +1006,17 @@ erDiagram
 | BR-007-05 | Admin actions: NONE (bỏ qua), WARN (cảnh cáo), SUSPEND (tạm khóa), BAN (cấm vĩnh viễn) |
 | BR-007-06 | Report từ màn hình: Booking Detail (sau COMPLETED), Clinic/Vet Profile |
 | BR-007-07 | Mỗi booking chỉ được report 1 lần |
+
+#### BR-009: Privacy & Shared Data Rules (Quy tắc Chia sẻ dữ liệu)
+
+> **Core Concept:** Phân biệt rõ dữ liệu Y tế (cần chia sẻ để cứu chữa) và dữ liệu Kinh doanh (cần bảo mật).
+
+| Rule ID | Rule Description |
+|---------|-----------------|
+| BR-009-01 | **Shared Medical Data (Dữ liệu Y tế dùng chung):** Lịch sử khám (EMR) và Sổ tiêm chủng (Vaccination) gắn liền với Pet. Bất kỳ phòng khám nào đang tiếp nhận Pet đều có quyền XEM (Read-Only) toàn bộ lịch sử này, kể cả các record do phòng khám khác tạo. |
+| BR-009-02 | **Private Business Data (Dữ liệu Kinh doanh riêng):** Lịch sử đặt hẹn (Booking History), Lịch sử thanh toán (Payment) và Ghi chú nội bộ là tài sản riêng của từng phòng khám. Clinic B KHÔNG ĐƯỢC THẤY các booking mà Pet đã làm tại Clinic A. |
+| BR-009-03 | **Access Condition (Điều kiện Tiếp cận):** Clinic/Vet chỉ được quyền truy cập hồ sơ của một Pet khi Pet đó đã có ít nhất 1 Bookiing (pending hoặc confirmed) tại phòng khám của mình (Xác lập quan hệ khám chữa bệnh). |
+| BR-009-04 | **Source Attribution:** Khi hiển thị EMR từ phòng khám khác, hệ thống PHẢI hiển thị rõ nguồn gốc (VD: "Nguồn: Phòng khám Thú Y Sài Gòn"). |
 
 ### 5.2 Common Requirements
 

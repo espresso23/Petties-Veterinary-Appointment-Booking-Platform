@@ -198,7 +198,7 @@ async def seed_database(
     try:
         from app.db.postgres.models import (
             Agent, Tool, SystemSetting, ToolType,
-            SettingCategory, DEFAULT_SETTINGS
+            SettingCategory, DEFAULT_SETTINGS, PromptVersion
         )
         from sqlalchemy import select, delete
         from pathlib import Path
@@ -227,7 +227,7 @@ async def seed_database(
             await db.execute(delete(SystemSetting))
 
         existing_settings = await db.execute(select(SystemSetting))
-        if not existing_settings.scalar_one_or_none() or force:
+        if not existing_settings.scalars().first() or force:
             settings = []
             for setting_data in DEFAULT_SETTINGS:
                 setting = SystemSetting(
@@ -244,10 +244,11 @@ async def seed_database(
 
         # 2. Seed Single Agent (thay vi 4 Multi-Agents)
         if force:
+            await db.execute(delete(PromptVersion))
             await db.execute(delete(Agent))
 
         existing_agents = await db.execute(select(Agent))
-        if not existing_agents.scalar_one_or_none() or force:
+        if not existing_agents.scalars().first() or force:
             # Load prompt tu template hoac dung default
             single_agent_prompt = load_template("single_agent") or load_template("main_agent")
 
@@ -292,7 +293,7 @@ Su dung pattern Thought -> Action -> Observation:
 
         # 3. Seed tools cho Single Agent (chi 2 RAG tools)
         existing_tools = await db.execute(select(Tool))
-        if not existing_tools.scalar_one_or_none() or force:
+        if not existing_tools.scalars().first() or force:
             if force:
                 await db.execute(delete(Tool))
 
@@ -539,6 +540,9 @@ async def test_openrouter_connection(
             message="OpenRouter API key not configured. Set OPENROUTER_API_KEY in settings."
         )
 
+    # Get configured model or fallback default
+    model = await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.0-flash-exp:free"
+
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
@@ -549,7 +553,7 @@ async def test_openrouter_connection(
                     "X-Title": "Petties AI"
                 },
                 json={
-                    "model": "google/gemini-2.0-flash-exp:free",
+                    "model": model,
                     "messages": [{"role": "user", "content": "Hello"}],
                     "max_tokens": 10
                 }
@@ -567,11 +571,22 @@ async def test_openrouter_connection(
                     }
                 )
             else:
-                error_data = response.json()
-                error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                try:
+                    error_data = response.json()
+                    # OpenRouter error structure can vary
+                    if "error" in error_data:
+                        if isinstance(error_data["error"], dict):
+                            error_msg = error_data["error"].get("message", str(error_data["error"]))
+                        else:
+                            error_msg = str(error_data["error"])
+                    else:
+                        error_msg = str(error_data)
+                except:
+                    error_msg = response.text
+
                 return TestResult(
                     status="error",
-                    message=f"OpenRouter API error: {error_msg}",
+                    message=f"OpenRouter Error ({response.status_code}): {error_msg}",
                     details={"status_code": response.status_code}
                 )
 
@@ -640,4 +655,69 @@ async def test_cohere_embeddings(
 
     except Exception as e:
         logger.error(f"Cohere test error: {e}")
+        return TestResult(status="error", message=str(e))
+
+
+@router.post("/test-deepseek", response_model=TestResult)
+async def test_deepseek_connection(
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_admin_user)
+):
+    """
+    Test DeepSeek API connection
+
+    Verifies:
+    - API key is valid
+    - Can connect to DeepSeek API
+    - Can generate simple completion
+    """
+    api_key = await get_setting("DEEPSEEK_API_KEY", db)
+
+    if not api_key:
+        return TestResult(
+            status="error",
+            message="DeepSeek API key not configured. Set DEEPSEEK_API_KEY in settings."
+        )
+
+    base_url = await get_setting("DEEPSEEK_BASE_URL", db) or "https://api.deepseek.com"
+    model = await get_setting("DEEPSEEK_MODEL", db) or "deepseek-chat"
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "max_tokens": 10
+                }
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                used_model = data.get("model", model)
+                return TestResult(
+                    status="success",
+                    message="DeepSeek API connected successfully",
+                    details={
+                        "model": used_model,
+                        "provider": "deepseek",
+                        "base_url": base_url
+                    }
+                )
+            else:
+                error_data = response.json()
+                error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                return TestResult(
+                    status="error",
+                    message=f"DeepSeek API error: {error_msg}",
+                    details={"status_code": response.status_code}
+                )
+
+    except Exception as e:
+        logger.error(f"DeepSeek test error: {e}")
         return TestResult(status="error", message=str(e))

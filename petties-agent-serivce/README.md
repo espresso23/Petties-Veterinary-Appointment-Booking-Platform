@@ -3,9 +3,9 @@
 **AI Agent Service cho Petties - Veterinary Appointment Booking Platform**
 
 ```
-Version: v1.0.0 (Cloud-Only Ready)
-Status:  ✅ Multi-Agent to Single Agent Migration Complete
-Stack:   Python 3.12 | FastAPI | LangGraph | FastMCP | PostgreSQL | Qdrant Cloud | OpenRouter | Cohere
+Version: v2.0.0 (Full LlamaIndex RAG)
+Status:  ✅ Single Agent + Full LlamaIndex Integration
+Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cloud | OpenRouter/DeepSeek | Cohere
 ```
 
 ---
@@ -277,32 +277,19 @@ petties-agent-serivce/
 │   │   ├── agents/             # ⭐ LangGraph Agents
 │   │   │   ├── base.py         # Base Agent class
 │   │   │   ├── factory.py      # ⭐ Agent Factory (Dynamic Loading)
-│   │   │   ├── main_agent.py   # Supervisor/Orchestrator
-│   │   │   ├── booking_agent.py
-│   │   │   ├── medical_agent.py
-│   │   │   └── research_agent.py
+│   │   │   ├── single_agent.py # ⭐ ReAct Single Agent
+│   │   │   └── state.py        # Agent state management
 │   │   │
 │   │   ├── tools/              # Tool System (Code-based only)
 │   │   │   ├── mcp_server.py   # FastMCP server
 │   │   │   ├── scanner.py      # Tool scanner (TL-01)
 │   │   │   ├── executor.py     # Dynamic executor
 │   │   │   └── mcp_tools/
-│   │   │       ├── booking_tools.py
-│   │   │       ├── medical_tools.py
-│   │   │       └── research_tools.py
+│   │   │       └── medical_tools.py  # ⭐ 2 RAG tools only
 │   │   │
-│   │   ├── rag/                # RAG System
-│   │   │   ├── document_processor.py
-│   │   │   ├── qdrant_client.py
-│   │   │   └── rag_engine.py
-│   │   │
-│   │   └── prompts/            # Prompt Templates (seed only)
-│   │       ├── templates/
-│   │       │   ├── main_agent.txt
-│   │       │   ├── booking_agent.txt
-│   │       │   ├── medical_agent.txt
-│   │       │   └── research_agent.txt
-│   │       └── loader.py
+│   │   └── rag/                # ⭐ RAG System (Full LlamaIndex v2.0)
+│   │       ├── __init__.py     # Exports LlamaIndex engine
+│   │       └── rag_engine.py   # ⭐ Full LlamaIndex (replaces custom code)
 │   │
 │   ├── db/                     # Database Layer
 │   │   └── postgres/
@@ -310,7 +297,7 @@ petties-agent-serivce/
 │   │       └── session.py      # Async session
 │   │
 │   └── services/               # Services
-│       └── llm_client.py       # Ollama/OpenAI client wrapper
+│       └── llm_client.py       # OpenRouter/DeepSeek client wrapper
 │
 ├── scripts/
 │   └── seed_db.py              # ⭐ Database seeding (loads templates → DB)
@@ -495,12 +482,13 @@ Response:
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **LLM Provider** | **OpenRouter API** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
-| **Primary Models** | **gemini-2.0-flash, llama-3.3-70b** | ⭐ Free tier + Vietnamese support |
-| **Fallback** | **claude-3.5-sonnet** | Best quality khi cần |
+| **LLM Provider** | **OpenRouter API / DeepSeek** | ⭐ Gateway đến nhiều LLM providers (Cloud) |
+| **Primary Models** | **gemini-2.0-flash, deepseek-chat** | ⭐ Free tier + Vietnamese support |
+| **Fallback** | **llama-3.3-70b** | Best quality khi cần |
 | **Embeddings** | **Cohere embed-multilingual-v3** | ⭐ Best for Vietnamese (Cloud API) |
-| **RAG Framework** | LlamaIndex 0.11.20 | Document processing |
-| **Web Search** | Tavily API | Web research |
+| **RAG Framework** | **LlamaIndex (Full)** | ⭐ Document processing, chunking, retrieval |
+| **Vector Store** | **llama-index-vector-stores-qdrant** | LlamaIndex ↔ Qdrant integration |
+| **Web Search** | DuckDuckGo Search | Web research (free, no API key) |
 
 > **✅ Cloud-Only Architecture:** Hệ thống sử dụng Cloud APIs - **KHÔNG cần GPU/RAM local**. Phù hợp Render/Railway free tier.
 
@@ -752,4 +740,4 @@ services:
 
 ---
 
-**Last Updated:** 2025-12-26
+**Last Updated:** 2025-12-27 (Full LlamaIndex v2.0)

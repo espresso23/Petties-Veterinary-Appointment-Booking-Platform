@@ -21,10 +21,10 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
+
 import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
-import { SettingsPage } from './pages/admin/settings'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
@@ -43,7 +43,7 @@ import { VetsManagementPage } from './pages/clinic-manager/vets'
 import { ProfilePage } from './pages/shared'
 
 // Components
-import { ProtectedRoute } from './components/ProtectedRoute'
+import { ProtectedRoute } from './components/common/ProtectedRoute'
 
 // Styles
 import './styles/global.css'
@@ -87,10 +87,10 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<AdminDashboardPage />} />
-            <Route path="tools" element={<ToolsPage />} />
+
             <Route path="knowledge" element={<KnowledgePage />} />
+            <Route path="tools" element={<ToolsPage />} />
             <Route path="playground" element={<PlaygroundPage />} />
-            <Route path="settings" element={<SettingsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 

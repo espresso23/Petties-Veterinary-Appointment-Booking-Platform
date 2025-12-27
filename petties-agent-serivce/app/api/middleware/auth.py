@@ -22,7 +22,7 @@ from app.db.postgres.session import get_db, AsyncSessionLocal
 logger = logging.getLogger(__name__)
 
 # Cache for secret key to avoid DB hits on every request
-_runtime_secret_key = None
+# _runtime_secret_key = None (Deprecated)
 
 # Security scheme for Swagger docs
 security = HTTPBearer(auto_error=False)
@@ -87,26 +87,12 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
     1. Tries to get JWT_SECRET from DB
     2. Falls back to JWT_SECRET from settings (.env)
     """
-    global _runtime_secret_key
+    # Use secret key from environment variables (settings.py)
+    # This is more stable and prevents DB connection issues in middleware
+    secret = settings.SECRET_KEY
     
-    # Try to load secret key from DB if not cached
-    if _runtime_secret_key is None:
-        try:
-            async with AsyncSessionLocal() as db:
-                db_key = await get_setting("JWT_SECRET", db)
-                if db_key:
-                    _runtime_secret_key = db_key
-                    logger.info("🔑 Loaded JWT_SECRET from database")
-        except Exception:
-            pass
-            
-    # Use cached or settings default
-    secret = _runtime_secret_key or settings.SECRET_KEY
-    key_source = "Database" if _runtime_secret_key else "Environment/Settings"
-    
-    # Mask secret for log
     masked_secret = f"{secret[:4]}...{secret[-4:]}" if secret and len(secret) > 8 else "****"
-    logger.debug(f"Attempting JWT decode with {key_source} key: {masked_secret}")
+    logger.info(f"Decoding JWT with key (first/last 4): {masked_secret}")
     
     try:
         # Decode token
@@ -139,11 +125,7 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
         # If signature failed, maybe the secret key in DB changed? 
         # Clear cache for next attempt
         error_str = str(e)
-        if "Signature verification failed" in error_str:
-            _runtime_secret_key = None
-            logger.warning(f"JWT Signature verification failed using {key_source} key. Resetting runtime cache.")
-        else:
-            logger.warning(f"JWT decode failed ({type(e).__name__}): {error_str}")
+        logger.warning(f"JWT decode failed ({type(e).__name__}): {error_str}")
         return None
 
 

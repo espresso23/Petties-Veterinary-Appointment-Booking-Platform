@@ -31,8 +31,8 @@ class ConnectionManager:
         self.active_connections: Dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, session_id: str):
-        """Accept and store connection"""
-        await websocket.accept()
+        """Store active connection (WebSocket must be accepted already)"""
+        # WebSocket is accepted in the endpoint
         self.active_connections[session_id] = websocket
         logger.info(f"WebSocket connected: {session_id}")
 
@@ -44,10 +44,16 @@ class ConnectionManager:
 
     async def send_message(self, session_id: str, message: dict):
         """Send message to specific session"""
-        if session_id in self.active_connections:
+        websocket = self.active_connections.get(session_id)
+        if websocket:
             try:
-                await self.active_connections[session_id].send_json(message)
-            except Exception as e:
+                # Basic check for state (optional but safer)
+                from fastapi.websockets import WebSocketState
+                if websocket.client_state == WebSocketState.CONNECTED:
+                    await websocket.send_json(message)
+            except (RuntimeError, Exception) as e:
+                logger.error(f"Failed to send message to {session_id}: {e}")
+                # Don't delete yet, disconnect() will handle it or next send will fail
                 logger.error(f"Failed to send message: {e}")
 
     async def send_text(self, session_id: str, text: str):
@@ -169,16 +175,18 @@ async def handle_chat_message(
         async with AsyncSessionLocal() as db:
             try:
                 if agent_id:
-                    # Get specific agent by ID with optional model override
+                    # Get specific agent by ID with provider/model override
                     agent = await AgentFactory.get_agent_by_id(
                         agent_id=agent_id,
                         db_session=db,
+                        provider_override=provider_override,
                         model_override=model_override
                     )
                 else:
-                    # Get default enabled agent with optional model override
+                    # Get default enabled agent with provider/model override
                     agent = await AgentFactory.get_agent(
                         db_session=db,
+                        provider_override=provider_override,
                         model_override=model_override
                     )
             except ValueError as e:
@@ -197,11 +205,12 @@ async def handle_chat_message(
                 })
                 return
 
-            # Send agent info with model
+            # Send agent info with provider and model
             await manager.send_message(session_id, {
                 "type": "agent_info",
                 "agent_name": agent.name,
                 "agent_type": agent.agent_type,
+                "provider": provider_override or "openrouter",
                 "model": model_override or "default",
                 "timestamp": datetime.now().isoformat()
             })
@@ -210,6 +219,14 @@ async def handle_chat_message(
             logger.info(f"Starting agent stream for session {session_id}")
 
             async for event in agent.stream(user_message, session_id):
+                # Safety check: ensure event is a dict
+                if not isinstance(event, dict):
+                    logger.warning(f"Agent stream yielded non-dict event ({type(event)}): {event}")
+                    if isinstance(event, str):
+                        event = {"type": "stream", "content": event}
+                    else:
+                        continue
+
                 event_type = event.get("type", "")
 
                 if event_type == "react_step":
@@ -243,9 +260,13 @@ async def handle_chat_message(
 
                 elif event_type == "error":
                     # Error during processing
+                    error_msg = event.get("content", "Unknown error")
+                    if isinstance(event, str): # Extra safety
+                        error_msg = event
+
                     await manager.send_message(session_id, {
                         "type": "error",
-                        "error": event.get("content", "Unknown error"),
+                        "error": error_msg,
                         "timestamp": datetime.now().isoformat()
                     })
                     return
@@ -272,52 +293,79 @@ async def handle_chat_message(
         })
 
 
+
+from app.api.middleware.auth import decode_jwt_token
+
 async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "default"):
     """
     WebSocket endpoint for chat
-
-    URL: /ws/chat/{session_id}
-
-    Message format (incoming):
-        {"message": "User question", "agent_id": 1}
-
-    Message format (outgoing):
-        {"type": "thinking|tool_call|tool_result|stream|complete|error", ...}
-
-    Message Types:
-        - connected: Connection established
-        - ack: Message received acknowledgment
-        - agent_info: Info about selected agent
-        - thinking: Agent's reasoning step (Thought)
-        - tool_call: Tool being called with params (Action)
-        - tool_result: Result from tool execution (Observation)
-        - stream: Token streaming from LLM
-        - complete: Final response with full react_trace
-        - error: Error occurred
+    
+    URL: /ws/chat/{session_id}?token={jwt_token}
     """
-    await manager.connect(websocket, session_id)
-
     try:
-        # Send welcome message
-        await manager.send_message(session_id, {
-            "type": "connected",
-            "session_id": session_id,
-            "message": "Connected to Petties Agent Chat",
-            "supported_message_types": [
-                "thinking", "tool_call", "tool_result",
-                "stream", "complete", "error"
-            ],
-            "timestamp": datetime.now().isoformat()
-        })
+        logger.info(f"Incoming WebSocket connection: session_id={session_id}")
+        
+        # 1. Accept first (Fix 403 Forbidden on Handshake)
+        from fastapi.websockets import WebSocketState
+        if websocket.client_state == WebSocketState.CONNECTING:
+            await websocket.accept()
+            logger.debug(f"WebSocket accepted: {session_id}")
+        else:
+            logger.warning(f"WebSocket not in CONNECTING state: {websocket.client_state}")
 
-        # Listen for messages
-        while True:
-            data = await websocket.receive_text()
-            await handle_chat_message(websocket, session_id, data)
+        # 2. Validate Token
+        token = websocket.query_params.get("token")
+        user = None
+        
+        if token:
+            try:
+                user = await decode_jwt_token(token)
+            except Exception as e:
+                logger.error(f"Error during token validation: {e}", exc_info=True)
+                user = None
 
-    except WebSocketDisconnect:
-        manager.disconnect(session_id)
-        logger.info(f"Client disconnected: {session_id}")
+        if not token or not user:
+            error_msg = "Authentication required" if not token else "Invalid authentication"
+            logger.warning(f"WebSocket connection rejected: {error_msg} for session {session_id}")
+            # Send error message before closing if possible, or just close with code
+            await websocket.close(code=1008, reason=error_msg[:123]) # Reason max 123 chars
+            return
+            
+        logger.info(f"WebSocket auth success: {user.username} ({user.role})")
+
+        # 3. Connect (Manager stores only)
+        await manager.connect(websocket, session_id)
+
+        try:
+            # Send welcome message
+            await manager.send_message(session_id, {
+                "type": "connected",
+                "session_id": session_id,
+                "message": "Connected to Petties Agent Chat",
+                "user": user.username,
+                "supported_message_types": [
+                    "thinking", "tool_call", "tool_result",
+                    "stream", "complete", "error"
+                ],
+                "timestamp": datetime.now().isoformat()
+            })
+
+            # Listen for messages
+            while True:
+                data = await websocket.receive_text()
+                await handle_chat_message(websocket, session_id, data)
+
+        except WebSocketDisconnect:
+            manager.disconnect(session_id)
+            logger.info(f"Client disconnected: {session_id}")
+        except Exception as e:
+            logger.error(f"WebSocket execution error: {e}", exc_info=True)
+            manager.disconnect(session_id)
+            
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        manager.disconnect(session_id)
+        logger.critical(f"Fatal WebSocket handler error: {e}", exc_info=True)
+        try:
+            await websocket.close(code=1011) # Internal error
+        except:
+            pass
+

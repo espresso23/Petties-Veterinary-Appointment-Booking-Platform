@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = Field(default=True, description="Debug mode")
 
     ENVIRONMENT: str = Field(default="development", description="Environment name")
+    
+    # ==================== Error Monitoring (Sentry) ====================
+    SENTRY_DSN: str = Field(default="", description="Sentry DSN for error tracking (leave empty to disable)")
 
     # ==================== Server Configuration ====================
     HOST: str = Field(default="0.0.0.0", description="Server host")
@@ -123,8 +126,8 @@ class Settings(BaseSettings):
         description="OpenRouter Cloud API Key (https://openrouter.ai/keys)"
     )
     OPENROUTER_MODEL: str = Field(
-        default="google/gemini-2.0-flash-exp:free",
-        description="OpenRouter LLM model (free tier: gemini-2.0-flash-exp:free)"
+        default="google/gemini-2.0-flash-lite-preview-02-05:free",
+        description="OpenRouter LLM model (free tier: gemini-2.0-flash-lite-preview-02-05:free)"
     )
     OPENROUTER_FALLBACK_MODEL: str = Field(
         default="meta-llama/llama-3.3-70b-instruct",
@@ -162,24 +165,6 @@ class Settings(BaseSettings):
         description="OpenAI embedding model"
     )
     OPENAI_CHAT_MODEL: str = Field(default="gpt-4-turbo", description="OpenAI chat model")
-
-    # ===== Ollama (Backup - Self-hosted or Cloud) =====
-    OLLAMA_BASE_URL: str = Field(
-        default="http://localhost:11434",
-        description="Ollama server URL (backup if OpenRouter unavailable)"
-    )
-    OLLAMA_API_KEY: str = Field(
-        default="",
-        description="Ollama Cloud API key (leave empty for local)"
-    )
-    OLLAMA_MODEL: str = Field(
-        default="llama3.2",
-        description="Ollama LLM model"
-    )
-    OLLAMA_EMBEDDING_MODEL: str = Field(
-        default="nomic-embed-text",
-        description="Ollama embedding model for RAG"
-    )
 
     # ==================== Agent Configuration (Single Agent + ReAct) ====================
     AGENT_TEMPERATURE: float = Field(
@@ -221,7 +206,7 @@ class Settings(BaseSettings):
     # CRITICAL: Generate a secure random key for production (min 32 characters)
     # Example: python -c "import secrets; print(secrets.token_urlsafe(32))"
     JWT_SECRET: str = Field(
-        default="placeholder-key-for-dev-only",
+        default="petties-agent-service-secret-key-change-in-production",
         description="Secret key for JWT signing - synced with Spring Boot"
     )
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
@@ -281,9 +266,11 @@ class Settings(BaseSettings):
 
     class Config:
         """Pydantic Config"""
-        # Load from .env file relative to this file's directory
-        # This handles cases where service is run from root or from within app/
-        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+        # Try loading from service .env AND root project .env
+        env_file = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env")
+        ]
         env_file_encoding = "utf-8"
         case_sensitive = True
         extra = "ignore"  # Ignore extra fields trong .env

@@ -42,6 +42,7 @@
 8. Check-out bệnh nhân
 9. Xem hồ sơ y tế thú cưng
 10. Xem sổ tiêm chủng của pet
+11. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 🆕
 11. Ghi chú hồ sơ bệnh án (tạo EMR)
 12. Cập nhật sổ tiêm chủng
 13. Video Consultation với pet owner(optionally)
@@ -67,6 +68,9 @@
 12. Quản lý hủy & hoàn tiền
 13. Xem dashboard hôm nay
 14. Quản lý ca làm việc nhân viên
+15. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**: 🆕
+    - Xem danh sách bệnh nhân từng khám tại phòng khám
+    - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
 
 ---
 
@@ -144,10 +148,8 @@
 - 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
 - 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
-- 🤖 Citation & Attribution - Trích dẫn nguồn (Research Agent) 🔄
+- 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
-- 🤖 SOS - Cấp cứu khẩn cấp ❌ (Deferred)
-- 🤖 Video Consultation ❌ (Deferred)
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
 - 🤖 Vaccination Tracker - Xem sổ tiêm chủng ✅ (FE/BE)
 - 🤖 Home Visit Tracking ✅ (FE/BE)

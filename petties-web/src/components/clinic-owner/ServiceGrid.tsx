@@ -9,7 +9,7 @@ import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon } from '@heroicons/react
 import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 import {
   getAllServices,
   getServiceById,

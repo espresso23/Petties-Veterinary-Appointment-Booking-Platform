@@ -46,6 +46,7 @@ class AgentFactory:
     @staticmethod
     async def get_agent(
         db_session: AsyncSession,
+        provider_override: Optional[str] = None,
         model_override: Optional[str] = None
     ) -> SingleAgent:
         """
@@ -53,11 +54,12 @@ class AgentFactory:
 
         Args:
             db_session: Database session
+            provider_override: Optional provider to use ("openrouter" | "deepseek")
             model_override: Optional model to override default (e.g., "google/gemini-2.0-flash-exp:free")
 
         Returns:
             SingleAgent instance voi:
-            - LLM client (OpenRouter/Ollama)
+            - LLM client (OpenRouter/DeepSeek/Ollama)
             - System prompt tu DB
             - Enabled tools tu DB
 
@@ -78,30 +80,43 @@ class AgentFactory:
 
         logger.info(f"Loading agent: {agent_config.name}")
 
-        # 2. Load LLM client tu DB settings (OpenRouter hoac Ollama)
-        llm_client = await create_llm_client_from_db(db_session)
+        # 2. Load LLM client with provider/model override
+        llm_client = await create_llm_client_from_db(
+            db_session,
+            provider_override=provider_override,
+            model_override=model_override
+        )
 
-        # 3. If model_override provided, update LLM client model
-        if model_override:
-            llm_client.model = model_override
-            logger.info(f"Model override applied: {model_override}")
+        logger.info(f"LLM client created: provider={provider_override or 'default'}, model={model_override or 'default'}")
 
         # 4. Load enabled tools tu DB
         tools_result = await db_session.execute(
             select(Tool).where(Tool.enabled == True)
         )
-        enabled_tools = [t.name for t in tools_result.scalars().all()]
+        tools_list = tools_result.scalars().all()
+        enabled_tools = [t.name for t in tools_list]
+        tool_schemas = [
+            {
+                "name": t.name,
+                "description": t.description,
+                "input_schema": t.input_schema
+            } 
+            for t in tools_list
+        ]
 
         logger.info(f"Enabled tools: {enabled_tools}")
 
         # 5. Build Single Agent voi ReAct pattern
         agent = build_react_agent(
             llm_client=llm_client,
+            name=agent_config.name,
+            agent_type="single_agent",
             system_prompt=agent_config.system_prompt,
             temperature=agent_config.temperature,
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
-            enabled_tools=enabled_tools
+            enabled_tools=enabled_tools,
+            tool_schemas=tool_schemas
         )
 
         actual_model = model_override or agent_config.model
@@ -117,6 +132,7 @@ class AgentFactory:
     async def get_agent_by_id(
         agent_id: int,
         db_session: AsyncSession,
+        provider_override: Optional[str] = None,
         model_override: Optional[str] = None
     ) -> SingleAgent:
         """
@@ -125,6 +141,7 @@ class AgentFactory:
         Args:
             agent_id: Database ID cua agent
             db_session: Database session
+            provider_override: Optional provider to use ("openrouter" | "deepseek")
             model_override: Optional model to override default
 
         Returns:
@@ -144,28 +161,41 @@ class AgentFactory:
         if not agent_config.enabled:
             raise ValueError(f"Agent '{agent_config.name}' is disabled")
 
-        # Load LLM client
-        llm_client = await create_llm_client_from_db(db_session)
+        # Load LLM client with provider/model override
+        llm_client = await create_llm_client_from_db(
+            db_session,
+            provider_override=provider_override,
+            model_override=model_override
+        )
 
-        # Apply model override if provided
-        if model_override:
-            llm_client.model = model_override
-            logger.info(f"Model override applied: {model_override}")
+        logger.info(f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={model_override or 'default'}")
 
-        # Load enabled tools
+        # Load enabled tools tu DB
         tools_result = await db_session.execute(
             select(Tool).where(Tool.enabled == True)
         )
-        enabled_tools = [t.name for t in tools_result.scalars().all()]
+        tools_list = tools_result.scalars().all()
+        enabled_tools = [t.name for t in tools_list]
+        tool_schemas = [
+            {
+                "name": t.name,
+                "description": t.description,
+                "input_schema": t.input_schema
+            } 
+            for t in tools_list
+        ]
 
         # Build agent
         agent = build_react_agent(
             llm_client=llm_client,
+            name=agent_config.name,
+            agent_type="single_agent",
             system_prompt=agent_config.system_prompt,
             temperature=agent_config.temperature,
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
-            enabled_tools=enabled_tools
+            enabled_tools=enabled_tools,
+            tool_schemas=tool_schemas
         )
 
         return agent

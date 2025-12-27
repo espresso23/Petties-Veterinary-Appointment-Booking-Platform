@@ -5,7 +5,7 @@ import type { SendOtpRequest } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
 import { parseApiError } from '../../utils/errorHandler'
-import { OtpInput } from '../../components/OtpInput'
+import { OtpInput } from '../../components/common/OtpInput'
 import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon, EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 

@@ -50,7 +50,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 def get_rag_engine():
-    """Lazy import RAG engine to avoid circular imports"""
+    """Lazy import RAG engine to avoid circular imports - Full LlamaIndex"""
     from app.core.rag.rag_engine import get_rag_engine as _get_rag_engine
     return _get_rag_engine()
 
@@ -589,30 +589,14 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
         Success message with collection info
     """
     try:
-        from app.core.rag.qdrant_client import get_qdrant_manager, COHERE_EMBED_DIMENSION
-        from app.core.config_helper import get_setting
+        from app.core.rag import get_rag_engine, COHERE_EMBED_DIMENSION
 
-        # Get collection name from DB
-        col_name = await get_setting("QDRANT_COLLECTION_NAME", db, "petties_knowledge_base")
-
-        # Get Qdrant manager
-        qdrant = get_qdrant_manager()
-
-        # Delete existing collection if exists
-        existing_collections = qdrant.list_collections()
-        if col_name in existing_collections:
-            logger.info(f"Deleting existing collection '{col_name}'")
-            qdrant.delete_collection(col_name)
-
-        # Create new collection with correct dimension
-        success = qdrant.create_collection(
-            collection_name=col_name,
-            dimension=COHERE_EMBED_DIMENSION,
-            recreate_on_mismatch=True
-        )
+        # Use RAG engine to recreate collection (LlamaIndex handles Qdrant internally)
+        rag = get_rag_engine()
+        success = await rag.recreate_collection()
 
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to create collection")
+            raise HTTPException(status_code=500, detail="Failed to recreate collection")
 
         # Reset all documents to unprocessed
         result = await db.execute(
@@ -627,15 +611,19 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
         await db.commit()
 
-        logger.info(f"Recreated collection '{col_name}' with dimension {COHERE_EMBED_DIMENSION}")
+        # Get collection info after recreation
+        status = await rag.get_status()
+
+        logger.info(f"Recreated collection with dimension {COHERE_EMBED_DIMENSION}")
         logger.info(f"Reset {len(documents)} documents to unprocessed")
 
         return {
             "success": True,
-            "message": f"Collection '{col_name}' recreated successfully",
-            "collection_name": col_name,
+            "message": f"Collection recreated successfully",
+            "collection_name": status.get("collection_name"),
             "dimension": COHERE_EMBED_DIMENSION,
-            "documents_reset": len(documents)
+            "documents_reset": len(documents),
+            "engine": "LlamaIndex"
         }
 
     except HTTPException:
@@ -663,54 +651,29 @@ async def debug_qdrant(db: AsyncSession = Depends(get_db)):
     - Sample points
     """
     try:
-        from app.core.rag.qdrant_client import get_qdrant_manager, COHERE_EMBED_DIMENSION
-        from app.core.config_helper import get_setting
+        from app.core.rag import get_rag_engine, COHERE_EMBED_DIMENSION
 
-        # Get collection name
-        col_name = await get_setting("QDRANT_COLLECTION_NAME", db, "petties_knowledge_base")
+        # Use RAG engine for debug info (LlamaIndex handles Qdrant internally)
+        rag = get_rag_engine()
+        debug_info = await rag.get_debug_info()
 
-        # Get Qdrant manager
-        qdrant = get_qdrant_manager()
-
-        # Check if collection exists
-        collections = qdrant.list_collections()
-
-        if col_name not in collections:
+        # Check for error in debug_info
+        if "error" in debug_info:
             return {
                 "exists": False,
-                "collection_name": col_name,
-                "available_collections": collections,
-                "message": f"Collection '{col_name}' not found"
+                "error": debug_info.get("error"),
+                "collection_name": debug_info.get("collection_name"),
+                "message": "Collection not accessible"
             }
-
-        # Get collection info
-        info = qdrant.get_collection_info(col_name)
-
-        # Try to get a sample point
-        try:
-            sample_results = qdrant.client.scroll(
-                collection_name=col_name,
-                limit=3,
-                with_vectors=True  # Include vectors to verify they're stored
-            )
-            sample_points = [
-                {
-                    "id": str(point.id),
-                    "payload": point.payload,
-                    "vector_length": len(point.vector) if hasattr(point, 'vector') and point.vector else 0
-                }
-                for point in sample_results[0]
-            ]
-        except Exception as e:
-            sample_points = []
-            logger.warning(f"Could not get sample points: {e}")
 
         return {
             "exists": True,
-            "collection_name": col_name,
-            "collection_info": info,
+            "collection_name": debug_info.get("collection_name"),
+            "vectors_count": debug_info.get("vectors_count"),
+            "status": debug_info.get("status"),
             "expected_dimension": COHERE_EMBED_DIMENSION,
-            "sample_points": sample_points,
+            "sample_points": debug_info.get("sample_points", []),
+            "engine": debug_info.get("engine"),
             "message": "Collection found and accessible"
         }
 
@@ -776,9 +739,9 @@ async def get_status(
         qdrant_info = {}
         try:
             rag = get_rag_engine()
-            qdrant_info = await rag.get_stats()
+            qdrant_info = await rag.get_status()
         except Exception as e:
-            logger.warning(f"Could not get Qdrant stats: {e}")
+            logger.warning(f"Could not get Qdrant status: {e}")
             qdrant_info = {"status": "unavailable", "error": str(e)}
 
         return KnowledgeBaseStatusResponse(

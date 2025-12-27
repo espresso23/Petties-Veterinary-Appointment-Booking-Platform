@@ -1,4 +1,4 @@
-import { CheckIcon, XMarkIcon, LinkIcon } from '@heroicons/react/24/outline'
+import { CheckIcon, XMarkIcon, LinkIcon, CpuChipIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -12,8 +12,7 @@ interface ChatMessageProps {
 }
 
 /**
- * Chat Message Component
- * Displays user/assistant messages with citations, thinking process, and feedback
+ * Chat Message Component - Neobrutalism Style
  */
 export const ChatMessage = ({
   role,
@@ -28,59 +27,63 @@ export const ChatMessage = ({
   const isUser = role === 'user'
 
   return (
-    <div className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'} mb-6`}>
-      {!isUser && (
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-          <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+    <div className={`flex gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'} mb-8`}>
+      {/* Avatar Wrapper */}
+      <div className={`flex-shrink-0 w-12 h-12 border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] flex items-center justify-center ${isUser ? 'bg-blue-400' : 'bg-amber-400'}`}>
+        {isUser ? (
+          <svg className="w-7 h-7 text-stone-900" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg className="w-7 h-7 text-stone-900" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
           </svg>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className={`flex-1 ${isUser ? 'max-w-3xl' : 'max-w-4xl'}`}>
-        {/* Role Label */}
-        <div className={`flex items-center gap-2 mb-1.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
-          <span className="text-xs font-medium text-stone-500">
-            {isUser ? 'You' : 'Assistant'}
+      <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+        {/* Role & Time */}
+        <div className="flex items-center gap-3 mb-2 px-1">
+          <span className="text-[10px] font-black uppercase text-stone-500 tracking-widest">
+            {isUser ? 'Pet Owner' : 'Petties Assistant'}
           </span>
           {timestamp && (
-            <span className="text-xs text-stone-400">
+            <span className="text-[10px] font-bold text-stone-400">
               {timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
 
-        {/* Message Content */}
+        {/* Message Bubble */}
         <div className={`
-          rounded-2xl px-4 py-3
+          relative border-4 border-stone-900 p-5 w-fit
           ${isUser
-            ? 'bg-amber-600 text-white ml-auto'
-            : 'bg-white border border-stone-200 shadow-soft'
+            ? 'bg-blue-500 text-white shadow-[6px_6px_0_#1c1917]'
+            : 'bg-white text-stone-900 shadow-[6px_6px_0_#1c1917]'
           }
         `}>
-          <div className={`${isUser ? 'text-white' : 'text-stone-900'} whitespace-pre-wrap`}>
+          <div className={`text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed ${isUser ? 'text-white' : 'text-stone-900'}`}>
             {content}
           </div>
 
           {/* Citations */}
           {!isUser && citations.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-stone-200 space-y-1.5">
-              <p className="text-xs font-medium text-stone-600 mb-2">Sources:</p>
+            <div className="mt-4 pt-4 border-t-4 border-stone-900 grid grid-cols-1 gap-2">
+              <p className="text-[10px] font-black uppercase text-stone-500 mb-1">Citations & Sources</p>
               {citations.map((citation, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-xs">
-                  <LinkIcon className="w-3.5 h-3.5 text-stone-400" />
-                  <span className="text-stone-500">
-                    {citation.type === 'rag' ? '📄 ' : '🌐 '}
-                    {citation.source}
+                <div key={idx} className="flex items-center gap-2 text-xs bg-stone-50 p-2 border-2 border-stone-900">
+                  <LinkIcon className="w-3.5 h-3.5 text-stone-900" />
+                  <span className="font-bold text-stone-700 truncate flex-1">
+                    {citation.type === 'rag' ? 'Knowledge Base' : 'Web Resource'}: {citation.source}
                   </span>
                   {citation.url && (
                     <a
                       href={citation.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-amber-600 hover:text-amber-700 underline"
+                      className="text-blue-600 hover:underline font-black uppercase text-[10px]"
                     >
-                      View source
+                      View
                     </a>
                   )}
                 </div>
@@ -88,90 +91,78 @@ export const ChatMessage = ({
             </div>
           )}
 
-          {/* Feedback Buttons (Assistant only) */}
+          {/* Feedback Section */}
           {!isUser && onFeedback && (
-            <div className="mt-3 pt-3 border-t border-stone-200 flex items-center gap-2">
-              <span className="text-xs text-stone-500">Feedback:</span>
-              <button
-                onClick={() => onFeedback('good')}
-                className={`
-                  p-1.5 rounded-lg transition-colors cursor-pointer
-                  ${feedback === 'good'
-                    ? 'bg-green-100 text-green-700'
-                    : 'text-stone-400 hover:bg-stone-100 hover:text-green-600'
-                  }
-                `}
-                title="Good response"
-              >
-                <CheckIcon className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onFeedback('bad')}
-                className={`
-                  p-1.5 rounded-lg transition-colors cursor-pointer
-                  ${feedback === 'bad'
-                    ? 'bg-red-100 text-red-700'
-                    : 'text-stone-400 hover:bg-stone-100 hover:text-red-600'
-                  }
-                `}
-                title="Bad response"
-              >
-                <XMarkIcon className="w-4 h-4" />
-              </button>
+            <div className="mt-4 flex items-center justify-between border-t-4 border-stone-900 pt-3">
+              <span className="text-[10px] font-black uppercase text-stone-500">Feedback</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onFeedback('good')}
+                  className={`p-1.5 border-2 border-stone-900 transition-all ${feedback === 'good' ? 'bg-green-400' : 'bg-white hover:bg-green-100 shadow-[2px_2px_0_#1c1917]'}`}
+                >
+                  <CheckIcon className="w-4 h-4 font-black text-stone-900" />
+                </button>
+                <button
+                  onClick={() => onFeedback('bad')}
+                  className={`p-1.5 border-2 border-stone-900 transition-all ${feedback === 'bad' ? 'bg-red-400' : 'bg-white hover:bg-red-100 shadow-[2px_2px_0_#1c1917]'}`}
+                >
+                  <XMarkIcon className="w-4 h-4 font-black text-stone-900" />
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Thinking Process & Tool Calls (Expanded by default when available) */}
+        {/* Thinking & Tools - Neobrutalist Cards */}
         {!isUser && (thinkingProcess.length > 0 || toolCalls.length > 0) && (
-          <div className="mt-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold text-blue-800">🧠 Agent Thinking Process</span>
-            </div>
-
+          <div className="mt-4 w-full space-y-4">
             {thinkingProcess.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">Reasoning Steps:</p>
-                <ol className="space-y-1.5 text-sm text-blue-900">
+              <div className="bg-amber-100 border-4 border-stone-900 p-4 shadow-[4px_4px_0_#1c1917]">
+                <div className="flex items-center gap-2 mb-3">
+                  <CpuChipIcon className="w-5 h-5 text-stone-900" />
+                  <span className="text-xs font-black uppercase tracking-wider text-stone-900">Reasoning Trace</span>
+                </div>
+                <div className="space-y-2">
                   {thinkingProcess.map((step, idx) => (
-                    <li key={idx} className="flex gap-2">
-                      <span className="flex-shrink-0 w-5 h-5 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center text-xs font-bold">
-                        {idx + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
+                    <div key={idx} className="flex gap-3 text-sm">
+                      <span className="shrink-0 font-black text-amber-600">0{idx + 1}</span>
+                      <p className="font-bold text-stone-700 leading-snug">{step}</p>
+                    </div>
                   ))}
-                </ol>
+                </div>
               </div>
             )}
 
             {toolCalls.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-purple-700 mb-2 uppercase tracking-wide">🔧 Tool Executions:</p>
-                <div className="space-y-2">
+              <div className="bg-purple-100 border-4 border-stone-900 p-4 shadow-[4px_4px_0_#1c1917]">
+                <div className="flex items-center gap-2 mb-3">
+                  <WrenchScrewdriverIcon className="w-5 h-5 text-stone-900" />
+                  <span className="text-xs font-black uppercase tracking-wider text-stone-900">Tool Calls</span>
+                </div>
+                <div className="space-y-3">
                   {toolCalls.map((call, idx) => (
-                    <div key={idx} className="p-3 bg-white rounded-lg border border-purple-200 text-sm">
+                    <div key={idx} className="bg-white border-2 border-stone-900 p-3">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-mono text-xs font-bold">
+                        <span className="px-2 py-0.5 bg-stone-900 text-white font-black text-[10px] uppercase">
                           {call.tool}
                         </span>
                       </div>
-                      <div className="text-xs font-mono text-stone-600 mb-1">
-                        <span className="text-purple-600 font-semibold">Input:</span>{' '}
-                        <code className="bg-stone-100 px-1 py-0.5 rounded">
-                          {JSON.stringify(call.input)}
-                        </code>
-                      </div>
-                      {call.output && (
-                        <div className="text-xs font-mono text-stone-600">
-                          <span className="text-green-600 font-semibold">Output:</span>{' '}
-                          <code className="bg-green-50 px-1 py-0.5 rounded text-green-700">
-                            {typeof call.output === 'string'
-                              ? call.output.slice(0, 150) + (call.output.length > 150 ? '...' : '')
-                              : JSON.stringify(call.output).slice(0, 150)}
-                          </code>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="text-[10px] font-mono bg-stone-50 p-1.5 border border-stone-200">
+                          <span className="font-black text-stone-400 mr-2">IN:</span>
+                          <span className="text-stone-900">{JSON.stringify(call.input)}</span>
                         </div>
-                      )}
+                        {call.output && (
+                          <div className="text-[10px] font-mono bg-green-50 p-1.5 border border-green-200">
+                            <span className="font-black text-green-600 mr-2">OUT:</span>
+                            <span className="text-stone-900">
+                              {typeof call.output === 'string'
+                                ? call.output.slice(0, 100) + (call.output.length > 100 ? '...' : '')
+                                : JSON.stringify(call.output).slice(0, 100)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -179,16 +170,7 @@ export const ChatMessage = ({
             )}
           </div>
         )}
-
       </div>
-
-      {isUser && (
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-          <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-          </svg>
-        </div>
-      )}
     </div>
   )
 }

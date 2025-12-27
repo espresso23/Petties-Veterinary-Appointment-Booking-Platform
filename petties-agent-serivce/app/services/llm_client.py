@@ -21,22 +21,16 @@ from typing import Optional, Dict, Any, List, AsyncIterator
 from abc import ABC, abstractmethod
 import httpx
 import json
+import uuid
+import re
 from loguru import logger
 from pydantic import BaseModel
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 try:
     from langchain_openai import ChatOpenAI
 except ImportError:
     ChatOpenAI = None
-    logger.warning("langchain_openai not installed, OpenAI support disabled")
-
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    ChatOllama = None
-    logger.warning("langchain_ollama not installed, Ollama support may be limited")
-
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 
 # ============================================================
@@ -172,7 +166,8 @@ class OpenRouterClient(BaseLLMClient):
         Returns:
             LLMResponse voi content va metadata
         """
-        logger.debug(f"Generating with {self.model}: {prompt[:50]}...")
+        model_to_use = kwargs.get("model", self.model)
+        logger.debug(f"Generating with {model_to_use}: {prompt[:50]}...")
 
         messages = []
         if system_prompt:
@@ -905,39 +900,71 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         raise ValueError(f"Unknown LLM provider: {provider}")
 
 
-async def create_llm_client_from_db(db_session) -> BaseLLMClient:
+async def create_llm_client_from_db(
+    db_session,
+    provider_override: Optional[str] = None,
+    model_override: Optional[str] = None
+) -> BaseLLMClient:
     """
     Async factory function to create LLM client from DB settings
 
     Args:
         db_session: Async DB session to load settings from SystemSettings table
+        provider_override: Override provider selection ("openrouter" | "deepseek")
+        model_override: Override model selection
 
     Returns:
-        LLM client instance
+        LLM client instance (OpenRouterClient, DeepSeekClient, or OllamaClient)
     """
     from app.api.routes.settings import get_setting
 
-    # Try to get OpenRouter settings first (preferred)
-    openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
+    # Determine provider: override > default (openrouter)
+    provider = (provider_override or "openrouter").lower()
+    logger.info(f"Creating LLM client: provider={provider}, model_override={model_override}")
 
-    if openrouter_api_key:
-        # Use OpenRouter
-        model = await get_setting("OPENROUTER_DEFAULT_MODEL", db_session) or "google/gemini-2.0-flash-exp:free"
-        fallback_model = await get_setting("OPENROUTER_FALLBACK_MODEL", db_session) or "meta-llama/llama-3.3-70b-instruct"
+    # === DeepSeek Provider ===
+    if provider == "deepseek":
+        deepseek_api_key = await get_setting("DEEPSEEK_API_KEY", db_session)
 
-        config = LLMConfig(
-            provider="openrouter",
-            model=model,
-            fallback_model=fallback_model,
-            api_key=openrouter_api_key,
-            temperature=0.7,
-            max_tokens=2000
-        )
-        return OpenRouterClient(config)
+        if not deepseek_api_key:
+            logger.warning("DeepSeek API key not found, falling back to OpenRouter")
+            provider = "openrouter"
+        else:
+            model = model_override or await get_setting("DEEPSEEK_MODEL", db_session) or "deepseek-chat"
+            config = LLMConfig(
+                provider="deepseek",
+                model=model,
+                api_key=deepseek_api_key,
+                base_url="https://api.deepseek.com",
+                temperature=0.7,
+                max_tokens=2000
+            )
+            logger.info(f"Using DeepSeek: model={model}")
+            return DeepSeekClient(config)
 
-    # Fallback to Ollama
+    # === OpenRouter Provider (default) ===
+    if provider == "openrouter":
+        openrouter_api_key = await get_setting("OPENROUTER_API_KEY", db_session)
+
+        if openrouter_api_key:
+            model = model_override or await get_setting("OPENROUTER_DEFAULT_MODEL", db_session) or "google/gemini-2.0-flash-exp:free"
+            fallback_model = await get_setting("OPENROUTER_FALLBACK_MODEL", db_session) or "meta-llama/llama-3.3-70b-instruct"
+
+            config = LLMConfig(
+                provider="openrouter",
+                model=model,
+                fallback_model=fallback_model,
+                api_key=openrouter_api_key,
+                temperature=0.7,
+                max_tokens=2000
+            )
+            logger.info(f"Using OpenRouter: model={model}")
+            return OpenRouterClient(config)
+
+    # === Fallback to Ollama ===
+    logger.warning("No cloud API keys found, falling back to Ollama")
     ollama_base_url = await get_setting("OLLAMA_BASE_URL", db_session) or "http://localhost:11434"
-    ollama_model = await get_setting("OLLAMA_MODEL", db_session) or "llama3.2"
+    ollama_model = model_override or await get_setting("OLLAMA_MODEL", db_session) or "llama3.2"
     ollama_api_key = await get_setting("OLLAMA_API_KEY", db_session)
 
     config = LLMConfig(

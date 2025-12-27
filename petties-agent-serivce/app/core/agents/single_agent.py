@@ -22,6 +22,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 import json
 import uuid
+import re
 
 from app.core.agents.state import ReActState, ReActStep, create_initial_react_state
 
@@ -70,7 +71,7 @@ class SingleAgent:
     - Loop cho den khi co final answer
 
     Attributes:
-        llm_client: LLM client (OpenRouter/Ollama)
+        llm_client: LLM client (OpenRouter/DeepSeek)
         system_prompt: System prompt tu DB hoac default
         temperature: Temperature cho LLM
         max_tokens: Max tokens cho response
@@ -81,18 +82,23 @@ class SingleAgent:
     def __init__(
         self,
         llm_client,
+        name: str = "petties_agent",
+        agent_type: str = "single_agent",
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
         top_p: float = 0.9,
         enabled_tools: Optional[List[str]] = None,
+        tool_schemas: Optional[List[Dict[str, Any]]] = None,
         max_iterations: int = 10
     ):
         """
         Khoi tao Single Agent
 
         Args:
-            llm_client: LLM client instance (OpenRouterClient hoac OllamaClient)
+            llm_client: LLM client instance (OpenRouterClient hoac DeepSeekClient)
+            name: Name of the agent
+            agent_type: Type of the agent
             system_prompt: System prompt (load tu DB hoac dung default)
             temperature: Temperature parameter (0.0-1.0)
             max_tokens: Max tokens cho response
@@ -101,11 +107,14 @@ class SingleAgent:
             max_iterations: Max ReAct iterations truoc khi force stop
         """
         self.llm_client = llm_client
+        self.name = name
+        self.agent_type = agent_type
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.top_p = top_p
         self.enabled_tools = enabled_tools or []
+        self.tool_schemas = tool_schemas or []
         self.max_iterations = max_iterations
 
         # Build LangGraph
@@ -170,24 +179,36 @@ class SingleAgent:
         """
         logger.debug("Entering THINK node")
 
-        messages = state.get("messages", [])
-        react_steps = state.get("react_steps", [])
         iteration = state.get("iteration", 0)
+        react_steps = state.get("react_steps", [])
+        messages = state.get("messages", [])
+        logger.info(f"THINK Node: iteration={iteration}, max_iterations={self.max_iterations}")
 
         # Check max iterations
         if iteration >= self.max_iterations:
-            logger.warning(f"Max iterations ({self.max_iterations}) reached, forcing end")
+            logger.warning(f"Safety Break: Max iterations ({self.max_iterations}) reached.")
             return {
-                **state,
-                "final_answer": "Xin loi, toi khong the hoan thanh yeu cau. Vui long thu lai sau.",
+                "final_answer": "Rất tiếc, tôi đã đạt giới hạn suy luận tối đa mà chưa tìm được câu trả lời hoàn chỉnh. Vui lòng thử lại với câu hỏi cụ thể hơn.",
                 "should_end": True
             }
+
+        logger.debug(f"DEBUG: react_steps type: {type(react_steps)}")
+        if not isinstance(react_steps, list):
+            logger.error(f"react_steps is not a list: {react_steps}")
+            react_steps = []
 
         # Build context from previous steps
         context = self._build_context(react_steps)
 
+        # 3. Detect repetitive tool calls and inject warning
+        last_action = next((s for s in reversed(react_steps) if s.get("step_type") == "action"), None)
+        
+        warning_suffix = ""
+        if last_action and iteration > 0:
+            warning_suffix = f"\n\nLƯU Ý: Bạn đã thực hiện hành động '{last_action.get('tool_name')}' ở bước trước. Nếu Observation đã có câu trả lời, hãy ưu tiên trả lời (Final Answer) thay vì gọi lại công cụ."
+
         # Create prompt for LLM
-        think_prompt = self._create_think_prompt(messages, context)
+        think_prompt = self._create_think_prompt(messages, context) + warning_suffix
 
         try:
             # Call LLM
@@ -200,10 +221,27 @@ class SingleAgent:
 
             thought_content = response.content
 
-            # Parse response de xac dinh action
+            # 4. Parse response to determine action
             parsed = self._parse_thought(thought_content)
+            
+            # 4.1. ACTIVE LOOP PREVENTION: Intercept if LLM repeats same tool/params
+            if last_action and parsed.get("tool_name") == last_action.get("tool_name") and parsed.get("tool_params") == last_action.get("tool_params"):
+                logger.warning(f"Loop prevention: Intercepted repetitive tool call to {parsed.get('tool_name')}")
+                # Force end and use the last observation to build an answer if possible
+                last_obs = next((s for s in reversed(react_steps) if s.get("step_type") == "observation"), None)
+                obs_text = last_obs.get("content", "") if last_obs else ""
+                
+                parsed["should_end"] = True
+                parsed["tool_name"] = None
+                parsed["thought"] = f"Tôi đã tìm thấy thông tin cần thiết từ lần tra cứu trước: {obs_text[:200]}..."
+                if "KẾT QUẢ TRA CỨU:" in obs_text:
+                    parsed["thought"] = obs_text.split("\n\n")[0].replace("KẾT QUẢ TRA CỨU: ", "")
+            
+            if not isinstance(parsed, dict):
+                logger.error(f"Parsed thought is not a dict: {type(parsed)} - {parsed}")
+                parsed = {"thought": thought_content, "should_end": True}
 
-            # Log ReAct step
+            # 5. Log ReAct step
             step = ReActStep(
                 step_type="thought",
                 content=parsed.get("thought", thought_content),
@@ -212,27 +250,104 @@ class SingleAgent:
                 tool_result=None
             )
 
-            new_react_steps = react_steps + [step]
-
+            new_react_steps = [step]
             logger.info(f"THOUGHT: {parsed.get('thought', thought_content)[:100]}...")
 
+            # 6. Create pending tool call if tool name is found
+            pending_tool_call = None
+            should_end = parsed.get("should_end", False)
+            
+            if parsed.get("tool_name"):
+                pending_tool_call = {
+                    "name": parsed["tool_name"],
+                    "arguments": parsed.get("tool_params", {})
+                }
+                # If there is a tool call, we MUST NOT end yet
+                should_end = False
+
+            # 5. Determine final answer
+            final_answer = None
+            if should_end:
+                final_answer = parsed.get("thought", thought_content)
+
             return {
-                **state,
                 "react_steps": new_react_steps,
                 "current_thought": parsed.get("thought", thought_content),
-                "pending_tool_call": parsed.get("tool_call"),
-                "should_end": parsed.get("should_end", False),
-                "final_answer": parsed.get("final_answer"),
+                "pending_tool_call": pending_tool_call,
+                "should_end": should_end,
+                "final_answer": final_answer,
                 "iteration": iteration + 1
             }
 
         except Exception as e:
             logger.error(f"Error in THINK node: {e}")
             return {
-                **state,
                 "error": str(e),
-                "should_end": True
+                "should_end": True,
+                "final_answer": f"Loi ket noi LLM: {str(e)}. Vui long kiem tra lai cấu hình/số dư tài khoản."
             }
+
+    def _parse_thought(self, thought_content: str) -> Dict[str, Any]:
+        """
+        Parse thought content tu LLM de tim Tool call hoac Final Answer.
+        Ho tro format Markdown (**Tool:**) va linh hoat hon.
+        """
+        if not thought_content:
+            return {"thought": "", "should_end": True}
+
+        # 1. Tim Tool name (Ho tro ca Markdown **Tool:** hoac Tool:)
+        tool_name = None
+        # Pattern bao quat hon: Tim sau tu khoa Tool hoac Action, bo qua các ky tu Markdown nhu *
+        tool_match = re.search(r"(?:\*+|#|)\s*(?:Tool|Action)\s*(?:\*+|#|):\s*([\w_]+)", thought_content, re.IGNORECASE)
+        if tool_match:
+            tool_name = tool_match.group(1).strip()
+        
+        # 2. Tim Tool Input (JSON)
+        tool_params = {}
+        # Pattern tim JSON trong ngoac nhon sau Tool Input hoac Action Input
+        input_match = re.search(r"(?:\*+|#|)\s*(?:Tool Input|Action Input)\s*(?:\*+|#|):\s*(\{.*\})", thought_content, re.DOTALL | re.IGNORECASE)
+        if input_match:
+            try:
+                params_str = input_match.group(1).strip()
+                tool_params = json.loads(params_str)
+            except Exception as e:
+                logger.warning(f"Failed to parse tool params JSON: {e}")
+                # Try fallback JSON extraction
+                json_match = re.search(r"(\{.*\})", params_str, re.DOTALL)
+                if json_match:
+                    try:
+                        tool_params = json.loads(json_match.group(1))
+                    except:
+                        tool_params = {}
+
+        # 3. Clean thought content
+        clean_thought = thought_content
+        if tool_name:
+            # Cut everything from "Tool:" or "Action:" onwards to get only reasoning
+            parts = re.split(r"(?:\*+|#|)\s*(?:Tool|Action)\s*(?:\*+|#|):", thought_content, flags=re.IGNORECASE)
+            if parts:
+                clean_thought = parts[0].strip()
+                # Loai bo tu "Thought:" neu co
+                clean_thought = re.sub(r"^(?:\*+|#|)\s*Thought\s*(?:\*+|#|):\s*", "", clean_thought, flags=re.IGNORECASE).strip()
+
+        # 4. Check if should end
+        should_end = False
+        if "Final Answer:" in thought_content or "final answer:" in thought_content.lower():
+            should_end = True
+            # Extract final answer content
+            fa_parts = re.split(r"Final Answer:", thought_content, flags=re.IGNORECASE)
+            if len(fa_parts) > 1:
+                clean_thought = fa_parts[1].strip()
+        elif not tool_name:
+            # Neu ko co tool va ko co Final Answer keyword -> coi nhu Final Answer
+            should_end = True
+
+        return {
+            "thought": clean_thought or thought_content,
+            "tool_name": tool_name,
+            "tool_params": tool_params,
+            "should_end": should_end
+        }
 
     async def _act_node(self, state: ReActState) -> Dict[str, Any]:
         """
@@ -253,7 +368,22 @@ class SingleAgent:
 
         if not tool_call:
             logger.warning("No pending tool call in ACT node")
-            return state
+            return {"pending_tool_call": None}
+
+        # Safety check: ensure tool_call is a dictionary
+        if not isinstance(tool_call, dict):
+            logger.error(f"pending_tool_call is not a dict: {type(tool_call)} - {tool_call}")
+            # Try to recover if it's a JSON string
+            if isinstance(tool_call, str):
+                try:
+                    tool_call = json.loads(tool_call)
+                except:
+                    return {
+                        "error": f"Invalid tool call format: {tool_call}",
+                        "pending_tool_call": None
+                    }
+            else:
+                return {"pending_tool_call": None}
 
         tool_name = tool_call.get("name")
         tool_params = tool_call.get("arguments", {})
@@ -275,9 +405,9 @@ class SingleAgent:
             )
 
             return {
-                **state,
-                "react_steps": react_steps + [step],
-                "last_tool_result": error_result
+                "react_steps": [step],
+                "last_tool_result": error_result,
+                "pending_tool_call": None
             }
 
         try:
@@ -298,8 +428,7 @@ class SingleAgent:
             logger.info(f"ACTION: Called {tool_name} with {tool_params}")
 
             return {
-                **state,
-                "react_steps": react_steps + [step],
+                "react_steps": [step],
                 "last_tool_result": result,
                 "pending_tool_call": None  # Clear pending
             }
@@ -317,8 +446,7 @@ class SingleAgent:
             )
 
             return {
-                **state,
-                "react_steps": react_steps + [step],
+                "react_steps": [step],
                 "last_tool_result": error_result,
                 "pending_tool_call": None
             }
@@ -338,13 +466,20 @@ class SingleAgent:
         logger.debug("Entering OBSERVE node")
 
         tool_result = state.get("last_tool_result", {})
-        react_steps = state.get("react_steps", [])
-
-        # Format observation
+        
+        # Format observation - SMARTER EXTRACTION
+        observation = ""
         if isinstance(tool_result, dict):
             if "error" in tool_result:
                 observation = f"Tool returned error: {tool_result['error']}"
+            elif "data" in tool_result and isinstance(tool_result["data"], dict) and "answer" in tool_result["data"]:
+                # If RAG tool already synthesized an answer, put it FIRST
+                rag_data = tool_result["data"]
+                observation = f"KẾT QUẢ TRA CỨU: {rag_data['answer']}\n\n"
+                if "sources_used" in rag_data:
+                    observation += f"(Dựa trên {rag_data['sources_used']} đoạn tài liệu)\n"
             else:
+                # Fallback to JSON but cleaner
                 observation = json.dumps(tool_result, ensure_ascii=False, indent=2)
         else:
             observation = str(tool_result)
@@ -355,44 +490,37 @@ class SingleAgent:
             content=observation,
             tool_name=None,
             tool_params=None,
-            tool_result=None
+            tool_result=tool_result
         )
 
         logger.info(f"OBSERVATION: {observation[:100]}...")
 
         return {
-            **state,
-            "react_steps": react_steps + [step],
+            "react_steps": [step],
             "current_observation": observation
         }
 
     def _should_continue(self, state: ReActState) -> Literal["act", "end"]:
-        """
-        Router - Quyet dinh tiep tuc hay ket thuc
+        """Router - Quyet dinh tiep tuc hay ket thuc"""
+        iteration = state.get("iteration", 0)
+        
+        # 1. Check safety break
+        if iteration >= self.max_iterations:
+            logger.warning(f"Should Continue: Max iterations {self.max_iterations} reached. Stopping.")
+            return "end"
 
-        Args:
-            state: Current ReActState
-
-        Returns:
-            "act" neu co tool call, "end" neu da co final answer
-        """
-        # Check if should end
+        # 2. Check explicit end flag
         if state.get("should_end", False):
             return "end"
 
-        # Check if there's a pending tool call
+        # 3. Check for pending tool call
         if state.get("pending_tool_call"):
             return "act"
 
-        # Check if there's a final answer
+        # 4. Check for final answer
         if state.get("final_answer"):
             return "end"
 
-        # Check error
-        if state.get("error"):
-            return "end"
-
-        # Default: end (no tool call)
         return "end"
 
     def _build_context(self, react_steps: List[ReActStep]) -> str:
@@ -401,124 +529,109 @@ class SingleAgent:
             return ""
 
         context_parts = []
-        for step in react_steps[-5:]:  # Last 5 steps
-            if step["step_type"] == "thought":
-                context_parts.append(f"Thought: {step['content']}")
-            elif step["step_type"] == "action":
-                context_parts.append(f"Action: {step['content']}")
-            elif step["step_type"] == "observation":
-                context_parts.append(f"Observation: {step['content']}")
+        # Increase history to 10 steps to cover more reasoning cycles
+        for step in react_steps[-10:]:
+            # Safety check: ensure step is a dictionary
+            if not isinstance(step, dict):
+                logger.warning(f"ReActStep is not a dict: {type(step)} - {step}")
+                continue
+
+            step_type = step.get("step_type")
+            content = step.get("content", "")
+            
+            if step_type == "thought":
+                context_parts.append(f"Thought: {content}")
+            elif step_type == "action":
+                # Include tool params so the LLM knows WHAT it sent
+                tool_name = step.get("tool_name", "Unknown")
+                tool_params = step.get("tool_params", {})
+                context_parts.append(f"Action: {tool_name} with parameters {json.dumps(tool_params, ensure_ascii=False)}")
+            elif step_type == "observation":
+                # Smart Truncation: keep more from the BEGINNING where we now put the answer
+                if len(content) > 3000:
+                    obs_content = content[:2500] + "\n... [Dữ liệu quá dài, đã bị lược bớt] ...\n" + content[-300:]
+                else:
+                    obs_content = content
+                context_parts.append(f"Observation: {obs_content}")
 
         return "\n".join(context_parts)
 
-    def _create_think_prompt(self, messages: List, context: str) -> str:
-        """Create prompt cho Think node"""
+    def _create_think_prompt(self, messages: List[Any], context: str) -> str:
+        """Create prompt for THINK node với hướng dẫn ReAct nghiêm ngặt"""
         # Get last user message
         user_message = ""
         for msg in reversed(messages):
-            if hasattr(msg, 'content'):
-                content = msg.content
-            elif isinstance(msg, dict):
+            # Safety check: msg must be a dict or have attributes
+            content = ""
+            role = "user"
+
+            if isinstance(msg, dict):
                 content = msg.get('content', '')
+                role = msg.get('role', 'user')
+            elif hasattr(msg, 'content'):
+                content = getattr(msg, 'content', '')
+                role = getattr(msg, 'role', 'user')
+            elif isinstance(msg, str):
+                content = msg
+                role = "user"
             else:
                 content = str(msg)
+                role = "user"
 
-            role = getattr(msg, 'role', None) or (msg.get('role') if isinstance(msg, dict) else 'user')
             if role == 'user':
                 user_message = content
                 break
 
-        prompt = f"""User message: {user_message}
+        # Build prompt parts
+        prompt_parts = [
+            f"""Bạn là Petties AI Assistant - Chuyên gia hỗ trợ chăm sóc thú cưng chuyên nghiệp.
+Hệ thống: {self.name} ({self.agent_type})
 
-{f'Previous reasoning:{chr(10)}{context}' if context else ''}
+NHIỆM VỤ QUAN TRỌNG:
+1. Đối với các câu hỏi về sức khỏe, triệu chứng bệnh (ví dụ: tiêu chảy, bỏ ăn, nôn mửa), bạn PHẢI sử dụng công cụ tra cứu kiến thức để đảm bảo độ chính xác y tế. KHÔNG ĐƯỢC tự trả lời dựa trên kiến thức cá nhân.
+2. Bạn sử dụng mô hình ReAct (Thought -> Action -> Observation).
+3. Luôn luôn SUY NGHĨ kỹ trước khi quyết định gọi công cụ hay trả lời.
+4. QUY TẮC VÀNG: Tuyệt đối không gọi cùng một tool với cùng một tham số quá 1 lần. Nếu Observation đã có thông tin, hãy dùng nó để trả lời trực tiếp cho người dùng. Nếu thông tin từ tool không đủ, hãy thử một cách tiếp cận khác hoặc thông báo cho người dùng, thay vì lặp lại hành động cũ.
+5. TRUY VẤN: Luôn ưu tiên sử dụng tool tra cứu thông tin (Knowledge Base) thay vì tự bịa ra thông tin y tế.
 
-Available tools: {', '.join(self.enabled_tools) if self.enabled_tools else 'None'}
+QUY TẮC PHẢN HỒI (BẮT BUỘC):
+Để gọi công cụ, bạn phải viết theo định dạng:
+Thought: [Giải thích tại sao bạn cần gọi công cụ này]
+Tool: [Tên công cụ]
+Tool Input: {{ "param_name": "giá trị" }}
 
-Respond in this format:
-1. If you need to use a tool:
-   THOUGHT: [Your reasoning about what to do]
-   ACTION: [tool_name]
-   ACTION_INPUT: [JSON object with tool parameters]
+Sau khi nhận được kết quả (Observation), nếu đã đủ thông tin, bạn trả lời bằng định dạng:
+Thought: [Tổng hợp thông tin thu thập được]
+Final Answer: [Câu trả lời đầy đủ và thân thiện cho người dùng bằng tiếng Việt]
 
-2. If you can answer directly without a tool:
-   THOUGHT: [Your reasoning]
-   FINAL_ANSWER: [Your response to the user in Vietnamese]
+Bối cảnh hệ thống:
+{context}
+"""
+        ]
 
-Remember: Always respond in Vietnamese. Be helpful and friendly."""
+        # Add available tools description
+        tool_schemas = self.tool_schemas or []
+        if tool_schemas:
+            tool_descriptions = []
+            for tool in tool_schemas:
+                # Trích xuất mô tả chi tiết từ schema
+                params = tool.get('input_schema') or tool.get('parameters') or {}
+                tool_descriptions.append(
+                    f"- {tool['name']}: {tool['description']} (Tham số cần có: {json.dumps(params)})"
+                )
+            prompt_parts.append(f"""CÔNG CỤ CÓ SẴN (Ưu tiên sử dụng):
+{chr(10).join(tool_descriptions)}
+"""
+            )
 
-        return prompt
+        prompt_parts.append(f"""CÂU HỎI CỦA NGƯỜI DÙNG:
+{user_message}
 
-    def _parse_thought(self, thought_content: str) -> Dict[str, Any]:
-        """
-        Parse LLM response de extract thought, action, final_answer
+Bây giờ, hãy bắt đầu quy trình ReAct của bạn:
+Thought:""")
 
-        Returns:
-            Dict voi:
-            - thought: str
-            - tool_call: Optional[Dict] voi name, arguments
-            - final_answer: Optional[str]
-            - should_end: bool
-        """
-        result = {
-            "thought": "",
-            "tool_call": None,
-            "tool_name": None,
-            "tool_params": None,
-            "final_answer": None,
-            "should_end": False
-        }
+        return "\n".join(prompt_parts)
 
-        lines = thought_content.strip().split('\n')
-
-        current_section = None
-        action_input_lines = []
-
-        for line in lines:
-            line = line.strip()
-
-            if line.startswith('THOUGHT:'):
-                current_section = 'thought'
-                result["thought"] = line.replace('THOUGHT:', '').strip()
-            elif line.startswith('ACTION:'):
-                current_section = 'action'
-                result["tool_name"] = line.replace('ACTION:', '').strip()
-            elif line.startswith('ACTION_INPUT:'):
-                current_section = 'action_input'
-                action_input_lines.append(line.replace('ACTION_INPUT:', '').strip())
-            elif line.startswith('FINAL_ANSWER:'):
-                current_section = 'final_answer'
-                result["final_answer"] = line.replace('FINAL_ANSWER:', '').strip()
-                result["should_end"] = True
-            elif current_section == 'action_input':
-                action_input_lines.append(line)
-            elif current_section == 'thought':
-                result["thought"] += ' ' + line
-            elif current_section == 'final_answer':
-                result["final_answer"] += ' ' + line
-
-        # Parse action input JSON
-        if result["tool_name"] and action_input_lines:
-            try:
-                action_input = '\n'.join(action_input_lines)
-                result["tool_params"] = json.loads(action_input)
-                result["tool_call"] = {
-                    "name": result["tool_name"],
-                    "arguments": result["tool_params"]
-                }
-            except json.JSONDecodeError:
-                logger.warning(f"Failed to parse ACTION_INPUT as JSON: {action_input_lines}")
-                result["tool_params"] = {"raw_input": ' '.join(action_input_lines)}
-                result["tool_call"] = {
-                    "name": result["tool_name"],
-                    "arguments": result["tool_params"]
-                }
-
-        # If no structured output, treat entire response as final answer
-        if not result["thought"] and not result["tool_call"] and not result["final_answer"]:
-            result["final_answer"] = thought_content.strip()
-            result["should_end"] = True
-
-        return result
 
     async def invoke(self, message: str, session_id: Optional[str] = None) -> str:
         """
@@ -558,7 +671,7 @@ Remember: Always respond in Vietnamese. Be helpful and friendly."""
                         final_answer = last_thought["content"]
 
             if not final_answer:
-                final_answer = "Xin loi, toi khong the xu ly yeu cau cua ban. Vui long thu lai."
+                final_answer = "Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Vui lòng thử lại."
 
             return final_answer
 
@@ -582,41 +695,68 @@ Remember: Always respond in Vietnamese. Be helpful and friendly."""
             context={"session_id": session_id or str(uuid.uuid4())}
         )
 
-        config = {"configurable": {"thread_id": session_id or "default"}}
+        config = {
+            "configurable": {"thread_id": session_id or "default"},
+            "recursion_limit": 100  # Increase from default 25 to allow 10+ iterations (10 * 3 nodes = 30)
+        }
 
         try:
             async for event in self.graph.astream_events(state, config, version="v2"):
                 event_type = event.get("event", "")
 
-                if event_type == "on_chain_end":
-                    output = event.get("data", {}).get("output", {})
+                # 1. Handle ReAct steps
+                if event_type == "on_chain_stream":
+                    data = event.get("data", {})
+                    chunk = data.get("chunk", {})
+                    if not isinstance(chunk, dict):
+                        continue
 
-                    # Yield ReAct steps
-                    react_steps = output.get("react_steps", [])
-                    if react_steps:
-                        last_step = react_steps[-1]
-                        yield {
-                            "type": "react_step",
-                            "step": last_step
-                        }
+                    # LangGraph yields state updates per node
+                    for node_name, state_update in chunk.items():
+                        if not isinstance(state_update, dict):
+                            continue
 
-                    # Yield final answer
-                    if output.get("final_answer"):
-                        yield {
-                            "type": "final_answer",
-                            "content": output["final_answer"]
-                        }
+                        # Yield ONLY the newest ReAct step (the last one in the update)
+                        # This prevents quadratic duplication when using astream_events with reducers
+                        steps = state_update.get("react_steps", [])
+                        if isinstance(steps, list) and steps:
+                            yield {
+                                "type": "react_step",
+                                "step": steps[-1]
+                            }
 
+                        # Yield final answer if present
+                        final_ans = state_update.get("final_answer")
+                        if final_ans:
+                            yield {
+                                "type": "final_answer",
+                                "content": final_ans
+                            }
+
+                # 2. Handle Token streaming (from LLM)
                 elif event_type == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk", {})
+                    data = event.get("data", {})
+                    chunk = data.get("chunk", {})
                     if hasattr(chunk, 'content') and chunk.content:
                         yield {
                             "type": "token",
                             "content": chunk.content
                         }
 
+                # 3. Handle Final result
+                elif event_type == "on_chain_end":
+                    data = event.get("data", {})
+                    output = data.get("output", {})
+                    if isinstance(output, dict) and output.get("final_answer"):
+                        yield {
+                            "type": "final_answer",
+                            "content": output["final_answer"]
+                        }
+
         except Exception as e:
-            logger.error(f"Error streaming agent: {e}")
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"Error streaming agent: {e}\n{error_trace}")
             yield {
                 "type": "error",
                 "content": str(e)
@@ -652,17 +792,22 @@ Remember: Always respond in Vietnamese. Be helpful and friendly."""
 
 def build_react_agent(
     llm_client,
+    name: str = "petties_agent",
+    agent_type: str = "single_agent",
     system_prompt: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 2000,
     top_p: float = 0.9,
-    enabled_tools: Optional[List[str]] = None
+    enabled_tools: Optional[List[str]] = None,
+    tool_schemas: Optional[List[Dict[str, Any]]] = None
 ) -> SingleAgent:
     """
     Builder function de tao SingleAgent instance
 
     Args:
         llm_client: LLM client (OpenRouterClient)
+        name: Name of the agent
+        agent_type: Type of the agent
         system_prompt: System prompt tu DB
         temperature: Temperature parameter
         max_tokens: Max tokens
@@ -674,9 +819,12 @@ def build_react_agent(
     """
     return SingleAgent(
         llm_client=llm_client,
+        name=name,
+        agent_type=agent_type,
         system_prompt=system_prompt,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
-        enabled_tools=enabled_tools
+        enabled_tools=enabled_tools,
+        tool_schemas=tool_schemas
     )

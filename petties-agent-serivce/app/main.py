@@ -34,6 +34,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Environment: {settings.APP_ENV}")
     logger.info(f"Debug mode: {settings.APP_DEBUG}")
 
+    # Initialize Sentry (error monitoring) - FIRST
+    try:
+        from app.core.sentry import init_sentry
+        init_sentry()
+    except Exception as e:
+        logger.warning(f"⚠️ Sentry init skipped: {e}")
+
     # Initialize database
     try:
         from app.db.postgres.session import init_db
@@ -135,11 +142,13 @@ app.include_router(settings_routes.router, prefix="/api/v1")
 
 
 # ===== WEBSOCKET ENDPOINT =====
+from fastapi import WebSocket
 from app.api.websocket import websocket_chat_endpoint
 
 @app.websocket("/ws/chat/{session_id}")
-async def websocket_chat(websocket, session_id: str):
+async def websocket_chat(websocket: WebSocket, session_id: str):
     """WebSocket endpoint for real-time chat"""
+    logger.info(f"🔌 WebSocket request received: session_id={session_id}")
     await websocket_chat_endpoint(websocket, session_id)
 
 

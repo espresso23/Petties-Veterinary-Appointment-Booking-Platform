@@ -104,7 +104,7 @@ async def pet_care_qa(
         return {
             "query": query,
             "results": [],
-            "answer": f"Lỗi khi tìm kiếm: {str(e)}. Vui lòng thử lại sau.",
+            "answer": "Rất tiếc, hiện tại tôi không thể truy cập kho kiến thức (Knowledge Base) do lỗi cấu hình hệ thống (Thiếu API Key). Vui lòng liên hệ Admin hoặc thử câu hỏi khác.",
             "sources_used": 0,
             "error": str(e)
         }

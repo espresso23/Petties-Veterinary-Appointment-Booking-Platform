@@ -144,6 +144,9 @@ services:
       APP_DEBUG: "true"
       # PostgreSQL
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      # JWT Secret (Synced with Backend)
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY: ${JWT_SECRET}
       # Qdrant Cloud (same as production)
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}

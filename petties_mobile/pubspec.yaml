@@ -58,8 +58,9 @@ dependencies:
   # Authentication
   google_sign_in: ^6.2.1
   
-  # Logging
+  # Logging & Error Monitoring
   logger: ^2.5.0
+  sentry_flutter: ^8.9.0
 
 dev_dependencies:
   flutter_test:

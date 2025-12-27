@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import type { ToastType } from '../components/common/Toast'
+
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export interface ToastMessage {
   id: string

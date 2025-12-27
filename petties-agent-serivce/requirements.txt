@@ -29,6 +29,7 @@ langgraph>=0.2.60  # ReAct pattern implementation
 # ==================== RAG Pipeline ====================
 llama-index-core>=0.11.20  # Document processing & chunking
 llama-index-embeddings-cohere>=0.4.0  # Cohere embeddings integration
+llama-index-vector-stores-qdrant>=0.4.0  # Qdrant vector store integration
 
 # ==================== LLM & Embedding Providers ====================
 openai>=1.54.4  # OpenRouter uses OpenAI-compatible API
@@ -73,3 +74,4 @@ tenacity>=9.0.0
 # ==================== Monitoring & Logging ====================
 prometheus-client>=0.21.1
 loguru>=0.7.3
+sentry-sdk[fastapi]>=2.19.0  # Error monitoring & alerting

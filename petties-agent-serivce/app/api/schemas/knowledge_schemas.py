@@ -101,7 +101,7 @@ class QueryKnowledgeRequest(BaseModel):
     """RAG query request"""
     query: str = Field(..., min_length=3, max_length=500)
     top_k: int = Field(5, ge=1, le=20)
-    min_score: float = Field(0.1, ge=0.0, le=1.0)  # Lowered to 0.1 for Vietnamese text with Cohere embeddings
+    min_score: float = Field(0.5, ge=0.0, le=1.0)  # Production default - reduces false positives
 
 
 class RetrievedChunk(BaseModel):

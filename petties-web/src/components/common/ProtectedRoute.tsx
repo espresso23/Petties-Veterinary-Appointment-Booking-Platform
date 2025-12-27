@@ -9,7 +9,7 @@
  */
 
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '../../store/authStore'
 import { useEffect } from 'react'
 
 interface ProtectedRouteProps {
@@ -31,7 +31,7 @@ export function ProtectedRoute({
 
     // Validate tokens on mount
     useEffect(() => {
-      validateTokens()
+        validateTokens()
     }, [validateTokens])
 
     // Show loading while checking auth

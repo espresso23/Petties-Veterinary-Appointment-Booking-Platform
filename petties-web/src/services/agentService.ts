@@ -267,7 +267,7 @@ export const knowledgeApi = {
     },
 
     // Query knowledge base
-    async query(queryText: string, topK: number = 5, minScore: number = 0.1): Promise<QueryResult[]> {
+    async query(queryText: string, topK: number = 5, minScore: number = 0.5): Promise<QueryResult[]> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/query`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
