@@ -21,7 +21,7 @@ export const VetDashboardPage = () => {
                     DASHBOARD BÁC SĨ
                 </h1>
                 <p className="text-stone-600 text-lg">
-                    Chào mừng trở lại, <span className="font-bold text-amber-600">{user?.username || 'Bác sĩ'}</span>
+                    Chào mừng trở lại, <span className="font-bold text-amber-600">Bác sĩ {user?.fullName || 'Bác sĩ'}</span>
                 </p>
             </div>
 

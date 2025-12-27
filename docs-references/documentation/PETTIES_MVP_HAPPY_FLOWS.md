@@ -1,7 +1,7 @@
 # PETTIES MVP - Happy Flows
 
-**Version:** 1.0 MVP  
-**Last Updated:** 2025-12-17  
+**Version:** 1.1 MVP  
+**Last Updated:** 2025-12-25  
 **Scope:** Core Features (Sprint 1-9)
 
 ---

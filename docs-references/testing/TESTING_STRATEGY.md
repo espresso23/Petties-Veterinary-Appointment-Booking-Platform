@@ -1,111 +1,126 @@
 # PETTIES - Testing Strategy Document
 
-**Version:** 3.0
-**Last Updated:** 2025-12-20
-**Project:** Petties - Veterinary Appointment Booking Platform
+**Version:** 4.3  
+**Last Updated:** 2025-12-27  
+**Project:** Petties - Veterinary Appointment Booking Platform  
+**Timeline:** 14 Sprints (10/12/2025 - 11/03/2026)
 
 ---
 
 ## 1. Overview
 
-This document outlines the testing strategy for the Petties project, covering all testing levels from unit testing to system testing. The goal is to ensure software quality, reliability, and maintainability throughout the development lifecycle.
+This document outlines the testing strategy for the Petties project, focusing on **Unit Testing (Controller/API)** và **System Testing**.
 
----
+> **📖 Chi tiết về cách viết Controller Tests:** Xem [CONTROLLER_TESTING_GUIDE.md](./CONTROLLER_TESTING_GUIDE.md)
 
-## 2. Testing Levels
-
-Dự án Petties áp dụng **testing pyramid** với focus vào Unit Tests và System Testing:
+### 1.1 Testing Approach
 
 ```mermaid
 flowchart TB
-    subgraph "Backend Testing Pyramid"
-        E2E[E2E Tests<br/>Manual/Postman<br/>FEW, SLOW]
-        Controller[Controller Unit Tests<br/>MockMvc + @WebMvcTest<br/>MANY, FAST]
-        Service[Service Unit Tests<br/>Mockito only<br/>MANY, FAST]
+    subgraph "Petties Testing Strategy"
+        direction TB
+        System[🧪 SYSTEM TESTING\nManual Testing\nAPI Testing với Postman\nBeta Testing\nUAT]
+        Unit[⚙️ UNIT TESTING\nController Tests với MockMvc\n@WebMvcTest + @MockitoBean]
     end
 
-    E2E --> Controller
-    E2E --> Service
+    System --> Unit
 
-    style E2E fill:#ffcccc
-    style Controller fill:#ccffcc
-    style Service fill:#ccffcc
+    style System fill:#dbeafe,stroke:#3b82f6,stroke-width:3px
+    style Unit fill:#d1fae5,stroke:#10b981,stroke-width:3px
 ```
 
-### 2.1 Controller Unit Tests (with MockMvc)
+### 1.2 Testing Objectives
 
-**Objective:** Verify controller endpoints hoạt động đúng với HTTP layer (request mapping, validation, status codes).
+| Objective | Target |
+|-----------|--------|
+| **Controller Test Coverage** | ≥ 80% |
+| **Critical Bugs at Release** | 0 |
+| **High Bugs at Release** | 0 |
+| **Test Pass Rate** | ≥ 95% |
 
-**Approach:**
-- Dùng `@WebMvcTest` để load web layer (nhưng VẪN LÀ UNIT TEST)
-- Mock all services với `@MockBean`
-- Test HTTP requests/responses với `MockMvc`
-- KHÔNG connect database, KHÔNG connect internet
-- Isolated, fast, repeatable
+---
 
-**What to Test:**
-- HTTP status codes (200, 400, 401, 404, 500)
-- Request validation (`@Valid`, `@NotBlank`, `@Size`)
-- JSON serialization/deserialization
-- URL path mapping (`@GetMapping`, `@PostMapping`)
-- Exception handling (GlobalExceptionHandler)
-- Response structure
+## 2. Unit Testing (Controller Only)
 
-**Tools:**
+### 2.1 Overview
 
-| Tool | Purpose |
-|------|---------|
-| JUnit 5 | Test framework |
-| MockMvc | Simulate HTTP requests (in-memory, no network) |
-| `@WebMvcTest` | Load web layer only (no DB, no full context) |
-| `@MockBean` | Mock service layer |
-| Jackson ObjectMapper | JSON parsing |
-| AssertJ | Assertions |
+Unit Testing tập trung vào **HTTP layer** của Controllers - đảm bảo API endpoints hoạt động đúng.
 
-**Test Structure:**
-```
-src/test/java/com/petties/petties/
-└── controller/
-    ├── AuthControllerUnitTest.java
-    ├── UserControllerUnitTest.java
-    ├── PetControllerUnitTest.java
-    └── BookingControllerUnitTest.java
-```
+| Test | NOT Test |
+|------|----------|
+| HTTP status codes | Business logic |
+| Request validation | Database queries |
+| JSON serialization | External APIs |
+| Exception handling | Service layer logic |
 
-**Naming Convention:**
-- Files: `*ControllerUnitTest.java`
-- Methods: `methodName_condition_expectedResult`
+> **📖 Full guide:** [CONTROLLER_TESTING_GUIDE.md](./CONTROLLER_TESTING_GUIDE.md)
 
-Examples:
-- `login_validCredentials_returns200`
-- `login_blankUsername_returns400`
-- `getProfile_authenticatedUser_returns200`
+### 2.2 Technical Stack
 
-**Example Pattern:**
+| Component | Technology |
+|-----------|------------|
+| Test Framework | JUnit 5 |
+| Mock Framework | Mockito (`@MockitoBean`) |
+| Web Layer Test | `@WebMvcTest` |
+| HTTP Simulation | MockMvc |
+| JSON Handling | Jackson ObjectMapper |
+| Assertions | AssertJ |
+
+### 2.3 Test Template
+
 ```java
-@WebMvcTest(UserController.class)
-@DisplayName("UserController Unit Tests")
-class UserControllerUnitTest {
+@WebMvcTest(YourController.class)
+@DisplayName("YourController Unit Tests")
+class YourControllerUnitTest {
 
-    @Autowired private MockMvc mockMvc;
-    @MockBean private UserService userService;
-    @Autowired private ObjectMapper objectMapper;
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private YourService yourService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    // ==================== GET TESTS ====================
 
     @Test
-    void getProfile_authenticatedUser_returns200() throws Exception {
-        when(userService.getUserById(any())).thenReturn(mockResponse);
+    void getResource_validId_returns200() throws Exception {
+        when(yourService.getById(any())).thenReturn(mockData);
 
-        mockMvc.perform(get("/api/users/profile")
+        mockMvc.perform(get("/api/resource/{id}", resourceId)
                 .header("Authorization", "Bearer token"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.username").exists());
+            .andExpect(jsonPath("$.id").exists());
     }
 
     @Test
-    void updateProfile_blankFullName_returns400() throws Exception {
-        UpdateProfileRequest request = new UpdateProfileRequest("", "0987654321");
+    void getResource_notFound_returns404() throws Exception {
+        when(yourService.getById(any()))
+            .thenThrow(new ResourceNotFoundException("Not found"));
 
-        mockMvc.perform(put("/api/users/profile")
+        mockMvc.perform(get("/api/resource/{id}", resourceId))
+            .andExpect(status().isNotFound());
+    }
+
+    // ==================== POST TESTS ====================
+
+    @Test
+    void createResource_validData_returns201() throws Exception {
+        CreateRequest request = new CreateRequest("name", "value");
+        when(yourService.create(any())).thenReturn(mockResponse);
+
+        mockMvc.perform(post("/api/resource")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createResource_blankName_returns400() throws Exception {
+        CreateRequest request = new CreateRequest("", "value"); // @NotBlank violation
+
+        mockMvc.perform(post("/api/resource")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest());
@@ -113,250 +128,277 @@ class UserControllerUnitTest {
 }
 ```
 
-**Coverage Target:** ≥ 80% for controller classes
+### 2.4 Naming Convention
+
+| Type | Convention | Example |
+|------|------------|---------|
+| File | `*ControllerUnitTest.java` | `AuthControllerUnitTest.java` |
+| Method | `methodName_condition_expectedResult` | `login_validCredentials_returns200` |
+
+### 2.5 Test Cases per Endpoint
+
+| Status | When to Test |
+|--------|--------------|
+| **200 OK** | Request thành công |
+| **201 Created** | Tạo resource mới thành công |
+| **400 Bad Request** | Validation errors (`@NotBlank`, `@Size`) |
+| **401 Unauthorized** | Missing/invalid token |
+| **403 Forbidden** | Token valid nhưng không có quyền |
+| **404 Not Found** | Resource không tồn tại |
+
+### 2.6 Controllers to Test
+
+| Controller | Priority | APIs |
+|------------|----------|------|
+| `AuthController` | High | login, register, verifyOtp, refreshToken |
+| `UserController` | High | getProfile, updateProfile, uploadAvatar |
+| `ClinicController` | High | create, getById, search, approve |
+| `ClinicStaffController` | High | quickAdd, getList, hasManager, remove |
+| `BookingController` | High | create, getList, cancel, checkIn |
+| `PetController` | Medium | create, update, delete, getByOwner |
+
+### 2.7 File Structure
+
+```
+backend-spring/petties/src/test/java/com/petties/petties/controller/
+├── AuthControllerUnitTest.java
+├── UserControllerUnitTest.java
+├── ClinicControllerUnitTest.java
+├── ClinicStaffControllerUnitTest.java
+├── BookingControllerUnitTest.java
+└── PetControllerUnitTest.java
+```
+
+### 2.8 Running Tests
+
+```bash
+# Run all controller tests
+mvn test -Dtest="*ControllerUnitTest"
+
+# Run single test class
+mvn test -Dtest=AuthControllerUnitTest
+
+# Run with coverage report
+mvn clean test jacoco:report
+# Report: target/site/jacoco/index.html
+```
 
 ---
 
-### 2.2 System Testing
+## 3. System Testing
 
-**Objective:** Validate the complete application in a production-like environment.
+### 3.1 Overview
 
-**Types:**
+System Testing validate ứng dụng hoàn chỉnh trên môi trường thật.
 
-| Type | Description | Tools |
-|------|-------------|-------|
-| Functional Testing | Verify features match requirements | Manual, Postman |
-| API Testing | Validate all REST endpoints | Postman Collections |
-| UI Testing | Test web and mobile interfaces | Manual, Browser DevTools |
-| Performance Testing | Verify response times | JMeter (if needed) |
-| Security Testing | Identify vulnerabilities | OWASP guidelines |
+| Type | Description | Tool |
+|------|-------------|------|
+| Manual Testing | Tester test thủ công | Browser, Mobile |
+| API Testing | Test APIs manually | Postman |
+| Beta Testing | Internal testing | Firebase, TestFlight |
+| UAT | User acceptance | Stakeholders |
 
-**Test Environment:**
+### 3.2 Test Environments
 
-> **✅ Trạng thái:** Tất cả environments đã được deploy và hoạt động.
+| Environment | Backend | Frontend |
+|-------------|---------|----------|
+| **Development** | localhost:8080 | localhost:5173 |
+| **Test** | api-test.petties.world | test.petties.world |
+| **Production** | api.petties.world | www.petties.world |
 
-| Environment | Service | URL | Port | Branch |
-|-------------|---------|-----|------|--------|
-| **Development** | Backend API | `http://localhost:8080/api` | 8080 | `feature/*` |
-| | AI Service | `http://localhost:8000` | 8000 | |
-| | Frontend | `http://localhost:5173` | 5173 | |
-| **Test/Staging** | Backend API | `https://api-test.petties.world/api` | 8081 | `develop` |
-| | AI Service | `https://api-test.petties.world/ai` | 8001 | |
-| | Frontend | `https://test.petties.world` | - | |
-| **Production** | Backend API | `https://api.petties.world/api` | 8080 | `main` |
-| | AI Service | `https://ai.petties.world` | 8000 | |
-| | Frontend | `https://www.petties.world` | - | |
+### 3.3 Manual Testing Process
 
-**Firebase Console:** https://console.firebase.google.com/project/petties-cd84e
+```mermaid
+flowchart LR
+    A[Feature Done] --> B[Deploy to Test]
+    B --> C[Tester Tests]
+    C --> D{Bugs?}
+    D -->|Yes| E[Report Bug]
+    D -->|No| F[✅ Approve]
+    E --> G[Dev Fix]
+    G --> B
+    F --> H[Ready for Prod]
+```
 
-**GitHub Repository:** https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform
+### 3.4 API Testing with Postman
+
+| Collection | Key Endpoints |
+|------------|---------------|
+| Auth | POST /auth/login, /register, /verify-otp |
+| User | GET /users/profile, PUT /users/profile |
+| Clinic | POST /clinics, GET /clinics/search |
+| Staff | POST /clinics/{id}/staff/quick-add |
+| Booking | POST /bookings, PUT /bookings/{id}/cancel |
+
+### 3.5 Beta Testing
+
+| Platform | Tool | Trigger |
+|----------|------|---------|
+| Android | Firebase App Distribution | Push to `develop` |
+| iOS | TestFlight | Push to `develop` |
+
+### 3.6 UAT (Sprint 13-14)
+
+| Feature | Scenario | Tester |
+|---------|----------|--------|
+| Registration | Register → OTP → Login | PO |
+| Booking | Search → Select → Book | PO |
+| AI Chat | Ask → Get answer | PO |
 
 ---
 
-### 2.3 Beta Testing (Internal Testing)
+## 4. Tester ↔ Developer Communication
 
-**Objective:** Distribute app builds to internal testers for real-device testing before production release.
+### 4.1 Bug Flow
 
-**Platforms:**
-
-| Platform | Distribution Tool | Testers |
-|----------|-------------------|---------|
-| Android | **Firebase App Distribution** | Internal team, QA |
-| iOS | **TestFlight** | Internal team, QA |
-
-#### 2.3.1 Firebase App Distribution (Android)
-
-**Workflow:**
-
-```
-Developer Push to develop
-        ↓
-GitHub Actions (mobile-ci-cd.yml)
-        ↓
-Build APK (staging flavor)
-        ↓
-Upload to Firebase App Distribution
-        ↓
-Testers receive email notification
-        ↓
-Install via Firebase App Tester app
-        ↓
-Test and report bugs
+```mermaid
+flowchart TD
+    Start([Dev Push]) --> CI[CI: Run Unit Tests]
+    CI --> Pass{Pass?}
+    Pass -->|No| Fix[Dev Fix]
+    Fix --> CI
+    Pass -->|Yes| Deploy[Deploy to Test]
+    
+    Deploy --> Test[👤 Tester Tests]
+    Test --> Bug{Bug?}
+    Bug -->|No| OK[✅ Approve]
+    Bug -->|Yes| Report[📝 Create Issue]
+    
+    Report --> Triage[Team Lead Triage]
+    Triage --> Assign[Assign Dev]
+    Assign --> DevFix[Dev Fix]
+    DevFix --> CI
+    
+    OK --> Prod([Production])
 ```
 
-**Tester Groups:**
+### 4.2 Communication Protocol
 
-| Group | Members | Khi nào nhận build |
-|-------|---------|-------------------|
-| `petties-test` | Dev team, QA | Push to `develop` |
-| `production-testers` | Stakeholders, PO | Push to `main` (pre-release) |
+```mermaid
+sequenceDiagram
+    participant T as 👤 Tester
+    participant GH as 📁 GitHub
+    participant TL as 👨‍💼 Lead
+    participant D as 👨‍💻 Developer
+    
+    T->>T: Bug found on Test env
+    T->>GH: Create Issue + Screenshots
+    T->>GH: Set severity label
+    
+    TL->>GH: Review & assign
+    GH-->>D: Notification
+    
+    D->>GH: Fix → PR → Merge
+    D->>GH: Comment: Ready to verify
+    
+    T->>T: Re-test on Test env
+    
+    alt Fixed
+        T->>GH: Close issue ✅
+    else Not Fixed
+        T->>GH: Reopen + comment
+    end
+```
 
-**Environments trong build:**
+### 4.3 Response Time SLA
 
-| Branch | Flavor | API URL |
-|--------|--------|---------|
-| `develop` | staging | api-test.petties.world |
-| `main` | prod | api.petties.world |
+| Severity | Triage | Fix | Verify |
+|----------|--------|-----|--------|
+| 🔴 Critical | < 1h | Same day | < 2h |
+| 🟠 High | < 2h | 1-2 days | < 4h |
+| 🟡 Medium | < 4h | This sprint | < 1 day |
+| 🟢 Low | < 1 day | Next sprint | < 2 days |
 
-#### 2.3.2 TestFlight (iOS)
-
-**Requirements:**
-- Apple Developer Account ($99/năm)
-- App created on App Store Connect
-
-**Tester Types:**
-
-| Type | Số lượng | Review |
-|------|----------|--------|
-| Internal Testers | 100 | Không cần |
-| External Testers | 10,000 | Cần Apple review (~24h) |
-
-#### 2.3.3 Beta Testing Checklist
-
-**Trước khi distribute:**
-- [ ] Build thành công trên CI/CD
-- [ ] Đúng flavor/environment
-- [ ] Release notes rõ ràng
-- [ ] Không có crash lớn
-
-**Testers kiểm tra:**
-- [ ] App install và launch thành công
-- [ ] Login/Register hoạt động
-- [ ] Core features hoạt động (Booking, Pet management)
-- [ ] Push notifications nhận được
-- [ ] UI hiển thị đúng trên device
-
-**Sau khi test:**
-- [ ] Bugs được report trên GitHub Issues
-- [ ] Feedback được ghi nhận
-- [ ] Fix bugs và release build mới
-
-#### 2.3.4 Bug Report Template (từ Testers)
+### 4.4 Bug Report Template
 
 ```markdown
-**Device:** iPhone 14 / Android 13
-**App Version:** 1.0.0-staging (build #45)
-**Steps to reproduce:**
-1. Open app
-2. Navigate to Booking
-3. Select date
+## 🐛 Bug Report
 
-**Expected:** Calendar shows available slots
-**Actual:** App crashes
+**Environment:** Test / Production
+**Platform:** Web / Android / iOS
 
-**Screenshot/Video:** [Attach]
-```
+### Steps
+1. Go to...
+2. Click...
+3. Enter...
 
-#### 2.3.5 Tools & Links
+### Expected
+[What should happen]
 
-| Tool | Purpose | Link |
-|------|---------|------|
-| Firebase App Distribution | Android distribution | https://console.firebase.google.com/project/petties-cd84e/appdistribution |
-| TestFlight | iOS distribution | https://appstoreconnect.apple.com |
-| Firebase App Tester | Android app for testers | [Play Store](https://play.google.com/store/apps/details?id=com.google.firebase.appdistribution.testerapp) |
-| TestFlight App | iOS app for testers | [App Store](https://apps.apple.com/app/testflight/id899247664) |
-| GitHub Actions | CI/CD Workflows | https://github.com/espresso23/Petties-Veterinary-Appointment-Booking-Platform/actions |
-| Postman | API Testing | https://www.postman.com |
+### Actual
+[What happens]
 
-## 3. Test Execution Process
+### Screenshot
+[Attach]
 
-### 3.1 Automated Testing (CI Pipeline)
-
-```
-Developer Push Code
-       ↓
-GitHub Actions (ci.yml)
-       ↓
-Build Application
-       ↓
-Run Unit Tests
-       ↓
-Run Integration Tests
-       ↓
-Report Results
-       ↓
-Pass/Fail Status on PR
-```
-
-### 3.2 Manual Testing
-
-1. **Before PR:** Developer tests feature locally
-2. **After PR Approved:** QA tests on Test environment
-3. **Before Release:** Full regression testing
-
----
-
-## 4. Test Case Template
-
-### 4.1 API Test Case
-
-| Field | Value |
-|-------|-------|
-| **Test ID** | TC-AUTH-001 |
-| **API Endpoint** | POST /api/auth/login |
-| **Description** | Verify successful login with valid credentials |
-| **Preconditions** | User exists with email: test@example.com |
-| **Request Body** | `{"email": "test@example.com", "password": "password123"}` |
-| **Expected Response** | Status: 200, Body contains accessToken and refreshToken |
-| **Actual Result** | (To be filled during execution) |
-| **Status** | Pass/Fail |
-
----
-
-## 5. Defect Management
-
-### 5.1 Defect Severity
-
-| Severity | Description | Example |
-|----------|-------------|---------|
-| Critical | System crash, data loss | Payment fails silently |
-| High | Major feature not working | Cannot create booking |
-| Medium | Feature partially working | Validation message incorrect |
-| Low | Minor issues, cosmetic | Typo in error message |
-
-### 5.2 Defect Workflow
-
-```
-New → Assigned → In Progress → Fixed → Verified → Closed
-                      ↓
-                  Reopened
+### Severity
+- [ ] 🔴 Critical
+- [ ] 🟠 High
+- [ ] 🟡 Medium
+- [ ] 🟢 Low
 ```
 
 ---
 
-## 6. Test Metrics
+## 5. Testing Schedule (14 Sprints)
 
-| Metric | Target |
-|--------|--------|
-| Unit Test Coverage | ≥ 70% |
-| Test Pass Rate | ≥ 95% |
-| Critical Bugs at Release | 0 |
-| High Bugs at Release | 0 |
-| Defect Detection Rate | ≥ 80% before production |
-
----
-
-## 7. Testing Schedule
-
-| Sprint | Testing Activities |
-|--------|-------------------|
-| Sprint 1-3 | Unit tests for Auth, Pet, Clinic APIs |
-| Sprint 4-6 | Integration tests for Booking flow |
-| Sprint 7-9 | System testing, Performance testing |
-| Sprint 10-12 | Regression testing, Security testing |
-| Sprint 13 | Final QA, User Acceptance Testing |
+| Sprint | Unit Tests (Controller) | System Tests |
+|--------|------------------------|--------------|
+| **1** | AuthControllerUnitTest | Manual: Login/Register |
+| **2** | UserControllerUnitTest | Manual: Profile |
+| **3** | ClinicControllerUnitTest, ClinicStaffControllerUnitTest | Manual: Clinic CRUD |
+| **4** | - | Manual: Search |
+| **5** | SlotControllerUnitTest | Manual: Slots |
+| **6** | BookingControllerUnitTest | Manual: Booking flow |
+| **7** | EMRControllerUnitTest | Manual: Medical |
+| **8** | PaymentControllerUnitTest | Manual: Stripe |
+| **9** | DashboardControllerUnitTest | Manual: Reports |
+| **10** | - | Manual: AI Chatbot |
+| **11** | - | Beta Testing |
+| **12** | - | Beta + Bug fix |
+| **13** | - | **UAT** |
+| **14** | - | Production go-live |
 
 ---
 
-## 8. Responsibilities
+## 6. Definition of Done
 
-| Role | Responsibilities |
-|------|-----------------|
-| **Developers** | Write unit tests, fix defects |
-| **Team Leader** | Review test coverage, approve releases |
-| **QA (All members)** | Execute manual tests, report defects |
+### Developer DoD
+- [ ] Controller tests written (≥ 80% coverage)
+- [ ] CI green
+- [ ] Code reviewed
+- [ ] Self-tested on Test env
+
+### Tester DoD
+- [ ] All features tested
+- [ ] Critical/High bugs verified fixed
+- [ ] Sign-off provided
+
+### Release DoD
+- [ ] All controller tests passing
+- [ ] UAT approved
+- [ ] No Critical/High bugs open
 
 ---
 
-**Document Status:** Approved  
+## 7. Roles
+
+| Role | Unit Tests | System Tests |
+|------|:----------:|:------------:|
+| **Developers** | ✅ Write Controller tests | Self-test |
+| **Team Lead** | Review coverage | Triage bugs |
+| **Testers** | - | ✅ Execute |
+
+---
+
+## 8. Related Documents
+
+| Document | Description |
+|----------|-------------|
+| [CONTROLLER_TESTING_GUIDE.md](./CONTROLLER_TESTING_GUIDE.md) | Chi tiết cách viết Controller tests |
+| [features/*.md](./features/) | Test reports per feature |
+
+---
+
+**Document Status:** ✅ Approved  
 **Maintained By:** Petties Team

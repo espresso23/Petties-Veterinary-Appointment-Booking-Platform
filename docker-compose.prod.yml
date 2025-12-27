@@ -51,6 +51,9 @@ services:
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_SSL: ${REDIS_SSL:-false}
+      # Sentry Error Monitoring
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
+      SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
     ports:
       - "127.0.0.1:8080:8080" # Bind to localhost only (Nginx reverse proxy)
     networks:
@@ -84,23 +87,26 @@ services:
       APP_DEBUG: "false"
       # Neon PostgreSQL
       DATABASE_URL: ${DATABASE_URL:-}
+      # JWT Secret (Synced with Backend)
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY: ${JWT_SECRET}
       # Qdrant Cloud
-      QDRANT_URL: ${QDRANT_URL:-o}
+      QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
-      # Ollama Configuration (Hybrid: Local or Cloud)
-      # RECOMMENDED: Use Ollama Cloud (set OLLAMA_API_KEY)
-      # - Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
-      # Primary: kimi-k2:1t-cloud (Cloud, 256K context) | kimi-k2 (Local) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
-      LLM_PROVIDER: ollama
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-} # Required for Cloud mode (recommended)
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud} # Cloud model (256K context window)
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # AI Architecture: Cloud-Only (OpenRouter + Cohere)
+      LLM_PROVIDER: openrouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      # Embeddings
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS - Production domains only
       CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Sentry Error Monitoring
+      SENTRY_DSN: ${SENTRY_AI_SERVICE_DSN:-}
     ports:
       - "127.0.0.1:8000:8000" # Bind to localhost only (Nginx reverse proxy)
     networks:

@@ -4,50 +4,51 @@ Pydantic schemas for Agent CRUD and Prompt Management
 
 Package: app.api.schemas
 Purpose: Agent Management API request/response models
-Version: v0.0.1
+Version: v1.0.0 (Migrated from Multi-Agent to Single Agent)
+
+Changes from v0.0.1:
+- Removed AgentTypeEnum (no longer Multi-Agent)
+- Added top_p parameter
+- Simplified response structure (no hierarchy)
+- Added ReAct trace schemas
 """
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from enum import Enum
-
-
-class AgentTypeEnum(str, Enum):
-    """Agent types"""
-    MAIN = "main"
-    BOOKING = "booking"
-    MEDICAL = "medical"
-    RESEARCH = "research"
 
 
 # ===== Agent Response Schemas =====
 
 class AgentResponse(BaseModel):
-    """Single agent response"""
+    """Single agent response (Single Agent architecture)"""
     id: int
     name: str
-    agent_type: AgentTypeEnum
     description: Optional[str] = None
-    temperature: float = 0.5
+    temperature: float = 0.7
     max_tokens: int = 2000
-    model: str = "kimi-k2-thinking"
+    top_p: float = 0.9  # NEW: Top-P parameter
+    model: str = "google/gemini-2.0-flash-exp:free"  # OpenRouter model
     system_prompt: Optional[str] = None
     enabled: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    
+
     # Related data
-    tools: Optional[List[str]] = None  # Assigned tool names
-    
+    tools: Optional[List[str]] = None  # Enabled tool names
+
     model_config = {"from_attributes": True}
 
 
 class AgentListResponse(BaseModel):
-    """List agents response with hierarchy"""
+    """
+    List agents response (Single Agent architecture)
+
+    Note: Simplified from Multi-Agent hierarchy.
+    Now returns flat list of agents (typically only 1 agent).
+    """
     total: int
-    main_agent: Optional[AgentResponse] = None
-    sub_agents: List[AgentResponse] = []
+    agents: List[AgentResponse] = []
 
 
 class AgentDetailResponse(BaseModel):
@@ -64,6 +65,7 @@ class UpdateAgentRequest(BaseModel):
     description: Optional[str] = None
     temperature: Optional[float] = Field(None, ge=0.0, le=1.0)
     max_tokens: Optional[int] = Field(None, ge=100, le=8000)
+    top_p: Optional[float] = Field(None, ge=0.0, le=1.0)  # NEW
     model: Optional[str] = None
     enabled: Optional[bool] = None
 
@@ -122,13 +124,23 @@ class TestAgentRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class ReActStepSchema(BaseModel):
+    """Single ReAct step for trace visualization"""
+    step_type: str  # thought, action, observation
+    content: str
+    tool_name: Optional[str] = None
+    tool_params: Optional[Dict[str, Any]] = None
+    tool_result: Optional[Any] = None
+
+
 class TestAgentResponse(BaseModel):
-    """Test response (placeholder)"""
+    """Test response with ReAct trace"""
     success: bool
     agent_name: str
     message: str
     response: str
-    thinking_process: Optional[List[str]] = None
+    react_steps: Optional[List[ReActStepSchema]] = None  # NEW: ReAct trace
+    thinking_process: Optional[List[str]] = None  # Legacy support
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
 

@@ -259,3 +259,25 @@ async def get_tool_schemas_for_agent(agent_name: str) -> List[Dict[str, Any]]:
 
 # ===== GLOBAL EXECUTOR INSTANCE =====
 tool_executor = ToolExecutor()
+
+
+# ===== CONVENIENCE FUNCTION FOR SINGLE AGENT =====
+
+async def execute_tool(tool_name: str, params: dict) -> dict:
+    """
+    Execute tool by name (convenience function for Single Agent)
+
+    This function is used by SingleAgent's act node to execute tools.
+
+    Args:
+        tool_name: Name of the tool to execute
+        params: Parameters dictionary
+
+    Returns:
+        Tool execution result dict
+
+    Usage in SingleAgent:
+        from app.core.tools.executor import execute_tool
+        result = await execute_tool("search_symptoms", {"symptoms": ["sot", "non"]})
+    """
+    return await tool_executor.execute(tool_name, params)

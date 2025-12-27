@@ -8,12 +8,8 @@ Purpose:
 """
 
 # Import all tool modules to register tools with FastMCP server
-from app.core.tools.mcp_tools import booking_tools
 from app.core.tools.mcp_tools import medical_tools
-from app.core.tools.mcp_tools import research_tools
 
 __all__ = [
-    "booking_tools",
     "medical_tools",
-    "research_tools",
 ]

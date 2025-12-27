@@ -1,10 +1,12 @@
 """
-PETTIES AGENT SERVICE - Agent State Definition
-LangGraph state management cho multi-agent system
+PETTIES AGENT SERVICE - ReAct State Definition
+
+LangGraph state management cho Single Agent voi ReAct pattern.
+ReAct = Reason + Act: Thought -> Action -> Observation -> Loop
 
 Package: app.core.agents
-Purpose: Define shared state TypedDict cho LangGraph workflow
-Version: v0.0.1
+Purpose: Define shared state TypedDict cho LangGraph ReAct workflow
+Version: v1.0.0 (Migrated from Multi-Agent to Single Agent)
 """
 
 from typing import TypedDict, Annotated, List, Dict, Any, Optional, Literal
@@ -34,28 +36,148 @@ class ToolResult(TypedDict):
     error: Optional[str]
 
 
-class AgentState(TypedDict):
+class ReActStep(TypedDict):
     """
-    Shared state cho LangGraph Supervisor-Worker workflow
+    Single step trong ReAct flow
 
     Attributes:
-        messages: List of conversation messages (annotated với add để accumulate)
-        current_agent: Agent đang xử lý (main, booking, medical, research)
-        intent: Classified intent từ Main Agent
-        tool_calls: Pending tool calls
-        tool_results: Results từ tool executions
-        routing_history: History of agent handoffs
-        context: Additional context (user_id, session_id, pet_info, etc.)
-        final_response: Final response để return cho user
-        error: Error message nếu có
+        step_type: Loai step (thought, action, observation)
+        content: Noi dung step
+        tool_name: Ten tool (chi cho action)
+        tool_params: Parameters cua tool (chi cho action)
+        tool_result: Ket qua tu tool (chi cho observation)
+    """
+    step_type: Literal["thought", "action", "observation"]
+    content: str
+    tool_name: Optional[str]
+    tool_params: Optional[Dict[str, Any]]
+    tool_result: Optional[Any]
+
+
+class ReActState(TypedDict):
+    """
+    State cho Single Agent voi ReAct pattern
+
+    ReAct Flow:
+    1. THINK: LLM reasoning (Thought)
+    2. ACT: Execute tool (Action)
+    3. OBSERVE: Process result (Observation)
+    4. Loop or END
+
+    Attributes:
+        messages: List conversation messages (user, assistant)
+        react_steps: List ReAct steps cho debugging/visualization
+        current_thought: Current thought tu Think node
+        pending_tool_call: Tool call dang cho execution
+        last_tool_result: Ket qua tu tool call gan nhat
+        current_observation: Observation tu Observe node
+        final_answer: Final answer de tra ve user
+        should_end: Flag de ket thuc ReAct loop
+        iteration: So iteration hien tai (de prevent infinite loop)
+        context: Additional context (user_id, session_id, etc.)
+        error: Error message neu co
 
     Usage:
         ```python
         from langgraph.graph import StateGraph
-        from app.core.agents.state import AgentState
+        from app.core.agents.state import ReActState
 
-        graph = StateGraph(AgentState)
+        graph = StateGraph(ReActState)
+        graph.add_node("think", think_node)
+        graph.add_node("act", act_node)
+        graph.add_node("observe", observe_node)
         ```
+    """
+    # Conversation messages
+    messages: List[Message]
+
+    # ReAct trace for debugging
+    react_steps: Annotated[List[ReActStep], add]
+
+    # Think node output
+    current_thought: Optional[str]
+
+    # Act node
+    pending_tool_call: Optional[Dict[str, Any]]  # {name, arguments}
+    last_tool_result: Optional[Any]
+
+    # Observe node
+    current_observation: Optional[str]
+
+    # Final output
+    final_answer: Optional[str]
+
+    # Control flow
+    should_end: bool
+    iteration: int
+
+    # Additional context
+    context: Dict[str, Any]
+    # Example context:
+    # {
+    #     "user_id": "USR_12345",
+    #     "session_id": "SES_67890",
+    #     "pet_info": {"pet_id": "PET_001", "name": "Miu", "species": "cat"},
+    #     "location": {"lat": 10.762622, "lng": 106.660172}
+    # }
+
+    # Error handling
+    error: Optional[str]
+
+
+def create_initial_react_state(
+    user_message: str,
+    context: Optional[Dict[str, Any]] = None
+) -> ReActState:
+    """
+    Create initial state cho new conversation
+
+    Args:
+        user_message: User's input message
+        context: Additional context (user_id, session_id, etc.)
+
+    Returns:
+        Initial ReActState
+
+    Example:
+        ```python
+        state = create_initial_react_state(
+            user_message="Con meo cua toi bi non, lam sao bay gio?",
+            context={"user_id": "USR_123", "pet_info": {"name": "Miu"}}
+        )
+        ```
+    """
+    return ReActState(
+        messages=[
+            Message(
+                role="user",
+                content=user_message,
+                name=None,
+                tool_call_id=None
+            )
+        ],
+        react_steps=[],
+        current_thought=None,
+        pending_tool_call=None,
+        last_tool_result=None,
+        current_observation=None,
+        final_answer=None,
+        should_end=False,
+        iteration=0,
+        context=context or {},
+        error=None
+    )
+
+
+# ===== LEGACY SUPPORT =====
+# Keep AgentState for backward compatibility during migration
+
+class AgentState(TypedDict):
+    """
+    [DEPRECATED] Legacy AgentState for Multi-Agent architecture
+
+    Migrated to ReActState for Single Agent.
+    Kept for backward compatibility during transition.
     """
     # Conversation messages (accumulated)
     messages: Annotated[List[Message], add]
@@ -75,13 +197,6 @@ class AgentState(TypedDict):
 
     # Additional context
     context: Dict[str, Any]
-    # Example context:
-    # {
-    #     "user_id": "USR_12345",
-    #     "session_id": "SES_67890",
-    #     "pet_info": {"pet_id": "PET_001", "name": "Miu", "species": "cat"},
-    #     "location": {"lat": 10.762622, "lng": 106.660172}
-    # }
 
     # Final response
     final_response: Optional[str]
@@ -93,40 +208,10 @@ class AgentState(TypedDict):
 def create_initial_state(
     user_message: str,
     context: Optional[Dict[str, Any]] = None
-) -> AgentState:
+) -> ReActState:
     """
-    Create initial state cho new conversation
+    [DEPRECATED] Legacy function, use create_initial_react_state instead
 
-    Args:
-        user_message: User's input message
-        context: Additional context (user_id, session_id, etc.)
-
-    Returns:
-        Initial AgentState
-
-    Example:
-        ```python
-        state = create_initial_state(
-            user_message="Tôi muốn đặt lịch khám cho mèo",
-            context={"user_id": "USR_123", "pet_info": {...}}
-        )
-        ```
+    Kept for backward compatibility.
     """
-    return AgentState(
-        messages=[
-            Message(
-                role="user",
-                content=user_message,
-                name=None,
-                tool_call_id=None
-            )
-        ],
-        current_agent="main",
-        intent=None,
-        tool_calls=[],
-        tool_results=[],
-        routing_history=["main"],
-        context=context or {},
-        final_response=None,
-        error=None
-    )
+    return create_initial_react_state(user_message, context)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KeyIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { KeyIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, XCircleIcon, ArrowPathIcon, BeakerIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 interface ApiKey {
   key: string
@@ -56,7 +56,7 @@ export const ApiKeyManager = ({
 
   const handleTest = async () => {
     if (!onTest) return
-    
+
     setTesting(true)
     setTestResult(null)
     try {
@@ -88,52 +88,54 @@ export const ApiKeyManager = ({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-stone-200 shadow-soft">
-      <div className="px-6 py-4 border-b border-stone-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-              <KeyIcon className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-stone-900">{categoryLabel}</h3>
-              <p className="text-sm text-stone-500 mt-0.5">
-                {category === 'llm' && 'Configure Ollama connection'}
-                {category === 'vector_db' && 'Configure Qdrant Cloud connection'}
-                {category === 'embeddings' && 'Configure embedding service'}
+    <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col">
+      <div className="px-6 py-4 border-b-4 border-black bg-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 border-4 border-black bg-yellow-400 flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <KeyIcon className="w-8 h-8 text-black" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase italic tracking-tighter text-black">{categoryLabel}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-black uppercase bg-black text-white px-2 py-0.5 tracking-widest">{category}</span>
+              <p className="text-xs font-bold text-stone-600 uppercase">
+                {category === 'llm' && 'Configure AI Model Providers'}
+                {category === 'vector_db' && 'Vector Search Infrastructure'}
+                {category === 'rag' && 'Knowledge Retrieval Settings'}
+                {category === 'embeddings' && 'Text Embedding Models'}
+                {category === 'general' && 'System Parameters'}
               </p>
             </div>
           </div>
-          {onTest && (
-            <button
-              onClick={handleTest}
-              disabled={testing}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-stone-300 disabled:cursor-not-allowed transition-colors cursor-pointer"
-            >
-              {testing ? 'Testing...' : 'Test Connection'}
-            </button>
-          )}
         </div>
+        {onTest && (
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            className="bg-black text-white px-6 py-3 border-2 border-black font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            {testing ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <BeakerIcon className="w-4 h-4" />}
+            {testing ? 'ĐANG KIỂM TRA...' : 'TEST CONNECTION'}
+          </button>
+        )}
       </div>
 
       {/* Test Result */}
       {testResult && (
         <div className={`
-          mx-6 mt-4 p-4 rounded-lg border
-          ${testResult.status === 'success' 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-red-50 border-red-200'
+          mx-6 mt-6 p-4 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
+          ${testResult.status === 'success'
+            ? 'bg-green-400'
+            : 'bg-red-400'
           }
         `}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {testResult.status === 'success' ? (
-              <CheckCircleIcon className="w-5 h-5 text-green-600" />
+              <CheckCircleIcon className="w-6 h-6 text-black" />
             ) : (
-              <XCircleIcon className="w-5 h-5 text-red-600" />
+              <XCircleIcon className="w-6 h-6 text-black" />
             )}
-            <p className={`text-sm font-medium ${
-              testResult.status === 'success' ? 'text-green-900' : 'text-red-900'
-            }`}>
+            <p className="text-sm font-black uppercase tracking-tight">
               {testResult.message}
             </p>
           </div>
@@ -141,28 +143,27 @@ export const ApiKeyManager = ({
       )}
 
       {/* API Keys */}
-      <div className="p-6 space-y-4">
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
         {filteredKeys.map(apiKey => {
-          const isEditing = editValues.hasOwnProperty(apiKey.key)
-          const currentValue = editValues[apiKey.key] ?? apiKey.value
+          const isEditing = Object.prototype.hasOwnProperty.call(editValues, apiKey.key)
           const isVisible = visibleKeys.has(apiKey.key) || !apiKey.is_sensitive
-          const hasChanges = editValues[apiKey.key] && editValues[apiKey.key] !== apiKey.value
+          const hasChanges = isEditing && editValues[apiKey.key] !== apiKey.value
 
           return (
-            <div key={apiKey.key} className="space-y-2">
+            <div key={apiKey.key} className="space-y-2 group">
               <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-sm font-medium text-stone-900 mb-1">
-                    {apiKey.key}
+                <div className="flex items-baseline gap-2">
+                  <label className="block text-xs font-black uppercase tracking-widest text-black">
+                    {apiKey.key.replace(/_/g, ' ')}
                   </label>
-                  {apiKey.description && (
-                    <p className="text-xs text-stone-500">{apiKey.description}</p>
+                  {apiKey.is_sensitive && (
+                    <span className="text-[9px] font-black px-1 bg-black text-white">SENSITIVE</span>
                   )}
                 </div>
                 {apiKey.is_sensitive && apiKey.value && (
                   <button
                     onClick={() => toggleVisibility(apiKey.key)}
-                    className="p-1.5 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                    className="p-1 hover:bg-stone-200 transition-colors cursor-pointer border border-transparent hover:border-black"
                     type="button"
                   >
                     {visibleKeys.has(apiKey.key) ? (
@@ -173,24 +174,27 @@ export const ApiKeyManager = ({
                   </button>
                 )}
               </div>
-              
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
+
+              <div className="flex gap-0 border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform focus-within:-translate-x-1 focus-within:-translate-y-1">
+                <div className="flex-1 relative bg-white">
                   <input
-                    type={isVisible && !apiKey.is_sensitive ? 'text' : 'password'}
-                    value={isEditing ? currentValue : (isVisible ? currentValue : '••••••••')}
+                    type={apiKey.is_sensitive && !isVisible ? 'password' : 'text'}
+                    value={
+                      isEditing
+                        ? editValues[apiKey.key]
+                        : (apiKey.is_sensitive && !isVisible
+                          ? (apiKey.value ? '••••••••••••' : '')
+                          : (apiKey.value || ''))
+                    }
                     onChange={(e) => {
-                      if (!isEditing) {
-                        setEditValues(prev => ({ ...prev, [apiKey.key]: '' }))
-                      }
                       setEditValues(prev => ({ ...prev, [apiKey.key]: e.target.value }))
                     }}
-                    placeholder={apiKey.is_sensitive ? 'Enter new API key...' : 'Enter value...'}
-                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm font-mono"
+                    placeholder={apiKey.is_sensitive ? 'Nhập API key...' : 'Nhập giá trị...'}
+                    className="w-full px-4 py-3 outline-none text-sm font-black tracking-tight text-black bg-white"
                   />
                   {!isVisible && apiKey.value && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <span className="text-xs text-stone-400">Encrypted</span>
+                      <LockClosedIcon className="w-4 h-4 opacity-30" />
                     </div>
                   )}
                 </div>
@@ -198,23 +202,24 @@ export const ApiKeyManager = ({
                   <button
                     onClick={() => handleSave(apiKey.key)}
                     disabled={saving === apiKey.key}
-                    className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:bg-stone-300 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                    className="px-6 py-3 bg-purple-500 text-white font-black uppercase text-xs border-l-4 border-black hover:bg-purple-600 disabled:opacity-50 transition-colors cursor-pointer whitespace-nowrap"
                   >
-                    {saving === apiKey.key ? 'Saving...' : 'Save'}
+                    {saving === apiKey.key ? 'SAVING...' : 'UPDATE'}
                   </button>
                 )}
               </div>
+              {apiKey.description && (
+                <p className="text-[10px] font-bold text-stone-500 uppercase tracking-tight">{apiKey.description}</p>
+              )}
             </div>
           )
         })}
       </div>
 
-      {category === 'embeddings' && (
+      {category === 'rag' && (
         <div className="px-6 pb-6">
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-800">
-              <strong>Note:</strong> Embeddings service is used ONLY for vector generation, not for LLM reasoning.
-            </p>
+          <div className="p-4 bg-yellow-100 border-2 border-black font-bold text-xs uppercase text-black">
+            <strong>MẸO:</strong> Đối với Tiếng Việt, hãy sử dụng Cohere Multilingual Embeddings để đạt hiệu quả cao nhất.
           </div>
         </div>
       )}

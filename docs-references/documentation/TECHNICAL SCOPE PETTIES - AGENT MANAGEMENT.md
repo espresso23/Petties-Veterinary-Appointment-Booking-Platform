@@ -401,41 +401,41 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **SYS-01** | **Dynamic Secrets Management** | Giao diện Frontend cho phép nhập/sửa/xóa API Keys (Qdrant, Cohere, OpenRouter...). Backend mã hóa và lưu vào DB. Agent runtime tự động load lại key khi có thay đổi mà không cần deploy lại. | **Critical** |
-| **SYS-02** | **LLM Model Selection** | Chọn LLM model từ OpenRouter (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet). Config fallback model. | **Critical** |
+| **SYS-01** | **Dynamic Secrets Management** | Giao diện Frontend cho phép nhập/sửa/xóa API Keys (Qdrant, Cohere, OpenRouter...). Backend mã hóa và lưu vào DB. Agent runtime tự động load lại key khi có thay đổi mà không cần deploy lại. | **✅ Done** |
+| **SYS-02** | **LLM Model Selection** | Chọn LLM model từ OpenRouter (gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet). Config fallback model. | **✅ Done** |
 
 ### **Agent Configuration (Single Agent + ReAct)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **AG-01** | **Agent Enable/Disable** | Bật/tắt Agent. Khi tắt, user thấy message "Trợ lý AI đang bảo trì". | **Critical** |
-| **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Prompt cho Single Agent. Dữ liệu được versioning và lưu trong PostgreSQL. | **Critical** |
-| **AG-03** | **Model Parameter Tuning** | Cấu hình tham số: Temperature, Max Tokens, Top-P. | **Critical** |
+| **AG-01** | **Agent Enable/Disable** | Bật/tắt Agent. Khi tắt, user thấy message "Trợ lý AI đang bảo trì". | **✅ Done** |
+| **AG-02** | **System Prompt Editor** | Giao diện chỉnh sửa System Prompt cho Single Agent. Dữ liệu được versioning và lưu trong PostgreSQL. | **✅ Done** |
+| **AG-03** | **Model Parameter Tuning** | Cấu hình tham số: Temperature, Max Tokens, Top-P, Model selection. | **✅ Done** |
 
 ### **Tools Management (@mcp.tool)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **TL-01** | **Tool List View** | Hiển thị danh sách tools đã được code (@mcp.tool): pet_care_qa, symptom_search, search_clinics, check_slots, create_booking. | **Critical** |
-| **TL-02** | **Tool Enable/Disable** | Bật/tắt từng tool riêng lẻ. Agent chỉ gọi được tools đang Enable. | **Critical** |
-| **TL-03** | **Schema Viewer** | Xem Request/Response schema của mỗi tool để Admin hiểu tool làm gì. | **High** |
+| **TL-01** | **Tool List View** | Hiển thị danh sách tools đã được code (@mcp.tool): pet_care_qa, symptom_search, search_clinics, check_slots, create_booking. | **✅ Done** |
+| **TL-02** | **Tool Enable/Disable** | Bật/tắt từng tool riêng lẻ. Agent chỉ gọi được tools đang Enable. | **✅ Done** |
+| **TL-03** | **Schema Viewer** | Xem Request/Response schema của mỗi tool để Admin hiểu tool làm gì. | **✅ Done** |
 
 ### **Knowledge Base & RAG (Kiến thức)**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **Critical** |
-| **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **Critical** |
-| **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **High** |
+| **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **✅ Done** |
+| **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
+| **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
 
 ### **Agent Testing & Debugging**
 
 | ID | Feature Name | Tech Stack Context & Description | Priority |
 | :---- | :---- | :---- | :---- |
-| **PG-01** | **Interactive Chat Simulator** | Giao diện Chat kết nối qua WebSocket. Hiển thị Streaming Response từ FastAPI backend. | **Critical** |
-| **PG-02** | **ReAct Flow Visualization** | Hiển thị luồng ReAct: Thought → Action → Observation → Loop → Answer. | **Critical** |
-| **PG-03** | **Tool Call Inspector** | Xem chi tiết parameters và response của mỗi tool call. | **High** |
-| **PG-04** | **Citation View** | Hiển thị nguồn trích dẫn từ RAG (filename, chunks). | **High** |
+| **PG-01** | **Interactive Chat Simulator** | Giao diện Chat kết nối qua WebSocket / REST. Hiển thị Streaming Response từ FastAPI backend. | **✅ Done** |
+| **PG-02** | **ReAct Flow Visualization** | Hiển thị luồng ReAct: Thought → Action → Observation → Loop → Answer. | **✅ Done** |
+| **PG-03** | **Tool Call Inspector** | Xem chi tiết parameters và response của mỗi tool call. | **✅ Done** |
+| **PG-04** | **Citation View** | Hiển thị nguồn trích dẫn từ RAG (filename, chunks). | **🔄 In Progress** |
 | **PG-05** | **Response Feedback** | Admin đánh giá câu trả lời (Good/Bad) để improve prompt. | **Medium** |
 
 

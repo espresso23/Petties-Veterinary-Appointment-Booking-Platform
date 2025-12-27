@@ -66,8 +66,8 @@ class ToolScanner:
         """
         self.logger.info("🔍 Starting tool scan...")
 
-        # Step 1: Get tools from FastMCP server
-        mcp_tools = get_mcp_tools_metadata()
+        # Step 1: Get tools from FastMCP server (async for FastMCP 2.x)
+        mcp_tools = await get_mcp_tools_metadata()
         total_tools = len(mcp_tools)
 
         self.logger.info(f"📋 Found {total_tools} tools in FastMCP server")

@@ -38,24 +38,44 @@ public class ClinicStaffService {
     }
 
     /**
+     * Check if clinic already has a manager
+     */
+    public boolean hasManager(UUID clinicId) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+
+        return clinic.getStaff().stream()
+                .anyMatch(user -> user.getRole() == Role.CLINIC_MANAGER);
+    }
+
+    /**
      * Create a new account and assign as Manager (For Clinic Owner)
      */
     @Transactional
     public void quickAddStaff(UUID clinicId, QuickAddStaffRequest request) {
-        // 1. Check if phone already exists
-        if (userRepository.existsByUsername(request.getPhone())) {
+        // 1. Check if phone already exists (including soft-deleted users)
+        if (userRepository.existsByPhone(request.getPhone())) {
             throw new ResourceAlreadyExistsException("Số điện thoại này đã được đăng ký tài khoản");
         }
 
         // 2. Business Rules for Role Management (Phân quyền)
         User currentUser = authService.getCurrentUser();
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-        // Rule 1: No one can add an ADMIN via this endpoint
+        // Rule 0: No one can add an ADMIN via this endpoint
         if (request.getRole() == Role.ADMIN) {
             throw new ForbiddenException("Không thể tạo tài khoản ADMIN qua chức năng này");
         }
 
-        // Rule 2: CLINIC_MANAGER can ONLY add VETs
+        // Rule 1: CLINIC_OWNER must own the clinic
+        if (currentUser.getRole() == Role.CLINIC_OWNER) {
+            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        }
+
+        // Rule 2: CLINIC_MANAGER can ONLY add VETs and must belong to this clinic
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
             if (request.getRole() != Role.VET) {
                 throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Bác sĩ");
@@ -65,6 +85,11 @@ public class ClinicStaffService {
                     || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
                 throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
             }
+        }
+
+        // Rule 3: Each clinic can only have ONE manager
+        if (request.getRole() == Role.CLINIC_MANAGER && hasManager(clinicId)) {
+            throw new ResourceAlreadyExistsException("Phòng khám đã có Quản lý. Mỗi phòng khám chỉ được có 1 Quản lý.");
         }
 
         // 3. Create new user account
@@ -79,8 +104,6 @@ public class ClinicStaffService {
         newUser.setPassword(passwordEncoder.encode(defaultPass));
 
         // 4. Assign to clinic
-        Clinic clinic = clinicRepository.findById(clinicId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
         newUser.setWorkingClinic(clinic);
 
         userRepository.save(newUser);
@@ -92,6 +115,11 @@ public class ClinicStaffService {
 
     @Transactional
     public void assignManager(UUID clinicId, String usernameOrEmail) {
+        // Check if clinic already has a manager
+        if (hasManager(clinicId)) {
+            throw new ResourceAlreadyExistsException("Phòng khám đã có Quản lý. Mỗi phòng khám chỉ được có 1 Quản lý.");
+        }
+
         User user = findUserByUsernameOrEmail(usernameOrEmail);
 
         if (user.getRole() != Role.CLINIC_MANAGER) {
@@ -127,15 +155,41 @@ public class ClinicStaffService {
 
     @Transactional
     public void removeStaff(UUID clinicId, UUID userId) {
-        User user = userRepository.findById(userId)
+        User currentUser = authService.getCurrentUser();
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+
+        User staffToRemove = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
 
-        if (user.getWorkingClinic() == null || !user.getWorkingClinic().getClinicId().equals(clinicId)) {
+        // Check staff belongs to this clinic
+        if (staffToRemove.getWorkingClinic() == null
+                || !staffToRemove.getWorkingClinic().getClinicId().equals(clinicId)) {
             throw new IllegalArgumentException("User does not belong to this clinic");
         }
 
-        user.setWorkingClinic(null);
-        userRepository.save(user);
+        // Authorization: CLINIC_OWNER must own the clinic
+        if (currentUser.getRole() == Role.CLINIC_OWNER) {
+            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        }
+
+        // Authorization: CLINIC_MANAGER can only remove VETs, not other managers
+        if (currentUser.getRole() == Role.CLINIC_MANAGER) {
+            // Must belong to this clinic
+            if (currentUser.getWorkingClinic() == null
+                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+            // Cannot remove another manager
+            if (staffToRemove.getRole() == Role.CLINIC_MANAGER) {
+                throw new ForbiddenException("Quản lý phòng khám không có quyền xóa Quản lý khác");
+            }
+        }
+
+        staffToRemove.setWorkingClinic(null);
+        userRepository.save(staffToRemove);
     }
 
     private User findUserByUsernameOrEmail(String usernameOrEmail) {

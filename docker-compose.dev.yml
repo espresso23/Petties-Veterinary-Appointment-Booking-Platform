@@ -144,18 +144,19 @@ services:
       APP_DEBUG: "true"
       # PostgreSQL
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      # JWT Secret (Synced with Backend)
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY: ${JWT_SECRET}
       # Qdrant Cloud (same as production)
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-      # Ollama Configuration (Hybrid: Local or Cloud)
-      # Local Mode (Default): Set OLLAMA_BASE_URL=http://host.docker.internal:11434 (Ollama chạy trên host machine)
-      # Cloud Mode: Set OLLAMA_API_KEY=sk-... (auto-switches to https://ollama.com)
-      # Primary: kimi-k2 (Local) | kimi-k2:1t-cloud (Cloud) | Alternatives: llama3, mistral, gemma, qwen2.5:7b
-      LLM_PROVIDER: ollama
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-} # Set for Cloud mode, leave empty for Local
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2} # Auto-switches to kimi-k2:1t-cloud if API key provided
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      # AI Architecture: Cloud-Only (OpenRouter + Cohere)
+      LLM_PROVIDER: openrouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      # Embeddings
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS (comma-separated string)
       CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080
     volumes:

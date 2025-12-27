@@ -4,6 +4,65 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ---
 
+## 0. Tổng Quan Nghiệp Vụ Dự Án
+
+### 0.1 Mô tả hệ thống
+
+**PETTIES** là nền tảng đặt lịch khám thú y trực tuyến, kết nối:
+- **Pet Owner** (Chủ thú cưng) - đặt lịch khám, theo dõi hồ sơ sức khỏe
+- **Veterinary Clinics** (Phòng khám thú y) - quản lý dịch vụ, lịch hẹn, nhân sự
+- **Vets** (Bác sĩ thú y) - thực hiện khám, ghi hồ sơ bệnh án
+
+### 0.2 Core Business Flows (Luồng nghiệp vụ cốt lõi)
+
+| # | Core Flow | Actor(s) | Mô tả |
+|---|-----------|----------|-------|
+| **BP-001** | Clinic Onboarding | Clinic Owner → Admin | Đăng ký phòng khám, Admin phê duyệt |
+| **BP-002** | Booking Management | Pet Owner → Manager → Vet | Đặt lịch → Gán bác sĩ → Xác nhận |
+| **BP-003** | Medical Service | Vet → Pet Owner | Check-in → Khám → EMR → Check-out |
+| **BP-004** | Payment Processing | Pet Owner → System | Thanh toán Online/Cash |
+| **BP-005** | Review & Feedback | Pet Owner | Đánh giá Vet + Clinic |
+
+### 0.3 Supporting Flows (Luồng hỗ trợ)
+
+| # | Supporting Flow | Actor(s) | Mô tả |
+|---|-----------------|----------|-------|
+| **BP-006** | AI Assistance | Pet Owner → AI | Chat với AI về sức khỏe thú cưng |
+| **BP-007** | SOS Emergency | Pet Owner | Tìm phòng khám gần nhất khi khẩn cấp |
+| **BP-008** | Staff Management | Clinic Owner/Manager | Thêm/xóa Manager, Vet |
+
+### 0.4 Business Flow Dependencies
+
+```mermaid
+flowchart LR
+    subgraph SETUP["🏗️ SETUP (Một lần)"]
+        A[BP-001<br/>Clinic Onboarding] --> B[BP-008<br/>Staff Management]
+        B --> C[Service Setup]
+        C --> D[Schedule Setup]
+    end
+
+    subgraph DAILY["📅 HÀNG NGÀY"]
+        E[BP-002<br/>Booking] --> F[BP-003<br/>Medical Service]
+        F --> G[BP-004<br/>Payment]
+        G --> H[BP-005<br/>Review]
+    end
+
+    SETUP --> DAILY
+```
+
+### 0.5 Business Rules Summary
+
+| Rule ID | Business Rule | Impact |
+|---------|---------------|--------|
+| **BR-001** | Mỗi Clinic chỉ có 1 Manager | Staff Management |
+| **BR-002** | Manager chỉ thêm được Vet | Authorization |
+| **BR-003** | Mỗi slot = 30 phút | Scheduling |
+| **BR-004** | Booking cần Manager gán Vet | Workflow |
+| **BR-005** | Vet có thể Accept/Reject booking | Confirmation |
+| **BR-006** | Payment trước khi COMPLETED | Checkout |
+
+---
+
 ## 1. High-Level Business Process Overview
 <img width="8442" height="1637" alt="High-Level Business Process Overview" src="https://github.com/user-attachments/assets/9ed55792-1e88-4fa8-b618-fef9b1081ff4" />
 
@@ -297,7 +356,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** 2025-12-14  
+**Document Version:** 3.0  
+**Last Updated:** 2025-12-25  
 **Author:** Petties Team  
 **Standard:** BPMN 2.0 Compliant (Mermaid Visualization)

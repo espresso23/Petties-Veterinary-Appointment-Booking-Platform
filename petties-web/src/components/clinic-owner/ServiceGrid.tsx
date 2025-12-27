@@ -9,8 +9,8 @@ import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon, ChevronDownIcon } from 
 import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 import { InheritServiceModal } from './InheritServiceModal'
-import { ConfirmDialog } from '../ConfirmDialog'
 import {
   getServiceById,
   createService,
