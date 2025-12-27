@@ -13,6 +13,7 @@ export interface Clinic {
     userId: string
     username: string
     fullName?: string
+    email?: string
   }
   name: string
   description?: string
@@ -78,6 +79,7 @@ export interface ClinicResponse {
     userId: string
     username: string
     fullName?: string
+    email?: string
   }
   name: string
   description?: string

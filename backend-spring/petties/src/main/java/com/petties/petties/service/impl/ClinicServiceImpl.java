@@ -17,7 +17,11 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.service.ClinicService;
 import com.petties.petties.service.CloudinaryService;
+import com.petties.petties.service.EmailService;
 import com.petties.petties.service.GoogleMapsService;
+import com.petties.petties.service.NotificationService;
+import com.petties.petties.model.enums.NotificationType;
+import com.petties.petties.model.Notification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,6 +46,8 @@ public class ClinicServiceImpl implements ClinicService {
     private final UserRepository userRepository;
     private final GoogleMapsService googleMapsService;
     private final CloudinaryService cloudinaryService;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -229,8 +235,15 @@ public class ClinicServiceImpl implements ClinicService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<ClinicResponse> getPendingClinics(Pageable pageable) {
+        Page<Clinic> clinics = clinicRepository.findByStatus(ClinicStatus.PENDING, pageable);
+        return clinics.map(this::mapToResponse);
+    }
+
+    @Override
     @Transactional
-    public ClinicResponse approveClinic(UUID clinicId) {
+    public ClinicResponse approveClinic(UUID clinicId, String reason) {
         Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
@@ -243,7 +256,20 @@ public class ClinicServiceImpl implements ClinicService {
         clinic.setRejectionReason(null);
 
         clinic = clinicRepository.save(clinic);
-        log.info("Clinic approved: {}", clinicId);
+        log.info("Clinic approved: {} with reason: {}", clinicId, reason);
+
+        // Create notification for clinic owner (only if status actually changed)
+        // The notification service will check for duplicates
+        try {
+            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.APPROVED, reason);
+            if (notification == null) {
+                log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to create approval notification for clinic: {}", clinicId, e);
+            // Don't fail the transaction if notification creation fails
+        }
+
         return mapToResponse(clinic);
     }
 
@@ -257,18 +283,35 @@ public class ClinicServiceImpl implements ClinicService {
             throw new BadRequestException("Only PENDING clinics can be rejected");
         }
 
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new BadRequestException("Rejection reason is required");
+        }
+
         clinic.setStatus(ClinicStatus.REJECTED);
         clinic.setRejectionReason(reason);
 
         clinic = clinicRepository.save(clinic);
         log.info("Clinic rejected: {} with reason: {}", clinicId, reason);
+
+        // Create notification for clinic owner (only if status actually changed)
+        // The notification service will check for duplicates
+        try {
+            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.REJECTED, reason);
+            if (notification == null) {
+                log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to create rejection notification for clinic: {}", clinicId, e);
+            // Don't fail the transaction if notification creation fails
+        }
+
         return mapToResponse(clinic);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<ClinicResponse> getClinicsByOwner(UUID ownerId, Pageable pageable) {
-        Page<Clinic> clinics = clinicRepository.findByOwnerUserId(ownerId, pageable);
+        Page<Clinic> clinics = clinicRepository.findByOwnerUserIdAndStatus(ownerId, ClinicStatus.APPROVED, pageable);
         return clinics.map(this::mapToResponse);
     }
 

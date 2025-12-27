@@ -27,9 +27,15 @@ public class ServiceWeightPrice {
     @Column(name = "weight_price_id", updatable = false, nullable = false)
     private UUID weightPriceId;
 
+
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_id", nullable = false)
+    @JoinColumn(name = "service_id")
     private ClinicService service;
+
+    // NEW: Liên kết với master service template (nullable)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "master_service_id")
+    private MasterService masterService;
 
     @Column(name = "min_weight", nullable = false, precision = 10, scale = 2)
     private BigDecimal minWeight;

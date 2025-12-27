@@ -15,6 +15,9 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import com.petties.petties.model.Clinic;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {

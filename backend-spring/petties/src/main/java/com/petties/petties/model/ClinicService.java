@@ -33,6 +33,15 @@ public class ClinicService {
     @JoinColumn(name = "clinic_id", nullable = false, updatable = false)
     private Clinic clinic;
 
+    // NEW: Reference to Master Service (nullable - chỉ có khi inherit)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "master_service_id")
+    private MasterService masterService;
+
+    // NEW: Phân biệt Custom vs Inherited
+    @Column(name = "is_custom", nullable = false)
+    private Boolean isCustom = true;
+
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 

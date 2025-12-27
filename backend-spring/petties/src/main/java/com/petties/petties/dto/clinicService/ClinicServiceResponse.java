@@ -20,6 +20,8 @@ public class ClinicServiceResponse {
 
     private UUID serviceId;
     private UUID clinicId;
+    private UUID masterServiceId; // NEW: ID của master service (null nếu custom)
+    private Boolean isCustom; // NEW: true = custom, false = inherited
     private String name;
     private BigDecimal basePrice;
     private Integer durationTime;

@@ -125,10 +125,24 @@ export const clinicService = {
   },
 
   /**
+   * Get pending clinics for admin approval (ADMIN only)
+   */
+  getPendingClinics: async (page = 0, size = 20, sortBy = 'createdAt', sortDir: 'ASC' | 'DESC' = 'DESC'): Promise<ClinicListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      sortBy,
+      sortDir,
+    })
+    const response = await apiClient.get<ClinicListResponse>(`/clinics/admin/pending?${params.toString()}`)
+    return response.data
+  },
+
+  /**
    * Approve clinic (ADMIN only)
    */
-  approveClinic: async (clinicId: string): Promise<ClinicResponse> => {
-    const response = await apiClient.post<ClinicResponse>(`/clinics/${clinicId}/approve`)
+  approveClinic: async (clinicId: string, reason?: string): Promise<ClinicResponse> => {
+    const response = await apiClient.post<ClinicResponse>(`/clinics/${clinicId}/approve`, reason ? { reason } : {})
     return response.data
   },
 

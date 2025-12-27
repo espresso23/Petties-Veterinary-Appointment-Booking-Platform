@@ -4,15 +4,19 @@ import com.petties.petties.dto.clinicService.ClinicServiceRequest;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceUpdateRequest;
 import com.petties.petties.dto.clinicService.WeightPriceDto;
+import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicService;
+import com.petties.petties.model.MasterService;
 import com.petties.petties.model.ServiceWeightPrice;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.ClinicServiceRepository;
+import com.petties.petties.repository.MasterServiceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +35,7 @@ public class ClinicServiceService {
     private final ClinicServiceRepository clinicServiceRepository;
     private final ClinicRepository clinicRepository;
     private final AuthService authService;
+    private final MasterServiceRepository masterServiceRepository;
 
     /**
      * Get current authenticated user
@@ -58,6 +63,7 @@ public class ClinicServiceService {
      */
     @Transactional
     public ClinicServiceResponse createService(ClinicServiceRequest request) {
+
         Clinic clinic = getCurrentUserClinic();
 
         ClinicService service = new ClinicService();
@@ -191,7 +197,25 @@ public class ClinicServiceService {
      */
     @Transactional
     public void deleteService(UUID serviceId) {
-        Clinic clinic = getCurrentUserClinic();
+        deleteService(serviceId, null);
+    }
+
+    @Transactional
+    public void deleteService(UUID serviceId, UUID clinicId) {
+        Clinic clinic;
+
+        if (clinicId != null) {
+            clinic = clinicRepository.findById(clinicId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
+
+            // Validate user has permission for this clinic
+            User currentUser = getCurrentUser();
+            if (currentUser.getRole() != Role.ADMIN && (clinic.getOwner() == null || !clinic.getOwner().getUserId().equals(currentUser.getUserId()))) {
+                throw new ForbiddenException("Bạn không có quyền xóa dịch vụ cho clinic này");
+            }
+        } else {
+            clinic = getCurrentUserClinic();
+        }
 
         ClinicService service = clinicServiceRepository.findByServiceIdAndClinic(serviceId, clinic)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
@@ -229,6 +253,15 @@ public class ClinicServiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
 
         service.setIsHomeVisit(isHomeVisit);
+        // If enabling home-visit and pricePerKm is null or <= 0, set a common price
+        if (isHomeVisit != null && isHomeVisit) {
+            if (service.getPricePerKm() == null || service.getPricePerKm().compareTo(BigDecimal.ZERO) <= 0) {
+                service.setPricePerKm(getCommonPricePerKm(clinic));
+            }
+        } else {
+            // If disabling home-visit, reset pricePerKm to zero
+            service.setPricePerKm(BigDecimal.ZERO);
+        }
         ClinicService updatedService = clinicServiceRepository.save(service);
         log.info("Service home visit status updated: {} to {} by user: {}",
                 serviceId, isHomeVisit, getCurrentUser().getUserId());
@@ -287,6 +320,107 @@ public class ClinicServiceService {
                 .orElse(BigDecimal.valueOf(5000)); // Default 5000 VND
     }
 
+    @Transactional
+    public ClinicServiceResponse inheritFromMasterService(UUID masterServiceId, UUID clinicId, BigDecimal clinicPrice, BigDecimal clinicPricePerKm) {
+        log.info("Starting inherit master service {} to clinic {} with price {}", masterServiceId, clinicId, clinicPrice);
+        
+        // Lấy master service
+        MasterService masterService = masterServiceRepository.findById(masterServiceId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Không tìm thấy dịch vụ mẫu với ID: " + masterServiceId));
+
+        // Lấy clinic - nếu clinicId được cung cấp, dùng đó; ngược lại dùng clinic của current user
+        Clinic clinic;
+        if (clinicId != null) {
+            clinic = clinicRepository.findById(clinicId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
+            
+            // Validate user có quyền thao tác với clinic này
+            User currentUser = getCurrentUser();
+            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
+            }
+
+            // Validate clinic phải APPROVED
+            if (clinic.getStatus() != ClinicStatus.APPROVED) {
+                throw new ForbiddenException("Không thể thêm dịch vụ cho clinic chưa được duyệt");
+            }
+
+            log.info("Found clinic: {} with status: {}", clinic.getClinicId(), clinic.getStatus());
+        } else {
+            clinic = getCurrentUserClinic();
+        }
+
+        // Kiểm tra xem clinic service đã tồn tại chưa (để tránh duplicate)
+        boolean exists = clinicServiceRepository.existsByClinicAndMasterService(clinic, masterService);
+        if (exists) {
+            throw new BadRequestException("Dịch vụ mẫu này đã được áp dụng cho phòng khám này rồi");
+        }
+
+        // Tạo clinic service mới từ master service
+        ClinicService clinicService = new ClinicService();
+        clinicService.setClinic(clinic);
+        clinicService.setMasterService(masterService);
+        clinicService.setIsCustom(false); // Inherited
+        clinicService.setName(masterService.getName());
+        
+        // Sử dụng giá clinic nếu được cung cấp, ngược lại dùng giá mặc định từ master
+        clinicService.setBasePrice(clinicPrice != null ? clinicPrice : masterService.getDefaultPrice());
+        
+        clinicService.setDurationTime(masterService.getDurationTime());
+        clinicService.setSlotsRequired(masterService.getSlotsRequired());
+        clinicService.setIsActive(true); // Mặc định active khi inherit
+        clinicService.setIsHomeVisit(masterService.getIsHomeVisit());
+        clinicService.setPricePerKm(clinicPricePerKm != null ? clinicPricePerKm : masterService.getDefaultPricePerKm());
+        clinicService.setServiceCategory(masterService.getServiceCategory());
+        clinicService.setPetType(masterService.getPetType());
+
+
+        // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan hệ JPA
+        if (masterService.getWeightPrices() != null && !masterService.getWeightPrices().isEmpty()) {
+            for (ServiceWeightPrice masterWeightPrice : masterService.getWeightPrices()) {
+                ServiceWeightPrice clinicWeightPrice = new ServiceWeightPrice();
+                clinicWeightPrice.setService(clinicService); // Liên kết với clinic service
+                clinicWeightPrice.setMinWeight(masterWeightPrice.getMinWeight());
+                clinicWeightPrice.setMaxWeight(masterWeightPrice.getMaxWeight());
+                clinicWeightPrice.setPrice(masterWeightPrice.getPrice());
+                // KHÔNG set masterWeightPrice cho clinicWeightPrice
+                clinicService.getWeightPrices().add(clinicWeightPrice);
+            }
+        }
+
+        log.info("Saving clinic service for clinic {} and master {}", clinic.getClinicId(), masterService.getMasterServiceId());
+        ClinicService savedService = clinicServiceRepository.save(clinicService);
+        log.info("Saved clinic service with ID: {}", savedService.getServiceId());
+
+        log.info("Inherited service from master {} to clinic {} by user: {}",
+                masterServiceId, clinic.getClinicId(), getCurrentUser().getUserId());
+
+        return mapToResponse(savedService);
+    }
+
+    /**
+     * NEW: Get all services for a specific clinic
+     * Admin hoặc Clinic Owner có thể xem services của bất kỳ clinic nào
+     */
+    @Transactional(readOnly = true)
+    public List<ClinicServiceResponse> getServicesByClinicId(UUID clinicId) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
+        
+        // Validate user has permission: either ADMIN, or the clinic owner
+        User currentUser = getCurrentUser();
+        boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
+        if (!(isOwner || currentUser.getRole() == Role.ADMIN)) {
+            throw new ForbiddenException("Bạn không có quyền xem dịch vụ của clinic này");
+        }
+
+        List<ClinicService> services = clinicServiceRepository.findByClinic(clinic);
+        return services.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Map ClinicService entity to ClinicServiceResponse DTO
      */
@@ -302,6 +436,9 @@ public class ClinicServiceService {
         return ClinicServiceResponse.builder()
                 .serviceId(service.getServiceId())
                 .clinicId(service.getClinic().getClinicId())
+                .masterServiceId(service.getMasterService() != null ? 
+                        service.getMasterService().getMasterServiceId() : null) // NEW
+                .isCustom(service.getIsCustom()) // NEW
                 .name(service.getName())
                 .basePrice(service.getBasePrice())
                 .durationTime(service.getDurationTime())

@@ -3,8 +3,6 @@ package com.petties.petties.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
-import com.petties.petties.dto.clinic.DistanceResponse;
-import com.petties.petties.dto.clinic.GeocodeResponse;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
@@ -364,15 +362,33 @@ class ClinicControllerUnitTest {
         // ==================== ADMIN ACTIONS ====================
 
         @Test
-        @DisplayName("TC-UNIT-CLINIC-029: Success - approve clinic")
-        void approveClinic_validRequest_returns200() throws Exception {
+        @DisplayName("TC-UNIT-CLINIC-029: Success - approve clinic without reason")
+        void approveClinic_validRequestWithoutReason_returns200() throws Exception {
                 UUID clinicId = UUID.randomUUID();
                 ClinicResponse response = mockClinic(clinicId, "Approved Clinic");
                 response.setStatus(ClinicStatus.APPROVED);
 
-                when(clinicService.approveClinic(clinicId)).thenReturn(response);
+                when(clinicService.approveClinic(eq(clinicId), isNull())).thenReturn(response);
 
-                mockMvc.perform(post("/clinics/{id}/approve", clinicId))
+                mockMvc.perform(post("/clinics/{id}/approve", clinicId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("APPROVED"));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-030: Success - approve clinic with reason")
+        void approveClinic_validRequestWithReason_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                ClinicResponse response = mockClinic(clinicId, "Approved Clinic");
+                response.setStatus(ClinicStatus.APPROVED);
+
+                when(clinicService.approveClinic(eq(clinicId), eq("All documents verified"))).thenReturn(response);
+
+                mockMvc.perform(post("/clinics/{id}/approve", clinicId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(Map.of("reason", "All documents verified"))))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("APPROVED"));
         }
@@ -391,5 +407,34 @@ class ClinicControllerUnitTest {
                                 .content(objectMapper.writeValueAsString(Map.of("reason", "Invalid information"))))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("REJECTED"));
+        }
+
+        // ==================== ADMIN PENDING CLINICS TESTS ====================
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-048: Success - get pending clinics")
+        void getPendingClinics_validRequest_returns200() throws Exception {
+                Page<ClinicResponse> page = new PageImpl<>(List.of(
+                                mockClinic(UUID.randomUUID(), "Pending Clinic 1"),
+                                mockClinic(UUID.randomUUID(), "Pending Clinic 2")));
+
+                when(clinicService.getPendingClinics(any())).thenReturn(page);
+
+                mockMvc.perform(get("/clinics/admin/pending")
+                                .param("page", "0")
+                                .param("size", "20"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(2)));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-CLINIC-049: Success - empty pending clinics")
+        void getPendingClinics_emptyResult_returns200() throws Exception {
+                Page<ClinicResponse> emptyPage = new PageImpl<>(List.of());
+                when(clinicService.getPendingClinics(any())).thenReturn(emptyPage);
+
+                mockMvc.perform(get("/clinics/admin/pending"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(0)));
         }
 }

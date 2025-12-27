@@ -25,10 +25,11 @@ import { AdminDashboardPage } from './pages/admin/DashboardPage'
 import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
+import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
 import { VetDashboardPage } from './pages/vet/DashboardPage'
-import { ClinicOwnerDashboardPage, ServicesPage } from './pages/clinic-owner'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
 import {
   ClinicsListPage,
@@ -91,24 +92,29 @@ function App() {
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="tools" element={<ToolsPage />} />
             <Route path="playground" element={<PlaygroundPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
+<<<<<<< HEAD
+=======
+            <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+>>>>>>> intergrationFeature
+  <Route path="profile" element={<ProfilePage />} />
+          </Route >
 
-          {/* Vet Routes */}
-          <Route path="/vet" element={
-            <ProtectedRoute allowedRoles={['VET']}>
-              <VetLayout />
-            </ProtectedRoute>
+    {/* Vet Routes */ }
+    < Route path = "/vet" element = {
+            < ProtectedRoute allowedRoles = { ['VET']} >
+    <VetLayout />
+            </ProtectedRoute >
           }>
             <Route index element={<VetDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
+          </Route >
 
-          {/* Clinic Owner Routes */}
-          <Route path="/clinic-owner" element={
-            <ProtectedRoute allowedRoles={['CLINIC_OWNER']}>
-              <ClinicOwnerLayout />
-            </ProtectedRoute>
+  {/* Clinic Owner Routes */ }
+  < Route path = "/clinic-owner" element = {
+            < ProtectedRoute allowedRoles = { ['CLINIC_OWNER']} >
+  <ClinicOwnerLayout />
+            </ProtectedRoute >
           }>
             <Route index element={<ClinicOwnerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
@@ -117,21 +123,26 @@ function App() {
             <Route path="clinics/:clinicId" element={<ClinicDetailPage />} />
             <Route path="clinics/:clinicId/edit" element={<ClinicEditPage />} />
             <Route path="services" element={<ServicesPage />} />
+<<<<<<< HEAD
             <Route path="staff" element={<StaffManagementPage />} />
-          </Route>
-          {/* Clinic Manager Routes */}
-          <Route path="/clinic-manager" element={
-            <ProtectedRoute allowedRoles={['CLINIC_MANAGER']}>
-              <ClinicManagerLayout />
-            </ProtectedRoute>
+=======
+            <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="master-services" element={<MasterServicesPage />} />
+>>>>>>> intergrationFeature
+          </Route >
+  {/* Clinic Manager Routes */ }
+  < Route path = "/clinic-manager" element = {
+            < ProtectedRoute allowedRoles = { ['CLINIC_MANAGER']} >
+  <ClinicManagerLayout />
+            </ProtectedRoute >
           }>
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="vets" element={<VetsManagementPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </ToastProvider>
+          </Route >
+        </Routes >
+      </BrowserRouter >
+    </ToastProvider >
   )
 }
 
