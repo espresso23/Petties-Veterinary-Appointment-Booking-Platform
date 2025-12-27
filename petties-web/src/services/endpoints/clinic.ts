@@ -1,5 +1,4 @@
 import apiClient from '../api/client'
-import type { ApiResponse } from '../../types/api'
 
 export interface ClinicResponse {
   clinicId: string
