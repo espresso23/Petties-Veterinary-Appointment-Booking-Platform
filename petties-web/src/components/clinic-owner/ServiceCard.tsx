@@ -33,6 +33,8 @@ interface ServiceCardProps {
   onEdit: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
   onToggleStatus: (e: React.MouseEvent) => void
+  onToggleHomeVisit?: (e: React.MouseEvent) => void
+  onConfigPricePerKm?: (e: React.MouseEvent) => void
   onClick: () => void
 }
 
@@ -41,12 +43,43 @@ export function ServiceCard({
   onEdit,
   onDelete,
   onToggleStatus,
+  onToggleHomeVisit,
+  onConfigPricePerKm,
   onClick,
 }: ServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
 
-  // Return only the formatted base price
+  // Calculate price range from base price + weight prices
+  const calculatePriceRange = () => {
+    const basePrice = service.price
+    if (!service.weightPrices || service.weightPrices.length === 0) {
+      return {
+        min: basePrice,
+        max: basePrice,
+        hasRange: false
+      }
+    }
+    
+    const weightPrices = service.weightPrices.map(wp => wp.price)
+    const minWeightPrice = Math.min(...weightPrices)
+    const maxWeightPrice = Math.max(...weightPrices)
+    
+    return {
+      min: basePrice + minWeightPrice,
+      max: basePrice + maxWeightPrice,
+      hasRange: minWeightPrice !== maxWeightPrice
+    }
+  }
+
+  const priceRange = calculatePriceRange()
+
+  // Format price display
   const getPriceDisplay = () => {
+    if (priceRange.hasRange) {
+      const minFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.min)
+      const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
+      return `${minFormatted} - ${maxFormatted} VNĐ`
+    }
     return new Intl.NumberFormat('vi-VN').format(service.price) + ' VNĐ'
   }
 
@@ -89,6 +122,19 @@ export function ServiceCard({
 
         {/* Action Buttons - Absolute positioned top-right */}
         <div className="absolute top-4 right-4 flex gap-2 z-10">
+          {onToggleHomeVisit && (
+            <button
+              onClick={onToggleHomeVisit}
+              style={{ backgroundColor: service.isHomeVisit ? '#10b981' : '#6b7280' }}
+              className="p-2 border-2 border-black transition-colors hover:opacity-80 flex items-center gap-1"
+              title={service.isHomeVisit ? 'Chuyển thành dịch vụ tại phòng khám' : 'Chuyển thành dịch vụ tận nhà'}
+            >
+              <HomeIcon className="w-4 h-4 text-white" />
+              <span className="text-xs font-black text-white uppercase">
+                {service.isHomeVisit ? 'Tận nhà' : 'Tại chỗ'}
+              </span>
+            </button>
+          )}
           <button
             onClick={onToggleStatus}
             style={{ backgroundColor: service.isActive ? '#86efac' : '#d1d5db' }}
@@ -123,21 +169,47 @@ export function ServiceCard({
 
           <div className="space-y-3 mt-4">
             <div className="flex items-start justify-between border-b-2 border-black pb-2">
-              <span className="font-bold text-gray-600">GIÁ DỊCH VỤ</span>
+<<<<<<< HEAD
+              <span className="font-bold text-black">
+                {priceRange.hasRange ? 'KHOẢNG GIÁ' : 'GIÁ DỊCH VỤ'}
+              </span>
+=======
+              <span className="font-bold text-black">GIÁ DỊCH VỤ</span>
+>>>>>>> eb030e2ad37ad93338ebe76af68939991b9a3dbe
               <div className="text-right">
                 <span className="font-black text-xl text-[#FF6B35]">
                   {formattedPrice}
                 </span>
                 {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0 && (
-                  <div className="text-[10px] font-black text-green-600 mt-1 uppercase">
-                    +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="text-[10px] font-black text-green-600 uppercase">
+                      +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
+                    </div>
+                    {onConfigPricePerKm && (
+                      <button
+                        onClick={onConfigPricePerKm}
+                        style={{
+                          marginLeft: 'auto',
+                          fontSize: '10px',
+                          fontWeight: '900',
+                          backgroundColor: 'rgb(231 229 228)',
+                          padding: '2px 8px',
+                          border: '2px solid black',
+                          textTransform: 'uppercase',
+                          color: 'black'
+                        }}
+                        title="Config giá per km"
+                      >
+                        Sửa
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="font-bold text-gray-600 flex items-center gap-2">
+              <span className="font-bold text-black flex items-center gap-2">
                 <ClockIcon className="w-5 h-5" /> THỜI GIAN
               </span>
               <span className="font-bold text-black">
@@ -147,7 +219,7 @@ export function ServiceCard({
 
             {service.serviceCategory && (
               <div className="flex items-center justify-between border-t-2 border-black pt-2">
-                <span className="font-black text-[11px] text-gray-500 uppercase tracking-widest">Loại dịch vụ</span>
+                <span className="font-black text-[11px] text-black uppercase tracking-widest">Loại dịch vụ</span>
                 <div className="flex items-center gap-2 bg-white border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   {categoryInfo && (
                     <div

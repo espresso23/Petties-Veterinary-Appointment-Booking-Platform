@@ -34,3 +34,13 @@ export interface ApiErrorResponse {
   errors?: Record<string, string> // Validation errors (field -> message)
 }
 
+/**
+ * Generic API Response Wrapper
+ */
+export interface ApiResponse<T = any> {
+  success: boolean
+  message?: string
+  data?: T
+  errors?: Record<string, string>
+}
+
