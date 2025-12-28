@@ -22,9 +22,9 @@ export interface ClinicResponse {
  * @returns Promise<ClinicResponse[]>
  */
 export async function getMyClinics(): Promise<ClinicResponse[]> {
-  // Try approved clinics endpoint first
+  // Call my-clinics endpoint first (returns ALL clinics of owner including PENDING, APPROVED, REJECTED)
   try {
-    const resp = await apiClient.get<any>('/clinics/owner/approved?size=100')
+    const resp = await apiClient.get<any>('/clinics/owner/my-clinics?size=100')
     const body = resp.data
 
     // Case A: backend returns Page<ClinicResponse> directly -> body.content
@@ -43,12 +43,12 @@ export async function getMyClinics(): Promise<ClinicResponse[]> {
 
     // Otherwise continue to fallback
   } catch (e) {
-    console.warn('getMyClinics: approved endpoint failed, trying fallback', e)
+    console.warn('getMyClinics: my-clinics endpoint failed, trying fallback', e)
   }
 
-  // Fallback to owner/my-clinics endpoint
+  // Fallback to owner/approved endpoint
   try {
-    const resp2 = await apiClient.get<any>('/clinics/owner/my-clinics?size=100')
+    const resp2 = await apiClient.get<any>('/clinics/owner/approved?size=100')
     const body2 = resp2.data
 
     if (body2 && typeof body2 === 'object' && Array.isArray((body2 as any).content)) {

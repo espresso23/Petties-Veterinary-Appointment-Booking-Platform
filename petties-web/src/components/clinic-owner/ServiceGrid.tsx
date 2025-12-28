@@ -428,8 +428,9 @@ export function ServiceGrid() {
               </p>
               <button
                 onClick={handleAddService}
+                disabled={!selectedClinic || isSubmitting}
                 style={{ backgroundColor: '#FF6B35' }}
-                className="px-8 py-4 border-4 border-black font-black uppercase hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
+                className="px-8 py-4 border-4 border-black font-black uppercase hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Thêm dịch vụ ngay
               </button>

@@ -135,11 +135,13 @@ public class ClinicServiceImpl implements ClinicService {
         clinic.setEmail(request.getEmail());
         clinic.setOperatingHours(request.getOperatingHours());
 
-        // Update coordinates: prioritize provided coordinates, otherwise geocode if address changed
+        // Update coordinates: prioritize provided coordinates, otherwise geocode if
+        // address changed
         if (request.getLatitude() != null && request.getLongitude() != null) {
             clinic.setLatitude(request.getLatitude());
             clinic.setLongitude(request.getLongitude());
-            log.info("Using provided coordinates for update: lat={}, lng={}", request.getLatitude(), request.getLongitude());
+            log.info("Using provided coordinates for update: lat={}, lng={}", request.getLatitude(),
+                    request.getLongitude());
         } else if (request.getAddress() != null && !request.getAddress().equals(clinic.getAddress())) {
             // Re-geocode if address changed and no coordinates provided
             try {
@@ -181,22 +183,21 @@ public class ClinicServiceImpl implements ClinicService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ClinicResponse> findNearbyClinics(BigDecimal latitude, BigDecimal longitude, 
-                                                   double radius, Pageable pageable) {
+    public Page<ClinicResponse> findNearbyClinics(BigDecimal latitude, BigDecimal longitude,
+            double radius, Pageable pageable) {
         if (latitude == null || longitude == null) {
             throw new BadRequestException("Latitude and longitude are required");
         }
 
         List<Clinic> clinics = clinicRepository.findNearbyClinics(latitude, longitude, radius);
-        
+
         // Calculate distances and map to response
         List<ClinicResponse> responses = clinics.stream()
                 .map(clinic -> {
                     ClinicResponse response = mapToResponse(clinic);
                     double distance = googleMapsService.calculateDistance(
                             latitude, longitude,
-                            clinic.getLatitude(), clinic.getLongitude()
-                    );
+                            clinic.getLatitude(), clinic.getLongitude());
                     response.setDistance(distance);
                     return response;
                 })
@@ -205,8 +206,8 @@ public class ClinicServiceImpl implements ClinicService {
         // Apply pagination manually (since native query doesn't support Pageable)
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), responses.size());
-        List<ClinicResponse> pagedResponses = start < responses.size() 
-                ? responses.subList(start, end) 
+        List<ClinicResponse> pagedResponses = start < responses.size()
+                ? responses.subList(start, end)
                 : List.of();
 
         return new PageImpl<>(pagedResponses, pageable, responses.size());
@@ -230,8 +231,7 @@ public class ClinicServiceImpl implements ClinicService {
 
         return googleMapsService.calculateDistanceMatrix(
                 latitude, longitude,
-                clinic.getLatitude(), clinic.getLongitude()
-        );
+                clinic.getLatitude(), clinic.getLongitude());
     }
 
     @Override
@@ -261,7 +261,8 @@ public class ClinicServiceImpl implements ClinicService {
         // Create notification for clinic owner (only if status actually changed)
         // The notification service will check for duplicates
         try {
-            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.APPROVED, reason);
+            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.APPROVED,
+                    reason);
             if (notification == null) {
                 log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
             }
@@ -296,7 +297,8 @@ public class ClinicServiceImpl implements ClinicService {
         // Create notification for clinic owner (only if status actually changed)
         // The notification service will check for duplicates
         try {
-            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.REJECTED, reason);
+            Notification notification = notificationService.createClinicNotification(clinic, NotificationType.REJECTED,
+                    reason);
             if (notification == null) {
                 log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
             }
@@ -311,14 +313,15 @@ public class ClinicServiceImpl implements ClinicService {
     @Override
     @Transactional(readOnly = true)
     public Page<ClinicResponse> getClinicsByOwner(UUID ownerId, Pageable pageable) {
-        Page<Clinic> clinics = clinicRepository.findByOwnerUserIdAndStatus(ownerId, ClinicStatus.APPROVED, pageable);
+        // Get ALL clinics owned by user (any status: PENDING, APPROVED, REJECTED)
+        Page<Clinic> clinics = clinicRepository.findByOwnerUserId(ownerId, pageable);
         return clinics.map(this::mapToResponse);
     }
 
     @Override
     @Transactional
-    public ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption, 
-                                            Integer displayOrder, Boolean isPrimary, UUID ownerId) {
+    public ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption,
+            Integer displayOrder, Boolean isPrimary, UUID ownerId) {
         Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
@@ -351,7 +354,7 @@ public class ClinicServiceImpl implements ClinicService {
         clinicImage.setIsPrimary(isPrimary != null ? isPrimary : false);
 
         clinicImageRepository.save(clinicImage);
-        log.info("Clinic image uploaded: {} for clinic: {} by owner: {}", 
+        log.info("Clinic image uploaded: {} for clinic: {} by owner: {}",
                 clinicImage.getImageId(), clinicId, ownerId);
 
         // Reload clinic to get updated images
@@ -379,7 +382,8 @@ public class ClinicServiceImpl implements ClinicService {
         String imageUrl = clinicImage.getImageUrl();
         if (imageUrl != null && imageUrl.contains("cloudinary.com")) {
             try {
-                // Extract public_id from URL (format: https://res.cloudinary.com/.../v1234567890/petties/clinics/xxx.jpg)
+                // Extract public_id from URL (format:
+                // https://res.cloudinary.com/.../v1234567890/petties/clinics/xxx.jpg)
                 // We need to extract the path after the version number
                 String[] parts = imageUrl.split("/v\\d+/");
                 if (parts.length > 1) {
@@ -518,4 +522,3 @@ public class ClinicServiceImpl implements ClinicService {
                 .build();
     }
 }
-

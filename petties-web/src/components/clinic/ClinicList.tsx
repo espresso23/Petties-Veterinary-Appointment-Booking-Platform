@@ -23,13 +23,15 @@ export function ClinicList({ filters, showActions = false, onEdit, onDelete }: C
     currentPage,
     fetchClinics,
     setFilters,
+    getMyClinics,
   } = useClinicStore()
 
   useEffect(() => {
     if (filters) {
       setFilters(filters)
     }
-    fetchClinics(filters)
+    // Use getMyClinics to get only owner's clinics, not all clinics in the system
+    getMyClinics()
   }, [filters?.status, filters?.name])
 
   if (isLoading && clinics.length === 0) {

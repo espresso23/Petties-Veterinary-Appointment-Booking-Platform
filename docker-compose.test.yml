@@ -36,8 +36,6 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
-      # CORS - Test domain only
-      CORS_ORIGINS: https://test.petties.world
       # Email (shared with prod or test account)
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -92,6 +90,7 @@ services:
       # Qdrant Cloud (can share with prod or use separate collection)
       QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
+      QDRANT_COLLECTION_NAME: petties_knowledge_base_test
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
@@ -104,6 +103,10 @@ services:
       COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS - Test domain only
       CORS_ORIGINS: https://test.petties.world
+      # Cloudinary (Image Upload)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
       # Sentry Error Monitoring (disabled for test)
       SENTRY_DSN:
     ports:

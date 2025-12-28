@@ -34,6 +34,12 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
     Page<Clinic> findByOwnerUserIdAndStatus(UUID ownerId, ClinicStatus status, Pageable pageable);
 
     /**
+     * Find ALL clinics by owner (any status, excluding soft deleted)
+     */
+    @Query("SELECT c FROM Clinic c WHERE c.owner.userId = :ownerId AND c.deletedAt IS NULL")
+    Page<Clinic> findByOwnerUserId(@Param("ownerId") UUID ownerId, Pageable pageable);
+
+    /**
      * Find a single clinic by owner (for current user's clinic)
      */
     Optional<Clinic> findFirstByOwnerUserId(UUID ownerId);
@@ -49,38 +55,36 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
      * Radius in kilometers
      */
     @Query(value = """
-        SELECT c.*, 
-               (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) * 
-               cos(radians(c.longitude) - radians(:lng)) + 
-               sin(radians(:lat)) * sin(radians(c.latitude)))) AS distance
-        FROM clinics c
-        WHERE c.deleted_at IS NULL 
-          AND c.status = 'APPROVED'
-          AND c.latitude IS NOT NULL 
-          AND c.longitude IS NOT NULL
-          AND (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) * 
-               cos(radians(c.longitude) - radians(:lng)) + 
-               sin(radians(:lat)) * sin(radians(c.latitude)))) <= :radius
-        ORDER BY distance
-        """, nativeQuery = true)
+            SELECT c.*,
+                   (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
+                   cos(radians(c.longitude) - radians(:lng)) +
+                   sin(radians(:lat)) * sin(radians(c.latitude)))) AS distance
+            FROM clinics c
+            WHERE c.deleted_at IS NULL
+              AND c.status = 'APPROVED'
+              AND c.latitude IS NOT NULL
+              AND c.longitude IS NOT NULL
+              AND (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) *
+                   cos(radians(c.longitude) - radians(:lng)) +
+                   sin(radians(:lat)) * sin(radians(c.latitude)))) <= :radius
+            ORDER BY distance
+            """, nativeQuery = true)
     List<Clinic> findNearbyClinics(
-        @Param("lat") BigDecimal latitude,
-        @Param("lng") BigDecimal longitude,
-        @Param("radius") double radius
-    );
+            @Param("lat") BigDecimal latitude,
+            @Param("lng") BigDecimal longitude,
+            @Param("radius") double radius);
 
     /**
      * Find clinics with filters
      */
     @Query("SELECT c FROM Clinic c WHERE " +
-           "(:status IS NULL OR c.status = :status) AND " +
-           "(:name IS NULL OR :name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))) AND " +
-           "c.deletedAt IS NULL")
+            "(:status IS NULL OR c.status = :status) AND " +
+            "(:name IS NULL OR :name = '' OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))) AND " +
+            "c.deletedAt IS NULL")
     Page<Clinic> findWithFilters(
-        @Param("status") ClinicStatus status,
-        @Param("name") String name,
-        Pageable pageable
-    );
+            @Param("status") ClinicStatus status,
+            @Param("name") String name,
+            Pageable pageable);
 
     /**
      * Check if clinic exists and belongs to owner
@@ -97,5 +101,3 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
      */
     long countByStatus(ClinicStatus status);
 }
-
-
