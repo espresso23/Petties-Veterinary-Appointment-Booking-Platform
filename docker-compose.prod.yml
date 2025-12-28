@@ -38,8 +38,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
-      # CORS - Production domains only
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://petties.world,https://www.petties.world}
       # Email Configuration
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -51,6 +49,10 @@ services:
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_SSL: ${REDIS_SSL:-false}
+      # Cloudinary (Image Upload)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
       # Sentry Error Monitoring
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
       SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
@@ -93,6 +95,7 @@ services:
       # Qdrant Cloud
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
+      QDRANT_COLLECTION_NAME: petties_knowledge_base
       # AI Architecture: Cloud-Only (OpenRouter + Cohere)
       LLM_PROVIDER: openrouter
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
