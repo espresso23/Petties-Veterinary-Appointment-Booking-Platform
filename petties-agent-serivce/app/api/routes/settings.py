@@ -197,7 +197,7 @@ async def seed_database(
     """
     try:
         from app.db.postgres.models import (
-            Agent, Tool, SystemSetting, ToolType,
+            Agent, Tool, SystemSetting,
             SettingCategory, DEFAULT_SETTINGS, PromptVersion
         )
         from sqlalchemy import select, delete
@@ -322,7 +322,7 @@ Su dung tool nay khi user hoi cac cau hoi ve:
 
 Tool nay su dung Cohere embeddings + Qdrant vector search de tim kiem
 trong knowledge base da duoc upload boi Admin.""",
-                    tool_type=ToolType.CODE_BASED,
+                    tool_type="code_based",
                     input_schema={
                         "type": "object",
                         "properties": {
@@ -378,7 +378,7 @@ Su dung tool nay khi user mo ta trieu chung cua thu cung:
 
 WARNING: Tool nay chi cung cap thong tin tham khao.
 Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
-                    tool_type=ToolType.CODE_BASED,
+                    tool_type="code_based",
                     input_schema={
                         "type": "object",
                         "properties": {
