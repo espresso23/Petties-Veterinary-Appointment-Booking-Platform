@@ -60,6 +60,11 @@ class ToolExecutor:
         if parameters is None:
             parameters = {}
 
+        # Normalize parameter keys: strip whitespace from keys
+        # LLM sometimes outputs { "query ": "..." } with trailing space in key names
+        if parameters and isinstance(parameters, dict):
+            parameters = {k.strip(): v for k, v in parameters.items()}
+
         logger.info(f"Executing tool: {tool_name} with params: {parameters}")
 
         # Step 1: Load tool from database
@@ -74,7 +79,7 @@ class ToolExecutor:
         # Step 2: Validate parameters
         self._validate_parameters(tool, parameters)
 
-        # Step 3: Execute via FastMCP
+        # Step 3: Execute via FastMCP (with normalized params)
         result = await self._execute_mcp_tool(tool_name, parameters)
 
         logger.info(f"Tool executed successfully: {tool_name}")
@@ -103,7 +108,7 @@ class ToolExecutor:
 
         Args:
             tool: Tool object
-            parameters: User-provided parameters
+            parameters: User-provided parameters (should be normalized already)
 
         Raises:
             Exception if parameters invalid
@@ -116,6 +121,8 @@ class ToolExecutor:
 
         for param_name in required:
             if param_name not in parameters:
+                # Log available keys for debugging
+                logger.error(f"Missing required parameter '{param_name}'. Available keys: {list(parameters.keys())}")
                 raise Exception(f"Missing required parameter: {param_name}")
 
         logger.debug(f"Parameters validated for tool: {tool.name}")

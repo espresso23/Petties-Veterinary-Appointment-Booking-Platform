@@ -3,8 +3,30 @@
 
 **Dự án:** Petties - Nền tảng Đặt lịch Khám Thú y
 **Tài liệu:** Software Design Document - System Design & Package Diagrams
-**Phiên bản:** 1.4 (Single Agent + 100% LlamaIndex RAG)
-**Last Updated:** 2025-12-27
+**Phiên bản:** 1.7 (Enhanced Core Modules: Clinic, Pet, Staff)
+**Last Updated:** 2025-12-29
+
+---
+
+> **Lưu ý về Phạm vi Tài liệu:**
+> 
+> Tài liệu này mô tả **kiến trúc mục tiêu (Target Architecture)** của hệ thống Petties.
+> - **Đã implement:** Auth, User Management, AI Agent Service, File Upload, Clinic Management, Pet Management, Master Services, Notifications
+> - **Đang phát triển:** Booking (Slots), Vet Schedule, EMR modules
+> - **Kế hoạch:** Payment (Stripe), Firebase Push Notifications
+>
+
+---
+
+## NỘI DUNG
+
+1. [System Design](#1-system-design)
+   - 1.1 [System Architecture](#11-system-architecture)
+   - 1.2 [Package Diagram](#12-package-diagram)
+
+---
+
+## 1. SYSTEM DESIGN
 
 ---
 
@@ -78,7 +100,7 @@ flowchart TB
 
         subgraph "AI/LLM Services [MVP]"
             direction LR
-            OpenRouter["🧠 OpenRouter API<br/>(LLM Gateway)<br/>Gemini 2.0 Flash<br/>Llama 3.3 70B<br/>Claude 3.5 Sonnet"]
+            OpenRouter["🧠 OpenRouter API<br/>(LLM Gateway)<br/>Default: Gemini 2.0 Flash Lite<br/>Fallback: Llama 3.3 70B"]
             DeepSeek["🧠 DeepSeek API<br/>(Alternative LLM)<br/>deepseek-chat"]
             Cohere["📊 Cohere API<br/>(Embeddings)<br/>embed-multilingual-v3.0<br/>1024 dimensions"]
         end
@@ -407,7 +429,7 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    subgraph "backend-spring (Spring Boot 4.0 + Java 21)"
+    subgraph "backend-spring (Spring Boot 3.x + Java 21)"
         direction TB
 
         subgraph "Entry Point"
@@ -416,44 +438,57 @@ flowchart TB
 
         subgraph "Controller Layer [MVP]"
             direction LR
-            AuthController["AuthController<br/>/api/v1/auth/**<br/>Login, Register,<br/>OTP, GoogleAuth"]
-            UserController["UserController<br/>/api/v1/users/**<br/>Profile, Update"]
-            FileController["FileController<br/>/api/v1/files/**<br/>Upload, Avatar"]
+            AuthController["AuthController<br/>/api/v1/auth/**"]
+            UserController["UserController<br/>/api/v1/users/**"]
+            FileController["FileController<br/>/api/v1/files/**"]
+            ClinicController["ClinicController<br/>/api/v1/clinics/**"]
+            ClinicStaffController["ClinicStaffController"]
+            ClinicServiceController["ClinicServiceController"]
+            MasterServiceController["MasterServiceController"]
+            PetController["PetController<br/>/api/v1/pets/**"]
+            NotificationController["NotificationController"]
         end
 
         subgraph "Controller Layer [Planned]"
             direction LR
-            ClinicController["ClinicController<br/>Planned"]
-            VetController["VetController<br/>Planned"]
-            BookingController["BookingController<br/>Planned"]
-            PetController["PetController<br/>Planned"]
-            EMRController["EMRController<br/>Planned"]
+            VetController["VetController"]
+            BookingController["BookingController"]
+            EMRController["EMRController"]
         end
 
         subgraph "Service Layer [MVP]"
             direction LR
-            AuthService["AuthService<br/>JWT, Token Refresh,<br/>Registration, OTP"]
-            UserService["UserService<br/>CRUD, Profile"]
-            CloudinaryService["CloudinaryService<br/>Image Upload"]
-            EmailService["EmailService<br/>OTP Email, Templates"]
-            OtpRedisService["OtpRedisService<br/>OTP Storage (Redis)"]
-            PasswordResetService["PasswordResetService<br/>Reset Flow"]
-            GoogleAuthService["GoogleAuthService<br/>Google ID Token"]
+            AuthService["AuthService"]
+            UserService["UserService"]
+            ClinicService["ClinicService"]
+            ClinicStaffService["ClinicStaffService"]
+            ClinicServiceService["ClinicServiceService"]
+            MasterServiceService["MasterServiceService"]
+            PetService["PetService"]
+            NotificationService["NotificationService"]
+            EmailService["EmailService"]
+            CloudinaryService["CloudinaryService"]
         end
 
         subgraph "Repository Layer [MVP]"
             direction LR
-            UserRepo["UserRepository<br/>(Spring Data JPA)"]
+            UserRepo["UserRepository"]
+            ClinicRepo["ClinicRepository"]
+            PetRepo["PetRepository"]
+            ClinicStaffRepo["ClinicStaffRepo"]
+            ClinicServiceRepo["ClinicServiceRepo"]
             RefreshTokenRepo["RefreshTokenRepository"]
-            BlacklistRepo["BlacklistedTokenRepository"]
         end
 
         subgraph "Model Layer [MVP]"
             direction LR
-            User["User<br/>id, email, role,<br/>password, avatar"]
-            RefreshToken["RefreshToken<br/>id, token, userId,<br/>expiryDate"]
-            BlacklistedToken["BlacklistedToken<br/>id, token, expiry"]
-            RoleEnum["Role (Enum)<br/>ADMIN, PET_OWNER,<br/>VET, CLINIC_MANAGER,<br/>CLINIC_OWNER"]
+            User["User entity"]
+            Clinic["Clinic entity"]
+            Pet["Pet entity"]
+            ClinicService["ClinicService entity"]
+            MasterService["MasterService entity"]
+            Notification["Notification entity"]
+            RoleEnum["Role (Enum)"]
         end
 
         subgraph "DTO Layer [MVP]"
@@ -465,15 +500,15 @@ flowchart TB
         end
 
         subgraph "Security Layer [MVP]"
-            JWTFilter["JwtAuthenticationFilter<br/>(Token Validation)"]
-            SecurityConfig["SecurityConfig<br/>(Spring Security 6.x)"]
-            JWTProvider["JwtTokenProvider<br/>(Token Generation)"]
-            UserDetailsImpl["UserDetailsServiceImpl<br/>(UserDetails Loading)"]
+            JWTFilter["JwtAuthenticationFilter"]
+            SecurityConfig["SecurityConfig"]
+            JWTProvider["JwtTokenProvider"]
+            UserDetailsImpl["UserDetailsServiceImpl"]
         end
 
         subgraph "Exception Handling [MVP]"
-            GlobalExceptionHandler["GlobalExceptionHandler<br/>@RestControllerAdvice<br/>Vietnamese Messages"]
-            CustomExceptions["Exceptions:<br/>ResourceNotFoundException,<br/>UnauthorizedException,<br/>BadRequestException,<br/>ForbiddenException,<br/>ResourceAlreadyExistsException"]
+            GlobalExceptionHandler["GlobalExceptionHandler"]
+            CustomExceptions["Exceptions Handling"]
         end
 
         subgraph "Configuration [MVP]"
@@ -537,11 +572,11 @@ flowchart TB
     classDef configStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
 
     class Main entryStyle
-    class AuthController,UserController,FileController controllerStyle
-    class ClinicController,VetController,BookingController,PetController,EMRController plannedStyle
-    class AuthService,UserService,CloudinaryService,EmailService,OtpRedisService,PasswordResetService,GoogleAuthService serviceStyle
-    class UserRepo,RefreshTokenRepo,BlacklistRepo repoStyle
-    class User,RefreshToken,BlacklistedToken,RoleEnum modelStyle
+    class AuthController,UserController,FileController,ClinicController,ClinicStaffController,ClinicServiceController,MasterServiceController,PetController,NotificationController controllerStyle
+    class VetController,BookingController,EMRController plannedStyle
+    class AuthService,UserService,ClinicService,ClinicStaffService,ClinicServiceService,MasterServiceService,PetService,NotificationService,EmailService,CloudinaryService serviceStyle
+    class UserRepo,ClinicRepo,PetRepo,ClinicStaffRepo,ClinicServiceRepo,RefreshTokenRepo repoStyle
+    class User,Clinic,Pet,ClinicService,MasterService,Notification,RoleEnum modelStyle
     class AuthDTOs,UserDTOs,OtpDTOs,FileDTOs dtoStyle
     class JWTFilter,SecurityConfig,JWTProvider,UserDetailsImpl securityStyle
     class GlobalExceptionHandler,CustomExceptions,RedisConfig,CloudinaryConfig,WebMvcConfig,DataInitializer configStyle
@@ -554,9 +589,9 @@ flowchart TB
 | Package | Responsibility | Key Classes | Status |
 |---------|----------------|-------------|--------|
 | **PettiesApplication** | Application entry point, Spring Boot bootstrap | `PettiesApplication.java` | `[MVP]` |
-| **controller** | REST API endpoints, HTTP request handling | `AuthController`, `UserController`, `FileController`, `ClinicController`, `ClinicStaffController` | `[MVP]` |
-| **controller/ClinicStaffController** | Staff management API cho Clinic Owner/Manager | `GET /clinics/{clinicId}/staff`, `GET /clinics/{clinicId}/staff/has-manager`, `POST /clinics/{clinicId}/staff/quick-add`, `DELETE /clinics/{clinicId}/staff/{userId}` | `[MVP]` |
-| **controller (planned)** | Future controllers cho business features | `VetController`, `BookingController`, `PetController`, `EMRController` | `[Planned]` |
+| **controller** | REST API endpoints, HTTP request handling | `AuthController`, `UserController`, `FileController`, `ClinicController`, `ClinicStaffController`, `PetController`, `ClinicServiceController`, `MasterServiceController` | `[MVP]` |
+| **controller/ClinicStaff** | Staff management API cho Clinic Owner/Manager | `GET /clinics/{id}/staff`, `POST /clinics/{id}/staff/quick-add`, `DELETE /staff/{userId}` | `[MVP]` |
+| **controller (planned)** | Future controllers cho business features | `VetController`, `BookingController`, `EMRController` | `[Planned]` |
 | **service** | Business logic implementation | `AuthService`, `UserService`, `CloudinaryService`, `EmailService`, `OtpRedisService`, `PasswordResetService`, `GoogleAuthService`, `RegistrationOtpService`, `ClinicService`, `ClinicStaffService` | `[MVP]` |
 | **service/ClinicStaffService** | Staff management logic | `getClinicStaff()`, `hasManager()`, `quickAddStaff()`, `assignManager()`, `assignVet()`, `removeStaff()` | `[MVP]` |
 | **repository** | Data access layer với Spring Data JPA | `UserRepository`, `RefreshTokenRepository`, `BlacklistedTokenRepository`, `ClinicRepository` | `[MVP]` |
@@ -613,7 +648,7 @@ flowchart TB
 
         subgraph "Core - Code-based Tools"
             direction LR
-            MedicalTools["tools/mcp_tools/medical_tools.py [MVP]<br/>@mcp.tool pet_care_qa<br/>@mcp.tool search_symptoms"]
+            MedicalTools["tools/mcp_tools/medical_tools.py [MVP]<br/>@mcp.tool pet_care_qa<br/>@mcp.tool symptom_search"]
             BookingTools["tools/mcp_tools/booking_tools.py [Planned]<br/>@mcp.tool check_slot<br/>@mcp.tool create_booking"]
             ResearchTools["tools/mcp_tools/research_tools.py [Planned]<br/>@mcp.tool web_search"]
         end
@@ -1023,7 +1058,7 @@ sequenceDiagram
 - **UI Components:** Custom Neobrutalism components
 
 ### Backend (backend-spring) `[MVP]`
-- **Framework:** Spring Boot 4.0
+- **Framework:** Spring Boot 3.4.x
 - **Language:** Java 21
 - **Architecture:** Layered (Controller → Service → Repository)
 - **Security:** Spring Security 6.x + JWT
@@ -1036,13 +1071,13 @@ sequenceDiagram
 - **Framework:** FastAPI 0.115.x
 - **Language:** Python 3.12
 - **Agent Framework:** LangGraph 0.2.x (Single Agent + ReAct Pattern)
-- **RAG Framework:** LlamaIndex 0.11.x
+- **RAG Framework:** LlamaIndex 0.11.x (100% LlamaIndex)
 - **Tool Protocol:** FastMCP 2.3.x (@mcp.tool() decorator)
-- **LLM Provider:** OpenRouter API (Gemini, Llama, Claude)
-- **Embeddings:** Cohere embed-multilingual-v3
+- **LLM Provider:** OpenRouter API (Default: Gemini 2.0 Flash Lite, Fallback: Llama 3.3 70B)
+- **Embeddings:** Cohere embed-multilingual-v3.0 (1024 dimensions)
 - **Vector DB:** Qdrant Cloud (Binary Quantization)
-- **Web Search:** DuckDuckGo Search API
-- **Real-time:** WebSocket streaming
+- **Web Search:** DuckDuckGo Search (Free, no API key)
+- **Real-time:** WebSocket streaming với ReAct trace visualization
 
 ### Mobile (petties_mobile) `[MVP]`
 - **Framework:** Flutter 3.x
@@ -1054,10 +1089,9 @@ sequenceDiagram
 - **Auth:** Google Sign-In, JWT
 
 ### Databases
-- **PostgreSQL 16:** Primary structured data (Neon Cloud)
-- **MongoDB 7:** AI conversations, logs (MongoDB Atlas) `[AI Service only]`
+- **PostgreSQL 16:** Primary structured data - Shared by both Spring Boot và AI Service (Neon Cloud)
 - **Redis 7:** OTP, session caching (Upstash Cloud)
-- **Qdrant Cloud:** Vector embeddings (Binary Quantization enabled)
+- **Qdrant Cloud:** Vector embeddings (Binary Quantization enabled, 1024 dimensions)
 
 ### Infrastructure
 - **Development:** Docker Compose (local databases)
@@ -1213,19 +1247,31 @@ sequenceDiagram
 | PUT | `/api/vaccinations/{id}` | Edit Vaccination Record | VET |
 | DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | VET |
 
-#### 2.3.2 Shift Management Module
-
-> **Status:** Design Approved. Endpoint paths finalized.
-
+#### 2.3.2 Shift & Slot Management Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/clinics/{id}/shifts` | Get all shifts in range | CM, CO |
-| POST | `/api/clinics/{id}/shifts` | Create manual shift | CM, CO |
-| PUT | `/api/shifts/{id}` | Update shift time | CM, CO |
-| DELETE | `/api/shifts/{id}` | Delete shift | CM, CO |
-| POST | `/api/clinics/{id}/shifts/import` | Import Excel schedule | CM, CO |
-| GET | `/api/shifts/my-shifts` | Get my own shifts | VET |
-| GET | `/api/shifts/{id}/bookings` | Get bookings in shift | CM, VET |
+| GET | `/api/clinics/{id}/shifts` | Lấy danh sách ca trực (filter: dateRange, vetId) | CM, CO |
+| POST | `/api/clinics/{id}/shifts` | Tạo ca trực mới (Tự động tạo slots 30p) | CM, CO |
+| PUT | `/api/shifts/{id}` | Cập nhật thời gian ca trực | CM, CO |
+| DELETE | `/api/shifts/{id}` | Xóa ca trực (Xóa luôn các slots chưa booked) | CM, CO |
+| GET | `/api/shifts/my-shifts` | Xem lịch làm việc của bản thân | VET |
+| GET | `/api/clinics/{id}/slots` | Lấy danh sách slots trong ngày | CM, VET, Public |
+| PATCH | `/api/slots/{id}/block` | Khóa/Mở khóa slot thủ công | CM, VET |
+
+#### 2.3.3 Discovery & Search Module
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/discovery/nearby` | Tìm clinic theo tọa độ (lat, lng, radius) | Public |
+| GET | `/api/discovery/search` | Tìm kiếm theo keyword, service, khu vực | Public |
+| GET | `/api/discovery/geocoding` | Chuyển địa chỉ thành tọa độ (Map API proxy) | Public |
+
+#### 2.3.4 Vaccination History Module (Merged)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/pets/{petId}/vaccinations` | Lấy toàn bộ lịch sử tiêm chủng | Auth |
+| POST | `/api/bookings/{bookingId}/vaccinations` | Thêm bản ghi tiêm chủng mới (Bắt buộc gắn Booking) | VET |
+| PUT | `/api/vaccinations/{id}` | Sửa bản ghi | VET |
+| DELETE | `/api/vaccinations/{id}` | Xóa bản ghi | VET |
 
 ---
 

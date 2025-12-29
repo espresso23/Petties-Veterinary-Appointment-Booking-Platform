@@ -8,13 +8,18 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Data Initializer - Insert sample users for testing
- * Runs automatically on application startup
+ * Data Initializer - Seed data on application startup
+ * 
+ * PRODUCTION: Only creates admin user (admin/admin)
+ * DEV/TEST: Creates test users for all roles
+ * 
+ * Control via environment: SPRING_PROFILES_ACTIVE=prod
  */
 @Component
 @RequiredArgsConstructor
@@ -25,12 +30,76 @@ public class DataInitializer implements CommandLineRunner {
     private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
+    @Value("${app.init.seed-test-data:true}")
+    private boolean seedTestData;
+
     @Override
     public void run(String... args) throws Exception {
         log.info("🚀 Starting data initialization...");
+        log.info("   Active profile: {}", activeProfile);
+        log.info("   Seed test data: {}", seedTestData);
 
-        // Initialize users for all roles for testing
-        initializeUser("admin", "admin", "admin@petties.world", "System Admin", Role.ADMIN);
+        // ALWAYS create admin user (required for system operation)
+        initializeAdminUser();
+
+        // Only seed test data in non-production environments
+        if (shouldSeedTestData()) {
+            log.info("📦 Seeding test data for development/testing...");
+            seedTestUsers();
+        } else {
+            log.info("🔒 Production mode - skipping test data seeding");
+        }
+
+        log.info("✅ Data initialization completed!");
+    }
+
+    /**
+     * Determine if test data should be seeded
+     * Returns false if:
+     * - Profile is "prod" or "production"
+     * - app.init.seed-test-data is explicitly set to false
+     */
+    private boolean shouldSeedTestData() {
+        // Check if production profile
+        if (activeProfile != null &&
+                (activeProfile.equalsIgnoreCase("prod") ||
+                        activeProfile.equalsIgnoreCase("production"))) {
+            return false;
+        }
+        // Check explicit config
+        return seedTestData;
+    }
+
+    /**
+     * Initialize admin user - ALWAYS runs (required for system)
+     * Uses environment variables for credentials in production
+     */
+    private void initializeAdminUser() {
+        String adminUsername = System.getenv("ADMIN_USERNAME");
+        String adminPassword = System.getenv("ADMIN_PASSWORD");
+        String adminEmail = System.getenv("ADMIN_EMAIL");
+
+        // Fallback to defaults if env vars not set
+        if (adminUsername == null || adminUsername.isBlank()) {
+            adminUsername = "admin";
+        }
+        if (adminPassword == null || adminPassword.isBlank()) {
+            adminPassword = "admin";
+        }
+        if (adminEmail == null || adminEmail.isBlank()) {
+            adminEmail = "admin@petties.world";
+        }
+
+        initializeUser(adminUsername, adminPassword, adminEmail, "System Admin", Role.ADMIN);
+    }
+
+    /**
+     * Seed test users for development/testing
+     */
+    private void seedTestUsers() {
         initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
         User clinicOwner = initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User",
                 Role.CLINIC_OWNER);
@@ -42,8 +111,6 @@ public class DataInitializer implements CommandLineRunner {
         if (clinicOwner != null) {
             initializeClinic(clinicOwner, "Petties Central Hospital", "123 Pet Street, Hanoi", "0123456789");
         }
-
-        log.info("✅ Data initialization completed!");
     }
 
     /**
@@ -72,7 +139,8 @@ public class DataInitializer implements CommandLineRunner {
 
         try {
             User savedUser = userRepository.save(user);
-            log.info("   + Created {} user: {} / {}", role, username, password);
+            log.info("   + Created {} user: {} / {}", role, username,
+                    role == Role.ADMIN ? "***" : password); // Don't log admin password
             return savedUser;
         } catch (Exception e) {
             log.error("   x Failed to create user {}: {}", username, e.getMessage());

@@ -43,13 +43,13 @@
 9. Xem hồ sơ y tế thú cưng
 10. Xem sổ tiêm chủng của pet
 11. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
-11. Ghi chú hồ sơ bệnh án (tạo EMR)
-12. Cập nhật sổ tiêm chủng
-13. Video Consultation với pet owner(optionally)
-14. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
-15. **[Home Visit] Bắt đầu di chuyển (Start Travel)** → Chuyển booking sang ON_THE_WAY
-16. **[Home Visit] Tự động cập nhật vị trí GPS realtime** khi đang di chuyển
-17. **[Home Visit] Thông báo đến nơi** → Pet Owner được notify
+12. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]**
+13. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
+14. Video Consultation với pet owner(optionally)
+15. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
+16. **[Home Visit] Bắt đầu di chuyển (Start Travel)** → Chuyển booking sang ON_THE_WAY
+17. **[Home Visit] Tự động cập nhật vị trí GPS realtime** khi đang di chuyển
+18. **[Home Visit] Thông báo đến nơi** → Pet Owner được notify
 
 ---
 
@@ -68,7 +68,7 @@
 12. Quản lý hủy & hoàn tiền
 13. Xem dashboard hôm nay
 14. Quản lý ca làm việc nhân viên
-15. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**: 🆕
+15. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
 
@@ -323,7 +323,8 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ **Booking workflow** (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)  
+✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
+  
 ✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
 ✅ **Chat 1-1** (Pet Owner ↔ Manager/Vet)  
 ✅ **Home Visit Geo-Tracking** (GPS realtime tracking)  

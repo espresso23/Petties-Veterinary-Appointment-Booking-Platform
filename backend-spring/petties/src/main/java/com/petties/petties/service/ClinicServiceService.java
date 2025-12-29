@@ -12,7 +12,6 @@ import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.MasterService;
 import com.petties.petties.model.ServiceWeightPrice;
 import com.petties.petties.model.User;
-import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.ClinicServiceRepository;
@@ -353,11 +352,8 @@ public class ClinicServiceService {
                 throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
             }
 
-            // Validate clinic phải APPROVED
-            if (clinic.getStatus() != ClinicStatus.APPROVED) {
-                throw new ForbiddenException("Không thể thêm dịch vụ cho clinic chưa được duyệt");
-            }
-
+            // NOTE: Cho phép thêm dịch vụ cho clinic PENDING để Clinic Owner có thể chuẩn
+            // bị trước khi được duyệt
             log.info("Found clinic: {} with status: {}", clinic.getClinicId(), clinic.getStatus());
         } else {
             clinic = getCurrentUserClinic();
