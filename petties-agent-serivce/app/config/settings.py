@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = Field(default="0.0.1", description="Version của service")
     APP_DEBUG: bool = Field(default=True, description="Debug mode")
 
-    # Environment flag (Render sẽ set ENVIRONMENT=production)
     ENVIRONMENT: str = Field(default="development", description="Environment name")
+    
+    # ==================== Error Monitoring (Sentry) ====================
+    SENTRY_DSN: str = Field(default="", description="Sentry DSN for error tracking (leave empty to disable)")
 
     # ==================== Server Configuration ====================
     HOST: str = Field(default="0.0.0.0", description="Server host")
@@ -63,9 +65,10 @@ class Settings(BaseSettings):
 
     # ==================== Database - PostgreSQL (Neon) ====================
     # Option 1: Dùng DATABASE_URL trực tiếp (khuyến nghị cho production)
+    # IMPORTANT: Set DATABASE_URL in .env file, DO NOT hardcode credentials here
     DATABASE_URL: str = Field(
-        default="postgresql+asyncpg://postgres:petties-prod@ep-quiet-rice-a1qxog6z-pooler.ap-southeast-1.aws.neon.tech:5432/postgres",
-        description="Database connection URL (Neon)"
+        default="",
+        description="Database connection URL (Neon) - Must be set in .env file"
     )
 
     # Option 2: Dùng các biến riêng lẻ (cho development)
@@ -115,52 +118,72 @@ class Settings(BaseSettings):
     )
 
     # ==================== AI/LLM Configuration ====================
-    LLM_PROVIDER: str = Field(default="openai", description="LLM provider: openai, ollama")
+    LLM_PROVIDER: str = Field(default="openrouter", description="LLM provider: openrouter, ollama, openai")
 
-    # OpenAI
-    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key")
+    # ===== OpenRouter (RECOMMENDED - Cloud API) =====
+    OPENROUTER_API_KEY: str = Field(
+        default="",
+        description="OpenRouter Cloud API Key (https://openrouter.ai/keys)"
+    )
+    OPENROUTER_MODEL: str = Field(
+        default="google/gemini-2.0-flash-lite-preview-02-05:free",
+        description="OpenRouter LLM model (free tier: gemini-2.0-flash-lite-preview-02-05:free)"
+    )
+    OPENROUTER_FALLBACK_MODEL: str = Field(
+        default="meta-llama/llama-3.3-70b-instruct",
+        description="Fallback model when primary fails"
+    )
+
+    # ===== DeepSeek (FALLBACK - Cloud API) =====
+    DEEPSEEK_API_KEY: str = Field(
+        default="",
+        description="DeepSeek API Key (https://platform.deepseek.com/api_keys)"
+    )
+    DEEPSEEK_BASE_URL: str = Field(
+        default="https://api.deepseek.com",
+        description="DeepSeek API base URL"
+    )
+    DEEPSEEK_MODEL: str = Field(
+        default="deepseek-chat",
+        description="DeepSeek model (deepseek-chat, deepseek-coder)"
+    )
+
+    # ===== Cohere Embeddings (RECOMMENDED) =====
+    COHERE_API_KEY: str = Field(
+        default="",
+        description="Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)"
+    )
+    COHERE_EMBEDDING_MODEL: str = Field(
+        default="embed-multilingual-v3.0",
+        description="Cohere embedding model (multilingual for Vietnamese)"
+    )
+
+    # ===== OpenAI (Backup) =====
+    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key (backup for embeddings)")
     OPENAI_EMBEDDING_MODEL: str = Field(
         default="text-embedding-3-small",
         description="OpenAI embedding model"
     )
     OPENAI_CHAT_MODEL: str = Field(default="gpt-4-turbo", description="OpenAI chat model")
 
-    # Ollama (Self-hosted or Cloud) - Primary: kimi-k2 for Vietnamese reasoning & tool calling
-    OLLAMA_BASE_URL: str = Field(
-        default="http://localhost:11434",
-        description="Ollama server URL (Local: http://localhost:11434 | Cloud: https://ollama.com)"
+    # ==================== Agent Configuration (Single Agent + ReAct) ====================
+    AGENT_TEMPERATURE: float = Field(
+        default=0.7,
+        description="Single Agent temperature (0.7 = balanced creativity)"
     )
-    OLLAMA_API_KEY: str = Field(
-        default="",
-        description="Ollama Cloud API key (leave empty for local mode, set for cloud mode)"
+    AGENT_MAX_TOKENS: int = Field(
+        default=2000,
+        description="Max tokens cho agent response"
     )
-    OLLAMA_MODEL: str = Field(
-        default="kimi-k2",
-        description="Ollama LLM model (Local: kimi-k2 | Cloud: kimi-k2:1t-cloud | Alternatives: llama3, mistral, gemma, qwen2.5:7b)"
+    AGENT_TOP_P: float = Field(
+        default=0.9,
+        description="Top-P parameter for nucleus sampling"
     )
-    OLLAMA_EMBEDDING_MODEL: str = Field(
-        default="nomic-embed-text",
-        description="Ollama embedding model for RAG (nomic-embed-text recommended)"
+    REACT_MAX_ITERATIONS: int = Field(
+        default=10,
+        description="Max ReAct iterations before force stop"
     )
-
-    # ==================== Agent Configuration ====================
-    MAIN_AGENT_TEMPERATURE: float = Field(
-        default=0.0,
-        description="Main Agent temperature (0.0 = deterministic)"
-    )
-    MEDICAL_AGENT_TEMPERATURE: float = Field(
-        default=0.5,
-        description="Medical Agent temperature (0.5 = balanced)"
-    )
-    BOOKING_AGENT_TEMPERATURE: float = Field(
-        default=0.0,
-        description="Booking Agent temperature (0.0 = deterministic)"
-    )
-    RESEARCH_AGENT_TEMPERATURE: float = Field(
-        default=0.3,
-        description="Research Agent temperature"
-    )
-    MAX_TOKENS: int = Field(default=2000, description="Max tokens cho response")
+    MAX_TOKENS: int = Field(default=2000, description="Max tokens cho response (legacy)")
 
     # ==================== RAG Configuration ====================
     CHUNK_SIZE: int = Field(default=1000, description="Document chunk size (characters)")
@@ -180,12 +203,19 @@ class Settings(BaseSettings):
     MCP_TIMEOUT: int = Field(default=30, description="MCP request timeout (seconds)")
 
     # ==================== Authentication & Security ====================
-    SECRET_KEY: str = Field(
-        default="your_super_secret_key_change_this_in_production",
-        description="Secret key cho JWT signing"
+    # CRITICAL: Generate a secure random key for production (min 32 characters)
+    # Example: python -c "import secrets; print(secrets.token_urlsafe(32))"
+    JWT_SECRET: str = Field(
+        default="petties-agent-service-secret-key-change-in-production",
+        description="Secret key for JWT signing - synced with Spring Boot"
     )
     ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, description="Access token expire time")
+
+    @property
+    def SECRET_KEY(self) -> str:
+        """Backward compatibility property for code using settings.SECRET_KEY"""
+        return self.JWT_SECRET
 
     # ==================== File Upload Configuration ====================
     UPLOAD_DIR: str = Field(default="./uploads", description="Upload directory")
@@ -236,7 +266,11 @@ class Settings(BaseSettings):
 
     class Config:
         """Pydantic Config"""
-        env_file = ".env"
+        # Try loading from service .env AND root project .env
+        env_file = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), ".env")
+        ]
         env_file_encoding = "utf-8"
         case_sensitive = True
         extra = "ignore"  # Ignore extra fields trong .env
@@ -255,5 +289,4 @@ if __name__ == "__main__":
     print(f"  DATABASE_URL: {settings.DATABASE_URL}")
     print(f"  QDRANT_URL: {settings.QDRANT_URL}")
     print(f"  LLM_PROVIDER: {settings.LLM_PROVIDER}")
-    print(f"  OLLAMA_MODEL: {settings.OLLAMA_MODEL}")
     print("✅ Settings loaded successfully!")

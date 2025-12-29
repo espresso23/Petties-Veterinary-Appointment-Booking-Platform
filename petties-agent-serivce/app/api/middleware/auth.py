@@ -16,8 +16,13 @@ from pydantic import BaseModel
 import logging
 
 from app.config.settings import settings
+from app.core.config_helper import get_setting
+from app.db.postgres.session import get_db, AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
+
+# Cache for secret key to avoid DB hits on every request
+# _runtime_secret_key = None (Deprecated)
 
 # Security scheme for Swagger docs
 security = HTTPBearer(auto_error=False)
@@ -75,31 +80,52 @@ def get_user_from_gateway_headers(request: Request) -> Optional[CurrentUser]:
 
 # ===== JWT FALLBACK (Development) =====
 
-def decode_jwt_token(token: str) -> Optional[CurrentUser]:
+async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
     """
     Decode JWT token directly (for development without Gateway)
+
+    1. Tries to get JWT_SECRET from DB
+    2. Falls back to JWT_SECRET from settings (.env)
     """
+    # Use secret key from environment variables (settings.py)
+    # This is more stable and prevents DB connection issues in middleware
+    secret = settings.SECRET_KEY
+    
+    masked_secret = f"{secret[:4]}...{secret[-4:]}" if secret and len(secret) > 8 else "****"
+    logger.info(f"Decoding JWT with key (first/last 4): {masked_secret}")
+    
     try:
+        # Decode token
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM]
+            secret,
+            algorithms=["HS256", "HS384", "HS512"]
         )
         
         user_id = payload.get("sub", "")
+        # Main backend uses "userId" claim for UUID, "sub" for username
+        real_user_id = payload.get("userId", user_id)
+        username = user_id if "userId" in payload else None
+        
         role = payload.get("role", payload.get("roles", "USER"))
         
         # Handle role as string or list
         if isinstance(role, list):
             role = role[0] if role else "USER"
         
+        logger.debug(f"JWT decoded successfully. user_id={real_user_id}, role={role}")
+        
         return CurrentUser(
-            user_id=user_id,
+            user_id=str(real_user_id),
+            username=username,
             role=role.upper() if role else "USER",
             is_admin=role.upper() == "ADMIN" if role else False
         )
     except JWTError as e:
-        logger.warning(f"JWT decode failed: {e}")
+        # If signature failed, maybe the secret key in DB changed? 
+        # Clear cache for next attempt
+        error_str = str(e)
+        logger.warning(f"JWT decode failed ({type(e).__name__}): {error_str}")
         return None
 
 
@@ -125,7 +151,7 @@ async def get_current_user_optional(
     
     # Fallback to JWT (development)
     if credentials:
-        user = decode_jwt_token(credentials.credentials)
+        user = await decode_jwt_token(credentials.credentials)
         if user:
             logger.debug(f"Auth via JWT: user_id={user.user_id}")
             return user

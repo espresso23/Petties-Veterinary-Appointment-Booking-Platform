@@ -17,7 +17,7 @@ export const ClinicManagerDashboardPage = () => {
                     DASHBOARD QUẢN LÝ PHÒNG KHÁM
                 </h1>
                 <p className="text-stone-600 mt-1">
-                    Chào mừng, {user?.username || 'Quản lý'}
+                    Chào mừng, {user?.fullName || 'Quản lý'}
                 </p>
             </header>
 

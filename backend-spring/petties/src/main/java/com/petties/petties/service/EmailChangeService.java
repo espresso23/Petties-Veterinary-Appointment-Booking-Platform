@@ -49,7 +49,7 @@ public class EmailChangeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
 
         // 2. Validate email moi khong trung voi email hien tai
-        if (user.getEmail().equalsIgnoreCase(newEmail)) {
+        if (user.getEmail() != null && user.getEmail().equalsIgnoreCase(newEmail)) {
             throw new BadRequestException("Email mới phải khác email hiện tại");
         }
 
@@ -217,6 +217,8 @@ public class EmailChangeService {
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
                 .role(user.getRole())
+                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId() : null)
+                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName() : null)
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();

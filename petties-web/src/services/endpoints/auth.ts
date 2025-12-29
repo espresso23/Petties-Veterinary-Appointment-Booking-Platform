@@ -58,8 +58,11 @@ export async function verifyOtpAndRegister(payload: VerifyOtpRequest): Promise<A
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
+    fullName: data.fullName,
     email: data.email,
     role: data.role,
+    workingClinicId: data.workingClinicId,
+    workingClinicName: data.workingClinicName,
   })
 
   return data
@@ -86,8 +89,11 @@ export async function login(payload: LoginRequest): Promise<AuthResponse> {
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
+    fullName: data.fullName,
     email: data.email,
     role: data.role,
+    workingClinicId: data.workingClinicId,
+    workingClinicName: data.workingClinicName,
   })
 
   return data
@@ -109,8 +115,11 @@ export async function register(
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
+    fullName: data.fullName,
     email: data.email,
     role: data.role,
+    workingClinicId: data.workingClinicId,
+    workingClinicName: data.workingClinicName,
   })
 
   return data
@@ -188,8 +197,11 @@ export async function getCurrentUser(): Promise<UserResponse> {
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
+    fullName: data.fullName,
     email: data.email,
     role: data.role,
+    workingClinicId: data.workingClinicId,
+    workingClinicName: data.workingClinicName,
   })
 
   return data
@@ -212,8 +224,11 @@ export async function googleSignIn(idToken: string): Promise<AuthResponse> {
   useAuthStore.getState().setUser({
     userId: data.userId,
     username: data.username,
+    fullName: data.fullName,
     email: data.email,
     role: data.role,
+    workingClinicId: data.workingClinicId,
+    workingClinicName: data.workingClinicName,
   })
 
   return data

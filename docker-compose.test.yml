@@ -36,8 +36,6 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
-      # CORS - Test domain only
-      CORS_ORIGINS: https://test.petties.world
       # Email (shared with prod or test account)
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
@@ -53,6 +51,9 @@ services:
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_SSL: ${REDIS_SSL:-false}
+      # Sentry Error Monitoring (disabled for test)
+      SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
+      SENTRY_ENABLED: false
     ports:
       - "127.0.0.1:8081:8080" # Test uses port 8081 externally
     networks:
@@ -89,14 +90,25 @@ services:
       # Qdrant Cloud (can share with prod or use separate collection)
       QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
-      # Ollama Configuration
-      LLM_PROVIDER: ollama
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-kimi-k2:1t-cloud}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      QDRANT_COLLECTION_NAME: petties_knowledge_base_test
+      # JWT Secret (Synced with Backend)
+      JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY: ${JWT_SECRET}
+      # AI Architecture: Cloud-Only (OpenRouter + Cohere)
+      LLM_PROVIDER: openrouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}
+      # Embeddings
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      COHERE_EMBEDDING_MODEL: ${COHERE_EMBEDDING_MODEL:-embed-multilingual-v3.0}
       # CORS - Test domain only
       CORS_ORIGINS: https://test.petties.world
+      # Cloudinary (Image Upload)
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Sentry Error Monitoring (disabled for test)
+      SENTRY_DSN:
     ports:
       - "127.0.0.1:8001:8000" # Test uses port 8001 externally
     networks:

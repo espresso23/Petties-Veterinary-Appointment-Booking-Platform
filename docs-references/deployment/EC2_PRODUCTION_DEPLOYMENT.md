@@ -23,7 +23,7 @@ Hệ thống sẽ được deploy trên EC2 với cấu trúc:
 - **Neon PostgreSQL** database (hoặc Supabase)
 - **MongoDB Atlas** (hoặc MongoDB local)
 - **Qdrant Cloud** (vector database)
-- **Ollama API Key** (hoặc local Ollama)
+- **OpenRouter API Key** (LLM provider)
 
 ## 🎯 Bước 1: Tạo EC2 Instance
 
@@ -229,12 +229,14 @@ DATABASE_URL=postgresql://neondb_owner:password@ep-quiet-rice-a1qxog6z-pooler.ap
 QDRANT_URL=https://your-cluster.qdrant.io
 QDRANT_API_KEY=your-qdrant-api-key
 
-# Ollama Cloud
-LLM_PROVIDER=ollama
-OLLAMA_API_KEY=sk-your-ollama-api-key
-OLLAMA_BASE_URL=https://ollama.com
-OLLAMA_MODEL=kimi-k2:1t-cloud
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+# LLM Provider (OpenRouter - Cloud API)
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-your-openrouter-api-key
+PRIMARY_MODEL=google/gemini-2.0-flash-exp:free
+FALLBACK_MODEL=meta-llama/llama-3.3-70b-instruct
+
+# Embeddings (Cohere - Cloud API)
+COHERE_API_KEY=your-cohere-api-key
 
 # CORS - Production domains
 CORS_ORIGINS=https://petties.world,https://www.petties.world
@@ -363,7 +365,7 @@ server {
 
     # WebSocket support for chat
     location /ws/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8000/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

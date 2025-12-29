@@ -72,10 +72,6 @@ COPY --from=builder /root/.local /home/petties/.local
 # Copy application code
 COPY --chown=petties:petties ./app ./app
 
-# Copy Alembic migrations
-COPY --chown=petties:petties ./alembic ./alembic
-COPY --chown=petties:petties ./alembic.ini ./alembic.ini
-
 # Create necessary directories
 RUN mkdir -p /app/uploads /app/logs \
     && chown -R petties:petties /app
@@ -95,8 +91,8 @@ FROM base AS dev
 
 LABEL environment="development"
 
-# Dev: Run migrations then start with hot-reload
-CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+# Dev: Start with hot-reload
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ============================================
 # Stage 4: Production (optimized)
@@ -105,8 +101,8 @@ FROM base AS prod
 
 LABEL environment="production"
 
-# Production: Run migrations then start optimized server
-CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --log-level info"]
+# Production: Start optimized server
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]
 
 # ============================================
 # Final stage selection based on BUILD_ENV

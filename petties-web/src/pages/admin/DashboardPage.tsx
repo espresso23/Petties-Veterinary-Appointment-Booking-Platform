@@ -19,14 +19,10 @@ export const AdminDashboardPage = () => {
     const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
     const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
 
-    useEffect(() => {
-        checkServices()
-    }, [])
-
     const checkServices = async () => {
-        // Check AI Service - FIX: Use env.AGENT_SERVICE_URL instead of hardcoded port 8001
+        // Check AI Service
         try {
-            const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })  // ✅ FIXED
+            const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
             if (res.ok) {
                 const data = await res.json()
                 setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })
@@ -51,11 +47,16 @@ export const AdminDashboardPage = () => {
         }
     }
 
+    useEffect(() => {
+        checkServices()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     const getStatusStyle = (status: ServiceHealth['status']) => {
         switch (status) {
-            case 'healthy': return 'bg-green-100 border-green-600 text-green-800'
-            case 'error': return 'bg-red-100 border-red-600 text-red-800'
-            default: return 'bg-amber-100 border-amber-600 text-amber-800'
+            case 'healthy': return 'bg-amber-100 text-stone-900'
+            case 'error': return 'bg-red-100 text-stone-900'
+            default: return 'bg-stone-100 text-stone-700'
         }
     }
 

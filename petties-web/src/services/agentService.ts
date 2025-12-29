@@ -33,10 +33,11 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
 export interface Agent {
     id: number
     name: string
-    agent_type: 'main' | 'booking' | 'medical' | 'research'
+    agent_type: string // No longer restricted to specific types
     description?: string
     temperature: number
     max_tokens: number
+    top_p: number // Added top_p support
     model: string
     system_prompt?: string
     enabled: boolean
@@ -47,16 +48,13 @@ export interface Agent {
 
 export interface AgentListResponse {
     total: number
-    main_agent?: Agent
-    sub_agents: Agent[]
+    agents: Agent[]
 }
 
 export interface Tool {
     id: number
     name: string
     description?: string
-    input_schema?: object
-    output_schema?: object
     enabled: boolean
     assigned_agents?: string[]
 }
@@ -131,18 +129,41 @@ export const agentApi = {
         return data.versions
     },
 
-    // Test agent
-    async testAgent(id: number, message: string): Promise<string> {
+    // Test agent - returns response with thinking process and tool calls
+    async testAgent(id: number, message: string, model?: string): Promise<AgentTestResponse> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
+            body: JSON.stringify({ message, model })
         })
         if (!response.ok) throw new Error('Failed to test agent')
         const data = await response.json()
-        return data.response
+        // Support both old (string) and new (object) response format
+        if (typeof data.response === 'string') {
+            return {
+                content: data.response,
+                thinkingProcess: data.thinking_process || [],
+                toolCalls: data.tool_calls || [],
+                citations: data.citations || []
+            }
+        }
+        return {
+            content: data.response?.content || data.content || '',
+            thinkingProcess: data.response?.thinking_process || data.thinking_process || [],
+            toolCalls: data.response?.tool_calls || data.tool_calls || [],
+            citations: data.response?.citations || data.citations || []
+        }
     }
 }
+
+// Agent test response interface
+export interface AgentTestResponse {
+    content: string
+    thinkingProcess: string[]
+    toolCalls: Array<{ tool: string; input: unknown; output?: unknown }>
+    citations: Array<{ type: 'rag' | 'web'; source: string; url?: string }>
+}
+
 
 // ===== TOOL APIs =====
 
@@ -205,7 +226,35 @@ export const knowledgeApi = {
             method: 'POST',
             body: formData
         })
-        if (!response.ok) throw new Error('Failed to upload document')
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null)
+            const errorMessage = errorData?.detail || `Upload failed with status ${response.status}`
+            throw new Error(errorMessage)
+        }
+
+        const result = await response.json()
+
+        // Auto-process document after upload
+        if (result.document_id) {
+            await this.processDocument(result.document_id)
+        }
+
+        return result
+    },
+
+    // Process document to create vectors
+    async processDocument(documentId: number): Promise<any> {
+        const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/documents/${documentId}/process`, {
+            method: 'POST'
+        })
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null)
+            const errorMessage = errorData?.detail || `Processing failed with status ${response.status}`
+            throw new Error(errorMessage)
+        }
+
         return response.json()
     },
 
@@ -218,11 +267,11 @@ export const knowledgeApi = {
     },
 
     // Query knowledge base
-    async query(queryText: string, topK: number = 5): Promise<QueryResult[]> {
+    async query(queryText: string, topK: number = 5, minScore: number = 0.5): Promise<QueryResult[]> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/query`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: queryText, top_k: topK, min_score: 0.5 })
+            body: JSON.stringify({ query: queryText, top_k: topK, min_score: minScore })
         })
         if (!response.ok) throw new Error('Failed to query knowledge base')
         const data = await response.json()
@@ -251,14 +300,14 @@ export const createChatWebSocket = (sessionId: string): WebSocket => {
     } else if (wsUrl.startsWith('http://')) {
         wsUrl = wsUrl.replace('http://', 'ws://')
     }
-    
+
     const fullWsUrl = `${wsUrl}/ws/chat/${sessionId}`
-    
+
     // Debug log in development
     if (import.meta.env.DEV) {
         console.log('🔌 WebSocket URL:', fullWsUrl)
     }
-    
+
     return new WebSocket(fullWsUrl)
 }
 

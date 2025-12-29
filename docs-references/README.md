@@ -2,7 +2,7 @@
 
 Tài liệu tham khảo được tổ chức theo từng nhóm nội dung để dễ dàng tìm kiếm và quản lý.
 
-> **Cập nhật lần cuối:** 18/12/2025
+> **Cập nhật lần cuối:** 27/12/2025
 
 ## 📁 Cấu trúc Folder
 
@@ -38,9 +38,16 @@ Quick reference, commands, và cheat sheets:
 
 ### 📋 Documentation (`/documentation`)
 Technical documentation, features, và architecture:
-- `SRS/PETTIES_SRS.md` - 🆕 Software Requirements Specification (SRS) hoàn chỉnh
+- `SRS/PETTIES_SRS.md` - Software Requirements Specification (SRS) hoàn chỉnh
 - `PETTIES_Features.md` - Danh sách features của hệ thống
 - `TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md` - Technical scope về Agent Management
+
+### 📊 Reports (`/reports`)
+Technical reports cho từng module:
+- `report-3-srs/AI_AGENT_SERVICE_SRS.md` - SRS cho AI Agent Service (18 Use Cases, 25 FRs)
+- `report-4-sdd/AI_AGENT_SERVICE_SDD.md` - SDD cho AI Agent Service (Architecture, Sequence Diagrams)
+
+Các tài liệu khác trong `/documentation`:
 - `SP26_Petties_Capstone.md` - Tài liệu Capstone project
 - `WBS_PETTIES_14_SPRINTS.md` - Work Breakdown Structure theo 14 Sprint
 - `BUSINESS_WORKFLOW_BPMN.md` - Luồng nghiệp vụ theo chuẩn BPMN 2.0
@@ -98,16 +105,16 @@ Design guides và style guidelines:
 
 ## 📊 Tiến Độ Dự Án (Hoàn thành Sprint 1)
 
-**Tổng tiến độ:** 20.8% (20/96 tasks) | **Trạng thái:** Bắt đầu Sprint 2
+**Tổng tiến độ:** 25% (24/96 tasks) | **Trạng thái:** Sprint 2 - Staff Management
 
 | Component | Status | Progress | Notes |
 |-----------|--------|----------|-------|
 | 🌐 **Web Frontend** | ✅ Production | 100% (S1) | Deployed on Vercel. Auth screens completed. |
-| 🔧 **Backend Spring** | ✅ Production | 100% (S1) | Deployed on EC2. JWT & OAuth ready. |
-| 🤖 **AI Agent** | ✅ In Dev | 80% (S1) | Cloud-only stack ready. Core agents implemented. |
+| 🔧 **Backend Spring** | ✅ Production | 100% (S1) | Deployed on EC2. JWT & OAuth ready. Staff Management done. |
+| 🤖 **AI Agent** | ✅ Production | 100% (S1) | 100% LlamaIndex RAG. Single Agent + ReAct + WebSocket. |
 | 📱 **Mobile Flutter** | ✅ Staging | 100% (S1) | Firebase App Delivery & CI/CD ready. |
-| 📝 **Documentation** | 🔄 In Progress | 50% | WBS, SRS, SDD, ERD, BPMN updated. |
-| 🧪 **Testing** | 🔄 In Progress | 15% | Testing strategy and AI service test plan ready. |
+| 📝 **Documentation** | ✅ Complete | 80% | SRS, SDD cho AI Service hoàn thành. |
+| 🧪 **Testing** | 🔄 In Progress | 20% | Testing strategy and AI service test plan ready. |
 
 ---
 

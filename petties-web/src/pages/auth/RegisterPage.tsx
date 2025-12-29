@@ -4,7 +4,8 @@ import { sendRegistrationOtp, verifyOtpAndRegister, resendOtp } from '../../serv
 import type { SendOtpRequest } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
-import { OtpInput } from '../../components/OtpInput'
+import { parseApiError } from '../../utils/errorHandler'
+import { OtpInput } from '../../components/common/OtpInput'
 import { SparklesIcon, ShieldCheckIcon, RocketLaunchIcon, EnvelopeIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -100,6 +101,12 @@ export function RegisterPage() {
             return
         }
 
+        // Validate phone if provided (10-11 digits, starts with 0)
+        if (phone && !/^0[0-9]{9,10}$/.test(phone)) {
+            setError('Số điện thoại phải từ 10-11 số và bắt đầu bằng số 0.')
+            return
+        }
+
         setIsLoading(true)
 
         try {
@@ -117,12 +124,8 @@ export function RegisterPage() {
             showToast('success', response.message)
             startResendCountdown(response.resendCooldownSeconds)
             setStep('otp')
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Không thể gửi mã OTP. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
         } finally {
             setIsLoading(false)
         }
@@ -160,12 +163,8 @@ export function RegisterPage() {
             // Redirect to role-based dashboard
             const dashboardPath = getRoleDashboard(response.role)
             navigate(dashboardPath, { replace: true })
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Mã OTP không đúng. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
             // Reset OTP input on error
             setOtpCode('')
         } finally {
@@ -185,12 +184,8 @@ export function RegisterPage() {
             showToast('success', response.message)
             startResendCountdown(response.resendCooldownSeconds)
             setOtpCode('')
-        } catch (err: any) {
-            setError(
-                err.response?.data?.message ||
-                err.message ||
-                'Không thể gửi lại mã OTP. Vui lòng thử lại.',
-            )
+        } catch (err: unknown) {
+            setError(parseApiError(err))
         } finally {
             setIsLoading(false)
         }
@@ -373,7 +368,7 @@ export function RegisterPage() {
                                         id="phone"
                                         type="tel"
                                         value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
+                                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                                         placeholder="Nhập số điện thoại (tùy chọn)"
                                         disabled={isLoading}
                                         className="input-brutal text-sm"

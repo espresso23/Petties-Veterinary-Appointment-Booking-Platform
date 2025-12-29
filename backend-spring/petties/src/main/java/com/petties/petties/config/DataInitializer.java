@@ -1,59 +1,132 @@
 package com.petties.petties.config;
 
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
- * Data Initializer - Tự động tạo admin user mặc định
+ * Data Initializer - Seed data on application startup
  * 
- * Chức năng:
- * - Tự động chạy khi Spring Boot khởi động (cả dev và prod)
- * - Chỉ tạo admin user nếu chưa tồn tại trong database
- * - Không cần config hay bật/tắt thủ công
+ * PRODUCTION: Only creates admin user (admin/admin)
+ * DEV/TEST: Creates test users for all roles
  * 
- * Default credentials:
- * - Username: admin
- * - Password: admin
- * - Email: admin@petties.world
- * 
- * ⚠️ Lưu ý: Nên đổi password ngay sau lần đăng nhập đầu tiên!
+ * Control via environment: SPRING_PROFILES_ACTIVE=prod
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
+    private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
+    @Value("${app.init.seed-test-data:true}")
+    private boolean seedTestData;
 
     @Override
     public void run(String... args) throws Exception {
         log.info("🚀 Starting data initialization...");
+        log.info("   Active profile: {}", activeProfile);
+        log.info("   Seed test data: {}", seedTestData);
 
-        // Initialize users for all roles for testing
-        initializeUser("admin", "admin", "admin@petties.world", "System Admin", Role.ADMIN);
-        initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
-        initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User", Role.CLINIC_OWNER);
-        initializeUser("clinicManager", "clinicmanager", "manager@clinic.com", "Clinic Manager User",
-                Role.CLINIC_MANAGER);
-        initializeUser("vet", "vet123", "vet@clinic.com", "Dr. Vet User", Role.VET);
+        // ALWAYS create admin user (required for system operation)
+        initializeAdminUser();
+
+        // Only seed test data in non-production environments
+        if (shouldSeedTestData()) {
+            log.info("📦 Seeding test data for development/testing...");
+            seedTestUsers();
+        } else {
+            log.info("🔒 Production mode - skipping test data seeding");
+        }
 
         log.info("✅ Data initialization completed!");
     }
 
     /**
+     * Determine if test data should be seeded
+     * Returns false if:
+     * - Profile is "prod" or "production"
+     * - app.init.seed-test-data is explicitly set to false
+     */
+    private boolean shouldSeedTestData() {
+        // Check if production profile
+        if (activeProfile != null &&
+                (activeProfile.equalsIgnoreCase("prod") ||
+                        activeProfile.equalsIgnoreCase("production"))) {
+            return false;
+        }
+        // Check explicit config
+        return seedTestData;
+    }
+
+    /**
+     * Initialize admin user - ALWAYS runs (required for system)
+     * Uses environment variables for credentials in production
+     */
+    private void initializeAdminUser() {
+        String adminUsername = System.getenv("ADMIN_USERNAME");
+        String adminPassword = System.getenv("ADMIN_PASSWORD");
+        String adminEmail = System.getenv("ADMIN_EMAIL");
+
+        // Fallback to defaults if env vars not set
+        if (adminUsername == null || adminUsername.isBlank()) {
+            adminUsername = "admin";
+        }
+        if (adminPassword == null || adminPassword.isBlank()) {
+            adminPassword = "admin";
+        }
+        if (adminEmail == null || adminEmail.isBlank()) {
+            adminEmail = "admin@petties.world";
+        }
+
+        initializeUser(adminUsername, adminPassword, adminEmail, "System Admin", Role.ADMIN);
+    }
+
+    /**
+     * Seed test users for development/testing
+     */
+    private void seedTestUsers() {
+        initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+        User clinicOwner = initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User",
+                Role.CLINIC_OWNER);
+        initializeUser("clinicManager", "clinicmanager", "manager@clinic.com", "Clinic Manager User",
+                Role.CLINIC_MANAGER);
+        initializeUser("vet", "vet123", "vet@clinic.com", "Dr. Vet User", Role.VET);
+
+        // Initialize a clinic for the clinic owner
+        if (clinicOwner != null) {
+            initializeClinic(clinicOwner, "Petties Central Hospital", "123 Pet Street, Hanoi", "0123456789");
+        }
+    }
+
+    /**
      * Helper method to initialize a user if they don't exist
      */
-    private void initializeUser(String username, String password, String email, String fullName, Role role) {
+    private User initializeUser(String username, String password, String email, String fullName, Role role) {
+        // Check by username
         if (userRepository.existsByUsername(username)) {
-            log.info("   - User '{}' ({}) already exists.", username, role);
-            return;
+            log.info("   - User with username '{}' ({}) already exists.", username, role);
+            return userRepository.findByUsername(username).orElse(null);
+        }
+
+        // Check by email to prevent duplicate key error
+        if (userRepository.existsByEmail(email)) {
+            log.info("   - User with email '{}' ({}) already exists.", email, role);
+            return userRepository.findByEmail(email).orElse(null);
         }
 
         User user = new User();
@@ -65,10 +138,37 @@ public class DataInitializer implements CommandLineRunner {
         user.setRole(role);
 
         try {
-            userRepository.save(user);
-            log.info("   + Created {} user: {} / {}", role, username, password);
+            User savedUser = userRepository.save(user);
+            log.info("   + Created {} user: {} / {}", role, username,
+                    role == Role.ADMIN ? "***" : password); // Don't log admin password
+            return savedUser;
         } catch (Exception e) {
             log.error("   x Failed to create user {}: {}", username, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Helper method to initialize a clinic if owner doesn't have one
+     */
+    private void initializeClinic(User owner, String name, String address, String phone) {
+        if (clinicRepository.existsByOwnerUserId(owner.getUserId())) {
+            log.info("   - Clinic for '{}' already exists.", owner.getUsername());
+            return;
+        }
+
+        Clinic clinic = new Clinic();
+        clinic.setOwner(owner);
+        clinic.setName(name);
+        clinic.setAddress(address);
+        clinic.setPhone(phone);
+        clinic.setStatus(ClinicStatus.APPROVED);
+
+        try {
+            clinicRepository.save(clinic);
+            log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
+        } catch (Exception e) {
+            log.error("   x Failed to create clinic: {}", e.getMessage());
         }
     }
 }

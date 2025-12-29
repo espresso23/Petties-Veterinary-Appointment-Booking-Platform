@@ -24,4 +24,6 @@ public class AuthResponse {
     private String email;
     private String fullName;
     private String role;
+    private UUID workingClinicId; // For CLINIC_MANAGER and VET
+    private String workingClinicName; // Clinic name for display
 }

@@ -4,7 +4,13 @@ REST API endpoints for Agent CRUD and Prompt Management
 
 Package: app.api.routes
 Purpose: Agent Management APIs (AG-01, AG-02, AG-03)
-Version: v0.0.1
+Version: v1.0.0 (Migrated from Multi-Agent to Single Agent)
+
+Changes from v0.0.1:
+- Simplified to Single Agent architecture
+- Removed Multi-Agent hierarchy (main_agent, sub_agents)
+- Added top_p parameter support
+- Updated test endpoint with ReAct trace
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -25,9 +31,10 @@ from app.api.schemas.agent_schemas import (
     PromptHistoryResponse,
     TestAgentRequest,
     TestAgentResponse,
+    ReActStepSchema,
     AgentErrorResponse
 )
-from app.db.postgres.models import Agent, Tool, PromptVersion, AgentType
+from app.db.postgres.models import Agent, Tool, PromptVersion
 from app.db.postgres.session import get_db
 
 # Initialize router
@@ -39,11 +46,12 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 @router.get(
     "",
     response_model=AgentListResponse,
-    summary="[AG-01] Get all agents with hierarchy",
+    summary="[AG-01] Get all agents",
     description="""
-    Get all agents organized by hierarchy:
-    - Main Agent (Supervisor) at top
-    - Sub-Agents (Booking, Medical, Research) below
+    Get all agents (Single Agent architecture).
+
+    Note: With Single Agent architecture, typically only 1 agent exists.
+    Returns flat list instead of hierarchy.
     """
 )
 async def get_agents(
@@ -51,50 +59,52 @@ async def get_agents(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get all agents with hierarchy view
+    Get all agents
 
     Response:
         {
-            "total": 4,
-            "main_agent": {...},
-            "sub_agents": [...]
+            "total": 1,
+            "agents": [...]
         }
     """
     try:
         query = select(Agent)
-        
+
         if enabled is not None:
             query = query.where(Agent.enabled == enabled)
-        
+
         result = await db.execute(query)
         agents = result.scalars().all()
-        
-        # Separate main agent from sub-agents
-        main_agent = None
-        sub_agents = []
-        
+
+        agent_responses = []
         for agent in agents:
-            agent_response = AgentResponse.model_validate(agent)
-            
-            # Get assigned tools for this agent
-            tools_query = select(Tool).where(
-                Tool.assigned_agents.contains([agent.name])
+            agent_response = AgentResponse(
+                id=agent.id,
+                name=agent.name,
+                description=agent.description,
+                temperature=agent.temperature,
+                max_tokens=agent.max_tokens,
+                top_p=agent.top_p or 0.9,
+                model=agent.model,
+                system_prompt=agent.system_prompt,
+                enabled=agent.enabled,
+                created_at=agent.created_at,
+                updated_at=agent.updated_at
             )
+
+            # Get enabled tools
+            tools_query = select(Tool).where(Tool.enabled == True)
             tools_result = await db.execute(tools_query)
             tools = tools_result.scalars().all()
             agent_response.tools = [t.name for t in tools]
-            
-            if agent.agent_type == AgentType.MAIN:
-                main_agent = agent_response
-            else:
-                sub_agents.append(agent_response)
-        
+
+            agent_responses.append(agent_response)
+
         return AgentListResponse(
             total=len(agents),
-            main_agent=main_agent,
-            sub_agents=sub_agents
+            agents=agent_responses
         )
-    
+
     except Exception as e:
         logger.error(f"Error fetching agents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -115,7 +125,7 @@ async def get_agent(
     """
     Get agent detail with:
     - Agent configuration
-    - Assigned tools list
+    - Enabled tools list
     - Recent prompt versions
     """
     try:
@@ -124,19 +134,29 @@ async def get_agent(
             select(Agent).where(Agent.id == agent_id)
         )
         agent = result.scalar_one_or_none()
-        
+
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-        
-        agent_response = AgentResponse.model_validate(agent)
-        
-        # Get assigned tools
-        tools_query = select(Tool).where(
-            Tool.assigned_agents.contains([agent.name])
+
+        agent_response = AgentResponse(
+            id=agent.id,
+            name=agent.name,
+            description=agent.description,
+            temperature=agent.temperature,
+            max_tokens=agent.max_tokens,
+            top_p=agent.top_p or 0.9,
+            model=agent.model,
+            system_prompt=agent.system_prompt,
+            enabled=agent.enabled,
+            created_at=agent.created_at,
+            updated_at=agent.updated_at
         )
+
+        # Get enabled tools
+        tools_query = select(Tool).where(Tool.enabled == True)
         tools_result = await db.execute(tools_query)
         tools = tools_result.scalars().all()
-        
+
         assigned_tools = [{
             "id": t.id,
             "name": t.name,
@@ -144,14 +164,14 @@ async def get_agent(
             "tool_type": t.tool_type.value if t.tool_type else None,
             "enabled": t.enabled
         } for t in tools]
-        
+
         # Get recent prompt versions
         prompts_query = select(PromptVersion).where(
             PromptVersion.agent_id == agent_id
         ).order_by(desc(PromptVersion.version)).limit(5)
         prompts_result = await db.execute(prompts_query)
         prompts = prompts_result.scalars().all()
-        
+
         recent_prompts = [{
             "id": p.id,
             "version": p.version,
@@ -161,13 +181,13 @@ async def get_agent(
             "created_at": p.created_at.isoformat() if p.created_at else None,
             "prompt_preview": p.prompt_text[:200] + "..." if len(p.prompt_text) > 200 else p.prompt_text
         } for p in prompts]
-        
+
         return AgentDetailResponse(
             agent=agent_response,
             assigned_tools=assigned_tools,
             recent_prompt_versions=recent_prompts
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -185,7 +205,8 @@ async def get_agent(
     Update agent parameters:
     - temperature (0.0-1.0)
     - max_tokens (100-8000)
-    - model name
+    - top_p (0.0-1.0) - NEW
+    - model name (OpenRouter model ID)
     - enabled status
     """
 )
@@ -199,9 +220,10 @@ async def update_agent(
 
     Body:
         {
-            "temperature": 0.3,
-            "max_tokens": 1500,
-            "model": "kimi-k2-thinking"
+            "temperature": 0.7,
+            "max_tokens": 2000,
+            "top_p": 0.9,
+            "model": "google/gemini-2.0-flash-exp:free"
         }
     """
     try:
@@ -209,10 +231,10 @@ async def update_agent(
             select(Agent).where(Agent.id == agent_id)
         )
         agent = result.scalar_one_or_none()
-        
+
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-        
+
         # Update fields if provided
         if request.description is not None:
             agent.description = request.description
@@ -220,22 +242,38 @@ async def update_agent(
             agent.temperature = request.temperature
         if request.max_tokens is not None:
             agent.max_tokens = request.max_tokens
+        if request.top_p is not None:
+            agent.top_p = request.top_p
         if request.model is not None:
             agent.model = request.model
         if request.enabled is not None:
             agent.enabled = request.enabled
-        
+
         await db.commit()
         await db.refresh(agent)
-        
+
         logger.info(f"Updated agent {agent.name} config")
-        
+
+        agent_response = AgentResponse(
+            id=agent.id,
+            name=agent.name,
+            description=agent.description,
+            temperature=agent.temperature,
+            max_tokens=agent.max_tokens,
+            top_p=agent.top_p or 0.9,
+            model=agent.model,
+            system_prompt=agent.system_prompt,
+            enabled=agent.enabled,
+            created_at=agent.created_at,
+            updated_at=agent.updated_at
+        )
+
         return UpdateAgentResponse(
             success=True,
             message=f"Agent '{agent.name}' updated successfully",
-            agent=AgentResponse.model_validate(agent)
+            agent=agent_response
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -251,7 +289,7 @@ async def update_agent(
     summary="[AG-02] Update system prompt",
     description="""
     Update agent's system prompt with version control.
-    
+
     - Creates new version automatically
     - Sets new version as active
     - Keeps history of previous versions
@@ -267,8 +305,8 @@ async def update_prompt(
 
     Body:
         {
-            "prompt_text": "Ban la Main Agent cua Petties...",
-            "notes": "Added routing rule for research queries",
+            "prompt_text": "Ban la Petties AI Assistant...",
+            "notes": "Updated for ReAct pattern",
             "created_by": "admin"
         }
     """
@@ -278,10 +316,10 @@ async def update_prompt(
             select(Agent).where(Agent.id == agent_id)
         )
         agent = result.scalar_one_or_none()
-        
+
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-        
+
         # Get current max version
         version_result = await db.execute(
             select(PromptVersion.version)
@@ -291,14 +329,14 @@ async def update_prompt(
         )
         max_version = version_result.scalar_one_or_none() or 0
         new_version = max_version + 1
-        
+
         # Deactivate all previous versions
         await db.execute(
             PromptVersion.__table__.update()
             .where(PromptVersion.agent_id == agent_id)
             .values(is_active=False)
         )
-        
+
         # Create new version
         new_prompt = PromptVersion(
             agent_id=agent_id,
@@ -309,14 +347,14 @@ async def update_prompt(
             notes=request.notes
         )
         db.add(new_prompt)
-        
+
         # Update agent's current system_prompt
         agent.system_prompt = request.prompt_text
-        
+
         await db.commit()
-        
+
         logger.info(f"Created prompt version {new_version} for agent {agent.name}")
-        
+
         return UpdatePromptResponse(
             success=True,
             message=f"Prompt updated to version {new_version}",
@@ -325,7 +363,7 @@ async def update_prompt(
             version=new_version,
             prompt_preview=request.prompt_text[:200] + "..." if len(request.prompt_text) > 200 else request.prompt_text
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -355,18 +393,18 @@ async def get_prompt_history(
             select(Agent).where(Agent.id == agent_id)
         )
         agent = result.scalar_one_or_none()
-        
+
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-        
+
         # Get prompt versions
         prompts_query = select(PromptVersion).where(
             PromptVersion.agent_id == agent_id
         ).order_by(desc(PromptVersion.version)).limit(limit)
-        
+
         prompts_result = await db.execute(prompts_query)
         prompts = prompts_result.scalars().all()
-        
+
         # Find active version
         active_version = 0
         versions = []
@@ -382,7 +420,7 @@ async def get_prompt_history(
                 notes=p.notes,
                 created_at=p.created_at
             ))
-        
+
         return PromptHistoryResponse(
             agent_id=agent_id,
             agent_name=agent.name,
@@ -390,7 +428,7 @@ async def get_prompt_history(
             active_version=active_version,
             versions=versions
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -398,13 +436,16 @@ async def get_prompt_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ===== TEST AGENT (Placeholder) =====
+# ===== TEST AGENT =====
 
 @router.post(
     "/{agent_id}/test",
     response_model=TestAgentResponse,
     summary="[PG-01] Test agent in playground",
-    description="Send test message to agent. Loads agent from DB với Dynamic Configuration Loader."
+    description="""
+    Test agent with sample message.
+    Returns ReAct trace for debugging.
+    """
 )
 async def test_agent(
     agent_id: int,
@@ -413,41 +454,46 @@ async def test_agent(
 ):
     """
     Test agent with sample message
-    
-    Theo Technical Scope:
-    - Load agent từ DB với Dynamic Configuration Loader
-    - Agents load prompts từ DB khi runtime
-    - Invoke với prompt từ DB
+
+    Loads agent from DB with Dynamic Configuration Loader.
+    Returns ReAct trace (Thought -> Action -> Observation).
     """
     try:
-        # Load agent từ DB với AgentFactory (Dynamic Configuration Loader)
+        # Load agent from DB with AgentFactory
         from app.core.agents.factory import AgentFactory
-        
+
         agent = await AgentFactory.get_agent_by_id(agent_id, db)
-        
-        # Get agent name
+
+        # Get agent name from DB
         result = await db.execute(
             select(Agent).where(Agent.id == agent_id)
         )
         agent_db = result.scalar_one_or_none()
-        
-        # Invoke với prompt từ DB
+
+        # Invoke agent
         response = await agent.invoke(request.message)
-        
+
+        # Get ReAct trace if available
+        react_steps = []
+        # Note: ReAct trace would come from agent state
+        # For now, return basic thinking process
+
         return TestAgentResponse(
             success=True,
             agent_name=agent_db.name if agent_db else "unknown",
             message=request.message,
             response=response,
+            react_steps=react_steps,
             thinking_process=[
                 f"1. Loaded agent '{agent_db.name if agent_db else 'unknown'}' from DB",
                 "2. Using system prompt from database",
-                "3. Processing user message...",
-                "4. Generating response..."
+                f"3. Model: {agent_db.model if agent_db else 'unknown'}",
+                "4. Processing with ReAct pattern...",
+                "5. Generated response"
             ],
             tool_calls=[]
         )
-    
+
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:

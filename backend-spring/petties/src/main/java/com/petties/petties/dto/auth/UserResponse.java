@@ -24,7 +24,8 @@ public class UserResponse {
     private String phone;
     private String avatar;
     private Role role;
+    private UUID workingClinicId; // For CLINIC_MANAGER and VET
+    private String workingClinicName; // Clinic name for display
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

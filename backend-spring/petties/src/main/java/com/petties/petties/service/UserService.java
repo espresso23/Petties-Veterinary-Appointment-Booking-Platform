@@ -124,6 +124,10 @@ public class UserService {
                                 .phone(user.getPhone())
                                 .avatar(user.getAvatar())
                                 .role(user.getRole())
+                                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
+                                                : null)
+                                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
+                                                : null)
                                 .createdAt(user.getCreatedAt())
                                 .updatedAt(user.getUpdatedAt())
                                 .build();

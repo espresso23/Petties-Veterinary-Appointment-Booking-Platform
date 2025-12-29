@@ -9,17 +9,22 @@ Chiến lược kiểm thử AI Service dựa trên yêu cầu kỹ thuật từ
 ```
 User Query
     ↓
-Main Agent (Supervisor/Orchestrator)
-    ├── Intent Classification
-    ├── Context-Aware Routing
-    └── Response Synthesis
+Single Agent (ReAct Pattern - LangGraph)
+    ├── Thought: Phân tích query
+    ├── Action: Chọn và gọi Tool phù hợp
+    ├── Observation: Nhận kết quả từ Tool
+    └── Answer: Tổng hợp và trả lời
            ↓
-    ┌──────┴──────┐
-    ↓             ↓
-Booking Agent   Medical Agent ──→ Research Agent (nếu Low Confidence)
-    ↓             ↓                    ↓
-[check_slot]  [Internal RAG]     [Web Search]
-[create_booking] [call_research_agent] [Video Search]
+    ┌──────┴──────────────┐
+    ↓                     ↓
+FastMCP Tools        RAG Engine
+(Code-based)         (LlamaIndex + Qdrant)
+    ↓
+[pet_care_qa]     → RAG-based Q&A
+[symptom_search]  → Symptom DB lookup
+[search_clinics]  → Find nearby clinics
+[check_slots]     → Check available slots
+[create_booking]  → Create booking
 ```
 
 ---
@@ -36,10 +41,9 @@ Kiểm tra từng API endpoint hoạt động đúng.
 | | | ✅ Chat request with context history |
 | | | ❌ Empty message → 400 |
 | | | ❌ Invalid session_id → 400 |
-| `/api/v1/agents` | GET | ✅ List all agents |
+| `/api/v1/agents` | GET | ✅ Get agent config |
 | `/api/v1/agents/{id}/config` | PUT | ✅ Update agent config |
 | `/api/v1/tools` | GET | ✅ List available tools |
-| `/api/v1/tools/scan` | POST | ✅ Scan tools from codebase |
 | `/api/v1/knowledge/upload` | POST | ✅ Upload document to RAG |
 | `/api/v1/knowledge/query` | POST | ✅ Query RAG retrieval |
 
@@ -47,35 +51,33 @@ Kiểm tra từng API endpoint hoạt động đúng.
 
 ### 2.2 Agent Behavior Testing (Core)
 
-Kiểm tra hành vi của các Agents theo đúng thiết kế.
+Kiểm tra hành vi của Single Agent theo ReAct pattern.
 
-#### A. Intent Classification Test
+#### A. ReAct Flow Test
 
-| Input Query | Expected Agent | Priority |
-|-------------|----------------|----------|
-| "Con chó bị nôn" | Medical Agent | ⭐ Critical |
-| "Mèo bị tiêu chảy từ hôm qua" | Medical Agent | ⭐ Critical |
-| "Đặt lịch khám thứ 2" | Booking Agent | ⭐ Critical |
-| "Có bán thức ăn Royal Canin không?" | Research Agent | High |
-| "Cách huấn luyện chó đi vệ sinh" | Research Agent | High |
-| "Xin chào" | Main Agent (General) | Medium |
-| "My cat is sick" (English) | Medical Agent | Medium |
+| Input Query | Expected Tool | Priority |
+|-------------|---------------|----------|
+| "Con chó bị nôn" | `pet_care_qa` (RAG) | ⭐ Critical |
+| "Mèo bị tiêu chảy từ hôm qua" | `symptom_search` | ⭐ Critical |
+| "Đặt lịch khám thứ 2" | `check_slots` → `create_booking` | ⭐ Critical |
+| "Tìm phòng khám gần đây" | `search_clinics` | High |
+| "Xin chào" | No tool (direct response) | Medium |
 
 **Test Method:**
 ```python
-@pytest.mark.parametrize("query,expected_agent", [
-    ("Con chó bị nôn", "medical_agent"),
-    ("Đặt lịch khám thứ 2", "booking_agent"),
-    ("Có bán thức ăn không?", "research_agent"),
+@pytest.mark.parametrize("query,expected_tool", [
+    ("Con chó bị nôn", "pet_care_qa"),
+    ("Đặt lịch khám thứ 2", "check_slots"),
+    ("Tìm phòng khám gần đây", "search_clinics"),
 ])
-async def test_intent_classification(query: str, expected_agent: str):
-    response = await agent_router.classify_intent(query)
-    assert response.target_agent == expected_agent
+async def test_react_tool_selection(query: str, expected_tool: str):
+    response = await agent.process(query)
+    assert expected_tool in response.tool_calls
 ```
 
 #### B. Context Passing Test
 
-Đảm bảo Main Agent truyền đúng context cho Sub-Agents.
+Đảm bảo Agent giữ context qua nhiều lượt chat.
 
 | Scenario | Test |
 |----------|------|

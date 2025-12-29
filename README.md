@@ -15,6 +15,7 @@
 | **Thời Gian** | 10/12/2025 - 11/03/2026 (13 Sprints) |
 | **Chuyên Ngành** | Software Engineering |
 | **Địa Điểm** | Da Nang |
+| **Last Updated** | 2025-12-25 |
 
 ---
 
@@ -111,12 +112,17 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │      AI LAYER (Python)              │
 │  - Python 3.12                      │
 │  - FastAPI + Uvicorn                │
-│  - LangGraph (Multi-agent)          │
+│  - LangGraph (Single Agent ReAct)   │
 │  - OpenRouter API (Cloud LLM)       │
+│    └─ gemini-2.0-flash-exp (free)   │
+│    └─ llama-3.3-70b-instruct        │
+│    └─ claude-3.5-sonnet             │
 │  - Cohere Embeddings (Cloud)        │
-│  - LlamaIndex (RAG)                 │
+│    └─ embed-multilingual-v3         │
+│  - LlamaIndex (RAG Pipeline)        │
 │  - Qdrant Cloud (Vector Database)   │
-│  - FastMCP (Protocol)               │
+│  - FastMCP (@mcp.tool)              │
+│  - Tavily API (Web Search)          │
 └─────────────────────────────────────┘
 ```
 
@@ -200,11 +206,20 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 - Xây dựng uy tín cho phòng khám và bác sĩ
 
 ### 🔐 Thêm Tính Năng Đặc Biệt
-- **AI Chatbot**: Trợ lý chăm sóc pet thông minh với Multi-Agent Architecture
-- **Admin Dashboard**: Quản lý AI Agents, Tools, Knowledge Base
-- **Định giá động**: Tính giá dựa trên khoảng cách
+- **AI Chatbot**: Trợ lý chăm sóc pet thông minh với **Single Agent + ReAct Pattern (LangGraph)**
+  - ReAct Flow: Thought → Action → Observation → Loop → Answer
+  - Tools: pet_care_qa, symptom_search, search_clinics, check_slots, create_booking
+  - RAG Engine: LlamaIndex + Qdrant Cloud + Cohere embeddings
+  - Cloud LLM: OpenRouter API (gemini/llama/claude)
+- **Admin Dashboard**: Quản lý AI Agent (Config, Tools, Knowledge Base, Testing)
+  - System Prompt Editor với versioning
+  - Tool Management: Enable/Disable tools (@mcp.tool)
+  - Knowledge Base Upload: PDF/DOCX → Qdrant indexing
+  - Interactive Playground với ReAct flow visualization
+- **Định giá động**: Tính giá dựa trên khoảng cách + cân nặng
+- **Chat 1-1**: Pet Owner chat trực tiếp với Manager/Vet
+- **Home Visit Tracking**: GPS tracking realtime khi bác sĩ đến nhà
 - **Đa ngôn ngữ**: Hỗ trợ nhiều ngôn ngữ và múi giờ
-- **Analytics**: Báo cáo chi tiết cho quản trị viên
 
 ---
 
@@ -233,21 +248,27 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
 │  │ ├─ Vet Service                      │       │
 │  │ ├─ Payment Service (Stripe)         │       │
 │  │ ├─ Notification Service             │       │
+│  │ ├─ Chat Service (1-1 messaging)     │       │
 │  │ └─ Admin Dashboard Service          │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
 │  ┌─────────────────────────────────────┐       │
 │  │ AI Agent Service (Port 8000)        │       │
 │  │ ├─ FastAPI Server                   │       │
-│  │ ├─ Multi-Agent System (LangGraph)   │       │
-│  │ │  ├─ Main Agent (Supervisor)       │       │
-│  │ │  ├─ Booking Agent                 │       │
-│  │ │  ├─ Medical Agent                 │       │
-│  │ │  └─ Research Agent                │       │
+│  │ ├─ LangGraph (Single Agent)         │       │
+│  │ │  ├─ ReAct Pattern Implementation  │       │
+│  │ │  │  └─ Think → Act → Observe      │       │
+│  │ │  ├─ Chain-of-Thought Reasoning    │       │
+│  │ │  └─ Tools (@mcp.tool)             │       │
+│  │ │     ├─ pet_care_qa (RAG)          │       │
+│  │ │     ├─ symptom_search             │       │
+│  │ │     ├─ search_clinics             │       │
+│  │ │     ├─ check_slots                │       │
+│  │ │     └─ create_booking             │       │
 │  │ ├─ RAG Engine (LlamaIndex)          │       │
 │  │ ├─ Vector Search (Qdrant Cloud)     │       │
 │  │ ├─ Tool Registry (FastMCP)          │       │
-│  │ └─ WebSocket Orchestrator           │       │
+│  │ └─ Admin Config (Hot-reload)        │       │
 │  └─────────────────────────────────────┘       │
 │                                                  │
 └────────────────────────────────────────────────┘
@@ -268,7 +289,6 @@ Chủ nuôi thú cưng thường gặp khó khăn khi cần chăm sóc sức kh�
      │ Cloud AI Services   │
      │ - OpenRouter (LLM)  │
      │ - Cohere (Embed)    │
-     │ - Tavily (Search)   │
      └─────────────────────┘
 ```
 
@@ -639,14 +659,40 @@ petties/
 ├── petties-agent-serivce/          # Python AI Layer
 │   ├── app/
 │   │   ├── main.py                 # FastAPI application
-│   │   ├── api/                    # API routes (agents, tools, knowledge, chat, settings)
+│   │   ├── api/                    # API routes
+│   │   │   ├── v1/
+│   │   │   │   ├── agents.py       # Agent management endpoints
+│   │   │   │   ├── tools.py        # Tool management endpoints
+│   │   │   │   ├── knowledge.py    # Knowledge base endpoints
+│   │   │   │   ├── chat.py         # Chat/playground endpoints
+│   │   │   │   └── settings.py     # System settings endpoints
 │   │   ├── core/
-│   │   │   ├── agents/             # Multi-agent system (Main, Booking, Medical, Research)
-│   │   │   ├── tools/              # Tool registry, executor, MCP integration
-│   │   │   └── prompts/            # Prompt templates
+│   │   │   ├── agent/              # Single Agent implementation
+│   │   │   │   ├── react_agent.py  # LangGraph ReAct pattern
+│   │   │   │   ├── state.py        # AgentState definition
+│   │   │   │   └── nodes.py        # Think/Act/Observe nodes
+│   │   │   ├── tools/              # Tool implementations
+│   │   │   │   ├── registry.py     # FastMCP tool registry
+│   │   │   │   ├── pet_care.py     # pet_care_qa tool
+│   │   │   │   ├── symptom.py      # symptom_search tool
+│   │   │   │   ├── clinic.py       # search_clinics tool
+│   │   │   │   ├── slot.py         # check_slots tool
+│   │   │   │   └── booking.py      # create_booking tool
+│   │   │   ├── rag/                # RAG engine
+│   │   │   │   ├── pipeline.py     # LlamaIndex pipeline
+│   │   │   │   ├── qdrant.py       # Qdrant Cloud client
+│   │   │   │   └── embeddings.py   # Cohere embeddings
+│   │   │   └── prompts/            # System prompt templates
 │   │   ├── config/                 # Settings & logging
+│   │   │   ├── settings.py         # Dynamic config loader
+│   │   │   └── logging.py          # Logging configuration
 │   │   ├── db/                     # Database models & session
+│   │   │   ├── models.py           # SQLAlchemy models
+│   │   │   └── session.py          # DB session manager
 │   │   └── services/               # Business logic
+│   │       ├── agent_service.py    # Agent configuration service
+│   │       ├── tool_service.py     # Tool management service
+│   │       └── kb_service.py       # Knowledge base service
 │   ├── alembic/                    # Database migrations
 │   ├── requirements.txt            # Python dependencies
 │   ├── Dockerfile                  # Unified Dockerfile (dev/prod)
@@ -782,22 +828,47 @@ GET    /api/vets/{id}/schedule     - Lịch biểu bác sĩ ⚠️
 POST   /api/v1/chat                - Gửi tin nhắn đến AI Agent
 GET    /api/v1/chat/history        - Lịch sử chat
 WS     /ws/chat/{session_id}       - WebSocket real-time chat
-GET    /api/v1/agents              - Danh sách agents
-GET    /api/v1/agents/{id}         - Chi tiết agent
-PUT    /api/v1/agents/{id}         - Cập nhật agent config
-GET    /api/v1/tools               - Danh sách tools
-POST   /api/v1/tools/scan          - Scan code-based tools
+GET    /api/v1/agents              - Agent configuration
+PUT    /api/v1/agents/config       - Update agent config (prompt, params)
+GET    /api/v1/tools               - Danh sách tools available
+PUT    /api/v1/tools/{id}/toggle   - Enable/Disable tool
 GET    /api/v1/knowledge           - Knowledge base documents
-POST   /api/v1/knowledge/upload    - Upload document
-GET    /api/v1/settings            - System settings
-PUT    /api/v1/settings            - Update settings
+POST   /api/v1/knowledge/upload    - Upload document (PDF/DOCX/TXT/MD)
+POST   /api/v1/knowledge/test      - Test RAG retrieval
+GET    /api/v1/settings            - System settings (API keys, LLM config)
+PUT    /api/v1/settings            - Update settings (encrypted storage)
 ```
+
+---
+
+## 🤖 AI Agent Architecture
+
+**Single Agent + ReAct Pattern** (LangGraph implementation)
+
+**Core Components:**
+- **Pattern**: ReAct (Reason + Act) - Think → Act → Observe → Loop
+- **Orchestration**: LangGraph StateGraph
+- **Tools**: 5 tools via FastMCP (@mcp.tool): pet_care_qa, symptom_search, search_clinics, check_slots, create_booking
+- **RAG**: LlamaIndex + Qdrant Cloud + Cohere embeddings
+- **LLM**: OpenRouter API (gemini-2.0-flash/llama-3.3-70b/claude-3.5-sonnet)
+
+**Admin Dashboard:**
+- Agent Config (Enable/Disable, System Prompt, Model Selection)
+- Tool Management (Enable/Disable individual tools)
+- Knowledge Base (Upload docs → Auto-indexing → Qdrant)
+- System Settings (API Keys encrypted in DB, hot-reload)
+- Interactive Playground (Chat + ReAct flow visualization)
+
+**Cloud-Only Architecture** - Không cần GPU/Ollama local:
+- OpenRouter (LLM), Cohere (Embeddings), Qdrant Cloud (Vectors), Tavily (Web Search)
+
+📖 **Chi tiết**: Xem [TECHNICAL SCOPE - AGENT MANAGEMENT](./docs-references/documentation/TECHNICAL%20SCOPE%20PETTIES%20-%20AGENT%20MANAGEMENT.md)
 
 ---
 
 ## 📊 Feature Implementation Status
 
-> **Last Updated:** December 15, 2025  
+> **Last Updated:** December 25, 2025  
 > **Project Status:** 🔄 Sprint 1 In Progress (62% Complete)
 > **Current Sprint:** Sprint 1 - Project Setup, Infrastructure & Authentication
 
@@ -806,7 +877,7 @@ PUT    /api/v1/settings            - Update settings
 | Component | Completion | Status | Notes |
 |-----------|------------|--------|-------|
 | **Backend (Spring Boot)** | 15% | 🔄 In Progress | Auth (JWT, OAuth, Roles) ✅, Password Reset 🔄 |
-| **AI Service** | 10% | 🔄 In Progress | Basic setup ✅, LangGraph planned |
+| **AI Service** | 10% | 🔄 In Progress | Single Agent + ReAct ✅, LangGraph setup ✅, Tools planned |
 | **Web Frontend** | 20% | 🔄 In Progress | Login ✅, Admin Dashboard ✅, Other Dashboards 🔄 |
 | **Mobile App** | 25% | 🔄 In Progress | Auth ✅, Routing ✅, Home Screens ✅ |
 | **Infrastructure** | 90% | ✅ Ready | CI/CD ✅, Databases ✅, Docker ✅ |
@@ -830,16 +901,17 @@ PUT    /api/v1/settings            - Update settings
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Multi-Agent System | ✅ Done | Main, Booking, Medical, Research |
-| Dynamic Config Loader | ✅ Done | DB-based configuration |
+| Single Agent (ReAct) | ✅ Done | LangGraph implementation with ReAct pattern |
+| Dynamic Config Loader | ✅ Done | DB-based configuration with hot-reload |
 | Agent Factory | ✅ Done | Dynamic agent creation |
 | Prompt Management | ✅ Done | Versioned prompts in DB |
-| Tool System | ✅ Done | Scanner (Code-based only) |
-| Ollama Hybrid Mode | ✅ Done | Local/Cloud support |
-| RAG Pipeline | 🔄 50% | Qdrant client ✅, Document processing 🔄 |
-| Chat API | 🔄 50% | In-memory storage (needs migration) |
-| LLM Intent Classification | 🔄 In Progress | AG-04 - LLM + Prompt based |
-| WebSocket Streaming | ⚠️ TODO | PG-01 - Critical |
+| Tool System (@mcp.tool) | ✅ Done | FastMCP embedded tools |
+| Available Tools | ✅ Done | pet_care_qa, symptom_search, search_clinics, check_slots, create_booking |
+| Cloud AI Integration | ✅ Done | OpenRouter (LLM), Cohere (Embeddings), Qdrant Cloud |
+| RAG Pipeline | 🔄 50% | LlamaIndex + Qdrant client ✅, Document processing 🔄 |
+| Chat API | 🔄 50% | Basic endpoints (needs WebSocket) |
+| Admin Dashboard APIs | 🔄 In Progress | Agent config, Tool management, Knowledge base |
+| WebSocket Streaming | ⚠️ TODO | PG-01 - Critical for real-time chat |
 
 #### Web Frontend (React) - 20% Complete
 

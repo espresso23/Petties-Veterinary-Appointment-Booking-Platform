@@ -66,8 +66,8 @@ class ToolScanner:
         """
         self.logger.info("🔍 Starting tool scan...")
 
-        # Step 1: Get tools from FastMCP server
-        mcp_tools = get_mcp_tools_metadata()
+        # Step 1: Get tools from FastMCP server (async for FastMCP 2.x)
+        mcp_tools = await get_mcp_tools_metadata()
         total_tools = len(mcp_tools)
 
         self.logger.info(f"📋 Found {total_tools} tools in FastMCP server")
@@ -119,9 +119,9 @@ class ToolScanner:
 
             if existing_tool:
                 # Update existing tool metadata
-                existing_tool.description = tool_meta["description"]
-                existing_tool.input_schema = tool_meta["input_schema"]
-                existing_tool.output_schema = tool_meta["output_schema"]
+                existing_tool.description = tool_meta.get("description", "")
+                existing_tool.input_schema = tool_meta.get("input_schema")
+                existing_tool.output_schema = tool_meta.get("output_schema")
                 updated_count += 1
 
                 self.logger.info(f"🔄 Updated tool: {tool_name}")
@@ -129,9 +129,10 @@ class ToolScanner:
                 # Create new tool (all tools are code-based per TECHNICAL SCOPE v4.0)
                 new_tool = Tool(
                     name=tool_name,
-                    description=tool_meta["description"],
-                    input_schema=tool_meta["input_schema"],
-                    output_schema=tool_meta["output_schema"],
+                    description=tool_meta.get("description", ""),
+                    tool_type=tool_meta.get("tool_type", "code_based"),  # Explicitly set
+                    input_schema=tool_meta.get("input_schema"),
+                    output_schema=tool_meta.get("output_schema"),
                     enabled=False,  # Default disabled, admin needs to enable
                     assigned_agents=[]  # Empty list, admin needs to assign
                 )

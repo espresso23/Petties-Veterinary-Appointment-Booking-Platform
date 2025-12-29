@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { TrashIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 import type { Document } from '../../services/agentService'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 
 interface DocumentCardProps {
   document: Document
@@ -11,6 +13,8 @@ interface DocumentCardProps {
  * Shows document info, processing status, and vector count
  */
 export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
     if (bytes < 1024) return bytes + ' B'
@@ -59,59 +63,78 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
     }
   }
 
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    setShowDeleteConfirm(false)
+    await onDelete(document.id)
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5 hover:shadow-medium transition-shadow">
-      <div className="flex items-start gap-4">
-        {/* File Icon */}
-        {getFileIcon()}
+    <>
+      <div className="bg-white rounded-xl border border-stone-200 shadow-soft p-5 hover:shadow-medium transition-shadow">
+        <div className="flex items-start gap-4">
+          {/* File Icon */}
+          {getFileIcon()}
 
-        {/* Document Info */}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-stone-900 truncate mb-1">
-            {document.filename}
-          </h3>
-          
-          <div className="flex items-center gap-4 text-xs text-stone-500 mb-3">
-            <span>{formatFileSize(document.file_size)}</span>
-            <span>•</span>
-            <span>{formatDate(document.uploaded_at)}</span>
+          {/* Document Info */}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-stone-900 truncate mb-1">
+              {document.filename}
+            </h3>
+
+            <div className="flex items-center gap-4 text-xs text-stone-500 mb-3">
+              <span>{formatFileSize(document.file_size)}</span>
+              <span>•</span>
+              <span>{formatDate(document.uploaded_at)}</span>
+            </div>
+
+            {/* Status Badge */}
+            <div className="flex items-center gap-2">
+              {document.processed ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  <CheckCircleIcon className="w-3.5 h-3.5" />
+                  Processed
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                  <ClockIcon className="w-3.5 h-3.5" />
+                  Processing...
+                </span>
+              )}
+
+              {document.processed && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                  {document.vector_count} vectors
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Status Badge */}
-          <div className="flex items-center gap-2">
-            {document.processed ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                <CheckCircleIcon className="w-3.5 h-3.5" />
-                Processed
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                <ClockIcon className="w-3.5 h-3.5" />
-                Processing...
-              </span>
-            )}
-            
-            {document.processed && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                {document.vector_count} vectors
-              </span>
-            )}
-          </div>
+          {/* Delete Button */}
+          <button
+            onClick={handleDeleteClick}
+            className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            title="Delete document"
+          >
+            <TrashIcon className="w-5 h-5" />
+          </button>
         </div>
-
-        {/* Delete Button */}
-        <button
-          onClick={() => {
-            if (confirm(`Delete ${document.filename}?`)) {
-              onDelete(document.id)
-            }
-          }}
-          className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          title="Delete document"
-        >
-          <TrashIcon className="w-5 h-5" />
-        </button>
       </div>
-    </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa tài liệu"
+        message={`Bạn có chắc muốn xóa "${document.filename}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa tài liệu"
+        cancelText="Hủy bỏ"
+        variant="danger"
+      />
+    </>
   )
 }

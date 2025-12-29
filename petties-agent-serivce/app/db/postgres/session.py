@@ -75,12 +75,12 @@ async def get_db() -> AsyncSession:
 # ===== DATABASE INITIALIZATION =====
 async def init_db():
     """
-    Initialize database - Tạo tất cả tables
+    Initialize database - Tạo tất cả tables và apply migrations
 
     Purpose:
         - Tạo tables từ SQLAlchemy models
+        - Apply pending schema migrations (add missing columns)
         - Chạy khi application startup
-        - Sử dụng trong development (production nên dùng Alembic migrations)
     """
     from app.db.postgres.models import Base
 
@@ -88,6 +88,51 @@ async def init_db():
         # Create all tables
         await conn.run_sync(Base.metadata.create_all)
         logger.info("✅ Database tables created successfully")
+
+    # Apply schema migrations for existing tables
+    await apply_schema_migrations()
+
+
+async def apply_schema_migrations():
+    """
+    Apply schema migrations for columns that might be missing in existing tables.
+    This handles cases where create_all() doesn't add new columns to existing tables.
+    """
+    from sqlalchemy import text
+
+    migrations = [
+        # Add tool_type column to tools table
+        {
+            "check": "SELECT column_name FROM information_schema.columns WHERE table_name = 'tools' AND column_name = 'tool_type'",
+            "apply": "ALTER TABLE tools ADD COLUMN tool_type VARCHAR(20) DEFAULT 'code_based'",
+            "name": "tools.tool_type"
+        },
+        # Add top_p column to agents table
+        {
+            "check": "SELECT column_name FROM information_schema.columns WHERE table_name = 'agents' AND column_name = 'top_p'",
+            "apply": "ALTER TABLE agents ADD COLUMN top_p FLOAT DEFAULT 0.9",
+            "name": "agents.top_p"
+        },
+    ]
+
+    async with AsyncSessionLocal() as session:
+        for migration in migrations:
+            try:
+                # Check if column exists
+                result = await session.execute(text(migration["check"]))
+                exists = result.fetchone()
+
+                if not exists:
+                    # Apply migration
+                    await session.execute(text(migration["apply"]))
+                    await session.commit()
+                    logger.info(f"✅ Applied migration: {migration['name']}")
+                else:
+                    logger.debug(f"Migration already applied: {migration['name']}")
+
+            except Exception as e:
+                logger.warning(f"⚠️ Migration {migration['name']} skipped: {e}")
+                await session.rollback()
 
 
 async def close_db():
