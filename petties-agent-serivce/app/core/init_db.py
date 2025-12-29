@@ -1,7 +1,7 @@
 import asyncio
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from app.config.settings import get_settings
+from app.config.settings import settings
 from loguru import logger
 
 async def init_qdrant():
@@ -9,7 +9,6 @@ async def init_qdrant():
     Initialize Qdrant Collections based on ENV_DB_MIGRATION_STRATEGY.md
     This follows the 'Check-and-Init' pattern.
     """
-    settings = get_settings()
     client = QdrantClient(
         url=settings.QDRANT_URL,
         api_key=settings.QDRANT_API_KEY,

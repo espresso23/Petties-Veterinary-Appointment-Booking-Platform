@@ -89,9 +89,33 @@ async def init_db():
         from sqlalchemy import text
         import os
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        ini_path = os.path.join(base_dir, "alembic.ini")
+        # Tìm file alembic.ini linh hoạt hơn
+        curr_file = os.path.abspath(__file__)
+        # Thử tìm ở các cấp độ thư mục khác nhau
+        possible_ini_paths = [
+            os.path.join(os.path.dirname(curr_file), "../../../alembic.ini"), # Relative to session.py
+            os.path.join(os.getcwd(), "alembic.ini"),                         # Relative to CWD
+            "/app/alembic.ini",                                                # Docker default
+        ]
+        
+        ini_path = None
+        for p in possible_ini_paths:
+            if os.path.exists(p):
+                ini_path = os.path.abspath(p)
+                break
+        
+        if not ini_path:
+            logger.warning("⚠️ Could not find alembic.ini in possible paths.")
+            return
+
         alembic_cfg = Config(ini_path)
+        
+        # Đảm bảo script_location là đường dẫn tuyệt đối
+        # Lấy script_location từ ini và chuyển thành tuyệt đối dựa trên vị trí của ini
+        script_location = alembic_cfg.get_main_option("script_location")
+        if script_location and not os.path.isabs(script_location):
+            abs_script_location = os.path.join(os.path.dirname(ini_path), script_location)
+            alembic_cfg.set_main_option("script_location", abs_script_location)
 
         # Kiểm tra xem có bảng nào của AI chưa (vd: bảng agents)
         async with engine.connect() as conn:
@@ -109,7 +133,6 @@ async def init_db():
 
         if table_exists and not version_exists:
             logger.info("⚠️ Detected existing tables but no Alembic history. Stamping as head...")
-            # Nếu bảng có rồi mà chưa có version -> Đánh dấu là đã xong version hiện tại (để không chạy lại CREATE TABLE)
             command.stamp(alembic_cfg, "head")
         else:
             logger.info("🔄 Running database migrations via Alembic API...")
