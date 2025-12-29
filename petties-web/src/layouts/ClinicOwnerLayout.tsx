@@ -1,6 +1,8 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationPolling } from '../hooks/useNotificationPolling'
+import { useNotificationStore } from '../store/notificationStore'
 import '../styles/brutalist.css'
 
 interface NavItem {
@@ -17,7 +19,16 @@ export const ClinicOwnerLayout = () => {
     const navigate = useNavigate()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
-    const { unreadCount } = useNotificationPolling({ interval: 30000, fetchLimit: 5 })
+    // Use Zustand store for unread count (synced across components)
+    const unreadCount = useNotificationStore((state) => state.unreadCount)
+    const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    // Still use polling hook for toast notifications
+    useNotificationPolling({ interval: 30000, fetchLimit: 5 })
+
+    // Load unread count on mount
+    useEffect(() => {
+        refreshUnreadCount()
+    }, [refreshUnreadCount])
 
     const navItems: NavItem[] = [
         { path: '/clinic-owner', label: 'DASHBOARD', end: true },
