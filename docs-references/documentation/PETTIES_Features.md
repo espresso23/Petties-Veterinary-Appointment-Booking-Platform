@@ -151,7 +151,6 @@
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
-- 🤖 Vaccination Tracker - Xem sổ tiêm chủng ✅ (FE/BE)
 - 🤖 Home Visit Tracking ✅ (FE/BE)
 - 🤖 Dynamic Pricing ✅ (BE)
 - 🤖 Manual Scheduling ✅ (FE/BE)

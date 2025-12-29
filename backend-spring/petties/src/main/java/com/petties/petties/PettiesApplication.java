@@ -9,7 +9,9 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class PettiesApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PettiesApplication.class, args);
+        SpringApplication app = new SpringApplication(PettiesApplication.class);
+        // Optimize startup performance and memory scan
+        app.run(args);
     }
 
 }

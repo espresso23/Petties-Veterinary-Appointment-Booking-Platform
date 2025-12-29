@@ -45,7 +45,12 @@ async def lifespan(app: FastAPI):
     try:
         from app.db.postgres.session import init_db
         await init_db()
-        logger.info("✅ Database initialized")
+        logger.info("✅ PostgreSQL database initialized")
+        
+        # Initialize Qdrant Collection
+        from app.core.init_db import init_qdrant
+        await init_qdrant()
+        logger.info("✅ Qdrant vector database initialized")
     except Exception as e:
         logger.warning(f"⚠️ Database init skipped: {e}")
 

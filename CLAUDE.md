@@ -176,6 +176,7 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 11. Create Unit Testing and System testing for new feature use JUnit for Spring Boot and pytest for Python.
 12. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
 13. Always follow the app design style for the frontend in `docs-references/`.
+14. Từ giờ, mỗi khi bạn thêm trường mới vào Entity trong Java, hãy nhớ tạo thêm file V2__<ten_file>.sql, V3__... tương ứng nhé!
 
 ## Context & Clarification Rules
 
