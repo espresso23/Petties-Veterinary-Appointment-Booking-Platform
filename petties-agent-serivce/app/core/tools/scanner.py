@@ -130,6 +130,7 @@ class ToolScanner:
                 new_tool = Tool(
                     name=tool_name,
                     description=tool_meta.get("description", ""),
+                    tool_type=tool_meta.get("tool_type", "code_based"),  # Explicitly set
                     input_schema=tool_meta.get("input_schema"),
                     output_schema=tool_meta.get("output_schema"),
                     enabled=False,  # Default disabled, admin needs to enable

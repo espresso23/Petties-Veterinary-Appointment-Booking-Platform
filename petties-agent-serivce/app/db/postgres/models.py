@@ -104,7 +104,8 @@ class Tool(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
     description = Column(Text)  # Semantic description cho LLM
-    tool_type = Column(Enum(ToolType), default=ToolType.CODE_BASED)
+    # Use String instead of Enum for easier migration compatibility
+    tool_type = Column(String(20), default="code_based")
 
     # Schema definition (JSON format)
     input_schema = Column(JSON)
