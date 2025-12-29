@@ -32,18 +32,29 @@ mcp_server = FastMCP("Petties Agent Tools")
 async def get_mcp_tools_metadata() -> List[Dict[str, Any]]:
     """
     Retrieve tool metadata from FastMCP server (async version for FastMCP 2.x).
-    Returns simplified metadata (no schema - not needed for Admin UI).
+    Returns full metadata including input/output schema for Admin Dashboard.
     """
     tools_metadata = []
-    
+
     # FastMCP 2.x uses async get_tools() method
     tools = await mcp_server.get_tools()
-    
+
     for tool_name, tool in tools.items():
+        # Extract input schema from tool parameters
+        input_schema = None
+        if hasattr(tool, 'parameters') and tool.parameters:
+            input_schema = tool.parameters
+        elif hasattr(tool, 'inputSchema'):
+            input_schema = tool.inputSchema
+        elif hasattr(tool, 'input_schema'):
+            input_schema = tool.input_schema
+
         metadata = {
             "name": tool_name,
             "description": tool.description or "",
             "tool_type": "code_based",
+            "input_schema": input_schema,
+            "output_schema": None,  # FastMCP doesn't provide output schema
         }
         tools_metadata.append(metadata)
 
