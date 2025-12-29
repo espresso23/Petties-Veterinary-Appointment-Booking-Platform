@@ -20,7 +20,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
-  
+
   // Form controllers
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -28,22 +28,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
-  
+
   // OTP controllers (6 digits)
-  final List<TextEditingController> _otpControllers = 
+  final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
   late final List<FocusNode> _otpFocusNodes;
-  
+
   // State
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _error;
-  
+
   // Step: 'form' or 'otp'
   String _step = 'form';
   String _registrationEmail = '';
-  
+
   // Resend countdown
   int _resendCountdown = 0;
   Timer? _countdownTimer;
@@ -125,7 +125,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         username: _usernameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        phone: _phoneController.text.isNotEmpty ? _phoneController.text.trim() : null,
+        phone: _phoneController.text.isNotEmpty
+            ? _phoneController.text.trim()
+            : null,
         fullName: _fullNameController.text.trim(),
         role: 'PET_OWNER',
       );
@@ -134,9 +136,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _step = 'otp';
         _registrationEmail = _emailController.text.trim();
       });
-      
+
       _startResendCountdown(response.resendCooldownSeconds);
-      
+
       if (mounted) {
         _showSuccessToast(response.message);
       }
@@ -199,7 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final response = await _authService.resendOtp(email: _registrationEmail);
       _startResendCountdown(response.resendCooldownSeconds);
-      
+
       if (mounted) {
         _showSuccessToast(response.message);
       }
@@ -262,7 +264,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             // Fixed bottom section
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
               decoration: BoxDecoration(
                 color: AppColors.stone50,
                 border: Border(
@@ -311,7 +314,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: GestureDetector(
               onTap: () => context.go(AppRoutes.login),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColors.stone900, width: 2),
                 ),
@@ -349,7 +353,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
                   ],
                 ),
-                child: const Icon(Icons.person_add, size: 48, color: AppColors.primary),
+                child: const Icon(Icons.person_add,
+                    size: 48, color: AppColors.primary),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -389,7 +394,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Expanded(
                   child: Text(
                     _error!,
-                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.error, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -472,6 +478,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hintText: 'Nhập số điện thoại',
                   prefixIcon: Icons.phone,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return null; // Optional
+                    }
+                    if (!RegExp(r'^0[0-9]{9,10}$').hasMatch(value)) {
+                      return 'SĐT phải từ 10-11 số và bắt đầu bằng số 0';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -484,10 +500,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   obscureText: _obscurePassword,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: AppColors.stone500,
                     ),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -510,10 +529,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   obscureText: _obscureConfirmPassword,
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                      _obscureConfirmPassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: AppColors.stone500,
                     ),
-                    onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                    onPressed: () => setState(() =>
+                        _obscureConfirmPassword = !_obscureConfirmPassword),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -553,7 +575,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: GestureDetector(
               onTap: _handleBackToForm,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   border: Border.all(color: AppColors.stone900, width: 2),
                 ),
@@ -591,7 +614,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
                   ],
                 ),
-                child: const Icon(Icons.email, size: 48, color: AppColors.primary),
+                child:
+                    const Icon(Icons.email, size: 48, color: AppColors.primary),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -637,7 +661,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Expanded(
                   child: Text(
                     _error!,
-                    style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: AppColors.error, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -701,9 +726,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               color: AppColors.primary, width: 3),
                         ),
                       ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (value) {
                         if (value.isNotEmpty && index < 5) {
                           _otpFocusNodes[index + 1].requestFocus();
@@ -743,15 +766,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     style: TextStyle(color: AppColors.stone600),
                   ),
                   GestureDetector(
-                    onTap: _resendCountdown > 0 || _isLoading ? null : _handleResendOtp,
+                    onTap: _resendCountdown > 0 || _isLoading
+                        ? null
+                        : _handleResendOtp,
                     child: Text(
                       _resendCountdown > 0
                           ? 'Gửi lại (${_resendCountdown}s)'
                           : 'Gửi lại',
                       style: TextStyle(
-                        color: _resendCountdown > 0 ? AppColors.stone400 : AppColors.primary,
+                        color: _resendCountdown > 0
+                            ? AppColors.stone400
+                            : AppColors.primary,
                         fontWeight: FontWeight.w700,
-                        decoration: _resendCountdown > 0 ? null : TextDecoration.underline,
+                        decoration: _resendCountdown > 0
+                            ? null
+                            : TextDecoration.underline,
                       ),
                     ),
                   ),
@@ -799,12 +828,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Widget? suffixIcon,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
       validator: validator,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: const TextStyle(
         fontWeight: FontWeight.w500,
         color: AppColors.stone900,
@@ -816,7 +847,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         suffixIcon: suffixIcon,
         filled: true,
         fillColor: AppColors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: const BorderSide(color: AppColors.stone900, width: 3),
@@ -864,7 +896,7 @@ class _BrutalButtonState extends State<_BrutalButton> {
   @override
   Widget build(BuildContext context) {
     final isDisabled = widget.onPressed == null || widget.isLoading;
-    
+
     return GestureDetector(
       onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
       onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),

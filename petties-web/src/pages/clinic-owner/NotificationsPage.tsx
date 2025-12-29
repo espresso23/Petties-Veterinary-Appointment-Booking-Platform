@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { notificationService } from '../../services/api/notificationService'
 import type { ClinicNotification } from '../../services/api/notificationService'
 import { useToast } from '../../components/Toast'
+import { useNotificationStore } from '../../store/notificationStore'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
@@ -15,8 +16,10 @@ export const NotificationsPage = () => {
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [totalElements, setTotalElements] = useState(0)
-  const [unreadCount, setUnreadCount] = useState(0)
   const { showToast } = useToast()
+  // Use Zustand store for unread count (synced with sidebar)
+  const unreadCount = useNotificationStore((state) => state.unreadCount)
+  const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
 
   const loadNotifications = async () => {
     try {
@@ -34,12 +37,7 @@ export const NotificationsPage = () => {
   }
 
   const loadUnreadCount = async () => {
-    try {
-      const count = await notificationService.getUnreadCount()
-      setUnreadCount(count)
-    } catch (error) {
-      console.error('Failed to load unread count', error)
-    }
+    await refreshUnreadCount()
   }
 
   useEffect(() => {
@@ -53,7 +51,8 @@ export const NotificationsPage = () => {
       setNotifications((prev) =>
         prev.map((n) => (n.notificationId === notificationId ? { ...n, read: true } : n))
       )
-      await loadUnreadCount()
+      // Refresh unread count immediately to update sidebar
+      await refreshUnreadCount()
     } catch (error: any) {
       showToast('error', 'Không thể đánh dấu đã đọc')
     }
@@ -63,7 +62,8 @@ export const NotificationsPage = () => {
     try {
       await notificationService.markAllAsRead()
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-      await loadUnreadCount()
+      // Refresh unread count immediately to update sidebar
+      await refreshUnreadCount()
       showToast('success', 'Đã đánh dấu tất cả đã đọc')
     } catch (error: any) {
       showToast('error', 'Không thể đánh dấu tất cả đã đọc')

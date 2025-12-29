@@ -16,7 +16,7 @@ name: CI - Build & Test
 
 on:
   pull_request:
-    branches: [integrationFeature, develop, main]
+    branches: [intergrationFeature, develop, main]
 
 jobs:
   # ================================

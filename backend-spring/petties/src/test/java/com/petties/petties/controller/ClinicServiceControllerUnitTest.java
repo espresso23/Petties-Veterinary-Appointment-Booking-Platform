@@ -95,6 +95,7 @@ class ClinicServiceControllerUnitTest {
                 testServiceRequest.setPricePerKm(new BigDecimal("10000.0"));
                 testServiceRequest.setServiceCategory("Khám bệnh");
                 testServiceRequest.setPetType("Chó");
+                testServiceRequest.setClinicId(testClinicId);
                 testServiceRequest.setWeightPrices(weightPrices);
 
                 testServiceResponse = ClinicServiceResponse.builder()

@@ -101,6 +101,12 @@ export function RegisterPage() {
             return
         }
 
+        // Validate phone if provided (10-11 digits, starts with 0)
+        if (phone && !/^0[0-9]{9,10}$/.test(phone)) {
+            setError('Số điện thoại phải từ 10-11 số và bắt đầu bằng số 0.')
+            return
+        }
+
         setIsLoading(true)
 
         try {
@@ -362,7 +368,7 @@ export function RegisterPage() {
                                         id="phone"
                                         type="tel"
                                         value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
+                                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                                         placeholder="Nhập số điện thoại (tùy chọn)"
                                         disabled={isLoading}
                                         className="input-brutal text-sm"

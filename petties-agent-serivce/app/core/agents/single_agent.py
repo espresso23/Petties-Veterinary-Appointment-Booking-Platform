@@ -29,34 +29,34 @@ from app.core.agents.state import ReActState, ReActStep, create_initial_react_st
 
 # ===== DEFAULT SYSTEM PROMPT =====
 
-DEFAULT_SYSTEM_PROMPT = """Ban la Petties AI Assistant - tro ly AI chuyen ve cham soc thu cung.
+DEFAULT_SYSTEM_PROMPT = """Bạn là Petties AI Assistant - trợ lý AI chuyên về chăm sóc thú cưng.
 
-## NHIEM VU
-- Tu van suc khoe thu cung, chan doan so bo dua tren trieu chung
-- Ho tro dat lich kham tai phong kham thu y
-- Tim kiem thong tin ve cham soc thu cung, san pham, dich vu
-- Tra loi cac cau hoi ve thu cung bang tieng Viet than thien
+## NHIỆM VỤ
+- Tư vấn sức khỏe thú cưng, chẩn đoán bệnh dựa trên triệu chứng
+- Hỗ trợ đặt lịch khám tại phòng khám thú y
+- Tìm kiếm thông tin về chăm sóc thú cưng, sản phẩm, dịch vụ
+- Trả lời câu hỏi về thú cưng bằng tiếng Việt thân thiện
 
-## QUY TAC
-1. Luon tra loi bang tieng Viet, than thien va de hieu
-2. Khi can thong tin, su dung tools duoc cung cap
-3. Khong dua ra chan doan cuoi cung - luon khuyen khich gap bac si thu y
-4. Uu tien an toan va suc khoe cua thu cung
+## QUY TẮC
+1. Luôn trả lời bằng tiếng Việt, thân thiện và dễ hiểu
+2. Khi cần thông tin, sử dụng tools được cung cấp
+3. Không đưa ra chẩn đoán cuối cùng - luôn khuyến khích gặp bác sĩ thú y
+4. Uu tiên an toàn và sức khỏe của thú cưng
 
 ## REACT PATTERN
-Su dung pattern Thought -> Action -> Observation:
-1. Thought: Suy nghi ve cau hoi cua user va xac dinh can lam gi
-2. Action: Goi tool phu hop (neu can)
-3. Observation: Xem ket qua tu tool
-4. Repeat hoac tra loi cuoi cung
+Su dung patternThought -> Action -> Observation:
+1.Thought: Suy nghĩ về câu hỏi của user và xác định cần làm gì
+2.Action: Gọi tool phù hợp (nếu cần)
+3.Observation: Xem kết quả từ tool
+4. Repeat hoặc trả lời cuối cùng
 
 ## TOOLS
-Ban co the su dung cac tools sau (chi khi enabled):
-- search_symptoms: Tim benh dua tren trieu chung
-- RAG_search: Tim kiem kien thuc tu knowledge base
-- check_slot: Kiem tra slot trong tai phong kham
-- create_booking: Tao lich hen kham
-- search_clinics: Tim phong kham gan vi tri user
+Ban có thể sử dụng các tools sau (chỉ khi enabled):
+- search_symptoms: Tìm bệnh dựa trên triệu chứng
+- RAG_search: Tìm kiếm kiến thức từ knowledge base
+- check_slot: Kiểm tra slot trong tai phòng khám
+- create_booking: Tạo lịch hẹn khám
+- search_clinics: Tìm phòng khám gần vị trí user
 """
 
 
@@ -90,7 +90,7 @@ class SingleAgent:
         top_p: float = 0.9,
         enabled_tools: Optional[List[str]] = None,
         tool_schemas: Optional[List[Dict[str, Any]]] = None,
-        max_iterations: int = 10
+        max_iterations: int = 5  # Reduced from 10 to prevent excessive looping
     ):
         """
         Khoi tao Single Agent
@@ -253,17 +253,28 @@ class SingleAgent:
             new_react_steps = [step]
             logger.info(f"THOUGHT: {parsed.get('thought', thought_content)[:100]}...")
 
-            # 6. Create pending tool call if tool name is found
+            # 6. Create pending tool call if tool name is found AND params are valid
             pending_tool_call = None
             should_end = parsed.get("should_end", False)
-            
-            if parsed.get("tool_name"):
-                pending_tool_call = {
-                    "name": parsed["tool_name"],
-                    "arguments": parsed.get("tool_params", {})
-                }
-                # If there is a tool call, we MUST NOT end yet
-                should_end = False
+
+            tool_name = parsed.get("tool_name")
+            tool_params = parsed.get("tool_params", {})
+
+            if tool_name:
+                # Check if tool_params is empty - if so, don't make the call
+                # because it will fail with "Missing required parameter"
+                if not tool_params or len(tool_params) == 0:
+                    logger.warning(f"Tool '{tool_name}' called with empty params - skipping to avoid error")
+                    # Force end and provide helpful message
+                    should_end = True
+                    parsed["thought"] = f"Không thể gọi tool {tool_name} do thiếu tham số. Vui lòng đặt câu hỏi cụ thể hơn."
+                else:
+                    pending_tool_call = {
+                        "name": tool_name,
+                        "arguments": tool_params
+                    }
+                    # If there is a valid tool call, we MUST NOT end yet
+                    should_end = False
 
             # 5. Determine final answer
             final_answer = None
@@ -300,25 +311,68 @@ class SingleAgent:
         # Pattern bao quat hon: Tim sau tu khoa Tool hoac Action, bo qua các ky tu Markdown nhu *
         tool_match = re.search(r"(?:\*+|#|)\s*(?:Tool|Action)\s*(?:\*+|#|):\s*([\w_]+)", thought_content, re.IGNORECASE)
         if tool_match:
-            tool_name = tool_match.group(1).strip()
+            extracted_name = tool_match.group(1).strip()
+            # Validate tool name against enabled_tools to prevent hallucinated tool names
+            # e.g., "Không" (Vietnamese for "No") being parsed as a tool name
+            if extracted_name.upper() in [t.upper() for t in self.enabled_tools]:
+                tool_name = extracted_name
+            else:
+                logger.warning(f"Extracted tool name '{extracted_name}' not in enabled_tools {self.enabled_tools}, ignoring")
         
-        # 2. Tim Tool Input (JSON)
+        # 2. Tim Tool Input (JSON) - Multiple patterns for different LLM output formats
         tool_params = {}
-        # Pattern tim JSON trong ngoac nhon sau Tool Input hoac Action Input
-        input_match = re.search(r"(?:\*+|#|)\s*(?:Tool Input|Action Input)\s*(?:\*+|#|):\s*(\{.*\})", thought_content, re.DOTALL | re.IGNORECASE)
+
+        # Pattern 1: Standard format - Tool Input: {...} or Action Input: {...}
+        input_match = re.search(
+            r"(?:\*+|#|)\s*(?:Tool Input|Action Input|Input)\s*(?:\*+|#|):\s*(\{.*?\})",
+            thought_content,
+            re.DOTALL | re.IGNORECASE
+        )
+
+        # Pattern 2: JSON on new line after Tool Input:
+        if not input_match:
+            input_match = re.search(
+                r"(?:Tool Input|Action Input|Input)\s*(?:\*+|#|)?:\s*\n\s*(\{.*?\})",
+                thought_content,
+                re.DOTALL | re.IGNORECASE
+            )
+
+        # Pattern 3: Fallback - find any JSON object in the content (only if tool_name found)
+        if not input_match and tool_name:
+            # Find the last JSON object in the content (more likely to be params)
+            json_objects = re.findall(r"(\{[^{}]*\})", thought_content)
+            if json_objects:
+                # Try the last JSON object first (usually the params)
+                for json_str in reversed(json_objects):
+                    try:
+                        potential_params = json.loads(json_str)
+                        if isinstance(potential_params, dict) and len(potential_params) > 0:
+                            tool_params = potential_params
+                            logger.info(f"Extracted params from fallback JSON: {tool_params}")
+                            break
+                    except:
+                        continue
+
+        # Parse JSON if pattern matched
         if input_match:
             try:
                 params_str = input_match.group(1).strip()
                 tool_params = json.loads(params_str)
             except Exception as e:
                 logger.warning(f"Failed to parse tool params JSON: {e}")
-                # Try fallback JSON extraction
-                json_match = re.search(r"(\{.*\})", params_str, re.DOTALL)
+                # Try to extract just the JSON part
+                json_match = re.search(r"(\{[^{}]*\})", params_str)
                 if json_match:
                     try:
                         tool_params = json.loads(json_match.group(1))
                     except:
                         tool_params = {}
+
+        # Normalize parameter keys: strip whitespace from keys
+        # LLM sometimes outputs { "query ": "..." } with trailing space
+        if tool_params and isinstance(tool_params, dict):
+            tool_params = {k.strip(): v for k, v in tool_params.items()}
+            logger.debug(f"Normalized tool params: {tool_params}")
 
         # 3. Clean thought content
         clean_thought = thought_content
@@ -582,27 +636,26 @@ class SingleAgent:
                 user_message = content
                 break
 
-        # Build prompt parts
+        # Build prompt parts - USE SYSTEM PROMPT FROM DATABASE
         prompt_parts = [
-            f"""Bạn là Petties AI Assistant - Chuyên gia hỗ trợ chăm sóc thú cưng chuyên nghiệp.
-Hệ thống: {self.name} ({self.agent_type})
+            f"""Hệ thống: {self.name} ({self.agent_type})
 
-NHIỆM VỤ QUAN TRỌNG:
-1. Đối với các câu hỏi về sức khỏe, triệu chứng bệnh (ví dụ: tiêu chảy, bỏ ăn, nôn mửa), bạn PHẢI sử dụng công cụ tra cứu kiến thức để đảm bảo độ chính xác y tế. KHÔNG ĐƯỢC tự trả lời dựa trên kiến thức cá nhân.
-2. Bạn sử dụng mô hình ReAct (Thought -> Action -> Observation).
-3. Luôn luôn SUY NGHĨ kỹ trước khi quyết định gọi công cụ hay trả lời.
-4. QUY TẮC VÀNG: Tuyệt đối không gọi cùng một tool với cùng một tham số quá 1 lần. Nếu Observation đã có thông tin, hãy dùng nó để trả lời trực tiếp cho người dùng. Nếu thông tin từ tool không đủ, hãy thử một cách tiếp cận khác hoặc thông báo cho người dùng, thay vì lặp lại hành động cũ.
-5. TRUY VẤN: Luôn ưu tiên sử dụng tool tra cứu thông tin (Knowledge Base) thay vì tự bịa ra thông tin y tế.
+=== HƯỚNG DẪN TỪ ADMIN (Database) ===
+{self.system_prompt}
 
-QUY TẮC PHẢN HỒI (BẮT BUỘC):
-Để gọi công cụ, bạn phải viết theo định dạng:
+=== QUY TẮC REACT FORMAT (Bắt buộc) ===
+Để gọi công cụ, bạn PHẢI viết theo định dạng CHÍNH XÁC:
 Thought: [Giải thích tại sao bạn cần gọi công cụ này]
-Tool: [Tên công cụ]
+Tool: [Tên công cụ chính xác từ danh sách CÔNG CỤ CÓ SẴN]
 Tool Input: {{ "param_name": "giá trị" }}
 
 Sau khi nhận được kết quả (Observation), nếu đã đủ thông tin, bạn trả lời bằng định dạng:
 Thought: [Tổng hợp thông tin thu thập được]
 Final Answer: [Câu trả lời đầy đủ và thân thiện cho người dùng bằng tiếng Việt]
+
+LƯU Ý QUAN TRỌNG:
+- Nếu không cần gọi công cụ, hãy đi thẳng đến Final Answer. TUYỆT ĐỐI KHÔNG viết "Tool: Không", "Tool: None" hoặc bất kỳ giá trị không hợp lệ nào.
+- Chỉ sử dụng tên công cụ CHÍNH XÁC từ danh sách CÔNG CỤ CÓ SẴN bên dưới.
 
 Bối cảnh hệ thống:
 {context}

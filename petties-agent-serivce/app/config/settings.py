@@ -289,5 +289,4 @@ if __name__ == "__main__":
     print(f"  DATABASE_URL: {settings.DATABASE_URL}")
     print(f"  QDRANT_URL: {settings.QDRANT_URL}")
     print(f"  LLM_PROVIDER: {settings.LLM_PROVIDER}")
-    print(f"  OLLAMA_MODEL: {settings.OLLAMA_MODEL}")
     print("✅ Settings loaded successfully!")

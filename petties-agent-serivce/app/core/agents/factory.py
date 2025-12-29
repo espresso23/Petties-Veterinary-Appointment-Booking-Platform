@@ -81,13 +81,15 @@ class AgentFactory:
         logger.info(f"Loading agent: {agent_config.name}")
 
         # 2. Load LLM client with provider/model override
+        # If no model_override provided, use the agent's configured model from DB
+        effective_model = model_override or agent_config.model
         llm_client = await create_llm_client_from_db(
             db_session,
             provider_override=provider_override,
-            model_override=model_override
+            model_override=effective_model
         )
 
-        logger.info(f"LLM client created: provider={provider_override or 'default'}, model={model_override or 'default'}")
+        logger.info(f"LLM client created: provider={provider_override or 'default'}, model={effective_model}")
 
         # 4. Load enabled tools tu DB
         tools_result = await db_session.execute(
@@ -162,13 +164,15 @@ class AgentFactory:
             raise ValueError(f"Agent '{agent_config.name}' is disabled")
 
         # Load LLM client with provider/model override
+        # If no model_override provided, use the agent's configured model from DB
+        effective_model = model_override or agent_config.model
         llm_client = await create_llm_client_from_db(
             db_session,
             provider_override=provider_override,
-            model_override=model_override
+            model_override=effective_model
         )
 
-        logger.info(f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={model_override or 'default'}")
+        logger.info(f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={effective_model}")
 
         # Load enabled tools tu DB
         tools_result = await db_session.execute(
