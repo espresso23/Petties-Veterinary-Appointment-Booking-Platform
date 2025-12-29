@@ -21,7 +21,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: test
       # Hibernate auto-create schema for test DB
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       # Neon PostgreSQL - TEST Branch
       DB_HOST: ${DB_HOST_TEST:-ep-test-branch.neon.tech}
       DB_PORT: ${DB_PORT:-5432}
@@ -51,7 +51,8 @@ services:
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_SSL: ${REDIS_SSL:-false}
-      # Sentry Error Monitoring (disabled for test)
+      # JVM Tuning for 512M Container
+      JAVA_OPTS: "-Xmx384m -Xms256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m"
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
       SENTRY_ENABLED: false
     ports:
