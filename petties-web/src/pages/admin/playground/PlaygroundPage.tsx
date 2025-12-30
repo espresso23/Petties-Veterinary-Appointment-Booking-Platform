@@ -227,7 +227,7 @@ export const PlaygroundPage = () => {
       })
       if (!response.ok) throw new Error('Failed to seed database')
 
-      const data = await response.json()
+      await response.json()
       toast.showToast('success', 'Dữ liệu mẫu đã được nạp thành công!')
       await loadAgentData() // Reload agents
     } catch (err) {
