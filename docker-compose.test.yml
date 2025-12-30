@@ -51,8 +51,8 @@ services:
       REDIS_PORT: ${REDIS_PORT:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_SSL: ${REDIS_SSL:-false}
-      # JVM Tuning for 512M Container
-      JAVA_OPTS: "-Xmx384m -Xms256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m"
+      # JVM Tuning for 384M Container (Test environment)
+      JAVA_OPTS: "-Xmx192m -Xms128m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m"
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
       SENTRY_ENABLED: false
     ports:
@@ -68,9 +68,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Lower than prod to save resources
+          memory: 384M # Reduced from 512M
         reservations:
-          memory: 256M
+          memory: 192M
 
   # ============================================
   # PYTHON AI AGENT SERVICE (Test)
@@ -123,9 +123,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Lower than prod to save resources
+          memory: 256M # Minimal for test
         reservations:
-          memory: 256M
+          memory: 128M
 
 # ============================================
 # NETWORKS (Separate from Production)
