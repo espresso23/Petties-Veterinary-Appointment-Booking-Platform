@@ -368,7 +368,7 @@ erDiagram
         int session_id FK
         varchar role "user|assistant|system"
         text content
-        json metadata
+        json message_metadata "Lưu tool_calls, thinking steps, v.v."
         timestamp timestamp
     }
 
@@ -383,11 +383,12 @@ erDiagram
         timestamp uploaded_at
     }
 
-    AI_SETTING {
+    AI_SYSTEM_SETTING {
         int id PK
         varchar key UK
         text value
         enum category "llm|rag|vector_db|general"
+        text description
         boolean is_sensitive
     }
 
@@ -1201,7 +1202,7 @@ Stores individual messages within an AI chat session.
 | `session_id` | int FK | Liên kết đến AI_CHAT_SESSION |
 | `role` | varchar | user, assistant, hoặc system |
 | `content` | text | Nội dung tin nhắn |
-| `metadata` | JSON | Lưu tool_calls, thinking steps, etc. |
+| `message_metadata` | JSON | Lưu tool_calls, thinking steps, etc. |
 
 ---
 
@@ -1223,14 +1224,15 @@ Tracks documents uploaded to the system to be used for Retrieval-Augmented Gener
 
 ---
 
-### **2.27 AI_SETTING** – AI System Settings
+### **2.27 AI_SYSTEM_SETTING** – AI System Settings
 
 **Purpose:**
-Stores global configurations such as API keys and URLs for AI services.
+Stores global configurations such as API keys and URLs for AI services. Matches the `system_settings` table in DB.
 
 **Business Role:**
 - Allows dynamic update of API keys (OpenRouter, Cohere) via Admin Dashboard.
 - Encrypts sensitive values (API keys).
+- Provides description for each setting key.
 
 **Key Attributes:**
 | Attribute | Type | Description |
@@ -1238,6 +1240,7 @@ Stores global configurations such as API keys and URLs for AI services.
 | `key` | varchar | Tên cài đặt (e.g., "COHERE_API_KEY") |
 | `value` | text | Nội dung giá trị (có thể mã hóa) |
 | `category` | enum | llm, rag, vector_db, general |
+| `description` | text | Mô tả mục đích của cài đặt |
 
 ---
 
@@ -1274,7 +1277,7 @@ Stores global configurations such as API keys and URLs for AI services.
 | 27 | AI_CHAT_SESSION | AI | Phiên hội thoại AI | Sessions with AI |
 | 28 | AI_CHAT_MESSAGE | AI | Tin nhắn AI | Messages within AI sessions |
 | 29 | AI_KNOWLEDGE_DOC | AI | Tri thức RAG | Knowledge base documents |
-| 30 | AI_SETTING | AI | Cài đặt AI | Global API keys & configs |
+| 30 | AI_SYSTEM_SETTING | AI | Cài đặt AI (system_settings) | Global API keys & configs |
 
 ---
 
