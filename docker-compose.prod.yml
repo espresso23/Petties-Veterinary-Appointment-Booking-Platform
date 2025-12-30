@@ -56,6 +56,8 @@ services:
       # Sentry Error Monitoring
       SENTRY_DSN: ${SENTRY_BACKEND_DSN:-}
       SENTRY_ENABLED: ${SENTRY_ENABLED:-false}
+      # JVM Tuning for limited RAM (v0.1)
+      JAVA_OPTS: "-Xmx320m -Xms256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=128m"
     ports:
       - "127.0.0.1:8080:8080" # Bind to localhost only (Nginx reverse proxy)
     networks:
@@ -69,7 +71,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M # Optimized for t3.small (2GB RAM)
+          memory: 512M # Reduced from 768M
         reservations:
           memory: 384M
 
@@ -123,9 +125,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M # Optimized for t3.small (2GB RAM)
+          memory: 384M # Reduced from 768M (Cloud-only AI is lightweight)
         reservations:
-          memory: 384M
+          memory: 256M
 
 # ============================================
 # NETWORKS
