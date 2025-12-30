@@ -72,6 +72,9 @@ COPY --from=builder /root/.local /home/petties/.local
 # Copy application code
 COPY --chown=petties:petties ./app ./app
 
+# Copy Alembic configuration for database migrations
+COPY --chown=petties:petties ./alembic.ini ./alembic.ini
+
 # Create necessary directories
 RUN mkdir -p /app/uploads /app/logs \
     && chown -R petties:petties /app

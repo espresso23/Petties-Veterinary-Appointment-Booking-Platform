@@ -1,0 +1,63 @@
+{
+    "name": "Petties Full-Stack MonoRepo",
+    "dockerComposeFile": [
+        "../docker-compose.dev.yml"
+    ],
+    "service": "backend",
+    "workspaceFolder": "/workspace",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "java.configuration.updateBuildConfiguration": "automatic",
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "editor.formatOnSave": true,
+                "terminal.integrated.shell.linux": "/bin/bash"
+            },
+            "extensions": [
+                "vscjava.vscode-java-pack",
+                "ms-python.python",
+                "dbaeumer.vscode-eslint",
+                "esbenp.prettier-vscode",
+                "ms-azuretools.vscode-docker",
+                "vscjava.vscode-maven",
+                "dart-code.flutter",
+                "vscjava.vscode-spring-boot-dashboard",
+                "vmware.vscode-spring-boot",
+                "Postman.postman-for-vscode",
+                "mongodb.mongodb-vscode",
+                "ckfinite.resource-monitor"
+            ]
+        }
+    },
+    // Chuyển sang root để có quyền cài đặt Feature và Tooling
+    "remoteUser": "root",
+    "updateRemoteUserUID": true,
+    // Override command của docker-compose để container không bị tắt ngay lập tức
+    "overrideCommand": false,
+    "postCreateCommand": "echo 'Container initialized. Use the terminal to run your services.'",
+    "forwardPorts": [
+        8080, // Backend
+        8000, // AI Service
+        5173, // Web
+        5432, // Postgres
+        27017, // MongoDB
+        6379 // Redis
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": "true",
+            "configureZshAsDefaultShell": "true"
+        },
+        "ghcr.io/devcontainers/features/java:1": {
+            "version": "21",
+            "installMaven": "true"
+        },
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.12"
+        },
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "20"
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    }
+}
