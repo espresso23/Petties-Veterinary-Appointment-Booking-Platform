@@ -20,10 +20,12 @@ Quản lý các thực thể nghiệp vụ: `users`, `clinics`, `pets`, `booking
 `backend-spring/petties/src/main/resources/db/migration/`
 
 ### 🚀 Quy trình cập nhật
-1.  **Tạo Script:** Tạo file SQL mới với định dạng `V<Số_Phiên_Bản>__<tên_mô_tả>.sql`.
-    *   Ví dụ: `V3__add_phone_to_users.sql`
-2.  **Áp dụng:** Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
-3.  **Kiểm tra:** Trạng thái migration được lưu trong bảng `flyway_schema_history`.
+1.  **Tạo Script:** Tạo file SQL mới với định dạng `V<Timestamp>__<tên_mô_tả>.sql`.
+    *   **Sai:** `V2__add_phone.sql` (Dễ trùng nếu 2 người cùng làm).
+    *   **Đúng:** `V202412301030__add_phone_to_users.sql` (Định dạng: V + NămThángNgàyGiờPhút).
+2.  **Lưu ý:** Giữa Version và Mô tả phải có **2 dấu gạch dưới** (`__`).
+3.  **Áp dụng:** Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
+4.  **Kiểm tra:** Trạng thái migration được lưu trong bảng `flyway_schema_history`.
 
 ---
 
@@ -39,8 +41,14 @@ Quản lý các thực thể AI: `agents`, `tools`, `chat_sessions`, `knowledge_
     ```bash
     alembic revision --autogenerate -m "mô tả thay đổi"
     ```
-2.  **Kiểm tra:** Mở file mới tạo trong thư mục `versions` để rà soát code Python/SQL.
-3.  **Áp dụng:**
+    *Lưu ý: Alembic dùng mã Hash ID duy nhất nên không lo trùng tên file.*
+2.  **Xử lý xung đột (Multiple Heads):** 
+    Nếu khi merge code bạn thấy báo lỗi "Multiple heads present", hãy dùng lệnh sau để gộp nhánh:
+    ```bash
+    alembic merge heads -m "merge multiple heads"
+    ```
+3.  **Kiểm tra:** Mở file mới tạo trong thư mục `versions` để rà soát code Python/SQL.
+4.  **Áp dụng:**
     *   **Thủ công (Dev):** `alembic upgrade head`
     *   **Tự động (Test/Prod):** Service sẽ tự động chạy migration khi khởi động (đã tích hợp trong `session.py`).
 
@@ -72,7 +80,22 @@ Quy trình này được thiết kế để triển khai an toàn lên các môi
 
 ---
 
-## 🔧 Troubleshooting
+## � Ví dụ thực tế: Thêm một Entity mới
+
+### Trường hợp 1: Thêm bảng `Booking` ở Backend (Java)
+1.  **Viết Code:** Bạn tạo Class `@Entity Booking`.
+2.  **Khởi động App:** App sẽ **báo lỗi (Crash)** ngay lập tức vì chế độ `validate` thấy DB chưa có bảng `Booking`.
+3.  **Viết Migration:** Bạn tạo file SQL mới (VD: `V202412301100__create_table_booking.sql`) trong thư mục migration.
+4.  **Chạy lại App:** Flyway tự chạy script -> DB cập nhật -> App khởi động thành công.
+
+### Trường hợp 2: Thêm bảng `Booking` ở AI Service (Python)
+1.  **Viết Code:** Bạn định nghĩa class `Booking(Base)` trong file `models.py`.
+2.  **Gen Migration:** Chạy lệnh `alembic revision --autogenerate -m "Add booking table"`.
+3.  **Áp dụng:** Khi bạn khởi động App, logic trong `session.py` sẽ tự động gọi Alembic để tạo bảng mới trong Database.
+
+---
+
+## �🔧 Troubleshooting
 
 | Vấn đề | Nguyên nhân | Giải pháp |
 | :--- | :--- | :--- |

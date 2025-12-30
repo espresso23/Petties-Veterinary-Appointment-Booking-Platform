@@ -835,6 +835,8 @@ erDiagram
     AI_AGENT ||--o{ AI_CHAT_SESSION : handles
     AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : contains
     AI_AGENT }o--o{ AI_TOOL : uses
+    AI_KNOWLEDGE_DOCUMENT }o--o| USER : uploaded_by
+    AI_SYSTEM_SETTING }o--|| AI_AGENT : configures
 ```
 
 ##### 📊 Relationship Matrix (Cardinality)
@@ -862,21 +864,45 @@ erDiagram
 | **SERVICE** | **BOOKING** | used_in | 1 : N | Một loại dịch vụ được sử dụng trong nhiều lịch hẹn khác nhau. |
 | **MASTER_SERVICE**| **SERVICE** | defines | 1 : N | Template dịch vụ chung được áp dụng cho nhiều phòng khám. |
 | **AI_AGENT** | **AI_SESSION** | handles | 1 : N | Một Agent xử lý nhiều phiên chat của nhiều người dùng khác nhau. |
+| **AI_KNOWLEDGE** | **USER** | uploaded_by | N : 0..1 | Tài liệu tri thức được upload bởi admin. |
+| **CHAT_MESSAGE** | **AI_SESSION** | contains | N : 1 | Thông tin tin nhắn trong phiên chat AI. |
 
 #### 3.1.6 Entities Description
 
-| Entity Name | Mô tả | Các trường chính |
-|-------------|-------|------------------|
-| **VACCINATION** | Bản ghi tiêm chủng (History/電子 sổ tiêm) | id, pet_id, vaccine_name, administered_date, batch_number, manufacturer, next_due_date, clinic_id, vet_id |
-| **NOTIFICATION** | Thông báo | id, user_id, title, content, is_read |
-| **MASTER_SERVICE**| Danh mục dịch vụ chung (Template) | id, owner_id, name, service_type, default_base_price |
-| **SERVICE_WEIGHT_PRICE** | Khung giá theo cân nặng | id, service_id, min_weight, max_weight, price |
-| **EMR_IMAGE** | Ảnh y tế đính kèm bệnh án | id, emr_id, image_url, description |
-| **USER_REPORT** | Báo cáo vi phạm | id, reporter_id, category, content, status |
-| **BOOKING_SLOT** | Liên kết đa Slot | booking_id, slot_id (Junction table) |
-| **AI_AGENT** | Cấu hình trí tuệ nhân tạo | id, name, model, system_prompt, temperature |
-| **AI_CHAT_SESSION** | Phiên hội thoại với AI | id, user_id, started_at, metadata |
-| **REFRESH_TOKEN** | Token làm mới phiên đăng nhập | id, user_id, token, expires_at |
+Để đảm bảo tính nhất quán giữa tài liệu và mã nguồn, dưới đây là danh sách đầy đủ 30 thực thể được sử dụng trong hệ thống Petties:
+
+| Nhóm | Thực thể | Mô tả | Các trường chính |
+|:---:|---|---|---|
+| **Auth & User** | **USER** | Tài khoản định danh (5 roles) | id, username, email, password, role, clinic_id, status |
+| | **REFRESH_TOKEN** | Token duy trì phiên đăng nhập | id, user_id, token, expires_at |
+| | **BLACKLISTED_TOKEN** | Token bị vô hiệu hóa sau logout | id, token, blacklisted_at, expires_at |
+| **Clinic** | **CLINIC** | Thông tin phòng khám thú y | id, owner_id, name, address, phone, status, rating_avg |
+| | **CLINIC_IMAGE** | Ảnh không gian phòng khám | id, clinic_id, image_url, is_primary |
+| | **MASTER_SERVICE** | Bản mẫu dịch vụ (Templates) | id, owner_id, name, service_type, default_base_price |
+| | **SERVICE** | Dịch vụ thực tế tại phòng khám | id, clinic_id, master_service_id, base_price, is_home_visit |
+| | **SERVICE_WEIGHT_PRICE**| Khung giá cộng thêm theo cân nặng | id, service_id, min_weight, max_weight, price |
+| **Pet** | **PET** | Hồ sơ thông tin thú cưng | id, owner_id, name, species, breed, birth_date, weight_kg |
+| **Scheduling** | **VET_SHIFT** | Ca trực của bác sĩ tại phòng khám | id, vet_id, clinic_id, work_date, start_time, end_time |
+| | **SLOT** | Đơn vị thời gian 30 phút | id, shift_id, start_time, end_time, status |
+| **Booking** | **BOOKING** | Lịch hẹn khám (Clinic/Home) | id, booking_code, pet_id, service_id, total_price, status |
+| | **BOOKING_SLOT** | Bảng trung gian gán booking vào slot | booking_id, slot_id |
+| | **PAYMENT** | Giao dịch thanh toán | id, booking_id, amount, method, status, stripe_payment_id |
+| **Medical** | **EMR** | Bệnh án điện tử (Tiêu chuẩn SOAP) | id, booking_id, subjective, objective, assessment, plan |
+| | **EMR_IMAGE** | Ảnh y khoa đính kèm bệnh án | id, emr_id, image_url, description |
+| | **PRESCRIPTION** | Đơn thuốc kê cho thú cưng | id, emr_id, drug_name, dosage, frequency, duration |
+| | **VACCINATION** | Ghi nhận sự kiện tiêm chủng | id, pet_id, vaccine_name, administered_date, next_due_date |
+| **Interaction**| **REVIEW** | Đánh giá bác sĩ/phòng khám | id, booking_id, reviewer_id, type, rating, comment |
+| | **NOTIFICATION** | Thông báo đẩy/in-app | id, user_id, type, title, content, is_read |
+| | **CHAT_CONVERSATION** | Phiên hội thoại 1-1 (Owner-Staff) | id, user1_id, user2_id, booking_id, last_message_at |
+| | **CHAT_MESSAGE** | Nội dung tin nhắn chat | id, conversation_id, sender_id, content, is_read |
+| | **USER_REPORT** | Báo cáo vi phạm nền tảng | id, reporter_id, reported_user_id, category, status |
+| **AI Service** | **AI_AGENT** | Cấu hình trí tuệ nhân tạo | id, name, model, system_prompt, temperature, top_p |
+| | **AI_TOOL** | Công cụ (Tools) Agent được dùng | id, name, tool_type, input_schema, enabled |
+| | **AI_PROMPT_VERSION**| Version control cho System Prompt | id, agent_id, version, prompt_text, is_active |
+| | **AI_CHAT_SESSION** | Phiên hội thoại với AI | id, agent_id, user_id, session_id, started_at |
+| | **AI_CHAT_MESSAGE** | Ghi chép tin nhắn AI | id, session_id, role, content, message_metadata |
+| | **AI_KNOWLEDGE_DOC** | Tài liệu nạp cho RAG | id, filename, file_path, processed, vector_count |
+| | **AI_SYSTEM_SETTING**| Cấu hình API Keys Dashboard | id, key, value, category, is_sensitive |
 
 ---
 
