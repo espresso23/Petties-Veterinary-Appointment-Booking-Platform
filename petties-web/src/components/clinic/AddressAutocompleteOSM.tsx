@@ -4,31 +4,30 @@ import L from 'leaflet'
 import { env } from '../../config/env'
 
 // Helper function to parse district and province from address string
-const parseAddressFromString = (address: string): { district?: string; province?: string } => {
-  const result: { district?: string; province?: string } = {}
+const parseAddressFromString = (address: string): { ward?: string; district?: string; province?: string } => {
+  const result: { ward?: string; district?: string; province?: string } = {}
 
-  // Common patterns for Vietnamese addresses
-  // Format: ..., Quận/Huyện X, Tỉnh/Thành phố Y
+  if (!address) return result
+
+  const parts = address.split(',').map(p => p.trim())
+
+  // Strategy 1: Regular Expression patterns for explicit prefixes
+  const wardPatterns = [
+    /(?:Phường|Xã|P\.|X\.)\s*([^,]+)/i,
+    /(?:Phường|Xã)\s*(\d+)/i,
+  ]
+
   const districtPatterns = [
     /(?:Quận|Huyện|Q\.|H\.)\s*([^,]+)/i,
     /(?:Quận|Huyện)\s*(\d+)/i,
   ]
 
   const provincePatterns = [
-    /(?:Tỉnh|Thành phố|TP\.|T\.)\s*([^,]+)/i,
+    /(?:Tỉnh|Thành phố|Thành Phố|TP\.|T\.)\s*([^,]+)/i,
     /(?:TP\.|Tp\.)\s*([^,]+)/i,
   ]
 
-  // Try to find district
-  for (const pattern of districtPatterns) {
-    const match = address.match(pattern)
-    if (match && match[1]) {
-      result.district = match[1].trim()
-      break
-    }
-  }
-
-  // Try to find province
+  // Try to find province by pattern
   for (const pattern of provincePatterns) {
     const match = address.match(pattern)
     if (match && match[1]) {
@@ -37,12 +36,40 @@ const parseAddressFromString = (address: string): { district?: string; province?
     }
   }
 
-  // If not found, try common city names
-  const cities = ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ']
-  for (const city of cities) {
-    if (address.includes(city)) {
-      result.province = city
+  // Try to find district by pattern
+  for (const pattern of districtPatterns) {
+    const match = address.match(pattern)
+    if (match && match[1]) {
+      result.district = match[1].trim()
       break
+    }
+  }
+
+  // Try to find ward by pattern
+  for (const pattern of wardPatterns) {
+    const match = address.match(pattern)
+    if (match && match[1]) {
+      result.ward = match[1].trim()
+      break
+    }
+  }
+
+  // Strategy 2: Comma separation fallback (most common in Vietnam)
+  // [Street], [Ward], [District], [Province]
+  if (parts.length >= 2) {
+    if (!result.province) result.province = parts[parts.length - 1]
+    if (!result.district) result.district = parts[parts.length - 2]
+    if (!result.ward && parts.length >= 3) result.ward = parts[parts.length - 3]
+  }
+
+  // Final cleanup for common city names if still missing
+  if (!result.province) {
+    const cities = ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Hải Phòng', 'Cần Thơ']
+    for (const city of cities) {
+      if (address.includes(city)) {
+        result.province = city
+        break
+      }
     }
   }
 
@@ -56,6 +83,7 @@ interface AddressAutocompleteProps {
     address: string
     latitude?: number
     longitude?: number
+    ward?: string
     district?: string
     province?: string
   }) => void
@@ -181,7 +209,8 @@ export function AddressAutocompleteOSM({
       const lat = place.geometry?.location?.lat
       const lon = place.geometry?.location?.lng
 
-      // Parse district and province from address components or address string
+      // Parse ward, district and province from address components or address string
+      let ward: string | undefined
       let district: string | undefined
       let province: string | undefined
 
@@ -189,8 +218,12 @@ export function AddressAutocompleteOSM({
       if (place.address_components && Array.isArray(place.address_components)) {
         place.address_components.forEach((component: any) => {
           const types = component.types || []
-          // District: administrative_area_level_2 or sublocality_level_1
-          if (types.includes('administrative_area_level_2') || types.includes('sublocality_level_1')) {
+          // Ward: sublocality_level_1 or administrative_area_level_3
+          if (types.includes('sublocality_level_1') || types.includes('administrative_area_level_3')) {
+            ward = component.long_name || component.short_name
+          }
+          // District: administrative_area_level_2
+          if (types.includes('administrative_area_level_2')) {
             district = component.long_name || component.short_name
           }
           // Province: administrative_area_level_1 (province level)
@@ -201,8 +234,9 @@ export function AddressAutocompleteOSM({
       }
 
       // Fallback: Parse from address string if address_components not available
-      if (!district || !province) {
-        const parsed = parseAddressFromString(address)
+      if (!ward || !district || !province) {
+        const parsed = parseAddressFromString(address) as any
+        ward = ward || parsed.ward
         district = district || parsed.district
         province = province || parsed.province
       }
@@ -219,6 +253,7 @@ export function AddressAutocompleteOSM({
             address,
             latitude: lat,
             longitude: lon,
+            ward,
             district,
             province,
           })
@@ -348,7 +383,7 @@ export function AddressAutocompleteOSM({
 
   return (
     <div className="space-y-3">
-      <div className="relative">
+      <div className={`relative ${showSuggestions && suggestions.length > 0 ? 'z-[1001]' : 'z-0'}`}>
         <input
           ref={inputRef}
           type="text"
@@ -375,7 +410,7 @@ export function AddressAutocompleteOSM({
 
         {/* Suggestions dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute z-[100] w-full mt-1 bg-white border-4 border-stone-900 shadow-brutal max-h-60 overflow-y-auto">
+          <div className="absolute z-[1100] w-full mt-1 bg-white border-4 border-stone-900 shadow-brutal max-h-60 overflow-y-auto">
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion.place_id}

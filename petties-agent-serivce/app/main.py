@@ -51,6 +51,13 @@ async def lifespan(app: FastAPI):
         from app.core.init_db import init_qdrant
         await init_qdrant()
         logger.info("✅ Qdrant vector database initialized")
+
+        # Auto-seed PostgreSQL data if empty
+        from app.db.postgres.seed import seed_data
+        from app.db.postgres.session import AsyncSessionLocal
+        async with AsyncSessionLocal() as db:
+            await seed_data(db)
+            logger.info("✅ Database auto-seeding check complete")
     except Exception as e:
         logger.warning(f"⚠️ Database init skipped: {e}")
 

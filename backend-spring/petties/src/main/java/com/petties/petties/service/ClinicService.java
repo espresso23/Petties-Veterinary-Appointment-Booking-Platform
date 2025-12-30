@@ -1,5 +1,6 @@
 package com.petties.petties.service;
 
+import com.petties.petties.dto.clinic.ClinicLocationResponse;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
@@ -9,12 +10,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Service interface for Clinic management
  */
 public interface ClinicService {
+
+    /**
+     * Get all unique locations that have approved clinics
+     */
+    List<ClinicLocationResponse> getActiveLocations();
 
     /**
      * Get all clinics with filters and pagination
@@ -49,8 +56,8 @@ public interface ClinicService {
     /**
      * Find nearby clinics
      */
-    Page<ClinicResponse> findNearbyClinics(BigDecimal latitude, BigDecimal longitude, 
-                                           double radius, Pageable pageable);
+    Page<ClinicResponse> findNearbyClinics(BigDecimal latitude, BigDecimal longitude,
+            double radius, Pageable pageable);
 
     /**
      * Geocode address to lat/lng
@@ -85,7 +92,8 @@ public interface ClinicService {
     /**
      * Upload image for clinic
      */
-    ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption, Integer displayOrder, Boolean isPrimary, UUID ownerId);
+    ClinicResponse uploadClinicImage(UUID clinicId, String imageUrl, String caption, Integer displayOrder,
+            Boolean isPrimary, UUID ownerId);
 
     /**
      * Delete clinic image
@@ -102,4 +110,3 @@ public interface ClinicService {
      */
     ClinicResponse setPrimaryClinicImage(UUID clinicId, UUID imageId, UUID ownerId);
 }
-

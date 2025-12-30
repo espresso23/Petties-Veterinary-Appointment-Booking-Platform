@@ -1,9 +1,9 @@
 # PETTIES MVP ERD - Professional Complete Edition
 
-**Version:** 3.1 MVP (Synced with Codebase)  
-**Last Updated:** 2025-12-29  
-**Scope:** Core Features (Sprint 1-9) + Chat Extension  
-**Total Entities:** 28 (19 Core + 2 Auth + 7 AI Service)  
+**Version:** 3.2 MVP (Synced with SRS & Codebase)  
+**Last Updated:** 2025-12-30  
+**Scope:** Core Features (Sprint 1-9) + Chat Extension + AI Service  
+**Total Entities:** 30 (20 Core + 3 Auth & User + 7 AI Service)  
 **Status:** Production-Ready Documentation  
 
 ---
@@ -372,7 +372,7 @@ erDiagram
         timestamp timestamp
     }
 
-    AI_KNOWLEDGE_DOCUMENT {
+    AI_KNOWLEDGE_DOC {
         int id PK
         varchar filename
         varchar file_path
@@ -463,6 +463,9 @@ erDiagram
     AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : "contains"
     USER ||--o{ AI_CHAT_SESSION : "initiates (External Link)"
     AI_AGENT }o--o{ AI_TOOL : "uses (JSON assigned_agents)"
+    AI_AGENT ||--o{ AI_KNOWLEDGE_DOC : "references (RAG)"
+    AI_KNOWLEDGE_DOC }o--o| USER : "uploaded_by"
+    AI_SYSTEM_SETTING }o--|| AI_AGENT : "configures"
 ```
 
 ---
@@ -1206,7 +1209,7 @@ Stores individual messages within an AI chat session.
 
 ---
 
-### **2.26 AI_KNOWLEDGE_DOCUMENT** – RAG Knowledge Base
+### **2.26 AI_KNOWLEDGE_DOC** – RAG Knowledge Base
 
 **Purpose:**
 Tracks documents uploaded to the system to be used for Retrieval-Augmented Generation (RAG).

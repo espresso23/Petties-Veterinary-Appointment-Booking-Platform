@@ -87,7 +87,8 @@ public class AuthService {
                                 .userId(savedUser.getUserId())
                                 .username(savedUser.getUsername())
                                 .email(savedUser.getEmail())
-                                .fullName(savedUser.getFullName())
+                                .fullName(savedUser.getFullName() != null ? savedUser.getFullName()
+                                                : savedUser.getUsername())
                                 .role(savedUser.getRole().name())
                                 .build();
         }
@@ -130,7 +131,7 @@ public class AuthService {
                                 .userId(user.getUserId())
                                 .username(user.getUsername())
                                 .email(user.getEmail())
-                                .fullName(user.getFullName())
+                                .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
                                 .role(user.getRole().name())
                                 .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
                                                 : null)
@@ -192,7 +193,7 @@ public class AuthService {
                                 .userId(user.getUserId())
                                 .username(user.getUsername())
                                 .email(user.getEmail())
-                                .fullName(user.getFullName())
+                                .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
                                 .role(user.getRole().name())
                                 .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
                                                 : null)
@@ -321,7 +322,7 @@ public class AuthService {
                                 .userId(user.getUserId())
                                 .username(user.getUsername())
                                 .email(user.getEmail())
-                                .fullName(user.getFullName())
+                                .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
                                 .role(user.getRole().name())
                                 .build();
         }

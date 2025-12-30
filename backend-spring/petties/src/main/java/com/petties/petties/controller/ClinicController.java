@@ -1,5 +1,6 @@
 package com.petties.petties.controller;
 
+import com.petties.petties.dto.clinic.ClinicLocationResponse;
 import com.petties.petties.dto.clinic.ApproveClinicRequest;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
@@ -35,7 +36,7 @@ import java.util.UUID;
  * Base path: /api/clinics
  */
 @RestController
-@RequestMapping("/clinics")  // Context path is /api, so full path will be /api/clinics
+@RequestMapping("/clinics") // Context path is /api, so full path will be /api/clinics
 @RequiredArgsConstructor
 @Slf4j
 public class ClinicController {
@@ -57,10 +58,21 @@ public class ClinicController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
         Page<ClinicResponse> clinics = clinicService.getAllClinics(status, name, pageable);
         return ResponseEntity.ok(clinics);
+    }
+
+    /**
+     * GET /api/clinics/locations
+     * Get all unique locations (province, district, ward) that have approved
+     * clinics
+     * Public access
+     */
+    @GetMapping("/locations")
+    public ResponseEntity<java.util.List<ClinicLocationResponse>> getActiveLocations() {
+        return ResponseEntity.ok(clinicService.getActiveLocations());
     }
 
     /**
@@ -125,7 +137,7 @@ public class ClinicController {
             @RequestParam String name,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<ClinicResponse> clinics = clinicService.searchClinics(name, pageable);
         return ResponseEntity.ok(clinics);
@@ -143,7 +155,7 @@ public class ClinicController {
             @RequestParam(defaultValue = "10.0") double radius,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size);
         Page<ClinicResponse> clinics = clinicService.findNearbyClinics(
                 latitude, longitude, radius, pageable);
@@ -160,12 +172,12 @@ public class ClinicController {
     public ResponseEntity<GeocodeResponse> geocodeClinicAddress(
             @PathVariable UUID id,
             @RequestBody Map<String, String> request) {
-        
+
         String address = request.get("address");
         if (address == null || address.isEmpty()) {
             throw new IllegalArgumentException("Address is required");
         }
-        
+
         GeocodeResponse geocode = clinicService.geocodeAddress(address);
         return ResponseEntity.ok(geocode);
     }
@@ -180,7 +192,7 @@ public class ClinicController {
             @PathVariable UUID id,
             @RequestParam BigDecimal latitude,
             @RequestParam BigDecimal longitude) {
-        
+
         DistanceResponse distance = clinicService.calculateDistance(id, latitude, longitude);
         return ResponseEntity.ok(distance);
     }
@@ -197,7 +209,7 @@ public class ClinicController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") Sort.Direction sortDir) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDir, sortBy));
         Page<ClinicResponse> clinics = clinicService.getPendingClinics(pageable);
         return ResponseEntity.ok(clinics);
@@ -207,14 +219,15 @@ public class ClinicController {
      * POST /api/clinics/{id}/approve
      * Approve clinic
      * ADMIN only
-     * Request body is optional - can send empty body or {"reason": "optional reason"}
+     * Request body is optional - can send empty body or {"reason": "optional
+     * reason"}
      */
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ClinicResponse> approveClinic(
             @PathVariable UUID id,
             @RequestBody(required = false) ApproveClinicRequest request) {
-        
+
         String reason = (request != null && request.getReason() != null) ? request.getReason() : null;
         ClinicResponse clinic = clinicService.approveClinic(id, reason);
         return ResponseEntity.ok(clinic);
@@ -230,7 +243,7 @@ public class ClinicController {
     public ResponseEntity<ClinicResponse> rejectClinic(
             @PathVariable UUID id,
             @Valid @RequestBody RejectClinicRequest request) {
-        
+
         ClinicResponse clinic = clinicService.rejectClinic(id, request.getReason());
         return ResponseEntity.ok(clinic);
     }
@@ -245,7 +258,7 @@ public class ClinicController {
     public ResponseEntity<Page<ClinicResponse>> getMyClinics(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         User currentUser = authService.getCurrentUser();
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<ClinicResponse> clinics = clinicService.getClinicsByOwner(
@@ -266,30 +279,29 @@ public class ClinicController {
             @RequestParam(required = false) String caption,
             @RequestParam(required = false) Integer displayOrder,
             @RequestParam(required = false, defaultValue = "false") Boolean isPrimary) {
-        
+
         try {
-            log.info("Uploading image for clinic: {}, file size: {}, content type: {}", 
+            log.info("Uploading image for clinic: {}, file size: {}, content type: {}",
                     id, file.getSize(), file.getContentType());
-            
+
             User currentUser = authService.getCurrentUser();
-            
+
             // Upload file to Cloudinary
             UploadResponse uploadResponse = cloudinaryService.uploadClinicImage(file);
             log.info("File uploaded to Cloudinary: {}", uploadResponse.getUrl());
-            
+
             // Save image info to database
             ClinicResponse clinic = clinicService.uploadClinicImage(
-                    id, 
-                    uploadResponse.getUrl(), 
-                    caption, 
-                    displayOrder, 
-                    isPrimary, 
-                    currentUser.getUserId()
-            );
-            
+                    id,
+                    uploadResponse.getUrl(),
+                    caption,
+                    displayOrder,
+                    isPrimary,
+                    currentUser.getUserId());
+
             log.info("Clinic image saved successfully for clinic: {}", id);
             return ResponseEntity.status(HttpStatus.CREATED).body(clinic);
-            
+
         } catch (Exception e) {
             log.error("Error uploading clinic image for clinic: {}", id, e);
             throw e; // Re-throw to let GlobalExceptionHandler handle it
@@ -306,23 +318,24 @@ public class ClinicController {
     public ResponseEntity<ClinicResponse> uploadClinicLogo(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {
-        
+
         try {
-            log.info("Uploading logo for clinic: {}, file size: {}, content type: {}", 
+            log.info("Uploading logo for clinic: {}, file size: {}, content type: {}",
                     id, file.getSize(), file.getContentType());
-            
+
             User currentUser = authService.getCurrentUser();
-            
+
             // Upload file to Cloudinary
             UploadResponse uploadResponse = cloudinaryService.uploadClinicImage(file);
             log.info("Logo uploaded to Cloudinary: {}", uploadResponse.getUrl());
-            
+
             // Update clinic logo
-            ClinicResponse clinic = clinicService.updateClinicLogo(id, uploadResponse.getUrl(), currentUser.getUserId());
-            
+            ClinicResponse clinic = clinicService.updateClinicLogo(id, uploadResponse.getUrl(),
+                    currentUser.getUserId());
+
             log.info("Clinic logo saved successfully for clinic: {}", id);
             return ResponseEntity.ok(clinic);
-            
+
         } catch (Exception e) {
             log.error("Error uploading clinic logo for clinic: {}", id, e);
             throw e;
@@ -339,10 +352,10 @@ public class ClinicController {
     public ResponseEntity<Map<String, String>> deleteClinicImage(
             @PathVariable UUID id,
             @PathVariable UUID imageId) {
-        
+
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinicImage(id, imageId, currentUser.getUserId());
-        
+
         return ResponseEntity.ok(Map.of("message", "Image deleted successfully"));
     }
 
@@ -379,4 +392,3 @@ public class ClinicController {
         return ResponseEntity.ok(clinics);
     }
 }
-

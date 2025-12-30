@@ -141,6 +141,7 @@ export const PlaygroundPage = () => {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [seeding, setSeeding] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // ReAct trace state
@@ -213,6 +214,26 @@ export const PlaygroundPage = () => {
       setApiKey(newKeys[provider])
     } catch (err) {
       console.error('Failed to load provider settings:', err)
+    }
+  }
+
+  const handleSeedDatabase = async () => {
+    if (!window.confirm('Bạn có chắc muốn nạp lại dữ liệu mẫu? Việc này sẽ tạo lại các Agent và Tool mặc định.')) return
+    try {
+      setSeeding(true)
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/seed`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      })
+      if (!response.ok) throw new Error('Failed to seed database')
+
+      await response.json()
+      toast.showToast('success', 'Dữ liệu mẫu đã được nạp thành công!')
+      await loadAgentData() // Reload agents
+    } catch (err) {
+      handleApiError(err, toast, 'Nạp dữ liệu mẫu thất bại')
+    } finally {
+      setSeeding(false)
     }
   }
 
@@ -614,61 +635,61 @@ export const PlaygroundPage = () => {
   return (
     <div className="h-full bg-stone-50 flex flex-col overflow-hidden">
       {/* Page Header */}
-      <div className="bg-white border-b-4 border-stone-900 shrink-0">
-        <div className="w-full mx-auto px-6 py-5">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+      <div className="bg-white border-b-2 border-stone-900 shrink-0">
+        <div className="w-full mx-auto px-4 py-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <div className="shrink-0">
-                <h1 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Agent Playground</h1>
-                <p className="text-xs text-stone-600 font-bold uppercase tracking-wide">Test AI Agent với ReAct trace real-time</p>
+                <h1 className="text-xl font-black text-stone-900 uppercase tracking-tight">Agent Playground</h1>
+                <p className="text-[10px] text-stone-600 font-bold uppercase tracking-wide">AI Agent Trace Real-time</p>
               </div>
 
               {/* Status Badge in Header */}
-              <div className={`flex items-center gap-2 px-3 py-1.5 border-2 border-stone-900 transition-colors shadow-[2px_2px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
+              <div className={`flex items-center gap-1.5 px-2 py-1 border-2 border-stone-900 transition-colors shadow-[1px_1px_0_#1c1917] ${connectionStatus === 'connected' ? 'bg-green-100' :
                 connectionStatus === 'connecting' ? 'bg-yellow-100' :
                   connectionStatus === 'error' ? 'bg-red-100' : 'bg-stone-50'
                 }`}>
                 {connectionStatus === 'connected' ? (
-                  <SignalIcon className="w-4 h-4 text-green-700" />
+                  <SignalIcon className="w-3 h-3 text-green-700" />
                 ) : (
-                  <SignalSlashIcon className="w-4 h-4 text-stone-400" />
+                  <SignalSlashIcon className="w-3 h-3 text-stone-400" />
                 )}
-                <span className="text-[10px] font-black uppercase text-stone-900 tracking-tighter">
+                <span className="text-[9px] font-black uppercase text-stone-900 tracking-tighter">
                   {connectionStatus}
                 </span>
               </div>
             </div>
 
             {/* Header Actions */}
-            <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+            <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 font-black uppercase text-xs border-2 border-stone-900 transition-all cursor-pointer shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] ${showSettings ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
+                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showSettings ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
               >
-                <Cog6ToothIcon className="w-4 h-4" />
+                <Cog6ToothIcon className="w-3.5 h-3.5" />
                 Settings
               </button>
 
               <button
                 onClick={() => setShowTracePanel(!showTracePanel)}
-                className={`flex-1 md:flex-none px-4 py-2 font-black uppercase text-xs border-2 border-stone-900 transition-all cursor-pointer shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] ${showTracePanel ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
+                className={`flex-1 md:flex-none px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showTracePanel ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
               >
                 {showTracePanel ? 'Hide Trace' : 'Show Trace'}
               </button>
 
               <button
                 onClick={() => setShowDebug(!showDebug)}
-                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 font-black uppercase text-xs border-2 border-stone-900 transition-all cursor-pointer shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] ${showDebug ? 'bg-purple-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
+                className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showDebug ? 'bg-purple-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
               >
-                <CommandLineIcon className="w-4 h-4" />
+                <CommandLineIcon className="w-3.5 h-3.5" />
                 Logs
               </button>
 
               <button
                 onClick={clearChat}
-                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 font-black uppercase text-xs text-stone-900 bg-white border-2 border-stone-900 hover:bg-stone-50 transition-all cursor-pointer shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] text-stone-900 bg-white border-2 border-stone-900 hover:bg-stone-50 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px]"
               >
-                <TrashIcon className="w-4 h-4" />
+                <TrashIcon className="w-3.5 h-3.5" />
                 Clear
               </button>
             </div>
@@ -677,16 +698,16 @@ export const PlaygroundPage = () => {
       </div>
 
       {/* Agent Controls & Info Bar */}
-      <div className="px-6 py-3 bg-stone-100 border-b-4 border-stone-900 flex flex-wrap items-center gap-6 shrink-0">
+      <div className="px-4 py-2 bg-stone-100 border-b-2 border-stone-900 flex flex-wrap items-center gap-4 shrink-0">
         {/* Selectors Group */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black uppercase text-stone-500">Agent</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase text-stone-500">Agent</span>
             <select
               value={selectedAgentId ?? ''}
               onChange={(e) => setSelectedAgentId(Number(e.target.value))}
               disabled={loadingAgents}
-              className="px-3 py-1.5 border-2 border-stone-900 bg-white font-black text-xs focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[140px]"
+              className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[120px]"
             >
               {agents.map(a => (
                 <option key={a.id} value={a.id}>{a.name}</option>
@@ -694,12 +715,12 @@ export const PlaygroundPage = () => {
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black uppercase text-stone-500">Provider</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase text-stone-500">Provider</span>
             <select
               value={selectedProvider}
               onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
-              className="px-3 py-1.5 border-2 border-stone-900 bg-white font-black text-xs focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[120px]"
+              className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[100px]"
             >
               {PROVIDERS.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
@@ -707,12 +728,12 @@ export const PlaygroundPage = () => {
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black uppercase text-stone-500">Model</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase text-stone-500">Model</span>
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              className="px-3 py-1.5 border-2 border-stone-900 bg-white font-black text-xs focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[200px]"
+              className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[160px]"
             >
               {MODELS_BY_PROVIDER[selectedProvider].map(m => (
                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -726,9 +747,9 @@ export const PlaygroundPage = () => {
 
         {/* Status Group */}
         <div className="flex items-center gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black uppercase text-stone-500 tracking-wider text-center">Status</span>
-            <span className={`px-4 py-1.5 border-2 border-stone-900 font-black text-xs shadow-[2px_2px_0_#1c1917] ${agent?.enabled ? 'bg-green-400 text-stone-900' : 'bg-stone-300 text-stone-600'}`}>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider text-center">Status</span>
+            <span className={`px-3 py-1 border-2 border-stone-900 font-black text-[10px] shadow-[1px_1px_0_#1c1917] ${agent?.enabled ? 'bg-green-400 text-stone-900' : 'bg-stone-300 text-stone-600'}`}>
               {agent?.enabled ? 'ENABLED' : 'DISABLED'}
             </span>
           </div>
@@ -746,14 +767,27 @@ export const PlaygroundPage = () => {
           >
             {messages.length === 0 && !streamingContent ? (
               <div className="flex items-center justify-center h-full text-center">
-                <div className="p-8 bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917]">
+                <div className="p-8 bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-md">
                   <div className="w-16 h-16 bg-amber-100 border-4 border-stone-900 flex items-center justify-center mx-auto mb-4">
                     <ChatBubbleLeftRightIcon className="w-8 h-8 text-stone-700" />
                   </div>
-                  <h3 className="text-lg font-black text-stone-900 mb-2 uppercase">Start Chatting</h3>
-                  <p className="text-sm text-stone-600">
-                    Select an agent and send a message to see ReAct trace
+                  <h3 className="text-lg font-black text-stone-900 mb-2 uppercase">
+                    {agents.length === 0 ? 'Hệ thống chưa sẵn sàng' : 'Start Chatting'}
+                  </h3>
+                  <p className="text-sm text-stone-600 mb-6">
+                    {agents.length === 0
+                      ? 'Database của AI Service hiện đang trống. Vui lòng nạp dữ liệu mẫu để bắt đầu.'
+                      : 'Select an agent and send a message to see ReAct trace'}
                   </p>
+                  {agents.length === 0 && (
+                    <button
+                      onClick={handleSeedDatabase}
+                      disabled={seeding}
+                      className="w-full py-3 bg-amber-400 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {seeding ? 'Đang khởi tạo...' : 'Khởi tạo dữ liệu AI (Seed)'}
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -771,9 +805,9 @@ export const PlaygroundPage = () => {
                   />
                 ))}
                 {(sending || streamingContent) && (
-                  <div className="flex gap-4 flex-row mb-8">
-                    <div className="flex-shrink-0 w-12 h-12 border-4 border-stone-900 shadow-[4px_4px_0_#1c1917] flex items-center justify-center bg-amber-400">
-                      <ArrowPathIcon className="w-7 h-7 text-stone-900 animate-spin" />
+                  <div className="flex gap-3 flex-row mb-6">
+                    <div className="flex-shrink-0 w-9 h-9 border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] flex items-center justify-center bg-amber-400">
+                      <ArrowPathIcon className="w-5 h-5 text-stone-900 animate-spin" />
                     </div>
                     <div className="flex flex-col items-start max-w-[85%]">
                       <div className="flex items-center gap-3 mb-2 px-1">
@@ -781,7 +815,7 @@ export const PlaygroundPage = () => {
                           Petties Assistant
                         </span>
                       </div>
-                      <div className="relative border-4 border-stone-900 p-5 w-fit bg-white text-stone-900 shadow-[6px_6px_0_#1c1917] animate-pulse">
+                      <div className="relative border-2 border-stone-900 p-3.5 w-fit bg-white text-stone-900 shadow-[3px_3px_0_#1c1917] animate-pulse">
                         <div className="text-sm md:text-base font-bold whitespace-pre-wrap leading-relaxed">
                           {streamingContent || 'Thinking...'}
                         </div>
@@ -1138,13 +1172,13 @@ export const PlaygroundPage = () => {
                 <div className="space-y-4">
                   <button
                     onClick={handleTogglePromptHistory}
-                    className="w-full px-4 py-3 bg-stone-100 border-2 border-stone-900 flex items-center justify-between hover:bg-stone-200"
+                    className="w-full px-4 py-3 bg-stone-100 border-2 border-stone-900 flex items-center justify-between hover:bg-stone-200 text-stone-900"
                   >
                     <div className="flex items-center gap-2">
-                      <ClockIcon className="w-5 h-5" />
-                      <span className="font-bold uppercase text-sm">Prompt History</span>
+                      <ClockIcon className="w-5 h-5 text-stone-900" />
+                      <span className="font-black uppercase text-sm">Prompt History</span>
                     </div>
-                    {showPromptHistory ? <ChevronDownIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
+                    {showPromptHistory ? <ChevronDownIcon className="w-5 h-5 text-stone-900" /> : <ChevronRightIcon className="w-5 h-5 text-stone-900" />}
                   </button>
 
                   {showPromptHistory && (
@@ -1178,6 +1212,24 @@ export const PlaygroundPage = () => {
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Initial Setup Section */}
+                <div className="pt-6 border-t-4 border-stone-900 space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-black uppercase text-red-600">
+                    <ArrowPathIcon className="w-5 h-5 font-bold" />
+                    Danger Zone / Setup
+                  </div>
+                  <p className="text-[10px] font-bold text-stone-500 uppercase">
+                    Nếu bạn vừa deploy hoặc DB bị lỗi, hãy nạp lại dữ liệu khởi tạo.
+                  </p>
+                  <button
+                    onClick={handleSeedDatabase}
+                    disabled={seeding}
+                    className="w-full px-4 py-2 font-black uppercase text-xs bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 disabled:bg-stone-100 disabled:text-stone-400 disabled:border-stone-400"
+                  >
+                    {seeding ? 'Processing...' : 'Seed Database (Reset)'}
+                  </button>
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 package com.petties.petties.service.impl;
 
+import com.petties.petties.dto.clinic.ClinicLocationResponse;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
@@ -51,6 +52,12 @@ public class ClinicServiceImpl implements ClinicService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ClinicLocationResponse> getActiveLocations() {
+        return clinicRepository.findActiveLocations();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<ClinicResponse> getAllClinics(ClinicStatus status, String name, Pageable pageable) {
         Page<Clinic> clinics = clinicRepository.findWithFilters(status, name, pageable);
         return clinics.map(this::mapToResponse);
@@ -80,6 +87,7 @@ public class ClinicServiceImpl implements ClinicService {
         clinic.setName(request.getName());
         clinic.setDescription(request.getDescription());
         clinic.setAddress(request.getAddress());
+        clinic.setWard(request.getWard());
         clinic.setDistrict(request.getDistrict());
         clinic.setProvince(request.getProvince());
         clinic.setSpecificLocation(request.getSpecificLocation());
@@ -127,6 +135,7 @@ public class ClinicServiceImpl implements ClinicService {
         clinic.setName(request.getName());
         clinic.setDescription(request.getDescription());
         clinic.setAddress(request.getAddress());
+        clinic.setWard(request.getWard());
         clinic.setDistrict(request.getDistrict());
         clinic.setProvince(request.getProvince());
         clinic.setSpecificLocation(request.getSpecificLocation());
@@ -501,6 +510,7 @@ public class ClinicServiceImpl implements ClinicService {
                 .name(clinic.getName())
                 .description(clinic.getDescription())
                 .address(clinic.getAddress())
+                .ward(clinic.getWard())
                 .district(clinic.getDistrict())
                 .province(clinic.getProvince())
                 .specificLocation(clinic.getSpecificLocation())
