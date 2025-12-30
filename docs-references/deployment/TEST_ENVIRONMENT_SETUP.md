@@ -65,16 +65,26 @@ sudo nano /etc/nginx/sites-available/api-test.petties.world
 
 ```nginx
 server {
-    listen 443 ssl;
+    listen 80;
+    server_name api-test.petties.world;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
     server_name api-test.petties.world;
     
-    # SSL sẽ được Certbot thêm sau
-    # ssl_certificate /etc/letsencrypt/live/api-test.petties.world/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/api-test.petties.world/privkey.pem;
+    # SSL - managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/api-test.petties.world/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api-test.petties.world/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     client_max_body_size 15M;
 
-    # Backend Test API (port 8081)
+    # ============================================
+    # BACKEND API (Spring Boot - Port 8081)
+    # ============================================
     location /api/ {
         proxy_pass http://127.0.0.1:8081/api/;
         proxy_http_version 1.1;
@@ -85,17 +95,44 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Backend WebSocket Test
+    # Backend WebSocket (Spring Boot)
     location /ws/ {
         proxy_pass http://127.0.0.1:8081/ws/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 86400s;
     }
 
-    # AI Service Test (port 8001)
+    # Health check
+    location /api/actuator/health {
+        proxy_pass http://127.0.0.1:8081/api/actuator/health;
+        access_log off;
+    }
+
+    # ============================================
+    # AI SERVICE (FastAPI - Port 8001)
+    # ============================================
+    # AI WebSocket PHẢI ĐẶT TRƯỚC /ai/ (specific route first)
+    location /ai/ws/ {
+        proxy_pass http://127.0.0.1:8001/ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_buffering off;
+    }
+
+    # AI REST API
     location /ai/ {
         proxy_pass http://127.0.0.1:8001/;
         proxy_http_version 1.1;
@@ -105,28 +142,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 300s;
     }
-
-    # AI WebSocket Test
-    location /ai/ws/ {
-        proxy_pass http://127.0.0.1:8001/ws/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_read_timeout 3600s;
-    }
-
-    # Health check
-    location /api/actuator/health {
-        proxy_pass http://127.0.0.1:8081/api/actuator/health;
-        access_log off;
-    }
-}
-
-server {
-    listen 80;
-    server_name api-test.petties.world;
-    return 301 https://$host$request_uri;
 }
 ```
 

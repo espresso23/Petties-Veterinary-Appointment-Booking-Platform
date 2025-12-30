@@ -35,6 +35,9 @@ public class ClinicRequest {
     @Size(max = 500, message = "Địa chỉ không được vượt quá 500 ký tự")
     private String address;
 
+    @Size(max = 100, message = "Phường/xã không được vượt quá 100 ký tự")
+    private String ward; // Phường/xã
+
     @Size(max = 100, message = "Quận/huyện không được vượt quá 100 ký tự")
     private String district; // Quận/huyện
 
@@ -60,4 +63,3 @@ public class ClinicRequest {
 
     private String logo; // URL to clinic logo
 }
-

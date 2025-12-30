@@ -1,463 +1,154 @@
-# PETTIES - SOFTWARE DESIGN DOCUMENT (SDD)
-## REPORT 4: SYSTEM DESIGN
+# II. Software Design Document
 
-**Dự án:** Petties - Nền tảng Đặt lịch Khám Thú y
-**Tài liệu:** Software Design Document - System Design & Package Diagrams
-**Phiên bản:** 1.7 (Enhanced Core Modules: Clinic, Pet, Staff)
-**Last Updated:** 2025-12-29
-
----
-
-> **Lưu ý về Phạm vi Tài liệu:**
-> 
-> Tài liệu này mô tả **kiến trúc mục tiêu (Target Architecture)** của hệ thống Petties.
-> - **Đã implement:** Auth, User Management, AI Agent Service, File Upload, Clinic Management, Pet Management, Master Services, Notifications
-> - **Đang phát triển:** Booking (Slots), Vet Schedule, EMR modules
-> - **Kế hoạch:** Payment (Stripe), Firebase Push Notifications
->
-
----
-
-## NỘI DUNG
-
-1. [System Design](#1-system-design)
-   - 1.1 [System Architecture](#11-system-architecture)
-   - 1.2 [Package Diagram](#12-package-diagram)
-
----
-
-## 1. SYSTEM DESIGN
-
----
-
-> **Lưu ý về Phạm vi Tài liệu:**
-> 
-> Tài liệu này mô tả **kiến trúc mục tiêu (Target Architecture)** của hệ thống Petties.
-> - **Đã implement:** Auth, User Management, AI Agent Service, File Upload
-> - **Đang phát triển:** Clinic, Booking, Vet, Pet, EMR modules
-> - **Kế hoạch:** Payment (Stripe), Firebase Push Notifications
->
-> Các phần được đánh dấu `[MVP]` là đã có trong code hiện tại.
-
----
-
-## NỘI DUNG
-
-1. [System Design](#1-system-design)
-   - 1.1 [System Architecture](#11-system-architecture)
-   - 1.2 [Package Diagram](#12-package-diagram)
-
----
-
-## 1. SYSTEM DESIGN
+## 1. System Design
 
 ### 1.1 System Architecture
 
-#### 1.1.1 System Architecture Diagram
-
-Petties được xây dựng theo kiến trúc **Multi-Service với Polyglot Backend** (Java + Python), tổ chức code theo mô hình **Monorepo** (tất cả services trong 1 Git repository).
-
 ```mermaid
-flowchart TB
-    subgraph "CLIENT LAYER"
+flowchart TD
+    subgraph INFRA["DEPLOYMENT & INFRASTRUCTURE"]
         direction LR
-        Web["🖥️ Web Frontend<br/>(React 19 + Vite + TypeScript)<br/>Admin, Clinic Staff, Vet"]
-        Mobile["📱 Mobile App<br/>(Flutter 3.5)<br/>Pet Owner"]
+        Docker["Docker<br/>(Containerization)"]
+        GitHub["GitHub Actions<br/>(CI/CD)"]
+        AWS["AWS EC2<br/>(Backend Services)"]
+        Vercel["Vercel<br/>(Frontend Hosting)"]
     end
 
-    subgraph "API GATEWAY"
-        NGINX["🔀 NGINX Reverse Proxy<br/>SSL + Load Balancer + Routing"]
-    end
-
-    subgraph "APPLICATION LAYER"
+    subgraph FRONTEND["FRONTEND"]
         direction TB
-
-        subgraph "Backend Services"
-            direction LR
-            SpringBoot["☕ Backend API<br/>(Spring Boot 3.x + Java 21)<br/>Port 8080<br/>Business Logic"]
-            AI["🤖 AI Agent Service<br/>(FastAPI + Python 3.12)<br/>Port 8000<br/>Single Agent + RAG"]
-        end
-
-        SpringBoot <-->|"Internal API Calls"| AI
+        User["User<br/>Web & Mobile"]
+        User --> Flutter
+        User --> React
+        Flutter["Flutter 3.5<br/>(Mobile App)<br/>Pet Owner, Vet"]
+        React["React 19<br/>(Web Dashboard)<br/>Admin, Clinic Staff, Vet"]
     end
 
-    subgraph "DATA LAYER"
+    subgraph BACKEND["BACKEND"]
         direction TB
-
-        subgraph "Primary Databases"
-            direction LR
-            PG[("🐘 PostgreSQL 16<br/>(Shared by both services)<br/>Users, Bookings, Clinics,<br/>AI Agents, Tools, Documents")]
-            Redis[("⚡ Redis 7<br/>(Cache + OTP)<br/>TTL-based storage")]
-        end
-
-        subgraph "Vector Database"
-            Qdrant[("🔷 Qdrant Cloud<br/>Vector Embeddings<br/>RAG Knowledge Base")]
-        end
+        APIGateway["API Gateway<br/>NGINX<br/>- Real-time Routing<br/>- Load Balancing<br/>- Rate Limiting"]
+        APIGateway --> SpringBoot
+        APIGateway --> Python
+        SpringBoot["Spring Boot 3.4<br/>- API Management<br/>- Authentication<br/>- REST API Endpoints<br/>- WebSocket Server"]
+        Python["Python FastAPI<br/>- AI Agent Service<br/>- Real-time Chat<br/>- RAG Pipeline"]
+        SpringBoot <-.-> Python
     end
 
-    subgraph "EXTERNAL SERVICES"
-        direction TB
-
-        subgraph "AI/LLM Services [MVP]"
-            direction LR
-            OpenRouter["🧠 OpenRouter API<br/>(LLM Gateway)<br/>Default: Gemini 2.0 Flash Lite<br/>Fallback: Llama 3.3 70B"]
-            DeepSeek["🧠 DeepSeek API<br/>(Alternative LLM)<br/>deepseek-chat"]
-            Cohere["📊 Cohere API<br/>(Embeddings)<br/>embed-multilingual-v3.0<br/>1024 dimensions"]
-        end
-
-        subgraph "Search & Utility [MVP]"
-            DuckDuckGo["🔍 DuckDuckGo<br/>Web Search (Free)"]
-            Cloudinary["☁️ Cloudinary<br/>Image Storage & CDN"]
-        end
-
-        subgraph "Planned Services"
-            Firebase["📲 Firebase<br/>(Push Notifications)<br/>[Planned]"]
-            Stripe["💳 Stripe<br/>(Payments)<br/>[Planned]"]
-        end
+    subgraph STORAGE["STORE DATA"]
+        direction LR
+        Redis[("Redis 7<br/>(Cache & OTP)")]
+        Cloudinary["Cloudinary<br/>(Media Assets)"]
+        Firebase["Firebase<br/>(Push Notifications)<br/>[Planned]"]
+        QdrantCloud[("Qdrant Cloud<br/>(Vector DB)")]
+        MongoDB[("MongoDB 7<br/>(Flexible Schema Data)")]
+        PostgreSQL[("PostgreSQL 16<br/>(Primary DB)")]
     end
 
-    %% Client to Gateway
-    Web -->|"HTTPS"| NGINX
-    Mobile -->|"HTTPS"| NGINX
+    subgraph EXTERNAL["EXTERNAL SERVICES"]
+        direction LR
+        Cohere["Cohere API<br/>(Embeddings)"]
+        OpenRouter["OpenRouter API<br/>(LLM Gateway)"]
+        GoogleMaps["Google Maps API<br/>(Geocoding)"]
+        Stripe["Stripe<br/>(Payments)<br/>[Planned]"]
+    end
 
-    %% Gateway to Services
-    NGINX -->|"/api/*"| SpringBoot
-    NGINX -->|"/ai/*<br/>/ws/*"| AI
+    %% Main Flow Connections
+    INFRA --> FRONTEND
+    Flutter --> APIGateway
+    React --> APIGateway
 
-    %% Backend to Databases
-    SpringBoot -->|"JDBC"| PG
-    SpringBoot -->|"Spring Data Redis"| Redis
-    AI -->|"SQLAlchemy Async"| PG
-    AI -->|"HTTP + API Key"| Qdrant
-
-    %% AI to External APIs
-    AI -->|"LLM Inference"| OpenRouter
-    AI -->|"LLM Inference"| DeepSeek
-    AI -->|"Embeddings"| Cohere
-    AI -->|"Web Search"| DuckDuckGo
+    %% Backend to Storage - Data Query
+    SpringBoot -->|"Data Query"| PostgreSQL
+    SpringBoot --> Redis
+    SpringBoot --> MongoDB
+    SpringBoot --> Cloudinary
+    SpringBoot -.-> Firebase
+    Python --> PostgreSQL
+    Python --> QdrantCloud
 
     %% Backend to External Services
-    SpringBoot -->|"REST API"| Cloudinary
-    SpringBoot -.->|"[Planned]"| Firebase
-    SpringBoot -.->|"[Planned]"| Stripe
+    Python --> Cohere
+    Python --> OpenRouter
+    SpringBoot --> GoogleMaps
+    SpringBoot -.-> Stripe
 
     %% Styling
-    classDef clientStyle fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-    classDef gatewayStyle fill:#f3e8ff,stroke:#a855f7,stroke-width:2px
-    classDef backendStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
-    classDef aiStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-    classDef dbStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
-    classDef externalStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:1px
-    classDef plannedStyle fill:#fef9c3,stroke:#ca8a04,stroke-width:1px,stroke-dasharray:5,5
+    classDef frontend fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef backend fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef storage fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    classDef infra fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    classDef external fill:#f3f4f6,stroke:#6b7280,stroke-width:1px
+    classDef planned fill:#fef9c3,stroke:#ca8a04,stroke-width:1px,stroke-dasharray:5,5
 
-    class Web,Mobile clientStyle
-    class NGINX gatewayStyle
-    class SpringBoot backendStyle
-    class AI aiStyle
-    class PG,Redis,Qdrant dbStyle
-    class OpenRouter,DeepSeek,Cohere,DuckDuckGo,Cloudinary externalStyle
-    class Firebase,Stripe plannedStyle
+    class User,Flutter,React frontend
+    class APIGateway,SpringBoot,Python backend
+    class Redis,Cloudinary,QdrantCloud,PostgreSQL,MongoDB storage
+    class Docker,GitHub,AWS,Vercel infra
+    class Cohere,OpenRouter,GoogleMaps external
+    class Firebase,Stripe planned
 ```
 
----
+**The Petties Platform** is designed with a modern, scalable, and modular architecture, clearly separating frontend and backend responsibilities. This ensures high performance, flexibility for scaling, and easy integration with third-party services.
 
-#### 1.1.2 Layer Descriptions
+**1. User Role:**
+- **Guest** - Can view clinic listings, search clinics, and view basic information
+- **Pet Owner** - Can register pets, book appointments, chat with AI assistant, view EMR history, and manage profile (Mobile only)
+- **Vet** - Can view appointments, manage schedule, create EMR records, and access patient history (Web + Mobile)
+- **Clinic Manager** - Manages clinic operations, staff scheduling, booking management, and patient records (Web only)
+- **Clinic Owner** - Manages clinic profile, services, pricing, staff, and views analytics (Web only)
+- **Admin** - Manages the system, user accounts, clinic approvals, AI agent configuration, and oversees system operations (Web only)
 
-##### 1️⃣ Client Layer (Tầng Giao diện)
+**2. Frontend Layer:**
+- Built with **React 19** (Web Dashboard) and **Flutter 3.5** (Mobile App) for responsive and real-time user experiences
+- Uses **WebSocket clients** to receive live AI chat streaming
+- Integrates **Neobrutalism design system** for consistent UI/UX
+- Static assets are distributed through **Cloudinary CDN** to improve performance
 
-| Component | Technology | Users | Purpose |
-|-----------|------------|-------|---------|
-| **Web Frontend** | React 19 + Vite + TypeScript | ADMIN, CLINIC_OWNER, CLINIC_MANAGER, VET | Admin dashboard, Clinic management, Booking management |
-| **Mobile App** | Flutter 3.5 | PET_OWNER | Pet registration, Booking, AI Chatbot, EMR viewing |
+**3. Backend Layer:**
+- **Spring Boot 3.4 Server:** Handles API management, authentication (JWT), REST API endpoints, and business logic for clinics, bookings, users, pets, and EMR
+- **Python FastAPI Service:** Processes AI chat requests, runs Single Agent with ReAct pattern, performs RAG queries, and supports real-time WebSocket streaming
+- **API Gateway (NGINX):** Manages real-time routing, SSL termination, load balancing, and rate limiting
 
-**Communication:** HTTPS REST APIs, WebSocket for real-time AI chat streaming
+**4. Store Data:**
+- **PostgreSQL 16** - Primary relational database storing users, clinics, bookings, pets, EMR, and AI agent configurations (shared by both services)
+- **MongoDB 7** - Used for auditing, logs, and flexible schema data (e.g., patient records or specialized logs)
+- **Redis 7** - Caches OTP codes, session data, and rate limiting counters with TTL-based expiration
+- **Qdrant Cloud** - Stores vector embeddings for RAG knowledge base (1024 dimensions, Binary Quantization)
+- **Cloudinary** - Manages media assets (images, avatars, clinic photos) efficiently with CDN delivery
+- **Firebase** - Used for push notifications to mobile devices [Planned]
 
----
-
-##### 2️⃣ API Gateway (NGINX)
-
-NGINX đóng vai trò **API Gateway** trung tâm, xử lý tất cả requests từ clients trước khi forward đến backend services.
-
-**Chức năng chính:**
-
-| Chức năng | Mô tả |
-|-----------|-------|
-| **Reverse Proxy** | Ẩn địa chỉ IP thực của backend servers, clients chỉ thấy domain duy nhất |
-| **SSL Termination** | Xử lý HTTPS/TLS tại gateway, backend services giao tiếp nội bộ qua HTTP |
-| **Load Balancing** | Phân tải request đến nhiều instances (horizontal scaling) |
-| **URL-based Routing** | Route requests dựa trên URL path đến đúng service |
-| **WebSocket Upgrade** | Xử lý WebSocket handshake cho AI chat streaming |
-| **Rate Limiting** | Giới hạn số request/giây để chống DDoS (nếu cấu hình) |
-| **Caching** | Cache static assets (images, CSS, JS) để giảm tải backend |
-| **CORS Handling** | Xử lý Cross-Origin requests từ frontend |
-
-**Routing Rules:**
-
-```nginx
-# Cấu hình routing trong NGINX
-location /api/ {
-    proxy_pass http://spring-boot:8080/;    # Business APIs
-}
-
-location /ai/ {
-    proxy_pass http://fastapi:8000/;        # AI Agent APIs
-}
-
-location /ws/ {
-    proxy_pass http://fastapi:8000/;        # WebSocket Streaming
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-}
-```
-
-**Lợi ích của API Gateway:**
-
-```mermaid
-flowchart LR
-    subgraph "Without NGINX"
-        C1[Client] --> S1[":8080"]
-        C1 --> S2[":8000"]
-    end
-
-    subgraph "With NGINX"
-        C2[Client] --> N[NGINX :443]
-        N --> B1[":8080"]
-        N --> B2[":8000"]
-    end
-
-    style N fill:#f3e8ff,stroke:#a855f7
-```
-
-> ✅ **Single Entry Point:** Clients chỉ cần biết 1 domain (api.petties.world), không cần biết internal ports.
-
----
-
-##### 3️⃣ Application Layer (Tầng Ứng dụng)
-
-| Service | Tech Stack | Port | Responsibilities |
-|---------|------------|------|------------------|
-| **Backend API** | Spring Boot + Java | 8080 | Core business logic: Auth, Users, Clinics, Bookings, Pets, EMR, Payments |
-| **AI Agent Service** | FastAPI + Python | 8000 | AI Chatbot (Single Agent + ReAct), RAG Pipeline (LlamaIndex), Tool Execution |
-
-**Inter-service Communication:** REST API calls when needed (e.g., AI calling booking APIs)
-
----
-
-##### 4️⃣ Data Layer (Tầng Dữ liệu)
-
-| Database | Technology | Data | Used By |
-|----------|------------|------|---------|
-| **PostgreSQL 16** | SQL RDBMS | Users, Clinics, Bookings, Pets, EMR, Vets, Agents, Tools, SystemSettings, Documents | Both services |
-| **Redis 7** | In-memory Cache | Session cache, OTP codes (TTL-based), Rate limiting | Spring Boot |
-| **Qdrant Cloud** | Vector Database | Document embeddings (1024 dims), Binary Quantization | AI Service |
-
-> ⚠️ **Note:** AI Service sử dụng **PostgreSQL** để lưu trữ Agent config, Tool metadata, và Knowledge Documents metadata. **KHÔNG dùng MongoDB**.
-
----
-
-##### 5️⃣ External Services (Dịch vụ Bên ngoài)
-
-| Service | Provider | Purpose | Status |
-|---------|----------|---------|--------|
-| **OpenRouter API** | OpenRouter | LLM Gateway (Gemini, Llama, Claude) | `[MVP]` |
-| **DeepSeek API** | DeepSeek | Alternative LLM (deepseek-chat) | `[MVP]` |
-| **Cohere API** | Cohere | Text Embeddings (embed-multilingual-v3.0, 1024 dims) | `[MVP]` |
-| **Qdrant Cloud** | Qdrant | Vector Storage với Binary Quantization | `[MVP]` |
-| **DuckDuckGo** | DuckDuckGo | Web Search (free, no API key) | `[MVP]` |
-| **Cloudinary** | Cloudinary | Image/File Storage + CDN | `[MVP]` |
-| **Firebase** | Google | Push Notifications | `[Planned]` |
-| **Stripe** | Stripe | Payment Processing | `[Planned]` |
+**5. Deployment & Infrastructure:**
+- **Vercel** - Used for frontend (React) deployment with automatic preview deployments
+- **AWS EC2** - Provides backend infrastructure and scalable cloud hosting for Spring Boot and FastAPI services
+- **Docker** - Containerizes backend services (Spring Boot, FastAPI, NGINX), enabling flexible deployment and CI/CD pipelines
+- **GitHub Actions** - Automated CI/CD for building, testing, and deploying all services
 
 ---
 
 ### 1.2 Package Diagram
 
-#### 1.2.1 Frontend Package Diagram (petties-web)
+#### 1.2.1 Back-End Package Diagram
+
+##### Spring Boot Service (backend-spring)
 
 ```mermaid
 flowchart TB
-    subgraph "petties-web (React 19 + Vite + TypeScript)"
+    subgraph "backend-spring (Spring Boot 3.4 + Java 21)"
         direction TB
 
-        subgraph "Entry Point"
-            Main["main.tsx<br/>(App Bootstrap)"]
-            App["App.tsx<br/>(Root Component)"]
-            Index["index.css<br/>(Global Styles)"]
-        end
-
-        subgraph "Pages Layer [MVP]"
-            direction LR
-            PagesAuth["pages/auth<br/>Login, Register,<br/>ForgotPassword"]
-            PagesOnboarding["pages/onboarding<br/>RoleSelection,<br/>UserOnboarding"]
-            PagesAdmin["pages/admin<br/>Dashboard, Agent Config,<br/>Tool Management"]
-            PagesClinicOwner["pages/clinic-owner<br/>Clinic Dashboard"]
-            PagesClinicManager["pages/clinic-manager<br/>Booking Management"]
-            PagesVet["pages/vet<br/>Schedule, Appointments"]
-            PagesShared["pages/shared<br/>Profile, Settings"]
-            PagesHome["pages/home<br/>Landing Page"]
-        end
-
-        subgraph "Components Layer [MVP]"
-            direction LR
-            CompAuth["components/auth<br/>LoginForm,<br/>RegisterForm"]
-            CompOnboarding["components/onboarding<br/>RoleCard, StepIndicator,<br/>OnboardingForm"]
-            CompCommon["components/common<br/>UI Primitives"]
-            CompProfile["components/profile<br/>AvatarUpload,<br/>ProfileForm"]
-            CompDashboard["components/dashboard<br/>StatCard, Chart"]
-            CompAdmin["components/admin<br/>AgentConfig,<br/>ToolManager, Playground"]
-        end
-
-        subgraph "Business Logic [MVP]"
-            direction LR
-            ServicesAPI["services/api<br/>axios client,<br/>interceptors"]
-            ServicesAuth["services/authService<br/>login, register,<br/>googleAuth"]
-            ServicesAgent["services/agentService<br/>chat, tools,<br/>knowledge"]
-            Endpoints["services/endpoints<br/>authAPI, agentAPI"]
-            WebSocket["services/websocket<br/>AI streaming"]
-        end
-
-        subgraph "State Management [MVP]"
-            Store["store<br/>Zustand stores:<br/>authStore, userStore"]
-        end
-
-        subgraph "Supporting Layers"
-            direction LR
-            Types["types<br/>TypeScript interfaces<br/>& type definitions"]
-            Utils["utils<br/>Formatters, Validators,<br/>Constants"]
-            Hooks["hooks<br/>Custom React Hooks:<br/>useAuth"]
-            Layouts["layouts<br/>AdminLayout, VetLayout,<br/>ClinicOwnerLayout,<br/>ClinicManagerLayout,<br/>AuthLayout, MainLayout"]
-            Config["config<br/>Environment config,<br/>API base URLs"]
-        end
-
-        subgraph "Styling"
-            Styles["styles<br/>Tailwind config,<br/>Neobrutalism theme"]
-            Assets["assets<br/>Images, Icons,<br/>Fonts"]
-        end
-    end
-
-    %% Flow connections
-    Main --> App
-    Main --> Index
-    App --> Layouts
-    Layouts --> PagesAuth & PagesAdmin & PagesClinicOwner & PagesClinicManager & PagesVet & PagesShared & PagesOnboarding & PagesHome
-
-    PagesAuth --> CompAuth
-    PagesOnboarding --> CompOnboarding
-    PagesAdmin --> CompAdmin & CompCommon
-    PagesClinicOwner & PagesClinicManager & PagesVet --> CompDashboard & CompCommon
-    PagesShared --> CompProfile
-
-    CompAuth & CompAdmin & CompDashboard --> ServicesAPI
-    ServicesAPI --> Endpoints
-    ServicesAPI --> ServicesAuth & ServicesAgent
-    ServicesAPI --> WebSocket
-
-    Endpoints --> Store
-    WebSocket --> Store
-
-    CompCommon & CompAuth & CompDashboard --> Hooks
-    Hooks --> Store
-
-    Services --> Config
-    Endpoints --> Types
-    CompCommon --> Utils
-
-    Layouts --> Styles
-    CompCommon --> Assets
-
-    %% Styling
-    classDef entryStyle fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-    classDef pageStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-    classDef compStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
-    classDef logicStyle fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
-    classDef stateStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
-    classDef supportStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
-
-    class Main,App,Index entryStyle
-    class PagesAuth,PagesAdmin,PagesClinicOwner,PagesClinicManager,PagesVet,PagesShared,PagesOnboarding,PagesHome pageStyle
-    class CompAuth,CompCommon,CompDashboard,CompAdmin,CompOnboarding,CompProfile compStyle
-    class ServicesAPI,ServicesAuth,ServicesAgent,Endpoints,WebSocket logicStyle
-    class Store stateStyle
-    class Types,Utils,Hooks,Layouts,Config,Styles,Assets supportStyle
-```
-
-#### Frontend Package Descriptions
-
-> **Ghi chú:** Các package đánh dấu `[MVP]` đã có trong code hiện tại.
-
-| Package | Responsibility | Key Files/Modules | Status |
-|---------|----------------|-------------------|--------|
-| **main.tsx** | Application entry point, khởi tạo React app và Router | `main.tsx` | `[MVP]` |
-| **App.tsx** | Root component, định nghĩa routes và global providers | `App.tsx` | `[MVP]` |
-| **pages/auth** | Các trang authentication (Login, Register, Forgot Password) | `LoginPage.tsx`, `RegisterPage.tsx`, `ForgotPasswordPage.tsx`, `OtpVerifyPage.tsx` | `[MVP]` |
-| **pages/onboarding** | User onboarding flow sau đăng ký | `RoleSelectionPage.tsx`, `OnboardingPage.tsx` | `[MVP]` |
-| **pages/admin** | Dashboard Admin: Agent Management, Tool Config, Knowledge Base | `DashboardPage.tsx`, `AgentConfigPage.tsx`, `ToolManagementPage.tsx`, `KnowledgeBasePage.tsx`, `PlaygroundPage.tsx` | `[MVP]` |
-| **pages/clinic-owner** | Dashboard Clinic Owner | `ClinicDashboardPage.tsx` | `[MVP]` (scaffold) |
-| **pages/clinic-manager** | Dashboard Clinic Manager | `BookingManagementPage.tsx` | `[MVP]` (scaffold) |
-| **pages/vet** | Dashboard Vet | `SchedulePage.tsx`, `AppointmentsPage.tsx` | `[MVP]` (scaffold) |
-| **pages/shared** | Shared pages cho tất cả roles | `ProfilePage.tsx`, `SettingsPage.tsx` | `[MVP]` |
-| **pages/home** | Landing page công khai | `HomePage.tsx` | `[MVP]` |
-| **components/auth** | Authentication forms | `LoginForm.tsx`, `RegisterForm.tsx`, `GoogleLoginButton.tsx` | `[MVP]` |
-| **components/onboarding** | Onboarding UI components | `RoleCard.tsx`, `StepIndicator.tsx`, `OnboardingForm.tsx`, `AvatarUploader.tsx` | `[MVP]` |
-| **components/common** | Reusable UI primitives (Neobrutalism design) | `OtpInput.tsx`, `Toast.tsx`, `ProtectedRoute.tsx` | `[MVP]` |
-| **components/profile** | Profile management components | `AvatarUpload.tsx`, `ProfileForm.tsx`, `PasswordChange.tsx`, `AccountSettings.tsx` | `[MVP]` |
-| **components/dashboard** | Dashboard widgets | `StatCard.tsx`, `ChartWidget.tsx` | `[MVP]` |
-| **components/admin** | Admin-specific components (AI Agent Management) | `AgentConfigEditor.tsx`, `ToolManager.tsx`, `RAGUploader.tsx`, `PlaygroundChat.tsx`, `SettingsPanel.tsx` | `[MVP]` |
-| **components/clinic-staff** | Staff management components cho Clinic Owner/Manager | `StaffTable.tsx` (Bảng nhân viên), `QuickAddStaffModal.tsx` (Form thêm nhanh), `index.ts` | `[MVP]` |
-| **pages/clinic-owner/staff** | Trang quản lý nhân sự cho Clinic Owner | `StaffManagementPage.tsx` (Quản lý Manager + Vet) | `[MVP]` |
-| **pages/clinic-manager/vets** | Trang quản lý bác sĩ cho Clinic Manager | `VetsManagementPage.tsx` (Chỉ quản lý Vet) | `[MVP]` |
-| **services/api** | Centralized Axios client với interceptors | `apiClient.ts`, `interceptors.ts` | `[MVP]` |
-| **services/authService** | Authentication business logic | `authService.ts` (login, register, googleAuth, refresh) | `[MVP]` |
-| **services/agentService** | AI Agent API calls | `agentService.ts` (chat, tools, knowledge, settings) | `[MVP]` |
-| **services/clinicStaffService** | Staff management API calls | `clinicStaffService.ts` (getClinicStaff, hasManager, quickAddStaff, removeStaff) | `[MVP]` |
-| **services/endpoints** | API endpoint functions by domain | `authAPI.ts`, `agentAPI.ts` | `[MVP]` |
-| **services/websocket** | WebSocket client cho AI streaming | `websocketClient.ts` | `[MVP]` |
-| **store** | Zustand stores cho state management | `authStore.ts`, `userStore.ts`, `index.ts` | `[MVP]` |
-| **types** | TypeScript type definitions | `api.ts`, `user.ts`, `clinicStaff.ts` (StaffMember, QuickAddStaffRequest), `index.ts` | `[MVP]` |
-| **utils** | Utility functions | `formatters.ts`, `validators.ts`, `helpers.ts` | `[MVP]` |
-| **hooks** | Custom React Hooks | `useAuth.ts`, `index.ts` | `[MVP]` |
-| **layouts** | Page layouts per role | `AdminLayout.tsx`, `VetLayout.tsx`, `ClinicOwnerLayout.tsx`, `ClinicManagerLayout.tsx`, `AuthLayout.tsx`, `MainLayout.tsx` | `[MVP]` |
-| **config** | Environment configuration | `env.ts`, `api.config.ts` | `[MVP]` |
-| **styles** | Tailwind CSS config và theme | `tailwind.config.ts`, `neobrutalism.css` | `[MVP]` |
-| **assets** | Static assets | `images/`, `icons/` | `[MVP]` |
-
-
----
-
-#### 1.2.2 Backend Package Diagram (backend-spring)
-
-```mermaid
-flowchart TB
-    subgraph "backend-spring (Spring Boot 3.x + Java 21)"
-        direction TB
-
-        subgraph "Entry Point"
-            Main["PettiesApplication.java<br/>(Main Class)"]
-        end
-
-        subgraph "Controller Layer [MVP]"
-            direction LR
-            AuthController["AuthController<br/>/api/v1/auth/**"]
-            UserController["UserController<br/>/api/v1/users/**"]
-            FileController["FileController<br/>/api/v1/files/**"]
-            ClinicController["ClinicController<br/>/api/v1/clinics/**"]
+        subgraph "controller"
+            AuthController["AuthController"]
+            UserController["UserController"]
+            ClinicController["ClinicController"]
             ClinicStaffController["ClinicStaffController"]
             ClinicServiceController["ClinicServiceController"]
             MasterServiceController["MasterServiceController"]
-            PetController["PetController<br/>/api/v1/pets/**"]
+            PetController["PetController"]
+            FileController["FileController"]
             NotificationController["NotificationController"]
+            ClinicPriceController["ClinicPriceController"]
         end
 
-        subgraph "Controller Layer [Planned]"
-            direction LR
-            VetController["VetController"]
-            BookingController["BookingController"]
-            EMRController["EMRController"]
-        end
-
-        subgraph "Service Layer [MVP]"
-            direction LR
+        subgraph "service"
             AuthService["AuthService"]
             UserService["UserService"]
             ClinicService["ClinicService"]
@@ -468,654 +159,693 @@ flowchart TB
             NotificationService["NotificationService"]
             EmailService["EmailService"]
             CloudinaryService["CloudinaryService"]
+            GoogleAuthService["GoogleAuthService"]
+            GoogleMapsService["GoogleMapsService"]
+            OtpRedisService["OtpRedisService"]
+            PasswordResetService["PasswordResetService"]
+            RegistrationOtpService["RegistrationOtpService"]
+            ClinicPriceService["ClinicPriceService"]
         end
 
-        subgraph "Repository Layer [MVP]"
-            direction LR
-            UserRepo["UserRepository"]
-            ClinicRepo["ClinicRepository"]
-            PetRepo["PetRepository"]
-            ClinicStaffRepo["ClinicStaffRepo"]
-            ClinicServiceRepo["ClinicServiceRepo"]
-            RefreshTokenRepo["RefreshTokenRepository"]
+        subgraph "repository"
+            UserRepository["UserRepository"]
+            ClinicRepository["ClinicRepository"]
+            ClinicImageRepository["ClinicImageRepository"]
+            ClinicServiceRepository["ClinicServiceRepository"]
+            MasterServiceRepository["MasterServiceRepository"]
+            PetRepository["PetRepository"]
+            NotificationRepository["NotificationRepository"]
+            RefreshTokenRepository["RefreshTokenRepository"]
+            BlacklistedTokenRepository["BlacklistedTokenRepository"]
+            ClinicPricePerKmRepository["ClinicPricePerKmRepository"]
+            ServiceWeightPriceRepository["ServiceWeightPriceRepository"]
         end
 
-        subgraph "Model Layer [MVP]"
-            direction LR
-            User["User entity"]
-            Clinic["Clinic entity"]
-            Pet["Pet entity"]
-            ClinicService["ClinicService entity"]
-            MasterService["MasterService entity"]
-            Notification["Notification entity"]
-            RoleEnum["Role (Enum)"]
+        subgraph "model"
+            User["User"]
+            Clinic["Clinic"]
+            ClinicImage["ClinicImage"]
+            ClinicServiceEntity["ClinicService"]
+            MasterService["MasterService"]
+            ServiceWeightPrice["ServiceWeightPrice"]
+            Pet["Pet"]
+            Notification["Notification"]
+            RefreshToken["RefreshToken"]
+            BlacklistedToken["BlacklistedToken"]
+            ClinicPricePerKm["ClinicPricePerKm"]
+            OperatingHours["OperatingHours"]
         end
 
-        subgraph "DTO Layer [MVP]"
-            direction TB
-            AuthDTOs["dto/auth/<br/>LoginRequest, RegisterRequest,<br/>TokenResponse, GoogleAuthRequest,<br/>RefreshTokenRequest, ResetPasswordRequest"]
-            UserDTOs["dto/user/<br/>UserResponse, UpdateProfileRequest"]
-            OtpDTOs["dto/otp/<br/>OtpVerificationRequest, OtpResponse"]
-            FileDTOs["dto/file/<br/>FileUploadResponse"]
+        subgraph "model/enums"
+            Role["Role"]
+            StaffRole["StaffRole"]
+            StaffStatus["StaffStatus"]
+            ClinicStatus["ClinicStatus"]
+            NotificationType["NotificationType"]
         end
 
-        subgraph "Security Layer [MVP]"
-            JWTFilter["JwtAuthenticationFilter"]
+        subgraph "dto"
+            AuthDTOs["dto/auth/*"]
+            UserDTOs["dto/user/*"]
+            ClinicDTOs["dto/clinic/*"]
+            ClinicServiceDTOs["dto/clinicService/*"]
+            MasterServiceDTOs["dto/masterService/*"]
+            PetDTOs["dto/pet/*"]
+            NotificationDTOs["dto/notification/*"]
+            OtpDTOs["dto/otp/*"]
+            FileDTOs["dto/file/*"]
+        end
+
+        subgraph "config"
             SecurityConfig["SecurityConfig"]
-            JWTProvider["JwtTokenProvider"]
-            UserDetailsImpl["UserDetailsServiceImpl"]
+            JwtAuthenticationFilter["JwtAuthenticationFilter"]
+            JwtTokenProvider["JwtTokenProvider"]
+            RedisConfig["RedisConfig"]
+            CloudinaryConfig["CloudinaryConfig"]
+            WebSocketConfig["WebSocketConfig"]
+            JpaConfig["JpaConfig"]
+            MongoDBConfig["MongoDBConfig"]
+            UserDetailsServiceImpl["UserDetailsServiceImpl"]
         end
 
-        subgraph "Exception Handling [MVP]"
+        subgraph "exception"
             GlobalExceptionHandler["GlobalExceptionHandler"]
-            CustomExceptions["Exceptions Handling"]
+            BadRequestException["BadRequestException"]
+            ResourceNotFoundException["ResourceNotFoundException"]
+            ResourceAlreadyExistsException["ResourceAlreadyExistsException"]
+            UnauthorizedException["UnauthorizedException"]
+            ForbiddenException["ForbiddenException"]
+            ErrorResponse["ErrorResponse"]
         end
 
-        subgraph "Configuration [MVP]"
-            RedisConfig["RedisConfig<br/>(RedisTemplate)"]
-            CloudinaryConfig["CloudinaryConfig<br/>(Cloudinary SDK)"]
-            WebMvcConfig["WebMvcConfig<br/>(CORS, Static)"]
-            DataInitializer["DataInitializer<br/>(Seed Admin User)"]
+        subgraph "util"
+            TokenUtil["TokenUtil"]
+        end
+
+        subgraph "converter"
+            OperatingHoursConverter["OperatingHoursConverter"]
         end
     end
 
-    %% Flow connections - Controller to Service [MVP]
-    AuthController --> AuthService
-    AuthController --> GoogleAuthService
-    UserController --> UserService
-    FileController --> CloudinaryService
-
-    %% AuthService dependencies
-    AuthService --> UserRepo & OtpRedisService & EmailService
-    AuthService --> JWTProvider
-    AuthService --> PasswordResetService
-    UserService --> UserRepo
-
-    %% Token management
-    AuthService --> RefreshTokenRepo
-    AuthService --> BlacklistRepo
-
-    %% Repository to Model
-    UserRepo -.->|"JPA Mapping"| User
-    RefreshTokenRepo -.->|"JPA Mapping"| RefreshToken
-    BlacklistRepo -.->|"JPA Mapping"| BlacklistedToken
-
-    %% DTO usage
-    AuthController -.->|"Request/Response"| AuthDTOs
-    AuthController -.->|"Request/Response"| OtpDTOs
-    UserController -.->|"Request/Response"| UserDTOs
-    FileController -.->|"Request/Response"| FileDTOs
-
-    %% Security integration
-    JWTFilter --> JWTProvider
-    JWTFilter --> UserDetailsImpl
-    SecurityConfig --> JWTFilter
-    UserDetailsImpl --> UserRepo
-
-    %% Exception handling
-    AuthController & UserController & FileController --> GlobalExceptionHandler
-    AuthService & UserService --> CustomExceptions
-
-    %% Configuration
-    RedisConfig --> OtpRedisService
-    CloudinaryConfig --> CloudinaryService
+    %% Flow connections
+    controller --> service
+    service --> repository
+    repository --> model
+    controller --> dto
+    service --> dto
+    config --> service
+    controller --> exception
 
     %% Styling
-    classDef entryStyle fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
     classDef controllerStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-    classDef plannedStyle fill:#f3f4f6,stroke:#9ca3af,stroke-width:2px,stroke-dasharray: 5 5
     classDef serviceStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
     classDef repoStyle fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
     classDef modelStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
     classDef dtoStyle fill:#fbcfe8,stroke:#ec4899,stroke-width:2px
-    classDef securityStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
-    classDef configStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
+    classDef configStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef exceptionStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
 
-    class Main entryStyle
-    class AuthController,UserController,FileController,ClinicController,ClinicStaffController,ClinicServiceController,MasterServiceController,PetController,NotificationController controllerStyle
-    class VetController,BookingController,EMRController plannedStyle
-    class AuthService,UserService,ClinicService,ClinicStaffService,ClinicServiceService,MasterServiceService,PetService,NotificationService,EmailService,CloudinaryService serviceStyle
-    class UserRepo,ClinicRepo,PetRepo,ClinicStaffRepo,ClinicServiceRepo,RefreshTokenRepo repoStyle
-    class User,Clinic,Pet,ClinicService,MasterService,Notification,RoleEnum modelStyle
-    class AuthDTOs,UserDTOs,OtpDTOs,FileDTOs dtoStyle
-    class JWTFilter,SecurityConfig,JWTProvider,UserDetailsImpl securityStyle
-    class GlobalExceptionHandler,CustomExceptions,RedisConfig,CloudinaryConfig,WebMvcConfig,DataInitializer configStyle
+    class AuthController,UserController,ClinicController,ClinicStaffController,ClinicServiceController,MasterServiceController,PetController,FileController,NotificationController,ClinicPriceController controllerStyle
+    class AuthService,UserService,ClinicService,ClinicStaffService,ClinicServiceService,MasterServiceService,PetService,NotificationService,EmailService,CloudinaryService,GoogleAuthService,GoogleMapsService,OtpRedisService,PasswordResetService,RegistrationOtpService,ClinicPriceService serviceStyle
+    class UserRepository,ClinicRepository,ClinicImageRepository,ClinicServiceRepository,MasterServiceRepository,PetRepository,NotificationRepository,RefreshTokenRepository,BlacklistedTokenRepository,ClinicPricePerKmRepository,ServiceWeightPriceRepository repoStyle
+    class User,Clinic,ClinicImage,ClinicServiceEntity,MasterService,ServiceWeightPrice,Pet,Notification,RefreshToken,BlacklistedToken,ClinicPricePerKm,OperatingHours modelStyle
+    class AuthDTOs,UserDTOs,ClinicDTOs,ClinicServiceDTOs,MasterServiceDTOs,PetDTOs,NotificationDTOs,OtpDTOs,FileDTOs dtoStyle
+    class SecurityConfig,JwtAuthenticationFilter,JwtTokenProvider,RedisConfig,CloudinaryConfig,WebSocketConfig,JpaConfig,MongoDBConfig,UserDetailsServiceImpl configStyle
+    class GlobalExceptionHandler,BadRequestException,ResourceNotFoundException,ResourceAlreadyExistsException,UnauthorizedException,ForbiddenException,ErrorResponse exceptionStyle
 ```
 
-#### Backend Package Descriptions
-
-> **Ghi chú:** Các package đánh dấu `[MVP]` đã có trong code hiện tại. `[Planned]` là kế hoạch phát triển.
-
-| Package | Responsibility | Key Classes | Status |
-|---------|----------------|-------------|--------|
-| **PettiesApplication** | Application entry point, Spring Boot bootstrap | `PettiesApplication.java` | `[MVP]` |
-| **controller** | REST API endpoints, HTTP request handling | `AuthController`, `UserController`, `FileController`, `ClinicController`, `ClinicStaffController`, `PetController`, `ClinicServiceController`, `MasterServiceController` | `[MVP]` |
-| **controller/ClinicStaff** | Staff management API cho Clinic Owner/Manager | `GET /clinics/{id}/staff`, `POST /clinics/{id}/staff/quick-add`, `DELETE /staff/{userId}` | `[MVP]` |
-| **controller (planned)** | Future controllers cho business features | `VetController`, `BookingController`, `EMRController` | `[Planned]` |
-| **service** | Business logic implementation | `AuthService`, `UserService`, `CloudinaryService`, `EmailService`, `OtpRedisService`, `PasswordResetService`, `GoogleAuthService`, `RegistrationOtpService`, `ClinicService`, `ClinicStaffService` | `[MVP]` |
-| **service/ClinicStaffService** | Staff management logic | `getClinicStaff()`, `hasManager()`, `quickAddStaff()`, `assignManager()`, `assignVet()`, `removeStaff()` | `[MVP]` |
-| **repository** | Data access layer với Spring Data JPA | `UserRepository`, `RefreshTokenRepository`, `BlacklistedTokenRepository`, `ClinicRepository` | `[MVP]` |
-| **model (entity)** | JPA entities mapping to database tables | `User`, `Clinic`, `RefreshToken`, `BlacklistedToken`, `enums/Role` | `[MVP]` |
-| **dto/auth** | Auth DTOs cho login/register/token | `LoginRequest`, `RegisterRequest`, `TokenResponse`, `GoogleAuthRequest`, `RefreshTokenRequest`, `ResetPasswordRequest`, `ChangePasswordRequest`, `RegisterOtpRequest`, `VerifyOtpRequest` | `[MVP]` |
-| **dto/user** | User profile DTOs | `UserResponse`, `UpdateProfileRequest`, `UserInfoResponse` | `[MVP]` |
-| **dto/clinic** | Clinic & Staff DTOs | `QuickAddStaffRequest` (fullName, phone, role), `StaffResponse` (userId, fullName, username, email, role, phone, avatar) | `[MVP]` |
-| **dto/otp** | OTP verification DTOs | `OtpVerificationRequest`, `OtpResponse` | `[MVP]` |
-| **dto/file** | File upload DTOs | `FileUploadResponse` | `[MVP]` |
-| **config** | Application configuration beans | `SecurityConfig`, `RedisConfig`, `CloudinaryConfig`, `WebMvcConfig`, `DataInitializer` | `[MVP]` |
-| **security** | Authentication & Authorization | `JwtAuthenticationFilter`, `JwtTokenProvider`, `SecurityConfig`, `UserDetailsServiceImpl` | `[MVP]` |
-| **exception** | Global exception handling với Vietnamese messages | `GlobalExceptionHandler`, `ResourceNotFoundException`, `UnauthorizedException`, `BadRequestException`, `ForbiddenException`, `ResourceAlreadyExistsException`, `ErrorResponse` | `[MVP]` |
-| **util** | Utility classes | `SlugUtil` (nếu có) | `[MVP]` |
-
-
----
-
-#### 1.2.3 AI Agent Service Package Diagram (petties-agent-serivce)
-
-> **Kiến trúc thực tế:** Single Agent with ReAct Pattern, KHÔNG phải Multi-Agent.
+##### Python AI Agent Service (petties-agent-serivce)
 
 ```mermaid
 flowchart TB
     subgraph "petties-agent-serivce (FastAPI + Python 3.12)"
         direction TB
 
-        subgraph "Entry Point"
-            Main["app/main.py<br/>(FastAPI Bootstrap)"]
+        subgraph "api/routes"
+            ChatRoute["chat.py"]
+            AgentsRoute["agents.py"]
+            ToolsRoute["tools.py"]
+            KnowledgeRoute["knowledge.py"]
+            SettingsRoute["settings.py"]
         end
 
-        subgraph "API Layer [MVP]"
-            direction LR
-            ChatRoute["api/routes/chat.py<br/>Chat Session Management"]
-            AgentRoute["api/routes/agents.py<br/>Agent CRUD"]
-            ToolRoute["api/routes/tools.py<br/>Tool Management"]
-            KnowledgeRoute["api/routes/knowledge.py<br/>RAG Upload & Query"]
-            SettingsRoute["api/routes/settings.py<br/>API Keys, Seed Data"]
-            WebSocketAPI["api/websocket/chat.py<br/>WebSocket Streaming"]
+        subgraph "api/websocket"
+            WebSocketChat["chat.py"]
         end
 
-        subgraph "Core - Single Agent + ReAct [MVP]"
-            direction LR
-            SingleAgent["agents/single_agent.py<br/><b>SingleAgent class</b><br/>ReAct Pattern:<br/>Think → Act → Observe"]
-            AgentState["agents/state.py<br/>ReActState TypedDict<br/>messages, react_steps"]
-            AgentFactory["agents/factory.py<br/>Dynamic Agent Builder<br/>Load config from DB"]
+        subgraph "api/middleware"
+            AuthMiddleware["auth.py"]
         end
 
-        subgraph "Core - MCP Tools Infrastructure [MVP]"
-            direction TB
-            MCPServer["tools/mcp_server.py<br/><b>FastMCP Server</b><br/>@mcp.tool decorator"]
-            Scanner["tools/scanner.py<br/><b>Tool Scanner</b><br/>Auto-discovery & Sync"]
-            Executor["tools/executor.py<br/><b>Tool Executor</b><br/>Validate & Execute"]
+        subgraph "api/schemas"
+            AgentSchemas["agent_schemas.py"]
+            ToolSchemas["tool_schemas.py"]
+            KnowledgeSchemas["knowledge_schemas.py"]
+            WebSocketSchemas["websocket_schemas.py"]
         end
 
-        subgraph "Core - Code-based Tools"
-            direction LR
-            MedicalTools["tools/mcp_tools/medical_tools.py [MVP]<br/>@mcp.tool pet_care_qa<br/>@mcp.tool symptom_search"]
-            BookingTools["tools/mcp_tools/booking_tools.py [Planned]<br/>@mcp.tool check_slot<br/>@mcp.tool create_booking"]
-            ResearchTools["tools/mcp_tools/research_tools.py [Planned]<br/>@mcp.tool web_search"]
+        subgraph "core/agents"
+            SingleAgent["single_agent.py"]
+            AgentState["state.py"]
+            AgentFactory["factory.py"]
         end
 
-        subgraph "Core - RAG Pipeline (100% LlamaIndex) [MVP]"
-            direction LR
-            RAGEngine["rag/rag_engine.py<br/><b>LlamaIndexRAGEngine</b><br/>VectorStoreIndex +<br/>SentenceSplitter +<br/>CohereEmbedding +<br/>QdrantVectorStore"]
+        subgraph "core/tools"
+            MCPServer["mcp_server.py"]
+            ToolScanner["scanner.py"]
+            ToolExecutor["executor.py"]
         end
 
-        subgraph "Core - Configuration [MVP]"
-            direction LR
-            ConfigHelper["core/config_helper.py<br/>Load settings from DB<br/>(API Keys, Configs)"]
-            Settings["config/settings.py<br/>Pydantic Settings<br/>(Fallback Defaults)"]
+        subgraph "core/tools/mcp_tools"
+            MedicalTools["medical_tools.py"]
         end
 
-        subgraph "Services [MVP]"
-            direction LR
-            LLMClient["services/llm_client.py<br/><b>LLM Client</b><br/>OpenRouter + DeepSeek<br/>Streaming support"]
+        subgraph "core/rag"
+            RAGEngine["rag_engine.py"]
         end
 
-        subgraph "Data Layer [MVP]"
-            direction LR
-            Models["db/postgres/models.py<br/>Agent, Tool, SystemSetting,<br/>KnowledgeDocument"]
-            Session["db/postgres/session.py<br/>AsyncSession Factory"]
+        subgraph "core"
+            ConfigHelper["config_helper.py"]
+            InitDB["init_db.py"]
+            Sentry["sentry.py"]
         end
 
-        subgraph "External Integrations"
-            direction TB
-            OpenRouter["OpenRouter API<br/>(LLM Gateway)"]
-            DeepSeek["DeepSeek API<br/>(Alternative LLM)"]
-            Cohere["Cohere API<br/>(Embeddings)"]
-            QdrantCloud["Qdrant Cloud<br/>(Vector DB)"]
-            DuckDuckGo["DuckDuckGo Search<br/>(Web Search - Free)"]
-            SpringBackend["Spring Boot Backend<br/>(Business APIs)"]
+        subgraph "services"
+            LLMClient["llm_client.py"]
         end
+
+        subgraph "db/postgres"
+            Models["models.py"]
+            Session["session.py"]
+        end
+
+        subgraph "config"
+            Settings["settings.py"]
+            LoggingConfig["logging_config.py"]
+        end
+
+        Main["main.py"]
     end
 
-    %% Entry Point
-    Main --> ChatRoute & AgentRoute & ToolRoute & KnowledgeRoute & SettingsRoute
-    Main --> WebSocketAPI
+    %% Flow connections
+    Main --> ChatRoute
+    Main --> AgentsRoute
+    Main --> ToolsRoute
+    Main --> KnowledgeRoute
+    Main --> SettingsRoute
+    Main --> WebSocketChat
 
-    %% Chat Flow
     ChatRoute --> SingleAgent
-    WebSocketAPI --> SingleAgent
-
-    %% Agent uses components
+    WebSocketChat --> SingleAgent
     SingleAgent --> AgentState
     SingleAgent --> LLMClient
-    SingleAgent --> Executor
+    SingleAgent --> ToolExecutor
     SingleAgent --> RAGEngine
 
-    %% Agent Factory
+    AgentsRoute --> AgentFactory
     AgentFactory --> ConfigHelper
     AgentFactory --> Models
 
-    %% MCP Tools Flow
-    ToolRoute --> Scanner
-    Scanner --> MCPServer
-    MCPServer --> MedicalTools & BookingTools & ResearchTools
-    Scanner -.->|"Sync Metadata"| Models
-    Executor --> MCPServer
+    ToolsRoute --> ToolScanner
+    ToolScanner --> MCPServer
+    MCPServer --> MedicalTools
+    ToolExecutor --> MCPServer
 
-    %% RAG Flow
     KnowledgeRoute --> RAGEngine
-    RAGEngine --> Cohere
-    RAGEngine --> QdrantCloud
-
-    %% Config Flow
     SettingsRoute --> ConfigHelper
-    ConfigHelper --> Models
 
-    %% Database
-    AgentRoute & ToolRoute & KnowledgeRoute --> Models
     Models --> Session
-
-    %% External APIs
-    LLMClient --> OpenRouter
-    LLMClient --> DeepSeek
-    MedicalTools -.->|"RAG Query"| RAGEngine
-    ResearchTools -.-> DuckDuckGo
-    BookingTools -.-> SpringBackend
+    ConfigHelper --> Settings
 
     %% Styling
-    classDef entryStyle fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-    classDef apiStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef routeStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
     classDef agentStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
     classDef toolStyle fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
     classDef ragStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
-    classDef configStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
-    classDef dataStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
-    classDef externalStyle fill:#fbcfe8,stroke:#ec4899,stroke-width:2px
-    classDef plannedStyle fill:#fef9c3,stroke:#ca8a04,stroke-width:1px,stroke-dasharray:5,5
+    classDef serviceStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef dbStyle fill:#fbcfe8,stroke:#ec4899,stroke-width:2px
+    classDef configStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
 
-    class Main entryStyle
-    class ChatRoute,AgentRoute,ToolRoute,KnowledgeRoute,SettingsRoute,WebSocketAPI apiStyle
+    class ChatRoute,AgentsRoute,ToolsRoute,KnowledgeRoute,SettingsRoute,WebSocketChat routeStyle
     class SingleAgent,AgentState,AgentFactory agentStyle
-    class MCPServer,Scanner,Executor,MedicalTools toolStyle
-    class BookingTools,ResearchTools plannedStyle
+    class MCPServer,ToolScanner,ToolExecutor,MedicalTools toolStyle
     class RAGEngine ragStyle
-    class ConfigHelper,Settings configStyle
-    class LLMClient,Models,Session dataStyle
-    class OpenRouter,DeepSeek,Cohere,QdrantCloud,DuckDuckGo,SpringBackend externalStyle
+    class LLMClient serviceStyle
+    class Models,Session dbStyle
+    class Settings,LoggingConfig,ConfigHelper,InitDB,Sentry,Main configStyle
 ```
 
-#### AI Agent Service Package Descriptions
+##### Package Descriptions - Spring Boot Service:
 
-> **Legend:** `[MVP]` = Đã implement, `[Planned]` = Sẽ thêm trong tương lai
+| No | Package | Description |
+|----|---------|-------------|
+| **Controller Layer** |
+| 01 | controller | REST API layer handling HTTP requests. Includes controllers for Auth, User, Clinic, Pet, File, Notification, and other business endpoints. Maps to `/api/v1/*` routes. |
+| **Service Layer** |
+| 02 | service | Core business logic layer. Contains services for authentication, user management, clinic operations, pet management, email sending, file upload (Cloudinary), OTP verification, and Google Maps integration. |
+| 03 | service/impl | Implementation classes for service interfaces (e.g., GoogleMapsServiceImpl). |
+| **Repository Layer** |
+| 04 | repository | Data access layer using Spring Data JPA. Provides CRUD operations for all entities with custom query methods. |
+| **Model Layer** |
+| 05 | model | JPA entity classes mapped to PostgreSQL tables. Includes User, Clinic, ClinicImage, ClinicService, MasterService, Pet, Notification, RefreshToken, BlacklistedToken. |
+| 06 | model/enums | Enum definitions: Role (PET_OWNER, VET, CLINIC_MANAGER, CLINIC_OWNER, ADMIN), StaffRole, StaffStatus, ClinicStatus, NotificationType. |
+| **DTO Layer** |
+| 07 | dto/auth | Authentication DTOs: LoginRequest, RegisterRequest, GoogleSignInRequest, SendOtpRequest, VerifyOtpRequest, ForgotPasswordRequest, ResetPasswordRequest, MessageResponse. |
+| 08 | dto/user | User profile DTOs: UpdateProfileRequest, ChangePasswordRequest, EmailChangeRequest, EmailChangeVerifyRequest, AvatarResponse. |
+| 09 | dto/clinic | Clinic DTOs: ClinicRequest, ClinicResponse, QuickAddStaffRequest, StaffResponse, ClinicPriceRequest, ClinicPriceResponse, ApproveClinicRequest, RejectClinicRequest, DistanceResponse, GeocodeResponse. |
+| 10 | dto/clinicService | Clinic service DTOs: ClinicServiceResponse, ClinicServiceUpdateRequest, WeightPriceDto. |
+| 11 | dto/masterService | Master service DTOs: MasterServiceRequest, MasterServiceResponse, MasterServiceUpdateRequest. |
+| 12 | dto/pet | Pet DTOs: PetRequest, PetResponse. |
+| 13 | dto/notification | Notification DTOs: NotificationResponse. |
+| 14 | dto/otp | OTP data DTOs: PendingRegistrationData, PasswordResetOtpData, EmailChangeOtpData. |
+| 15 | dto/file | File upload DTOs: UploadResponse. |
+| **Configuration Layer** |
+| 16 | config | Application configuration beans: SecurityConfig (Spring Security + JWT), JwtAuthenticationFilter, JwtTokenProvider, RedisConfig, CloudinaryConfig, WebSocketConfig, JpaConfig, UserDetailsServiceImpl. |
+| **Exception Layer** |
+| 17 | exception | Global exception handling with Vietnamese messages. Includes GlobalExceptionHandler, BadRequestException, ResourceNotFoundException, ResourceAlreadyExistsException, UnauthorizedException, ForbiddenException, ErrorResponse. |
+| **Utility Layer** |
+| 18 | util | Utility classes: TokenUtil for JWT token operations. |
+| 19 | converter | JPA converters: OperatingHoursConverter for JSON-to-object mapping. |
 
-| Package | Responsibility | Key Files/Modules | Status |
-|---------|----------------|-------------------|--------|
-| **app/main.py** | FastAPI bootstrap, router registration, lifespan | `main.py` | `[MVP]` |
-| **api/routes/chat** | Chat session REST endpoints | `chat.py` (POST /chat, GET /sessions) | `[MVP]` |
-| **api/routes/agents** | Agent CRUD, enable/disable | `agents.py` (GET /agents, PUT /agents/{id}) | `[MVP]` |
-| **api/routes/tools** | Tool Management & Scanner | `tools.py` (POST /tools/scan, PUT /tools/{id}/enable) | `[MVP]` |
-| **api/routes/knowledge** | Knowledge Base upload, RAG query | `knowledge.py` (POST /upload, POST /query) | `[MVP]` |
-| **api/routes/settings** | API Keys, System Settings | `settings.py` (GET/PUT /settings, POST /seed) | `[MVP]` |
-| **api/websocket/chat** | WebSocket real-time chat streaming | `chat.py` (WS /ws/chat/{session_id}) | `[MVP]` |
-| **core/agents/single_agent** | **Single Agent với ReAct Pattern** - Think → Act → Observe loop, LangGraph StateGraph | `single_agent.py` (SingleAgent class, _think_node, _act_node, _observe_node) | `[MVP]` |
-| **core/agents/state** | ReActState TypedDict definition | `state.py` (ReActState, ReActStep) | `[MVP]` |
-| **core/agents/factory** | Dynamic Agent Builder - Load config từ DB | `factory.py` (AgentFactory.create_agent) | `[MVP]` |
-| **core/tools/mcp_server** | FastMCP Server - @mcp.tool registration | `mcp_server.py` (mcp_server instance, call_mcp_tool) | `[MVP]` |
-| **core/tools/scanner** | Tool Scanner - Auto-discovery & DB sync | `scanner.py` (ToolScanner.scan_and_sync_tools) | `[MVP]` |
-| **core/tools/executor** | Tool Executor - Validate & execute tools | `executor.py` (ToolExecutor.execute) | `[MVP]` |
-| **core/tools/mcp_tools/medical_tools** | Medical Tools - RAG query, symptom search | `medical_tools.py` (@mcp.tool pet_care_qa, search_symptoms) | `[MVP]` |
-| **core/tools/mcp_tools/booking_tools** | Booking Tools - Slot check, booking management | `booking_tools.py` (@mcp.tool check_slot, create_booking) | `[Planned]` |
-| **core/tools/mcp_tools/research_tools** | Research Tools - Web search với DuckDuckGo | `research_tools.py` (@mcp.tool web_search) | `[Planned]` |
-| **core/rag/rag_engine** | **100% LlamaIndex RAG Engine** - VectorStoreIndex + SentenceSplitter + CohereEmbedding + QdrantVectorStore | `rag_engine.py` (LlamaIndexRAGEngine class) | `[MVP]` |
-| **core/config_helper** | Load settings từ PostgreSQL | `config_helper.py` (get_setting, load_settings) | `[MVP]` |
-| **config/settings** | Pydantic Settings - Fallback defaults | `settings.py` (Settings class) | `[MVP]` |
-| **services/llm_client** | **LLM Client** - OpenRouter + DeepSeek, streaming support | `llm_client.py` (chat_completion, stream) | `[MVP]` |
-| **db/postgres/models** | SQLAlchemy ORM Models | `models.py` (Agent, Tool, SystemSetting, KnowledgeDocument) | `[MVP]` |
-| **db/postgres/session** | AsyncSession factory | `session.py` (AsyncSessionLocal) | `[MVP]` |
+##### Package Descriptions - Python AI Agent Service:
+
+| No | Package | Description |
+|----|---------|-------------|
+| **API Layer** |
+| 01 | api/routes | FastAPI route handlers for Chat (sessions, messages), Agents (CRUD, config), Tools (scan, enable/disable), Knowledge (upload, query), Settings (API keys, seed data). |
+| 02 | api/websocket | WebSocket endpoint for real-time AI chat streaming with ReAct trace visualization. |
+| 03 | api/middleware | Authentication middleware for JWT token validation and user extraction. |
+| 04 | api/schemas | Pydantic schemas for request/response validation: agent_schemas, tool_schemas, knowledge_schemas, websocket_schemas. |
+| **Core - Agent Layer** |
+| 05 | core/agents | Single Agent implementation with ReAct pattern (Think -> Act -> Observe loop). Uses LangGraph StateGraph for state management. |
+| 06 | core/agents/state | ReActState TypedDict definition with messages, react_steps, current_thought, tool_calls. |
+| 07 | core/agents/factory | Dynamic Agent Builder that loads configuration from PostgreSQL database. |
+| **Core - Tool Layer** |
+| 08 | core/tools | FastMCP server infrastructure for tool registration and execution. |
+| 09 | core/tools/mcp_server | FastMCP Server instance with @mcp.tool decorator for tool registration. |
+| 10 | core/tools/scanner | Tool Scanner for auto-discovery of @mcp.tool decorated functions and syncing to database. |
+| 11 | core/tools/executor | Tool Executor for validating parameters and executing tools through MCP server. |
+| 12 | core/tools/mcp_tools | Code-based tools with semantic descriptions: medical_tools.py (pet_care_qa, symptom_search). |
+| **Core - RAG Layer** |
+| 13 | core/rag | 100% LlamaIndex RAG Engine with VectorStoreIndex, SentenceSplitter, CohereEmbedding (1024 dims), QdrantVectorStore. |
+| **Core - Utilities** |
+| 14 | core/config_helper | Dynamic configuration loader from PostgreSQL (API keys, model settings, prompts). |
+| 15 | core/init_db | Database initialization and seed data scripts. |
+| 16 | core/sentry | Sentry integration for error tracking and monitoring. |
+| **Services Layer** |
+| 17 | services | Business logic services: llm_client.py for OpenRouter/DeepSeek API calls with streaming support. |
+| **Database Layer** |
+| 18 | db/postgres/models | SQLAlchemy ORM models: Agent, Tool, SystemSetting, KnowledgeDocument, ChatSession, ChatMessage. |
+| 19 | db/postgres/session | AsyncSession factory for database connections. |
+| 20 | db/postgres/migrations | Alembic migration scripts for schema versioning. |
+| **Configuration Layer** |
+| 21 | config | Pydantic Settings for environment configuration and logging setup. |
 
 ---
 
-#### MCP Tool Scanner Flow (Code-based Tools ONLY)
+#### 1.2.2 Front-End Package Diagram
 
-Sequence diagram minh họa cơ chế **Tool Scanner** - Một trong những core features của hệ thống (TL-01 - Critical Priority):
+##### React Web Dashboard (petties-web)
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant Admin as Admin Dashboard
-    participant API as Tool Route API
-    participant Scanner as Tool Scanner
-    participant MCP as FastMCP Server
-    participant Code as Code-based Tools<br/>(mcp_tools/*.py)
-    participant DB as PostgreSQL
+flowchart TB
+    subgraph "petties-web (React 19 + Vite + TypeScript)"
+        direction TB
 
-    Admin->>API: POST /api/v1/tools/scan
-    Note over Admin,API: Admin nhấn "Scan Tools"<br/>trên Dashboard
+        subgraph "pages"
+            PagesAuth["pages/auth<br/>LoginPage, RegisterPage,<br/>ForgotPasswordPage"]
+            PagesOnboarding["pages/onboarding<br/>OnboardingPage"]
+            PagesAdmin["pages/admin<br/>DashboardPage, ClinicApprovalPage"]
+            PagesAdminTools["pages/admin/tools<br/>ToolsPage"]
+            PagesAdminKnowledge["pages/admin/knowledge<br/>KnowledgeBasePage"]
+            PagesAdminPlayground["pages/admin/playground<br/>PlaygroundPage"]
+            PagesAdminClinics["pages/admin/clinics<br/>ClinicApprovalPage"]
+            PagesClinicOwner["pages/clinic-owner<br/>MasterServicesPage, ServicesPage"]
+            PagesClinicOwnerClinics["pages/clinic-owner/clinics<br/>ClinicCreatePage, ClinicEditPage"]
+            PagesClinicManager["pages/clinic-manager<br/>DashboardPage"]
+            PagesVet["pages/vet<br/>DashboardPage"]
+            PagesShared["pages/shared<br/>ProfilePage"]
+        end
 
-    API->>Scanner: scanner.scan_and_sync_tools()
-    Note over API,Scanner: Trigger scan process
+        subgraph "components"
+            CompAuth["components/auth<br/>RoleGuard, RoleBasedRedirect"]
+            CompAdmin["components/admin<br/>ApiKeyManager, ChatMessage,<br/>DocumentUpload, ModelParametersConfig,<br/>RAGQueryTester, ToolCard,<br/>SystemPromptEditor, RoutingExamplesManager,<br/>ApproveRejectModal"]
+            CompClinic["components/clinic<br/>ClinicCard, ClinicForm,<br/>ClinicImageUpload, ClinicLogoUpload,<br/>ClinicMapOSM, DistanceCalculator,<br/>AddressAutocompleteOSM"]
+            CompClinicOwner["components/clinic-owner<br/>ClinicSelectModal, InheritServiceModal"]
+            CompClinicStaff["components/clinic-staff<br/>QuickAddStaffModal"]
+            CompOnboarding["components/onboarding<br/>HeroSection, FeaturesSection,<br/>HowItWorksSection, ProblemStatement,<br/>TargetUsersSection, NavigationBar,<br/>CTAFooter"]
+            CompProfile["components/profile<br/>AvatarUpload, ChangePasswordModal,<br/>EmailChangeModal, ImageCropModal"]
+            CompDashboard["components/dashboard<br/>DashboardCard, DashboardSidebar"]
+            CompCommon["components/common<br/>OtpInput, ProtectedRoute,<br/>ConfirmDialog"]
+            CompToast["components/Toast"]
+        end
 
-    Scanner->>MCP: get_mcp_tools_metadata()
-    Note over Scanner,MCP: Lấy metadata của tất cả<br/>registered tools
+        subgraph "layouts"
+            AdminLayout["AdminLayout"]
+            VetLayout["VetLayout"]
+            ClinicOwnerLayout["ClinicOwnerLayout"]
+            ClinicManagerLayout["ClinicManagerLayout"]
+            AuthLayout["AuthLayout"]
+            MainLayout["MainLayout"]
+        end
 
-    MCP->>Code: mcp_server.list_tools()
-    Note over MCP,Code: Duyệt tất cả functions<br/>có @mcp.tool decorator
+        subgraph "services"
+            ServicesAPI["services/api<br/>client, userService,<br/>clinicService, notificationService"]
+            ServicesEndpoints["services/endpoints<br/>masterService, service"]
+            ServicesWebSocket["services/websocket<br/>WebSocket client"]
+        end
 
-    Code->>Code: Extract schema<br/>từ type hints
-    Note over Code: Input Schema: inspect.signature()<br/>Output Schema: get_type_hints()
+        subgraph "store"
+            UserStore["store/userStore"]
+            ClinicStore["store/clinicStore"]
+        end
 
-    Code-->>MCP: Return tool functions<br/>+ metadata
-    Note over Code,MCP: {name, description,<br/>input_schema, output_schema}
+        subgraph "hooks"
+            UseAuth["hooks/useAuth"]
+            UseToast["hooks/useToast"]
+        end
 
-    MCP-->>Scanner: List of tool metadata
-    Note over MCP,Scanner: Total tools found
+        subgraph "types"
+            TypesUser["types/user"]
+            TypesClinic["types/clinic"]
+            TypesIndex["types/index"]
+        end
 
-    Scanner->>DB: SELECT * FROM tools
-    Note over Scanner,DB: Query existing tools<br/>để compare
+        subgraph "utils"
+            UtilsLogger["utils/logger"]
+            UtilsErrorHandler["utils/errorHandler"]
+            UtilsTokenUtils["utils/tokenUtils"]
+        end
 
-    DB-->>Scanner: Existing tools
-    Note over DB,Scanner: Danh sách tools đã có
+        subgraph "config"
+            ConfigEnv["config/env"]
+        end
 
-    Scanner->>Scanner: Compare & Diff
-    Note over Scanner: Tìm new tools<br/>vs updated tools
+        subgraph "lib"
+            LibSentry["lib/sentry"]
+        end
 
-    loop For each new tool
-        Scanner->>DB: INSERT INTO tools<br/>(name, description,<br/>input_schema, output_schema,<br/>enabled=False)
-        Note over Scanner,DB: New tool mặc định disabled,<br/>admin cần review & enable
+        AppProviders["app/providers"]
+        Main["main.tsx"]
     end
 
-    loop For each updated tool
-        Scanner->>DB: UPDATE tools SET<br/>description, input_schema,<br/>output_schema<br/>WHERE name = ?
-        Note over Scanner,DB: Cập nhật metadata<br/>nếu code thay đổi
+    %% Flow connections
+    Main --> AppProviders
+    AppProviders --> layouts
+    layouts --> pages
+    pages --> components
+    components --> ServicesAPI
+    ServicesAPI --> ServicesEndpoints
+    components --> store
+    components --> hooks
+    hooks --> store
+    ServicesAPI --> types
+    components --> utils
+    ServicesAPI --> ConfigEnv
+
+    %% Styling
+    classDef pageStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef compStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    classDef layoutStyle fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    classDef serviceStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef storeStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
+    classDef utilStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
+
+    class PagesAuth,PagesOnboarding,PagesAdmin,PagesAdminTools,PagesAdminKnowledge,PagesAdminPlayground,PagesAdminClinics,PagesClinicOwner,PagesClinicOwnerClinics,PagesClinicManager,PagesVet,PagesShared pageStyle
+    class CompAuth,CompAdmin,CompClinic,CompClinicOwner,CompClinicStaff,CompOnboarding,CompProfile,CompDashboard,CompCommon,CompToast compStyle
+    class AdminLayout,VetLayout,ClinicOwnerLayout,ClinicManagerLayout,AuthLayout,MainLayout layoutStyle
+    class ServicesAPI,ServicesEndpoints,ServicesWebSocket serviceStyle
+    class UserStore,ClinicStore storeStyle
+    class UseAuth,UseToast,TypesUser,TypesClinic,TypesIndex,UtilsLogger,UtilsErrorHandler,UtilsTokenUtils,ConfigEnv,LibSentry,AppProviders,Main utilStyle
+```
+
+##### Flutter Mobile App (petties_mobile)
+
+```mermaid
+flowchart TB
+    subgraph "petties_mobile (Flutter 3.5 + Dart)"
+        direction TB
+
+        subgraph "ui/auth"
+            LoginScreen["login_screen.dart"]
+            RegisterScreen["register_screen.dart"]
+            ForgotPasswordScreen["forgot_password_screen.dart"]
+            ResetPasswordScreen["reset_password_screen.dart"]
+        end
+
+        subgraph "ui/onboarding"
+            OnboardingScreen["onboarding_screen.dart"]
+        end
+
+        subgraph "ui/pet_owner"
+            PetOwnerHomeScreen["pet_owner_home_screen.dart"]
+        end
+
+        subgraph "ui/vet"
+            VetHomeScreen["vet_home_screen.dart"]
+        end
+
+        subgraph "ui/pet"
+            PetListScreen["pet_list_screen.dart"]
+            PetDetailScreen["pet_detail_screen.dart"]
+            AddEditPetScreen["add_edit_pet_screen.dart"]
+        end
+
+        subgraph "ui/screens/profile"
+            ProfileScreen["profile_screen.dart"]
+            EditProfileScreen["edit_profile_screen.dart"]
+            ChangePasswordScreen["change_password_screen.dart"]
+            ChangeEmailScreen["change_email_screen.dart"]
+        end
+
+        subgraph "ui/home"
+            HomeScreen["home_screen.dart"]
+        end
+
+        subgraph "ui/core/widgets"
+            CustomButton["custom_button.dart"]
+            CustomTextField["custom_text_field.dart"]
+            LoadingOverlay["loading_overlay.dart"]
+            EmptyState["empty_state.dart"]
+        end
+
+        subgraph "ui/widgets/profile"
+            AvatarPicker["avatar_picker.dart"]
+            ProfileInfoCard["profile_info_card.dart"]
+            ProfileWidgets["profile_widgets.dart"]
+            EmailInlineEdit["email_inline_edit.dart"]
+        end
+
+        subgraph "data/services"
+            ApiClient["api_client.dart"]
+            ApiInterceptor["api_interceptor.dart"]
+            AuthService["auth_service.dart"]
+            UserService["user_service.dart"]
+            PetService["pet_service.dart"]
+            GoogleAuthService["google_auth_service.dart"]
+        end
+
+        subgraph "data/models"
+            UserModel["user_model.dart"]
+            UserProfile["user_profile.dart"]
+            UserResponse["user_response.dart"]
+            AuthResponse["auth_response.dart"]
+            SendOtpResponse["send_otp_response.dart"]
+            PetModel["pet.dart"]
+            BaseModel["base_model.dart"]
+        end
+
+        subgraph "data/datasources"
+            AuthLocalDatasource["local/auth_local_datasource.dart"]
+            AuthRemoteDatasource["remote/auth_remote_datasource.dart"]
+        end
+
+        subgraph "data/repositories"
+            AuthRepositoryImpl["auth_repository_impl.dart"]
+        end
+
+        subgraph "providers"
+            AuthProvider["auth_provider.dart"]
+            UserProvider["user_provider.dart"]
+        end
+
+        subgraph "routing"
+            AppRoutes["app_routes.dart"]
+            RouterConfig["router_config.dart"]
+        end
+
+        subgraph "config/constants"
+            AppConstants["app_constants.dart"]
+            AppColors["app_colors.dart"]
+            AppStrings["app_strings.dart"]
+        end
+
+        subgraph "config/theme"
+            AppTheme["app_theme.dart"]
+        end
+
+        subgraph "config/env"
+            Environment["environment.dart"]
+        end
+
+        subgraph "config/routes"
+            ConfigAppRoutes["app_routes.dart"]
+            ConfigRouterConfig["router_config.dart"]
+        end
+
+        subgraph "core/error"
+            Exceptions["exceptions.dart"]
+            Failures["failures.dart"]
+        end
+
+        subgraph "core/network"
+            CoreApiClient["api_client.dart"]
+            CoreApiInterceptor["api_interceptor.dart"]
+        end
+
+        subgraph "core/services"
+            SentryService["sentry_service.dart"]
+        end
+
+        subgraph "core/utils"
+            CoreDatetimeUtils["datetime_utils.dart"]
+            CoreStorageService["storage_service.dart"]
+            CoreValidators["validators.dart"]
+        end
+
+        subgraph "utils"
+            DatetimeUtils["datetime_utils.dart"]
+            StorageService["storage_service.dart"]
+            Validators["validators.dart"]
+            PermissionHelper["permission_helper.dart"]
+            ApiErrorHandler["api_error_handler.dart"]
+        end
+
+        MainDart["main.dart"]
+        FirebaseOptions["firebase_options.dart"]
     end
 
-    DB-->>Scanner: Commit successful
-    Scanner-->>API: Return scan result:<br/>{total_tools, new_tools,<br/>updated_tools, tool_list}
-    API-->>Admin: JSON Response
-    Note over Admin,API: Admin thấy:<br/>"Found 12 tools<br/>(3 new, 1 updated)"
+    %% Flow connections
+    MainDart --> routing
+    routing --> ui/auth
+    routing --> ui/pet_owner
+    routing --> ui/vet
+    routing --> ui/pet
+    routing --> ui/screens/profile
 
-    Admin->>Admin: Review new tools
-    Note over Admin: Admin kiểm tra<br/>tool descriptions,<br/>schemas
+    ui/auth --> providers
+    ui/pet_owner --> providers
+    ui/pet --> providers
+    providers --> data/services
+    data/services --> data/models
+    data/services --> core/network
+    providers --> data/repositories
+    data/repositories --> data/datasources
 
-    Admin->>API: PUT /api/v1/tools/{id}/enable
-    Note over Admin,API: Enable tool sau khi review
+    %% Styling
+    classDef screenStyle fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef widgetStyle fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    classDef serviceStyle fill:#fed7aa,stroke:#f97316,stroke-width:2px
+    classDef modelStyle fill:#fecaca,stroke:#ef4444,stroke-width:2px
+    classDef providerStyle fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    classDef configStyle fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
 
-    API->>DB: UPDATE tools<br/>SET enabled=True<br/>WHERE id = ?
-    DB-->>API: Tool enabled
-
-    Admin->>API: POST /api/v1/tools/{id}/assign
-    Note over Admin,API: Gán tool cho agent<br/>(e.g., check_slot → booking_agent)
-
-    API->>DB: UPDATE tools<br/>SET assigned_agents = <br/>assigned_agents || ['booking_agent']
-    DB-->>API: Tool assigned
-
-    Note over Admin,DB: Tool đã sẵn sàng<br/>để agent sử dụng
+    class LoginScreen,RegisterScreen,ForgotPasswordScreen,ResetPasswordScreen,OnboardingScreen,PetOwnerHomeScreen,VetHomeScreen,PetListScreen,PetDetailScreen,AddEditPetScreen,ProfileScreen,EditProfileScreen,ChangePasswordScreen,ChangeEmailScreen,HomeScreen screenStyle
+    class CustomButton,CustomTextField,LoadingOverlay,EmptyState,AvatarPicker,ProfileInfoCard,ProfileWidgets,EmailInlineEdit widgetStyle
+    class ApiClient,ApiInterceptor,AuthService,UserService,PetService,GoogleAuthService serviceStyle
+    class UserModel,UserProfile,UserResponse,AuthResponse,SendOtpResponse,PetModel,BaseModel modelStyle
+    class AuthProvider,UserProvider providerStyle
+    class AppRoutes,RouterConfig,AppConstants,AppColors,AppStrings,AppTheme,Environment,ConfigAppRoutes,ConfigRouterConfig,Exceptions,Failures,CoreApiClient,CoreApiInterceptor,SentryService,CoreDatetimeUtils,CoreStorageService,CoreValidators,DatetimeUtils,StorageService,Validators,PermissionHelper,ApiErrorHandler,MainDart,FirebaseOptions,AuthLocalDatasource,AuthRemoteDatasource,AuthRepositoryImpl configStyle
 ```
 
-#### Tool Scanner Mechanism - Chi tiết kỹ thuật
+##### Package Descriptions - React Web Dashboard:
 
-**1. Code-based Tools Philosophy (QUAN TRỌNG):**
+| No | Package | Description |
+|----|---------|-------------|
+| **Pages Layer** |
+| 01 | pages/auth | Authentication pages: LoginPage, RegisterPage, ForgotPasswordPage with OTP verification flow. |
+| 02 | pages/onboarding | Landing page with hero section, features, and call-to-action for new users. |
+| 03 | pages/admin | Admin dashboard pages: System overview, clinic approval management. |
+| 04 | pages/admin/tools | AI Tool Management page: Scan, enable/disable, and assign tools to agents. |
+| 05 | pages/admin/knowledge | Knowledge Base page: Upload documents, manage RAG pipeline, test queries. |
+| 06 | pages/admin/playground | AI Playground page: Test chat with agent, view ReAct traces. |
+| 07 | pages/admin/clinics | Clinic Approval page: Review and approve/reject clinic registrations. |
+| 08 | pages/clinic-owner | Clinic Owner dashboard: Manage master services, clinic services, pricing. |
+| 09 | pages/clinic-owner/clinics | Clinic CRUD pages: Create and edit clinic profiles, upload images. |
+| 10 | pages/clinic-manager | Clinic Manager dashboard: Manage bookings, staff schedules, patients. |
+| 11 | pages/vet | Vet dashboard: View appointments, manage schedule, access patient records. |
+| 12 | pages/shared | Shared pages: Profile management, settings accessible by all roles. |
+| **Components Layer** |
+| 13 | components/auth | Authentication components: RoleGuard (route protection), RoleBasedRedirect (auto-redirect by role). |
+| 14 | components/admin | Admin components: ApiKeyManager, ChatMessage, DocumentUpload, ModelParametersConfig, RAGQueryTester, ToolCard, SystemPromptEditor, RoutingExamplesManager, ApproveRejectModal. |
+| 15 | components/clinic | Clinic components: ClinicCard, ClinicForm, ClinicImageUpload, ClinicLogoUpload, ClinicMapOSM (OpenStreetMap), DistanceCalculator, AddressAutocompleteOSM. |
+| 16 | components/clinic-owner | Clinic Owner components: ClinicSelectModal, InheritServiceModal. |
+| 17 | components/clinic-staff | Staff management components: QuickAddStaffModal for adding Vet/Manager. |
+| 18 | components/onboarding | Landing page components: HeroSection, FeaturesSection, HowItWorksSection, ProblemStatement, TargetUsersSection, NavigationBar, CTAFooter. |
+| 19 | components/profile | Profile components: AvatarUpload, ChangePasswordModal, EmailChangeModal, ImageCropModal. |
+| 20 | components/dashboard | Dashboard widgets: DashboardCard, DashboardSidebar. |
+| 21 | components/common | Shared UI components: OtpInput, ProtectedRoute, ConfirmDialog. |
+| **Layouts Layer** |
+| 22 | layouts | Role-based layouts: AdminLayout, VetLayout, ClinicOwnerLayout, ClinicManagerLayout, AuthLayout, MainLayout. Each includes appropriate sidebar, header, and navigation. |
+| **Services Layer** |
+| 23 | services/api | Axios-based API client with interceptors, userService, clinicService, notificationService. |
+| 24 | services/endpoints | API endpoint definitions: masterService, service endpoints. |
+| 25 | services/websocket | WebSocket client for real-time AI chat streaming. |
+| **State Management** |
+| 26 | store | Zustand stores: userStore (auth state, user profile), clinicStore (clinic data). |
+| **Hooks Layer** |
+| 27 | hooks | Custom React hooks: useAuth (authentication), useToast (notifications). |
+| **Types Layer** |
+| 28 | types | TypeScript type definitions: user, clinic, index. |
+| **Utils Layer** |
+| 29 | utils | Utility functions: logger, errorHandler, tokenUtils. |
+| **Config Layer** |
+| 30 | config | Environment configuration: env.ts with API base URLs. |
+| **Lib Layer** |
+| 31 | lib | Third-party integrations: sentry.ts for error tracking. |
 
-Theo Technical Scope Section 3.C - Tool Management:
+##### Package Descriptions - Flutter Mobile App:
 
-> **Triết lý Tool Design:** Tất cả Tools được code thủ công bằng Python với decorator `@mcp.tool`. **KHÔNG** sử dụng Swagger/OpenAPI auto-import vì:
-> - API endpoints được thiết kế cho Frontend/Mobile, **KHÔNG** phải cho LLM consumption
-> - Tools cần có **mô tả ngữ nghĩa rõ ràng (semantic descriptions)** để LLM hiểu khi nào nên dùng
-> - Parameters cần được thiết kế **natural language friendly** (VD: `date="hôm nay"` thay vì `date="2024-01-15"`)
-
-**2. Tool Scanner Workflow:**
-
-**Bước 1: Tool Registration (Developer writes code)**
-```python
-# File: app/core/tools/mcp_tools/booking_tools.py
-from app.core.tools.mcp_server import mcp_server
-
-@mcp_server.tool()
-async def check_slot(doctor_id: str, date: str) -> Dict[str, Any]:
-    """
-    Kiểm tra slot thời gian trống cho booking.
-
-    Sử dụng khi user hỏi về lịch trống, slot khám, thời gian hẹn.
-
-    Args:
-        doctor_id: ID của bác sĩ (format: DOC_xxxxx)
-        date: Ngày khám (format: YYYY-MM-DD hoặc "hôm nay", "ngày mai")
-
-    Returns:
-        Dict chứa available slots
-    """
-    # Logic gọi Spring Boot API
-    ...
-```
-
-**Bước 2: Tool Scanner Auto-discovery**
-- Admin nhấn "Scan Tools" trên Dashboard
-- Backend gọi `ToolScanner.scan_and_sync_tools()`
-- Scanner call `get_mcp_tools_metadata()` từ FastMCP server
-- FastMCP server duyệt tất cả functions có `@mcp.tool` decorator
-- Extract metadata:
-  - **Name:** Function name (e.g., `check_slot`)
-  - **Description:** Từ docstring (semantic description cho LLM)
-  - **Input Schema:** Từ type hints (`inspect.signature()` + `get_type_hints()`)
-  - **Output Schema:** Từ return type hint
-
-**Bước 3: Schema Extraction**
-
-Input Schema Example:
-```json
-{
-  "type": "object",
-  "properties": {
-    "doctor_id": {"type": "string"},
-    "date": {"type": "string"}
-  },
-  "required": ["doctor_id", "date"]
-}
-```
-
-Output Schema Example:
-```json
-{
-  "type": "object",
-  "description": "Output from check_slot",
-  "properties": {
-    "available": {"type": "boolean"},
-    "slots": {"type": "array", "items": {"type": "string"}},
-    "doctor_name": {"type": "string"}
-  }
-}
-```
-
-**Bước 4: Sync to PostgreSQL**
-- Scanner compare với existing tools trong database
-- **New tools:** Insert với `enabled=False` (admin cần review)
-- **Updated tools:** Update metadata nếu code thay đổi
-- **Unchanged tools:** Skip
-
-**Bước 5: Admin Review & Assignment**
-- Admin review tool descriptions và schemas
-- Admin enable tool: `PUT /api/v1/tools/{id}/enable`
-- Admin gán tool cho agent: `POST /api/v1/tools/{id}/assign`
-  - Ví dụ: `check_slot` → `booking_agent`
-  - Database: `UPDATE tools SET assigned_agents = assigned_agents || ['booking_agent']`
-
-**3. Tool Execution Flow (Runtime):**
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant User as User
-    participant Agent as Booking Agent
-    participant Executor as Tool Executor
-    participant DB as PostgreSQL
-    participant MCP as FastMCP Server
-    participant Tool as check_slot function
-    participant API as Spring Boot API
-
-    User->>Agent: "Bác sĩ Nguyễn có slot nào trống ngày mai?"
-    Agent->>Agent: LLM decides to call<br/>tool: check_slot
-
-    Agent->>Executor: executor.execute(<br/>tool_name="check_slot",<br/>parameters={<br/>  "doctor_id": "DOC_12345",<br/>  "date": "2026-01-16"<br/>})
-
-    Executor->>DB: Load tool metadata<br/>WHERE name = 'check_slot'
-    DB-->>Executor: Tool object<br/>(enabled=True,<br/>assigned_agents=['booking_agent'])
-
-    Executor->>Executor: Validate parameters<br/>against input_schema
-    Note over Executor: Check required fields,<br/>type matching
-
-    Executor->>MCP: call_mcp_tool(<br/>"check_slot",<br/>{"doctor_id": "...", "date": "..."})
-
-    MCP->>Tool: await check_slot(<br/>doctor_id="DOC_12345",<br/>date="2026-01-16")
-
-    Tool->>API: GET /api/v1/bookings/check-slot?<br/>doctorId=DOC_12345&<br/>date=2026-01-16
-
-    API-->>Tool: {<br/>  "available": true,<br/>  "slots": ["09:00", "10:00", "14:00"],<br/>  "doctor_name": "Dr. Nguyễn"<br/>}
-
-    Tool-->>MCP: Return result dict
-    MCP-->>Executor: {"success": true, "data": {...}}
-    Executor-->>Agent: Tool result
-
-    Agent->>Agent: LLM synthesizes response<br/>với tool result
-
-    Agent-->>User: "Bác sĩ Nguyễn có 3 slot trống:<br/>9:00 sáng, 10:00 sáng, 2:00 chiều.<br/>Bạn muốn chọn slot nào?"
-```
-
-**4. Key Benefits của Code-based Tools:**
-
-- **Zero Training:** Tool metadata tự động extract từ code → Không cần training model
-- **Type Safety:** Python type hints → JSON Schema → Validation
-- **Semantic Descriptions:** Docstrings hướng dẫn LLM khi nào nên gọi tool
-- **Natural Language Parameters:** Developer design parameters cho LLM (e.g., `date="hôm nay"` supported)
-- **Instant Updates:** Code changes → Admin scan → Updated metadata ngay lập tức
-- **Agent Isolation:** Tools được gán cho specific agents → Booking Agent chỉ thấy booking tools
-- **Centralized Registry:** FastMCP server là single source of truth
-
-**5. Tool Lifecycle:**
-
-```
-[Developer writes @mcp.tool]
-    → [Admin scans tools]
-    → [Scanner syncs to DB]
-    → [Admin reviews & enables]
-    → [Admin assigns to agent]
-    → [Agent loads enabled tools]
-    → [Agent calls tool via Executor]
-    → [MCP executes function]
-    → [Result returns to Agent]
-```
-
----
-
-#### Backend Layered Architecture Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as Client (Web/Mobile)
-    participant Controller as Controller Layer
-    participant DTO as DTO (Request/Response)
-    participant Service as Service Layer
-    participant Repo as Repository Layer
-    participant Entity as Entity (Model)
-    participant DB as PostgreSQL/Redis
-
-    Client->>Controller: HTTP Request (JSON)
-    Controller->>DTO: Validate & Map to DTO
-    DTO->>Service: Pass validated DTO
-    Service->>Service: Execute business logic
-    Service->>Repo: Call repository method
-    Repo->>Entity: Map to Entity
-    Entity->>DB: SQL Query (JDBC)
-    DB-->>Entity: Result Set
-    Entity-->>Repo: Entity objects
-    Repo-->>Service: Domain objects
-    Service->>Service: Transform to Response DTO
-    Service-->>Controller: Response DTO
-    Controller-->>Client: HTTP Response (JSON)
-```
-
----
-
-## PHỤ LỤC: TECHNOLOGY STACK SUMMARY
-
-### Frontend (petties-web) `[MVP]`
-- **Framework:** React 19.2 + Vite (rolldown-vite 7.x)
-- **Language:** TypeScript 5.9.x
-- **State Management:** Zustand 5.x
-- **Routing:** React Router v7.9
-- **Styling:** Tailwind CSS v4 (Neobrutalism design)
-- **HTTP Client:** Axios
-- **Real-time:** Native WebSocket API
-- **UI Components:** Custom Neobrutalism components
-
-### Backend (backend-spring) `[MVP]`
-- **Framework:** Spring Boot 3.4.x
-- **Language:** Java 21
-- **Architecture:** Layered (Controller → Service → Repository)
-- **Security:** Spring Security 6.x + JWT
-- **Database Access:** Spring Data JPA + Hibernate
-- **Validation:** Jakarta Bean Validation
-- **Caching:** Spring Data Redis
-- **Image Upload:** Cloudinary SDK
-
-### AI Agent Service (petties-agent-service) `[MVP]`
-- **Framework:** FastAPI 0.115.x
-- **Language:** Python 3.12
-- **Agent Framework:** LangGraph 0.2.x (Single Agent + ReAct Pattern)
-- **RAG Framework:** LlamaIndex 0.11.x (100% LlamaIndex)
-- **Tool Protocol:** FastMCP 2.3.x (@mcp.tool() decorator)
-- **LLM Provider:** OpenRouter API (Default: Gemini 2.0 Flash Lite, Fallback: Llama 3.3 70B)
-- **Embeddings:** Cohere embed-multilingual-v3.0 (1024 dimensions)
-- **Vector DB:** Qdrant Cloud (Binary Quantization)
-- **Web Search:** DuckDuckGo Search (Free, no API key)
-- **Real-time:** WebSocket streaming với ReAct trace visualization
-
-### Mobile (petties_mobile) `[MVP]`
-- **Framework:** Flutter 3.x
-- **Language:** Dart SDK 3.x
-- **State Management:** Provider 6.x
-- **Routing:** GoRouter 14.x
-- **HTTP Client:** Dio 5.x
-- **Local Storage:** SharedPreferences, Hive
-- **Auth:** Google Sign-In, JWT
-
-### Databases
-- **PostgreSQL 16:** Primary structured data - Shared by both Spring Boot và AI Service (Neon Cloud)
-- **Redis 7:** OTP, session caching (Upstash Cloud)
-- **Qdrant Cloud:** Vector embeddings (Binary Quantization enabled, 1024 dimensions)
-
-### Infrastructure
-- **Development:** Docker Compose (local databases)
-- **Test Environment:** AWS EC2, Neon Test Branch
-- **Production:** AWS EC2 (backend + AI service), Vercel (frontend), Neon Main (PostgreSQL)
-- **CI/CD:** GitHub Actions (auto-deploy on push to main)
-- **Reverse Proxy:** NGINX with SSL (Let's Encrypt)
-- **Image Storage:** Cloudinary `[MVP]`
-- **Push Notifications:** Firebase `[Planned]`
-- **Payments:** Stripe `[Planned]`
-
----
-
-**Tài liệu này mô tả kiến trúc tổng thể và cấu trúc package của hệ thống Petties. Các phần tiếp theo của SDD Report 4 sẽ bao gồm:**
-- API Design Specification
-- Sequence Diagrams cho các luồng chính
-- Class Diagrams chi tiết
-- Database Schema Design
-
----
-
-**Prepared by:** Petties Development Team
-**Document Version:** 1.2
-**Last Updated:** 2025-12-27
+| No | Package | Description |
+|----|---------|-------------|
+| **UI Layer - Screens** |
+| 01 | ui/auth | Authentication screens: LoginScreen, RegisterScreen, ForgotPasswordScreen, ResetPasswordScreen with OTP verification. |
+| 02 | ui/onboarding | Onboarding screen for first-time users with app introduction slides. |
+| 03 | ui/pet_owner | Pet Owner home screen with quick actions for booking, pets, and AI chat. |
+| 04 | ui/vet | Vet home screen with appointments, schedule, and patient list. |
+| 05 | ui/pet | Pet management screens: PetListScreen, PetDetailScreen, AddEditPetScreen. |
+| 06 | ui/screens/profile | Profile management: ProfileScreen, EditProfileScreen, ChangePasswordScreen, ChangeEmailScreen. |
+| 07 | ui/home | Main home screen with navigation and role-based content. |
+| **UI Layer - Widgets** |
+| 08 | ui/core/widgets | Core reusable widgets: CustomButton, CustomTextField, LoadingOverlay, EmptyState. |
+| 09 | ui/widgets/profile | Profile-specific widgets: AvatarPicker, ProfileInfoCard, ProfileWidgets, EmailInlineEdit. |
+| **Data Layer - Services** |
+| 10 | data/services | API services: ApiClient (Dio-based), ApiInterceptor (JWT handling), AuthService, UserService, PetService, GoogleAuthService. |
+| **Data Layer - Models** |
+| 11 | data/models | Data models: UserModel, UserProfile, UserResponse, AuthResponse, SendOtpResponse, Pet, BaseModel. |
+| **Data Layer - Datasources** |
+| 12 | data/datasources | Data sources: AuthLocalDatasource (SharedPreferences), AuthRemoteDatasource (API calls). |
+| **Data Layer - Repositories** |
+| 13 | data/repositories | Repository implementations: AuthRepositoryImpl combining local and remote data sources. |
+| **Providers Layer** |
+| 14 | providers | State management with Provider pattern: AuthProvider, UserProvider. |
+| **Routing Layer** |
+| 15 | routing | GoRouter configuration: AppRoutes (route constants), RouterConfig (route definitions with guards). |
+| **Config Layer** |
+| 16 | config/constants | App constants: AppConstants, AppColors, AppStrings. |
+| 17 | config/theme | App theme: AppTheme with Neobrutalism styling. |
+| 18 | config/env | Environment configuration: Environment with API URLs per environment. |
+| 19 | config/routes | Route configuration (alternative structure): app_routes, router_config. |
+| **Core Layer** |
+| 20 | core/error | Error handling: Exceptions, Failures classes. |
+| 21 | core/network | Network layer: ApiClient, ApiInterceptor. |
+| 22 | core/services | Core services: SentryService for error tracking. |
+| 23 | core/utils | Core utilities: datetime_utils, storage_service, validators. |
+| **Utils Layer** |
+| 24 | utils | Utility functions: datetime_utils, storage_service, validators, permission_helper, api_error_handler. |
+| **Entry Point** |
+| 25 | main.dart | Application entry point with Provider setup and Firebase initialization. |
+| 26 | firebase_options.dart | Firebase configuration for push notifications. |
 
 ---
 
@@ -1250,32 +980,88 @@ sequenceDiagram
 #### 2.3.2 Shift & Slot Management Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/clinics/{id}/shifts` | Lấy danh sách ca trực (filter: dateRange, vetId) | CM, CO |
-| POST | `/api/clinics/{id}/shifts` | Tạo ca trực mới (Tự động tạo slots 30p) | CM, CO |
-| PUT | `/api/shifts/{id}` | Cập nhật thời gian ca trực | CM, CO |
-| DELETE | `/api/shifts/{id}` | Xóa ca trực (Xóa luôn các slots chưa booked) | CM, CO |
-| GET | `/api/shifts/my-shifts` | Xem lịch làm việc của bản thân | VET |
-| GET | `/api/clinics/{id}/slots` | Lấy danh sách slots trong ngày | CM, VET, Public |
-| PATCH | `/api/slots/{id}/block` | Khóa/Mở khóa slot thủ công | CM, VET |
+| GET | `/api/clinics/{id}/shifts` | Get shift list (filter: dateRange, vetId) | CM, CO |
+| POST | `/api/clinics/{id}/shifts` | Create new shift (Auto-generate 30min slots) | CM, CO |
+| PUT | `/api/shifts/{id}` | Update shift time | CM, CO |
+| DELETE | `/api/shifts/{id}` | Delete shift (Delete unbooked slots) | CM, CO |
+| GET | `/api/shifts/my-shifts` | View own schedule | VET |
+| GET | `/api/clinics/{id}/slots` | Get slots for the day | CM, VET, Public |
+| PATCH | `/api/slots/{id}/block` | Block/Unblock slot manually | CM, VET |
 
 #### 2.3.3 Discovery & Search Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/discovery/nearby` | Tìm clinic theo tọa độ (lat, lng, radius) | Public |
-| GET | `/api/discovery/search` | Tìm kiếm theo keyword, service, khu vực | Public |
-| GET | `/api/discovery/geocoding` | Chuyển địa chỉ thành tọa độ (Map API proxy) | Public |
+| GET | `/api/discovery/nearby` | Find clinics by coordinates (lat, lng, radius) | Public |
+| GET | `/api/discovery/search` | Search by keyword, service, area | Public |
+| GET | `/api/discovery/geocoding` | Convert address to coordinates (Map API proxy) | Public |
 
 #### 2.3.4 Vaccination History Module (Merged)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/pets/{petId}/vaccinations` | Lấy toàn bộ lịch sử tiêm chủng | Auth |
-| POST | `/api/bookings/{bookingId}/vaccinations` | Thêm bản ghi tiêm chủng mới (Bắt buộc gắn Booking) | VET |
-| PUT | `/api/vaccinations/{id}` | Sửa bản ghi | VET |
-| DELETE | `/api/vaccinations/{id}` | Xóa bản ghi | VET |
+| GET | `/api/pets/{petId}/vaccinations` | Get full vaccination history | Auth |
+| POST | `/api/bookings/{bookingId}/vaccinations` | Add new vaccination record (Must link to Booking) | VET |
+| PUT | `/api/vaccinations/{id}` | Edit record | VET |
+| DELETE | `/api/vaccinations/{id}` | Delete record | VET |
 
 ---
 
-### End of System Design Document
+## 3. TECHNOLOGY STACK SUMMARY
+
+### Frontend (petties-web)
+- **Framework:** React 19 + Vite (rolldown-vite)
+- **Language:** TypeScript 5.9.x
+- **State Management:** Zustand 5.x
+- **Routing:** React Router v7.9
+- **Styling:** Tailwind CSS v4 (Neobrutalism design)
+- **HTTP Client:** Axios
+- **Real-time:** Native WebSocket API
+
+### Backend (backend-spring)
+- **Framework:** Spring Boot 3.4.x
+- **Language:** Java 21
+- **Architecture:** Layered (Controller -> Service -> Repository)
+- **Security:** Spring Security 6.x + JWT
+- **Database Access:** Spring Data JPA + Hibernate
+- **Validation:** Jakarta Bean Validation
+- **Caching:** Spring Data Redis
+- **Image Upload:** Cloudinary SDK
+
+### AI Agent Service (petties-agent-serivce)
+- **Framework:** FastAPI 0.115.x
+- **Language:** Python 3.12
+- **Agent Framework:** LangGraph 0.2.x (Single Agent + ReAct Pattern)
+- **RAG Framework:** LlamaIndex 0.11.x
+- **Tool Protocol:** FastMCP 2.3.x (@mcp.tool() decorator)
+- **LLM Provider:** OpenRouter API (Gemini 2.0 Flash, Llama 3.3 70B)
+- **Embeddings:** Cohere embed-multilingual-v3.0 (1024 dimensions)
+- **Vector DB:** Qdrant Cloud (Binary Quantization)
+
+### Mobile (petties_mobile)
+- **Framework:** Flutter 3.x
+- **Language:** Dart SDK 3.x
+- **State Management:** Provider 6.x
+- **Routing:** GoRouter 14.x
+- **HTTP Client:** Dio 5.x
+- **Local Storage:** SharedPreferences, Hive
+- **Auth:** Google Sign-In, JWT
+
+### Databases
+- **PostgreSQL 16:** Primary relational database (Neon Cloud)
+- **Redis 7:** OTP, session caching (Upstash Cloud)
+- **Qdrant Cloud:** Vector embeddings (1024 dimensions)
+
+### Infrastructure
+- **Development:** Docker Compose (local databases)
+- **Test Environment:** AWS EC2, Neon Test Branch
+- **Production:** AWS EC2 (backend + AI), Vercel (frontend), Neon Main
+- **CI/CD:** GitHub Actions
+- **Reverse Proxy:** NGINX with SSL (Let's Encrypt)
+- **Image Storage:** Cloudinary
+- **Push Notifications:** Firebase [Planned]
+- **Payments:** Stripe [Planned]
+
+---
+
 **Prepared by:** Petties Development Team
-**Document Version:** 1.6
-**Last Updated:** 2025-12-27
+**Document Version:** 2.0
+**Last Updated:** 2025-12-30

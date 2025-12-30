@@ -332,24 +332,10 @@ sudo nano /etc/nginx/sites-available/ai.petties.world
 
 ```nginx
 server {
-    listen 80;
     server_name ai.petties.world;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ai.petties.world;
-
-    ssl_certificate /etc/letsencrypt/live/ai.petties.world/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ai.petties.world/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
 
     client_max_body_size 15M;
 
-    # AI Service API
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
@@ -363,7 +349,6 @@ server {
         proxy_connect_timeout 75s;
     }
 
-    # WebSocket support for chat
     location /ws/ {
         proxy_pass http://127.0.0.1:8000/ws/;
         proxy_http_version 1.1;
@@ -373,17 +358,30 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_connect_timeout 75s;
-        proxy_buffering off;
+        proxy_read_timeout 86400s;
     }
 
-    # Health check
     location /health {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8000/health;
         access_log off;
     }
+
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/ai.petties.world/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/ai.petties.world/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+    if ($host = ai.petties.world) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    server_name ai.petties.world;
+    return 404; # managed by Certbot
 }
 ```
 

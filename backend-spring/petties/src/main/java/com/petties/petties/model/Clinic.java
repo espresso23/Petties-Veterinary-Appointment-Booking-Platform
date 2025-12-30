@@ -58,6 +58,9 @@ public class Clinic {
     @Column(name = "address", nullable = false, length = 500)
     private String address;
 
+    @Column(name = "ward", length = 100)
+    private String ward; // Phường/Xã
+
     @Column(name = "district", length = 100)
     private String district; // Quận/huyện
 
@@ -122,4 +125,3 @@ public class Clinic {
     private List<ClinicService> services = new ArrayList<>();
 
 }
-

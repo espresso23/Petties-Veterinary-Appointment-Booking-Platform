@@ -75,7 +75,7 @@ export function LoginPage() {
         return
       }
 
-      showToast('success', `Đăng nhập thành công! Chào mừng ${response.fullName}`)
+      showToast('success', `Đăng nhập thành công! Chào mừng ${response.fullName || response.username}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
     } catch (err: unknown) {
@@ -106,7 +106,7 @@ export function LoginPage() {
         return
       }
 
-      showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.fullName}`)
+      showToast('success', `Đăng nhập Google thành công! Chào mừng ${response.fullName || response.username}`)
       const dashboardPath = getRoleDashboard(response.role)
       navigate(dashboardPath, { replace: true })
     } catch (err: unknown) {

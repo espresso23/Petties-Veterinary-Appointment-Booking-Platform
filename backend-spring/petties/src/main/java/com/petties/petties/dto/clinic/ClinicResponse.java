@@ -29,6 +29,7 @@ public class ClinicResponse {
     private String name;
     private String description;
     private String address;
+    private String ward; // Phường/xã
     private String district; // Quận/huyện
     private String province; // Tỉnh/thành phố
     private String specificLocation; // Vị trí chính xác
@@ -74,4 +75,3 @@ public class ClinicResponse {
         private Boolean isPrimary;
     }
 }
-

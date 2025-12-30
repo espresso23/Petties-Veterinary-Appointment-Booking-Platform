@@ -787,6 +787,7 @@ flowchart TB
 erDiagram
     %% Auth & User
     USER ||--o{ REFRESH_TOKEN : has
+    USER ||--o{ BLACKLISTED_TOKEN : invalidates
     USER ||--o{ PET : owns
     USER ||--o{ CLINIC : owns
     USER ||--o{ CLINIC : works_at
@@ -835,7 +836,8 @@ erDiagram
     AI_AGENT ||--o{ AI_CHAT_SESSION : handles
     AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : contains
     AI_AGENT }o--o{ AI_TOOL : uses
-    AI_KNOWLEDGE_DOCUMENT }o--o| USER : uploaded_by
+    AI_AGENT ||--o{ AI_KNOWLEDGE_DOC : references
+    AI_KNOWLEDGE_DOC }o--o| USER : uploaded_by
     AI_SYSTEM_SETTING }o--|| AI_AGENT : configures
 ```
 
@@ -863,9 +865,12 @@ erDiagram
 | **CLINIC** | **CLINIC_IMAGE**| has_images | 1 : N | Một phòng khám có nhiều ảnh thực tế/không gian. |
 | **SERVICE** | **BOOKING** | used_in | 1 : N | Một loại dịch vụ được sử dụng trong nhiều lịch hẹn khác nhau. |
 | **MASTER_SERVICE**| **SERVICE** | defines | 1 : N | Template dịch vụ chung được áp dụng cho nhiều phòng khám. |
-| **AI_AGENT** | **AI_SESSION** | handles | 1 : N | Một Agent xử lý nhiều phiên chat của nhiều người dùng khác nhau. |
-| **AI_KNOWLEDGE** | **USER** | uploaded_by | N : 0..1 | Tài liệu tri thức được upload bởi admin. |
-| **CHAT_MESSAGE** | **AI_SESSION** | contains | N : 1 | Thông tin tin nhắn trong phiên chat AI. |
+| **AI_AGENT** | **AI_CHAT_SESSION** | handles | 1 : N | Một Agent xử lý nhiều phiên chat của nhiều người dùng khác nhau. |
+| **AI_AGENT** | **AI_KNOWLEDGE_DOC**| references | N : N | Agent sử dụng các tài liệu tri thức để trả lời câu hỏi (RAG). |
+| **AI_KNOWLEDGE_DOC** | **USER** | uploaded_by | N : 0..1 | Tài liệu tri thức được upload bởi admin. |
+| **AI_CHAT_MESSAGE** | **AI_CHAT_SESSION**| contains | N : 1 | Thông tin tin nhắn trong phiên chat AI. |
+| **AI_SYSTEM_SETTING** | **AI_AGENT** | configures | N : 1 | Cài đặt hệ thống áp dụng cho Agent. |
+| **BLACKLISTED_TOKEN** | **USER** | invalidates | N : 1 | Token bị vô hiệu hóa khi người dùng logout. |
 
 #### 3.1.6 Entities Description
 

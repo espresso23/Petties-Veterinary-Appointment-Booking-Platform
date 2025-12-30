@@ -176,7 +176,12 @@ Copy `.env.example` to `.env` for local, `.env.test` for Test Env.
 11. Create Unit Testing and System testing for new feature use JUnit for Spring Boot and pytest for Python.
 12. If done feature or usecase should be update to docs-references to update project status, checklist, etc,...
 13. Always follow the app design style for the frontend in `docs-references/`.
-14. Từ giờ, mỗi khi bạn thêm trường mới vào Entity trong Java, hãy nhớ tạo thêm file V2__<ten_file>.sql, V3__... tương ứng nhé!
+14. Từ giờ, mỗi khi bạn thêm trường mới vào Entity trong Java, hãy nhớ tạo thêm file migration tương ứng nhé! Chi tiết trong file DATABASE_MIGRATION_GUIDE.md
+Tạo Script: Tạo file SQL mới với định dạng V<Timestamp>__<tên_mô_tả>.sql.
+Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
+Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
+Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
+Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
 
 ## Context & Clarification Rules
 
