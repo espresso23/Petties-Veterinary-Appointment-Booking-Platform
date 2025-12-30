@@ -303,6 +303,11 @@ export function ClinicDetailPage() {
                 <div>
                   <div className="text-sm font-bold uppercase text-stone-600 mb-1">ĐỊA CHỈ</div>
                   <div className="text-stone-900">{currentClinic.address}</div>
+                  {currentClinic.ward && (
+                    <div className="text-sm text-stone-700 mt-1">
+                      <span className="font-bold">Phường/Xã:</span> {currentClinic.ward}
+                    </div>
+                  )}
                   {currentClinic.district && (
                     <div className="text-sm text-stone-700 mt-1">
                       <span className="font-bold">Quận/Huyện:</span> {currentClinic.district}
@@ -315,12 +320,12 @@ export function ClinicDetailPage() {
                   )}
                   {currentClinic.specificLocation && (
                     <div className="text-sm text-stone-700 mt-1">
-                      <span className="font-bold">Vị trí:</span> {currentClinic.specificLocation}
+                      <span className="font-bold">Vị trí cụ thể:</span> {currentClinic.specificLocation}
                     </div>
                   )}
                   {currentClinic.latitude && currentClinic.longitude && (
-                    <div className="text-xs text-stone-500 mt-1">
-                      {currentClinic.latitude.toFixed(6)}, {currentClinic.longitude.toFixed(6)}
+                    <div className="text-xs text-stone-500 mt-1 italic">
+                      <span className="font-bold">Vĩ độ:</span> {currentClinic.latitude.toFixed(6)}, <span className="font-bold">Kinh độ:</span> {currentClinic.longitude.toFixed(6)}
                     </div>
                   )}
                 </div>

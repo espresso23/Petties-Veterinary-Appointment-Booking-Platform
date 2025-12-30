@@ -18,6 +18,7 @@ export interface Clinic {
   name: string
   description?: string
   address: string
+  ward?: string // Phường/Xã
   district?: string // Quận/huyện
   province?: string // Tỉnh/thành phố
   specificLocation?: string // Vị trí chính xác (khu phố, tầng lầu, số nhà, etc.)
@@ -61,6 +62,7 @@ export interface ClinicRequest {
   name: string
   description?: string
   address: string
+  ward?: string // Phường/Xã
   district?: string // Quận/huyện
   province?: string // Tỉnh/thành phố
   specificLocation?: string // Vị trí chính xác
@@ -84,6 +86,7 @@ export interface ClinicResponse {
   name: string
   description?: string
   address: string
+  ward?: string // Phường/Xã
   district?: string // Quận/huyện
   province?: string // Tỉnh/thành phố
   specificLocation?: string // Vị trí chính xác
@@ -142,4 +145,3 @@ export interface NearbyClinicsParams {
   page?: number
   size?: number
 }
-

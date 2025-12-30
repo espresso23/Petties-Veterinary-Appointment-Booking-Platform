@@ -40,9 +40,82 @@ flowchart TB
 
 ---
 
-## 2. Unit Testing (Controller Only)
+## 2. Test Strategy Overview
 
-### 2.1 Overview
+The Petties test strategy follows a hybrid approach, combining **Automated Unit Testing** and **Manual System Verification** to ensure a high-quality veterinary ecosystem.
+
+### 2.1 Testing Strategy Table
+
+| Level | Objective | Technique | Completion Criteria |
+| :--- | :--- | :--- | :--- |
+| **Unit** | To verify that individual Controller endpoints and API components handle requests, validation, and exceptions correctly. | Automated White-box testing using **MockMvc** (Backend) and **pytest** (AI). | 100% of unit tests pass; Minimum of **80% code coverage** for all Controllers. |
+| **System** | To validate complete end-to-end business workflows and AI ReAct logic against the requirements. | Manual Black-box testing on **Flutter/React**; Behavioral testing via **Admin Playground**. | **Zero open Critical/High bugs**; All primary features and edge cases verified. |
+
+### 2.2 Test Levels
+*Table 2. Test Levels*
+
+| Type of Tests | Unit | System |
+| :--- | :---: | :---: |
+| Whitebox | X | |
+| Blackbox | | X |
+
+#### Unit Testing:
+Unit testing involves testing individual parts of a software system separately to verify their correct operation. These units may include functions, methods, or modules. The purpose is to ensure each part operates accurately based on given inputs, allowing early detection and correction of issues during development. This testing confirms that each component works as intended before integration with the larger system.
+
+---
+
+## 3. Test Plan
+
+### 3.1 Human Resources
+*Table 4. Human resources*
+
+| Worker/Doer | Role | Specific Responsibilities/Comments |
+| :--- | :--- | :--- |
+| **Project/Tech Lead** | Management | Oversee the entire testing process, define testing scope, and ensure milestone delivery. |
+| **Backend Developers** | Backend Dev | Write unit tests for Spring Boot Controllers, address API bugs, and optimize backend performance. |
+| **AI Developers** | AI Engineer | Develop and test AI Service logic (Python/pytest) and ensure RAG knowledge base accuracy. |
+| **Frontend Developers** | Frontend Dev | Write unit tests for Flutter mobile components and resolve UI/UX inconsistencies. |
+| **QA/Testers** | QA Engineer | Design and execute manual test cases, perform functional testing, and manage defect tracking. |
+
+### 3.2 Test Environment
+*Table 5. Test environment*
+
+| Purpose | Tool | Provider | Version | Information |
+| :--- | :--- | :--- | :--- | :--- |
+| **Development Environment** | Docker Compose | Developers' PC | Latest | localhost:8080 |
+| **Testing/Staging Environment**| AWS EC2 (Ubuntu) | Amazon Web Services| Latest | • Backend: https://api-test.petties.world/api<br>• AI: https://api-test.petties.world/ai |
+| **Unit Testing Framework** | JUnit 5, Mockito, pytest | Open Source | Latest | N/A |
+| **Beta Testing (Mobile)** | Firebase App Distribution| Google | N/A | Firebase Console |
+| **API Testing Infrastructure** | Postman Collections | Postman Inc. | Latest | N/A |
+
+### 3.3 Test Milestones
+*Table 6. Test milestones*
+
+| Milestone Task | Start Date | End Date |
+| :--- | :--- | :--- |
+| Init Test Plan | 30/12/2024 | 30/12/2024 |
+| Define test case for sprint 1 | 30/12/2024 | 12/01/2025 |
+| Execute test for sprint 1 | 30/12/2024 | 12/01/2025 |
+| Define test case for sprint 2 | 13/01/2025 | 27/01/2025 |
+| Execute test for sprint 2 | 13/01/2025 | 27/01/2025 |
+| Define test case for sprint 3 | 27/01/2025 | 10/02/2025 |
+| Execute test for sprint 3 | 27/01/2025 | 10/02/2025 |
+| Define test case for sprint 4 | 10/02/2025 | 24/02/2025 |
+| Execute test for sprint 4 | 10/02/2025 | 24/02/2025 |
+| Define test case for sprint 5 | 24/02/2025 | 10/03/2025 |
+| Execute test for sprint 5 | 24/02/2025 | 10/03/2025 |
+| Define test case for sprint 6 | 10/03/2025 | 24/03/2025 |
+| Execute test for sprint 6 | 10/03/2025 | 24/03/2025 |
+| Define test case for sprint 7 | 24/03/2025 | 07/04/2025 |
+| Execute test for sprint 7 | 24/03/2025 | 07/04/2025 |
+| Define test case for sprint 8 | 24/03/2025 | 07/04/2025 |
+| Execute test for sprint 8 | 24/03/2025 | 07/04/2025 |
+
+---
+
+## 4. Unit Testing Details (Controller Only)
+
+### 4.1 Overview
 
 Unit Testing tập trung vào **HTTP layer** của Controllers - đảm bảo API endpoints hoạt động đúng.
 
@@ -55,7 +128,7 @@ Unit Testing tập trung vào **HTTP layer** của Controllers - đảm bảo AP
 
 > **📖 Full guide:** [CONTROLLER_TESTING_GUIDE.md](./CONTROLLER_TESTING_GUIDE.md)
 
-### 2.2 Technical Stack
+### 4.2 Technical Stack
 
 | Component | Technology |
 |-----------|------------|
@@ -66,7 +139,7 @@ Unit Testing tập trung vào **HTTP layer** của Controllers - đảm bảo AP
 | JSON Handling | Jackson ObjectMapper |
 | Assertions | AssertJ |
 
-### 2.3 Test Template
+### 3.3 Test Template
 
 ```java
 @WebMvcTest(YourController.class)
@@ -128,14 +201,14 @@ class YourControllerUnitTest {
 }
 ```
 
-### 2.4 Naming Convention
+### 3.4 Naming Convention
 
 | Type | Convention | Example |
 |------|------------|---------|
 | File | `*ControllerUnitTest.java` | `AuthControllerUnitTest.java` |
 | Method | `methodName_condition_expectedResult` | `login_validCredentials_returns200` |
 
-### 2.5 Test Cases per Endpoint
+### 3.5 Test Cases per Endpoint
 
 | Status | When to Test |
 |--------|--------------|
@@ -146,7 +219,7 @@ class YourControllerUnitTest {
 | **403 Forbidden** | Token valid nhưng không có quyền |
 | **404 Not Found** | Resource không tồn tại |
 
-### 2.6 Controllers to Test
+### 3.6 Controllers to Test
 
 | Controller | Priority | APIs |
 |------------|----------|------|
@@ -157,7 +230,7 @@ class YourControllerUnitTest {
 | `BookingController` | High | create, getList, cancel, checkIn |
 | `PetController` | Medium | create, update, delete, getByOwner |
 
-### 2.7 File Structure
+### 3.7 File Structure
 
 ```
 backend-spring/petties/src/test/java/com/petties/petties/controller/
@@ -169,7 +242,7 @@ backend-spring/petties/src/test/java/com/petties/petties/controller/
 └── PetControllerUnitTest.java
 ```
 
-### 2.8 Running Tests
+### 3.8 Running Tests
 
 ```bash
 # Run all controller tests
@@ -185,9 +258,9 @@ mvn clean test jacoco:report
 
 ---
 
-## 3. System Testing
+## 5. System Testing Details
 
-### 3.1 Overview
+### 4.1 Overview
 
 System Testing validate ứng dụng hoàn chỉnh trên môi trường thật.
 
@@ -196,9 +269,8 @@ System Testing validate ứng dụng hoàn chỉnh trên môi trường thật.
 | Manual Testing | Tester test thủ công | Browser, Mobile |
 | API Testing | Test APIs manually | Postman |
 | Beta Testing | Internal testing | Firebase, TestFlight |
-| UAT | User acceptance | Stakeholders |
 
-### 3.2 Test Environments
+### 4.2 Test Environments
 
 | Environment | Backend | Frontend |
 |-------------|---------|----------|
@@ -206,7 +278,7 @@ System Testing validate ứng dụng hoàn chỉnh trên môi trường thật.
 | **Test** | api-test.petties.world | test.petties.world |
 | **Production** | api.petties.world | www.petties.world |
 
-### 3.3 Manual Testing Process
+### 4.3 Manual Testing Process
 
 ```mermaid
 flowchart LR
@@ -220,7 +292,7 @@ flowchart LR
     F --> H[Ready for Prod]
 ```
 
-### 3.4 API Testing with Postman
+### 4.4 API Testing with Postman
 
 | Collection | Key Endpoints |
 |------------|---------------|
@@ -230,7 +302,7 @@ flowchart LR
 | Staff | POST /clinics/{id}/staff/quick-add |
 | Booking | POST /bookings, PUT /bookings/{id}/cancel |
 
-### 3.5 Beta Testing
+### 4.5 Beta Testing
 
 | Platform | Tool | Trigger |
 |----------|------|---------|
@@ -247,9 +319,9 @@ flowchart LR
 
 ---
 
-## 4. Tester ↔ Developer Communication
+## 6. Tester ↔ Developer Communication
 
-### 4.1 Bug Flow
+### 5.1 Bug Flow
 
 ```mermaid
 flowchart TD
@@ -272,7 +344,7 @@ flowchart TD
     OK --> Prod([Production])
 ```
 
-### 4.2 Communication Protocol
+### 5.2 Communication Protocol
 
 ```mermaid
 sequenceDiagram
@@ -300,7 +372,7 @@ sequenceDiagram
     end
 ```
 
-### 4.3 Response Time SLA
+### 5.3 Response Time SLA
 
 | Severity | Triage | Fix | Verify |
 |----------|--------|-----|--------|
@@ -309,7 +381,7 @@ sequenceDiagram
 | 🟡 Medium | < 4h | This sprint | < 1 day |
 | 🟢 Low | < 1 day | Next sprint | < 2 days |
 
-### 4.4 Bug Report Template
+### 5.4 Bug Report Template
 
 ```markdown
 ## 🐛 Bug Report
@@ -340,7 +412,7 @@ sequenceDiagram
 
 ---
 
-## 5. Testing Schedule (14 Sprints)
+## 7. Testing Schedule (14 Sprints)
 
 | Sprint | Unit Tests (Controller) | System Tests |
 |--------|------------------------|--------------|
@@ -361,7 +433,7 @@ sequenceDiagram
 
 ---
 
-## 6. Definition of Done
+## 8. Definition of Done
 
 ### Developer DoD
 - [ ] Controller tests written (≥ 80% coverage)
@@ -381,17 +453,7 @@ sequenceDiagram
 
 ---
 
-## 7. Roles
-
-| Role | Unit Tests | System Tests |
-|------|:----------:|:------------:|
-| **Developers** | ✅ Write Controller tests | Self-test |
-| **Team Lead** | Review coverage | Triage bugs |
-| **Testers** | - | ✅ Execute |
-
----
-
-## 8. Related Documents
+## 9. Related Documents
 
 | Document | Description |
 |----------|-------------|

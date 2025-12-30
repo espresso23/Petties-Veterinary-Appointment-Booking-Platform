@@ -3,6 +3,7 @@ import type { ClinicRequest, OperatingHours, ClinicImage } from '../../types/cli
 import { AddressAutocompleteOSM } from './AddressAutocompleteOSM'
 import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
+import { LocationSelector } from '../common'
 
 interface ClinicFormProps {
   initialData?: Partial<ClinicRequest>
@@ -37,6 +38,7 @@ export function ClinicForm({
     name: initialData?.name || '',
     description: initialData?.description || '',
     address: initialData?.address || '',
+    ward: initialData?.ward || '',
     district: initialData?.district || '',
     province: initialData?.province || '',
     specificLocation: initialData?.specificLocation || '',
@@ -157,6 +159,7 @@ export function ClinicForm({
                     address: place.address,
                     latitude: place.latitude,
                     longitude: place.longitude,
+                    ward: place.ward || prev.ward,
                     district: place.district || prev.district,
                     province: place.province || prev.province,
                   }))
@@ -168,6 +171,20 @@ export function ClinicForm({
               <p className="text-red-600 text-sm mt-1 font-bold">{errors.address}</p>
             )}
           </div>
+
+          <LocationSelector
+            provinceValue={formData.province}
+            districtValue={formData.district}
+            wardValue={formData.ward}
+            onLocationChange={(loc) => {
+              setFormData((prev) => ({
+                ...prev,
+                province: loc.province || '',
+                district: loc.district || '',
+                ward: loc.ward || '',
+              }))
+            }}
+          />
 
           <div>
             <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
