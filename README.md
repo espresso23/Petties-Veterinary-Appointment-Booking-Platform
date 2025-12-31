@@ -11,8 +11,6 @@
 Dự án được xây dựng dựa trên mô hình **Clinic-Centric** (Lấy phòng khám làm trung tâm):
 *   **Dành cho Chủ Pet:** Một nền tảng duy nhất để quản lý sức khỏe cho nhiều Pet, đặt lịch linh hoạt (**Khám tại nhà hoặc tại phòng khám**) với minh bạch về giá cả và chất lượng.
 *   **Dành cho Phòng Khám:** Số hóa quy trình quản lý, từ việc tiếp nhận yêu cầu, phân công Bác sĩ (Vet), quản lý ca làm việc (Shift) đến tối ưu hóa doanh thu.
-*   **Tầm nhìn:** Trở thành trợ lý y tế số 1 cho thú cưng tại Việt Nam thông qua sức mạnh của AI và mô hình vận hành chuyên nghiệp.
-
 ---
 
 ## 📋 Thông Tin Dự Án
