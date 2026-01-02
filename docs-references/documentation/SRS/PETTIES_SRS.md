@@ -410,7 +410,7 @@ flowchart LR
 
 ---
 
-##### 3.1.1.2 Mobile App - Vet Flow (15 screens)
+##### 3.1.1.2 Mobile App - Vet Flow (16 screens)
 
 ```mermaid
 flowchart LR
@@ -452,6 +452,10 @@ flowchart LR
         Dashboard --> Chat
     end
 
+    subgraph Notification
+        Dashboard --> Notifications
+    end
+
     subgraph Profile
         Dashboard --> ProfileScreen[Profile]
     end
@@ -485,6 +489,10 @@ flowchart LR
     subgraph Patient_Management[Patient Management]
         Dashboard --> PatientList[Patient List]
         PatientList --> PatientHistory[Patient History]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
     end
 
     subgraph Profile
@@ -540,7 +548,7 @@ flowchart LR
 
 ---
 
-##### 3.1.1.5 Web App - Clinic Manager Flow (11 screens)
+##### 3.1.1.5 Web App - Clinic Manager Flow (13 screens)
 
 ```mermaid
 flowchart LR
@@ -573,6 +581,14 @@ flowchart LR
         Dashboard --> Chat
     end
 
+    subgraph Financial
+        Dashboard --> RevenueReports[Revenue Reports]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
+    end
+
     subgraph Profile
         Dashboard --> ProfileScreen[Profile]
     end
@@ -580,7 +596,7 @@ flowchart LR
 
 ---
 
-##### 3.1.1.6 Web App - Admin Flow (11 screens)
+##### 3.1.1.6 Web App - Admin Flow (12 screens)
 
 ```mermaid
 flowchart LR
@@ -612,6 +628,10 @@ flowchart LR
     subgraph Moderation_Reporting[Moderation & Reporting]
         Dashboard --> UserReports[User Reports]
         UserReports --> ReportDetail[Report Detail]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
     end
 ```
 
@@ -720,15 +740,15 @@ flowchart LR
 | 61 | Communication | AI Chat | Mobile/PO | Chat with AI assistant, tool calls, citations |
 | 62 | Communication | Chat | Mobile/Vet | Messaging with Manager or Pet Owners |
 | 63 | Communication | Chat | Web/Manager | Operational messaging with vets, owners |
-| 64 | Notif. | Notifications | Mobile/PO | In-app notification center with mark-as-read |
-| 65 | Notif. | Notifications | Web/Owner | System-wide operational alerts |
+| 64 | Notification | Notifications | Mobile/PO, Vet, Manager, Clinic Owner, Admin | In-app notification center for users and staff |
+| 65 | Notification | Notifications | Web/Vet, Manager, Clinic Owner, Admin | Centralized operational and system alerts |
 | 66 | Profile | Profile | Mobile/PO, Vet | Avatar, Info, Actions (Edit, Email, Pass, Logout) |
 | 67 | Profile | Edit Profile | Mobile/PO, Vet | Form to edit personal info (name, phone, avatar) |
 | 68 | Profile | Change Email | Mobile/PO, Vet | Form to change email with OTP verification |
 | 69 | Profile | Change Pass | Mobile/PO, Vet | Form to change password (current + new) |
 | 70 | Profile | Profile | Web/Staff, Admin | Shared profile page. Account info and security |
 | 71 | Review | Write Review | Mobile/PO | 1-5 star rating and comment after booking COMPLETED |
-| 72 | Financial | Revenue Rpts | Web/Owner | Financial statements, growth charts |
+| 72 | Financial | Revenue Reports | Web/Owner, Manager | Financial statements, growth charts (Branch specific for Manager) |
 | 73 | User Mgt | Users | Web/Admin | Centralized management of all user accounts |
 | 74 | Analytics | Statistics | Web/Admin | Specialized reports, data export tools |
 | 75 | AI Mgt | Agent Tools | Web/Admin | Manage MCP tools for AI Agent |
@@ -824,9 +844,9 @@ flowchart LR
 | 52-55| Patient Mgt (Web) | ❌ | ✅ | ✅ | ❌ | ❌ | Search patients, View records (V/CM) |
 | 57-58| Schedule (Web) | ❌ | ✅ | ✅ | ❌ | ❌ | My schedule (V), Roster mgt (CM) |
 | 63 | Chat (Manager) | ❌ | ❌ | ✅ | ❌ | ❌ | Multi-chat with vets/owners |
-| 65 | Notifications | ❌ | ❌ | ❌ | ✅ | ❌ | Operational alerts (Owner) |
+| 65 | Notifications | ❌ | ✅ | ✅ | ✅ | ✅ | Centralized operational and system alerts |
 | 70 | Shared Profile (Web)| ❌ | ✅ | ✅ | ✅ | ✅ | Shared profile & security settings |
-| 72 | Revenue Reports (CO)| ❌ | ❌ | ❌ | ✅ | ❌ | Financial analytics |
+| 72 | Revenue Reports (CO/CM)| ❌ | ❌ | ✅ | ✅ | ❌ | Financial analytics & charts |
 | 73 | User Management | ❌ | ❌ | ❌ | ❌ | ✅ | Global user directory |
 | 74-77| AI & Admin Tools | ❌ | ❌ | ❌ | ❌ | ✅ | Agent config, Knowledge base |
 | 78-79| Moderation | ❌ | ❌ | ❌ | ❌ | ✅ | Violation reporting, Moderation |
