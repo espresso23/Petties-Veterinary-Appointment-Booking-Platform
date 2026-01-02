@@ -1,8 +1,7 @@
-package com.petties.petties.service.impl;
+package com.petties.petties.service;
 
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
-import com.petties.petties.service.GoogleMapsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,46 +15,48 @@ import java.math.RoundingMode;
 import java.util.Map;
 
 /**
- * Implementation of GoogleMapsService
- * Uses Google Maps Geocoding API and Distance Matrix API
+ * Service for Location-based services (Geocoding and Distance calculation)
+ * Primary fallback: Haversine formula for distance calculation
+ * Supports optional integration with external providers (like Goong.io or
+ * Google)
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class GoogleMapsServiceImpl implements GoogleMapsService {
+public class LocationService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${google.maps.api.key:}")
+    @Value("${goong.api.key:}")
     private String apiKey;
 
-    @Value("${google.maps.geocoding.url:https://maps.googleapis.com/maps/api/geocode/json}")
+    @Value("${goong.geocoding.url:https://rsapi.goong.io/geocode}")
     private String geocodingUrl;
 
-    @Value("${google.maps.distance.url:https://maps.googleapis.com/maps/api/distancematrix/json}")
+    @Value("${goong.distance.url:https://rsapi.goong.io/distancematrix}")
     private String distanceMatrixUrl;
 
-    @Override
     public GeocodeResponse geocode(String address) {
         if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("Google Maps API key not configured. Geocoding disabled.");
-            throw new IllegalStateException("Google Maps API key not configured");
+            log.warn("Goong API key not configured. Geocoding disabled.");
+            throw new IllegalStateException("Location API key not configured");
         }
 
         try {
             String url = UriComponentsBuilder.fromUriString(geocodingUrl)
                     .queryParam("address", address)
-                    .queryParam("key", apiKey)
+                    .queryParam("api_key", apiKey)
                     .toUriString();
 
             @SuppressWarnings("unchecked")
-            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) 
-                    (ResponseEntity<?>) restTemplate.getForEntity(url, Map.class);
+            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate
+                    .getForEntity(url, Map.class);
             Map<String, Object> body = response.getBody();
 
-            if (body == null || !"OK".equals(body.get("status"))) {
+            if (body == null || body.get("results") == null) {
                 log.error("Geocoding failed: {}", body != null ? body.get("status") : "Unknown error");
-                throw new RuntimeException("Geocoding failed: " + (body != null ? body.get("status") : "Unknown error"));
+                throw new RuntimeException(
+                        "Geocoding failed: " + (body != null ? body.get("status") : "Unknown error"));
             }
 
             @SuppressWarnings("unchecked")
@@ -70,9 +71,9 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
             @SuppressWarnings("unchecked")
             Map<String, Object> location = (Map<String, Object>) geometry.get("location");
 
-            BigDecimal lat = BigDecimal.valueOf((Double) location.get("lat"))
+            BigDecimal lat = BigDecimal.valueOf(((Number) location.get("lat")).doubleValue())
                     .setScale(8, RoundingMode.HALF_UP);
-            BigDecimal lng = BigDecimal.valueOf((Double) location.get("lng"))
+            BigDecimal lng = BigDecimal.valueOf(((Number) location.get("lng")).doubleValue())
                     .setScale(8, RoundingMode.HALF_UP);
             String formattedAddress = (String) result.get("formatted_address");
 
@@ -88,25 +89,24 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
         }
     }
 
-    @Override
     public String reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
         if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("Google Maps API key not configured. Reverse geocoding disabled.");
-            throw new IllegalStateException("Google Maps API key not configured");
+            log.warn("Goong API key not configured. Reverse geocoding disabled.");
+            throw new IllegalStateException("Location API key not configured");
         }
 
         try {
             String url = UriComponentsBuilder.fromUriString(geocodingUrl)
                     .queryParam("latlng", latitude + "," + longitude)
-                    .queryParam("key", apiKey)
+                    .queryParam("api_key", apiKey)
                     .toUriString();
 
             @SuppressWarnings("unchecked")
-            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) 
-                    (ResponseEntity<?>) restTemplate.getForEntity(url, Map.class);
+            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate
+                    .getForEntity(url, Map.class);
             Map<String, Object> body = response.getBody();
 
-            if (body == null || !"OK".equals(body.get("status"))) {
+            if (body == null || body.get("results") == null) {
                 log.error("Reverse geocoding failed: {}", body != null ? body.get("status") : "Unknown error");
                 throw new RuntimeException("Reverse geocoding failed");
             }
@@ -125,9 +125,11 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
         }
     }
 
-    @Override
-    public double calculateDistance(BigDecimal lat1, BigDecimal lng1, 
-                                    BigDecimal lat2, BigDecimal lng2) {
+    /**
+     * Calculate straight-line distance using Haversine formula
+     */
+    public double calculateDistance(BigDecimal lat1, BigDecimal lng1,
+            BigDecimal lat2, BigDecimal lng2) {
         // Haversine formula
         final int EARTH_RADIUS_KM = 6371;
 
@@ -137,19 +139,22 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
         double deltaLng = Math.toRadians(lng2.doubleValue() - lng1.doubleValue());
 
         double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-                   Math.cos(lat1Rad) * Math.cos(lat2Rad) *
-                   Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
+                Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                        Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
 
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return EARTH_RADIUS_KM * c;
     }
 
-    @Override
+    /**
+     * Calculate road distance matrix
+     * Falls back to Haversine formula if API key is not configured or fails
+     */
     public DistanceResponse calculateDistanceMatrix(BigDecimal originLat, BigDecimal originLng,
-                                                    BigDecimal destLat, BigDecimal destLng) {
+            BigDecimal destLat, BigDecimal destLng) {
         if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("Google Maps API key not configured. Using Haversine formula instead.");
+            log.info("Location API key not configured. Using Haversine formula.");
             double distance = calculateDistance(originLat, originLng, destLat, destLng);
             return DistanceResponse.builder()
                     .distance(distance)
@@ -164,13 +169,12 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
             String url = UriComponentsBuilder.fromUriString(distanceMatrixUrl)
                     .queryParam("origins", origins)
                     .queryParam("destinations", destinations)
-                    .queryParam("key", apiKey)
-                    .queryParam("units", "metric")
+                    .queryParam("api_key", apiKey)
                     .toUriString();
 
             @SuppressWarnings("unchecked")
-            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) 
-                    (ResponseEntity<?>) restTemplate.getForEntity(url, Map.class);
+            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate
+                    .getForEntity(url, Map.class);
             Map<String, Object> body = response.getBody();
 
             if (body == null || !"OK".equals(body.get("status"))) {
@@ -189,7 +193,8 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
             }
 
             @SuppressWarnings("unchecked")
-            java.util.List<Map<String, Object>> elements = (java.util.List<Map<String, Object>>) rows.get(0).get("elements");
+            java.util.List<Map<String, Object>> elements = (java.util.List<Map<String, Object>>) rows.get(0)
+                    .get("elements");
             if (elements == null || elements.isEmpty()) {
                 throw new RuntimeException("No elements in Distance Matrix response");
             }
@@ -220,4 +225,3 @@ public class GoogleMapsServiceImpl implements GoogleMapsService {
         }
     }
 }
-

@@ -285,8 +285,8 @@ flowchart TB
 | **Presentation Layer** |
 | 01 | controller | **REST API Layer** - Handles HTTP requests and maps them to service methods. Responsible for request validation, authentication checks, and response formatting. Implements `@RestController` pattern with route mapping to `/api/*` endpoints. |
 | **Business Layer** |
-| 02 | service | **Business Logic Layer** - Contains core business rules, transaction management (`@Transactional`), and orchestration of operations. Implements Interface-Implementation pattern for testability. Coordinates between repositories and external integrations. |
-| 03 | service/impl | **Service Implementations** - Concrete implementations of service interfaces. Separates contract from implementation for dependency injection and mocking in tests. |
+| 02 | service | **Business Logic Layer** - Contains core business rules, transaction management (`@Transactional`), and orchestration of operations. Implements concrete Service classes for simplicity and direct implementation. Coordinates between repositories and external integrations. |
+
 | **Data Access Layer** |
 | 04 | repository | **Data Access Layer** - Provides CRUD operations and custom query methods using Spring Data JPA. Abstracts database interactions with PostgreSQL. Implements Repository pattern with method naming conventions for query generation. |
 | **Domain Layer** |
@@ -904,7 +904,9 @@ classDiagram
     }
 
     class ClinicService {
-        <<interface>>
+        -ClinicRepository clinicRepository
+        -UserRepository userRepository
+        -ClinicImageRepository imageRepository
         +getAllClinics(...) Page~ClinicResponse~
         +getClinicById(UUID) ClinicResponse
         +createClinic(ClinicRequest, UUID) ClinicResponse
@@ -913,11 +915,6 @@ classDiagram
         +rejectClinic(UUID, String) ClinicResponse
     }
 
-    class ClinicServiceImpl {
-        -ClinicRepository clinicRepository
-        -UserRepository userRepository
-        -ClinicImageRepository imageRepository
-    }
 
     class Clinic {
         +UUID clinicId
@@ -966,8 +963,7 @@ classDiagram
 
     ClinicController --> ClinicService
     ClinicController --> CloudinaryService
-    ClinicServiceImpl ..|> ClinicService
-    ClinicServiceImpl --> Clinic
+    ClinicService --> Clinic
     Clinic --> ClinicImage
     Clinic --> ClinicServiceEntity
     ClinicServiceEntity --> MasterService
@@ -1135,6 +1131,190 @@ sequenceDiagram
     UI-->>Owner: Show new pet in the list
 ```
 
+### 3.4 Vet Shift & Slot Management
+
+This module manages veterinarian working schedules and automates the creation of bookable 30-minute time slots, ensuring breaks are correctly handled based on clinic operating hours.
+
+#### 3.4.1 Class Diagram (Backend)
+
+```mermaid
+classDiagram
+    class VetShiftController {
+        -VetShiftService vetShiftService
+        +createShift(UUID clinicId, VetShiftRequest) ResponseEntity
+        +getClinicShifts(UUID clinicId, LocalDate date) ResponseEntity
+        +deleteShift(UUID shiftId) ResponseEntity
+    }
+
+    class VetShiftService {
+        -VetShiftRepository vetShiftRepository
+        -SlotRepository slotRepository
+        -SlotGenerator slotGenerator
+        +createShift(VetShiftRequest) VetShiftResponse
+        +getClinicShifts(UUID clinicId, LocalDate date) ResponseEntity
+        +deleteShift(UUID shiftId) void
+    }
+
+
+    class VetShift {
+        +UUID shiftId
+        +User vet
+        +Clinic clinic
+        +LocalDate workDate
+        +LocalTime startTime
+        +LocalTime endTime
+        +LocalTime breakStart
+        +LocalTime breakEnd
+        +List~Slot~ slots
+    }
+
+    class Slot {
+        +UUID slotId
+        +VetShift shift
+        +LocalTime startTime
+        +LocalTime endTime
+        +SlotStatus status
+    }
+
+    class SlotGenerator {
+        +generate(VetShift) List~Slot~
+    }
+
+    class SlotStatus {
+        <<enumeration>>
+        AVAILABLE
+        BOOKED
+        BLOCKED
+    }
+
+    VetShiftController --> VetShiftService
+    VetShiftService --> VetShift
+    VetShiftService --> SlotGenerator
+    VetShift --> Slot
+    Slot --> SlotStatus
+```
+
+#### 3.4.2 Class Specifications
+
+**1. VetShiftController**
+- **Responsibility:** REST entry point for managing vet schedules.
+- **Key Methods:**
+    - `createShift()`: Handles shift creation and triggers slot generation.
+
+**2. VetShiftService / VetShiftServiceImpl**
+- **Responsibility:** Orchestrates shift logic, prevents overlaps, and manages the lifecycle of associated slots.
+- **Key Methods:**
+    - `createShift()`: Validates request, saves shift, and calls `SlotGenerator`.
+    - `deleteShift()`: Removes shift and its *unbooked* slots.
+
+**3. SlotGenerator (Helper Component)**
+- **Responsibility:** Pure logic for dividing a shift into 30-minute intervals.
+- **Logic:** Starts at `startTime`, increments by 30 mins until `endTime`. If an interval overlaps with the range `[breakStart, breakEnd]`, it is skipped.
+
+#### 3.4.3 Sequence Diagram: Create Shift & Slots
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant G as SlotGenerator
+    participant DB as Database
+
+    M->>UI: 1. Input shift info & click "Save"
+    activate UI
+    UI->>C: 2. POST /api/clinics/{id}/shifts (Shift Data)
+    activate C
+    C->>S: 3. createShift(request)
+    activate S
+    S->>DB: 4. Check for overlaps (vet_id, date, time)
+    activate DB
+    DB-->>S: 5. No overlap found
+    deactivate DB
+    
+    S->>DB: 6. Save VetShift entity
+    activate DB
+    DB-->>S: 7. VetShift saved
+    deactivate DB
+    
+    S->>G: 8. generate(savedShift)
+    activate G
+    G->>G: 9. Divide into 30m intervals (Skip Breaks)
+    G-->>S: 10. List of Slots
+    deactivate G
+    
+    S->>DB: 11. Save all Slots (saveAll)
+    activate DB
+    DB-->>S: 12. Slots persisted
+    deactivate DB
+    
+    S-->>C: 13. VetShiftResponse
+    deactivate S
+    C-->>UI: 14. 201 Created (Success)
+    deactivate C
+    UI-->>M: 15. Display shift on Calendar
+    deactivate UI
+```
+
+### 3.5 Patient Management
+
+#### 3.5.1 Overview
+Patient Management serves as the medical record repository for all pets. Following the "EMR Central Hub" concept (BR-005), it allows authorized Vets to access a pet's cumulative clinical history across different clinics.
+
+#### 3.5.2 Class Specification
+
+**1. PetController**
+- **Responsibility:** REST endpoints for searching pets and retrieving full medical/vaccination history.
+- **Key Methods:**
+    - `searchPets()`: Searches for pets registered at the clinic or associated via bookings.
+    - `getPetHistory()`: Retrieves aggregated EMRs and Vaccination Records.
+
+**2. PetSerivce / PetServiceImpl**
+- **Responsibility:** Business logic for cross-clinic data aggregation and access entitlement checks.
+- **Key Methods:**
+    - `getPetMedicalHistory()`: Fetches all EMRs linked to a Pet ID, regardless of the originating clinic.
+    - `checkAccessEntitlement()`: Core security logic implementing BR-009-03.
+
+#### 3.5.3 Security: Access Entitlement Logic (BR-009-03)
+A Vet/Clinic is entitled to view a Pet's history **ONLY IF** there is an active or past relationship, defined as:
+- `EXISTS(Booking b WHERE b.pet_id = :petId AND b.clinic_id = :currentClinicId)`
+This ensures medical data is shared for treatment purposes while maintaining privacy from non-involved clinics.
+
+#### 3.5.4 Sequence Diagram: Cross-Clinic History Lookup
+
+```mermaid
+sequenceDiagram
+    actor V as Vet (Mobile/Web)
+    participant UI as Vet Dashboard
+    participant PC as PetController
+    participant PS as PetService
+    participant BR as BookingRepository
+    participant DB as Database
+
+    V->>UI: 1. Search Pet or Select from Booking
+    UI->>PC: 2. GET /api/pets/{id}/history
+    activate PC
+    PC->>PS: 3. getPetMedicalHistory(petId, clinicId)
+    activate PS
+    
+    PS->>BR: 4. checkAccessEntitlement(petId, clinicId)
+    activate BR
+    BR-->>PS: 5. Entitlement Confirmed (Booking exists)
+    deactivate BR
+    
+    PS->>DB: 6. Fetch all EMRs & Vaccinations (Order by Date DESC)
+    activate DB
+    DB-->>PS: 7. Medical Records List
+    deactivate DB
+    
+    PS-->>PC: 8. PetHistoryResponse (Aggregated Data)
+    deactivate PS
+    PC-->>UI: 9. 200 OK (Display Timeline)
+    deactivate PC
+    UI-->>V: 10. View full history (SOAP + Vaccines)
+```
+
 ---
 
 ## 4. TECHNOLOGY STACK SUMMARY
@@ -1195,5 +1375,5 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 2.5
-**Last Updated:** 2025-12-31
+**Document Version:** 1.2.0
+**Last Updated:** 2026-01-02
