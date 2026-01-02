@@ -43,8 +43,9 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
-
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Location Service (Goong.io)
+      GOONG_API_KEY: ${GOONG_API_KEY:-}
       # Redis (Staging/Test - DB 1)
       REDIS_URL: ${REDIS_URL:-}
       REDIS_HOST: ${REDIS_HOST:-}

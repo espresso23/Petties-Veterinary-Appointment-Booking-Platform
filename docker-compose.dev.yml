@@ -114,6 +114,8 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      # Location Service (Goong.io)
+      GOONG_API_KEY: ${GOONG_API_KEY:-}
     volumes:
       - ./backend-spring/petties/src:/app/src:ro
     ports:

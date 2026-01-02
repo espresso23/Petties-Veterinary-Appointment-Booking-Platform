@@ -183,6 +183,68 @@ Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
 
+## Documentation-First Development Rule
+
+15. **TRƯỚC KHI CODE bất kỳ feature nào**, PHẢI chuẩn bị nội dung documentation để cập nhật vào:
+
+    **A. PETTIES_SRS.md - Phần 3.2 Functional Requirements:**
+    Theo format mẫu đã có (xem 3.2.1 - 3.2.6):
+    ```
+    #### 3.2.X [Feature Name]
+    **Function trigger:**
+    - **Navigation path:** [Screen Path]
+    - **Timing Frequency:** [When triggered]
+
+    **Function description:**
+    - **Actors/Roles:** [Who uses]
+    - **Purpose:** [What it does]
+    - **Interface:** [UI elements]
+    - **Data processing:** [Step-by-step flow]
+
+    **Screen layout:** *(Add screen UI here)*
+
+    **Function details:**
+    - **Data:** [Request/Response objects]
+    - **Validation:** [Error handling rules]
+    - **Business rules:** [Business logic]
+    - **Normal case:** [Happy path]
+    - **Abnormal case:** [Error scenarios]
+    ```
+
+    **B. REPORT_4_SDD_SYSTEM_DESIGN.md - Phần 3. DETAILED DESIGN:**
+    Theo format mẫu đã có (xem 3.1, 3.2, 3.3):
+    ```
+    ### 3.X [Feature Name]
+    [Feature description paragraph]
+
+    #### 3.X.1 Class Diagram
+    ```mermaid
+    classDiagram
+        [Controller, Service, Entity, DTO classes]
+    ```
+
+    #### 3.X.2 Class Specifications
+    **1. [ControllerName]**
+    - **Responsibility:** [What it does]
+    - **Key Methods:** [Method list with descriptions]
+
+    **2. [ServiceName]**
+    - **Responsibility:** [Business logic]
+    - **Key Methods:** [Method list]
+
+    #### 3.X.3 Sequence Diagram: [Main Flow]
+    ```mermaid
+    sequenceDiagram
+        [Actor → UI → Controller → Service → Repository → DB flow]
+    ```
+    ```
+
+    **Workflow:**
+    1. Khi nhận yêu cầu implement feature mới → Dùng `petties-report-writer` agent để tạo documentation draft
+    2. Trình bày documentation cho user review & approve
+    3. SAU KHI user approve documentation → Mới bắt đầu code với các agents tương ứng
+    4. Sau khi code xong → Cập nhật lại documentation nếu có thay đổi
+
 ## Context & Clarification Rules
 
 14. **Ambiguous Questions**: If a user question is ambiguous or missing important information, first list the missing details and ask clarifying questions instead of guessing.

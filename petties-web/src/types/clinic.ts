@@ -3,6 +3,8 @@ export type ClinicStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED'
 export interface OperatingHours {
   openTime?: string // HH:mm format
   closeTime?: string // HH:mm format
+  breakStart?: string // HH:mm format
+  breakEnd?: string // HH:mm format
   isClosed: boolean
 }
 
