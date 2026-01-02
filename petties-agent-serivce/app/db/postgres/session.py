@@ -17,16 +17,23 @@ logger = logging.getLogger(__name__)
 
 
 # ===== CREATE ASYNC ENGINE =====
-# Default pooling (QueuePool) is used for production.
-# NullPool is ONLY for environments where connection pooling is handled externally or not needed.
-engine = create_async_engine(
-    settings.ASYNC_DATABASE_URL,
-    echo=settings.APP_DEBUG,
-    future=True,
-    # pooling settings
-    pool_size=settings.DB_POOL_SIZE if hasattr(settings, "DB_POOL_SIZE") else 5,
-    max_overflow=settings.DB_MAX_OVERFLOW if hasattr(settings, "DB_MAX_OVERFLOW") else 10,
-)
+# Default pooling (QueuePool) is used for development.
+# NullPool is used for production/staging/test to allow Neon DB to go idle (zero connections).
+if settings.APP_ENV == "development":
+    engine = create_async_engine(
+        settings.ASYNC_DATABASE_URL,
+        echo=settings.APP_DEBUG,
+        future=True,
+        pool_size=settings.DB_POOL_SIZE if hasattr(settings, "DB_POOL_SIZE") else 5,
+        max_overflow=settings.DB_MAX_OVERFLOW if hasattr(settings, "DB_MAX_OVERFLOW") else 10,
+    )
+else:
+    engine = create_async_engine(
+        settings.ASYNC_DATABASE_URL,
+        echo=settings.APP_DEBUG,
+        future=True,
+        poolclass=NullPool,
+    )
 
 # ===== CREATE ASYNC SESSION FACTORY =====
 AsyncSessionLocal = async_sessionmaker(

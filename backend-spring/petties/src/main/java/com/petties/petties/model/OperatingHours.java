@@ -19,13 +19,18 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OperatingHours {
-    
+
     @JsonFormat(pattern = "HH:mm")
     private LocalTime openTime;
-    
+
     @JsonFormat(pattern = "HH:mm")
     private LocalTime closeTime;
-    
+
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime breakStart;
+
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime breakEnd;
+
     private Boolean isClosed;
 }
-

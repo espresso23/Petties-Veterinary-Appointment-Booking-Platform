@@ -363,6 +363,22 @@ export function ClinicDetailPage() {
                 <div className="p-4 border-4 border-amber-600 bg-amber-50 text-center">
                   <div className="text-2xl font-bold uppercase text-stone-900 mb-2">MỞ 24/7</div>
                   <div className="text-sm font-bold uppercase text-stone-700">Tất cả các ngày: 00:00 - 23:59</div>
+                  {(() => {
+                    const firstDay = currentClinic.operatingHours?.[DAYS_OF_WEEK[0]]
+                    const sameBreak = DAYS_OF_WEEK.every(day =>
+                      currentClinic.operatingHours?.[day]?.breakStart === firstDay?.breakStart &&
+                      currentClinic.operatingHours?.[day]?.breakEnd === firstDay?.breakEnd
+                    )
+                    if (sameBreak && firstDay?.breakStart && firstDay?.breakEnd) {
+                      return (
+                        <div className="mt-2 text-xs font-black uppercase text-amber-700 flex items-center justify-center gap-1">
+                          <span>Giờ nghỉ:</span>
+                          <span>{firstDay.breakStart} - {firstDay.breakEnd}</span>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -383,9 +399,17 @@ export function ClinicDetailPage() {
                         {hours.isClosed ? (
                           <div className="text-stone-600 font-bold uppercase text-xs">CLOSED</div>
                         ) : (
-                          <div className="text-stone-900">
-                            {hours.openTime} - {hours.closeTime}
-                          </div>
+                          <>
+                            <div className="text-stone-900 border-b border-stone-200 pb-1 mb-1">
+                              {hours.openTime} - {hours.closeTime}
+                            </div>
+                            {hours.breakStart && hours.breakEnd && (
+                              <div className="text-[10px] font-bold text-stone-500 uppercase flex items-center gap-1">
+                                <span className="opacity-70">Nghỉ:</span>
+                                <span>{hours.breakStart} - {hours.breakEnd}</span>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )

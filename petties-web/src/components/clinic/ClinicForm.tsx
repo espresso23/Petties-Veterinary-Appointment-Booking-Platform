@@ -3,6 +3,7 @@ import type { ClinicRequest, OperatingHours, ClinicImage } from '../../types/cli
 import { AddressAutocompleteOSM } from './AddressAutocompleteOSM'
 import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
+import { DocumentDuplicateIcon } from '@heroicons/react/24/solid'
 import { LocationSelector } from '../common'
 
 interface ClinicFormProps {
@@ -73,6 +74,19 @@ export function ClinicForm({
       return { ...prev, operatingHours: hours }
     })
   }
+
+  const handleApplyToAll = (sourceDay: string) => {
+    const sourceHours = formData.operatingHours?.[sourceDay];
+    if (!sourceHours) return;
+
+    setFormData((prev) => {
+      const newHours: Record<string, OperatingHours> = {};
+      DAYS_OF_WEEK.forEach((day) => {
+        newHours[day] = { ...sourceHours };
+      });
+      return { ...prev, operatingHours: newHours };
+    });
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -348,35 +362,77 @@ export function ClinicForm({
                 </div>
 
                 {!hours.isClosed && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                        OPEN TIME
-                      </label>
-                      <input
-                        type="time"
-                        value={hours.openTime || '08:00'}
-                        onChange={(e) =>
-                          handleOperatingHoursChange(day, 'openTime', e.target.value)
-                        }
-                        className="input-brutal"
-                        disabled={is24h}
-                      />
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+                          OPEN TIME
+                        </label>
+                        <input
+                          type="time"
+                          value={hours.openTime || '08:00'}
+                          onChange={(e) =>
+                            handleOperatingHoursChange(day, 'openTime', e.target.value)
+                          }
+                          className="input-brutal"
+                          disabled={is24h}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+                          CLOSE TIME
+                        </label>
+                        <input
+                          type="time"
+                          value={hours.closeTime || '17:00'}
+                          onChange={(e) =>
+                            handleOperatingHoursChange(day, 'closeTime', e.target.value)
+                          }
+                          className="input-brutal"
+                          disabled={is24h}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                        CLOSE TIME
-                      </label>
-                      <input
-                        type="time"
-                        value={hours.closeTime || '17:00'}
-                        onChange={(e) =>
-                          handleOperatingHoursChange(day, 'closeTime', e.target.value)
-                        }
-                        className="input-brutal"
-                        disabled={is24h}
-                      />
+
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-200">
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+                          BREAK START (LUNCH)
+                        </label>
+                        <input
+                          type="time"
+                          value={hours.breakStart || ''}
+                          onChange={(e) =>
+                            handleOperatingHoursChange(day, 'breakStart', e.target.value)
+                          }
+                          className="input-brutal bg-stone-50"
+                          placeholder="Optional"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+                          BREAK END (LUNCH)
+                        </label>
+                        <input
+                          type="time"
+                          value={hours.breakEnd || ''}
+                          onChange={(e) =>
+                            handleOperatingHoursChange(day, 'breakEnd', e.target.value)
+                          }
+                          className="input-brutal bg-stone-50"
+                          placeholder="Optional"
+                        />
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyToAll(day)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-900 text-white text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_#1c1917] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                    >
+                      <DocumentDuplicateIcon className="w-3.5 h-3.5 text-white" />
+                      Áp dụng cho mọi ngày
+                    </button>
                   </div>
                 )}
               </div>
