@@ -53,6 +53,7 @@ class Agent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False, index=True)
+    agent_type = Column(String(20), default="main")  # Re-added for DB compatibility
     description = Column(Text)
 
     # LLM Configuration
