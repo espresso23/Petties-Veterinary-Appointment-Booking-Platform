@@ -9,7 +9,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.postgres.models import (
     Agent, Tool, SystemSetting,
-    SettingCategory, DEFAULT_SETTINGS, PromptVersion
+    DEFAULT_SETTINGS, PromptVersion
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ async def seed_data(db: AsyncSession, force: bool = False):
                 setting = SystemSetting(
                     key=setting_data["key"],
                     value=setting_data["value"],
-                    category=SettingCategory(setting_data["category"]),
+                    category=setting_data["category"],  # Now a simple string
                     is_sensitive=setting_data["is_sensitive"],
                     description=setting_data["description"]
                 )
