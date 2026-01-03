@@ -422,6 +422,7 @@ flowchart LR
 ---
 
 ##### 3.1.1.2 Mobile App - Vet Flow (16 screens)
+##### 3.1.1.2 Mobile App - Vet Flow (16 screens)
 
 ```mermaid
 flowchart LR
@@ -467,6 +468,10 @@ flowchart LR
         Dashboard --> Notifications
     end
 
+    subgraph Notification
+        Dashboard --> Notifications
+    end
+
     subgraph Profile
         Dashboard --> ProfileScreen[Profile]
     end
@@ -500,6 +505,10 @@ flowchart LR
     subgraph Patient_Management[Patient Management]
         Dashboard --> PatientList[Patient List]
         PatientList --> PatientHistory[Patient History]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
     end
 
     subgraph Notification
@@ -560,6 +569,7 @@ flowchart LR
 ---
 
 ##### 3.1.1.5 Web App - Clinic Manager Flow (13 screens)
+##### 3.1.1.5 Web App - Clinic Manager Flow (13 screens)
 
 ```mermaid
 flowchart LR
@@ -600,6 +610,14 @@ flowchart LR
         Dashboard --> Notifications
     end
 
+    subgraph Financial
+        Dashboard --> RevenueReports[Revenue Reports]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
+    end
+
     subgraph Profile
         Dashboard --> ProfileScreen[Profile]
     end
@@ -607,6 +625,7 @@ flowchart LR
 
 ---
 
+##### 3.1.1.6 Web App - Admin Flow (12 screens)
 ##### 3.1.1.6 Web App - Admin Flow (12 screens)
 
 ```mermaid
@@ -639,6 +658,10 @@ flowchart LR
     subgraph Moderation_Reporting[Moderation & Reporting]
         Dashboard --> UserReports[User Reports]
         UserReports --> ReportDetail[Report Detail]
+    end
+
+    subgraph Notification
+        Dashboard --> Notifications
     end
 
     subgraph Notification
@@ -753,12 +776,15 @@ flowchart LR
 | 63 | Communication | Chat | Web/Manager | Operational messaging with vets, owners |
 | 64 | Notification | Notifications | Mobile/PO, Vet, Manager, Clinic Owner, Admin | In-app notification center for users and staff |
 | 65 | Notification | Notifications | Web/Vet, Manager, Clinic Owner, Admin | Centralized operational and system alerts |
+| 64 | Notification | Notifications | Mobile/PO, Vet, Manager, Clinic Owner, Admin | In-app notification center for users and staff |
+| 65 | Notification | Notifications | Web/Vet, Manager, Clinic Owner, Admin | Centralized operational and system alerts |
 | 66 | Profile | Profile | Mobile/PO, Vet | Avatar, Info, Actions (Edit, Email, Pass, Logout) |
 | 67 | Profile | Edit Profile | Mobile/PO, Vet | Form to edit personal info (name, phone, avatar) |
 | 68 | Profile | Change Email | Mobile/PO, Vet | Form to change email with OTP verification |
 | 69 | Profile | Change Pass | Mobile/PO, Vet | Form to change password (current + new) |
 | 70 | Profile | Profile | Web/Staff, Admin | Shared profile page. Account info and security |
 | 71 | Review | Write Review | Mobile/PO | 1-5 star rating and comment after booking COMPLETED |
+| 72 | Financial | Revenue Reports | Web/Owner, Manager | Financial statements, growth charts (Branch specific for Manager) |
 | 72 | Financial | Revenue Reports | Web/Owner, Manager | Financial statements, growth charts (Branch specific for Manager) |
 | 73 | User Mgt | Users | Web/Admin | Centralized management of all user accounts |
 | 74 | Analytics | Statistics | Web/Admin | Specialized reports, data export tools |
