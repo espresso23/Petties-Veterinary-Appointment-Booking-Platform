@@ -161,7 +161,7 @@ async def get_agent(
             "id": t.id,
             "name": t.name,
             "description": t.description,
-            "tool_type": t.tool_type.value if t.tool_type else None,
+            "tool_type": t.tool_type.value if hasattr(t.tool_type, 'value') else t.tool_type,
             "enabled": t.enabled
         } for t in tools]
 
