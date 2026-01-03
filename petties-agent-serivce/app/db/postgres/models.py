@@ -292,7 +292,7 @@ class SystemSetting(Base):
     id = Column(Integer, primary_key=True)
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # Encrypted if is_sensitive=True
-    category = Column(Enum(SettingCategory), default=SettingCategory.GENERAL)
+    category = Column(String(50), default="general")  # Changed from Enum for DB compatibility
     is_sensitive = Column(Boolean, default=False)  # Encrypt value if True
     description = Column(Text)
 
