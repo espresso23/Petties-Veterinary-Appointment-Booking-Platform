@@ -14,7 +14,7 @@ import httpx
 import logging
 
 from app.db.postgres.session import get_db
-from app.db.postgres.models import SystemSetting, SettingCategory, DEFAULT_SETTINGS
+from app.db.postgres.models import SystemSetting, DEFAULT_SETTINGS
 from app.api.middleware.auth import get_admin_user
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ async def init_default_settings(db: AsyncSession):
             setting = SystemSetting(
                 key=setting_data["key"],
                 value=setting_data["value"],
-                category=SettingCategory(setting_data["category"]),
+                category=setting_data["category"],  # Simple string now
                 is_sensitive=setting_data["is_sensitive"],
                 description=setting_data.get("description")
             )
@@ -102,7 +102,7 @@ async def list_settings(
         SettingResponse(
             key=s.key,
             value=mask_value(s.value, s.is_sensitive),
-            category=s.category.value if s.category else "general",
+            category=s.category or "general",
             is_sensitive=s.is_sensitive,
             description=s.description
         )
@@ -128,7 +128,7 @@ async def get_setting_by_key(
     return SettingResponse(
         key=setting.key,
         value=mask_value(setting.value, setting.is_sensitive),
-        category=setting.category.value if setting.category else "general",
+        category=setting.category or "general",
         is_sensitive=setting.is_sensitive,
         description=setting.description
     )
@@ -159,7 +159,7 @@ async def update_setting(
     return SettingResponse(
         key=setting.key,
         value=mask_value(setting.value, setting.is_sensitive),
-        category=setting.category.value if setting.category else "general",
+        category=setting.category or "general",
         is_sensitive=setting.is_sensitive,
         description=setting.description
     )
@@ -198,7 +198,7 @@ async def seed_database(
     try:
         from app.db.postgres.models import (
             Agent, Tool, SystemSetting,
-            SettingCategory, DEFAULT_SETTINGS, PromptVersion
+            DEFAULT_SETTINGS, PromptVersion
         )
         from sqlalchemy import select, delete
         from pathlib import Path
@@ -233,7 +233,7 @@ async def seed_database(
                 setting = SystemSetting(
                     key=setting_data["key"],
                     value=setting_data["value"],
-                    category=SettingCategory(setting_data["category"]),
+                    category=setting_data["category"],  # Simple string
                     is_sensitive=setting_data["is_sensitive"],
                     description=setting_data["description"]
                 )
