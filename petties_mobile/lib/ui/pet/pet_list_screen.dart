@@ -108,15 +108,16 @@ class _PetListScreenState extends State<PetListScreen> {
         final result = await context.push(
           AppRoutes.petDetails.replaceAll(':id', pet.id),
         );
-         if (result == true) _refreshPets();
+        if (result == true) _refreshPets();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: AppColors.white,
-          border: Border.all(color: AppColors.stone900, width: 3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
           boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
           ],
         ),
         child: Row(
@@ -126,8 +127,12 @@ class _PetListScreenState extends State<PetListScreen> {
               height: 100,
               decoration: BoxDecoration(
                 color: AppColors.stone200,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
                 border: const Border(
-                  right: BorderSide(color: AppColors.stone900, width: 3),
+                  right: BorderSide(color: AppColors.stone900, width: 2),
                 ),
                 image: pet.imageUrl != null
                     ? DecorationImage(
@@ -170,7 +175,9 @@ class _PetListScreenState extends State<PetListScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _getGenderColor(pet.gender).withValues(alpha: 0.2),
+                        color:
+                            _getGenderColor(pet.gender).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: AppColors.stone900, width: 2),
                       ),
                       child: Text(

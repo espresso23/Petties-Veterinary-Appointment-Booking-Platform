@@ -17,10 +17,10 @@ import java.util.UUID;
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
     /**
-     * Find all notifications for a user (clinic owner)
-     * Only load notifications for non-deleted clinics
+     * Find all notifications for a user (including VetShift notifications without clinic)
+     * Load notifications for non-deleted clinics OR notifications without clinic
      */
-    @Query("SELECT n FROM Notification n JOIN n.clinic c WHERE n.user.userId = :userId AND c.deletedAt IS NULL ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c WHERE n.user.userId = :userId AND (c IS NULL OR c.deletedAt IS NULL) ORDER BY n.createdAt DESC")
     Page<Notification> findByUserUserIdOrderByCreatedAtDesc(@Param("userId") UUID userId, Pageable pageable);
 
     /**
@@ -48,5 +48,15 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
      */
     @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.clinic.clinicId = :clinicId AND n.type = :type")
     boolean existsByClinicClinicIdAndType(@Param("clinicId") UUID clinicId, @Param("type") NotificationType type);
+
+    /**
+     * Check if notification exists for user + clinic + type
+     * Used to prevent duplicate admin notifications for same clinic
+     */
+    @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.user.userId = :userId AND n.clinic.clinicId = :clinicId AND n.type = :type")
+    boolean existsByUserUserIdAndClinicClinicIdAndType(
+            @Param("userId") UUID userId,
+            @Param("clinicId") UUID clinicId,
+            @Param("type") NotificationType type);
 }
 

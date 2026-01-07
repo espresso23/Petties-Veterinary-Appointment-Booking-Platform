@@ -21,6 +21,7 @@ class AppRoutes {
   // Role-specific Home Routes (Mobile only: PET_OWNER, VET)
   static const String petOwnerHome = '/pet-owner/home';
   static const String vetHome = '/vet/home';
+  static const String vetSchedule = '/vet/schedule';
 
   // Booking Flow
   static const String clinicDetails = '/clinic/:id';
@@ -49,4 +50,3 @@ class AppRoutes {
   static const String privacyPolicy = '/privacy';
   static const String help = '/help';
 }
-

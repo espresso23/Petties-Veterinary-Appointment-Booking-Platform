@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../data/models/auth_response.dart';
 import '../data/models/user_response.dart';
@@ -6,6 +7,8 @@ import '../data/services/google_auth_service.dart';
 import '../utils/storage_service.dart';
 import '../config/constants/app_constants.dart';
 import '../utils/api_error_handler.dart';
+import '../utils/fcm_service.dart';
+import 'package:dio/dio.dart';
 
 /// Provider for authentication state management
 class AuthProvider extends ChangeNotifier {
@@ -33,46 +36,115 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
 
   /// Initialize auth state from storage
+  /// Priority: Show cached data IMMEDIATELY, then refresh in background
   Future<void> _initializeAuth() async {
     try {
       final accessToken = await _storage.getString(AppConstants.accessTokenKey);
-      final refreshToken = await _storage.getString(AppConstants.refreshTokenKey);
+      final refreshToken =
+          await _storage.getString(AppConstants.refreshTokenKey);
       final userId = await _storage.getString(AppConstants.userIdKey);
+      final userDataStr = await _storage.getString(AppConstants.userDataKey);
+      final userProfileStr =
+          await _storage.getString(AppConstants.userProfileKey);
 
       if (accessToken != null && refreshToken != null && userId != null) {
-        // Try to get current user info with timeout
-        try {
-          _user = await _authService.getCurrentUser().timeout(
-            const Duration(seconds: 5),
-          );
-          _authResponse = AuthResponse(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            tokenType: 'Bearer',
-            userId: userId,
-            username: _user!.username,
-            email: _user!.email,
-            role: _user!.role,
-          );
-          notifyListeners();
-        } catch (e) {
-          // If getting user fails, clear auth silently
-          debugPrint('Error getting current user: $e');
+        // 1. Load cached data IMMEDIATELY so user can enter app right away
+        if (userDataStr != null) {
           try {
-            await _authService.logout();
-          } catch (_) {
-            // Ignore logout errors
+            final userData = jsonDecode(userDataStr);
+            _authResponse = AuthResponse.fromJson(userData);
+          } catch (e) {
+            debugPrint('Error parsing cached auth data: $e');
           }
+        }
+
+        if (userProfileStr != null) {
+          try {
+            final profileData = jsonDecode(userProfileStr);
+            _user = UserResponse.fromJson(profileData);
+          } catch (e) {
+            debugPrint('Error parsing cached user profile: $e');
+          }
+        }
+
+        // If we have cached auth data, notify immediately and let user in
+        if (_authResponse != null && _user != null) {
           notifyListeners();
+
+          // 2. Refresh user data in background (non-blocking, fire-and-forget)
+          _refreshUserInBackground(accessToken, userId);
+        } else {
+          // No valid cache, need to fetch from server
+          try {
+            final freshUser = await _authService.getCurrentUser().timeout(
+                  const Duration(seconds: 5), // Reduced timeout
+                );
+            _user = freshUser;
+            await _authService.saveUserProfile(freshUser);
+
+            _authResponse = AuthResponse(
+              accessToken: accessToken,
+              refreshToken: refreshToken,
+              tokenType: 'Bearer',
+              userId: userId,
+              username: _user!.username,
+              email: _user!.email,
+              fullName: _user!.fullName,
+              role: _user!.role,
+            );
+            notifyListeners();
+          } catch (e) {
+            debugPrint('Error fetching user: $e');
+            // Clear invalid tokens
+            if (e is DioException && e.response?.statusCode == 401) {
+              await logout();
+            }
+            notifyListeners();
+          }
         }
       } else {
-        // No tokens, notify listeners so redirect can happen
+        // No tokens, not authenticated
         notifyListeners();
       }
     } catch (e) {
       debugPrint('Error initializing auth: $e');
-      notifyListeners(); // Notify anyway to allow redirect
+      notifyListeners();
     }
+  }
+
+  /// Refresh user data in background without blocking UI
+  void _refreshUserInBackground(String accessToken, String userId) {
+    // Fire and forget - don't await this
+    Future(() async {
+      try {
+        final freshUser = await _authService.getCurrentUser().timeout(
+              const Duration(seconds: 10),
+            );
+        _user = freshUser;
+        await _authService.saveUserProfile(freshUser);
+
+        _authResponse = AuthResponse(
+          accessToken: accessToken,
+          refreshToken:
+              await _storage.getString(AppConstants.refreshTokenKey) ?? '',
+          tokenType: 'Bearer',
+          userId: userId,
+          username: _user!.username,
+          email: _user!.email,
+          fullName: _user!.fullName,
+          role: _user!.role,
+        );
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Error refreshing user in background: $e');
+        // Only logout on 401 Unauthorized
+        if (e is DioException && e.response?.statusCode == 401) {
+          debugPrint('Token invalid (401), logging out...');
+          await logout();
+        }
+        // Keep using cached data on network error
+      }
+    });
   }
 
   /// Login
@@ -90,8 +162,12 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      // Get user info
+      // Get user info and save it
       _user = await _authService.getCurrentUser();
+      await _authService.saveUserProfile(_user!);
+
+      // Register FCM token for push notifications
+      await FcmService().registerAfterLogin();
 
       _isLoading = false;
       notifyListeners();
@@ -127,8 +203,9 @@ class AuthProvider extends ChangeNotifier {
         role: role,
       );
 
-      // Get user info
+      // Get user info and save it
       _user = await _authService.getCurrentUser();
+      await _authService.saveUserProfile(_user!);
 
       _isLoading = false;
       notifyListeners();
@@ -156,8 +233,9 @@ class AuthProvider extends ChangeNotifier {
         otpCode: otpCode,
       );
 
-      // Get user info to complete auth state
+      // Get user info and save it
       _user = await _authService.getCurrentUser();
+      await _authService.saveUserProfile(_user!);
 
       _isLoading = false;
       notifyListeners();
@@ -198,8 +276,9 @@ class AuthProvider extends ChangeNotifier {
         idToken: googleResult.idToken!,
       );
 
-      // Step 3: Get user info
+      // Step 3: Get user info and save it
       _user = await _authService.getCurrentUser();
+      await _authService.saveUserProfile(_user!);
 
       _isLoading = false;
       notifyListeners();
@@ -218,13 +297,19 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Unregister FCM token before logout
+      await FcmService().unregisterToken();
+
       // Sign out from Google if signed in
       await GoogleAuthService.instance.signOut();
-      
+
       await _authService.logout();
       _authResponse = null;
       _user = null;
       _error = null;
+
+      // Clear cached profile
+      await _storage.remove(AppConstants.userProfileKey);
     } catch (e) {
       _error = ApiErrorHandler.getErrorMessage(e);
     } finally {
@@ -250,6 +335,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> getCurrentUser() async {
     try {
       _user = await _authService.getCurrentUser();
+      await _authService.saveUserProfile(_user!);
       notifyListeners();
     } catch (e) {
       _error = ApiErrorHandler.getErrorMessage(e);

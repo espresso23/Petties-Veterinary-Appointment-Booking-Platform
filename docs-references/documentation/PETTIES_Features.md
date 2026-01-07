@@ -25,9 +25,9 @@
 18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
 19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
 20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
-21. **[Home Visit] Xem bản đồ realtime vị trí bác sĩ**
-22. **[Home Visit] Tracking đường di chuyển của bác sĩ** (giống tracking tài xế)
-23. **[Home Visit] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
+21. **[SOS] Xem bản đồ realtime vị trí bác sĩ**
+22. **[SOS] Tracking đường di chuyển của bác sĩ** (định tuyến cứu hộ)
+23. **[SOS] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
 
 ---
 
@@ -47,9 +47,9 @@
 13. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
 14. Video Consultation với pet owner(optionally)
 15. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
-16. **[Home Visit] Bắt đầu di chuyển (Start Travel)** → Chuyển booking sang ON_THE_WAY
-17. **[Home Visit] Tự động cập nhật vị trí GPS realtime** khi đang di chuyển
-18. **[Home Visit] Thông báo đến nơi** → Pet Owner được notify
+16. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
+17. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
+18. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
 
 ---
 
@@ -63,12 +63,11 @@
 7. Xem booking mới
 8. Gán bác sĩ cho booking
 9. Gán lại booking (nếu bác sĩ từ chối)
-10. Chat với pet owner tư vấn
-11. Gán dịch vụ nếu user chưa chọn được
-12. Quản lý hủy & hoàn tiền
-13. Xem dashboard hôm nay
-14. Quản lý ca làm việc nhân viên
-15. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
+10. Gán dịch vụ nếu user chưa chọn được
+11. Quản lý hủy & hoàn tiền
+12. Xem dashboard hôm nay
+13. Quản lý ca làm việc nhân viên
+14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
 
@@ -96,7 +95,7 @@
 1. Đăng nhập ✅
 2. Xem danh sách các clinic pending chờ duyệt
 3. Phê duyệt clinic
-4. Từ chối clinic
+4. Từ chối clinic 
 5. Xem thống kê nền tảng, doanh thu
 6. Thống kê người dùng và giao dịch
 
@@ -151,7 +150,7 @@
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
-- 🤖 Home Visit Tracking ✅ (FE/BE)
+- 🤖 SOS Tracking - Theo dõi vị trí cứu hộ ✅ (FE/BE)
 - 🤖 Dynamic Pricing ✅ (BE)
 - 🤖 Manual Scheduling ✅ (FE/BE)
 - 🤖 Admin AI Config Board ✅ (FE/BE)
@@ -235,7 +234,7 @@
 - Gọi video trực tiếp với bác sĩ
 - Chẩn đoán từ xa
 
-###  Electronic Medical Records (EMR)
+### Electronic Medical Records (EMR)
 - Hệ thống Hồ sơ Bệnh án Điện tử
 - Lưu trữ tập trung lịch sử bệnh tật
 - **Đơn thuốc (Prescription)** được ghi trực tiếp vào EMR
@@ -249,10 +248,9 @@
 - Shared across clinics - Chia sẻ giữa các phòng khám
 - Nhắc nhở lịch tiêm định kỳ
 
-### 🔔 Notification System
-- Thông báo appointment sắp tới
-- Nhắc nhở lịch uống thuốc
-- Email, SMS, Push notification (Firebase)
+- **Real-time Desktop (SSE):** Thông báo tức thời khi có lịch mới, duyệt clinic, hoặc cập nhật ca làm việc. ✅
+- **Sidebar Badge Counter:** Tự động đếm số thông báo chờ xử lý/chưa đọc. ✅
+- Push notification (Mobile/Firebase)
 
 ### 💰 Dynamic Pricing (Định Giá Động)
 - Base price + fees
@@ -325,8 +323,7 @@
 ✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
-✅ **Chat 1-1** (Pet Owner ↔ Manager/Vet)  
-✅ **Home Visit Geo-Tracking** (GPS realtime tracking)  
+✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
 ✅ **AI Chatbot** (Single Agent + ReAct Pattern + MCP Tools)  
 ✅ **EMR với đơn thuốc** (Prescription trong hồ sơ bệnh án)  
 ✅ **Push Notifications** (Firebase)  
@@ -334,7 +331,7 @@
 ✅ **Knowledge Base RAG** (LlamaIndex + Qdrant Cloud)  
 
 ### ❌ DEFERRED (Phase 2)
-❌ ~~SOS Emergency~~ (Deferred - Logic phức tạp)  
+❌ ~~Home Visit Geo-Routing~~ (Đơn giản hóa cho MVP, chỉ dùng cho SOS)
 ❌ ~~Video Consultation~~ (Deferred - WebRTC phức tạp)  
 ❌ ~~Excel Import~~ (Deferred - Manual đủ cho MVP)  
 ❌ ~~Multi-Agent Architecture~~ (Simplified to Single Agent)  
@@ -348,7 +345,7 @@
 |-------|-------------|
 | **Web Frontend** | React 19+ Vite, TypeScript, Tailwind CSS, Zustand |
 | **Mobile** | Flutter 3.5, iOS & Android |
-| **Backend** | Java 21, Spring Boot 4.x, Spring Security (JWT) |
+| **Backend** | Java 21, Spring Boot 3.4.x, Spring Security (JWT) |
 | **AI Layer** | Python 3.12, FastAPI, Single Agent (ReAct), FastMCP, LlamaIndex |
 | **Databases** | PostgreSQL, MongoDB, Redis, Qdrant Cloud (Vector) |
 | **Infrastructure** | Docker, Cloudinary, GitHub Actions |

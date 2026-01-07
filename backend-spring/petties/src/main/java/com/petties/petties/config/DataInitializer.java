@@ -101,11 +101,11 @@ public class DataInitializer implements CommandLineRunner {
      */
     private void seedTestUsers() {
         initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
-        User clinicOwner = initializeUser("clinicOwner", "clinicowner", "owner@clinic.com", "Clinic Owner User",
+        User clinicOwner = initializeUser("clinicOwner", "123456", "owner@clinic.com", "Clinic Owner User",
                 Role.CLINIC_OWNER);
-        initializeUser("clinicManager", "clinicmanager", "manager@clinic.com", "Clinic Manager User",
+        initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeUser("vet", "vet123", "vet@clinic.com", "Dr. Vet User", Role.VET);
+        initializeUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", Role.VET);
 
         // Initialize a clinic for the clinic owner
         if (clinicOwner != null) {

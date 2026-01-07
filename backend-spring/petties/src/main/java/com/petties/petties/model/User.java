@@ -75,6 +75,10 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    // FCM Token for push notifications
+    @Column(name = "fcm_token", length = 500)
+    private String fcmToken;
+
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();

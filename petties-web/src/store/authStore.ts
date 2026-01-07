@@ -10,6 +10,7 @@ interface AuthState {
     fullName: string
     email: string
     role: string
+    avatar?: string
     workingClinicId?: string
     workingClinicName?: string
   } | null

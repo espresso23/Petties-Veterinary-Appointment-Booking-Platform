@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../models/auth_response.dart';
 import '../models/send_otp_response.dart';
@@ -41,7 +42,7 @@ class AuthService {
 
   /// Login with Google ID Token
   /// Backend will verify the token with Google and create/login user
-  /// 
+  ///
   /// Platform determines the default role for new users:
   /// - 'mobile' → PET_OWNER
   /// - 'web' → CLINIC_OWNER
@@ -68,12 +69,22 @@ class AuthService {
 
   /// Save auth data to storage
   Future<void> _saveAuthData(AuthResponse authResponse) async {
-    await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-    await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
+    await _storage.setString(
+        AppConstants.accessTokenKey, authResponse.accessToken);
+    await _storage.setString(
+        AppConstants.refreshTokenKey, authResponse.refreshToken);
     await _storage.setString(AppConstants.userIdKey, authResponse.userId);
     await _storage.setString(
       AppConstants.userDataKey,
-      authResponse.toJson().toString(),
+      jsonEncode(authResponse.toJson()),
+    );
+  }
+
+  /// Save user profile to storage
+  Future<void> saveUserProfile(UserResponse user) async {
+    await _storage.setString(
+      AppConstants.userProfileKey,
+      jsonEncode(user.toJson()),
     );
   }
 
@@ -174,7 +185,8 @@ class AuthService {
   /// Refresh access token
   Future<AuthResponse> refreshToken() async {
     try {
-      final refreshToken = await _storage.getString(AppConstants.refreshTokenKey);
+      final refreshToken =
+          await _storage.getString(AppConstants.refreshTokenKey);
       if (refreshToken == null) {
         throw Exception('No refresh token available');
       }
@@ -192,8 +204,10 @@ class AuthService {
       final authResponse = AuthResponse.fromJson(response.data);
 
       // Update tokens in storage
-      await _storage.setString(AppConstants.accessTokenKey, authResponse.accessToken);
-      await _storage.setString(AppConstants.refreshTokenKey, authResponse.refreshToken);
+      await _storage.setString(
+          AppConstants.accessTokenKey, authResponse.accessToken);
+      await _storage.setString(
+          AppConstants.refreshTokenKey, authResponse.refreshToken);
 
       return authResponse;
     } catch (e) {
@@ -285,7 +299,8 @@ class AuthService {
 
   /// Gửi lại OTP cho forgot password
   /// POST /auth/forgot-password/resend-otp?email=xxx
-  Future<SendOtpResponse> resendPasswordResetOtp({required String email}) async {
+  Future<SendOtpResponse> resendPasswordResetOtp(
+      {required String email}) async {
     try {
       final response = await _apiClient.post(
         '/auth/forgot-password/resend-otp',
@@ -297,4 +312,3 @@ class AuthService {
     }
   }
 }
-

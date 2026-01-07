@@ -629,19 +629,19 @@ WHERE shift.clinic_id = 'ABC'
 
 ---
 
-## 14. HF-014: Home Visit Geo-Tracking (Real-time)
+## 14. HF-014: SOS Emergency Geo-Tracking (Real-time)
 
 **Actors:** Vet (Mobile), Pet Owner (Mobile), System
 
-> 📌 **Áp dụng cho:** Tất cả booking có `type = HOME_VISIT`
+> 📌 **Áp dụng cho:** Tất cả booking có `type = SOS` (Cấp cứu khẩn cấp)
 > 
 > 🗺️ **Tính năng:** Tracking vị trí bác sĩ realtime giống Grab/Gojek
 
 ### 14.1 Preconditions
 
 ```
-✅ Booking type = HOME_VISIT
-✅ Booking status = CONFIRMED
+✅ Booking type = SOS (Emergency)
+✅ Booking status = CONFIRMED hoặc ASSIGNED (SOS mode)
 ✅ Đến giờ hẹn (hoặc trước 30 phút)
 ✅ Vet app có quyền GPS
 ✅ Pet Owner app có internet
@@ -744,9 +744,9 @@ PUT /api/bookings/B001/location
 **Actor:** Pet Owner (Mobile)
 
 ```
-1. Pet Owner nhận push notification: "Bác sĩ đang đến!"
+1. Pet Owner nhận push notification: "Bác sĩ cứu hộ đang đến!"
 2. Click vào notification → Mở app
-3. Xem booking detail → Tab "Tracking"
+3. Xem booking detail → Tab "SOS Tracking"
 4. Bản đồ hiển thị:
 
    ┌─────────────────────────────────────────┐
@@ -773,7 +773,7 @@ PUT /api/bookings/B001/location
 6. Pet Owner có thể:
    - Phóng to/thu nhỏ bản đồ
    - Xem đường đi dự kiến
-   - Call/Chat với bác sĩ
+   - Gọi điện cho bác sĩ
 ```
 
 **Tech Implementation:**

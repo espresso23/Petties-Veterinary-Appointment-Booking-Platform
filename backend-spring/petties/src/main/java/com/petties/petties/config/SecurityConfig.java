@@ -60,7 +60,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition"));
+        // Add text/event-stream for SSE support
+        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -80,6 +81,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/ws/**").permitAll() // WebSocket handshake
+                        .requestMatchers("/sse/**").permitAll() // SSE - auth via query param
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

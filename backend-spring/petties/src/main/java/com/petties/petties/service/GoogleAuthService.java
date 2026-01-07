@@ -50,7 +50,7 @@ public class GoogleAuthService {
             
             if (googleIdToken == null) {
                 log.error("Invalid Google ID token - verification returned null");
-                throw new UnauthorizedException("Invalid Google ID token");
+                throw new UnauthorizedException("Token Google không hợp lệ");
             }
 
             GoogleIdToken.Payload payload = googleIdToken.getPayload();
@@ -59,7 +59,7 @@ public class GoogleAuthService {
             Boolean emailVerified = payload.getEmailVerified();
             if (emailVerified == null || !emailVerified) {
                 log.error("Google account email not verified");
-                throw new UnauthorizedException("Google account email not verified");
+                throw new UnauthorizedException("Email tài khoản Google chưa được xác minh");
             }
 
             String email = payload.getEmail();
@@ -75,7 +75,7 @@ public class GoogleAuthService {
             throw e;
         } catch (Exception e) {
             log.error("Error verifying Google ID token: {}", e.getMessage());
-            throw new UnauthorizedException("Failed to verify Google ID token: " + e.getMessage());
+            throw new UnauthorizedException("Không thể xác minh token Google: " + e.getMessage());
         }
     }
 

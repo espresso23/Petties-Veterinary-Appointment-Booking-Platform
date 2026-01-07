@@ -7,11 +7,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.UUID;
 
 /**
  * DTO for notification response
+ *
+ * Supports both clinic notifications and VetShift notifications
  */
 @Getter
 @Setter
@@ -21,12 +25,20 @@ import java.util.UUID;
 public class NotificationResponse {
 
     private UUID notificationId;
-    private UUID clinicId;
-    private String clinicName;
     private NotificationType type;
     private String message;
     private String reason;
     private Boolean read;
     private LocalDateTime createdAt;
+
+    // Clinic-related fields (for APPROVED, REJECTED, PENDING types)
+    private UUID clinicId;
+    private String clinicName;
+
+    // VetShift-related fields (for VET_SHIFT_* types)
+    private UUID shiftId;
+    private LocalDate shiftDate;
+    private LocalTime shiftStartTime;
+    private LocalTime shiftEndTime;
 }
 

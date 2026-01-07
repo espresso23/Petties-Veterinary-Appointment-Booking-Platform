@@ -1,46 +1,56 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
+import { useNotificationStore } from '../store/notificationStore'
+import { Sidebar } from '../components/Sidebar/Sidebar'
+import type { NavGroup } from '../components/Sidebar/Sidebar'
+import { useSidebar } from '../hooks/useSidebar'
+import { useSseNotification } from '../hooks/useSseNotification'
+import {
+    Squares2X2Icon,
+    CalendarIcon,
+    ClipboardDocumentListIcon,
+    UserGroupIcon,
+    BellIcon,
+    UserCircleIcon
+} from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
-interface NavItem {
-    path: string
-    label: string
-    end?: boolean
-}
-
-interface NavGroup {
-    title: string | null
-    items: NavItem[]
-}
-
-/**
- * Vet Layout - Neobrutalism Design
- * Text-only navigation, no icons as per design guidelines
- */
 export const VetLayout = () => {
     const navigate = useNavigate()
     const clearAuth = useAuthStore((state) => state.clearAuth)
     const user = useAuthStore((state) => state.user)
+    const unreadCount = useNotificationStore((state) => state.unreadCount)
+    const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const { state, toggleSidebar, isMobile } = useSidebar()
+
+    // Initialize SSE
+    useSseNotification()
+
+    useEffect(() => {
+        refreshUnreadCount()
+    }, [refreshUnreadCount])
 
     const navGroups: NavGroup[] = [
         {
-            title: null,
+            title: 'DASHBOARD',
             items: [
-                { path: '/vet', label: 'DASHBOARD', end: true },
+                { path: '/vet', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
             ]
         },
         {
             title: 'CÔNG VIỆC',
             items: [
-                { path: '/vet/schedule', label: 'LỊCH LÀM VIỆC' },
-                { path: '/vet/bookings', label: 'BOOKINGS' },
-                { path: '/vet/patients', label: 'BỆNH NHÂN' },
+                { path: '/vet/schedule', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
+                { path: '/vet/bookings', label: 'BOOKINGS', icon: ClipboardDocumentListIcon },
+                { path: '/vet/patients', label: 'BỆNH NHÂN', icon: UserGroupIcon },
             ]
         },
         {
             title: 'CÁ NHÂN',
             items: [
-                { path: '/vet/profile', label: 'HỒ SƠ' },
+                { path: '/vet/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
+                { path: '/vet/profile', label: 'HỒ SƠ', icon: UserCircleIcon },
             ]
         }
     ]
@@ -51,63 +61,22 @@ export const VetLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-stone-50 flex">
-            {/* Sidebar */}
-            <aside className="w-64 bg-white border-r-4 border-stone-900 flex flex-col">
-                {/* Logo/Header */}
-                <div className="px-6 py-6 border-b-4 border-stone-900">
-                    <h2 className="text-xl font-bold text-amber-600 uppercase tracking-wider">PETTIES</h2>
-                    <p className="text-xs font-bold text-stone-600 uppercase tracking-wide mt-1">VETERINARIAN</p>
-                </div>
-
-                {/* Navigation */}
-                <nav className="flex-1 py-4 overflow-y-auto">
-                    {navGroups.map((group, groupIndex) => (
-                        <div key={groupIndex} className="mb-4">
-                            {group.title && (
-                                <div className="px-6 mb-2">
-                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-                                        {group.title}
-                                    </h3>
-                                </div>
-                            )}
-                            {group.items.map((link) => (
-                                <NavLink
-                                    key={link.path}
-                                    to={link.path}
-                                    end={link.end}
-                                    className={({ isActive }) =>
-                                        `block px-6 py-3 text-sm font-bold uppercase tracking-wide border-l-4 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${isActive
-                                            ? 'bg-amber-500 !text-white border-stone-900'
-                                            : '!text-stone-900 border-transparent hover:bg-amber-200 hover:border-stone-900 hover:translate-x-[-2px]'
-                                        }`
-                                    }
-                                >
-                                    {String(link.label)}
-                                </NavLink>
-                            ))}
-                        </div>
-                    ))}
-                </nav>
-
-                {/* User & Logout */}
-                <div className="px-6 py-4 border-t-4 border-stone-900">
-                    <p className="text-xs font-bold text-stone-700 uppercase mb-3 truncate">
-                        {user?.fullName || 'Bác sĩ'}
-                    </p>
-                    <button
-                        onClick={handleLogout}
-                        className="w-full py-2 px-4 bg-white text-stone-950 text-sm font-black uppercase tracking-widest border-4 border-stone-950 shadow-[4px_4px_0_#000] hover:bg-amber-400 hover:shadow-[6px_6px_0_#000] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[2px_2px_0_#000] transition-all duration-200 cursor-pointer focus:outline-none focus:ring-4 focus:ring-amber-500"
-                    >
-                        ĐĂNG XUẤT
-                    </button>
-                    <p className="text-xs text-stone-500 text-center mt-3">V0.0.1</p>
-                </div>
-            </aside>
+        <div className="h-screen bg-stone-50 flex overflow-hidden">
+            <Sidebar
+                groups={navGroups}
+                user={user}
+                roleName="VETERINARIAN"
+                state={state}
+                toggleSidebar={toggleSidebar}
+                onLogout={handleLogout}
+                isMobile={isMobile}
+            />
 
             {/* Main Content */}
-            <main className="flex-1 overflow-auto">
-                <Outlet />
+            <main className="flex-1 overflow-auto bg-stone-50 relative">
+                <div className="p-0 h-full">
+                    <Outlet />
+                </div>
             </main>
         </div>
     )

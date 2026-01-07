@@ -1,95 +1,69 @@
-/* Brutalist Design System for Petties Onboarding */
+/* ============================================
+   Soft Neobrutalism Design System for Petties
+   ============================================
+   Style: Soft Brutalism - Friendly, rounded, softer shadows
+   Updated: January 2025
+*/
 
-/* Border utilities */
+/* ============================================
+   BORDER UTILITIES
+   ============================================ */
+
 .border-brutal {
-  border: 4px solid #1c1917;
+  border: 2px solid #1c1917;
+  border-radius: 12px;
 }
 
 .border-brutal-thick {
-  border: 8px solid #1c1917;
+  border: 3px solid #1c1917;
+  border-radius: 12px;
 }
 
-/* Shadow utilities */
+/* ============================================
+   SHADOW UTILITIES
+   ============================================ */
+
 .shadow-brutal {
-  box-shadow: 8px 8px 0 #1c1917;
-}
-
-.shadow-brutal-sm {
   box-shadow: 4px 4px 0 #1c1917;
 }
 
-/* Hover effects */
+.shadow-brutal-sm {
+  box-shadow: 3px 3px 0 #1c1917;
+}
+
+.shadow-brutal-xs {
+  box-shadow: 2px 2px 0 #1c1917;
+}
+
+/* ============================================
+   HOVER EFFECTS
+   ============================================ */
+
 .brutal-hover {
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .brutal-hover:hover {
-  transform: translate(-4px, -4px);
-  box-shadow: 12px 12px 0 #1c1917;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1c1917;
 }
 
-/* Button styles */
+/* ============================================
+   BUTTON STYLES
+   ============================================ */
+
+/* Primary Button */
 .btn-brutal {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem 2rem;
-  border: 4px solid #1c1917;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
   background-color: #d97706; /* amber-600 */
   color: #fff;
-  font-weight: 700;
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  box-shadow: 4px 4px 0 #1c1917;
-  transition: transform 150ms ease, box-shadow 150ms ease;
-  cursor: pointer;
-}
-
-.btn-brutal:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 #1c1917;
-  background-color: #b45309; /* amber-700 */
-}
-
-.btn-brutal:active {
-  transform: translate(2px, 2px);
-  box-shadow: 2px 2px 0 #1c1917;
-}
-
-.btn-brutal-outline {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 1.5rem;
-  border: 4px solid #1c1917;
-  background-color: transparent;
-  color: #1c1917;
   font-weight: 700;
   font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  box-shadow: 4px 4px 0 #1c1917;
-  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
-  cursor: pointer;
-}
-
-.btn-brutal-outline:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 #1c1917;
-  background-color: #fef3c7; /* amber-100 */
-}
-
-.btn-brutal-sm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  border: 3px solid #1c1917;
-  background-color: #d97706; /* amber-600 */
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   box-shadow: 3px 3px 0 #1c1917;
@@ -97,80 +71,197 @@
   cursor: pointer;
 }
 
-.btn-brutal-sm:hover {
+.btn-brutal:hover {
   transform: translate(-2px, -2px);
   box-shadow: 5px 5px 0 #1c1917;
   background-color: #b45309; /* amber-700 */
 }
 
-.btn-brutal-sm:active {
+.btn-brutal:active {
   transform: translate(1px, 1px);
   box-shadow: 2px 2px 0 #1c1917;
 }
 
-/* Card styles */
+.btn-brutal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Outline Button */
+.btn-brutal-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
+  background-color: transparent;
+  color: #1c1917;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 3px 3px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal-outline:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #1c1917;
+  background-color: #fef3c7; /* amber-100 */
+}
+
+.btn-brutal-outline:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 #1c1917;
+}
+
+.btn-brutal-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Small Button */
+.btn-brutal-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 2px solid #1c1917;
+  border-radius: 6px;
+  background-color: #d97706; /* amber-600 */
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 2px 2px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal-sm:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #1c1917;
+  background-color: #b45309; /* amber-700 */
+}
+
+.btn-brutal-sm:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #1c1917;
+}
+
+/* Danger Button */
+.btn-brutal-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
+  background-color: #ef4444; /* red-500 */
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 3px 3px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+}
+
+.btn-brutal-danger:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #1c1917;
+  background-color: #dc2626; /* red-600 */
+}
+
+/* ============================================
+   CARD STYLES
+   ============================================ */
+
 .card-brutal {
   background-color: #fff;
-  border: 4px solid #1c1917;
-  box-shadow: 8px 8px 0 #1c1917;
+  border: 2px solid #1c1917;
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 #1c1917;
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
 .card-brutal:hover {
-  transform: translate(-4px, -4px);
-  box-shadow: 12px 12px 0 #1c1917;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 #1c1917;
 }
 
-/* Section styles */
+/* Card without hover effect */
+.card-brutal-static {
+  background-color: #fff;
+  border: 2px solid #1c1917;
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 #1c1917;
+}
+
+/* ============================================
+   SECTION STYLES
+   ============================================ */
+
 .section-brutal {
-  padding: 5rem 1.5rem;
+  padding: 4rem 1.5rem;
 }
 
 @media (min-width: 640px) {
   .section-brutal {
-    padding: 6rem 2rem;
+    padding: 5rem 2rem;
   }
 }
 
 @media (min-width: 1024px) {
   .section-brutal {
-    padding: 7rem 2rem;
+    padding: 6rem 2rem;
   }
 }
 
-/* Typography */
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
 .heading-brutal {
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
   font-weight: 700;
-  line-height: 1.1;
-  text-transform: uppercase;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #1c1917;
 }
 
 .subheading-brutal {
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
   font-weight: 600;
   line-height: 1.3;
+  color: #1c1917;
 }
 
-/* Form Input Brutalist Style */
+/* ============================================
+   FORM INPUT STYLES
+   ============================================ */
+
 .input-brutal {
   width: 100%;
-  padding: 0.875rem 1rem;
-  border: 4px solid #1c1917;
+  padding: 0.75rem 1rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
   background-color: #fff;
   color: #1c1917;
   font-weight: 500;
   font-size: 1rem;
-  box-shadow: 4px 4px 0 #1c1917;
-  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  box-shadow: 2px 2px 0 #1c1917;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
 }
 
 .input-brutal:focus {
   outline: none;
-  transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 #1c1917;
-  background-color: #fef3c7; /* amber-100 */
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #1c1917;
+  border-color: #d97706; /* amber-600 */
 }
 
 .input-brutal:disabled {
@@ -181,4 +272,265 @@
 
 .input-brutal::placeholder {
   color: #78716c; /* stone-500 */
+}
+
+/* Select Input */
+.select-brutal {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #1c1917;
+  font-weight: 500;
+  font-size: 1rem;
+  box-shadow: 2px 2px 0 #1c1917;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231c1917'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+.select-brutal:focus {
+  outline: none;
+  border-color: #d97706;
+}
+
+/* ============================================
+   BADGE STYLES
+   ============================================ */
+
+.badge-brutal {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border: 2px solid #1c1917;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.badge-brutal-primary {
+  background-color: #fef3c7; /* amber-100 */
+  border-color: #d97706; /* amber-600 */
+  color: #92400e; /* amber-800 */
+}
+
+.badge-brutal-success {
+  background-color: #d1fae5; /* green-100 */
+  border-color: #22c55e; /* green-500 */
+  color: #166534; /* green-800 */
+}
+
+.badge-brutal-danger {
+  background-color: #fee2e2; /* red-100 */
+  border-color: #ef4444; /* red-500 */
+  color: #991b1b; /* red-800 */
+}
+
+.badge-brutal-info {
+  background-color: #dbeafe; /* blue-100 */
+  border-color: #4299E1; /* blue-400 */
+  color: #1e40af; /* blue-800 */
+}
+
+/* ============================================
+   ACCENT COLOR UTILITIES
+   ============================================ */
+
+/* Coral */
+.bg-coral {
+  background-color: #FF6B6B;
+}
+
+.text-coral {
+  color: #FF6B6B;
+}
+
+.border-coral {
+  border-color: #FF6B6B;
+}
+
+.shadow-coral {
+  box-shadow: 3px 3px 0 #FF6B6B;
+}
+
+/* Mint/Teal */
+.bg-mint {
+  background-color: #38B2AC;
+}
+
+.text-mint {
+  color: #38B2AC;
+}
+
+.border-mint {
+  border-color: #38B2AC;
+}
+
+.shadow-mint {
+  box-shadow: 3px 3px 0 #38B2AC;
+}
+
+/* Blue Accent */
+.bg-blue-accent {
+  background-color: #4299E1;
+}
+
+.text-blue-accent {
+  color: #4299E1;
+}
+
+.border-blue-accent {
+  border-color: #4299E1;
+}
+
+.shadow-blue-accent {
+  box-shadow: 3px 3px 0 #4299E1;
+}
+
+/* Yellow Accent */
+.bg-yellow-accent {
+  background-color: #FBBF24;
+}
+
+.text-yellow-accent {
+  color: #FBBF24;
+}
+
+.border-yellow-accent {
+  border-color: #FBBF24;
+}
+
+/* ============================================
+   MODAL & OVERLAY STYLES
+   ============================================ */
+
+.modal-brutal {
+  background-color: #fff;
+  border: 2px solid #1c1917;
+  border-radius: 12px;
+  box-shadow: 8px 8px 0 #1c1917;
+}
+
+.overlay-brutal {
+  background-color: rgba(28, 25, 23, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================
+   TABLE STYLES
+   ============================================ */
+
+.table-brutal {
+  width: 100%;
+  border: 2px solid #1c1917;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table-brutal th {
+  background-color: #fef3c7; /* amber-100 */
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  border-bottom: 2px solid #1c1917;
+}
+
+.table-brutal td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e7e5e4; /* stone-200 */
+}
+
+.table-brutal tr:last-child td {
+  border-bottom: none;
+}
+
+.table-brutal tr:hover {
+  background-color: #fafaf9; /* stone-50 */
+}
+
+/* ============================================
+   LOADING & SPINNER
+   ============================================ */
+
+.spinner-brutal {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e7e5e4; /* stone-200 */
+  border-top-color: #d97706; /* amber-600 */
+  border-radius: 50%;
+  animation: spin-brutal 0.8s linear infinite;
+}
+
+@keyframes spin-brutal {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   TOOLTIP STYLES
+   ============================================ */
+
+.tooltip-brutal {
+  background-color: #1c1917;
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================
+   ALERT/NOTIFICATION STYLES
+   ============================================ */
+
+.alert-brutal {
+  padding: 1rem;
+  border: 2px solid #1c1917;
+  border-radius: 8px;
+  box-shadow: 3px 3px 0 #1c1917;
+}
+
+.alert-brutal-success {
+  background-color: #d1fae5; /* green-100 */
+  border-color: #22c55e;
+}
+
+.alert-brutal-error {
+  background-color: #fee2e2; /* red-100 */
+  border-color: #ef4444;
+}
+
+.alert-brutal-warning {
+  background-color: #fef3c7; /* amber-100 */
+  border-color: #f59e0b;
+}
+
+.alert-brutal-info {
+  background-color: #dbeafe; /* blue-100 */
+  border-color: #4299E1;
+}
+
+/* ============================================
+   DIVIDER
+   ============================================ */
+
+.divider-brutal {
+  height: 2px;
+  background-color: #1c1917;
+  margin: 1.5rem 0;
+}
+
+.divider-brutal-light {
+  height: 1px;
+  background-color: #d6d3d1; /* stone-300 */
+  margin: 1rem 0;
 }

@@ -15,7 +15,7 @@ export const clinicService = {
    */
   getAllClinics: async (filters?: ClinicFilters): Promise<ClinicListResponse> => {
     const params = new URLSearchParams()
-    
+
     if (filters?.status) {
       params.append('status', filters.status)
     }
@@ -24,7 +24,7 @@ export const clinicService = {
     }
     params.append('page', String(filters?.page ?? 0))
     params.append('size', String(filters?.size ?? 20))
-    
+
     const response = await apiClient.get<ClinicListResponse>(`/clinics?${params.toString()}`)
     return response.data
   },
@@ -139,6 +139,14 @@ export const clinicService = {
   },
 
   /**
+   * Get count of pending clinics for admin badge (ADMIN only)
+   */
+  getPendingClinicsCount: async (): Promise<number> => {
+    const response = await apiClient.get<number>('/clinics/admin/pending/count')
+    return response.data
+  },
+
+  /**
    * Approve clinic (ADMIN only)
    */
   approveClinic: async (clinicId: string, reason?: string): Promise<ClinicResponse> => {
@@ -181,7 +189,7 @@ export const clinicService = {
     }
     // Delete Content-Type header - axios will set it automatically for FormData
     delete config.headers['Content-Type']
-    
+
     const response = await apiClient.post<ClinicResponse>(
       `/clinics/${clinicId}/images`,
       formData,

@@ -1,5 +1,20 @@
 # II. Software Design Document
 
+## TABLE OF CONTENTS
+- [1. System Design](#1-system-design)
+    - [1.1 System Architecture](#11-system-architecture)
+- [2. Database Design](#2-database-design)
+- [3. Detailed Design](#3-detailed-design)
+    - [3.1 Authentication & Authorization](#31-authentication--authorization)
+    - [3.2 User Profile Management](#32-user-profile-management)
+    - [3.3 Staff Management](#33-staff-management)
+    - [3.4 Clinic Management](#34-clinic-management)
+    - [3.5 Pet Management](#35-pet-management)
+    - [3.6 Vet Shift & Slot Management](#36-vet-shift--slot-management)
+    - [3.7 Patient Management](#37-patient-management)
+    - [3.8 Booking Management](#38-booking-management)
+- [4. Technology Stack Summary](#4-technology-stack-summary)
+
 ## 1. System Design
 
 ### 1.1 System Architecture
@@ -29,7 +44,7 @@ flowchart TD
         APIGateway --> SpringBoot
         APIGateway --> Python
         SpringBoot["Spring Boot 3.4<br/>- API Management<br/>- Authentication<br/>- REST API Endpoints<br/>- WebSocket Server"]
-        Python["Python FastAPI<br/>- AI Agent Service<br/>- Real-time Chat<br/>- RAG Pipeline"]
+        Python["Python FastAPI<br/>- AI Agent Service<br/>- AI Chat Streaming<br/>- RAG Pipeline"]
         SpringBoot <-.-> Python
     end
 
@@ -581,7 +596,7 @@ flowchart TB
 #### 2.1.1 Authentication (`/auth`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| POST | `/api/auth/login` | Email/Password login | Public |
+| POST | `/api/auth/login` | Username/Password login | Public |
 | POST | `/api/auth/google` | Google OAuth login/register | Public |
 | POST | `/api/auth/register/send-otp` | Init registration with Email OTP | Public |
 | POST | `/api/auth/register/verify-otp` | Complete registration | Public |
@@ -623,7 +638,19 @@ flowchart TB
 | POST | `/api/clinics/{id}/staff/quick-add` | Quick add Vet/Manager | CM, CO |
 | DELETE | `/api/clinics/{id}/staff/{userId}` | Remove staff | CM, CO |
 
-#### 2.1.5 Clinic Services (`/services`)
+#### 2.1.5 Shift & Slot Management (`/shifts`, `/slots`)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/clinics/{id}/shifts` | Get shifts in date range (Week/Month) | CM, CO, VET |
+| POST | `/api/clinics/{id}/shifts` | Create shifts (Auto-gen slots, Break sync, Repeat weeks, Overnight) | CM, CO |
+| GET | `/api/shifts/me` | Get shifts of logged-in vet | VET |
+| GET | `/api/shifts/{id}` | Get shift detail with Slots & Bookings | CM, CO, VET |
+| DELETE | `/api/shifts/{id}` | Delete individual shift (blocked if has bookings) | CM, CO |
+| DELETE | `/api/shifts/bulk` | Delete multiple shifts (Bulk) | CM, CO |
+| PATCH | `/api/slots/{id}/block` | Manually block slot | CM, CO |
+| PATCH | `/api/slots/{id}/unblock` | Unblock slot | CM, CO |
+
+#### 2.1.6 Clinic Services (`/services`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/services` | List own services | Clinic Owner |
@@ -697,16 +724,13 @@ flowchart TB
 | PUT | `/api/vaccinations/{id}` | Edit Vaccination Record | VET |
 | DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | VET |
 
-#### 2.3.2 Shift & Slot Management Module
+#### 2.3.2 Booking Management Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/clinics/{id}/shifts` | Get shift list (filter: dateRange, vetId) | CM, CO |
-| POST | `/api/clinics/{id}/shifts` | Create new shift (Auto-generate 30min slots) | CM, CO |
-| PUT | `/api/shifts/{id}` | Update shift time | CM, CO |
-| DELETE | `/api/shifts/{id}` | Delete shift (Delete unbooked slots) | CM, CO |
-| GET | `/api/shifts/my-shifts` | View own schedule | VET |
-| GET | `/api/clinics/{id}/slots` | Get slots for the day | CM, VET, Public |
-| PATCH | `/api/slots/{id}/block` | Block/Unblock slot manually | CM, VET |
+| POST | `/api/bookings` | Create new booking (Select slot) | Pet Owner |
+| GET | `/api/bookings/my-bookings` | List own bookings | Pet Owner |
+| GET | `/api/clinics/{id}/bookings` | List clinic bookings | CM, VET |
+| PATCH | `/api/bookings/{id}/status` | Update booking status | CM, VET |
 
 #### 2.3.3 Discovery & Search Module
 | Method | Endpoint | Description | Access |
@@ -729,7 +753,7 @@ flowchart TB
 
 ### 3.1 Authentication & Authorization
 
-This feature provides mechanisms for account registration, user authentication (Login), session management (Refresh Token), and logout (Logout). The system utilizes JWT (JSON Web Token) to secure APIs and supports Google OAuth 2.0 sign-in.
+
 
 #### 3.1.1 Class Diagram
 
@@ -738,14 +762,16 @@ classDiagram
     class AuthController {
         -AuthService authService
         -RegistrationOtpService registrationOtpService
-        +register(RegisterRequest) ResponseEntity
+        -PasswordResetService passwordResetService
         +sendRegistrationOtp(SendOtpRequest) ResponseEntity
         +verifyOtpAndRegister(VerifyOtpRequest) ResponseEntity
         +login(LoginRequest) ResponseEntity
-        +googleLogin(GoogleLoginRequest) ResponseEntity
+        +loginWithGoogle(GoogleSignInRequest) ResponseEntity
+        +refreshToken(String) ResponseEntity
+        +logout() ResponseEntity
+        +getCurrentUser() ResponseEntity
         +forgotPassword(ForgotPasswordRequest) ResponseEntity
         +resetPassword(ResetPasswordRequest) ResponseEntity
-        +logout() ResponseEntity
     }
 
     class AuthService {
@@ -753,23 +779,82 @@ classDiagram
         -JwtTokenProvider tokenProvider
         -AuthenticationManager authenticationManager
         -RefreshTokenRepository refreshTokenRepository
-        +login(LoginRequest) AuthResponse
+        -BlacklistedTokenRepository blacklistedTokenRepository
+        -GoogleAuthService googleAuthService
         +register(RegisterRequest) AuthResponse
-        +googleLogin(String idToken) AuthResponse
-        +validatePlatformAccess(User, String) void
-        +logout(String token) void
+        +login(LoginRequest) AuthResponse
+        +loginWithGoogle(GoogleSignInRequest) AuthResponse
+        +refreshToken(String refreshToken) AuthResponse
+        +logout(String accessToken) void
+        +getCurrentUser() User
+    }
+
+    class RegistrationOtpService {
+        -UserRepository userRepository
+        -OtpService otpService
+        -EmailService emailService
+        -OtpRedisService otpRedisService
+        +sendRegistrationOtp(SendOtpRequest) SendOtpResponse
+        +verifyOtpAndRegister(VerifyOtpRequest) AuthResponse
+        +resendOtp(String email) SendOtpResponse
+    }
+
+    class PasswordResetService {
+        -UserRepository userRepository
+        -OtpRedisService otpRedisService
+        -EmailService emailService
+        +sendPasswordResetOtp(ForgotPasswordRequest) SendOtpResponse
+        +verifyOtpAndResetPassword(ResetPasswordRequest) MessageResponse
+    }
+
+    class OtpRedisService {
+        -RedisTemplate redisTemplate
+        +savePendingRegistration(PendingRegistrationData) void
+        +getPendingRegistration(String email) Optional
+        +deletePendingRegistration(String email) void
+    }
+
+    class GoogleAuthService {
+        +verifyIdToken(String idToken) GoogleUserInfo
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findByUsername(String) Optional~User~
+        +findByEmail(String) Optional~User~
+        +save(User) User
+    }
+
+    class RefreshTokenRepository {
+        <<interface>>
+        +findByToken(String) Optional~RefreshToken~
+        +deleteByUser(User) void
+        +save(RefreshToken) RefreshToken
+    }
+
+    class BlacklistedTokenRepository {
+        <<interface>>
+        +existsByToken(String) boolean
+        +save(BlacklistedToken) void
     }
 
     class User {
         +UUID userId
         +String username
-        +String password
         +String email
-        +String phone
-        +String fullName
         +Role role
-        +Clinic workingClinic
-        +List~Clinic~ ownedClinics
+    }
+
+    class RefreshToken {
+        +UUID id
+        +String token
+        +Instant expiryDate
+        +User user
+    }
+
+    class BlacklistedToken {
+        +String token
+        +Instant expiryDate
     }
 
     class Role {
@@ -781,36 +866,20 @@ classDiagram
         ADMIN
     }
 
-    class RefreshToken {
-        +UUID tokenId
-        +UUID userId
-        +String tokenHash
-        +LocalDateTime expiresAt
-    }
-
-    class BlacklistedToken {
-        +UUID tokenId
-        +String tokenHash
-        +UUID userId
-        +LocalDateTime expiresAt
-    }
-
     AuthController --> AuthService
     AuthController --> RegistrationOtpService
-    AuthService --> User
-    AuthService --> RefreshToken
-    User --> Role
-    User --> RefreshToken
+    AuthController --> PasswordResetService
+    AuthService --> UserRepository
+    AuthService --> RefreshTokenRepository
+    AuthService --> BlacklistedTokenRepository
+    AuthService --> GoogleAuthService
+    RegistrationOtpService --> UserRepository
+    PasswordResetService --> UserRepository
+    UserRepository ..> User
+    RefreshTokenRepository ..> RefreshToken
+    BlacklistedTokenRepository ..> BlacklistedToken
 ```
-
 #### 3.1.2 User Registration with OTP
-
-**Description:** Allow new users to create accounts with email verification via OTP.
-
-**Class Specifications:**
-- **AuthController.sendRegistrationOtp(SendOtpRequest):** Receives registration info, triggers OTP sending.
-- **AuthController.verifyOtpAndRegister(VerifyOtpRequest):** Validates OTP and completes registration.
-- **RegistrationOtpService:** Manages OTP generation, Redis storage (TTL 5m), and email dispatch.
 
 **Sequence Diagram:**
 
@@ -823,18 +892,18 @@ sequenceDiagram
     participant ORS as OtpRedisService
     participant ES as EmailService
     participant AS as AuthService
-    participant DB as Database
+    participant UR as UserRepository
 
     User->>UI: 1. Input info & click "Send OTP"
     activate UI
-    UI->>AC: 2. POST /auth/register/send-otp
+    UI->>AC: 2. sendRegistrationOtp(Request)
     activate AC
     AC->>ROS: 3. sendRegistrationOtp(Request)
     activate ROS
-    ROS->>DB: 4. Check if User exists
-    activate DB
-    DB-->>ROS: 5. User not found
-    deactivate DB
+    ROS->>UR: 4. findByEmail(email)
+    activate UR
+    UR-->>ROS: 5. Empty
+    deactivate UR
     ROS->>ORS: 6. saveOtp(email, otp)
     activate ORS
     ORS-->>ROS: 7. OK
@@ -850,9 +919,9 @@ sequenceDiagram
     UI-->>User: 12. Show OTP Input Screen
     deactivate UI
 
-    User->>UI: 13. Input OTP & click "Register"
+    User->>UI: 1. Input OTP & click "Register"
     activate UI
-    UI->>AC: 14. POST /auth/register/verify-otp
+    UI->>AC: 14. verifyOtpAndRegister(VerifyOtpRequest)
     activate AC
     AC->>ROS: 15. verifyOtpAndRegister(Request)
     activate ROS
@@ -862,10 +931,10 @@ sequenceDiagram
     deactivate ORS
     ROS->>AS: 18. register(Request)
     activate AS
-    AS->>DB: 19. save(New User)
-    activate DB
-    DB-->>AS: 20. Saved User Entity
-    deactivate DB
+    AS->>UR: 19. save(New User)
+    activate UR
+    UR-->>AS: 20. Saved User Entity
+    deactivate UR
     AS-->>ROS: 21. AuthResponse (Tokens)
     deactivate AS
     ROS-->>AC: 22. AuthResponse
@@ -876,16 +945,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.1.3 Login with Email/Password
-
-**Description:** Authenticate users with email and password credentials.
-
-> **Business Rule BR-003-06:** Pet Owners can register via Web but can only log in and use the system via the Mobile app. Web portal access is blocked for this role.
-
-**Class Specifications:**
-- **AuthController.login(LoginRequest):** Receives login credentials, validates platform access, returns tokens.
-- **AuthService.validatePlatformAccess(User, platform):** Enforces BR-003-06 by blocking `PET_OWNER` from Web login.
-- **AuthService.generateTokenPair(User):** Creates Access Token (24h) and Refresh Token (7d).
+#### 3.1.3 Login with Username/Password
 
 **Sequence Diagram:**
 
@@ -897,38 +957,37 @@ sequenceDiagram
     participant AS as AuthService
     participant AM as AuthenticationManager
     participant JTP as JwtTokenProvider
-    participant DB as Database
+    participant RTR as RefreshTokenRepository
 
-    User->>UI: 1. Input Email/Password & click "Login"
-    UI->>AC: 2. login(email, password, platform)
+    User->>UI: 1. Input Username/Password & click "Login"
+    UI->>AC: 2. login(LoginRequest)
+    AC->>AS: 3. login(LoginRequest, platform)
     AC->>AS: 3. login(LoginRequest, platform)
     AS->>AM: 4. authenticate(credentials)
+    activate AM
     AM-->>AS: 5. Authentication Object
+    deactivate AM
     
     alt Role = PET_OWNER AND Platform = Web
         AS-->>AC: 6a. 403 Forbidden
-        AC-->>UI: 7a. Error: "PET_OWNER can only login via Mobile app"
-        UI-->>User: 8a. Show Mobile App Download Prompt
+        AC-->>UI: 7a. Error: Mobile Only
+        UI-->>User: 8a. Show Mobile App prompt
     else Valid Platform
         AS->>JTP: 6b. generateToken(userId, role)
         JTP-->>AS: 7b. Access Token
         AS->>JTP: 8b. generateRefreshToken(userId)
         JTP-->>AS: 9b. Refresh Token
-        AS->>DB: 10b. save(RefreshTokenHash)
-        DB-->>AS: 11b. Persistent OK
+        AS->>RTR: 10b. save(RefreshToken)
+        activate RTR
+        RTR-->>AS: 11b. Persistent OK
+        deactivate RTR
         AS-->>AC: 12b. AuthResponse
-        AC-->>UI: 13b. AuthResponse(tokens)
-        UI-->>User: 14b. Login Successful
+        AC-->>UI: 13b. AuthResponse
+        UI-->>User: 14b. Success
     end
 ```
 
 #### 3.1.4 Sign in with Google Account
-
-**Description:** Allow users to authenticate using Google OAuth 2.0. Supports both login and auto-registration.
-
-**Class Specifications:**
-- **AuthController.googleLogin(GoogleLoginRequest):** Receives Google ID Token from client.
-- **AuthService.googleLogin(String idToken):** Verifies token with Google API, creates user if not exists, returns JWT tokens.
 
 **Sequence Diagram:**
 
@@ -938,37 +997,32 @@ sequenceDiagram
     participant UI as Login Screen
     participant AC as AuthController
     participant AS as AuthService
-    participant Google as Google OAuth API
-    participant DB as Database
+    participant GAS as GoogleAuthService
+    participant UR as UserRepository
     participant JTP as JwtTokenProvider
 
     User->>UI: 1. Click "Sign in with Google"
     activate UI
-    UI->>Google: 2. Redirect to Google Sign-In
-    activate Google
-    Google-->>UI: 3. Return ID Token
-    deactivate Google
-    UI->>AC: 4. googleLogin(idToken)
+    UI->>GAS: 2. Redirect to Google Sign-In
+    GAS-->>UI: 3. Return ID Token
+    UI->>AC: 4. googleSignIn(idToken, platform)
     activate AC
-    AC->>AS: 5. googleLogin(idToken)
+    AC->>AS: 5. loginWithGoogle(request)
     activate AS
-    AS->>Google: 6. Verify ID Token
-    activate Google
-    Google-->>AS: 7. User Info (email, name, picture)
-    deactivate Google
-    AS->>DB: 8. Find user by email
-    activate DB
+    AS->>GAS: 6. verifyIdToken(idToken)
+    activate GAS
+    GAS-->>AS: 7. User Info (email, name, picture)
+    deactivate GAS
+    AS->>UR: 8. findByEmail(email)
+    activate UR
+    UR-->>AS: 9. User data
+    deactivate UR
     
     alt User not exists
-        DB-->>AS: 9a. Return null
-        deactivate DB
-        AS->>DB: 10a. Create new User (role: PET_OWNER)
-        activate DB
-        DB-->>AS: 11a. Saved User
-        deactivate DB
-    else User exists
-        DB-->>AS: 9b. Existing User
-        deactivate DB
+        AS->>UR: 10a. save(New User)
+        activate UR
+        UR-->>AS: 11a. Saved
+        deactivate UR
     end
     
     AS->>JTP: 12. generateTokenPair(user)
@@ -976,20 +1030,20 @@ sequenceDiagram
     JTP-->>AS: 13. Access Token + Refresh Token
     deactivate JTP
     AS-->>AC: 14. AuthResponse
-    deactivate AS
     AC-->>UI: 15. AuthResponse(tokens)
+        UI-->>User: 18. Login Successful
+    else Forbidden
+        AS-->>AC: 14f. 403 Forbidden
+        deactivate DB
+        AC-->>UI: 15f. Error (Role mismatch for platform)
+        UI-->>User: 16f. Show error message
+    end
+    deactivate AS
     deactivate AC
-    UI-->>User: 16. Login Successful
     deactivate UI
 ```
 
 #### 3.1.5 Forgot & Reset Password
-
-**Description:** Allow users to recover account access via email OTP verification.
-
-**Class Specifications:**
-- **AuthController.forgotPassword(ForgotPasswordRequest):** Initiates password reset, sends OTP to email.
-- **AuthController.resetPassword(ResetPasswordRequest):** Validates OTP and updates password.
 
 **Sequence Diagram:**
 
@@ -1001,7 +1055,8 @@ sequenceDiagram
     participant PS as PasswordResetService
     participant ORS as OtpRedisService
     participant ES as EmailService
-    participant DB as Database
+    participant UR as UserRepository
+    participant RTR as RefreshTokenRepository
 
     User->>UI: 1. Input Email & click "Send OTP"
     activate UI
@@ -1009,10 +1064,10 @@ sequenceDiagram
     activate AC
     AC->>PS: 3. sendPasswordResetOtp(email)
     activate PS
-    PS->>DB: 4. Check if User exists
-    activate DB
-    DB-->>PS: 5. User found
-    deactivate DB
+    PS->>UR: 4. findByEmail(email)
+    activate UR
+    UR-->>PS: 5. User Entity
+    deactivate UR
     PS->>ORS: 6. saveOtp(email, otp)
     activate ORS
     ORS-->>PS: 7. OK
@@ -1038,14 +1093,14 @@ sequenceDiagram
     activate ORS
     ORS-->>PS: 17. Valid
     deactivate ORS
-    PS->>DB: 18. Update password hash
-    activate DB
-    DB-->>PS: 19. OK
-    deactivate DB
-    PS->>DB: 20. Invalidate all RefreshTokens
-    activate DB
-    DB-->>PS: 21. OK
-    deactivate DB
+    PS->>UR: 18. save(Updated User - new password)
+    activate UR
+    UR-->>PS: 19. OK
+    deactivate UR
+    PS->>RTR: 20. deleteByUser(User)
+    activate RTR
+    RTR-->>PS: 21. OK
+    deactivate RTR
     PS-->>AC: 22. Success
     deactivate PS
     AC-->>UI: 23. Password Reset Success
@@ -1056,12 +1111,6 @@ sequenceDiagram
 
 #### 3.1.6 Logout & Session Management
 
-**Description:** Terminate user session and invalidate tokens.
-
-**Class Specifications:**
-- **AuthController.logout():** Receives current access token, triggers logout process.
-- **AuthService.logout(String token):** Blacklists the access token and deletes refresh token from DB.
-
 **Sequence Diagram:**
 
 ```mermaid
@@ -1070,7 +1119,8 @@ sequenceDiagram
     participant UI as App/Web
     participant AC as AuthController
     participant AS as AuthService
-    participant DB as Database
+    participant RTR as RefreshTokenRepository
+    participant BTR as BlacklistedTokenRepository
 
     User->>UI: 1. Click "Logout"
     activate UI
@@ -1078,14 +1128,14 @@ sequenceDiagram
     activate AC
     AC->>AS: 3. logout(accessToken)
     activate AS
-    AS->>DB: 4. Blacklist AccessToken
-    activate DB
-    DB-->>AS: 5. OK
-    deactivate DB
-    AS->>DB: 6. Delete RefreshToken
-    activate DB
-    DB-->>AS: 7. OK
-    deactivate DB
+    AS->>BTR: 4. save(BlacklistedToken)
+    activate BTR
+    BTR-->>AS: 5. OK
+    deactivate BTR
+    AS->>RTR: 6. deleteByUser(CurrentUser)
+    activate RTR
+    RTR-->>AS: 7. OK
+    deactivate RTR
     AS-->>AC: 8. Success
     deactivate AS
     AC-->>UI: 9. Logout Success
@@ -1096,11 +1146,386 @@ sequenceDiagram
 ```
 
 
-### 3.2 Clinic Management
 
-This feature is for Clinic Owners to register and manage clinic information, and for Admins to review and approve clinic profiles.
+---
+
+### 3.2 User Profile Management
 
 #### 3.2.1 Class Diagram
+
+```mermaid
+classDiagram
+    class UserController {
+        -UserService userService
+        -AuthService authService
+        -EmailChangeService emailChangeService
+        +getProfile() ResponseEntity
+        +updateProfile(UpdateProfileRequest) ResponseEntity
+        +uploadAvatar(MultipartFile) ResponseEntity
+        +deleteAvatar() ResponseEntity
+        +changePassword(ChangePasswordRequest) ResponseEntity
+        +requestEmailChange(EmailChangeRequest) ResponseEntity
+        +verifyEmailChange(VerifyRequest) ResponseEntity
+        +resendEmailChangeOtp() ResponseEntity
+        +cancelEmailChange() ResponseEntity
+    }
+
+    class UserService {
+        -UserRepository userRepository
+        -CloudinaryService cloudinaryService
+        -PasswordEncoder passwordEncoder
+        +getUserById(UUID) UserResponse
+        +updateProfile(UUID, UpdateProfileRequest) UserResponse
+        +uploadAvatar(UUID, MultipartFile) UserResponse
+        +deleteAvatar(UUID) UserResponse
+        +changePassword(UUID, ChangePasswordRequest) void
+    }
+
+    class EmailChangeService {
+        -UserRepository userRepository
+        -OtpService otpService
+        -EmailService emailService
+        -OtpRedisService otpRedisService
+        +requestEmailChange(UUID, String) String
+        +verifyAndChangeEmail(UUID, String, String) UserResponse
+        +resendEmailChangeOtp(UUID) String
+        +cancelEmailChange(UUID) String
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +findByEmail(String) Optional~User~
+        +existsByEmailAndUserIdNot(String, UUID) boolean
+        +save(User) User
+    }
+
+    class User {
+        +UUID userId
+        +String username
+        +String email
+        +String phone
+        +String fullName
+        +String avatar
+        +Role role
+        +Clinic workingClinic
+    }
+
+    class AuthService {
+        +getCurrentUser() User
+    }
+
+    class CloudinaryService {
+        +uploadImage(MultipartFile, String folder) UploadResponse
+        +deleteImage(String publicId) void
+    }
+
+    UserController --> UserService
+    UserController --> AuthService
+    UserController --> EmailChangeService
+    UserService --> UserRepository
+    UserService --> CloudinaryService
+    EmailChangeService --> UserRepository
+    EmailChangeService --> OtpRedisService
+    EmailChangeService --> EmailService
+    EmailChangeService --> OtpService
+```
+
+#### 3.2.2 Update Profile & Avatar
+
+```mermaid
+sequenceDiagram
+    U->>UI: 1. Edit info or select new Avatar
+    UI->>UC: 2. updateProfile(UserRequest) or uploadAvatar(file)
+    activate UC
+    UC->>AS: 3. getCurrentUser()
+    activate AS
+    AS-->>UC: 4. Current User Entity
+    deactivate AS
+    UC->>US: 5. updateProfile / uploadAvatar(userId, request)
+    activate US
+    
+    alt is Avatar Upload
+        US->>CS: 6a. uploadImage(file, "avatars")
+        activate CS
+        CS-->>US: 7a. URL + PublicID
+        deactivate CS
+    end
+
+    US->>UR: 8. save(Updated User Entity)
+    activate UR
+    UR-->>US: 9. OK
+    deactivate UR
+    US-->>UC: 10. UserResponse
+    deactivate US
+    UC-->>UI: 11. 200 OK (User Data)
+    deactivate UC
+    UI-->>U: 12. Update UI state
+```
+
+#### 3.2.3 Change Email with OTP
+
+```mermaid
+sequenceDiagram
+    U->>UI: 1. Input new Email & click "Change"
+    UI->>UC: 2. requestEmailChange(emailRequest)
+    activate UC
+    UC->>AS: 3. getCurrentUser()
+    UC->>ECS: 4. requestEmailChange(userId, newEmail)
+    activate ECS
+    ECS->>ORS: 5. Check Cooldown (60s)
+    Note over ECS, ORS: If cooldown active -> Error 400
+    ECS->>ORS: 6. saveEmailChangeOtp(userId, newEmail, otp)
+    ECS->>ES: 7. sendEmailChangeOtpEmail(newEmail, otp)
+    ECS-->>UC: 8. Success message
+    deactivate ECS
+    UC-->>UI: 9. Show OTP Input
+    deactivate UC
+
+    U->>UI: 10. Input OTP
+    UI->>UC: 11. verifyEmailChange(verifyRequest)
+    activate UC
+    UC->>AS: 12. getCurrentUser()
+    UC->>ECS: 13. verifyEmailChange(userId, newEmail, otp)
+    activate ECS
+    ECS->>ORS: 14. getEmailChangeOtp(userId)
+    Note over ECS, ORS: Validate OTP & Max Attempts (3 times)
+    ORS-->>ECS: 15. Valid
+    ECS->>UR: 16. save(Updated User Email)
+    activate UR
+    UR-->>ECS: 17. OK
+    deactivate UR
+    ECS->>ORS: 18. deleteEmailChangeOtp(userId)
+    ECS-->>UC: 19. UserResponse
+    deactivate ECS
+    UC-->>UI: 20. 200 OK (Updated Profile)
+    deactivate UC
+```
+
+### 3.3 Staffing & Scheduling Management
+
+#### 3.3.1 Class Diagram
+
+```mermaid
+classDiagram
+    class ClinicStaffController {
+        -ClinicStaffService staffService
+        +getStaff(UUID) ResponseEntity
+        +hasManager(UUID) ResponseEntity
+        +quickAddStaff(UUID, QuickAddStaffRequest) ResponseEntity
+        +assignManager(UUID, String) ResponseEntity
+        +assignVet(UUID, String) ResponseEntity
+        +removeStaff(UUID, UUID) ResponseEntity
+    }
+
+    class VetShiftController {
+        -VetShiftService vetShiftService
+        -AuthService authService
+        +createShift(UUID, VetShiftRequest) ResponseEntity
+        +getClinicShifts(UUID, LocalDate, LocalDate) ResponseEntity
+        +getMyShifts(LocalDate, LocalDate) ResponseEntity
+        +getShiftDetail(UUID) ResponseEntity
+        +deleteShift(UUID) ResponseEntity
+        +bulkDeleteShifts(List~UUID~) ResponseEntity
+        +blockSlot(UUID) ResponseEntity
+        +unblockSlot(UUID) ResponseEntity
+    }
+
+    class ClinicStaffService {
+        -ClinicRepository clinicRepository
+        -UserRepository userRepository
+        -AuthService authService
+        -PasswordEncoder passwordEncoder
+        +getClinicStaff(UUID) List~StaffResponse~
+        +hasManager(UUID) boolean
+        +quickAddStaff(UUID, QuickAddStaffRequest) void
+        +assignManager(UUID, String) void
+        +assignVet(UUID, String) void
+        +removeStaff(UUID, UUID) void
+    }
+
+    class VetShiftService {
+        -VetShiftRepository vetShiftRepository
+        -SlotRepository slotRepository
+        -ClinicRepository clinicRepository
+        -UserRepository userRepository
+        -NotificationService notificationService
+        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
+        +getShiftsByClinic(UUID, LocalDate, LocalDate) List~VetShiftResponse~
+        +getShiftsByVet(UUID, LocalDate, LocalDate) List~VetShiftResponse~
+        +getShiftDetail(UUID) VetShiftResponse
+        +deleteShift(UUID) void
+        +bulkDeleteShifts(List~UUID~) void
+        +blockSlot(UUID) SlotResponse
+        +unblockSlot(UUID) SlotResponse
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +findByUsernameOrEmailOrPhone(String, String, String) Optional~User~
+        +existsByPhone(String) boolean
+        +existsByEmail(String) boolean
+        +save(User) User
+    }
+
+    class VetShiftRepository {
+        <<interface>>
+        +findById(UUID) Optional~VetShift~
+        +findByClinicAndWorkDateBetween(Clinic, LocalDate, LocalDate) List~VetShift~
+        +save(VetShift) VetShift
+        +delete(VetShift) void
+    }
+
+    class SlotRepository {
+        <<interface>>
+        +findById(UUID) Optional~Slot~
+        +save(Slot) Slot
+        +deleteAll(List~Slot~) void
+    }
+
+    ClinicStaffController --> ClinicStaffService
+    VetShiftController --> VetShiftService
+    ClinicStaffService --> UserRepository
+    VetShiftService --> VetShiftRepository
+    VetShiftService --> SlotRepository
+```
+
+#### 3.3.2 Quick Staff Addition
+
+```mermaid
+sequenceDiagram
+    actor O as Clinic Owner/Manager
+    participant UI as Staff List Screen
+    participant SC as ClinicStaffController
+    participant SS as ClinicStaffService
+    participant AS as AuthService
+    participant UR as UserRepository
+    participant SS as ClinicStaffService
+    participant AS as AuthService
+    participant UR as UserRepository
+
+    O->>UI: 1. Fill staff info (Name, Phone, Role)
+    UI->>SC: 2. quickAddStaff(clinicId, request)
+    activate SC
+    SC->>SS: 3. quickAddStaff(clinicId, request)
+    activate SS
+    SS->>UR: 4. existsByPhone(phone)
+    activate UR
+    UR-->>SS: 5. False
+    deactivate UR
+    SS->>AS: 6. getCurrentUser()
+    activate AS
+    AS-->>SS: 7. currentUser
+    deactivate AS
+    SS->>SS: 8. Validate Permissions & Business Rules
+    Note over SS: Check Ownership, Manager Role, Max 1 Manager
+    SS->>SS: 9. Create User & set workingClinic
+    SS->>UR: 10. save(New Staff)
+    activate UR
+    UR-->>SS: 11. OK
+    deactivate UR
+    SS-->>SC: 12. OK
+    deactivate SS
+    SC-->>UI: 13. 200 OK
+    deactivate SC
+    UI-->>O: 14. New staff appears in list
+```
+
+#### 3.3.3 Clinician Roster Management (Create Shift & Auto-Slots)
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant VSR as VetShiftRepository
+    participant SR as SlotRepository
+
+    M->>UI: 1. Select Vet, times and multiple Dates
+    activate UI
+    UI->>C: 2. createShift(clinicId, shiftRequest)
+    activate C
+    C->>S: 3. createShifts(clinicId, request)
+    activate S
+    loop For each WorkDate
+        S->>CR: 4. findById(clinicId) (Get Operating Hours)
+        activate CR
+        CR-->>S: 5. Clinic Entity
+        deactivate CR
+        S->>S: 6. Determine breakStart/End (Clinic Sync)
+        S->>VSR: 7. findOverlappingShifts(...)
+        activate VSR
+        VSR-->>S: 8. OK
+        deactivate VSR
+        S->>S: 9. generateSlots (30-min intervals)
+        S->>VSR: 10. save(VetShift)
+        activate VSR
+        VSR-->>S: 11. Saved
+        deactivate VSR
+        S->>SR: 12. saveAll(Slots)
+        activate SR
+        SR-->>S: 13. OK
+        deactivate SR
+    end
+    S-->>C: 14. List<VetShiftResponse>
+    deactivate S
+    C-->>UI: 15. 201 Created
+    deactivate C
+    UI-->>M: 16. Display shifts on Calendar
+    deactivate UI
+```
+
+#### 3.3.4 Delete Shift & Slot Operations
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant VSR as VetShiftRepository
+    participant SR as SlotRepository
+
+    M->>UI: 1. Select shift & click "Delete"
+    activate UI
+    UI->>C: 2. deleteShift(shiftId)
+    activate C
+    C->>S: 3. deleteShift(id)
+    activate S
+    S->>VSR: 4. findById(id)
+    activate VSR
+    VSR-->>S: 5. VetShift with Slots
+    deactivate VSR
+    S->>S: 6. Check all slots AVAILABLE or BLOCKED
+    alt Has BOOKED slots
+        S-->>C: 7a. 400 Bad Request
+        C-->>UI: 8a. Error: Cannot delete shift with bookings
+        UI-->>M: 9a. Show error message
+    else All slots deletable
+        S->>SR: 7b. deleteAll(slots)
+        activate SR
+        SR-->>S: 8b. OK
+        deactivate SR
+        S->>VSR: 9b. delete(shift)
+        activate VSR
+        VSR-->>S: 10b. OK
+        deactivate VSR
+        S-->>C: 11b. 204 No Content
+        C-->>UI: 12b. Success
+        UI-->>M: 13b. Remove shift from Calendar
+    end
+    deactivate S
+    deactivate C
+    deactivate UI
+```
+
+---
+
+### 3.4 Clinic Management
+
+#### 3.4.1 Class Diagram
 
 ```mermaid
 classDiagram
@@ -1123,29 +1548,41 @@ classDiagram
         -ClinicImageRepository imageRepository
         +getAllClinics(...) Page~ClinicResponse~
         +getClinicById(UUID) ClinicResponse
-        +createClinic(ClinicRequest, UUID ownerId) ClinicResponse
-        +updateClinic(UUID, ClinicRequest, UUID) ClinicResponse
+        +createClinic(ClinicRequest) ClinicResponse
+        +updateClinic(UUID, ClinicRequest) ClinicResponse
         +approveClinic(UUID, String) ClinicResponse
         +rejectClinic(UUID, String) ClinicResponse
         +findNearbyClinics(BigDecimal, BigDecimal, Double) List~ClinicResponse~
     }
 
+    class ClinicRepository {
+        <<interface>>
+        +findById(UUID) Optional~Clinic~
+        +findAll(Specification, Pageable) Page~Clinic~
+        +save(Clinic) Clinic
+        +findNearby(BigDecimal, BigDecimal, Double) List~Clinic~
+    }
+
+    class ClinicImageRepository {
+        <<interface>>
+        +save(ClinicImage) ClinicImage
+        +deleteById(UUID) void
+    }
+
     class Clinic {
         +UUID clinicId
         +String name
-        +String description
         +String address
-        +String phone
-        +String email
         +BigDecimal latitude
         +BigDecimal longitude
         +ClinicStatus status
-        +BigDecimal ratingAvg
-        +Integer ratingCount
         +User owner
-        +List~ClinicImage~ images
-        +List~ClinicService~ services
-        +List~OperatingHours~ operatingHours
+    }
+
+    class ClinicImage {
+        +UUID imageId
+        +String imageUrl
+        +Boolean isPrimary
     }
 
     class ClinicStatus {
@@ -1156,30 +1593,6 @@ classDiagram
         SUSPENDED
     }
 
-    class ClinicImage {
-        +UUID imageId
-        +String imageUrl
-        +String caption
-        +Integer displayOrder
-        +Boolean isPrimary
-    }
-
-    class ClinicServiceEntity {
-        +UUID serviceId
-        +String name
-        +BigDecimal basePrice
-        +Integer durationTime
-        +Boolean isHomeVisit
-        +BigDecimal pricePerKm
-    }
-
-    class MasterService {
-        +UUID masterServiceId
-        +String name
-        +BigDecimal defaultPrice
-        +Boolean isHomeVisit
-    }
-
     class CloudinaryService {
         +uploadImage(MultipartFile, String folder) UploadResponse
         +deleteImage(String publicId) void
@@ -1187,14 +1600,13 @@ classDiagram
 
     ClinicController --> ClinicService
     ClinicController --> CloudinaryService
-    ClinicService --> Clinic
-    Clinic --> ClinicStatus
-    Clinic --> ClinicImage
-    Clinic --> ClinicServiceEntity
-    ClinicServiceEntity --> MasterService
+    ClinicService --> ClinicRepository
+    ClinicService --> ClinicImageRepository
+    ClinicRepository ..> Clinic
+    ClinicImageRepository ..> ClinicImage
 ```
 
-#### 3.2.2 Create Clinic
+#### 3.4.2 Create Clinic
 
 ```mermaid
 sequenceDiagram
@@ -1215,10 +1627,10 @@ sequenceDiagram
     deactivate AS
     CC->>CS: 5. createClinic(request, ownerId)
     activate CS
-    CS->>DB: 6. save(Clinic Entity with status=PENDING)
-    activate DB
-    DB-->>CS: 7. Saved Clinic
-    deactivate DB
+    CS->>CR: 6. save(Clinic Entity with status=PENDING)
+    activate CR
+    CR-->>CS: 7. Saved Clinic
+    deactivate CR
     CS-->>CC: 8. ClinicResponse
     deactivate CS
     CC-->>UI: 9. ClinicResponse(created)
@@ -1227,7 +1639,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.3 Approve Clinic (Admin)
+#### 3.4.3 Approve Clinic (Admin)
 
 ```mermaid
 sequenceDiagram
@@ -1243,15 +1655,15 @@ sequenceDiagram
     activate CC
     CC->>CS: 3. approveClinic(id, reason)
     activate CS
-    CS->>DB: 4. findById(id)
-    activate DB
-    DB-->>CS: 5. Clinic Entity
-    deactivate DB
+    CS->>CR: 4. findById(id)
+    activate CR
+    CR-->>CS: 5. Clinic Entity
+    deactivate CR
     CS->>CS: 6. Validate status == PENDING
-    CS->>DB: 7. Update status = APPROVED
-    activate DB
-    DB-->>CS: 8. OK
-    deactivate DB
+    CS->>CR: 7. save(Updated Clinic)
+    activate CR
+    CR-->>CS: 8. OK
+    deactivate CR
     CS-->>CC: 9. ClinicResponse
     deactivate CS
     CC-->>UI: 10. ApproveResponse(success)
@@ -1260,7 +1672,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.4 Upload Clinic Image
+#### 3.4.4 Upload Clinic Image
 
 ```mermaid
 sequenceDiagram
@@ -1269,7 +1681,7 @@ sequenceDiagram
     participant CC as ClinicController
     participant CS as ClinicService
     participant Cloud as CloudinaryService
-    participant DB as Database
+    participant CIR as ClinicImageRepository
 
     Owner->>UI: 1. Select image & click "Upload"
     activate UI
@@ -1282,10 +1694,10 @@ sequenceDiagram
     activate Cloud
     Cloud-->>CS: 6. UploadResponse (URL, publicId)
     deactivate Cloud
-    CS->>DB: 7. save(ClinicImage entity)
-    activate DB
-    DB-->>CS: 8. OK
-    deactivate DB
+    CS->>CIR: 7. save(ClinicImage entity)
+    activate CIR
+    CIR-->>CS: 8. OK
+    deactivate CIR
     CS-->>CC: 9. ImageResponse
     deactivate CS
     CC-->>UI: 10. ImageResponse(created)
@@ -1294,7 +1706,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.5 Search Nearby Clinics
+#### 3.4.5 Search Nearby Clinics
 
 ```mermaid
 sequenceDiagram
@@ -1302,7 +1714,7 @@ sequenceDiagram
     participant UI as Clinic Search Screen (Mobile)
     participant CC as ClinicController
     participant CS as ClinicService
-    participant DB as Database
+    participant CR as ClinicRepository
 
     User->>UI: 1. Allow location access
     activate UI
@@ -1311,25 +1723,22 @@ sequenceDiagram
     activate CC
     CC->>CS: 4. findNearbyClinics(lat, lng, radius)
     activate CS
-    CS->>DB: 5. Spatial Query (Haversine formula)
-    activate DB
-    DB-->>CS: 6. List of Clinics within radius
-    deactivate DB
-    CS->>CS: 7. Sort by distance ASC
-    CS-->>CC: 8. List~ClinicResponse~
+    CS->>CR: 5. findNearby(lat, lng, radius)
+    activate CR
+    CR-->>CS: 6. List of Clinics (Spatial Query)
+    deactivate CR
+    CS-->>CC: 7. List~ClinicResponse~
     deactivate CS
-    CC-->>UI: 9. List<ClinicResponse>
+    CC-->>UI: 8. List<ClinicResponse>
     deactivate CC
-    UI-->>User: 10. Display clinics on map & list
+    UI-->>User: 9. Display clinics on map & list
     deactivate UI
 ```
 
 
-### 3.3 Pet Management
+### 3.5 Pet Management
 
-This feature allows Pet Owners to manage their pets' information, including creating, updating, and deleting pet profiles.
-
-#### 3.3.1 Class Diagram
+#### 3.5.1 Class Diagram
 
 ```mermaid
 classDiagram
@@ -1352,7 +1761,14 @@ classDiagram
         +getPet(UUID) PetResponse
         +updatePet(UUID, PetRequest, MultipartFile) PetResponse
         +deletePet(UUID) void
-        +validateOwnership(Pet, User) void
+    }
+
+    class PetRepository {
+        <<interface>>
+        +findById(UUID) Optional~Pet~
+        +findByOwner(User) List~Pet~
+        +save(Pet) Pet
+        +delete(Pet) void
     }
 
     class Pet {
@@ -1365,8 +1781,6 @@ classDiagram
         +String gender
         +String imageUrl
         +User owner
-        +List~EMR~ medicalRecords
-        +List~Vaccination~ vaccinations
     }
 
     class CloudinaryService {
@@ -1375,11 +1789,12 @@ classDiagram
     }
 
     PetController --> PetService
-    PetService --> Pet
+    PetService --> PetRepository
+    PetRepository ..> Pet
     PetService --> CloudinaryService
 ```
 
-#### 3.3.2 Create Pet
+#### 3.5.2 Create Pet
 
 ```mermaid
 sequenceDiagram
@@ -1407,10 +1822,10 @@ sequenceDiagram
         CS-->>PS: 7a. UploadResponse (URL)
         deactivate CS
     end
-    PS->>DB: 8. save(Pet Entity)
-    activate DB
-    DB-->>PS: 9. Saved Pet
-    deactivate DB
+    PS->>PR: 8. save(Pet Entity)
+    activate PR
+    PR-->>PS: 9. Saved Pet
+    deactivate PR
     PS-->>PC: 10. PetResponse
     deactivate PS
     PC-->>UI: 11. PetResponse(created)
@@ -1419,7 +1834,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.3.3 Update Pet
+#### 3.5.3 Update Pet
 
 ```mermaid
 sequenceDiagram
@@ -1461,7 +1876,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.3.4 Delete Pet
+#### 3.5.4 Delete Pet
 
 ```mermaid
 sequenceDiagram
@@ -1502,30 +1917,49 @@ sequenceDiagram
 ```
 
 
-### 3.4 Vet Shift & Slot Management
 
-This module manages veterinarian working schedules and automates the creation of bookable 30-minute time slots, ensuring breaks are correctly handled based on clinic operating hours.
 
-#### 3.4.1 Class Diagram (Backend)
+### 3.6 Vet Shift & Slot Management
+
+Module quản lý lịch làm việc của bác sĩ, tự động tạo các slot 30 phút khi tạo shift.
+
+#### 3.6.1 Class Diagram (Backend)
 
 ```mermaid
 classDiagram
     class VetShiftController {
         -VetShiftService vetShiftService
-        +createShift(UUID clinicId, VetShiftRequest) ResponseEntity
-        +getClinicShifts(UUID clinicId, LocalDate date) ResponseEntity
-        +deleteShift(UUID shiftId) ResponseEntity
+        +createShifts(UUID, VetShiftRequest) ResponseEntity
+        +getClinicShifts(UUID, LocalDate, LocalDate) ResponseEntity
+        +getMyShifts(LocalDate, LocalDate) ResponseEntity
+        +deleteShift(UUID) ResponseEntity
+        +blockSlot(UUID) ResponseEntity
+        +unblockSlot(UUID) ResponseEntity
     }
 
     class VetShiftService {
         -VetShiftRepository vetShiftRepository
         -SlotRepository slotRepository
-        -SlotGenerator slotGenerator
-        +createShift(VetShiftRequest) VetShiftResponse
-        +getClinicShifts(UUID clinicId, LocalDate date) ResponseEntity
-        +deleteShift(UUID shiftId) void
+        -ClinicRepository clinicRepository
+        -NotificationService notificationService
+        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
+        +deleteShift(UUID) void
+        +blockSlot(UUID) SlotResponse
+        +generateSlots(VetShift) void
     }
 
+    class VetShiftRepository {
+        <<interface>>
+        +findByVetAndWorkDate(User, LocalDate) List~VetShift~
+        +save(VetShift) VetShift
+        +delete(VetShift) void
+    }
+
+    class SlotRepository {
+        <<interface>>
+        +saveAll(Iterable) List
+        +deleteByShift(VetShift) void
+    }
 
     class VetShift {
         +UUID shiftId
@@ -1534,38 +1968,113 @@ classDiagram
         +LocalDate workDate
         +LocalTime startTime
         +LocalTime endTime
-        +LocalTime breakStart
-        +LocalTime breakEnd
-        +List~Slot~ slots
+        +Boolean isOvernight
     }
 
     class Slot {
         +UUID slotId
         +VetShift shift
         +LocalTime startTime
-        +LocalTime endTime
         +SlotStatus status
     }
 
-    class SlotGenerator {
-        +generate(VetShift) List~Slot~
-    }
-
-    class SlotStatus {
-        <<enumeration>>
-        AVAILABLE
-        BOOKED
-        BLOCKED
-    }
-
     VetShiftController --> VetShiftService
-    VetShiftService --> VetShift
-    VetShiftService --> SlotGenerator
-    VetShift --> Slot
-    Slot --> SlotStatus
+    VetShiftService --> VetShiftRepository
+    VetShiftService --> SlotRepository
+    VetShiftRepository ..> VetShift
+    SlotRepository ..> Slot
+    VetShift "1" *-- "many" Slot
 ```
 
-#### 3.4.2 Create Shift & Auto-Generate Slots
+#### 3.6.2 Entity Specifications
+
+**VetShift Entity:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| shiftId | UUID | Primary key |
+| vet | User (FK) | Bác sĩ được phân công |
+| clinic | Clinic (FK) | Phòng khám |
+| workDate | LocalDate | Ngày làm việc |
+| startTime | LocalTime | Giờ bắt đầu ca |
+| endTime | LocalTime | Giờ kết thúc ca |
+| breakStart | LocalTime | Giờ nghỉ bắt đầu (optional, sync từ Clinic) |
+| breakEnd | LocalTime | Giờ nghỉ kết thúc (optional) |
+| isOvernight | Boolean | Ca đêm - endTime sang ngày hôm sau |
+| notes | String | Ghi chú (max 500 chars) |
+| createdAt | LocalDateTime | Thời điểm tạo |
+| updatedAt | LocalDateTime | Thời điểm cập nhật |
+
+**Slot Entity:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| slotId | UUID | Primary key |
+| shift | VetShift (FK) | Ca làm việc chứa slot này |
+| startTime | LocalTime | Giờ bắt đầu slot |
+| endTime | LocalTime | Giờ kết thúc slot |
+| status | SlotStatus | AVAILABLE, BOOKED, BLOCKED |
+| createdAt | LocalDateTime | Thời điểm tạo |
+| updatedAt | LocalDateTime | Thời điểm cập nhật |
+
+**VetShiftRequest DTO:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| vetId | UUID | ID bác sĩ được phân công (required) |
+| workDates | List<LocalDate> | Danh sách ngày làm việc (required, max 14) |
+| startTime | LocalTime | Giờ bắt đầu (required) |
+| endTime | LocalTime | Giờ kết thúc (required) |
+| isOvernight | Boolean | Ca đêm flag (default: false) |
+| repeatWeeks | Integer | Số tuần lặp lại (1-12, default: 1) |
+| forceUpdate | Boolean | Ghi đè shift cũ (default: false) |
+| notes | String | Ghi chú |
+
+**VetShiftResponse DTO:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| shiftId | UUID | ID ca làm việc |
+| vetId, vetName, vetAvatar | - | Thông tin bác sĩ |
+| clinicId | UUID | ID phòng khám |
+| workDate | LocalDate | Ngày làm việc gốc |
+| displayDate | LocalDate | Ngày hiển thị (cho ca đêm tiếp tục) |
+| isContinuation | Boolean | Đánh dấu phần tiếp tục của ca đêm |
+| startTime, endTime | LocalTime | Thời gian ca |
+| breakStart, breakEnd | LocalTime | Thời gian nghỉ |
+| isOvernight | Boolean | Ca đêm |
+| totalSlots, availableSlots, bookedSlots, blockedSlots | int | Thống kê slots |
+| slots | List<SlotResponse> | Chi tiết từng slot (optional) |
+
+#### 3.6.3 API Access Matrix
+
+| Endpoint | Description | PET_OWNER | VET | CM | CO | ADMIN |
+|----------|-------------|:---------:|:---:|:--:|:--:|:-----:|
+| POST /api/clinics/{id}/shifts | Tạo shifts với auto-gen slots | - | - | ✓ | ✓ | - |
+| GET /api/clinics/{id}/shifts | Lấy shifts theo date range | - | ✓ | ✓ | ✓ | - |
+| GET /api/shifts/me | Lấy shifts của vet đang đăng nhập | - | ✓ | - | - | - |
+| GET /api/shifts/{id} | Chi tiết shift + slots | - | ✓ | ✓ | ✓ | - |
+| DELETE /api/shifts/{id} | Xóa shift (blocked nếu có booking) | - | - | ✓ | ✓ | - |
+| DELETE /api/shifts/bulk | Xóa nhiều shifts | - | - | ✓ | ✓ | - |
+| PATCH /api/slots/{id}/block | Block slot | - | - | ✓ | ✓ | - |
+| PATCH /api/slots/{id}/unblock | Unblock slot | - | - | ✓ | ✓ | - |
+
+> **Lưu ý:** VET không có quyền block/unblock slot. Nếu Vet cần block slot, phải liên hệ Manager.
+
+#### 3.6.4 Business Rules
+
+1. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift
+2. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó
+3. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true
+4. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ
+5. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED
+6. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots
+7. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp
+8. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ
+9. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa
+10. **SSE Notifications:** Gửi batch notification cho Vet khi được assign shifts mới
+
+#### 3.6.5 Sequence Diagram: Create Shifts (with Conflict Check)
 
 ```mermaid
 sequenceDiagram
@@ -1573,41 +2082,53 @@ sequenceDiagram
     participant UI as Manager Dashboard (Web)
     participant C as VetShiftController
     participant S as VetShiftService
-    participant G as SlotGenerator
-    participant DB as Database
+    participant VSR as VetShiftRepository
+    participant SR as SlotRepository
+    participant NS as NotificationService
 
-    M->>UI: 1. Input shift info & click "Save"
+    M->>UI: 1. Select Vet, times, multiple Dates
+    M->>UI: 2. Click "Save" (forceUpdate=false)
     activate UI
-    UI->>C: 2. createShift(clinicId, shiftRequest)
+    UI->>C: 3. createShifts(clinicId, request)
     activate C
-    C->>S: 3. createShift(request)
+    C->>S: 4. createShifts(clinicId, request)
     activate S
-    S->>DB: 4. Check for overlaps (vet_id, date, time)
-    activate DB
-    DB-->>S: 5. No overlap found
-    deactivate DB
-    S->>DB: 6. Save VetShift entity
-    activate DB
-    DB-->>S: 7. VetShift saved
-    deactivate DB
-    S->>G: 8. generate(savedShift)
-    activate G
-    G->>G: 9. Divide into 30m intervals (Skip Breaks)
-    G-->>S: 10. List of Slots
-    deactivate G
-    S->>DB: 11. saveAll(Slots)
-    activate DB
-    DB-->>S: 12. Slots persisted
-    deactivate DB
-    S-->>C: 13. VetShiftResponse
+    loop For each WorkDate
+        S->>VSR: 5. findByVetAndWorkDate(vet, date)
+        VSR-->>S: 6. Existing Shifts List
+        S->>S: 7. Check Overlaps (timesOverlap helper)
+    end
+    alt Conflict Detected & forceUpdate=false
+        S-->>C: 8a. 409 Conflict (Conflict details)
+        C-->>UI: 9a. Conflict Notification
+        UI-->>M: 10a. Show Conflict Warning Modal
+        M->>UI: 11a. Click "Confirm Override" (forceUpdate=true)
+        UI->>C: 12a. createShifts(clinicId, request, forceUpdate=true)
+        C->>S: 13a. createShifts(clinicId, request)
+    end
+    
+    loop For each WorkDate (Safe or Forced)
+        S->>S: 14. Determine breakStart/End from Clinic
+        S->>VSR: 15. save(VetShift)
+        activate VSR
+        VSR-->>S: 16. Saved
+        deactivate VSR
+        S->>S: 17. generateSlots (30-min intervals, skip break)
+        S->>SR: 18. saveAll(Slots)
+        activate SR
+        SR-->>S: 19. OK
+        deactivate SR
+    end
+    S->>NS: 20. notifyVetShiftsBatchAssigned(vet, shifts)
+    S-->>C: 21. List<VetShiftResponse>
     deactivate S
-    C-->>UI: 14. VetShiftResponse(created)
+    C-->>UI: 22. 201 Created
     deactivate C
-    UI-->>M: 15. Display shift on Calendar
+    UI-->>M: 23. Display shifts on Calendar
     deactivate UI
 ```
 
-#### 3.4.3 Delete Shift
+#### 3.6.6 Sequence Diagram: Block Slot
 
 ```mermaid
 sequenceDiagram
@@ -1615,98 +2136,48 @@ sequenceDiagram
     participant UI as Manager Dashboard (Web)
     participant C as VetShiftController
     participant S as VetShiftService
-    participant DB as Database
+    participant SR as SlotRepository
 
-    M->>UI: 1. Select shift & click "Delete"
+    M->>UI: 1. Click lock icon on slot
     activate UI
-    UI->>C: 2. deleteShift(shiftId)
+    UI->>C: 2. blockSlot(slotId)
     activate C
-    C->>S: 3. deleteShift(id)
+    C->>S: 3. blockSlot(slotId)
     activate S
-    S->>DB: 4. findById(id) with slots
-    activate DB
-    DB-->>S: 5. VetShift with Slots
-    deactivate DB
-    S->>S: 6. Check all slots AVAILABLE or BLOCKED
-    alt Has BOOKED slots
-        S-->>C: 7a. 400 Bad Request
-        deactivate S
-        C-->>UI: 8a. Error: Cannot delete shift with bookings
-        deactivate C
-        UI-->>M: 9a. Show error message
-        deactivate UI
-    else All slots deletable
-        S->>DB: 7b. deleteAll(slots)
-        activate DB
-        DB-->>S: 8b. OK
-        deactivate DB
-        S->>DB: 9b. delete(shift)
-        activate DB
-        DB-->>S: 10b. OK
-        deactivate DB
-        S-->>C: 11b. 204 No Content
-        deactivate S
-        C-->>UI: 12b. Success
-        deactivate C
-        UI-->>M: 13b. Remove shift from Calendar
-        deactivate UI
+    S->>SR: 4. findById(slotId)
+    activate SR
+    SR-->>S: 5. Slot Entity
+    deactivate SR
+    alt Slot is BOOKED
+        S-->>C: 6a. 400 Bad Request
+        C-->>UI: 7a. Error: Cannot block booked slot
+    else Slot is AVAILABLE
+        S->>SR: 6b. save(slot with BLOCKED status)
+        activate SR
+        SR-->>S: 7b. OK
+        deactivate SR
+        S-->>C: 8b. SlotResponse
+        C-->>UI: 9b. 200 OK
+        UI-->>M: 10b. Update slot icon to locked
     end
-```
-
-#### 3.4.4 Block/Unblock Slot
-
-```mermaid
-sequenceDiagram
-    actor V as Vet
-    participant UI as My Schedule Screen (Mobile/Web)
-    participant C as SlotController
-    participant S as SlotService
-    participant DB as Database
-
-    V->>UI: 1. Select slot & click "Block"
-    activate UI
-    UI->>C: 2. toggleBlockSlot(slotId)
-    activate C
-    C->>S: 3. toggleBlockSlot(id)
-    activate S
-    S->>DB: 4. findById(id)
-    activate DB
-    DB-->>S: 5. Slot Entity
-    deactivate DB
-    alt Status == AVAILABLE
-        S->>DB: 6a. Update status = BLOCKED
-        activate DB
-        DB-->>S: 7a. OK
-        deactivate DB
-    else Status == BLOCKED
-        S->>DB: 6b. Update status = AVAILABLE
-        activate DB
-        DB-->>S: 7b. OK
-        deactivate DB
-    end
-    S-->>C: 8. SlotResponse
     deactivate S
-    C-->>UI: 9. SlotResponse(updated)
     deactivate C
-    UI-->>V: 10. Update slot display
     deactivate UI
 ```
 
 
-### 3.5 Patient Management
+### 3.7 Patient Management
 
-This module serves as the medical record repository for all pets. Following the "EMR Central Hub" concept, it allows authorized Vets to access a pet's cumulative clinical history across different clinics.
-
-#### 3.5.1 Class Diagram
+#### 3.7.1 Class Diagram
 
 ```mermaid
 classDiagram
     class PatientController {
         -PatientService patientService
-        +searchPatients(UUID clinicId, String keyword) ResponseEntity
-        +getPatientHistory(UUID petId) ResponseEntity
-        +createEMR(UUID bookingId, EMRRequest) ResponseEntity
-        +addVaccination(UUID petId, VaccinationRequest) ResponseEntity
+        +searchPatients(UUID, String) ResponseEntity
+        +getPetMedicalHistory(UUID) ResponseEntity
+        +createEMR(UUID, EMRRequest) ResponseEntity
+        +addVaccinationRecord(UUID, VaccinationRequest) ResponseEntity
     }
 
     class PatientService {
@@ -1714,46 +2185,61 @@ classDiagram
         -EMRRepository emrRepository
         -VaccinationRepository vaccinationRepository
         -BookingRepository bookingRepository
-        +searchPatients(UUID clinicId, String keyword) List~PatientResponse~
-        +getPetMedicalHistory(UUID petId, UUID clinicId) PetHistoryResponse
-        +createEMR(UUID bookingId, EMRRequest) EMRResponse
-        +addVaccination(UUID petId, VaccinationRequest) VaccinationResponse
-        +checkAccessEntitlement(UUID petId, UUID clinicId) boolean
+        +searchPatients(UUID, String) List~PatientResponse~
+        +getPetMedicalHistory(UUID, UUID) PetHistoryResponse
+        +createEMR(UUID, EMRRequest) EMRResponse
+        +addVaccinationRecord(UUID, VaccinationRequest) VaccinationResponse
+    }
+
+    class EMRRepository {
+        <<interface>>
+        +findById(UUID) Optional~EMR~
+        +findByPet(Pet) List~EMR~
+        +save(EMR) EMR
+    }
+
+    class VaccinationRepository {
+        <<interface>>
+        +findByPet(Pet) List~Vaccination~
+        +save(Vaccination) Vaccination
     }
 
     class EMR {
         +UUID emrId
         +Booking booking
         +Pet pet
-        +Clinic clinic
-        +User vet
         +String subjective
         +String objective
         +String assessment
         +String plan
-        +LocalDateTime createdAt
+        +List~ClinicService~ additionalServices
+        +List~IncurredCost~ miscCosts
+    }
+
+    class IncurredCost {
+        +UUID costId
+        +String itemName
+        +BigDecimal amount
+        +Integer quantity
     }
 
     class Vaccination {
         +UUID vaccinationId
         +Pet pet
-        +Booking booking
         +String vaccineName
-        +String manufacturer
-        +String batchNumber
         +LocalDate administeredDate
         +LocalDate nextDueDate
-        +User administeredBy
     }
 
     PatientController --> PatientService
-    PatientService --> EMR
-    PatientService --> Vaccination
+    PatientService --> EMRRepository
+    PatientService --> VaccinationRepository
+    EMRRepository ..> EMR
+    EMR --> IncurredCost
+    VaccinationRepository ..> Vaccination
 ```
 
-#### 3.5.2 View Pet Medical History (Cross-Clinic)
-
-> **Business Rule BR-009-03:** A Vet/Clinic can view a Pet's history only if there exists an active or past booking relationship.
+#### 3.7.2 View Pet Medical History (Cross-Clinic)
 
 ```mermaid
 sequenceDiagram
@@ -1761,7 +2247,9 @@ sequenceDiagram
     participant UI as Vet Dashboard
     participant PC as PatientController
     participant PS as PatientService
-    participant DB as Database
+    participant BR as BookingRepository
+    participant EMRR as EMRRepository
+    participant VR as VaccinationRepository
 
     V->>UI: 1. Search Pet or Select from Booking
     activate UI
@@ -1769,56 +2257,64 @@ sequenceDiagram
     activate PC
     PC->>PS: 3. getPetMedicalHistory(petId, clinicId)
     activate PS
-    PS->>DB: 4. Check booking exists (petId, clinicId)
-    activate DB
-    DB-->>PS: 5. Entitlement Confirmed
-    deactivate DB
-    PS->>DB: 6. Fetch all EMRs & Vaccinations
-    activate DB
-    DB-->>PS: 7. Medical Records List
-    deactivate DB
-    PS-->>PC: 8. PetHistoryResponse
+    PS->>BR: 4. Check entitlement (petId, clinicId)
+    activate BR
+    BR-->>PS: 5. Confirmed
+    deactivate BR
+    PS->>EMRR: 6. findByPet(petId)
+    activate EMRR
+    EMRR-->>PS: 7. EMR List
+    deactivate EMRR
+    PS->>VR: 8. findByPet(petId)
+    activate VR
+    VR-->>PS: 9. Vaccination List
+    deactivate VR
+    PS-->>PC: 10. PetHistoryResponse
     deactivate PS
-    PC-->>UI: 9. PetHistoryResponse
+    PC-->>UI: 11. PetHistoryResponse
     deactivate PC
-    UI-->>V: 10. Display history timeline
+    UI-->>V: 12. Display history timeline
     deactivate UI
 ```
 
-#### 3.5.3 Create EMR (Electronic Medical Record)
+#### 3.7.3 Create EMR (EMR-2 Electronic Medical Record)
 
 ```mermaid
 sequenceDiagram
     actor V as Vet
-    participant UI as EMR Form Screen
+    participant UI as EMR Form (Mobile/Web)
     participant PC as PatientController
     participant PS as PatientService
-    participant DB as Database
+    participant BR as BookingRepository
+    participant PR as PetRepository
+    participant EMRR as EMRRepository
 
-    V->>UI: 1. Fill SOAP form & click "Save"
+    V->>UI: 1. Fill SOAP form (S, O, A, P + Weight)
     activate UI
-    UI->>PC: 2. createEMR(bookingId, emrRequest)
+    UI->>PC: 2. createEMR(bookingId, EMRRequest)
     activate PC
-    PC->>PS: 3. createEMR(bookingId, emrRequest)
+    PC->>PS: 3. createEMR(bookingId, request)
     activate PS
-    PS->>DB: 4. Find Booking
-    activate DB
-    DB-->>PS: 5. Booking with Pet, Clinic info
-    deactivate DB
-    PS->>PS: 6. Validate Vet is assigned to Booking
-    PS->>DB: 7. Save EMR entity
-    activate DB
-    DB-->>PS: 8. Saved EMR
-    deactivate DB
-    PS-->>PC: 9. EMRResponse
+    PS->>BR: 4. findById(bookingId)
+    activate BR
+    BR-->>PS: 5. Booking Entity
+    deactivate BR
+    PS->>PS: 6. Validate status == IN_PROGRESS
+    PS->>PS: 7. Validate Vet is assigned
+    PS->>EMRR: 8. save(EMR: subjective, objective, assessment, plan)
+    activate EMRR
+    EMRR-->>PS: 9. Saved EMR
+    deactivate EMRR
+    PS->>PR: 10. updatePetWeight(petId, newWeight)
+    PS-->>PC: 11. EMRResponse
     deactivate PS
-    PC-->>UI: 10. EMRResponse(created)
+    PC-->>UI: 12. 201 Created
     deactivate PC
-    UI-->>V: 11. Show success notification
+    UI-->>V: 13. Show success & update medical timeline
     deactivate UI
 ```
 
-#### 3.5.4 Add Vaccination Record
+#### 3.7.4 Add Vaccination Record
 
 ```mermaid
 sequenceDiagram
@@ -1826,31 +2322,330 @@ sequenceDiagram
     participant UI as Vaccination Form
     participant PC as PatientController
     participant PS as PatientService
-    participant DB as Database
+    participant PR as PetRepository
+    participant VR as VaccinationRepository
 
     V->>UI: 1. Fill vaccine info & click "Add"
     activate UI
-    UI->>PC: 2. addVaccination(petId, vaccinationRequest)
+    UI->>PC: 2. addVaccinationRecord(petId, vaccinationRequest)
     activate PC
-    PC->>PS: 3. addVaccination(petId, request)
+    PC->>PS: 3. addVaccinationRecord(petId, request)
     activate PS
-    PS->>DB: 4. Find Pet
-    activate DB
-    DB-->>PS: 5. Pet Entity
-    deactivate DB
+    PS->>PR: 4. findById(petId)
+    activate PR
+    PR-->>PS: 5. Pet Entity
+    deactivate PR
     PS->>PS: 6. Validate entitlement
-    PS->>DB: 7. Save Vaccination entity
-    activate DB
-    DB-->>PS: 8. Saved Vaccination
-    deactivate DB
+    PS->>VR: 7. save(Vaccination entity)
+    activate VR
+    VR-->>PS: 8. Saved Vaccination
+    deactivate VR
     PS-->>PC: 9. VaccinationResponse
     deactivate PS
     PC-->>UI: 10. VaccinationResponse(created)
     deactivate PC
     UI-->>V: 11. Update vaccination card
     deactivate UI
+
+#### 3.7.5 Ghi nhận Dịch vụ & Chi phí phát sinh (Incurred Items)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as EMR Interface
+    participant PC as PatientController
+    participant PS as PatientService
+    participant SR as ServiceRepository
+    participant BR as BookingRepository
+
+    alt Standard Service
+        V->>UI: 1a. Select from Clinic Catalog
+        UI->>PC: 2a. addAdditionalService(bookingId, serviceId)
+        PC->>PS: 3a. addAdditionalService(...)
+        PS->>SR: 4a. findById(serviceId)
+        SR-->>PS: 5a. Service Entity (Price)
+    else Custom Incurred Cost
+        V->>UI: 1b. Type name & manual price
+        UI->>PC: 2b. addIncurredCost(bookingId, costRequest)
+        PC->>PS: 3b. addIncurredCost(...)
+        Note over PS: Create IncurredCost entity
+    end
+
+    PS->>BR: 6. findById(bookingId)
+    activate BR
+    BR-->>PS: 7. Booking Entity
+    deactivate BR
+    
+    PS->>PS: 8. Recalculate totalPrice
+    Note over PS: Total = Base + Surcharge + Services + Misc
+    
+    PS->>BR: 9. save(Updated Booking)
+    activate BR
+    BR-->>PS: 10. OK
+    deactivate BR
+    
+    PS-->>PC: 11. Success
+    PC-->>UI: 12. 200 OK (Updated Balance)
+    UI-->>V: 13. Update UI with new Total
+```
+```
+#### 3.8 Booking Management
+
+#### 3.8.1 Class Diagram (Backend)
+
+```mermaid
+classDiagram
+    class BookingController {
+        -BookingService bookingService
+        +createBooking(BookingRequest) ResponseEntity
+        +getClinicBookings(UUID, LocalDate) ResponseEntity
+        +updateBookingStatus(UUID, BookingStatus) ResponseEntity
+    }
+
+    class BookingService {
+        -BookingRepository bookingRepository
+        -SlotRepository slotRepository
+        -PetRepository petRepository
+        +createBooking(BookingRequest) BookingResponse
+        +updateBookingStatus(UUID, BookingStatus) void
+        +cancelBooking(UUID, String) void
+    }
+
+    class BookingRepository {
+        <<interface>>
+        +findById(UUID) Optional~Booking~
+        +findByClinicAndAppointmentDate(Clinic, LocalDate) List~Booking~
+        +save(Booking) Booking
+    }
+
+    class Booking {
+        +UUID bookingId
+        +Pet pet
+        +Clinic clinic
+        +BookingStatus status
+        +LocalDate appointmentDate
+        +BigDecimal totalPrice
+        +BigDecimal surcharge
+    }
+
+    class BookingStatus {
+        <<enumeration>>
+        PENDING
+        CONFIRMED
+        CHECKED_IN
+        COMPLETED
+        CANCELLED
+        NO_SHOW
+    }
+
+    BookingController --> BookingService
+    BookingService --> BookingRepository
+    BookingRepository ..> Booking
+    Booking --> BookingStatus
 ```
 
+#### 3.8.2 Create Appointment (BOK-1 Mobile Booking Wizard)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile Wizard (5-Steps)
+    participant BC as BookingController
+    participant BS as BookingService
+    participant SR as SlotRepository
+    participant DB as Database
+
+    PO->>UI: 1. Step 1-3: Choose Pet, Service, Vet
+    UI->>BC: 2. GET /api/clinics/{id}/available-slots (filtered)
+    BC-->>UI: 3. Available Slots List
+    PO->>UI: 4. Step 4: Select Slot & Date
+    PO->>UI: 5. Step 5: Review & Enter Address (if Home)
+    activate UI
+    UI->>BC: 6. createBooking(BookingRequest)
+    activate BC
+    BC->>BS: 7. createBooking(request)
+    activate BS
+    BS->>BS: 8. Validate slots (availability & distance)
+    BS->>BS: 9. Calculate total price (Base + Weight + Distance)
+    BS->>DB: 10. saveAll (Booking + link to Slots)
+    BS->>SR: 11. Lock Slots (status=BOOKED, TTL=15m for payment)
+    BS-->>BC: 12. BookingResponse
+    deactivate BS
+    BC-->>UI: 13. 201 Created
+    deactivate BC
+    UI-->>PO: 14. Show "Proceed to Payment" (Step 6)
+    deactivate UI
+```
+
+#### 3.8.3 Confirm / Update Booking (Clinic Manager)
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Web Dashboard
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+
+    M->>UI: 1. View Pending Bookings
+    M->>UI: 2. Click "Confirm Booking"
+    activate UI
+    UI->>BC: 3. updateBookingStatus(id, status=CONFIRMED)
+    activate BC
+    BC->>BS: 4. updateBookingStatus(id, status)
+    activate BS
+    BS->>BR: 5. findById(id)
+    activate BR
+    BR-->>BS: 6. Booking Entity
+    deactivate BR
+    BS->>BR: 7. save(Updated Booking)
+    activate BR
+    BR-->>BS: 8. OK
+    deactivate BR
+    BS-->>BC: 9. Updated Booking
+    deactivate BS
+    BC-->>UI: 10. 200 OK
+    deactivate BC
+    UI-->>M: 11. Refresh booking list
+    deactivate UI
+```
+
+### 3.9 Real-time Location Tracking (SOS Emergency)
+
+#### 3.9.1 Class Diagram
+
+```mermaid
+classDiagram
+    class TrackingController {
+        -TrackingService trackingService
+        +updateLocation(LocationDto) void
+    }
+
+    class TrackingService {
+        -BookingRepository bookingRepository
+        -RedisTemplate redisTemplate
+        -MapsService mapsService
+        -SimpMessagingTemplate messagingTemplate
+        +processLocationUpdate(LocationDto) void
+        +getETA(BookingId) String
+    }
+
+    class MapsService {
+        +getDistanceMatrix(origin, destination) DistanceMatrixResponse
+    }
+
+    TrackingController --> TrackingService
+    TrackingService --> MapsService
+    TrackingService --> BookingRepository
+```
+
+#### 3.9.2 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    actor V as Vet (Mobile)
+    participant TS as TrackingService
+    participant RD as Redis
+    participant MS as MapsService (Goong)
+    participant O as Pet Owner (Mobile)
+
+    loop Every 10 seconds (Status: EN_ROUTE, BookingType: SOS)
+        V->>TS: 1. updateLocation(LocationDto)
+        activate TS
+        TS->>RD: 2. Cache current location
+        TS->>MS: 3. requestETA(origin: Vet, dest: Owner)
+        activate MS
+        MS-->>TS: 4. ETA: 15 mins (5.2 km)
+        deactivate MS
+        TS->>O: 5. Broadcast {lat, lng, eta} via WebSocket
+        Note right of O: UI updates Marker position & ETA toast
+        deactivate TS
+    end
+```
+
+
+### 3.10 AI Agent Assistance (Lớp thông minh)
+
+#### 3.10.1 Class Diagram (Python AI Service)
+
+```mermaid
+classDiagram
+    class AgentController {
+        -AgentService agentService
+        +chat(ChatRequest) StreamingResponse
+        +clearHistory(UUID) void
+    }
+
+    class AgentService {
+        -LangGraphEngine engine
+        -ToolRegistry toolRegistry
+        -RAGEngine ragEngine
+        +processQuery(userId, query) Stream
+    }
+
+    class LangGraphEngine {
+        -StateStore stateStore
+        +runReActLoop(prompt) Node
+    }
+
+    class ToolRegistry {
+        -FastMCPProtocol mcp
+        +callTool(toolName, args) ToolOutput
+    }
+
+    class RAGEngine {
+        -QdrantClient vectorDb
+        -CohereEmbedding embedding
+        +retrieveContext(query) List~Node~
+    }
+
+    AgentController --> AgentService
+    AgentService --> LangGraphEngine
+    AgentService --> ToolRegistry
+    AgentService --> RAGEngine
+```
+
+#### 3.10.2 Sequence Diagram: AI ReAct Loop
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Chat UI (Mobile)
+    participant AC as AgentController
+    participant AS as AgentService
+    participant LG as LangGraphEngine
+    participant TR as ToolRegistry
+    participant RE as RAGEngine
+
+    PO->>UI: 1. Send "Book Vet for Bella tomorrow"
+    activate UI
+    UI->>AC: 2. chatRequest(query)
+    activate AC
+    AC->>AS: 3. processQuery(userId, query)
+    activate AS
+    AS->>LG: 4. runReActLoop(state)
+    activate LG
+    
+    Note over LG: Step 1: Reasoning (Thought)
+    LG-->>AS: 5. Request Tool: "find_slots"
+    AS->>TR: 6. callTool("find_slots", {pet: "Bella", date: "tomorrow"})
+    activate TR
+    Note right of TR: Call fast-mcp plugin link to Spring Boot
+    TR-->>AS: 7. Observation: "Available slots: 09:00, 10:00"
+    deactivate TR
+    AS->>LG: 8. Update State with Observation
+    
+    Note over LG: Step 2: Reasoning (Thought)
+    LG-->>AS: 9. Final Answer: "Tôi tìm thấy 2 khung giờ..."
+    deactivate LG
+    
+    AS-->>AC: 10. StreamingResponse (Chunks)
+    deactivate AS
+    AC-->>UI: 11. WebSocket / SSE Stream
+    deactivate AC
+    UI-->>PO: 12. Display text progressively
+    deactivate UI
+```
 
 ---
 
@@ -1913,4 +2708,4 @@ sequenceDiagram
 
 **Prepared by:** Petties Development Team
 **Document Version:** 1.2.0
-**Last Updated:** 2026-01-02
+**Last Updated:** 2026-01-07

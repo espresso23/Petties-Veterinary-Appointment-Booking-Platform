@@ -120,9 +120,9 @@ export const KnowledgePage = () => {
     try {
       setSavingCohere(true)
       await saveSetting('COHERE_API_KEY', cohereApiKey)
-      showToast('success', 'Cohere API key saved successfully!')
+      showToast('success', 'Đã lưu Cohere API key thành công!')
     } catch (error) {
-      showToast('error', 'Failed to save Cohere API key')
+      showToast('error', 'Không thể lưu Cohere API key')
     } finally {
       setSavingCohere(false)
     }
@@ -135,9 +135,9 @@ export const KnowledgePage = () => {
         saveSetting('QDRANT_URL', qdrantUrl),
         saveSetting('QDRANT_API_KEY', qdrantApiKey)
       ])
-      showToast('success', 'Qdrant configuration saved successfully!')
+      showToast('success', 'Đã lưu cấu hình Qdrant thành công!')
     } catch (error) {
-      showToast('error', 'Failed to save Qdrant configuration')
+      showToast('error', 'Không thể lưu cấu hình Qdrant')
     } finally {
       setSavingQdrant(false)
     }
@@ -152,12 +152,12 @@ export const KnowledgePage = () => {
       })
       const result = await response.json()
       if (result.status === 'success') {
-        showToast('success', 'Cohere connection successful!')
+        showToast('success', 'Kết nối Cohere thành công!')
       } else {
-        showToast('error', result.message || 'Cohere connection failed')
+        showToast('error', result.message || 'Kết nối Cohere thất bại')
       }
     } catch (error) {
-      showToast('error', 'Failed to test Cohere connection')
+      showToast('error', 'Không thể kiểm tra kết nối Cohere')
     } finally {
       setTestingCohere(false)
     }
@@ -172,12 +172,12 @@ export const KnowledgePage = () => {
       })
       const result = await response.json()
       if (result.status === 'success') {
-        showToast('success', 'Qdrant connection successful!')
+        showToast('success', 'Kết nối Qdrant thành công!')
       } else {
-        showToast('error', result.message || 'Qdrant connection failed')
+        showToast('error', result.message || 'Kết nối Qdrant thất bại')
       }
     } catch (error) {
-      showToast('error', 'Failed to test Qdrant connection')
+      showToast('error', 'Không thể kiểm tra kết nối Qdrant')
     } finally {
       setTestingQdrant(false)
     }
@@ -186,11 +186,11 @@ export const KnowledgePage = () => {
   const handleUpload = async (file: File, notes?: string) => {
     try {
       await knowledgeApi.uploadDocument(file, notes)
-      showToast('success', `Document "${file.name}" uploaded and processed!`)
+      showToast('success', `Tài liệu "${file.name}" đã được tải lên và xử lý!`)
       await loadData()
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      showToast('error', `Upload failed: ${errorMessage}`)
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định'
+      showToast('error', `Tải lên thất bại: ${errorMessage}`)
       await loadData()
       throw error
     }
@@ -199,10 +199,10 @@ export const KnowledgePage = () => {
   const handleDelete = async (id: number) => {
     try {
       await knowledgeApi.deleteDocument(id)
-      showToast('success', 'Document deleted')
+      showToast('success', 'Đã xóa tài liệu')
       await loadData()
     } catch (error) {
-      showToast('error', 'Failed to delete document')
+      showToast('error', 'Không thể xóa tài liệu')
     }
   }
 
