@@ -1,520 +1,229 @@
-# PROJECT WORK BREAKDOWN STRUCTURE (DETAILED)
-## PETTIES - Veterinary Appointment Booking Platform
-
-**Project Duration:** 14 Sprints (1 Week/Sprint)
-**Timeline:** 10/12/2025 - 18/03/2026
-**Strategy:** Complete Core Business Features by Sprint 6
-**Last Updated:** December 29, 2025
+# 🎫 PETTIES MASTER BACKLOG (WBS)
+## Project: Veterinary Appointment & SOS Platform
+**Status:** 06/01/2026 | **Version:** 5.0 (Hierarchy & Codebase-Aligned)
+**Progress:** 🛡️ 55%
 
 ---
 
-## Status Legend
-
-| Status | Meaning |
-|--------|---------|
-| ✅ Done | Hoàn thành cả BE + FE + Test |
-| 🔶 BE Done | Chỉ có Backend, thiếu Frontend |
-| 🔷 FE Done | Chỉ có Frontend, thiếu Backend |
-| 🔄 In Progress | Đang làm |
-| ⏳ Pending | Chưa bắt đầu |
-| ❌ Deferred | Hoãn sang Phase 2 |
-
----
-
-## 📋 SPRINT 1: Setup & Infrastructure ✅ COMPLETED
-
-### 1.1 Backend APIs - Authentication Module
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/auth/register` | POST | Đăng ký tài khoản mới với email | ✅ |
-| `/api/auth/login` | POST | Đăng nhập bằng email/password | ✅ |
-| `/api/auth/google` | POST | Đăng nhập bằng Google OAuth | ✅ |
-| `/api/auth/send-otp` | POST | Gửi OTP qua email để xác thực | ✅ |
-| `/api/auth/verify-otp` | POST | Xác thực OTP | ✅ |
-| `/api/auth/refresh-token` | POST | Làm mới access token | ✅ |
-| `/api/auth/forgot-password` | POST | Gửi OTP reset password | ✅ |
-| `/api/auth/reset-password` | POST | Đặt lại password với OTP | ✅ |
-
-### 1.2 Backend APIs - User Module
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/users/me` | GET | Lấy thông tin user hiện tại | ✅ |
-| `/api/users/me` | PUT | Cập nhật thông tin cá nhân | ✅ |
-| `/api/users/me/avatar` | POST | Upload avatar lên Cloudinary | ✅ |
-| `/api/users/me/change-password` | PUT | Đổi password | ✅ |
-
-### 1.3 Web Frontend - Auth Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **LoginPage** | `/login` | Email input, Password input, Google Sign-in button, Forgot password link | ✅ |
-| **RegisterPage** | `/register` | Full name, Email, Password, Confirm password, OTP verification modal | ✅ |
-| **ForgotPasswordPage** | `/forgot-password` | Email input, Send OTP button | ✅ |
-| **ResetPasswordPage** | `/reset-password` | OTP input, New password, Confirm password | ✅ |
-
-### 1.4 Mobile Frontend - Auth Screens
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **LoginScreen** | `/login` | Logo, Email field, Password field, Login button, Google sign-in, Register link | ✅ |
-| **RegisterScreen** | `/register` | Full name, Email, Phone, Password fields, OTP bottom sheet | ✅ |
-| **ForgotPasswordScreen** | `/forgot-password` | Email input, Send OTP button | ✅ |
-| **ResetPasswordScreen** | `/reset-password` | OTP input (6 digits), New password fields | ✅ |
-
-### 1.5 DevOps & Infrastructure
-
-| Task | Description | Status |
-|------|-------------|:------:|
-| Docker Compose | docker-compose.dev.yml, docker-compose.test.yml, docker-compose.prod.yml | ✅ |
-| GitHub Actions CI | Build + Lint + Test on PR | ✅ |
-| GitHub Actions CD | Auto deploy to EC2 on push to main/develop | ✅ |
-| Production Server | api.petties.world (EC2) | ✅ |
-| Test Server | api-test.petties.world (EC2) | ✅ |
-| Frontend Hosting | www.petties.world (Vercel) | ✅ |
+## 📊 EXECUTIVE SUMMARY
+| Epic Code | Epic Name | Sprint | Status |
+| :--- | :--- | :--- | :--- |
+| **EPIC-AUTH** | Authentication & Identity System | S1-S2 | ✅ 100% |
+| **EPIC-PET** | Digital Pet Profiling System | S2 | ✅ 100% |
+| **EPIC-CLINIC** | Clinic Infrastructure & Onboarding | S2-S4 | ✅ 100% |
+| **EPIC-SCHED** | Vet Scheduling & Resource Engine | S3 | ✅ 100% |
+| **EPIC-HEALTH** | EMR & Medical Records | S4-S5 | 🔄 20% |
+| **EPIC-BOOK** | Hybrid Booking Workflow | S5-S6 | 🔄 10% |
+| **EPIC-SOS** | Emergency Rescue System | S7 | 💡 Planned |
+| **EPIC-AI** | AI Assistant & Intelligence | S6 | 🔄 40% |
+| **EPIC-NOTI** | Omnichannel Notification System | S3/S6 | 🔄 60% |
 
 ---
 
-## 📋 SPRINT 2: Pet & Clinic Management ✅ COMPLETED
+## 📝 DETAILED BREAKDOWN (EPIC -> TASK -> SUBTASK)
 
-### 2.1 Backend APIs - Pet Module
+### 🏛️ EPIC 1: [EPIC-AUTH] Authentication & Identity System
+> **Goal:** Secure access control, JWT management, and RBAC.
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/pets` | POST | Tạo hồ sơ thú cưng mới (name, species, breed, weight, dob, photo) | ✅ |
-| `/api/pets` | GET | Lấy danh sách pets của user hiện tại | ✅ |
-| `/api/pets/{id}` | GET | Lấy chi tiết một pet | ✅ |
-| `/api/pets/{id}` | PUT | Cập nhật thông tin pet | ✅ |
-| `/api/pets/{id}` | DELETE | Xóa pet | ✅ |
-| `/api/pets/{id}/photo` | POST | Upload ảnh pet lên Cloudinary | ✅ |
+#### ✅ AUTH-1: Cấu hình Security Filter Chain & JWT
+*   [x] **Backend:** Cấu hình `SecurityConfig` (Disable CSRF, Enable CORS, Stateless Session).
+*   [x] **Backend:** Implement `JwtTokenProvider` (Generate, Validate, Claims extraction).
+*   [x] **Backend:** Cấu hình `JwtAuthenticationFilter` để chặn và xác thực request.
+*   [x] **Backend:** Đăng ký Bean `AuthenticationManager`.
 
-### 2.2 Backend APIs - Clinic Module
+#### ✅ AUTH-2: Đăng nhập Google Social Auth
+*   [x] **Mobile:** Tích hợp Firebase Auth để lấy Google ID Token.
+*   [x] **Backend:** API `/auth/google` nhận token và verify với Google Cloud.
+*   [x] **Backend:** Logic tự động tạo User nếu email chưa tồn tại (Auto-register).
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics` | POST | Tạo phòng khám mới (name, address, phone, description, operatingHours) | ✅ |
-| `/api/clinics` | GET | Lấy danh sách clinics (filter by owner, status) | ✅ |
-| `/api/clinics/{id}` | GET | Lấy chi tiết clinic | ✅ |
-| `/api/clinics/{id}` | PUT | Cập nhật thông tin clinic | ✅ |
-| `/api/clinics/{id}` | DELETE | Xóa clinic (soft delete) | ✅ |
-| `/api/clinics/{id}/images` | POST | Upload ảnh clinic (gallery) | ✅ |
-| `/api/clinics/{id}/images/{imageId}/primary` | PUT | Set ảnh chính cho clinic | ✅ |
-| `/api/clinics/pending` | GET | [ADMIN] Lấy danh sách clinics chờ duyệt | ✅ |
-| `/api/clinics/{id}/approve` | PUT | [ADMIN] Phê duyệt clinic | ✅ |
-| `/api/clinics/{id}/reject` | PUT | [ADMIN] Từ chối clinic với lý do | ✅ |
+#### ✅ AUTH-3: Xác thực OTP qua Email (Redis)
+*   [x] **Backend:** Implement `EmailService` send OTP (JavaMailSender).
+*   [x] **Backend:** Cấu hình Redis để lưu OTP với TTL 5 phút.
+*   [x] **Backend:** API `/auth/verify-otp` kiểm tra mã và trả về Access Token.
 
-### 2.3 Backend APIs - Service Module
+#### ✅ AUTH-4: Quên mật khẩu & Khôi phục tài khoản
+*   [x] **Mobile:** Màn hình nhập Email & Verify OTP.
+*   [x] **Mobile:** Màn hình nhập mật khẩu mới.
+*   [x] **Backend:** API Change Password & Reset Password Flow.
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/master-services` | POST | [ADMIN] Tạo master service (name, category, description, defaultPrice) | ✅ |
-| `/api/master-services` | GET | Lấy danh sách master services | ✅ |
-| `/api/master-services/{id}` | PUT | [ADMIN] Cập nhật master service | ✅ |
-| `/api/master-services/{id}` | DELETE | [ADMIN] Xóa master service | ✅ |
-| `/api/clinics/{clinicId}/services` | POST | Tạo clinic service (inherit hoặc custom) | ✅ |
-| `/api/clinics/{clinicId}/services` | GET | Lấy danh sách services của clinic | ✅ |
-| `/api/clinics/{clinicId}/services/{id}` | PUT | Cập nhật clinic service (price override) | ✅ |
-| `/api/clinics/{clinicId}/services/{id}` | DELETE | Xóa clinic service | ✅ |
+#### ✅ AUTH-5: Lưu phiên đăng nhập & Caching Profile
+*   [x] **Mobile:** Implement `SecureStorage` lưu Access/Refresh Token.
+*   [x] **Mobile:** Logic `AuthInterceptor` tự động refresh token khi hết hạn.
+*   [x] **Mobile:** Cache User Profile để hiển thị Offline.
 
-### 2.4 Backend APIs - Pricing Module
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics/{clinicId}/prices` | POST | Tạo pricing rule (basePrice, pricePerKm, weightTiers) | ✅ |
-| `/api/clinics/{clinicId}/prices` | GET | Lấy pricing rules của clinic | ✅ |
-| `/api/clinics/{clinicId}/prices/calculate` | POST | Tính giá dựa trên service, weight, distance | ✅ |
-
-### 2.5 Web Frontend - Admin Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **AdminDashboardPage** | `/admin` | Stats cards (users, clinics, bookings), Recent activities list | ✅ |
-| **ClinicApprovalPage** | `/admin/clinics/approval` | Pending clinics table, Clinic detail modal, Approve/Reject buttons with reason input | ✅ |
-
-### 2.6 Web Frontend - Clinic Owner Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **OwnerDashboardPage** | `/owner` | Clinic stats cards, Revenue chart, Quick actions | ✅ |
-| **ClinicsListPage** | `/owner/clinics` | Clinics table (name, status, address), Create clinic button, Status badges | ✅ |
-| **ClinicCreatePage** | `/owner/clinics/create` | Form: Basic info (inc. email/specific location) → Address → Operating hours → License upload → Images | ✅ |
-| **ClinicDetailPage** | `/owner/clinics/:id` | Clinic info card, Image gallery, Operating hours table, Services list, Staff list, Rejection reason (if any) | ✅ |
-| **ClinicEditPage** | `/owner/clinics/:id/edit` | Edit form với all clinic fields (inc. specific_location, email, business_license), Image manager | ✅ |
-| **ServicesPage** | `/owner/clinics/:id/services` | Services table, Add service modal (inherit/custom), Price editor | ✅ |
-| **MasterServicesPage** | `/owner/services/master` | Master services catalog, Search/filter, Select to inherit | ✅ |
-
-### 2.7 Mobile Frontend - Pet Screens
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **PetListScreen** | `/pets` | Pet cards grid (photo, name, species), Add pet FAB, Empty state | ✅ |
-| **PetDetailScreen** | `/pets/:id` | Large photo, Pet info card (name, breed, weight, age), Edit/Delete buttons | ✅ |
-| **AddEditPetScreen** | `/pets/add`, `/pets/:id/edit` | Photo picker, Name input, Species dropdown, Breed input, Weight input, DOB picker | ✅ |
+#### ✅ AUTH-6: Phân quyền DB động
+*   [x] **Backend:** Define Enum `Role` (PET_OWNER, VET, CLINIC_OWNER, ADMIN...).
+*   [x] **Backend:** Gán Permission động thông qua `@PreAuthorize`.
 
 ---
 
-## 📋 SPRINT 3: Staff & Scheduling 🔄 IN PROGRESS
+### 🏛️ EPIC 2: [EPIC-PET] Digital Pet Profiling System
+> **Goal:** Manage pet identity and records.
 
-### 3.1 Backend APIs - Staff Module
+#### ✅ PET-1: CRUD Hồ sơ thú cưng
+*   [x] **Mobile:** Màn hình danh sách thú cưng (ListView).
+*   [x] **Mobile:** Form thêm mới/Sửa thú cưng (Tên, Giống, Ngày sinh, Cân nặng).
+*   [x] **Backend:** Entity `Pet` và Repository tương ứng.
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics/{clinicId}/staff` | POST | Quick add staff (fullName, phone, role: VET/MANAGER) - auto create account | ✅ |
-| `/api/clinics/{clinicId}/staff` | GET | Lấy danh sách staff của clinic | ✅ |
-| `/api/clinics/{clinicId}/staff/{userId}` | DELETE | Remove staff khỏi clinic (không xóa account) | ✅ |
-| `/api/clinics/{clinicId}/staff/{userId}/deactivate` | PUT | Deactivate staff account | ✅ |
+#### ✅ PET-2: Upload & Quản lý ảnh (Cloudinary)
+*   [x] **Backend:** Tích hợp `CloudinaryService`.
+*   [x] **Mobile:** Logic Image Picker (Camera/Gallery).
+*   [x] **Backend:** API Upload trả về URL ảnh tối ưu hóa.
 
-### 3.2 Backend APIs - Notification Module
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/notifications` | GET | Lấy danh sách notifications của user (paginated) | ✅ |
-| `/api/notifications/{id}/read` | PUT | Đánh dấu notification đã đọc | ✅ |
-| `/api/notifications/read-all` | PUT | Đánh dấu tất cả đã đọc | ✅ |
-| `/api/notifications/unread-count` | GET | Lấy số notification chưa đọc | ✅ |
-
-### 3.3 Backend APIs - VetShift Module ⏳
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics/{clinicId}/shifts` | POST | Tạo ca làm việc cho vet (vetId, date, startTime, endTime, breakStart, breakEnd) | ⏳ |
-| `/api/clinics/{clinicId}/shifts` | GET | Lấy danh sách shifts (filter by vetId, dateRange) | ⏳ |
-| `/api/clinics/{clinicId}/shifts/{id}` | PUT | Cập nhật shift | ⏳ |
-| `/api/clinics/{clinicId}/shifts/{id}` | DELETE | Xóa shift (cascade delete slots) | ⏳ |
-| `/api/clinics/{clinicId}/shifts/check-overlap` | POST | Kiểm tra overlap trước khi tạo shift | ⏳ |
-| `/api/vets/me/shifts` | GET | [VET] Lấy lịch làm việc của bản thân | ⏳ |
-
-### 3.4 Backend APIs - Slot Module ⏳
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics/{clinicId}/slots` | GET | Lấy danh sách slots (filter by date, vetId, status) | ⏳ |
-| `/api/clinics/{clinicId}/slots/available` | GET | Lấy slots trống cho booking (date, serviceId) | ⏳ |
-| `/api/slots/{id}/block` | PUT | Block slot (không cho đặt) | ⏳ |
-| `/api/slots/{id}/unblock` | PUT | Unblock slot | ⏳ |
-
-**Slot Generation Logic:**
-- Khi tạo VetShift, hệ thống tự động tạo Slots 30 phút
-- Bỏ qua thời gian break (12:00-13:00)
-- Slot status: AVAILABLE, BOOKED, BLOCKED
-
-### 3.5 Backend APIs - Search Module ⏳
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/clinics/nearby` | GET | Tìm clinics gần vị trí (lat, lng, radiusKm, serviceType) | ⏳ |
-| `/api/clinics/search` | GET | Search clinics (keyword, city, district, services) | ⏳ |
-| `/api/geocode/address` | GET | Convert địa chỉ thành lat/lng | ⏳ |
-
-### 3.6 Web Frontend - Clinic Owner Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **StaffManagementPage** | `/owner/clinics/:id/staff` | Staff table (name, phone, role, status), Quick add modal, Deactivate button | ✅ |
-| **NotificationsPage** | `/owner/notifications` | Notification list, Mark read button, Filter by type | ✅ |
-
-### 3.7 Web Frontend - Clinic Manager Pages ⏳
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **ManagerDashboardPage** | `/manager` | Today's bookings count, Pending assignments, Quick stats | ✅ |
-| **VetsManagementPage** | `/manager/vets` | Vets table, View schedule button | ✅ |
-| **CalendarViewPage** | `/manager/calendar` | Weekly/Daily calendar grid, Vet filter dropdown, Shift blocks (draggable), Create shift modal | ⏳ |
-| **CreateShiftModal** | Modal | Vet selector, Date picker, Start/End time, Break time inputs, Overlap warning | ⏳ |
-
-### 3.8 Mobile Frontend - Vet Screens ⏳
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **VetHomeScreen** | `/vet` | Today's appointments list, Quick stats card | ✅ |
-| **VetScheduleScreen** | `/vet/schedule` | Calendar view (monthly), Day detail list, Shift info cards | ⏳ |
-
-### 3.9 Web Frontend - Vet Pages ⏳
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **VetSchedulePage** | `/vet/schedule` | Calendar view (Weekly/Daily), Shift blocks, Booking details tooltip | ⏳ |
-
-### 3.10 Mobile Frontend - Pet Owner Screens ⏳
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **ClinicDiscoveryScreen** | `/discovery` | Map View (Google Maps/Leaflet), Search bar, Gallery of nearby clinics, Service category filters | ⏳ |
-| **SearchFilterScreen** | `/discovery/filters` | Distance slider, Rating filter, Service type checkboxes, Price range filter | ⏳ |
+#### ✅ PET-3: Danh sách thú cưng & Bộ lọc
+*   [x] **Mobile:** Thanh tìm kiếm thú cưng theo tên.
+*   [x] **Mobile:** Filter thú cưng theo Species (Chó/Mèo).
+*   [x] **Mobile:** Hiển thị Empty State khi chưa có dữ liệu.
 
 ---
 
-## 📋 SPRINT 4: Booking Core Flow ⏳ PENDING
+### 🏛️ EPIC 3: [EPIC-CLINIC] Clinic Infrastructure
+> **Goal:** Network of clinics, services, and locations.
 
-### 4.1 Backend APIs - Booking Module
+#### ✅ CLN-1: Quản lý hồ sơ phòng khám
+*   [x] **Web:** Form đăng ký phòng khám cho Owner.
+*   [x] **Backend:** Entity `Clinic` với thông tin địa chỉ, giờ mở cửa.
+*   [x] **Backend:** Upload giấy phép kinh doanh (License Image).
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/bookings` | POST | Tạo booking mới (clinicId, serviceId, slotIds, petId, type: IN_CLINIC/HOME_VISIT, notes) | ⏳ |
-| `/api/bookings` | GET | Lấy danh sách bookings (filter by status, clinicId, userId, dateRange) | ⏳ |
-| `/api/bookings/{id}` | GET | Lấy chi tiết booking | ⏳ |
-| `/api/bookings/{id}/cancel` | PUT | Hủy booking (với reason, chỉ được hủy trước 24h) | ⏳ |
-| `/api/bookings/{id}/assign` | PUT | [MANAGER] Gán vet cho booking | ⏳ |
-| `/api/bookings/{id}/approve` | PUT | [VET] Approve booking đã được gán | ⏳ |
-| `/api/bookings/{id}/reject` | PUT | [VET] Reject booking với lý do | ⏳ |
-| `/api/bookings/{id}/check-in` | PUT | [VET] Check-in bệnh nhân | ⏳ |
-| `/api/bookings/{id}/check-out` | PUT | [VET] Check-out bệnh nhân | ⏳ |
-| `/api/users/me/bookings` | GET | Lấy bookings của user hiện tại | ⏳ |
+#### ✅ CLN-2: Quy trình duyệt phòng khám (Admin)
+*   [x] **Web:** Dashboard Admin hiển thị danh sách "Pending Approval".
+*   [x] **Web:** Nút Approve/Reject chuyển trạng thái Clinic.
+*   [x] **Backend:** API update status `ACTIVE`/`REJECTED`.
 
-**Booking State Machine:**
-```
-PENDING ──[assign]──> ASSIGNED ──[approve]──> CONFIRMED ──[check-in]──> IN_PROGRESS ──[check-out]──> COMPLETED
-    │                     │                       │
-    └──[cancel]──> CANCELLED    └──[reject]──> REJECTED    └──[cancel]──> CANCELLED
-```
+#### ✅ CLN-3: Quản lý Dịch vụ (Master & Custom)
+*   [x] **Backend:** Entity `MasterService` (Template chung).
+*   [x] **Backend:** Entity `ClinicService` (Override giá riêng cho từng Clinic).
+*   [x] **Backend:** Logic thừa kế giá (Inheritance logic).
 
-### 4.2 Web Frontend - Manager Booking Pages
+#### ✅ CLN-4: Định vị & Bản đồ (Geocoder)
+*   [x] **Backend:** Tích hợp Geocoding API (Google/Goong) convert Address -> Lat/Lng.
+*   [x] **Backend:** Lưu tọa độ `POINT` vào database.
 
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **BookingListPage** | `/manager/bookings` | Bookings table (pet, owner, service, status, time), Status filter tabs, Search input | ⏳ |
-| **BookingDetailModal** | Modal | Pet info, Owner info, Service details, Timeline (status history), Assign vet dropdown | ⏳ |
-| **AssignVetModal** | Modal | Available vets list (based on slot), Vet workload indicator, Assign button | ⏳ |
-
-### 4.3 Web Frontend - Vet Booking Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **VetBookingsPage** | `/vet/bookings` | Assigned bookings list, Status tabs (Pending/Today/Completed), Approve/Reject buttons | ⏳ |
-| **VetBookingDetailPage** | `/vet/bookings/:id` | Pet medical info, Owner contact, Check-in/Check-out buttons, Notes input | ⏳ |
-
-### 4.4 Mobile Frontend - Pet Owner Booking Screens
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **ClinicDetailScreen** | `/clinics/:id` | Clinic photos carousel, Info card, Services list, Operating hours, Reviews summary, Book button | ⏳ |
-| **ServiceSelectionScreen** | `/booking/services` | Services list with prices, Pet selector dropdown, Service description | ⏳ |
-| **SlotPickerScreen** | `/booking/slots` | Calendar date picker, Available time slots grid (30min), Select multiple slots support | ⏳ |
-| **BookingConfirmScreen** | `/booking/confirm` | Summary card (clinic, service, pet, time, price), Notes input, Confirm button, Price breakdown | ⏳ |
-| **BookingSuccessScreen** | `/booking/success` | Success animation, Booking ID, Add to calendar button, View booking button | ⏳ |
-| **MyBookingsScreen** | `/my-bookings` | Bookings list grouped by status (Upcoming/Past), Booking cards with status badge | ⏳ |
-| **BookingDetailScreen** | `/my-bookings/:id` | Booking info card, Status timeline, Clinic info, Cancel button (if applicable), Chat button | ⏳ |
-
-### 4.5 Mobile Frontend - Vet Booking Screens
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **VetBookingsScreen** | `/vet/bookings` | Today's bookings list, Upcoming tab, History tab | ⏳ |
-| **VetBookingDetailScreen** | `/vet/bookings/:id` | Pet info card, Owner info, Approve/Reject buttons, Check-in/Check-out buttons | ⏳ |
+#### ✅ CLN-5: Tìm kiếm phòng khám (Nearby)
+*   [x] **Backend:** Query SQL dùng công thức **Haversine** tính khoảng cách.
+*   [x] **Backend:** API `/clinics/nearby` nhận tham số Lat/Lng/Radius.
+*   [x] **Mobile:** Hiển thị kết quả tìm kiếm và khoảng cách (km).
 
 ---
 
-## 📋 SPRINT 5: Chat System + Vet Operations ⏳ PENDING
+### 🏛️ EPIC 4: [EPIC-SCHED] Vet Scheduling Engine
+> **Goal:** Shift management and Automatic slot generation.
 
-### 5.1 Backend APIs - Chat Module
+#### ✅ SCH-1: Thuật toán sinh Slot (Auto-Generation)
+*   [x] **Backend:** Service tự động chia ca làm việc (VetShift) thành các Slot 30 phút.
+*   [x] **Backend:** Entity `VetShift` và `Slot` relationships.
+*   [x] **Backend:** Logic loại trừ giờ nghỉ (Lunch break exclusion).
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/conversations` | GET | Lấy danh sách conversations của user | ⏳ |
-| `/api/conversations` | POST | Tạo conversation mới (participantIds, bookingId optional) | ⏳ |
-| `/api/conversations/{id}` | GET | Lấy chi tiết conversation với messages | ⏳ |
-| `/api/conversations/{id}/messages` | GET | Lấy messages (paginated, cursor-based) | ⏳ |
-| `/api/conversations/{id}/messages` | POST | Gửi message mới (text, imageUrl optional) | ⏳ |
-| `/api/conversations/{id}/read` | PUT | Đánh dấu đã đọc đến message cuối | ⏳ |
-| `WS /ws/chat` | WebSocket | Real-time chat connection (send/receive messages, typing indicator) | ⏳ |
+#### ✅ SCH-2: Bảng điều phối ca trực (Shift Board)
+*   [x] **Web:** Calendar View (Tháng/Tuần) cho Manager.
+*   [x] **Web:** Giao diện tạo ca trực (Chọn Bác sĩ, Ngày, Giờ).
+*   [x] **Backend:** Validate trùng lặp ca trực (Overlap validation).
 
-**Chat Rules:**
-- Pet Owner ↔ Clinic Manager: Có thể chat bất kỳ lúc nào
-- Pet Owner ↔ Vet: Chỉ chat được sau khi booking CONFIRMED
-- Conversation tự động tạo khi booking được confirm
+#### ✅ SCH-3: Lịch làm việc cá nhân (Vet View)
+*   [x] **Mobile:** Màn hình `MySchedule` hiển thị lịch theo ngày.
+*   [x] **Mobile:** Status Indicator cho từng Slot (Open/Booked/Completed).
 
-### 5.2 Web Frontend - Chat Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **ChatListPage** | `/manager/chats` | Conversations list, Unread badges, Last message preview, Online status | ⏳ |
-| **ChatRoomPage** | `/manager/chats/:id` | Message bubbles, Input box, Send button, Image upload, Typing indicator | ⏳ |
-| **VetChatPage** | `/vet/chats` | Same as manager chat but for vet role | ⏳ |
-
-### 5.3 Mobile Frontend - Chat Screens
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **ChatListScreen** | `/chats` | Conversation cards (avatar, name, last message, time, unread count), Pull to refresh | ⏳ |
-| **ChatRoomScreen** | `/chats/:id` | Messages list, Text input, Send button, Image picker, Typing indicator, Scroll to bottom | ⏳ |
-
-### 5.4 Web Frontend - Vet Operation Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **VetDashboardPage** | `/vet` | Today's schedule, Pending approvals count, Quick actions | ✅ |
-| **VetBookingActionsPage** | `/vet/bookings/:id/actions` | Approve/Reject panel, Check-in/Check-out buttons, Notes editor | ⏳ |
+#### ✅ SCH-4: Real-time SSE Sync
+*   [x] **Backend:** `SseEmitter` broadcast event khi có lịch mới.
+*   [x] **Web:** Auto-refresh bảng lịch khi có thay đổi.
 
 ---
 
-## 📋 SPRINT 6: AI Integration + Notifications + Polish ⏳ PENDING
+### 🏛️ EPIC 5: [EPIC-HEALTH] EMR & Medical Records
+> **Goal:** Centralized medical history and vaccination records.
 
-### 6.1 AI Service APIs - Agent Module
+#### ⏳ EMR-1: Xem lịch sử EMR (Shared)
+*   [ ] **Backend:** API truy xuất lịch sử khám "Cross-clinic" (dựa trên PetID).
+*   [ ] **Mobile:** Timeline view hiển thị lịch sử khám bệnh.
+*   [ ] **Backend:** Policy kiểm soát quyền xem dữ liệu (Privacy).
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/chat` | POST | Send message to AI agent (sync response) | ✅ |
-| `WS /ws/chat` | WebSocket | Real-time AI chat với streaming response | ✅ |
-| `/api/settings/agent` | GET | Lấy agent configuration | ✅ |
-| `/api/settings/agent` | PUT | Cập nhật agent config (prompt, temperature, model) | ✅ |
-| `/api/settings/tools` | GET | Lấy danh sách tools | ✅ |
-| `/api/settings/tools/{name}/toggle` | PUT | Bật/tắt tool | ✅ |
+#### ⏳ EMR-2: Ghi bệnh án SOAP (Vet)
+*   [ ] **Mobile:** Form nhập liệu SOAP (Subjective, Objective, Assessment, Plan).
+*   [ ] **Backend:** Entity `MedicalRecord`.
+*   [ ] **Mobile:** Chức năng đính kèm ảnh triệu chứng.
 
-### 6.2 AI Service - MCP Tools
+#### ⏳ EMR-3: Sổ tiêm chủng điện tử
+*   [ ] **Backend:** Entity `VaccinationRecord`.
+*   [ ] **Mobile:** Giao diện thẻ tiêm chủng (Vaccine Card).
+*   [ ] **Backend:** Logic tính ngày tái chủng (Next due date).
 
-| Tool Name | Description | Parameters | Status |
-|-----------|-------------|------------|:------:|
-| `pet_care_qa` | RAG-based Q&A cho kiến thức chăm sóc thú cưng | query: string, top_k: int | ✅ |
-| `symptom_search` | Tìm bệnh dựa trên triệu chứng | symptoms: string[], pet_type: string | ✅ |
-| `search_clinics` | Tìm phòng khám gần vị trí user | location: string, service_type: string, radius_km: int | ⏳ |
-| `check_slots` | Kiểm tra slots trống của clinic | clinic_id: int, date: string, service_id: int | ⏳ |
-| `create_booking` | Tạo booking qua chat | clinic_id, service_id, slot_id, pet_id, notes | ⏳ |
-
-### 6.3 Backend APIs - Push Notification Module
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/users/me/fcm-token` | PUT | Đăng ký FCM token cho push notifications | ⏳ |
-| `/api/notifications/settings` | GET | Lấy notification preferences | ⏳ |
-| `/api/notifications/settings` | PUT | Cập nhật notification preferences | ⏳ |
-
-**Push Notification Triggers:**
-- Booking status changes (ASSIGNED, CONFIRMED, CANCELLED, etc.)
-- New chat message
-- Appointment reminder (24h, 1h before)
-- Vet assigned to booking
-
-### 6.4 Web Frontend - Admin AI Pages
-
-| Page | Route | UI Components | Status |
-|------|-------|---------------|:------:|
-| **ToolsPage** | `/admin/tools` | Tools table, Enable/Disable toggle, Schema viewer | ✅ |
-| **KnowledgePage** | `/admin/knowledge` | Documents list, Upload button, Delete button, Vector count | ✅ |
-| **PlaygroundPage** | `/admin/playground` | Chat input, Messages list, ReAct trace panel, Model selector, Temperature slider | ✅ |
-| **AgentConfigPage** | `/admin/agent` | System prompt editor, Hyperparameters sliders, Save button | ✅ |
-
-### 6.5 Mobile Frontend - AI Chat Screen
-
-| Screen | Route | UI Components | Status |
-|--------|-------|---------------|:------:|
-| **AIChatScreen** | `/ai-chat` | Chat messages, Text input, Send button, Typing indicator, Tool call cards, Citation links | ⏳ |
-
-### 6.6 Polish & QA Tasks
-
-| Task | Platform | Description | Status |
-|------|----------|-------------|:------:|
-| Cancel Booking Flow | BE + Mobile | Cancel button, Confirmation modal, Refund policy display | ⏳ |
-| Today Dashboard | Web | Manager dashboard với today's bookings, pending tasks | ⏳ |
-| Error Handling | All | Consistent error messages, Retry mechanisms | ⏳ |
-| Loading States | All | Skeleton loaders, Pull-to-refresh | ⏳ |
-| E2E Testing | All | Critical flows testing | ⏳ |
+#### ⏳ EMR-5: Đơn thuốc điện tử (Rx)
+*   [ ] **Backend:** Schema lưu trữ đơn thuốc.
+*   [ ] **Mobile:** View Rx detail trong lịch sử khám.
 
 ---
 
-## 📋 SPRINT 7-8: EMR & Medical Records ❌ PHASE 2
+### 🏛️ EPIC 6: [EPIC-BOOK] Hybrid Booking Workflow
+> **Goal:** Booking flow for In-clinic and Home-visit appointments.
 
-### 7.1 Backend APIs - EMR Module (Phase 2)
+#### ⏳ BOK-1: Wizard đặt lịch (Mobile)
+*   [ ] **Mobile:** Flow chọn: Pet -> Clinic -> Service -> Vet -> Slot -> Confirm.
+*   [ ] **Mobile:** Xử lý giữ chỗ (Slot locking) tạm thời.
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/pets/{petId}/emrs` | GET | Lấy danh sách hồ sơ bệnh án của pet | ❌ |
-| `/api/bookings/{bookingId}/emr` | POST | [VET] Tạo hồ sơ bệnh án (Bắt buộc Booking) | ❌ |
-| `/api/emrs/{id}` | GET | Lấy chi tiết EMR | ❌ |
-| `/api/emrs/{id}` | PUT | [VET] Cập nhật EMR | ❌ |
-| `/api/pets/{petId}/vaccinations` | GET | Lấy sổ tiêm chủng | ❌ |
-| `/api/bookings/{bookingId}/vaccinations` | POST | [VET] Thêm mũi tiêm (Bắt buộc Booking) | ❌ |
+#### ✅ BOK-4: Tính phí khoảng cách (Backend)
+*   [x] **Backend:** Service tính phí ship/di chuyển dựa trên khoảng cách km.
+*   [x] **Backend:** Cấu hình giá `pricePerKm`.
 
-### 7.2 Backend APIs - Prescription Module (Phase 2)
+#### ⏳ BOK-3: Workflow trạng thái Booking
+*   [ ] **Backend:** State Machine (PENDING -> CONFIRMED -> CHECK_IN -> DONE).
+*   [ ] **Mobile:** QR Code Check-in tại phòng khám.
 
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/emr/{emrId}/prescriptions` | POST | [VET] Tạo đơn thuốc | ❌ |
-| `/api/emr/{emrId}/prescriptions` | GET | Lấy đơn thuốc của EMR | ❌ |
-
----
-
-## 📋 SPRINT 9-10: Payment & Rating ❌ PHASE 2
-
-### 9.1 Backend APIs - Payment Module (Phase 2)
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/payments/create-intent` | POST | Tạo Stripe payment intent | ❌ |
-| `/api/payments/confirm` | POST | Xác nhận payment | ❌ |
-| `/api/payments/webhook` | POST | Stripe webhook handler | ❌ |
-| `/api/bookings/{id}/payment` | GET | Lấy payment status của booking | ❌ |
-
-### 9.2 Backend APIs - Rating Module (Phase 2)
-
-| API Endpoint | Method | Description | Status |
-|--------------|--------|-------------|:------:|
-| `/api/reviews` | POST | Tạo review sau khi booking completed | ❌ |
-| `/api/clinics/{id}/reviews` | GET | Lấy reviews của clinic | ❌ |
-| `/api/vets/{id}/reviews` | GET | Lấy reviews của vet | ❌ |
+#### ⏳ BOK-5: Hủy lịch & Hoàn tiền
+*   [ ] **Backend:** Policy hoàn tiền (Refund logic).
+*   [ ] **Web/Mobile:** UI yêu cầu hủy lịch.
 
 ---
 
-## 📋 SPRINT 11-14: Advanced Features ❌ PHASE 2
+### 🏛️ EPIC 7: [EPIC-SOS] Emergency Rescue System (Planned)
+> **Goal:** Real-time emergency response.
 
-### Phase 2 Features (Deferred)
+#### ⏳ SOS-1: Tìm kiếm khẩn cấp
+*   [ ] **Backend:** Filter phòng khám có trạng thái `IS_EMERGENCY_AVAILABLE`.
+*   [ ] **Mobile:** Nút SOS chuyển sang chế độ tìm kiếm ưu tiên.
 
-| Feature | Description | Status |
-|---------|-------------|:------:|
-| Home Visit GPS Tracking | Realtime tracking vị trí vet khi đến nhà | ❌ |
-| Video Consultation | Video call với vet qua WebRTC | ❌ |
-| SOS Emergency | Tìm clinic cấp cứu gần nhất | ❌ |
-| Excel Import | Import lịch làm việc từ Excel | ❌ |
-| Revenue Dashboard | Thống kê doanh thu cho Owner | ❌ |
-| Multi-language | Hỗ trợ đa ngôn ngữ | ❌ |
+#### 💡 SOS-2: Live GPS Tracking
+*   [ ] **Backend:** WebSocket Endpoint nhận tọa độ Vet.
+*   [ ] **Mobile:** Google Maps Polylines vẽ đường đi realtime.
 
----
-
-## 📊 PROGRESS SUMMARY
-
-| Sprint | Status | Completion |
-|--------|:------:|:----------:|
-| Sprint 1: Auth & Setup | ✅ Done | 100% |
-| Sprint 2: Pet & Clinic | ✅ Done | 100% |
-| Sprint 3: Staff & Scheduling | 🔄 In Progress | 50% |
-| Sprint 4: Booking Core | ⏳ Pending | 0% |
-| Sprint 5: Chat + Vet Ops | ⏳ Pending | 0% |
-| Sprint 6: AI + Notifications | ⏳ Pending | 30% |
-| Sprint 7-14: Phase 2 | ❌ Deferred | - |
-
-**Overall Progress: ~45% Complete**
+#### 💡 SOS-3: Màn hình SOS Tracking
+*   [ ] **Mobile:** Map interface cho Pet Owner theo dõi Vet.
 
 ---
 
-## 👥 TEAM ASSIGNMENT
+### 🏛️ EPIC 8: [EPIC-AI] AI Assistant Intelligence
+> **Goal:** Smart assistant using RAG and LLM.
 
-| Member | Primary Responsibility |
-|--------|----------------------|
-| **Tân** | DevOps, AI Service, Chat System |
-| **Triết** | Backend APIs (Booking, Search, Notifications) |
-| **Huyền** | Web Frontend (Manager, Calendar, Chat) |
-| **Uyên** | Mobile Frontend (All screens) |
-| **Tuân** | Backend APIs (VetShift, Slot, EMR) |
+#### ✅ AI-1: RAG Knowledge Base
+*   [x] **AI Service:** Tích hợp LlamaIndex + Qdrant.
+*   [x] **Backend:** API forward câu hỏi sang AI Service.
 
----
+#### ✅ AI-2: Chẩn đoán sơ bộ
+*   [x] **AI Service:** Tool `symptom_checker` phân tích triệu chứng.
 
-## 🎯 SPRINT 6 COMPLETION CRITERIA
+#### ⏳ AI-3: Booking qua Chat
+*   [ ] **AI Service:** Tool `create_booking` để Agent thực hiện function calling.
 
-### Must Have (MVP):
-- [ ] Pet Owner có thể tìm clinic và đặt lịch qua mobile
-- [ ] Manager có thể xem calendar và gán vet cho booking
-- [ ] Vet có thể approve/reject và check-in/check-out
-- [ ] Chat realtime giữa Pet Owner ↔ Manager ↔ Vet
-- [ ] AI có thể tìm clinic, check slots qua chat
-- [ ] Push notifications cho booking status
-
-### Nice to Have:
-- [ ] AI có thể tạo booking qua chat
-- [ ] Booking reminder notifications
-- [ ] Cancel booking flow hoàn chỉnh
+#### ✅ AI-4: Admin AI Playground
+*   [x] **Web:** UI chỉnh sửa System Prompt.
+*   [x] **Web:** Test chat interface.
 
 ---
 
-**Document Version:** 2.0
-**Last Updated:** December 29, 2025
-**Author:** Petties Development Team
+### 🏛️ EPIC 9: [EPIC-NOTI] Omnichannel Notification
+> **Goal:** Push, SSE, and Email communication.
+
+#### ✅ NTF-1: Firebase Push Notification (FCM)
+*   [x] **Backend:** `FcmService` gửi message tới device token.
+*   [x] **Mobile:** Xử lý `onMessage` và `onBackgroundMessage`.
+*   [x] **Mobile:** Deep link navigation khi tap vào noti.
+
+#### ✅ NTF-2: Real-time Web Notification (SSE)
+*   [x] **Backend:** `SseEmitterService` quản lý kết nối SSE.
+*   [x] **Web:** Tự động hiển thị Toast khi có event mới.
+
+#### ⏳ NTF-4: Nhắc lịch tự động
+*   [ ] **Backend:** Cron Job quét các booking sắp tới (24h/2h).
+*   [ ] **Backend:** Trigger gửi noti nhắc nhở.
+
+---
+**Author:** Senior PM Agent

@@ -44,7 +44,8 @@ class UserProfile extends BaseModel {
     try {
       if (value is String) {
         // Handle yyyy-MM-dd HH:mm:ss by replacing space with T for ISO format
-        final normalized = value.contains(' ') ? value.replaceFirst(' ', 'T') : value;
+        final normalized =
+            value.contains(' ') ? value.replaceFirst(' ', 'T') : value;
         return DateTime.parse(normalized);
       }
       return DateTime.now();
@@ -130,8 +131,10 @@ class UserProfile extends BaseModel {
 
   /// Check if profile is complete (has fullName and phone)
   bool get isProfileComplete =>
-    fullName != null && fullName!.isNotEmpty &&
-    phone != null && phone!.isNotEmpty;
+      fullName != null &&
+      fullName!.isNotEmpty &&
+      phone != null &&
+      phone!.isNotEmpty;
 }
 
 /// Request model for updating profile

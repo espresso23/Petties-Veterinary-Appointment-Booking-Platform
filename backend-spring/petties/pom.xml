@@ -146,6 +146,13 @@
             <version>2.0.0</version>
         </dependency>
 
+        <!-- Firebase Admin SDK for Push Notifications -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.2.0</version>
+        </dependency>
+
         <!-- Database Migration -->
         <dependency>
             <groupId>org.flywaydb</groupId>

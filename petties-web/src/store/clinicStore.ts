@@ -17,6 +17,7 @@ interface ClinicState {
   isLoading: boolean
   error: string | null
   filters: ClinicFilters
+  pendingCount: number
 
   // Actions
   fetchClinics: (filters?: ClinicFilters) => Promise<void>
@@ -28,6 +29,8 @@ interface ClinicState {
   getMyClinics: () => Promise<void>
   approveClinic: (clinicId: string) => Promise<void>
   rejectClinic: (clinicId: string, reason: string) => Promise<void>
+  fetchPendingCount: () => Promise<void>
+  setPendingCount: (count: number) => void
   setFilters: (filters: ClinicFilters) => void
   clearError: () => void
   reset: () => void
@@ -43,6 +46,7 @@ const initialState = {
   isLoading: false,
   error: null,
   filters: {},
+  pendingCount: 0,
 }
 
 export const useClinicStore = create<ClinicState>((set, get) => ({
@@ -189,6 +193,19 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
       set({ error: errorMessage, isLoading: false })
       throw error
     }
+  },
+
+  fetchPendingCount: async () => {
+    try {
+      const pendingCount = await clinicService.getPendingClinicsCount()
+      set({ pendingCount })
+    } catch (error) {
+      console.error('Failed to fetch pending clinics count:', error)
+    }
+  },
+
+  setPendingCount: (pendingCount: number) => {
+    set({ pendingCount })
   },
 
   setFilters: (filters: ClinicFilters) => {

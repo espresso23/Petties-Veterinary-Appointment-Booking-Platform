@@ -124,12 +124,90 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 
 ## Design System
 
-**Style: Neobrutalism**
-- Borders: 4px solid black, no border-radius
-- Shadows: `4px 4px 0 #1c1917` (offset, no blur)
-- Colors: Amber palette (primary), Stone palette (neutral)
-- Typography: Inter font, uppercase headings, font-weight 700
-- **No emojis in UI** - use Heroicons instead
+**Style: Soft Neobrutalism** (Updated January 2025)
+
+Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thiện hơn.
+
+### Core Elements
+| Element | Value | Tailwind Class |
+|---------|-------|----------------|
+| **Border** | 2px solid #1c1917 | `border-2 border-stone-900` |
+| **Card Radius** | 12px | `rounded-xl` |
+| **Button/Input Radius** | 8px | `rounded-lg` |
+| **Card Shadow** | 4px 4px 0 #1c1917 | `shadow-[4px_4px_0_#1c1917]` |
+| **Button Shadow** | 3px 3px 0 #1c1917 | `shadow-[3px_3px_0_#1c1917]` |
+| **Input Shadow** | 2px 2px 0 #1c1917 | `shadow-[2px_2px_0_#1c1917]` |
+
+### Color Palette
+| Color | Hex | Use Case |
+|-------|-----|----------|
+| **Amber-600** (Primary) | `#d97706` | Primary buttons, brand identity |
+| **Coral** | `#FF6B6B` | Featured cards, CTAs, warnings |
+| **Mint/Teal** | `#38B2AC` | Success states, health-related |
+| **Blue** | `#4299E1` | Info, links, secondary actions |
+| **Yellow** | `#FBBF24` | Highlights, badges |
+| **Stone-900** | `#1c1917` | Text, borders, shadows |
+
+### Typography
+| Element | Style |
+|---------|-------|
+| Page Headings | `font-bold`, **normal case** (không uppercase) |
+| Card Titles | `font-bold text-lg`, normal case |
+| Button Text | `font-bold uppercase` |
+| Labels | `text-xs font-bold uppercase` |
+
+### UI Rules (QUAN TRONG)
+- **KHONG DUNG EMOJI trong UI** - Dùng Heroicons thay thế (MoonIcon, ArrowRightIcon, etc.)
+- **No border-radius > 12px** except for badges/avatars (use `rounded-full`)
+- **No blur shadows** - always offset shadows only
+- CSS file: `petties-web/src/styles/brutalist.css`
+- Style guide: `docs-references/design/design-style-guide.md`
+
+## Vietnamese-Only Rule (User-Facing Text)
+
+**Tất cả user-facing text PHẢI bằng Tiếng Việt 100%, KHÔNG lẫn lộn tiếng Anh:**
+
+| Component | Example (Đúng) | Example (Sai) |
+|-----------|----------------|---------------|
+| Toast messages | `showToast('success', 'Đã lưu thành công')` | `showToast('success', 'Saved successfully')` |
+| Exception messages | `throw new BadRequestException("Dữ liệu không hợp lệ")` | `throw new BadRequestException("Invalid data")` |
+| Validation messages | `@NotBlank(message = "Không được để trống")` | `@NotBlank(message = "Must not be blank")` |
+| Error responses | `"Vị trí phòng khám chưa được thiết lập"` | `"Clinic location not available"` |
+| UI labels/buttons | `Đăng nhập`, `Xác nhận` | `Login`, `Confirm` |
+
+**Quy tắc áp dụng:**
+- **Backend (Spring Boot):** Tất cả exception messages trong Services
+- **Frontend (React/Flutter):** Tất cả toast messages, error states, validation text, button labels
+- **API responses:** Error messages trả về cho client
+- **Log messages giữ tiếng Anh:** `log.info()`, `log.error()` - vì logs dành cho developers
+
+## No Browser Native Dialogs Rule
+
+**KHÔNG sử dụng `window.alert()`, `window.confirm()`, `window.prompt()` trong Frontend:**
+
+| Action | Thay thế bằng |
+|--------|---------------|
+| Thông báo lỗi/thành công | `showToast('error', 'Lỗi...')` hoặc `showToast('success', '...')` |
+| Xác nhận hành động nguy hiểm | **ConfirmModal** component với Neobrutalism style |
+| Nhập dữ liệu đơn giản | **Modal** hoặc **Form** component |
+
+**Pattern cho Confirm Modal:**
+```tsx
+// Sai - Không dùng
+if (window.confirm('Bạn có chắc muốn xóa?')) { ... }
+
+// Đúng - Dùng ConfirmModal
+const [showConfirm, setShowConfirm] = useState(false)
+<ConfirmModal
+  isOpen={showConfirm}
+  title="Xác nhận xóa"
+  message="Bạn có chắc muốn xóa mục này?"
+  confirmText="Xóa"
+  cancelText="Hủy"
+  onConfirm={() => handleDelete()}
+  onCancel={() => setShowConfirm(false)}
+/>
+```
 
 ## Environment & Deployment
 

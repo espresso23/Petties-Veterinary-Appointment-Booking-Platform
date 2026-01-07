@@ -148,9 +148,8 @@ export const NotificationsPage = () => {
           notifications.map((notification) => (
             <div
               key={notification.notificationId}
-              className={`bg-white border-4 shadow-brutal p-6 transition-all hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] ${
-                notification.read ? 'border-stone-300' : 'border-stone-900'
-              } ${getNotificationStyle(notification.type)}`}
+              className={`bg-white border-4 shadow-brutal p-6 transition-all hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] ${notification.read ? 'border-stone-300' : 'border-stone-900'
+                } ${getNotificationStyle(notification.type)}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -181,7 +180,7 @@ export const NotificationsPage = () => {
                 {!notification.read && (
                   <button
                     onClick={() => handleMarkAsRead(notification.notificationId)}
-                    className="ml-4 px-3 py-1.5 bg-stone-900 text-xs font-bold uppercase border-2 border-black shadow-[2px_2px_0px_0px_rgba(255,255,255,0.3)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all"
+                    className="ml-4 px-3 py-1.5 bg-yellow-400 text-stone-900 text-[10px] font-black uppercase border-2 border-stone-900 shadow-[3px_3px_0_0_#000] hover:bg-yellow-500 hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
                   >
                     Đánh dấu đã đọc
                   </button>

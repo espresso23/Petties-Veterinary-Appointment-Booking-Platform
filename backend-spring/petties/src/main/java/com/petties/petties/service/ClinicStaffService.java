@@ -28,6 +28,7 @@ public class ClinicStaffService {
     private final AuthService authService;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional(readOnly = true)
     public List<StaffResponse> getClinicStaff(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
@@ -40,6 +41,7 @@ public class ClinicStaffService {
     /**
      * Check if clinic already has a manager
      */
+    @Transactional(readOnly = true)
     public boolean hasManager(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));

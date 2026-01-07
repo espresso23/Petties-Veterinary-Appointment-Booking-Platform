@@ -5,6 +5,7 @@ import '../../../config/constants/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/user_provider.dart';
 import '../../../routing/app_routes.dart';
+import '../../../data/models/user_profile.dart';
 import '../../widgets/profile/avatar_picker.dart';
 import '../../widgets/profile/profile_info_card.dart';
 
@@ -149,6 +150,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildProfileHeader(UserProvider userProvider) {
+    final profile = userProvider.profile;
+    return Container(
+      width: double.infinity,
+      color: AppColors.white,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+      margin: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Center(
+            child: AvatarPicker(
+              avatarUrl: profile?.avatar,
+              isLoading: userProvider.isUploadingAvatar,
+              onImageSelected: (file) => userProvider.uploadAvatar(file),
+              onDelete: profile?.avatar != null
+                  ? () => userProvider.deleteAvatar()
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            profile?.fullName ?? profile?.username ?? 'Người dùng',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              color: AppColors.stone900,
+              letterSpacing: -0.5,
+            ),
+          ),
+          if (profile?.roleDisplayText != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.stone100,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.stone900, width: 2),
+              ),
+              child: Text(
+                profile!.roleDisplayText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.stone600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -186,14 +243,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           letterSpacing: 2,
         ),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.settings_outlined),
-          onPressed: () {
-            // TODO: Navigate to settings
-          },
-        ),
-      ],
     );
   }
 
@@ -263,182 +312,168 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Profile header with avatar
-            _buildProfileHeader(userProvider),
+        child: profile?.role == 'VET'
+            ? _buildVetProfile(profile!, userProvider)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Profile header with avatar
+                  _buildProfileHeader(userProvider),
 
-            // Personal info section
-            const ProfileSectionHeader(title: 'Thông tin cá nhân'),
-            ProfileInfoGroup(
-              children: [
-                ProfileInfoCard(
-                  label: 'Họ và tên',
-                  value: profile?.fullName,
-                  icon: Icons.person_outline,
-                  showBottomBorder: true,
-                ),
-                ProfileInfoCard(
-                  label: 'Số điện thoại',
-                  value: profile?.phone,
-                  icon: Icons.phone_outlined,
-                  showBottomBorder: true,
-                ),
-                ProfileInfoCard(
-                  label: 'Email',
-                  value: profile?.email,
-                  icon: Icons.email_outlined,
-                ),
-              ],
-            ),
+                  // Personal info section
+                  const ProfileSectionHeader(title: 'Thông tin cá nhân'),
+                  ProfileInfoGroup(
+                    children: [
+                      ProfileInfoCard(
+                        label: 'Họ và tên',
+                        value: profile?.fullName,
+                        icon: Icons.person_outline,
+                        showBottomBorder: true,
+                      ),
+                      ProfileInfoCard(
+                        label: 'Số điện thoại',
+                        value: profile?.phone,
+                        icon: Icons.phone_outlined,
+                        showBottomBorder: true,
+                      ),
+                      ProfileInfoCard(
+                        label: 'Email',
+                        value: profile?.email,
+                        icon: Icons.email_outlined,
+                      ),
+                    ],
+                  ),
 
-            // Account info section
-            const ProfileSectionHeader(title: 'Thông tin tài khoản'),
-            ProfileInfoGroup(
-              children: [
-                ProfileInfoCard(
-                  label: 'Tên đăng nhập',
-                  value: profile?.username,
-                  icon: Icons.account_circle_outlined,
-                  showBottomBorder: true,
-                ),
-                ProfileInfoCard(
-                  label: 'Vai trò',
-                  value: profile?.roleDisplayText,
-                  icon: Icons.badge_outlined,
-                ),
-              ],
-            ),
+                  // Account info section
+                  const ProfileSectionHeader(title: 'Thông tin tài khoản'),
+                  ProfileInfoGroup(
+                    children: [
+                      ProfileInfoCard(
+                        label: 'Tên đăng nhập',
+                        value: profile?.username,
+                        icon: Icons.account_circle_outlined,
+                        showBottomBorder: true,
+                      ),
+                      ProfileInfoCard(
+                        label: 'Vai trò',
+                        value: profile?.roleDisplayText,
+                        icon: Icons.badge_outlined,
+                      ),
+                    ],
+                  ),
 
-            // Actions section
-            const ProfileSectionHeader(title: 'Thao tác'),
-            ProfileInfoGroup(
-              children: [
-                ProfileActionButton(
-                  label: 'Chỉnh sửa thông tin',
-                  icon: Icons.edit_outlined,
-                  onTap: () => context.push(AppRoutes.editProfile),
-                ),
-                Container(height: 1, color: AppColors.stone200),
-                ProfileActionButton(
-                  label: 'Đổi mật khẩu',
-                  icon: Icons.lock_outline,
-                  onTap: () => context.push(AppRoutes.changePassword),
-                ),
-                Container(height: 1, color: AppColors.stone200),
-                ProfileActionButton(
-                  label: 'Đăng xuất',
-                  icon: Icons.logout,
-                  isDestructive: true,
-                  onTap: _handleLogout,
-                ),
-              ],
-            ),
+                  // Actions section
+                  const ProfileSectionHeader(title: 'Thao tác'),
+                  ProfileInfoGroup(
+                    children: [
+                      ProfileActionButton(
+                        label: 'Chỉnh sửa thông tin',
+                        icon: Icons.edit_outlined,
+                        onTap: () => context.push(AppRoutes.editProfile),
+                      ),
+                      Container(height: 1, color: AppColors.stone200),
+                      ProfileActionButton(
+                        label: 'Đổi mật khẩu',
+                        icon: Icons.lock_outline,
+                        onTap: () => context.push(AppRoutes.changePassword),
+                      ),
+                      Container(height: 1, color: AppColors.stone200),
+                      ProfileActionButton(
+                        label: 'Đăng xuất',
+                        icon: Icons.logout,
+                        isDestructive: true,
+                        onTap: _handleLogout,
+                      ),
+                    ],
+                  ),
 
-            const SizedBox(height: 32),
-          ],
-        ),
+                  const SizedBox(height: 32),
+                ],
+              ),
       ),
     );
   }
 
-  Widget _buildProfileHeader(UserProvider userProvider) {
-    final profile = userProvider.profile;
+  /// Vet Profile Layout - Uses same structure as regular profile
+  /// Only displays data available in UserProfile model
+  Widget _buildVetProfile(UserProfile profile, UserProvider userProvider) {
+    // VET profile uses the SAME layout as regular profile
+    // The only difference is the role badge shows "Bác sĩ thú y"
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Profile header with avatar (same as regular)
+        _buildProfileHeader(userProvider),
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: AppColors.primaryBackground,
-        border: Border(
-          bottom: BorderSide(color: AppColors.stone900, width: 4),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Avatar
-          AvatarPicker(
-            avatarUrl: profile?.avatar,
-            isLoading: userProvider.isUploadingAvatar,
-            size: 100,
-            editable: true,
-            onImageSelected: (file) => userProvider.uploadAvatar(file),
-            onDelete: () => userProvider.deleteAvatar(),
-          ),
-          const SizedBox(height: 16),
-
-          // Display name
-          Text(
-            profile?.displayName ?? 'Người dùng',
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.stone900,
-              letterSpacing: 0.5,
+        // Personal info section
+        const ProfileSectionHeader(title: 'Thông tin cá nhân'),
+        ProfileInfoGroup(
+          children: [
+            ProfileInfoCard(
+              label: 'Họ và tên',
+              value: profile.fullName,
+              icon: Icons.person_outline,
+              showBottomBorder: true,
             ),
-          ),
-          const SizedBox(height: 4),
-
-          // Email
-          Text(
-            profile?.email ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.stone600,
+            ProfileInfoCard(
+              label: 'Số điện thoại',
+              value: profile.phone,
+              icon: Icons.phone_outlined,
+              showBottomBorder: true,
             ),
-          ),
-          const SizedBox(height: 8),
-
-          // Role badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              border: Border.all(color: AppColors.stone900, width: 2),
-            ),
-            child: Text(
-              profile?.roleDisplayText.toUpperCase() ?? '',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-
-          // Profile completion hint
-          if (profile != null && !profile.isProfileComplete) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
-                border: Border.all(color: AppColors.stone900, width: 2),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: AppColors.warning,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Hoàn thành hồ sơ để sử dụng đầy đủ tính năng',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone700,
-                    ),
-                  ),
-                ],
-              ),
+            ProfileInfoCard(
+              label: 'Email',
+              value: profile.email,
+              icon: Icons.email_outlined,
             ),
           ],
-        ],
-      ),
+        ),
+
+        // Account info section
+        const ProfileSectionHeader(title: 'Thông tin tài khoản'),
+        ProfileInfoGroup(
+          children: [
+            ProfileInfoCard(
+              label: 'Tên đăng nhập',
+              value: profile.username,
+              icon: Icons.account_circle_outlined,
+              showBottomBorder: true,
+            ),
+            ProfileInfoCard(
+              label: 'Vai trò',
+              value: profile.roleDisplayText,
+              icon: Icons.medical_services_outlined,
+            ),
+          ],
+        ),
+
+        // Actions section
+        const ProfileSectionHeader(title: 'Thao tác'),
+        ProfileInfoGroup(
+          children: [
+            ProfileActionButton(
+              label: 'Chỉnh sửa thông tin',
+              icon: Icons.edit_outlined,
+              onTap: () => context.push(AppRoutes.editProfile),
+            ),
+            Container(height: 1, color: AppColors.stone200),
+            ProfileActionButton(
+              label: 'Đổi mật khẩu',
+              icon: Icons.lock_outline,
+              onTap: () => context.push(AppRoutes.changePassword),
+            ),
+            Container(height: 1, color: AppColors.stone200),
+            ProfileActionButton(
+              label: 'Đăng xuất',
+              icon: Icons.logout,
+              isDestructive: true,
+              onTap: _handleLogout,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 32),
+      ],
     );
   }
 }

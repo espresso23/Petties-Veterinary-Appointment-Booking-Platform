@@ -25,7 +25,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   // Controllers
   final _nameController = TextEditingController();
-  final _speciesController = TextEditingController(); 
+  final _speciesController = TextEditingController();
   final _breedController = TextEditingController();
   final _weightController = TextEditingController();
 
@@ -175,8 +175,13 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                               decoration: BoxDecoration(
                                 color: AppColors.stone200,
                                 border: Border.all(
-                                    color: AppColors.stone900, width: 3),
+                                    color: AppColors.stone900, width: 2),
                                 shape: BoxShape.circle,
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: AppColors.stone900,
+                                      offset: Offset(2, 2)),
+                                ],
                                 image: _selectedImage != null
                                     ? DecorationImage(
                                         image: FileImage(
@@ -185,8 +190,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                                       )
                                     : (_currentImageUrl != null
                                         ? DecorationImage(
-                                            image: NetworkImage(
-                                                _currentImageUrl!),
+                                            image:
+                                                NetworkImage(_currentImageUrl!),
                                             fit: BoxFit.cover,
                                           )
                                         : null),
@@ -283,8 +288,10 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                             label: 'Cân nặng (kg)',
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value == null || value.isEmpty) return 'Vui lòng nhập cân nặng';
-                              if (double.tryParse(value) == null) return 'Cân nặng không hợp lệ';
+                              if (value == null || value.isEmpty)
+                                return 'Vui lòng nhập cân nặng';
+                              if (double.tryParse(value) == null)
+                                return 'Cân nặng không hợp lệ';
                               return null;
                             },
                           ),
@@ -313,7 +320,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
                     // Submit Button
                     CustomButton(
-                      text: widget.id == null ? 'THÊM THÚ CƯNG' : 'LƯU THAY ĐỔI',
+                      text:
+                          widget.id == null ? 'THÊM THÚ CƯNG' : 'LƯU THAY ĐỔI',
                       onPressed: _savePet,
                     ),
                   ],
@@ -332,10 +340,13 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.stone900 : AppColors.white,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.stone900, width: 2),
             boxShadow: isSelected
                 ? []
-                : const [BoxShadow(color: AppColors.stone900, offset: Offset(2, 2))],
+                : const [
+                    BoxShadow(color: AppColors.stone900, offset: Offset(2, 2))
+                  ],
           ),
           alignment: Alignment.center,
           child: Text(

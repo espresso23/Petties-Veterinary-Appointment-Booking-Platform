@@ -5,6 +5,7 @@ interface NotificationState {
   unreadCount: number
   isLoading: boolean
   setUnreadCount: (count: number) => void
+  incrementUnreadCount: () => void
   refreshUnreadCount: () => Promise<void>
   decrementUnreadCount: () => void
   resetUnreadCount: () => void
@@ -19,6 +20,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   isLoading: false,
   setUnreadCount: (count: number) => {
     set({ unreadCount: count })
+  },
+  incrementUnreadCount: () => {
+    set((state) => ({ unreadCount: state.unreadCount + 1 }))
   },
   refreshUnreadCount: async () => {
     try {

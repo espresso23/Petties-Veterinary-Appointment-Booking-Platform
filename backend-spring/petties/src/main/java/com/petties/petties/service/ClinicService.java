@@ -71,7 +71,7 @@ public class ClinicService {
 
                 // Verify user is CLINIC_OWNER
                 if (owner.getRole() != Role.CLINIC_OWNER) {
-                        throw new ForbiddenException("Only CLINIC_OWNER can create clinics");
+                        throw new ForbiddenException("Chỉ chủ phòng khám mới có thể tạo phòng khám");
                 }
 
                 Clinic clinic = new Clinic();
@@ -109,8 +109,20 @@ public class ClinicService {
                         }
                 }
 
-                clinic = clinicRepository.save(clinic);
+                clinic = clinicRepository.saveAndFlush(clinic);
                 log.info("Clinic created: {} by owner: {}", clinic.getClinicId(), ownerId);
+
+                // Notify all Admins about new clinic registration
+                try {
+                        notificationService.notifyAdminsNewClinicRegistration(clinic);
+                        // Push updated counter to all admins
+                        notificationService.broadcastClinicCounterUpdate(
+                                        clinicRepository.countByStatusAndDeletedAtIsNull(ClinicStatus.PENDING));
+                } catch (Exception e) {
+                        log.error("Failed to notify admins about new clinic: {}", clinic.getClinicId(), e);
+                        // Don't fail the transaction if notification creation fails
+                }
+
                 return mapToResponse(clinic);
         }
 
@@ -121,7 +133,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only update your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể cập nhật phòng khám của mình");
                 }
 
                 // Update fields
@@ -169,7 +181,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only delete your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể xóa phòng khám của mình");
                 }
 
                 clinicRepository.delete(clinic);
@@ -186,7 +198,7 @@ public class ClinicService {
         public Page<ClinicResponse> findNearbyClinics(BigDecimal latitude, BigDecimal longitude,
                         double radius, Pageable pageable) {
                 if (latitude == null || longitude == null) {
-                        throw new BadRequestException("Latitude and longitude are required");
+                        throw new BadRequestException("Vị trí phòng khám (tọa độ) là bắt buộc");
                 }
 
                 List<Clinic> clinics = clinicRepository.findNearbyClinics(latitude, longitude, radius);
@@ -224,7 +236,7 @@ public class ClinicService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
                 if (clinic.getLatitude() == null || clinic.getLongitude() == null) {
-                        throw new BadRequestException("Clinic location not available");
+                        throw new BadRequestException("Vị trí phòng khám chưa được thiết lập");
                 }
 
                 return locationService.calculateDistanceMatrix(
@@ -238,20 +250,25 @@ public class ClinicService {
                 return clinics.map(this::mapToResponse);
         }
 
+        @Transactional(readOnly = true)
+        public long countPendingClinics() {
+                return clinicRepository.countByStatusAndDeletedAtIsNull(ClinicStatus.PENDING);
+        }
+
         @Transactional
         public ClinicResponse approveClinic(UUID clinicId, String reason) {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
                 if (clinic.getStatus() != ClinicStatus.PENDING) {
-                        throw new BadRequestException("Only PENDING clinics can be approved");
+                        throw new BadRequestException("Chỉ có thể duyệt phòng khám đang chờ xét duyệt");
                 }
 
                 clinic.setStatus(ClinicStatus.APPROVED);
                 clinic.setApprovedAt(LocalDateTime.now());
                 clinic.setRejectionReason(null);
 
-                clinic = clinicRepository.save(clinic);
+                clinic = clinicRepository.saveAndFlush(clinic);
                 log.info("Clinic approved: {} with reason: {}", clinicId, reason);
 
                 // Create notification for clinic owner (only if status actually changed)
@@ -263,6 +280,10 @@ public class ClinicService {
                         if (notification == null) {
                                 log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
                         }
+
+                        // Push updated counter to all admins after approval
+                        notificationService.broadcastClinicCounterUpdate(
+                                        clinicRepository.countByStatusAndDeletedAtIsNull(ClinicStatus.PENDING));
                 } catch (Exception e) {
                         log.error("Failed to create approval notification for clinic: {}", clinicId, e);
                         // Don't fail the transaction if notification creation fails
@@ -277,17 +298,17 @@ public class ClinicService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
                 if (clinic.getStatus() != ClinicStatus.PENDING) {
-                        throw new BadRequestException("Only PENDING clinics can be rejected");
+                        throw new BadRequestException("Chỉ có thể từ chối phòng khám đang chờ xét duyệt");
                 }
 
                 if (reason == null || reason.trim().isEmpty()) {
-                        throw new BadRequestException("Rejection reason is required");
+                        throw new BadRequestException("Lý do từ chối là bắt buộc");
                 }
 
                 clinic.setStatus(ClinicStatus.REJECTED);
                 clinic.setRejectionReason(reason);
 
-                clinic = clinicRepository.save(clinic);
+                clinic = clinicRepository.saveAndFlush(clinic);
                 log.info("Clinic rejected: {} with reason: {}", clinicId, reason);
 
                 // Create notification for clinic owner (only if status actually changed)
@@ -299,6 +320,10 @@ public class ClinicService {
                         if (notification == null) {
                                 log.debug("Notification creation skipped (duplicate check) for clinic: {}", clinicId);
                         }
+
+                        // Push updated counter to all admins after rejection
+                        notificationService.broadcastClinicCounterUpdate(
+                                        clinicRepository.countByStatusAndDeletedAtIsNull(ClinicStatus.PENDING));
                 } catch (Exception e) {
                         log.error("Failed to create rejection notification for clinic: {}", clinicId, e);
                         // Don't fail the transaction if notification creation fails
@@ -322,7 +347,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only upload images for your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể tải ảnh lên cho phòng khám của mình");
                 }
 
                 // If this is set as primary, unset other primary images
@@ -365,7 +390,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only delete images from your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể xóa ảnh từ phòng khám của mình");
                 }
 
                 ClinicImage clinicImage = clinicImageRepository
@@ -401,7 +426,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only update images for your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể cập nhật ảnh cho phòng khám của mình");
                 }
 
                 ClinicImage targetImage = clinicImageRepository.findByImageIdAndClinicClinicId(imageId, clinicId)
@@ -425,7 +450,7 @@ public class ClinicService {
 
                 // Check ownership
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("You can only update logo for your own clinic");
+                        throw new ForbiddenException("Bạn chỉ có thể cập nhật logo cho phòng khám của mình");
                 }
 
                 // Delete old logo from Cloudinary if exists

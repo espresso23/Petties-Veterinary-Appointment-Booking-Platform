@@ -216,6 +216,17 @@ public class ClinicController {
     }
 
     /**
+     * GET /api/clinics/admin/pending/count
+     * Get count of pending clinics for admin badge
+     * ADMIN only
+     */
+    @GetMapping("/admin/pending/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Long> getPendingClinicsCount() {
+        return ResponseEntity.ok(clinicService.countPendingClinics());
+    }
+
+    /**
      * POST /api/clinics/{id}/approve
      * Approve clinic
      * ADMIN only

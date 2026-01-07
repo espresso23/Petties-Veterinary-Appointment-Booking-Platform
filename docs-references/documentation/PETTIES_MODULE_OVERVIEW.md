@@ -2,7 +2,7 @@
 
 **Document Purpose:** Tổng hợp đầy đủ các module/feature của project Petties khi hoàn thành
 **For:** Stakeholder review, scope verification, team alignment
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-01-07
 
 ---
 
@@ -17,17 +17,18 @@
 | 05 | **Service Management** | Master services (Admin), Clinic services (Owner) | 8 | ✅ Done |
 | 06 | **Pricing** | Dynamic pricing rules, price calculation | 3 | ✅ Done |
 | 07 | **Staff Management** | Quick add staff, deactivate, list | 4 | ✅ Done |
-| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock | 7 | ⏳ Pending |
-| 09 | **Booking** | Create, assign, approve/reject, check-in/out, cancel | 10 | ⏳ Pending |
+| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock | 8 | ✅ Done |
+| 09 | **Booking** | Create, assign, approve/reject, check-in/out, cancel, incurred services | 12 | ⏳ Pending |
 | 10 | **Chat (1-1)** | Conversations, messages, WebSocket realtime | 7+WS | ⏳ Pending |
 | 11 | **EMR** | Create/view medical records linked to booking | 4 | ❌ Phase 2 |
 | 12 | **Vaccination** | Vaccination history, add records linked to booking | 3 | ❌ Phase 2 |
 | 13 | **Prescription** | Prescriptions within EMR | 2 | ❌ Phase 2 |
 | 14 | **Payment** | Stripe integration, payment intent, webhook | 4 | ❌ Phase 2 |
 | 15 | **Rating & Review** | Review clinics and vets after booking | 3 | ❌ Phase 2 |
-| 16 | **Notification** | In-app notifications, FCM push, preferences | 6 | ⏳ Pending |
+| 16 | **Notification** | In-app notifications, FCM push, SSE realtime | 8 | ✅ Done |
 | 17 | **Search & Discovery** | Nearby clinics, keyword search, geocoding | 3 | ⏳ Pending |
 | 18 | **Home Visit Tracking** | GPS realtime tracking for home visits | 3 | ❌ Phase 2 |
+| 19 | **SOS Emergency** | Emergency booking, find nearest clinic, priority queue | 5 | ❌ Phase 2 |
 
 **Total Backend Endpoints:** ~90+
 
@@ -66,7 +67,7 @@
 | 12 | **Clinic Services** | CLINIC_OWNER | Inherit/custom services, pricing | ✅ Done |
 | 13 | **Staff Management** | CO, CM | Quick add, deactivate, list staff | ✅ Done |
 | 14 | **Manager Dashboard** | CLINIC_MANAGER | Today's bookings, pending tasks | ✅ Done |
-| 15 | **Calendar View** | CLINIC_MANAGER | Weekly/daily calendar, shift creation | ⏳ Pending |
+| 15 | **Calendar View** | CLINIC_MANAGER | Weekly/daily calendar, shift creation, block/unblock slots | ✅ Done |
 | 16 | **Booking Management** | CLINIC_MANAGER | Booking list, assign vet, status tracking | ⏳ Pending |
 | 17 | **Chat System** | CM, VET | Conversations list, chat room | ⏳ Pending |
 | 18 | **Vet Dashboard** | VET | Schedule, assigned bookings, quick actions | ✅ Done |
@@ -88,20 +89,22 @@
 | 05 | **Clinic Discovery** | PET_OWNER | Map view, nearby clinics, search/filters | ⏳ Pending |
 | 06 | **Clinic Detail** | PET_OWNER | Clinic info, services, reviews, book button | ⏳ Pending |
 | 07 | **Booking Flow** | PET_OWNER | Service selection → Slot picker → Confirm → Success | ⏳ Pending |
-| 08 | **My Bookings** | PET_OWNER | Bookings list, detail, cancel | ⏳ Pending |
+| 08 | **My Bookings** | PET_OWNER | Bookings list, detail, cancel, additional services view | ⏳ Pending |
 | 09 | **AI Chat** | PET_OWNER | Chat with AI assistant, tool calls, citations | ⏳ Pending |
 | 10 | **Chat (1-1)** | PET_OWNER | Chat with Manager/Vet | ⏳ Pending |
 | 11 | **EMR Viewer** | PET_OWNER | View pet medical records | ❌ Phase 2 |
 | 12 | **Vaccination Viewer** | PET_OWNER | View vaccination history | ❌ Phase 2 |
 | 13 | **Home Visit Tracking** | PET_OWNER | Realtime GPS tracking of vet | ❌ Phase 2 |
-| 14 | **Vet Home** | VET | Today's appointments, quick stats | ✅ Done |
-| 15 | **Vet Schedule** | VET | Calendar view, shift info | ⏳ Pending |
-| 16 | **Vet Bookings** | VET | Assigned bookings, approve/reject, check-in/out | ⏳ Pending |
-| 17 | **EMR Creation** | VET | Create/edit medical records | ❌ Phase 2 |
-| 18 | **Vaccination Entry** | VET | Add vaccination records | ❌ Phase 2 |
-| 19 | **Vet Chat** | VET | Chat with Pet Owner | ⏳ Pending |
-| 20 | **Profile Screen** | All | View/edit profile, avatar, password | ✅ Done |
-| 21 | **Notifications** | All | Push notifications, in-app list | ⏳ Pending |
+| 14 | **SOS Emergency** | PET_OWNER | Emergency booking, track rescue vet, ETA | ❌ Phase 2 |
+| 15 | **Vet Home** | VET | Today's appointments, quick stats | ✅ Done |
+| 16 | **Vet Schedule** | VET | Calendar view, shift info, view-only slots | ✅ Done |
+| 17 | **Vet Bookings** | VET | Assigned bookings, approve/reject, check-in/out, add incurred services | ⏳ Pending |
+| 18 | **EMR Creation** | VET | Create/edit medical records | ❌ Phase 2 |
+| 19 | **Vaccination Entry** | VET | Add vaccination records | ❌ Phase 2 |
+| 20 | **Vet Chat** | VET | Chat with Pet Owner | ⏳ Pending |
+| 21 | **SOS Response** | VET | Start emergency travel, GPS broadcast, mark arrived | ❌ Phase 2 |
+| 22 | **Profile Screen** | All | View/edit profile, avatar, password | ✅ Done |
+| 23 | **Notifications** | All | Push notifications, in-app list | ⏳ Pending |
 
 ---
 
@@ -123,6 +126,8 @@
 | 12 | **Booking State Machine** | PENDING → ASSIGNED → CONFIRMED → IN_PROGRESS → COMPLETED | All | ⏳ Pending |
 | 13 | **Error Handling** | Centralized with Vietnamese messages | All | ✅ Done |
 | 14 | **Neobrutalism Design** | Consistent UI design system | Web + Mobile | ✅ Done |
+| 15 | **Incurred Services** | Vet can add extra services during examination | BE + Mobile | ⏳ Pending |
+| 16 | **SOS GPS Tracking** | Real-time GPS for emergency rescue only | All | ❌ Phase 2 |
 
 ---
 
@@ -130,12 +135,13 @@
 
 | No | Feature | Reason | Priority |
 |----|---------|--------|:--------:|
-| 01 | SOS Emergency | Logic phức tạp, cần thêm thời gian | Medium |
-| 02 | Video Consultation | WebRTC phức tạp | Low |
-| 03 | Excel Import | Manual đủ cho MVP | Low |
-| 04 | Multi-Agent Architecture | Simplified to Single Agent | Low |
-| 05 | Email/SMS Notifications | Push đủ cho MVP | Medium |
-| 06 | Multi-language | Defer sau MVP | Low |
+| 01 | SOS Emergency Booking | Logic phức tạp, GPS tracking, priority queue | High |
+| 02 | SOS Vet Response | GPS broadcast, route navigation phức tạp | High |
+| 03 | Video Consultation | WebRTC phức tạp | Low |
+| 04 | Excel Import | Manual đủ cho MVP | Low |
+| 05 | Multi-Agent Architecture | Simplified to Single Agent | Low |
+| 06 | Email/SMS Notifications | Push đủ cho MVP | Medium |
+| 07 | Multi-language | Defer sau MVP | Low |
 
 ---
 
@@ -143,8 +149,8 @@
 
 | Role | Web | Mobile | Primary Use Cases |
 |------|:---:|:------:|-------------------|
-| **PET_OWNER** | - | ✅ | Book appointments, manage pets, chat with AI, view EMR |
-| **VET** | ✅ | ✅ | Manage schedule, approve bookings, create EMR, chat |
+| **PET_OWNER** | - | ✅ | Book appointments, manage pets, chat with AI, view EMR, SOS emergency |
+| **VET** | ✅ | ✅ | Manage schedule, approve bookings, create EMR, add incurred services, chat, SOS response |
 | **CLINIC_MANAGER** | ✅ | - | Assign vets, manage bookings, view calendar, chat |
 | **CLINIC_OWNER** | ✅ | - | Manage clinics, services, pricing, staff, view revenue |
 | **ADMIN** | ✅ | - | Approve clinics, configure AI agent, manage system |
@@ -155,14 +161,14 @@
 
 | Category | Total | Done | In Progress | Pending | Phase 2 |
 |----------|:-----:|:----:|:-----------:|:-------:|:-------:|
-| Backend Modules | 18 | 7 | 0 | 5 | 6 |
+| Backend Modules | 19 | 9 | 0 | 3 | 7 |
 | AI Service Modules | 8 | 7 | 1 | 0 | 0 |
-| Web Frontend Modules | 22 | 16 | 0 | 5 | 1 |
-| Mobile Frontend Modules | 21 | 7 | 0 | 9 | 5 |
-| Cross-Cutting Features | 14 | 9 | 1 | 2 | 2 |
-| **TOTAL** | **83** | **46** | **2** | **21** | **14** |
+| Web Frontend Modules | 22 | 17 | 0 | 4 | 1 |
+| Mobile Frontend Modules | 23 | 8 | 0 | 8 | 7 |
+| Cross-Cutting Features | 16 | 10 | 1 | 2 | 3 |
+| **TOTAL** | **88** | **51** | **2** | **17** | **18** |
 
-**Overall Progress:** ~55% Complete (MVP Sprint 1-6 focus)
+**Overall Progress:** ~58% Complete (MVP Sprint 1-6 focus)
 
 ---
 
@@ -181,14 +187,16 @@
 | Platform | Page/Screen Count |
 |----------|:-----------------:|
 | Web (React) | 22 modules |
-| Mobile (Flutter) | 21 modules |
-| **Total** | **43 modules** |
+| Mobile (Flutter) | 23 modules |
+| **Total** | **45 modules** |
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 1.1
+**Last Updated:** 2026-01-07
 **Prepared by:** Petties Development Team
 **References:**
 - `PETTIES_Features.md` - Feature specifications
 - `WBS_PETTIES_14_SPRINTS.md` - Sprint planning & timeline
 - `REPORT_4_SDD_SYSTEM_DESIGN.md` - System architecture
+- `SRS/PETTIES_SRS.md` - Software Requirements Specification

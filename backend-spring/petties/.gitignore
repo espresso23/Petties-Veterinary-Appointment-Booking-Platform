@@ -34,4 +34,4 @@ build/
 
 ### VS Code ###
 .vscode/
-petties.log
+firebase-service-account.json

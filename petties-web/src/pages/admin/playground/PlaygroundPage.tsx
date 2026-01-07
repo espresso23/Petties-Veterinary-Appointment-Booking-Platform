@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { agentApi, type Agent } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
+import { ConfirmModal } from '../../../components/ConfirmModal'
 import { env } from '../../../config/env'
 import { useAuthStore } from '../../../store/authStore'
 import { useToast } from '../../../components/Toast'
@@ -152,6 +153,9 @@ export const PlaygroundPage = () => {
   const [showTracePanel, setShowTracePanel] = useState(true)
   const [debugPanelHeight, setDebugPanelHeight] = useState(40) // Default 40% height
 
+  // Confirm modal state
+  const [showSeedConfirm, setShowSeedConfirm] = useState(false)
+
   // ==================== LOAD DATA ====================
 
   // Load agents and settings on mount
@@ -218,7 +222,7 @@ export const PlaygroundPage = () => {
   }
 
   const handleSeedDatabase = async () => {
-    if (!window.confirm('Bạn có chắc muốn nạp lại dữ liệu mẫu? Việc này sẽ tạo lại các Agent và Tool mặc định.')) return
+    setShowSeedConfirm(false)
     try {
       setSeeding(true)
       const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/seed`, {
@@ -781,7 +785,7 @@ export const PlaygroundPage = () => {
                   </p>
                   {agents.length === 0 && (
                     <button
-                      onClick={handleSeedDatabase}
+                      onClick={() => setShowSeedConfirm(true)}
                       disabled={seeding}
                       className="w-full py-3 bg-amber-400 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -1224,17 +1228,29 @@ export const PlaygroundPage = () => {
                     Nếu bạn vừa deploy hoặc DB bị lỗi, hãy nạp lại dữ liệu khởi tạo.
                   </p>
                   <button
-                    onClick={handleSeedDatabase}
+                    onClick={() => setShowSeedConfirm(true)}
                     disabled={seeding}
                     className="w-full px-4 py-2 font-black uppercase text-xs bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 disabled:bg-stone-100 disabled:text-stone-400 disabled:border-stone-400"
                   >
-                    {seeding ? 'Processing...' : 'Seed Database (Reset)'}
+                    {seeding ? 'Đang xử lý...' : 'Nạp dữ liệu mẫu (Reset)'}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Confirm Modal for Seed Database */}
+        <ConfirmModal
+          isOpen={showSeedConfirm}
+          title="Xác nhận nạp dữ liệu mẫu"
+          message="Bạn có chắc muốn nạp lại dữ liệu mẫu? Việc này sẽ tạo lại các Agent và Tool mặc định."
+          confirmLabel="NẠP DỮ LIỆU"
+          cancelLabel="HỦY BỎ"
+          onConfirm={handleSeedDatabase}
+          onCancel={() => setShowSeedConfirm(false)}
+          isDanger
+        />
       </div>
     </div>
   )
