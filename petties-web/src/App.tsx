@@ -31,7 +31,7 @@ import { ClinicApprovalPage } from './pages/admin/clinics'
 // Role-specific Pages
 import { VetDashboardPage, VetSchedulePage } from './pages/vet'
 import { NotificationsPage as VetNotificationsPage } from './pages/vet/NotificationsPage'
-import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
+import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage, ChatPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
 import { NotificationsPage as ClinicManagerNotificationsPage } from './pages/clinic-manager/NotificationsPage'
 import {
@@ -129,6 +129,7 @@ function App() {
             <Route path="staff" element={<StaffManagementPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="master-services" element={<MasterServicesPage />} />
+            <Route path="chat" element={<ChatPage />} />
           </Route >
           {/* Clinic Manager Routes */}
           < Route path="/clinic-manager" element={

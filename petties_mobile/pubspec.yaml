@@ -14,6 +14,8 @@ dependencies:
   # Networking & HTTP
   http: ^1.2.2
   dio: ^5.7.0
+  stomp_dart_client: ^2.0.0
+  web_socket_channel: ^3.0.2
   
   # State Management
   provider: ^6.1.2

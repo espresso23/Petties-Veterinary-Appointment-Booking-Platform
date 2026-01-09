@@ -2,6 +2,11 @@ import 'dart:io';
 
 /// Environment configuration for different build modes
 class Environment {
+    /// WebSocket URL override from --dart-define=WS_URL
+    static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
+
+    /// Get the WebSocket URL from --dart-define, trả về rỗng nếu không có
+    static String get wsUrl => _wsUrlOverride;
   Environment._();
 
   // ============================================================
@@ -12,9 +17,12 @@ class Environment {
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
     if (Platform.isAndroid) {
-      // 10.0.2.2 is for Android Emulator to access host localhost
-      // If using PHYSICAL DEVICE, change this to your LAN IP (e.g. 192.168.1.9)
-      return 'http://10.0.2.2:8080/api';
+      // ====== CHỌN 1 TRONG 2 ======
+      // Emulator: dùng 10.0.2.2
+      // return 'http://10.0.2.2:8080/api';
+      
+      // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
+      return 'http://192.168.21.200:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';

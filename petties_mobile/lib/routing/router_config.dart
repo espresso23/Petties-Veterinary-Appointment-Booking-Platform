@@ -16,6 +16,8 @@ import '../ui/pet/pet_list_screen.dart';
 import '../ui/pet/add_edit_pet_screen.dart';
 import '../ui/pet/pet_detail_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
+import '../ui/chat/chat_list_screen.dart';
+import '../ui/chat/chat_detail_screen.dart';
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -241,6 +243,23 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.notifications,
           builder: (context, state) => const NotificationListScreen(),
+        ),
+
+        // Chat Routes
+        GoRoute(
+          path: AppRoutes.chatList,
+          builder: (context, state) => const ChatListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.chatDetail,
+          builder: (context, state) {
+            final chatBoxId = state.uri.queryParameters['chatBoxId'];
+            final clinicId = state.uri.queryParameters['clinicId'];
+            return ChatDetailScreen(
+              chatBoxId: chatBoxId,
+              clinicId: clinicId,
+            );
+          },
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

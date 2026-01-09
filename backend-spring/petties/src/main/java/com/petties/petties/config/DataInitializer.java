@@ -6,6 +6,10 @@ import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
+import com.petties.petties.repository.ChatBoxRepository;
+import com.petties.petties.repository.ChatMessageRepository;
+import com.petties.petties.model.ChatBox;
+import com.petties.petties.model.ChatMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,11 +28,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class DataInitializer implements CommandLineRunner {
 
+public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ChatBoxRepository chatBoxRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
@@ -100,16 +106,72 @@ public class DataInitializer implements CommandLineRunner {
      * Seed test users for development/testing
      */
     private void seedTestUsers() {
-        initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+        User petOwner = initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
         User clinicOwner = initializeUser("clinicOwner", "123456", "owner@clinic.com", "Clinic Owner User",
                 Role.CLINIC_OWNER);
-        initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
+        User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
         initializeUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", Role.VET);
 
         // Initialize a clinic for the clinic owner
+        Clinic clinic = null;
         if (clinicOwner != null) {
             initializeClinic(clinicOwner, "Petties Central Hospital", "123 Pet Street, Hanoi", "0123456789");
+            // Sửa: lấy clinic đầu tiên của owner (nếu có)
+            clinic = clinicRepository.findByOwnerUserId(clinicOwner.getUserId(), org.springframework.data.domain.PageRequest.of(0,1))
+                    .stream().findFirst().orElse(null);
+        }
+
+        // Seed chat box & messages between pet owner và clinic manager (nếu đủ dữ liệu)
+        if (petOwner != null && clinicManager != null && clinic != null) {
+            seedChatBoxAndMessages(petOwner, clinicManager, clinic);
+        }
+    }
+
+    /**
+     * Seed ChatBox và ChatMessage mẫu giữa pet owner và clinic manager
+     */
+    private void seedChatBoxAndMessages(User petOwner, User clinicManager, Clinic clinic) {
+        // Kiểm tra đã có ChatBox chưa (1-1 giữa petOwner và clinic)
+        ChatBox chatBox = chatBoxRepository.findByPetOwnerIdAndClinicId(petOwner.getUserId(), clinic.getClinicId())
+                .orElse(null);
+        if (chatBox == null) {
+            chatBox = new ChatBox();
+            chatBox.setPetOwnerId(petOwner.getUserId());
+            chatBox.setClinicId(clinic.getClinicId());
+            chatBox.setClinicName(clinic.getName());
+            chatBox.setClinicLogo(null);
+            chatBox.setPetOwnerName(petOwner.getFullName());
+            chatBox.setPetOwnerAvatar(null);
+            chatBox.setUnreadCountPetOwner(0);
+            chatBox.setUnreadCountClinic(0);
+            chatBox.setPetOwnerOnline(false);
+            chatBox.setClinicOnline(false);
+            chatBox.setLastMessage(null);
+            chatBox.setLastMessageAt(null);
+            chatBox = chatBoxRepository.save(chatBox);
+        }
+
+        // Tạo 2 tin nhắn mẫu (1 từ pet owner, 1 từ clinic manager)
+        if (chatMessageRepository.countByChatBoxId(chatBox.getId()) == 0) {
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            ChatMessage msg1 = new ChatMessage();
+            msg1.setChatBoxId(chatBox.getId());
+            msg1.setSenderId(petOwner.getUserId());
+            msg1.setSenderType(ChatMessage.SenderType.PET_OWNER);
+            msg1.setContent("Xin chào phòng khám, tôi muốn đặt lịch khám cho thú cưng!");
+            msg1.setCreatedAt(now.minusSeconds(120));
+            msg1.setRead(false); // Sửa đúng tên setter
+            chatMessageRepository.save(msg1);
+
+            ChatMessage msg2 = new ChatMessage();
+            msg2.setChatBoxId(chatBox.getId());
+            msg2.setSenderId(clinicManager.getUserId());
+            msg2.setSenderType(ChatMessage.SenderType.CLINIC);
+            msg2.setContent("Chào bạn, bạn muốn đặt lịch vào thời gian nào?");
+            msg2.setCreatedAt(now.minusSeconds(60));
+            msg2.setRead(false); // Sửa đúng tên setter
+            chatMessageRepository.save(msg2);
         }
     }
 

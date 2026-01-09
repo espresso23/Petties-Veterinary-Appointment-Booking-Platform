@@ -104,7 +104,32 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           ),
         ),
       ),
+      floatingActionButton: _buildChatFab(context),
       bottomNavigationBar: _buildBrutalNavBar(),
+    );
+  }
+
+  /// Floating Action Button cho Chat - Neobrutalism Style
+  Widget _buildChatFab(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 2),
+        boxShadow: const [
+          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+        ],
+      ),
+      child: FloatingActionButton(
+        onPressed: () => context.push(AppRoutes.chatList),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.chat_bubble_rounded, size: 26),
+      ),
     );
   }
 

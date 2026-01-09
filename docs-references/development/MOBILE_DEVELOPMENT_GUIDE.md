@@ -42,6 +42,8 @@ flutter run --flavor dev --dart-define=FLAVOR=dev
 adb reverse tcp:8080 tcp:8080
 flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://localhost:8080/api
 
+flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://localhost:8080/api --dart-define=WS_URL=ws://localhost:8080/ws
+
 # 3. Chạy trên Thiết bị thật qua LAN/Wifi (Cần tắt Firewall)
 # Thay 192.168.1.XXX bằng IP LAN của máy tính bạn
 flutter run --flavor dev --dart-define=FLAVOR=dev --dart-define=API_URL=http://192.168.18.39:8080/api
