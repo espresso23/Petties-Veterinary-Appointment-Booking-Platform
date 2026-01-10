@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/constants/app_colors.dart';
+import '../../config/constants/app_constants.dart';
 import '../../data/models/chat.dart';
 import '../../data/services/chat_service.dart';
+import '../../data/services/chat_websocket_service.dart';
 import '../../routing/app_routes.dart';
-import 'widgets/chat_box_item.dart';
+import 'widgets/chat_conversation_item.dart';
 
 /// Màn hình danh sách tin nhắn - Pet Owner
 class ChatListScreen extends StatefulWidget {
@@ -18,32 +21,116 @@ class _ChatListScreenState extends State<ChatListScreen> {
   final ChatService _chatService = ChatService();
   final TextEditingController _searchController = TextEditingController();
 
-  List<ChatBox> _chatBoxes = [];
-  List<ChatBox> _filteredChatBoxes = [];
+  List<ChatConversation> _conversations = [];
+  List<ChatConversation> _filteredConversations = [];
   bool _isLoading = true;
   String? _error;
+
+  // Track subscribed conversation IDs for cleanup
+  final Set<String> _subscribedIds = {};
 
   @override
   void initState() {
     super.initState();
-    _fetchChatBoxes();
+    _fetchConversations();
     _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _unsubscribeAll();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Subscribe to all conversations for realtime updates
+  Future<void> _subscribeToConversations() async {
+    debugPrint('📱 [ChatList] Starting WebSocket subscription...');
+
+    // Get access token from storage
+    final prefs = await SharedPreferences.getInstance();
+    final accessToken = prefs.getString(AppConstants.accessTokenKey);
+
+    if (accessToken == null || accessToken.isEmpty) {
+      debugPrint('📱 [ChatList] No access token available');
+      return;
+    }
+
+    // Set access token and connect WebSocket
+    chatWebSocket.setAccessToken(accessToken);
+
+    try {
+      await chatWebSocket.connect();
+      debugPrint('📱 [ChatList] WebSocket connected successfully');
+    } catch (e) {
+      debugPrint('📱 [ChatList] WebSocket connect error: $e');
+      return;
+    }
+
+    // Subscribe to each conversation
+    for (final conversation in _conversations) {
+      if (!_subscribedIds.contains(conversation.id)) {
+        chatWebSocket.subscribeToChatBox(
+            conversation.id, _handleWebSocketMessage);
+        _subscribedIds.add(conversation.id);
+        debugPrint('📱 [ChatList] Subscribed to: ${conversation.id}');
+      }
+    }
+    debugPrint('📱 [ChatList] Total subscribed: ${_subscribedIds.length}');
+  }
+
+  /// Unsubscribe from all conversations
+  void _unsubscribeAll() {
+    for (final id in _subscribedIds) {
+      chatWebSocket.unsubscribeFromChatBox(id, _handleWebSocketMessage);
+    }
+    _subscribedIds.clear();
+  }
+
+  /// Handle incoming WebSocket messages
+  void _handleWebSocketMessage(ChatWebSocketMessage wsMessage) {
+    debugPrint(
+        '📱 [ChatList] Received message: type=${wsMessage.type}, chatBoxId=${wsMessage.chatBoxId}');
+
+    if (wsMessage.type == WsMessageType.message && wsMessage.message != null) {
+      debugPrint(
+          '📱 [ChatList] Processing MESSAGE: ${wsMessage.message!.content}');
+      // Update the conversation in the list
+      setState(() {
+        final index =
+            _conversations.indexWhere((c) => c.id == wsMessage.chatBoxId);
+        debugPrint('📱 [ChatList] Found conversation at index: $index');
+        if (index != -1) {
+          final conversation = _conversations[index];
+          final msg = wsMessage.message!;
+          // Update last message and increment unread count
+          _conversations[index] = conversation.copyWith(
+            lastMessage: msg.content,
+            lastMessageSender: msg.senderType.value,
+            lastMessageAt: msg.createdAt,
+            // Increment unread if message is from CLINIC (partner for PET_OWNER)
+            unreadCount: msg.senderType == SenderType.clinic
+                ? conversation.unreadCount + 1
+                : conversation.unreadCount,
+          );
+          // Re-sort to bring updated conversation to top
+          _conversations.sort((a, b) => (b.lastMessageAt ?? DateTime(1970))
+              .compareTo(a.lastMessageAt ?? DateTime(1970)));
+          _onSearchChanged(); // Update filtered list
+          debugPrint('📱 [ChatList] Updated conversation with new message');
+        }
+      });
+    }
   }
 
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
     setState(() {
       if (query.isEmpty) {
-        _filteredChatBoxes = _chatBoxes;
+        _filteredConversations = _conversations;
       } else {
-        _filteredChatBoxes = _chatBoxes
+        _filteredConversations = _conversations
             .where((c) =>
                 (c.clinicName?.toLowerCase().contains(query) ?? false) ||
                 (c.lastMessage?.toLowerCase().contains(query) ?? false))
@@ -52,19 +139,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
     });
   }
 
-  Future<void> _fetchChatBoxes() async {
+  Future<void> _fetchConversations() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final chatBoxes = await _chatService.getChatBoxes();
+      final conversations = await _chatService.getConversations();
       setState(() {
-        _chatBoxes = chatBoxes;
-        _filteredChatBoxes = chatBoxes;
+        _conversations = conversations;
+        _filteredConversations = conversations;
         _isLoading = false;
       });
+      // Subscribe to WebSocket after fetching conversations
+      _subscribeToConversations();
     } catch (e) {
       setState(() {
         _error = 'Không thể tải danh sách tin nhắn';
@@ -156,7 +245,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _fetchChatBoxes,
+              onPressed: _fetchConversations,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
@@ -168,7 +257,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       );
     }
 
-    if (_filteredChatBoxes.isEmpty) {
+    if (_filteredConversations.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -200,25 +289,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: _fetchChatBoxes,
+      onRefresh: _fetchConversations,
       color: AppColors.primary,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _filteredChatBoxes.length,
+        itemCount: _filteredConversations.length,
         itemBuilder: (context, index) {
-          final chatBox = _filteredChatBoxes[index];
-          return ChatBoxItem(
-            chatBox: chatBox,
-            onTap: () => _openChat(chatBox),
+          final conversation = _filteredConversations[index];
+          return ChatConversationItem(
+            conversation: conversation,
+            onTap: () => _openChat(conversation),
           );
         },
       ),
     );
   }
 
-  void _openChat(ChatBox chatBox) {
-    context.push(
-      '${AppRoutes.chatDetail}?chatBoxId=${chatBox.id}',
+  Future<void> _openChat(ChatConversation conversation) async {
+    await context.push(
+      '${AppRoutes.chatDetail}?conversationId=${conversation.id}',
     );
+    // Refresh conversations when returning from chat detail
+    // This updates unread counts and last messages
+    _fetchConversations();
   }
 }

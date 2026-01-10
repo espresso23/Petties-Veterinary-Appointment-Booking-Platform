@@ -41,8 +41,8 @@ enum MessageStatus {
   }
 }
 
-/// Model cho cuộc hội thoại (ChatBox)
-class ChatBox extends BaseModel {
+/// Model cho cuộc hội thoại (ChatConversation)
+class ChatConversation extends BaseModel {
   final String id;
   final String petOwnerId;
   final String clinicId;
@@ -60,7 +60,7 @@ class ChatBox extends BaseModel {
   final bool petOwnerOnline;
   final bool clinicOnline;
 
-  ChatBox({
+  ChatConversation({
     required this.id,
     required this.petOwnerId,
     required this.clinicId,
@@ -79,8 +79,8 @@ class ChatBox extends BaseModel {
     this.clinicOnline = false,
   });
 
-  factory ChatBox.fromJson(Map<String, dynamic> json) {
-    return ChatBox(
+  factory ChatConversation.fromJson(Map<String, dynamic> json) {
+    return ChatConversation(
       id: json['id'] ?? '',
       petOwnerId: json['petOwnerId'] ?? json['pet_owner_id'] ?? '',
       clinicId: json['clinicId'] ?? json['clinic_id'] ?? '',
@@ -98,16 +98,31 @@ class ChatBox extends BaseModel {
               : null,
       // API returns unreadCount mapped by role (for Pet Owner, this is their unread count)
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
-      unreadCountPetOwner:
-          (json['unreadCountPetOwner'] ?? json['unread_count_pet_owner'] ?? 0) as int,
-      unreadCountClinic:
-          (json['unreadCountClinic'] ?? json['unread_count_clinic'] ?? 0) as int,
+      unreadCountPetOwner: (json['unreadCountPetOwner'] ??
+          json['unread_count_pet_owner'] ??
+          0) as int,
+      unreadCountClinic: (json['unreadCountClinic'] ??
+          json['unread_count_clinic'] ??
+          0) as int,
       // API returns partnerOnline mapped by role (for Pet Owner, this is clinic online status)
-      partnerOnline: (json['partnerOnline'] as bool?) ?? (json['partner_online'] as bool?) ?? false,
-      petOwnerOnline:
-          (json['petOwnerOnline'] as bool?) ?? (json['pet_owner_online'] as bool?) ?? false,
-      clinicOnline: (json['clinicOnline'] as bool?) ?? (json['clinic_online'] as bool?) ?? false,
+      partnerOnline: _parseBool(json['partnerOnline']) ??
+          _parseBool(json['partner_online']) ??
+          false,
+      petOwnerOnline: _parseBool(json['petOwnerOnline']) ??
+          _parseBool(json['pet_owner_online']) ??
+          false,
+      clinicOnline: _parseBool(json['clinicOnline']) ??
+          _parseBool(json['clinic_online']) ??
+          false,
     );
+  }
+
+  /// Helper function to safely parse bool from dynamic value
+  static bool? _parseBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    if (value is String) return value.toLowerCase() == 'true';
+    return null;
   }
 
   @override
@@ -139,7 +154,7 @@ class ChatBox extends BaseModel {
   bool get isClinicOnline => partnerOnline || clinicOnline;
 
   /// Copy with updated fields
-  ChatBox copyWith({
+  ChatConversation copyWith({
     String? id,
     String? petOwnerId,
     String? clinicId,
@@ -157,7 +172,7 @@ class ChatBox extends BaseModel {
     bool? petOwnerOnline,
     bool? isClinicOnline,
   }) {
-    return ChatBox(
+    return ChatConversation(
       id: id ?? this.id,
       petOwnerId: petOwnerId ?? this.petOwnerId,
       clinicId: clinicId ?? this.clinicId,

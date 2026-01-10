@@ -166,7 +166,7 @@ export function ChatPage() {
             return [mappedMessage, ...prev]
           })
           // Update chat box list
-          updateChatBoxLastMessage(wsMessage.chatBoxId, wsMessage.message)
+          updateChatBoxLastMessage(wsMessage.conversationId, wsMessage.message)
         }
         break
 

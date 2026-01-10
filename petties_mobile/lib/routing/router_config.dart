@@ -253,10 +253,10 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.chatDetail,
           builder: (context, state) {
-            final chatBoxId = state.uri.queryParameters['chatBoxId'];
+            final conversationId = state.uri.queryParameters['conversationId'];
             final clinicId = state.uri.queryParameters['clinicId'];
             return ChatDetailScreen(
-              chatBoxId: chatBoxId,
+              conversationId: conversationId,
               clinicId: clinicId,
             );
           },

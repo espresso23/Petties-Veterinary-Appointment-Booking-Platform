@@ -4,13 +4,13 @@ import '../../../data/models/chat.dart';
 import 'package:intl/intl.dart';
 
 /// Widget hiển thị một chat box trong danh sách
-class ChatBoxItem extends StatelessWidget {
-  final ChatBox chatBox;
+class ChatConversationItem extends StatelessWidget {
+  final ChatConversation conversation;
   final VoidCallback onTap;
 
-  const ChatBoxItem({
+  const ChatConversationItem({
     super.key,
-    required this.chatBox,
+    required this.conversation,
     required this.onTap,
   });
 
@@ -62,9 +62,9 @@ class ChatBoxItem extends StatelessWidget {
             color: AppColors.stone100,
           ),
           child: ClipOval(
-            child: chatBox.clinicLogo != null && chatBox.clinicLogo!.isNotEmpty
+            child: conversation.clinicLogo != null && conversation.clinicLogo!.isNotEmpty
                 ? Image.network(
-                    chatBox.clinicLogo!,
+                    conversation.clinicLogo!,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
                   )
@@ -72,7 +72,7 @@ class ChatBoxItem extends StatelessWidget {
           ),
         ),
         // Online indicator (use == true for null safety)
-        if (chatBox.isClinicOnline == true)
+        if (conversation.isClinicOnline == true)
           Positioned(
             right: 2,
             bottom: 2,
@@ -95,7 +95,7 @@ class ChatBoxItem extends StatelessWidget {
       color: AppColors.primarySurface,
       child: Center(
         child: Text(
-          (chatBox.clinicName ?? 'C')[0].toUpperCase(),
+          (conversation.clinicName ?? 'C')[0].toUpperCase(),
           style: const TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w800,
@@ -112,7 +112,7 @@ class ChatBoxItem extends StatelessWidget {
       children: [
         // Clinic name
         Text(
-          chatBox.clinicName ?? 'Phòng khám',
+          conversation.clinicName ?? 'Phòng khám',
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
@@ -127,11 +127,11 @@ class ChatBoxItem extends StatelessWidget {
           _getLastMessagePreview(),
           style: TextStyle(
             fontSize: 13,
-            color: chatBox.myUnreadCount > 0
+            color: conversation.myUnreadCount > 0
                 ? AppColors.stone700
                 : AppColors.stone500,
             fontWeight:
-                chatBox.myUnreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                conversation.myUnreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -141,12 +141,12 @@ class ChatBoxItem extends StatelessWidget {
   }
 
   String _getLastMessagePreview() {
-    if (chatBox.lastMessage == null || chatBox.lastMessage!.isEmpty) {
+    if (conversation.lastMessage == null || conversation.lastMessage!.isEmpty) {
       return 'Bắt đầu trò chuyện...';
     }
 
-    final prefix = chatBox.lastMessageSender == 'PET_OWNER' ? 'Bạn: ' : '';
-    return '$prefix${chatBox.lastMessage}';
+    final prefix = conversation.lastMessageSender == 'PET_OWNER' ? 'Bạn: ' : '';
+    return '$prefix${conversation.lastMessage}';
   }
 
   Widget _buildMeta() {
@@ -155,7 +155,7 @@ class ChatBoxItem extends StatelessWidget {
       children: [
         // Time
         Text(
-          _formatTime(chatBox.lastMessageAt),
+          _formatTime(conversation.lastMessageAt),
           style: TextStyle(
             fontSize: 11,
             color: AppColors.stone400,
@@ -164,7 +164,7 @@ class ChatBoxItem extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         // Unread badge
-        if (chatBox.myUnreadCount > 0)
+        if (conversation.myUnreadCount > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -173,9 +173,9 @@ class ChatBoxItem extends StatelessWidget {
               border: Border.all(color: AppColors.stone900, width: 1.5),
             ),
             child: Text(
-              chatBox.myUnreadCount > 99
+              conversation.myUnreadCount > 99
                   ? '99+'
-                  : chatBox.myUnreadCount.toString(),
+                  : conversation.myUnreadCount.toString(),
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
@@ -206,3 +206,6 @@ class ChatBoxItem extends StatelessWidget {
     }
   }
 }
+
+
+

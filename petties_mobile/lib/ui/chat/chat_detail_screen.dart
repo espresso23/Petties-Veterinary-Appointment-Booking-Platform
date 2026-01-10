@@ -11,12 +11,12 @@ import 'widgets/message_input.dart';
 
 /// Màn hình chi tiết chat - Pet Owner
 class ChatDetailScreen extends StatefulWidget {
-  final String? chatBoxId;
+  final String? conversationId;
   final String? clinicId;
 
   const ChatDetailScreen({
     super.key,
-    this.chatBoxId,
+    this.conversationId,
     this.clinicId,
   });
 
@@ -28,7 +28,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ChatService _chatService = ChatService();
   final ScrollController _scrollController = ScrollController();
 
-  ChatBox? _chatBox;
+  ChatConversation? _conversation;
   List<ChatMessage> _messages = [];
   bool _isLoading = true;
   bool _isSending = false;
@@ -44,10 +44,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   @override
   void dispose() {
     // Unsubscribe from WebSocket when leaving
-    if (_chatBox != null) {
+    if (_conversation != null) {
+      // Stop typing indicator when leaving
+      chatWebSocket.sendTyping(_conversation!.id, false);
       chatWebSocket.unsubscribeFromChatBox(
-          _chatBox!.id, _handleWebSocketMessage);
-      chatWebSocket.sendOnlineStatus(_chatBox!.id, false);
+          _conversation!.id, _handleWebSocketMessage);
+      chatWebSocket.sendOnlineStatus(_conversation!.id, false);
     }
     _scrollController.dispose();
     super.dispose();
@@ -60,32 +62,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     });
 
     try {
-      ChatBox chatBox;
+      ChatConversation conversation;
 
-      if (widget.chatBoxId != null) {
-        // Lấy chat box có sẵn
-        chatBox = await _chatService.getChatBox(widget.chatBoxId!);
+      if (widget.conversationId != null) {
+        // Lấy conversation có sẵn
+        conversation =
+            await _chatService.getConversation(widget.conversationId!);
       } else if (widget.clinicId != null) {
-        // Tạo mới hoặc lấy chat box với clinic
-        chatBox = await _chatService.createOrGetChatBox(widget.clinicId!);
+        // Tạo mới hoặc lấy conversation với clinic
+        conversation =
+            await _chatService.createOrGetConversation(widget.clinicId!);
       } else {
-        throw Exception('Cần có chatBoxId hoặc clinicId');
+        throw Exception('Cần có conversationId hoặc clinicId');
       }
 
       // Load messages
-      final messages = await _chatService.getMessages(chatBox.id);
+      final messages = await _chatService.getMessages(conversation.id);
 
       // Mark as read
-      await _chatService.markAsRead(chatBox.id);
+      await _chatService.markAsRead(conversation.id);
 
       setState(() {
-        _chatBox = chatBox;
+        _conversation = conversation;
         _messages = messages.reversed.toList(); // Newest at bottom
         _isLoading = false;
       });
 
       // Connect WebSocket and subscribe
-      _connectAndSubscribe(chatBox.id);
+      _connectAndSubscribe(conversation.id);
 
       _scrollToBottom();
     } catch (e) {
@@ -97,7 +101,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   /// Connect to WebSocket and subscribe to chat box
-  Future<void> _connectAndSubscribe(String chatBoxId) async {
+  Future<void> _connectAndSubscribe(String conversationId) async {
     try {
       // Get access token from storage
       final prefs = await SharedPreferences.getInstance();
@@ -106,8 +110,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       if (accessToken != null) {
         chatWebSocket.setAccessToken(accessToken);
         await chatWebSocket.connect();
-        chatWebSocket.subscribeToChatBox(chatBoxId, _handleWebSocketMessage);
-        chatWebSocket.sendOnlineStatus(chatBoxId, true);
+        chatWebSocket.subscribeToChatBox(
+            conversationId, _handleWebSocketMessage);
+        chatWebSocket.sendOnlineStatus(conversationId, true);
       }
     } catch (e) {
       debugPrint('WebSocket connection failed: $e');
@@ -163,7 +168,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       case WsMessageType.online:
         if (wsMessage.senderType == 'CLINIC') {
           setState(() {
-            _chatBox = _chatBox?.copyWith(isClinicOnline: true);
+            _conversation = _conversation?.copyWith(isClinicOnline: true);
           });
         }
         break;
@@ -171,7 +176,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       case WsMessageType.offline:
         if (wsMessage.senderType == 'CLINIC') {
           setState(() {
-            _chatBox = _chatBox?.copyWith(isClinicOnline: false);
+            _conversation = _conversation?.copyWith(isClinicOnline: false);
           });
         }
         break;
@@ -179,7 +184,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Future<void> _sendMessage(String content) async {
-    if (_chatBox == null || _isSending) return;
+    if (_conversation == null || _isSending) return;
 
     setState(() => _isSending = true);
 
@@ -188,7 +193,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // DO NOT add message to state here to avoid duplicate
       // WebSocket will broadcast the message back to us
       await _chatService.sendMessage(
-        _chatBox!.id,
+        _conversation!.id,
         content,
       );
 
@@ -228,11 +233,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       body: Column(
         children: [
           Expanded(child: _buildBody()),
-          if (_chatBox != null)
+          if (_conversation != null)
             MessageInput(
               onSend: _sendMessage,
               onTyping: (typing) =>
-                  chatWebSocket.sendTyping(_chatBox!.id, typing),
+                  chatWebSocket.sendTyping(_conversation!.id, typing),
               isLoading: _isSending,
             ),
         ],
@@ -248,7 +253,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         icon: const Icon(Icons.arrow_back, color: AppColors.stone900),
         onPressed: () => context.pop(),
       ),
-      title: _chatBox != null
+      title: _conversation != null
           ? Row(
               children: [
                 // Avatar
@@ -261,10 +266,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     color: AppColors.stone100,
                   ),
                   child: ClipOval(
-                    child: _chatBox!.clinicLogo != null &&
-                            _chatBox!.clinicLogo!.isNotEmpty
+                    child: _conversation!.clinicLogo != null &&
+                            _conversation!.clinicLogo!.isNotEmpty
                         ? Image.network(
-                            _chatBox!.clinicLogo!,
+                            _conversation!.clinicLogo!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
                           )
@@ -278,7 +283,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _chatBox!.clinicName ?? 'Phòng khám',
+                        _conversation!.clinicName ?? 'Phòng khám',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -294,14 +299,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             height: 8,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _chatBox!.isClinicOnline
+                              color: _conversation!.isClinicOnline
                                   ? AppColors.success
                                   : AppColors.stone400,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _chatBox!.isClinicOnline
+                            _conversation!.isClinicOnline
                                 ? 'Đang hoạt động'
                                 : 'Không hoạt động',
                             style: TextStyle(
@@ -339,7 +344,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       color: AppColors.primarySurface,
       child: Center(
         child: Text(
-          (_chatBox?.clinicName ?? 'C')[0].toUpperCase(),
+          (_conversation?.clinicName ?? 'C')[0].toUpperCase(),
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,

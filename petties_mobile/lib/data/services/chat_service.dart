@@ -5,17 +5,16 @@ import 'api_client.dart';
 class ChatService {
   final ApiClient _apiClient = ApiClient.instance;
 
-  /// Tạo hoặc lấy conversation với clinic
-  Future<ChatBox> createOrGetConversation(String clinicId) async {
+  Future<ChatConversation> createOrGetConversation(String clinicId) async {
     final response = await _apiClient.post(
       '/chat/conversations',
       data: {'clinicId': clinicId},
     );
-    return ChatBox.fromJson(response.data);
+    return ChatConversation.fromJson(response.data);
   }
 
   /// Lấy danh sách conversations của user
-  Future<List<ChatBox>> getConversations() async {
+  Future<List<ChatConversation>> getConversations() async {
     final response = await _apiClient.get('/chat/conversations');
     final data = response.data;
     List<dynamic> conversations;
@@ -28,14 +27,15 @@ class ChatService {
       conversations = [];
     }
 
-    return conversations.map((json) => ChatBox.fromJson(json)).toList();
+    return conversations
+        .map((json) => ChatConversation.fromJson(json))
+        .toList();
   }
 
-  /// Lấy chi tiết conversation
-  Future<ChatBox> getConversation(String conversationId) async {
+  Future<ChatConversation> getConversation(String conversationId) async {
     final response =
         await _apiClient.get('/chat/conversations/$conversationId');
-    return ChatBox.fromJson(response.data);
+    return ChatConversation.fromJson(response.data);
   }
 
   /// Lấy tin nhắn trong conversation
@@ -90,12 +90,12 @@ class ChatService {
   // Deprecated: Use methods with Conversation naming instead
 
   @Deprecated('Use createOrGetConversation instead')
-  Future<ChatBox> createOrGetChatBox(String clinicId) =>
+  Future<ChatConversation> createOrGetChatBox(String clinicId) =>
       createOrGetConversation(clinicId);
 
   @Deprecated('Use getConversations instead')
-  Future<List<ChatBox>> getChatBoxes() => getConversations();
+  Future<List<ChatConversation>> getChatBoxes() => getConversations();
 
   @Deprecated('Use getConversation instead')
-  Future<ChatBox> getChatBox(String id) => getConversation(id);
+  Future<ChatConversation> getChatBox(String id) => getConversation(id);
 }
