@@ -32,50 +32,6 @@ export function ChatPage() {
   // Typing debounce ref
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load chat boxes on mount
-  useEffect(() => {
-    loadChatBoxes()
-    connectWebSocket()
-
-    return () => {
-      // Cleanup typing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current)
-      }
-      chatWebSocket.disconnect()
-    }
-  }, [])
-
-  // Subscribe to chat box when selected AND WebSocket is connected
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-
-    if (selectedChatBox && wsConnected) {
-      loadMessages(selectedChatBox.id, 0, true)
-      unsubscribe = subscribeToChatBox(selectedChatBox.id)
-
-      // Mark as read
-      chatService.markAsRead(selectedChatBox.id).catch(console.error)
-
-      // Send online status
-      chatWebSocket.sendOnlineStatus(selectedChatBox.id, true)
-    } else if (selectedChatBox && !wsConnected) {
-      // WebSocket not connected yet, just load messages via API
-      loadMessages(selectedChatBox.id, 0, true)
-      chatService.markAsRead(selectedChatBox.id).catch(console.error)
-    }
-
-    // Cleanup: unsubscribe and send offline status when chat box changes
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-      // Send offline status when leaving chat box
-      if (selectedChatBox && wsConnected) {
-        chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
-      }
-    }
-  }, [selectedChatBox?.id, wsConnected])
 
   // ======================== API CALLS ========================
 
@@ -142,31 +98,94 @@ export function ChatPage() {
     }
   }
 
-  const subscribeToChatBox = (chatBoxId: string) => {
-    return chatWebSocket.subscribeToChatBox(chatBoxId, handleWebSocketMessage)
-  }
+
+
+  // Use a ref to always have access to the current selectedChatBox.id
+  // This avoids stale closures in WebSocket handlers
+  const selectedChatBoxIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    selectedChatBoxIdRef.current = selectedChatBox?.id ?? null
+  }, [selectedChatBox?.id])
+
+  const updateChatBoxLastMessage = useCallback((chatBoxId: string, message: ChatMessage) => {
+    // Use ref to get the current selected chat box ID (avoids stale closure)
+    const currentSelectedId = selectedChatBoxIdRef.current
+    console.log('[WS DEBUG] updateChatBoxLastMessage called - chatBoxId:', chatBoxId, 'currentSelectedId:', currentSelectedId, 'senderType:', message.senderType)
+
+    setChatBoxes((prev) => {
+      console.log('[WS DEBUG] setChatBoxes - prev length:', prev.length)
+      const updated = prev.map((cb) =>
+        cb.id === chatBoxId
+          ? {
+            ...cb,
+            lastMessage: message.content,
+            lastMessageSender: message.senderType,
+            lastMessageAt: message.createdAt,
+            // Unread count logic:
+            // - If viewing this chat: 0
+            // - If CLINIC sent (own message): 0 (implicitly read by sending)
+            // - If PET_OWNER sent: increment
+            unreadCount:
+              currentSelectedId === chatBoxId || message.senderType === 'CLINIC'
+                ? 0
+                : cb.unreadCount + 1,
+          }
+          : cb
+      )
+
+      // Re-sort: newest message first
+      const sorted = [...updated].sort((a, b) => {
+        const timeA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+        const timeB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+        return timeB - timeA
+      })
+      console.log('[WS DEBUG] setChatBoxes - sorted[0]:', sorted[0]?.lastMessage, sorted[0]?.lastMessageSender)
+      return sorted
+    })
+
+    // Also update selectedChatBox if it's the one receiving the message
+    if (currentSelectedId === chatBoxId) {
+      console.log('[WS DEBUG] Also updating selectedChatBox')
+      setSelectedChatBox(prev => prev ? {
+        ...prev,
+        lastMessage: message.content,
+        lastMessageSender: message.senderType,
+        lastMessageAt: message.createdAt,
+        unreadCount: 0,
+        partnerOnline: prev.partnerOnline // Preserve online status
+      } : null)
+    }
+  }, []) // No dependency needed since we use ref
 
   const handleWebSocketMessage = useCallback((wsMessage: ChatWebSocketMessage) => {
+    console.log('[WS DEBUG] Received message:', wsMessage.type, wsMessage)
     switch (wsMessage.type) {
       case 'MESSAGE':
         if (wsMessage.message) {
+          console.log('[WS DEBUG] Processing MESSAGE:', wsMessage.message.content)
           // Check if message already exists to avoid duplicate
           // This happens when we send a message and receive it back via WebSocket broadcast
           setMessages((prev) => {
             const messageExists = prev.some((m) => m.id === wsMessage.message!.id)
-            if (messageExists) return prev
+            if (messageExists) {
+              console.log('[WS DEBUG] Message already exists, skipping')
+              return prev
+            }
 
             // Map isMe based on senderType for Clinic staff
             const mappedMessage = {
               ...wsMessage.message!,
               isMe: wsMessage.message!.senderType === 'CLINIC'
             }
+            console.log('[WS DEBUG] Adding new message to chat')
             // Add to beginning of array because state stores DESC order (newest first)
             // ChatBox.tsx reverses for display (oldest first, newest at bottom)
             return [mappedMessage, ...prev]
           })
-          // Update chat box list
-          updateChatBoxLastMessage(wsMessage.conversationId, wsMessage.message)
+          // Update chat box list - use chatBoxId (backend field name) with fallback to conversationId
+          const chatId = wsMessage.chatBoxId || wsMessage.conversationId
+          console.log('[WS DEBUG] Calling updateChatBoxLastMessage for:', chatId)
+          updateChatBoxLastMessage(chatId, wsMessage.message)
         }
         break
 
@@ -207,30 +226,64 @@ export function ChatPage() {
         }
         break
     }
+  }, [updateChatBoxLastMessage])
+
+  // ======================== EFFECTS ========================
+
+  // Load chat boxes on mount
+  useEffect(() => {
+    loadChatBoxes()
+    connectWebSocket()
+
+    return () => {
+      // Cleanup typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+      chatWebSocket.disconnect()
+    }
   }, [])
 
-  const updateChatBoxLastMessage = (chatBoxId: string, message: ChatMessage) => {
-    setChatBoxes((prev) =>
-      prev.map((cb) =>
-        cb.id === chatBoxId
-          ? {
-            ...cb,
-            lastMessage: message.content,
-            lastMessageSender: message.senderType,
-            lastMessageAt: message.createdAt,
-            // Only increment unread for messages from PET_OWNER (partner)
-            // Don't count own messages (CLINIC) or if already viewing this chat
-            unreadCount:
-              selectedChatBox?.id === chatBoxId
-                ? 0
-                : message.senderType === 'PET_OWNER'
-                  ? cb.unreadCount + 1
-                  : cb.unreadCount,
-          }
-          : cb
-      )
-    )
-  }
+  // Subscribe to ALL chat boxes for realtime updates in the list
+  useEffect(() => {
+    console.log('[WS DEBUG] Subscription effect - wsConnected:', wsConnected, 'chatBoxes.length:', chatBoxes.length)
+    if (!wsConnected || chatBoxes.length === 0) {
+      console.log('[WS DEBUG] Skipping subscription - conditions not met')
+      return
+    }
+
+    console.log('[WS DEBUG] Subscribing to', chatBoxes.length, 'chat boxes')
+    // Create a stable handle to the message handler to avoid unnecessary re-subscriptions
+    const unsubscribes = chatBoxes.map(cb => {
+      console.log('[WS DEBUG] Subscribing to chat box:', cb.id)
+      return chatWebSocket.subscribeToChatBox(cb.id, handleWebSocketMessage)
+    })
+
+    return () => {
+      console.log('[WS DEBUG] Unsubscribing from all chat boxes')
+      unsubscribes.forEach(unsub => unsub())
+    }
+  }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
+
+  // Load messages and send online status for the selected chat box
+  useEffect(() => {
+    if (selectedChatBox) {
+      loadMessages(selectedChatBox.id, 0, true)
+
+      // Mark as read
+      chatService.markAsRead(selectedChatBox.id).catch(console.error)
+
+      // Send online status
+      chatWebSocket.sendOnlineStatus(selectedChatBox.id, true)
+    }
+
+    // Cleanup: send offline status when leaving chat box
+    return () => {
+      if (selectedChatBox && wsConnected) {
+        chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
+      }
+    }
+  }, [selectedChatBox?.id, wsConnected])
 
   // ======================== HANDLERS ========================
 
