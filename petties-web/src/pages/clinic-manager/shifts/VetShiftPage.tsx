@@ -245,6 +245,7 @@ export const VetShiftPage = () => {
             if (selectedShift) {
                 const detail = await vetShiftService.getShiftDetail(selectedShift.shiftId)
                 setShiftDetail(detail)
+                setSelectedShift(detail) // Sync sidebar stats immediately
                 // Sync with day view immediately
                 setDayViewShifts(prev => prev.map(s => s.shiftId === detail.shiftId ? detail : s))
             }
@@ -262,6 +263,7 @@ export const VetShiftPage = () => {
             if (selectedShift) {
                 const detail = await vetShiftService.getShiftDetail(selectedShift.shiftId)
                 setShiftDetail(detail)
+                setSelectedShift(detail) // Sync sidebar stats immediately
                 // Sync with day view immediately
                 setDayViewShifts(prev => prev.map(s => s.shiftId === detail.shiftId ? detail : s))
             }
@@ -884,7 +886,25 @@ export const VetShiftPage = () => {
                                     const vetShift = dayViewShifts.find(s => s.vetId === vet.userId && !s.isContinuation)
 
                                     return (
-                                        <div key={vet.userId} className="bg-white rounded-xl border-2 border-stone-200 p-4">
+                                        <div
+                                            key={vet.userId}
+                                            className={`bg-white rounded-xl border-2 p-4 transition-all cursor-pointer hover:border-amber-500 hover:shadow-[3px_3px_0px_0px_rgba(251,191,36,0.5)] ${(selectedShift && vetShift && selectedShift.shiftId === vetShift.shiftId) ? 'border-amber-500 bg-amber-50' : (formData.vetId === vet.userId && !vetShift && formData.workDates.includes(formatDate(selectedDay))) ? 'border-amber-500 bg-amber-50' : 'border-stone-200'}`}
+                                            onClick={() => {
+                                                if (vetShift) {
+                                                    setSelectedShift(vetShift)
+                                                    setSidebarMode('detail')
+                                                } else {
+                                                    // No shift - switch to create mode with pre-filled vet and date
+                                                    setSelectedShift(null)
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        vetId: vet.userId,
+                                                        workDates: [formatDate(selectedDay)]
+                                                    }))
+                                                    setSidebarMode('create')
+                                                }
+                                            }}
+                                        >
                                             <div className="flex items-center gap-3 mb-3 pb-3 border-b border-stone-100">
                                                 {vet.avatar ? (
                                                     <img src={vet.avatar} alt="avt" className="w-10 h-10 rounded-full border-2 border-stone-900 object-cover" />
@@ -1051,7 +1071,22 @@ export const VetShiftPage = () => {
                 {/* Toggle Tabs */}
                 <div className="flex mb-6 bg-stone-100 rounded-xl p-1 border-2 border-stone-200">
                     <button
-                        onClick={() => setSidebarMode('create')}
+                        onClick={() => {
+                            // Sync formData with selectedShift when switching to create mode
+                            if (selectedShift) {
+                                setFormData(prev => ({
+                                    ...prev,
+                                    vetId: selectedShift.vetId,
+                                    workDates: [selectedShift.workDate],
+                                    startTime: selectedShift.startTime.substring(0, 5),
+                                    endTime: selectedShift.endTime.substring(0, 5),
+                                    breakStart: selectedShift.breakStart?.substring(0, 5),
+                                    breakEnd: selectedShift.breakEnd?.substring(0, 5),
+                                    isOvernight: selectedShift.isOvernight,
+                                }))
+                            }
+                            setSidebarMode('create')
+                        }}
                         className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${sidebarMode === 'create'
                             ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
                             : 'text-stone-500 hover:text-stone-700'
@@ -1378,7 +1413,7 @@ export const VetShiftPage = () => {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] p-6 max-w-md w-full mx-4">
                         <h3 className="text-lg font-bold text-amber-600 mb-3 flex items-center gap-2">
-                            ⚠️ Phát hiện ca trùng lịch
+                            Phát hiện ca trùng lịch
                         </h3>
                         <p className="text-stone-600 text-sm mb-4">
                             Bác sĩ đã có ca làm việc trong các khung giờ sau:

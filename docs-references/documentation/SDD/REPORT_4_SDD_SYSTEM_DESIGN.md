@@ -761,21 +761,26 @@ flowchart TB
 classDiagram
     class AuthController {
         -AuthService authService
+        -UserService userService
         -RegistrationOtpService registrationOtpService
         -PasswordResetService passwordResetService
+        +register(RegisterRequest) ResponseEntity
         +sendRegistrationOtp(SendOtpRequest) ResponseEntity
         +verifyOtpAndRegister(VerifyOtpRequest) ResponseEntity
+        +resendOtp(String email) ResponseEntity
         +login(LoginRequest) ResponseEntity
-        +loginWithGoogle(GoogleSignInRequest) ResponseEntity
+        +googleSignIn(GoogleSignInRequest) ResponseEntity
         +refreshToken(String) ResponseEntity
-        +logout() ResponseEntity
+        +logout(String) ResponseEntity
         +getCurrentUser() ResponseEntity
         +forgotPassword(ForgotPasswordRequest) ResponseEntity
         +resetPassword(ResetPasswordRequest) ResponseEntity
+        +resendPasswordResetOtp(String email) ResponseEntity
     }
 
     class AuthService {
         -UserRepository userRepository
+        -PasswordEncoder passwordEncoder
         -JwtTokenProvider tokenProvider
         -AuthenticationManager authenticationManager
         -RefreshTokenRepository refreshTokenRepository
@@ -787,24 +792,46 @@ classDiagram
         +refreshToken(String refreshToken) AuthResponse
         +logout(String accessToken) void
         +getCurrentUser() User
+        -saveRefreshToken(UUID, String) void
+        -findOrCreateGoogleUser(GoogleUserInfo, String) User
+        -createUserFromGoogle(GoogleUserInfo, String) User
+        -validateRolePlatformAccess(Role, String) void
     }
 
     class RegistrationOtpService {
         -UserRepository userRepository
+        -PasswordEncoder passwordEncoder
+        -JwtTokenProvider tokenProvider
+        -RefreshTokenRepository refreshTokenRepository
         -OtpService otpService
         -EmailService emailService
         -OtpRedisService otpRedisService
         +sendRegistrationOtp(SendOtpRequest) SendOtpResponse
         +verifyOtpAndRegister(VerifyOtpRequest) AuthResponse
         +resendOtp(String email) SendOtpResponse
+        -saveRefreshToken(UUID, String) void
     }
 
     class PasswordResetService {
         -UserRepository userRepository
-        -OtpRedisService otpRedisService
+        -PasswordEncoder passwordEncoder
+        -OtpService otpService
         -EmailService emailService
+        -OtpRedisService otpRedisService
         +sendPasswordResetOtp(ForgotPasswordRequest) SendOtpResponse
         +verifyOtpAndResetPassword(ResetPasswordRequest) MessageResponse
+        +resendPasswordResetOtp(String email) SendOtpResponse
+    }
+
+    class UserService {
+        -UserRepository userRepository
+        +getUserById(UUID) UserResponse
+        +updateProfile(UUID, ProfileRequest) UserResponse
+    }
+
+    class OtpService {
+        +generateOtp() String
+        +getExpiryMinutes() int
     }
 
     class OtpRedisService {
@@ -812,49 +839,82 @@ classDiagram
         +savePendingRegistration(PendingRegistrationData) void
         +getPendingRegistration(String email) Optional
         +deletePendingRegistration(String email) void
+        +savePasswordResetOtp(String, String) void
+        +getPasswordResetOtp(String) Optional
+        +deletePasswordResetOtp(String) void
+        +incrementPasswordResetAttempts(String) void
+        +getPasswordResetCooldownRemaining(String) long
+    }
+
+    class EmailService {
+        +sendRegistrationOtpEmail(String, String) void
+        +sendPasswordResetOtpEmail(String, String) void
     }
 
     class GoogleAuthService {
         +verifyIdToken(String idToken) GoogleUserInfo
     }
 
+    class JwtTokenProvider {
+        +generateToken(UUID, String, String) String
+        +generateRefreshToken(UUID, String) String
+        +validateToken(String) boolean
+        +getUserIdFromToken(String) UUID
+        +getUsernameFromToken(String) String
+        +getTokenType(String) String
+        +getExpirationDateFromToken(String) Date
+    }
+
     class UserRepository {
         <<interface>>
         +findByUsername(String) Optional~User~
         +findByEmail(String) Optional~User~
+        +findById(UUID) Optional~User~
+        +findByIdWithWorkingClinic(UUID) Optional~User~
+        +existsByUsername(String) boolean
+        +existsByEmail(String) boolean
         +save(User) User
     }
 
     class RefreshTokenRepository {
         <<interface>>
-        +findByToken(String) Optional~RefreshToken~
-        +deleteByUser(User) void
+        +findByTokenHash(String) Optional~RefreshToken~
+        +deleteAllByUserId(UUID) void
+        +delete(RefreshToken) void
         +save(RefreshToken) RefreshToken
     }
 
     class BlacklistedTokenRepository {
         <<interface>>
-        +existsByToken(String) boolean
-        +save(BlacklistedToken) void
+        +existsByTokenHash(String) boolean
+        +save(BlacklistedToken) BlacklistedToken
     }
 
     class User {
         +UUID userId
         +String username
         +String email
+        +String password
+        +String fullName
+        +String phone
+        +String avatar
         +Role role
+        +Clinic workingClinic
     }
 
     class RefreshToken {
-        +UUID id
-        +String token
-        +Instant expiryDate
-        +User user
+        +Long id
+        +UUID userId
+        +String tokenHash
+        +LocalDateTime expiresAt
+        +isExpired() boolean
     }
 
     class BlacklistedToken {
-        +String token
-        +Instant expiryDate
+        +Long id
+        +String tokenHash
+        +UUID userId
+        +LocalDateTime expiresAt
     }
 
     class Role {
@@ -866,19 +926,43 @@ classDiagram
         ADMIN
     }
 
+    %% Controller Dependencies
     AuthController --> AuthService
+    AuthController --> UserService
     AuthController --> RegistrationOtpService
     AuthController --> PasswordResetService
+
+    %% AuthService Dependencies
     AuthService --> UserRepository
     AuthService --> RefreshTokenRepository
     AuthService --> BlacklistedTokenRepository
     AuthService --> GoogleAuthService
+    AuthService --> JwtTokenProvider
+
+    %% RegistrationOtpService Dependencies
     RegistrationOtpService --> UserRepository
+    RegistrationOtpService --> RefreshTokenRepository
+    RegistrationOtpService --> OtpService
+    RegistrationOtpService --> OtpRedisService
+    RegistrationOtpService --> EmailService
+    RegistrationOtpService --> JwtTokenProvider
+
+    %% PasswordResetService Dependencies
     PasswordResetService --> UserRepository
+    PasswordResetService --> OtpService
+    PasswordResetService --> OtpRedisService
+    PasswordResetService --> EmailService
+
+    %% UserService Dependencies
+    UserService --> UserRepository
+
+    %% Repository to Entity relationships
     UserRepository ..> User
     RefreshTokenRepository ..> RefreshToken
     BlacklistedTokenRepository ..> BlacklistedToken
+    User --> Role
 ```
+
 #### 3.1.2 User Registration with OTP
 
 **Sequence Diagram:**
@@ -891,8 +975,10 @@ sequenceDiagram
     participant ROS as RegistrationOtpService
     participant ORS as OtpRedisService
     participant ES as EmailService
-    participant AS as AuthService
     participant UR as UserRepository
+    participant RTR as RefreshTokenRepository
+    participant JTP as JwtTokenProvider
+    participant DB as Database
 
     User->>UI: 1. Input info & click "Send OTP"
     activate UI
@@ -900,48 +986,70 @@ sequenceDiagram
     activate AC
     AC->>ROS: 3. sendRegistrationOtp(Request)
     activate ROS
-    ROS->>UR: 4. findByEmail(email)
+    ROS->>UR: 4. existsByEmail(email)
     activate UR
-    UR-->>ROS: 5. Empty
+    UR->>DB: 5. Check email exists
+    activate DB
+    DB-->>UR: 6. Not exists
+    deactivate DB
+    UR-->>ROS: 7. false
     deactivate UR
-    ROS->>ORS: 6. saveOtp(email, otp)
+    ROS->>ORS: 8. savePendingRegistration(data)
     activate ORS
-    ORS-->>ROS: 7. OK
+    ORS-->>ROS: 9. OK (saved to Redis)
     deactivate ORS
-    ROS->>ES: 8. sendEmail(email, otp)
+    ROS->>ES: 10. sendRegistrationOtpEmail(email, otp)
     activate ES
-    ES-->>User: 9. Receive OTP via Email
+    ES-->>User: 11. Receive OTP via Email
     deactivate ES
-    ROS-->>AC: 10. Success
+    ROS-->>AC: 12. SendOtpResponse
     deactivate ROS
-    AC-->>UI: 11. 200 OK (OTP Sent)
+    AC-->>UI: 13. 200 OK (OTP Sent)
     deactivate AC
-    UI-->>User: 12. Show OTP Input Screen
+    UI-->>User: 14. Show OTP Input Screen
     deactivate UI
 
-    User->>UI: 1. Input OTP & click "Register"
+    User->>UI: 15. Input OTP & click "Register"
     activate UI
-    UI->>AC: 14. verifyOtpAndRegister(VerifyOtpRequest)
+    UI->>AC: 16. verifyOtpAndRegister(VerifyOtpRequest)
     activate AC
-    AC->>ROS: 15. verifyOtpAndRegister(Request)
+    AC->>ROS: 17. verifyOtpAndRegister(Request)
     activate ROS
-    ROS->>ORS: 16. validateOtp(email, otp)
+    ROS->>ORS: 18. getPendingRegistration(email)
     activate ORS
-    ORS-->>ROS: 17. Valid
+    ORS-->>ROS: 19. PendingRegistrationData
     deactivate ORS
-    ROS->>AS: 18. register(Request)
-    activate AS
-    AS->>UR: 19. save(New User)
+    ROS->>ROS: 20. validateOtp(inputOtp, storedOtp)
+    ROS->>UR: 21. save(New User)
     activate UR
-    UR-->>AS: 20. Saved User Entity
+    UR->>DB: 22. Insert new user
+    activate DB
+    DB-->>UR: 23. Inserted
+    deactivate DB
+    UR-->>ROS: 24. Saved User Entity
     deactivate UR
-    AS-->>ROS: 21. AuthResponse (Tokens)
-    deactivate AS
-    ROS-->>AC: 22. AuthResponse
+    ROS->>ORS: 25. deletePendingRegistration(email)
+    ROS->>JTP: 26. generateToken(userId, username, role)
+    activate JTP
+    JTP-->>ROS: 27. Access Token
+    deactivate JTP
+    ROS->>JTP: 28. generateRefreshToken(userId, username)
+    activate JTP
+    JTP-->>ROS: 29. Refresh Token
+    deactivate JTP
+    ROS->>RTR: 30. save(RefreshToken)
+    activate RTR
+    RTR->>DB: 31. Insert refresh token
+    activate DB
+    DB-->>RTR: 32. Inserted
+    deactivate DB
+    RTR-->>ROS: 33. OK
+    deactivate RTR
+    ROS-->>AC: 34. AuthResponse (Tokens)
     deactivate ROS
-    AC-->>UI: 23. 201 Created (Tokens)
+    AC-->>UI: 35. 201 Created (Tokens)
     deactivate AC
-    UI-->>User: 24. Redirect to Home Page
+    UI-->>User: 36. Redirect to Home Page
     deactivate UI
 ```
 
@@ -956,34 +1064,73 @@ sequenceDiagram
     participant AC as AuthController
     participant AS as AuthService
     participant AM as AuthenticationManager
+    participant UR as UserRepository
     participant JTP as JwtTokenProvider
     participant RTR as RefreshTokenRepository
+    participant DB as Database
 
     User->>UI: 1. Input Username/Password & click "Login"
+    activate UI
     UI->>AC: 2. login(LoginRequest)
-    AC->>AS: 3. login(LoginRequest, platform)
-    AC->>AS: 3. login(LoginRequest, platform)
+    activate AC
+    AC->>AS: 3. login(LoginRequest)
+    activate AS
     AS->>AM: 4. authenticate(credentials)
     activate AM
-    AM-->>AS: 5. Authentication Object
+    AM->>UR: 5. loadUserByUsername(username)
+    activate UR
+    UR->>DB: 6. Query user by username
+    activate DB
+    DB-->>UR: 7. User record
+    deactivate DB
+    UR-->>AM: 8. UserDetails
+    deactivate UR
+    AM-->>AS: 9. Authentication Object
     deactivate AM
     
+    AS->>UR: 10. findByIdWithWorkingClinic(userId)
+    activate UR
+    UR->>DB: 11. Query user with working clinic
+    activate DB
+    DB-->>UR: 12. User with Clinic
+    deactivate DB
+    UR-->>AS: 13. User Entity
+    deactivate UR
+    
     alt Role = PET_OWNER AND Platform = Web
-        AS-->>AC: 6a. 403 Forbidden
-        AC-->>UI: 7a. Error: Mobile Only
-        UI-->>User: 8a. Show Mobile App prompt
+        AS-->>AC: 14a. 403 Forbidden
+        AC-->>UI: 15a. Error: Mobile Only
+        UI-->>User: 16a. Show Mobile App prompt
     else Valid Platform
-        AS->>JTP: 6b. generateToken(userId, role)
-        JTP-->>AS: 7b. Access Token
-        AS->>JTP: 8b. generateRefreshToken(userId)
-        JTP-->>AS: 9b. Refresh Token
-        AS->>RTR: 10b. save(RefreshToken)
+        AS->>RTR: 14b. deleteAllByUserId(userId)
         activate RTR
-        RTR-->>AS: 11b. Persistent OK
+        RTR->>DB: 15b. Delete old refresh tokens
+        activate DB
+        DB-->>RTR: 16b. Deleted
+        deactivate DB
         deactivate RTR
-        AS-->>AC: 12b. AuthResponse
-        AC-->>UI: 13b. AuthResponse
-        UI-->>User: 14b. Success
+        AS->>JTP: 17b. generateToken(userId, username, role)
+        activate JTP
+        JTP-->>AS: 18b. Access Token
+        deactivate JTP
+        AS->>JTP: 19b. generateRefreshToken(userId, username)
+        activate JTP
+        JTP-->>AS: 20b. Refresh Token
+        deactivate JTP
+        AS->>RTR: 21b. save(RefreshToken)
+        activate RTR
+        RTR->>DB: 22b. Insert refresh token
+        activate DB
+        DB-->>RTR: 23b. Inserted
+        deactivate DB
+        RTR-->>AS: 24b. OK
+        deactivate RTR
+        AS-->>AC: 25b. AuthResponse
+        deactivate AS
+        AC-->>UI: 26b. 200 OK (AuthResponse)
+        deactivate AC
+        UI-->>User: 27b. Login Success
+        deactivate UI
     end
 ```
 
@@ -999,7 +1146,9 @@ sequenceDiagram
     participant AS as AuthService
     participant GAS as GoogleAuthService
     participant UR as UserRepository
+    participant RTR as RefreshTokenRepository
     participant JTP as JwtTokenProvider
+    participant DB as Database
 
     User->>UI: 1. Click "Sign in with Google"
     activate UI
@@ -1011,32 +1160,62 @@ sequenceDiagram
     activate AS
     AS->>GAS: 6. verifyIdToken(idToken)
     activate GAS
-    GAS-->>AS: 7. User Info (email, name, picture)
+    GAS-->>AS: 7. GoogleUserInfo (email, name, picture)
     deactivate GAS
     AS->>UR: 8. findByEmail(email)
     activate UR
-    UR-->>AS: 9. User data
+    UR->>DB: 9. Query user by email
+    activate DB
+    DB-->>UR: 10. Result Set
+    deactivate DB
+    UR-->>AS: 11. Optional~User~
     deactivate UR
     
     alt User not exists
-        AS->>UR: 10a. save(New User)
+        AS->>AS: 12a. createUserFromGoogle(info, platform)
+        AS->>UR: 13a. save(New User)
         activate UR
-        UR-->>AS: 11a. Saved
+        UR->>DB: 14a. Insert new user
+        activate DB
+        DB-->>UR: 15a. Inserted
+        deactivate DB
+        UR-->>AS: 16a. Saved User
         deactivate UR
     end
     
-    AS->>JTP: 12. generateTokenPair(user)
-    activate JTP
-    JTP-->>AS: 13. Access Token + Refresh Token
-    deactivate JTP
-    AS-->>AC: 14. AuthResponse
-    AC-->>UI: 15. AuthResponse(tokens)
-        UI-->>User: 18. Login Successful
-    else Forbidden
-        AS-->>AC: 14f. 403 Forbidden
+    AS->>AS: 17. validateRolePlatformAccess(role, platform)
+    
+    alt Role-Platform Mismatch
+        AS-->>AC: 18a. 403 Forbidden
+        AC-->>UI: 19a. Error (Role mismatch)
+        UI-->>User: 20a. Show error message
+    else Valid Access
+        AS->>RTR: 18b. deleteAllByUserId(userId)
+        activate RTR
+        RTR->>DB: 19b. Delete old refresh tokens
+        activate DB
+        DB-->>RTR: 20b. Deleted
         deactivate DB
-        AC-->>UI: 15f. Error (Role mismatch for platform)
-        UI-->>User: 16f. Show error message
+        deactivate RTR
+        AS->>JTP: 21b. generateToken(userId, username, role)
+        activate JTP
+        JTP-->>AS: 22b. Access Token
+        deactivate JTP
+        AS->>JTP: 23b. generateRefreshToken(userId, username)
+        activate JTP
+        JTP-->>AS: 24b. Refresh Token
+        deactivate JTP
+        AS->>RTR: 25b. save(RefreshToken)
+        activate RTR
+        RTR->>DB: 26b. Insert refresh token
+        activate DB
+        DB-->>RTR: 27b. Inserted
+        deactivate DB
+        RTR-->>AS: 28b. OK
+        deactivate RTR
+        AS-->>AC: 29b. AuthResponse
+        AC-->>UI: 30b. 200 OK (tokens)
+        UI-->>User: 31b. Login Successful
     end
     deactivate AS
     deactivate AC
@@ -1056,56 +1235,75 @@ sequenceDiagram
     participant ORS as OtpRedisService
     participant ES as EmailService
     participant UR as UserRepository
-    participant RTR as RefreshTokenRepository
+    participant DB as Database
 
     User->>UI: 1. Input Email & click "Send OTP"
     activate UI
-    UI->>AC: 2. forgotPassword(email)
+    UI->>AC: 2. forgotPassword(ForgotPasswordRequest)
     activate AC
-    AC->>PS: 3. sendPasswordResetOtp(email)
+    AC->>PS: 3. sendPasswordResetOtp(request)
     activate PS
     PS->>UR: 4. findByEmail(email)
     activate UR
-    UR-->>PS: 5. User Entity
+    UR->>DB: 5. Query user by email
+    activate DB
+    DB-->>UR: 6. User record
+    deactivate DB
+    UR-->>PS: 7. User Entity
     deactivate UR
-    PS->>ORS: 6. saveOtp(email, otp)
+    PS->>ORS: 8. getPasswordResetCooldownRemaining(email)
     activate ORS
-    ORS-->>PS: 7. OK
+    ORS-->>PS: 9. 0 (no cooldown)
     deactivate ORS
-    PS->>ES: 8. sendEmail(email, otp)
+    PS->>ORS: 10. savePasswordResetOtp(email, otp)
+    activate ORS
+    ORS-->>PS: 11. OK (saved to Redis)
+    deactivate ORS
+    PS->>ES: 12. sendPasswordResetOtpEmail(email, otp)
     activate ES
-    ES-->>User: 9. Receive OTP via Email
+    ES-->>User: 13. Receive OTP via Email
     deactivate ES
-    PS-->>AC: 10. Success
+    PS-->>AC: 14. SendOtpResponse
     deactivate PS
-    AC-->>UI: 11. OTP Sent Successfully
+    AC-->>UI: 15. 200 OK (OTP Sent)
     deactivate AC
-    UI-->>User: 12. Show Reset Password Form
+    UI-->>User: 16. Show Reset Password Form
     deactivate UI
 
-    User->>UI: 13. Input OTP & New Password
+    User->>UI: 17. Input OTP & New Password
     activate UI
-    UI->>AC: 14. resetPassword(email, otp, newPassword)
+    UI->>AC: 18. resetPassword(ResetPasswordRequest)
     activate AC
-    AC->>PS: 15. resetPassword(email, otp, newPassword)
+    AC->>PS: 19. verifyOtpAndResetPassword(request)
     activate PS
-    PS->>ORS: 16. validateOtp(email, otp)
+    PS->>ORS: 20. getPasswordResetOtp(email)
     activate ORS
-    ORS-->>PS: 17. Valid
+    ORS-->>PS: 21. PasswordResetOtpData
     deactivate ORS
-    PS->>UR: 18. save(Updated User - new password)
+    PS->>PS: 22. validateOtp(inputOtp, storedOtp)
+    PS->>UR: 23. findByEmail(email)
     activate UR
-    UR-->>PS: 19. OK
+    UR->>DB: 24. Query user by email
+    activate DB
+    DB-->>UR: 25. User record
+    deactivate DB
+    UR-->>PS: 26. User Entity
     deactivate UR
-    PS->>RTR: 20. deleteByUser(User)
-    activate RTR
-    RTR-->>PS: 21. OK
-    deactivate RTR
-    PS-->>AC: 22. Success
+    PS->>PS: 27. passwordEncoder.encode(newPassword)
+    PS->>UR: 28. save(User with new password)
+    activate UR
+    UR->>DB: 29. Update user password
+    activate DB
+    DB-->>UR: 30. Updated
+    deactivate DB
+    UR-->>PS: 31. OK
+    deactivate UR
+    PS->>ORS: 32. deletePasswordResetOtp(email)
+    PS-->>AC: 33. MessageResponse (Success)
     deactivate PS
-    AC-->>UI: 23. Password Reset Success
+    AC-->>UI: 34. 200 OK (Password Reset Success)
     deactivate AC
-    UI-->>User: 24. Redirect to Login
+    UI-->>User: 35. Redirect to Login
     deactivate UI
 ```
 
@@ -1119,29 +1317,48 @@ sequenceDiagram
     participant UI as App/Web
     participant AC as AuthController
     participant AS as AuthService
-    participant RTR as RefreshTokenRepository
+    participant JTP as JwtTokenProvider
     participant BTR as BlacklistedTokenRepository
+    participant RTR as RefreshTokenRepository
+    participant DB as Database
 
     User->>UI: 1. Click "Logout"
     activate UI
-    UI->>AC: 2. logout(accessToken)
+    UI->>AC: 2. logout(Authorization: Bearer accessToken)
     activate AC
     AC->>AS: 3. logout(accessToken)
     activate AS
-    AS->>BTR: 4. save(BlacklistedToken)
+    AS->>JTP: 4. validateToken(accessToken)
+    activate JTP
+    JTP-->>AS: 5. Valid
+    deactivate JTP
+    AS->>JTP: 6. getUserIdFromToken(accessToken)
+    activate JTP
+    JTP-->>AS: 7. userId
+    deactivate JTP
+    AS->>AS: 8. Create BlacklistedToken (hash token)
+    AS->>BTR: 9. save(BlacklistedToken)
     activate BTR
-    BTR-->>AS: 5. OK
+    BTR->>DB: 10. Insert blacklisted token
+    activate DB
+    DB-->>BTR: 11. Inserted
+    deactivate DB
+    BTR-->>AS: 12. OK
     deactivate BTR
-    AS->>RTR: 6. deleteByUser(CurrentUser)
+    AS->>RTR: 13. deleteAllByUserId(userId)
     activate RTR
-    RTR-->>AS: 7. OK
+    RTR->>DB: 14. Delete all refresh tokens
+    activate DB
+    DB-->>RTR: 15. Deleted
+    deactivate DB
+    RTR-->>AS: 16. OK
     deactivate RTR
-    AS-->>AC: 8. Success
+    AS-->>AC: 17. Success
     deactivate AS
-    AC-->>UI: 9. Logout Success
+    AC-->>UI: 18. 200 OK
     deactivate AC
-    UI->>UI: 10. Clear local storage
-    UI-->>User: 11. Redirect to Login Screen
+    UI->>UI: 19. Clear local storage (tokens)
+    UI-->>User: 20. Redirect to Login Screen
     deactivate UI
 ```
 
@@ -1401,9 +1618,7 @@ sequenceDiagram
     participant SS as ClinicStaffService
     participant AS as AuthService
     participant UR as UserRepository
-    participant SS as ClinicStaffService
-    participant AS as AuthService
-    participant UR as UserRepository
+    participant DB as Database
 
     O->>UI: 1. Fill staff info (Name, Phone, Role)
     UI->>SC: 2. quickAddStaff(clinicId, request)
@@ -1412,24 +1627,32 @@ sequenceDiagram
     activate SS
     SS->>UR: 4. existsByPhone(phone)
     activate UR
-    UR-->>SS: 5. False
+    UR->>DB: 5. Check phone exists
+    activate DB
+    DB-->>UR: 6. Not exists
+    deactivate DB
+    UR-->>SS: 7. false
     deactivate UR
-    SS->>AS: 6. getCurrentUser()
+    SS->>AS: 8. getCurrentUser()
     activate AS
-    AS-->>SS: 7. currentUser
+    AS-->>SS: 9. currentUser
     deactivate AS
-    SS->>SS: 8. Validate Permissions & Business Rules
+    SS->>SS: 10. Validate Permissions & Business Rules
     Note over SS: Check Ownership, Manager Role, Max 1 Manager
-    SS->>SS: 9. Create User & set workingClinic
-    SS->>UR: 10. save(New Staff)
+    SS->>SS: 11. Create User & set workingClinic
+    SS->>UR: 12. save(New Staff)
     activate UR
-    UR-->>SS: 11. OK
+    UR->>DB: 13. Insert new user
+    activate DB
+    DB-->>UR: 14. Inserted
+    deactivate DB
+    UR-->>SS: 15. Saved User Entity
     deactivate UR
-    SS-->>SC: 12. OK
+    SS-->>SC: 16. StaffResponse
     deactivate SS
-    SC-->>UI: 13. 200 OK
+    SC-->>UI: 17. 201 Created
     deactivate SC
-    UI-->>O: 14. New staff appears in list
+    UI-->>O: 18. New staff appears in list
 ```
 
 #### 3.3.3 Clinician Roster Management (Create Shift & Auto-Slots)
@@ -1440,8 +1663,10 @@ sequenceDiagram
     participant UI as Manager Dashboard (Web)
     participant C as VetShiftController
     participant S as VetShiftService
+    participant CR as ClinicRepository
     participant VSR as VetShiftRepository
     participant SR as SlotRepository
+    participant DB as Database
 
     M->>UI: 1. Select Vet, times and multiple Dates
     activate UI
@@ -1450,30 +1675,46 @@ sequenceDiagram
     C->>S: 3. createShifts(clinicId, request)
     activate S
     loop For each WorkDate
-        S->>CR: 4. findById(clinicId) (Get Operating Hours)
+        S->>CR: 4. findById(clinicId)
         activate CR
-        CR-->>S: 5. Clinic Entity
+        CR->>DB: 5. Query clinic by ID
+        activate DB
+        DB-->>CR: 6. Clinic Entity
+        deactivate DB
+        CR-->>S: 7. Clinic (Get Operating Hours)
         deactivate CR
-        S->>S: 6. Determine breakStart/End (Clinic Sync)
-        S->>VSR: 7. findOverlappingShifts(...)
+        S->>S: 8. Determine breakStart/End (Clinic Sync)
+        S->>VSR: 9. findOverlappingShifts(vetId, workDate, times)
         activate VSR
-        VSR-->>S: 8. OK
+        VSR->>DB: 10. Query existing shifts for vet on date
+        activate DB
+        DB-->>VSR: 11. Empty List (no conflicts)
+        deactivate DB
+        VSR-->>S: 12. []
         deactivate VSR
-        S->>S: 9. generateSlots (30-min intervals)
-        S->>VSR: 10. save(VetShift)
+        S->>S: 13. generateSlots (30-min intervals)
+        S->>VSR: 14. save(VetShift)
         activate VSR
-        VSR-->>S: 11. Saved
+        VSR->>DB: 15. Insert new vet shift
+        activate DB
+        DB-->>VSR: 16. Inserted
+        deactivate DB
+        VSR-->>S: 17. Saved VetShift
         deactivate VSR
-        S->>SR: 12. saveAll(Slots)
+        S->>SR: 18. saveAll(Slots)
         activate SR
-        SR-->>S: 13. OK
+        SR->>DB: 19. Batch insert slots
+        activate DB
+        DB-->>SR: 20. Inserted
+        deactivate DB
+        SR-->>S: 21. OK
         deactivate SR
     end
-    S-->>C: 14. List<VetShiftResponse>
+    S-->>C: 22. List<VetShiftResponse>
     deactivate S
-    C-->>UI: 15. 201 Created
+    C-->>UI: 23. 201 Created
     deactivate C
-    UI-->>M: 16. Display shifts on Calendar
+    UI-->>M: 24. Display shifts on Calendar
     deactivate UI
 ```
 
@@ -1487,6 +1728,7 @@ sequenceDiagram
     participant S as VetShiftService
     participant VSR as VetShiftRepository
     participant SR as SlotRepository
+    participant DB as Database
 
     M->>UI: 1. Select shift & click "Delete"
     activate UI
@@ -1496,29 +1738,41 @@ sequenceDiagram
     activate S
     S->>VSR: 4. findById(id)
     activate VSR
-    VSR-->>S: 5. VetShift with Slots
+    VSR->>DB: 5. Query shift by ID
+    activate DB
+    DB-->>VSR: 6. VetShift with Slots
+    deactivate DB
+    VSR-->>S: 7. VetShift Entity
     deactivate VSR
-    S->>S: 6. Check all slots AVAILABLE or BLOCKED
+    S->>S: 8. Check all slots AVAILABLE or BLOCKED
     alt Has BOOKED slots
-        S-->>C: 7a. 400 Bad Request
-        C-->>UI: 8a. Error: Cannot delete shift with bookings
-        UI-->>M: 9a. Show error message
+        S-->>C: 9a. throw BadRequestException
+        C-->>UI: 10a. 400 Error: Cannot delete shift with bookings
+        UI-->>M: 11a. Show error message
     else All slots deletable
-        S->>SR: 7b. deleteAll(slots)
+        S->>SR: 9b. deleteAll(slots)
         activate SR
-        SR-->>S: 8b. OK
+        SR->>DB: 10b. Delete all slots of shift
+        activate DB
+        DB-->>SR: 11b. Deleted
+        deactivate DB
+        SR-->>S: 12b. OK
         deactivate SR
-        S->>VSR: 9b. delete(shift)
+        S->>VSR: 13b. delete(shift)
         activate VSR
-        VSR-->>S: 10b. OK
+        VSR->>DB: 14b. Delete shift
+        activate DB
+        DB-->>VSR: 15b. Deleted
+        deactivate DB
+        VSR-->>S: 16b. OK
         deactivate VSR
-        S-->>C: 11b. 204 No Content
-        C-->>UI: 12b. Success
-        UI-->>M: 13b. Remove shift from Calendar
+        S-->>C: 17b. void
+        deactivate S
+        C-->>UI: 18b. 204 No Content
+        deactivate C
+        UI-->>M: 19b. Remove shift from Calendar
+        deactivate UI
     end
-    deactivate S
-    deactivate C
-    deactivate UI
 ```
 
 ---
@@ -2085,6 +2339,7 @@ sequenceDiagram
     participant VSR as VetShiftRepository
     participant SR as SlotRepository
     participant NS as NotificationService
+    participant DB as Database
 
     M->>UI: 1. Select Vet, times, multiple Dates
     M->>UI: 2. Click "Save" (forceUpdate=false)
@@ -2095,36 +2350,50 @@ sequenceDiagram
     activate S
     loop For each WorkDate
         S->>VSR: 5. findByVetAndWorkDate(vet, date)
-        VSR-->>S: 6. Existing Shifts List
-        S->>S: 7. Check Overlaps (timesOverlap helper)
+        activate VSR
+        VSR->>DB: 6. Query vet shifts for date
+        activate DB
+        DB-->>VSR: 7. Existing Shifts List
+        deactivate DB
+        VSR-->>S: 8. List<VetShift>
+        deactivate VSR
+        S->>S: 9. Check Overlaps (timesOverlap helper)
     end
     alt Conflict Detected & forceUpdate=false
-        S-->>C: 8a. 409 Conflict (Conflict details)
-        C-->>UI: 9a. Conflict Notification
-        UI-->>M: 10a. Show Conflict Warning Modal
-        M->>UI: 11a. Click "Confirm Override" (forceUpdate=true)
-        UI->>C: 12a. createShifts(clinicId, request, forceUpdate=true)
-        C->>S: 13a. createShifts(clinicId, request)
+        S-->>C: 10a. 409 Conflict (Conflict details)
+        C-->>UI: 11a. Conflict Notification
+        UI-->>M: 12a. Show Conflict Warning Modal
+        M->>UI: 13a. Click "Confirm Override" (forceUpdate=true)
+        UI->>C: 14a. createShifts(clinicId, request, forceUpdate=true)
+        C->>S: 15a. createShifts(clinicId, request)
     end
     
     loop For each WorkDate (Safe or Forced)
-        S->>S: 14. Determine breakStart/End from Clinic
-        S->>VSR: 15. save(VetShift)
+        S->>S: 16. Determine breakStart/End from Clinic
+        S->>VSR: 17. save(VetShift)
         activate VSR
-        VSR-->>S: 16. Saved
+        VSR->>DB: 18. Insert new vet shift
+        activate DB
+        DB-->>VSR: 19. Inserted
+        deactivate DB
+        VSR-->>S: 20. Saved VetShift
         deactivate VSR
-        S->>S: 17. generateSlots (30-min intervals, skip break)
-        S->>SR: 18. saveAll(Slots)
+        S->>S: 21. generateSlots (30-min intervals, skip break)
+        S->>SR: 22. saveAll(Slots)
         activate SR
-        SR-->>S: 19. OK
+        SR->>DB: 23. Batch insert slots
+        activate DB
+        DB-->>SR: 24. Inserted
+        deactivate DB
+        SR-->>S: 25. OK
         deactivate SR
     end
-    S->>NS: 20. notifyVetShiftsBatchAssigned(vet, shifts)
-    S-->>C: 21. List<VetShiftResponse>
+    S->>NS: 26. notifyVetShiftsBatchAssigned(vet, shifts)
+    S-->>C: 27. List<VetShiftResponse>
     deactivate S
-    C-->>UI: 22. 201 Created
+    C-->>UI: 28. 201 Created
     deactivate C
-    UI-->>M: 23. Display shifts on Calendar
+    UI-->>M: 29. Display shifts on Calendar
     deactivate UI
 ```
 
@@ -2137,6 +2406,7 @@ sequenceDiagram
     participant C as VetShiftController
     participant S as VetShiftService
     participant SR as SlotRepository
+    participant DB as Database
 
     M->>UI: 1. Click lock icon on slot
     activate UI
@@ -2146,23 +2416,31 @@ sequenceDiagram
     activate S
     S->>SR: 4. findById(slotId)
     activate SR
-    SR-->>S: 5. Slot Entity
+    SR->>DB: 5. Query slot by ID
+    activate DB
+    DB-->>SR: 6. Slot Entity
+    deactivate DB
+    SR-->>S: 7. Slot
     deactivate SR
     alt Slot is BOOKED
-        S-->>C: 6a. 400 Bad Request
-        C-->>UI: 7a. Error: Cannot block booked slot
+        S-->>C: 8a. throw BadRequestException
+        C-->>UI: 9a. 400 Error: Cannot block booked slot
     else Slot is AVAILABLE
-        S->>SR: 6b. save(slot with BLOCKED status)
+        S->>SR: 8b. save(slot with BLOCKED status)
         activate SR
-        SR-->>S: 7b. OK
+        SR->>DB: 9b. Update slot status to BLOCKED
+        activate DB
+        DB-->>SR: 10b. Updated
+        deactivate DB
+        SR-->>S: 11b. Saved Slot
         deactivate SR
-        S-->>C: 8b. SlotResponse
-        C-->>UI: 9b. 200 OK
-        UI-->>M: 10b. Update slot icon to locked
+        S-->>C: 12b. SlotResponse
+        deactivate S
+        C-->>UI: 13b. 200 OK
+        deactivate C
+        UI-->>M: 14b. Update slot icon to locked
+        deactivate UI
     end
-    deactivate S
-    deactivate C
-    deactivate UI
 ```
 
 
@@ -2250,6 +2528,7 @@ sequenceDiagram
     participant BR as BookingRepository
     participant EMRR as EMRRepository
     participant VR as VaccinationRepository
+    participant DB as Database
 
     V->>UI: 1. Search Pet or Select from Booking
     activate UI
@@ -2259,21 +2538,33 @@ sequenceDiagram
     activate PS
     PS->>BR: 4. Check entitlement (petId, clinicId)
     activate BR
-    BR-->>PS: 5. Confirmed
+    BR->>DB: 5. Query pet bookings for clinic
+    activate DB
+    DB-->>BR: 6. Booking exists
+    deactivate DB
+    BR-->>PS: 7. Confirmed
     deactivate BR
-    PS->>EMRR: 6. findByPet(petId)
+    PS->>EMRR: 8. findByPet(petId)
     activate EMRR
-    EMRR-->>PS: 7. EMR List
+    EMRR->>DB: 9. Query EMR records for pet
+    activate DB
+    DB-->>EMRR: 10. EMR List
+    deactivate DB
+    EMRR-->>PS: 11. List<EMR>
     deactivate EMRR
-    PS->>VR: 8. findByPet(petId)
+    PS->>VR: 12. findByPet(petId)
     activate VR
-    VR-->>PS: 9. Vaccination List
+    VR->>DB: 13. Query vaccination records for pet
+    activate DB
+    DB-->>VR: 14. Vaccination List
+    deactivate DB
+    VR-->>PS: 15. List<Vaccination>
     deactivate VR
-    PS-->>PC: 10. PetHistoryResponse
+    PS-->>PC: 16. PetHistoryResponse
     deactivate PS
-    PC-->>UI: 11. PetHistoryResponse
+    PC-->>UI: 17. 200 OK
     deactivate PC
-    UI-->>V: 12. Display history timeline
+    UI-->>V: 18. Display history timeline
     deactivate UI
 ```
 
@@ -2288,6 +2579,7 @@ sequenceDiagram
     participant BR as BookingRepository
     participant PR as PetRepository
     participant EMRR as EMRRepository
+    participant DB as Database
 
     V->>UI: 1. Fill SOAP form (S, O, A, P + Weight)
     activate UI
@@ -2297,20 +2589,35 @@ sequenceDiagram
     activate PS
     PS->>BR: 4. findById(bookingId)
     activate BR
-    BR-->>PS: 5. Booking Entity
+    BR->>DB: 5. Query booking by ID
+    activate DB
+    DB-->>BR: 6. Booking Entity
+    deactivate DB
+    BR-->>PS: 7. Booking
     deactivate BR
-    PS->>PS: 6. Validate status == IN_PROGRESS
-    PS->>PS: 7. Validate Vet is assigned
-    PS->>EMRR: 8. save(EMR: subjective, objective, assessment, plan)
+    PS->>PS: 8. Validate status == IN_PROGRESS
+    PS->>PS: 9. Validate Vet is assigned
+    PS->>EMRR: 10. save(EMR: subjective, objective, assessment, plan)
     activate EMRR
-    EMRR-->>PS: 9. Saved EMR
+    EMRR->>DB: 11. Insert new EMR record
+    activate DB
+    DB-->>EMRR: 12. Inserted
+    deactivate DB
+    EMRR-->>PS: 13. Saved EMR
     deactivate EMRR
-    PS->>PR: 10. updatePetWeight(petId, newWeight)
-    PS-->>PC: 11. EMRResponse
+    PS->>PR: 14. updatePetWeight(petId, newWeight)
+    activate PR
+    PR->>DB: 15. Update pet weight
+    activate DB
+    DB-->>PR: 16. Updated
+    deactivate DB
+    PR-->>PS: 17. OK
+    deactivate PR
+    PS-->>PC: 18. EMRResponse
     deactivate PS
-    PC-->>UI: 12. 201 Created
+    PC-->>UI: 19. 201 Created
     deactivate PC
-    UI-->>V: 13. Show success & update medical timeline
+    UI-->>V: 20. Show success & update medical timeline
     deactivate UI
 ```
 
@@ -2324,6 +2631,7 @@ sequenceDiagram
     participant PS as PatientService
     participant PR as PetRepository
     participant VR as VaccinationRepository
+    participant DB as Database
 
     V->>UI: 1. Fill vaccine info & click "Add"
     activate UI
@@ -2333,19 +2641,28 @@ sequenceDiagram
     activate PS
     PS->>PR: 4. findById(petId)
     activate PR
-    PR-->>PS: 5. Pet Entity
+    PR->>DB: 5. Query pet by ID
+    activate DB
+    DB-->>PR: 6. Pet Entity
+    deactivate DB
+    PR-->>PS: 7. Pet
     deactivate PR
-    PS->>PS: 6. Validate entitlement
-    PS->>VR: 7. save(Vaccination entity)
+    PS->>PS: 8. Validate entitlement
+    PS->>VR: 9. save(Vaccination entity)
     activate VR
-    VR-->>PS: 8. Saved Vaccination
+    VR->>DB: 10. Insert vaccination record
+    activate DB
+    DB-->>VR: 11. Inserted
+    deactivate DB
+    VR-->>PS: 12. Saved Vaccination
     deactivate VR
-    PS-->>PC: 9. VaccinationResponse
+    PS-->>PC: 13. VaccinationResponse
     deactivate PS
-    PC-->>UI: 10. VaccinationResponse(created)
+    PC-->>UI: 14. 201 Created
     deactivate PC
-    UI-->>V: 11. Update vaccination card
+    UI-->>V: 15. Update vaccination card
     deactivate UI
+```
 
 #### 3.7.5 Ghi nhận Dịch vụ & Chi phí phát sinh (Incurred Items)
 
@@ -2357,13 +2674,20 @@ sequenceDiagram
     participant PS as PatientService
     participant SR as ServiceRepository
     participant BR as BookingRepository
+    participant DB as Database
 
     alt Standard Service
         V->>UI: 1a. Select from Clinic Catalog
         UI->>PC: 2a. addAdditionalService(bookingId, serviceId)
         PC->>PS: 3a. addAdditionalService(...)
         PS->>SR: 4a. findById(serviceId)
-        SR-->>PS: 5a. Service Entity (Price)
+        activate SR
+        SR->>DB: 5a. Query clinic service by ID
+        activate DB
+        DB-->>SR: 6a. Service Entity (Price)
+        deactivate DB
+        SR-->>PS: 7a. Service
+        deactivate SR
     else Custom Incurred Cost
         V->>UI: 1b. Type name & manual price
         UI->>PC: 2b. addIncurredCost(bookingId, costRequest)
@@ -2371,23 +2695,30 @@ sequenceDiagram
         Note over PS: Create IncurredCost entity
     end
 
-    PS->>BR: 6. findById(bookingId)
+    PS->>BR: 8. findById(bookingId)
     activate BR
-    BR-->>PS: 7. Booking Entity
+    BR->>DB: 9. Query booking by ID
+    activate DB
+    DB-->>BR: 10. Booking Entity
+    deactivate DB
+    BR-->>PS: 11. Booking
     deactivate BR
     
-    PS->>PS: 8. Recalculate totalPrice
+    PS->>PS: 12. Recalculate totalPrice
     Note over PS: Total = Base + Surcharge + Services + Misc
     
-    PS->>BR: 9. save(Updated Booking)
+    PS->>BR: 13. save(Updated Booking)
     activate BR
-    BR-->>PS: 10. OK
+    BR->>DB: 14. Update booking total price
+    activate DB
+    DB-->>BR: 15. Updated
+    deactivate DB
+    BR-->>PS: 16. OK
     deactivate BR
     
-    PS-->>PC: 11. Success
-    PC-->>UI: 12. 200 OK (Updated Balance)
-    UI-->>V: 13. Update UI with new Total
-```
+    PS-->>PC: 17. Success
+    PC-->>UI: 18. 200 OK (Updated Balance)
+    UI-->>V: 19. Update UI with new Total
 ```
 #### 3.8 Booking Management
 
@@ -2486,6 +2817,7 @@ sequenceDiagram
     participant BC as BookingController
     participant BS as BookingService
     participant BR as BookingRepository
+    participant DB as Database
 
     M->>UI: 1. View Pending Bookings
     M->>UI: 2. Click "Confirm Booking"
@@ -2496,17 +2828,25 @@ sequenceDiagram
     activate BS
     BS->>BR: 5. findById(id)
     activate BR
-    BR-->>BS: 6. Booking Entity
+    BR->>DB: 6. Query booking by ID
+    activate DB
+    DB-->>BR: 7. Booking Entity
+    deactivate DB
+    BR-->>BS: 8. Booking
     deactivate BR
-    BS->>BR: 7. save(Updated Booking)
+    BS->>BR: 9. save(Updated Booking)
     activate BR
-    BR-->>BS: 8. OK
+    BR->>DB: 10. Update booking status to CONFIRMED
+    activate DB
+    DB-->>BR: 11. Updated
+    deactivate DB
+    BR-->>BS: 12. OK
     deactivate BR
-    BS-->>BC: 9. Updated Booking
+    BS-->>BC: 13. Updated Booking
     deactivate BS
-    BC-->>UI: 10. 200 OK
+    BC-->>UI: 14. 200 OK
     deactivate BC
-    UI-->>M: 11. Refresh booking list
+    UI-->>M: 15. Refresh booking list
     deactivate UI
 ```
 

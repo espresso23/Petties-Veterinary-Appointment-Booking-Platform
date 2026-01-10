@@ -82,21 +82,17 @@
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 26 | **Receive Task** | Nhận thông báo booking | Message Flow từ System | → User Task 27 |
-| 27 | **User Task** | Xem chi tiết booking | Xem: Pet, Owner, Service, Time, Location, Notes | → Gateway 28 |
-| 28 | **Exclusive Gateway** | Chấp nhận? | Vet quyết định accept hoặc reject | → Task 29 (Accept) hoặc → Task 31 (Reject) |
-| 29 | **User Task** | Chấp nhận booking | Xác nhận sẽ thực hiện khám | → Message → System |
-| 30 | **User Task** | Từ chối booking | Nhập lý do từ chối (bận, không thể đến,...) | → Message → System |
+| 27 | **User Task** | Xem chi tiết booking | Xem: Pet, Owner, Service, Time, Location, Notes | → Chuẩn bị thực hiện |
+
+> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Khi Manager gán Vet, booking tự động → CONFIRMED.
 
 #### POOL: System (xử lý response từ Vet)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 31 | **Exclusive Gateway** | Vet accept? | Check response từ Vet | → Service Task 32 (Accept) hoặc → Service Task 35 (Reject) |
-| 32 | **Service Task** | Confirm Booking | Status: ASSIGNED → CONFIRMED | → Send Task 33 |
-| 33 | **Send Task** | Thông báo Pet Owner | "Lịch hẹn đã được xác nhận" + details | → End Event 34 |
-| 34 | **End Event** | Booking Confirmed | Kết thúc thành công | - |
-| 35 | **Service Task** | Hoàn lại booking | Status: ASSIGNED → PENDING, vet_id = null | → Send Task 36 |
-| 36 | **Send Task** | Thông báo Clinic Manager | "Bác sĩ đã từ chối, cần gán lại" | → Quay lại Task 21 |
+| 24 | **Service Task** | Cập nhật Booking | Status: PENDING → CONFIRMED, vet_id = selected_vet | → Send Task 25 |
+| 25 | **Send Task** | Thông báo Pet Owner + Vet | Push: "Lịch hẹn đã xác nhận" + "Bạn có lịch hẹn mới" | → End Event 26 |
+| 26 | **End Event** | Booking Confirmed | Kết thúc thành công | - |
 
 ### 1.4 Exception Flows
 
@@ -129,8 +125,6 @@
 | System | Clinic Manager | NewBookingNotification | Có booking mới cần xử lý |
 | Clinic Manager | System | VetAssignment | Clinic Manager gán vet |
 | System | Vet | AssignmentNotification | Vet được gán booking |
-| Vet | System | AcceptResponse | Vet chấp nhận |
-| Vet | System | RejectResponse | Vet từ chối |
 | System | Pet Owner | ConfirmationNotification | Booking được confirm |
 | System | Pet Owner | CancellationNotification | Booking bị hủy |
 
@@ -413,7 +407,7 @@ Gateways kiểm soát luồng đi (flow control). Tất cả dùng hình **DIAMO
 | **Exclusive (XOR)** | ✕ hoặc empty | Chỉ 1 đường được chọn | `if-else` | "Thanh toán online hay cash?" |
 | **Parallel (AND)** | ➕ plus | Tất cả các đường chạy song song | `fork/join threads` | "Gửi email VÀ push notification" |
 | **Inclusive (OR)** | ◯ circle | Một hoặc nhiều đường | `if` với multiple conditions | "Gửi SMS và/hoặc Email" |
-| **Event-based** | ⬠ pentagon | Chờ event nào đến trước | `race condition` | "Vet accept hoặc timeout 2h" |
+| **Event-based** | ⬠ pentagon | Chờ event nào đến trước | `race condition` | "Manager assign hoặc timeout 2h" |
 | **Complex** | ✳ asterisk | Logic phức tạp tùy chỉnh | Complex conditions | Hiếm dùng |
 
 **Đặc điểm Gateway:**

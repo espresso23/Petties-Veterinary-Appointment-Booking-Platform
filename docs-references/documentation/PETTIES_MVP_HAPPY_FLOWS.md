@@ -184,19 +184,7 @@
 5. Lưu → Slots tự động tạo (mỗi 30 phút)
 ```
 
-### 9.2 Tạo lịch tháng (Import Excel)
-
-```
-1. Dashboard → "Lịch làm việc" → "Import Excel"
-2. Tải template Excel (có sẵn mẫu)
-3. Điền lịch cho từng bác sĩ, từng ngày:
-   - Vet Name | Date | Start | End | Break Start | Break End
-4. Upload file → Xem preview
-5. Kiểm tra → Import
-6. Hệ thống tạo VET_SHIFT + SLOT cho cả tháng
-```
-
-### 9.3 Clinic 24/7 - Tạo ca đêm
+### 9.2 Clinic 24/7 - Tạo ca đêm
 
 ```
 1. Thêm ca đêm: Start = 22:00, End = 06:00
@@ -207,7 +195,7 @@
    - Dr. Hùng: 17/12 22:00 - 06:00 (Ca đêm → 18/12)
 ```
 
-### 9.4 Quản lý lịch đã có
+### 9.3 Quản lý lịch đã có
 
 ```
 1. Xem lịch tuần/tháng → Thấy ca của tất cả bác sĩ
@@ -451,15 +439,22 @@ COMMIT;
 
 ---
 
-#### Phase 4: Vet Nhận và Xử lý
+#### Phase 4: Vet Nhận Assignment (Không cần Accept/Reject)
 
-**Scenario A: Vet Accept ✅**
+> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Khi Manager assign, booking tự động CONFIRMED.
+
+**Khi Manager assign xong:**
 
 ```
-1. Dr. Minh nhận notification trên app
-2. Click vào → Xem chi tiết booking:
+1. System tự động:
+   - Status: ASSIGNED → CONFIRMED
+   - Notify Pet Owner: "Lịch hẹn đã xác nhận"
+   - Notify Vet: "Bạn có lịch hẹn mới"
+
+2. Dr. Minh nhận notification trên app
+3. Click vào → Xem chi tiết booking:
    ┌─────────────────────────────────────────┐
-   │ 📅 LỊCH HẸN MỚI                         │
+   │ 📅 LỊCH HẸN ĐƯỢC GÁN                    │
    ├─────────────────────────────────────────┤
    │ 🐱 Pet: Mèo Mimi                        │
    │ 💉 Dịch vụ: Tiêm Vaccine                │
@@ -467,79 +462,36 @@ COMMIT;
    │ 📍 Địa điểm: Phòng khám ABC             │
    │ 👤 Chủ: Nguyễn Văn A                    │
    ├─────────────────────────────────────────┤
-   │     [TỪ CHỐI]        [CHẤP NHẬN]        │
+   │   [📞 GỌI CHỦ PET]   [🗺️ XEM ĐỊA CHỈ]   │
    └─────────────────────────────────────────┘
-3. Click "Chấp nhận"
-4. Confirm → Booking confirmed
+4. Vet chuẩn bị thực hiện dịch vụ vào giờ hẹn
 ```
 
-**Database Changes:**
-```
-UPDATE bookings SET status = 'CONFIRMED' WHERE id = 'B001';
-
-INSERT INTO notifications (user_id, type, title, content)
-VALUES ([PetOwner_id], 'BOOKING', 'Lịch hẹn đã xác nhận', 
-        'Dr. Minh đã xác nhận lịch hẹn Tiêm Vaccine lúc 09:00 ngày 25/12');
-```
-
-**UI Feedback:**
-```
-✅ Vet app: Toast "Đã xác nhận lịch hẹn"
-✅ Pet Owner: Push notification + Badge trên booking
-✅ Dashboard: Status badge ASSIGNED → CONFIRMED (màu xanh)
-```
-
----
-
-**Scenario B: Vet Reject ❌**
-
-```
-1. Dr. Minh xem booking
-2. Click "Từ chối"
-3. Popup nhập lý do:
-   ┌─────────────────────────────────────────┐
-   │ LÝ DO TỪ CHỐI                           │
-   ├─────────────────────────────────────────┤
-   │ ○ Bận việc cá nhân                      │
-   │ ● Không phù hợp chuyên môn              │
-   │ ○ Khác: [________________]              │
-   ├─────────────────────────────────────────┤
-   │           [HỦY]    [XÁC NHẬN]           │
-   └─────────────────────────────────────────┘
-4. Chọn lý do → Xác nhận
-```
-
-**Database Changes (Transaction):**
-```
-BEGIN TRANSACTION;
-
--- 1. Reset booking
+**Database Changes (khi Manager assign):**
+```sql
+-- 1. Update booking - trực tiếp CONFIRMED
 UPDATE bookings SET 
-    assigned_vet_id = NULL,
-    status = 'PENDING'
+    assigned_vet_id = [Dr.Minh_id],
+    status = 'CONFIRMED'
 WHERE id = 'B001';
 
--- 2. Delete junction
-DELETE FROM booking_slots WHERE booking_id = 'B001';
-
--- 3. Restore slot
-UPDATE slots SET status = 'AVAILABLE'
-WHERE id = [slot_09:00_id];
-
--- 4. Notify Manager
+-- 2. Notify Pet Owner
 INSERT INTO notifications (user_id, type, title, content)
-VALUES ([Manager_id], 'BOOKING', 'Booking bị từ chối', 
-        'Dr. Minh từ chối #B001. Lý do: Không phù hợp chuyên môn');
+VALUES ([PetOwner_id], 'BOOKING', 'Lịch hẹn đã xác nhận', 
+        'Dr. Minh sẽ khám Tiêm Vaccine lúc 09:00 ngày 25/12');
 
-COMMIT;
+-- 3. Notify Vet
+INSERT INTO notifications (user_id, type, title, content)
+VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới', 
+        'Bạn được gán booking #B001 - Tiêm Vaccine lúc 09:00');
 ```
 
 **UI Feedback:**
 ```
-✅ Vet app: Toast "Đã từ chối lịch hẹn"
-✅ Manager: Push notification + Badge "Cần gán lại"
-✅ Dashboard: Status badge ASSIGNED → PENDING (quay lại màu cam)
-✅ Slot 09:00 trở lại AVAILABLE cho Vet khác
+✅ Manager Dashboard: Toast "Đã gán Dr. Minh cho booking #B001"
+✅ Booking status badge: PENDING → CONFIRMED (màu xanh)
+✅ Vet nhận push notification
+✅ Pet Owner nhận push notification xác nhận
 ```
 
 ---
@@ -560,7 +512,7 @@ COMMIT;
 5. Tạo 2 records trong BOOKING_SLOT:
    - (booking_id, slot_14:00)
    - (booking_id, slot_14:30)
-6. Nếu Vet reject → Restore CẢ 2 slots về AVAILABLE
+6. Status tự động CONFIRMED (không cần Vet accept)
 ```
 
 **Query tìm Vet có đủ 2 slot liên tiếp:**
@@ -598,8 +550,7 @@ WHERE shift.clinic_id = 'ABC'
 
 **Legend:**
 - 🟢 FREE: Slot trống, có thể nhận booking mới
-- 🟡 #B001: Booking đã assigned, chờ Vet confirm
-- 🔵 #B002, #B003: Booking đã confirmed
+- 🔵 #B001, #B002, #B003: Booking đã CONFIRMED (sau khi Manager assign)
 
 ---
 

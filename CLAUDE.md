@@ -820,3 +820,46 @@ petties-report-writer (Sequence Diagrams) + petties-report-writer (Test Cases) +
 
 **Design:**
 - `docs-references/design/design-style-guide.md` - Neobrutalism UI guide
+
+## Quick Context Skills
+
+**Khi bắt đầu session mới hoặc cần context về project, sử dụng các skills sau:**
+
+### Skill 1: petties-quick-context (~2 phút)
+**Trigger phrases:**
+- "Cho tôi context về project"
+- "Project đang ở đâu?"
+- "Bắt đầu session mới"
+- "Quick context"
+
+**Claude sẽ:**
+1. Đọc `PROJECT_STATUS.md`
+2. Tóm tắt: Sprint hiện tại, Progress, Tasks đang làm
+
+### Skill 2: petties-onboarding (~10 phút)
+**Trigger phrases:**
+- "Giúp tôi hiểu toàn bộ project"
+- "Tôi mới vào project"
+- "Full onboarding"
+- "Deep context"
+
+**Claude sẽ:**
+1. Đọc 7 files quan trọng
+2. Tóm tắt: Architecture, Modules, Rules, Codebase structure
+
+### Cách sử dụng trực tiếp:
+```
+Sử dụng skill petties-quick-context
+```
+hoặc
+```
+Dùng skill petties-onboarding để giúp tôi hiểu project
+```
+
+### Skills Location:
+```
+.claude/skills/
+├── petties-quick-context/SKILL.md
+└── petties-onboarding/SKILL.md
+```
+
