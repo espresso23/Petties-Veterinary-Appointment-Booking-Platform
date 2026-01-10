@@ -59,7 +59,6 @@ export type WebSocketMessageType =
 export interface ChatWebSocketMessage {
   type: WebSocketMessageType
   conversationId: string
-  chatBoxId?: string // Backend may use this field name instead of conversationId
   message?: ChatMessage
   senderId?: string
   senderType?: 'PET_OWNER' | 'CLINIC'

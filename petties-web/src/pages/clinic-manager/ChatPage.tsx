@@ -182,10 +182,9 @@ export function ChatPage() {
             // ChatBox.tsx reverses for display (oldest first, newest at bottom)
             return [mappedMessage, ...prev]
           })
-          // Update chat box list - use chatBoxId (backend field name) with fallback to conversationId
-          const chatId = wsMessage.chatBoxId || wsMessage.conversationId
-          console.log('[WS DEBUG] Calling updateChatBoxLastMessage for:', chatId)
-          updateChatBoxLastMessage(chatId, wsMessage.message)
+          // Update chat box list
+          console.log('[WS DEBUG] Calling updateChatBoxLastMessage for:', wsMessage.conversationId)
+          updateChatBoxLastMessage(wsMessage.conversationId, wsMessage.message)
         }
         break
 

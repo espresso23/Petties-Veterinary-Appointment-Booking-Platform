@@ -91,7 +91,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   /// Handle incoming WebSocket messages
   void _handleWebSocketMessage(ChatWebSocketMessage wsMessage) {
     debugPrint(
-        '📱 [ChatList] Received message: type=${wsMessage.type}, chatBoxId=${wsMessage.chatBoxId}');
+        '📱 [ChatList] Received message: type=${wsMessage.type}, conversationId=${wsMessage.conversationId}');
 
     if (wsMessage.type == WsMessageType.message && wsMessage.message != null) {
       debugPrint(
@@ -99,7 +99,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       // Update the conversation in the list
       setState(() {
         final index =
-            _conversations.indexWhere((c) => c.id == wsMessage.chatBoxId);
+            _conversations.indexWhere((c) => c.id == wsMessage.conversationId);
         debugPrint('📱 [ChatList] Found conversation at index: $index');
         if (index != -1) {
           final conversation = _conversations[index];

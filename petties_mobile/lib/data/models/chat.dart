@@ -196,7 +196,7 @@ class ChatConversation extends BaseModel {
 /// Model cho tin nhắn
 class ChatMessage extends BaseModel {
   final String id;
-  final String chatBoxId;
+  final String conversationId;
   final String senderId;
   final SenderType senderType;
   final String? senderName;
@@ -209,7 +209,7 @@ class ChatMessage extends BaseModel {
 
   ChatMessage({
     required this.id,
-    required this.chatBoxId,
+    required this.conversationId,
     required this.senderId,
     required this.senderType,
     this.senderName,
@@ -224,9 +224,9 @@ class ChatMessage extends BaseModel {
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
       id: json['id'] ?? '',
-      chatBoxId: json['chatBoxId'] ??
+      conversationId: json['conversationId'] ??
+          json['chatBoxId'] ??
           json['chat_box_id'] ??
-          json['conversationId'] ??
           '',
       senderId: json['senderId'] ?? json['sender_id'] ?? '',
       senderType:
@@ -253,7 +253,7 @@ class ChatMessage extends BaseModel {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'chatBoxId': chatBoxId,
+      'conversationId': conversationId,
       'senderId': senderId,
       'senderType': senderType.value,
       'senderName': senderName,
@@ -272,7 +272,7 @@ class ChatMessage extends BaseModel {
   /// Copy with updated fields
   ChatMessage copyWith({
     String? id,
-    String? chatBoxId,
+    String? conversationId,
     String? senderId,
     SenderType? senderType,
     String? senderName,
@@ -285,7 +285,7 @@ class ChatMessage extends BaseModel {
   }) {
     return ChatMessage(
       id: id ?? this.id,
-      chatBoxId: chatBoxId ?? this.chatBoxId,
+      conversationId: conversationId ?? this.conversationId,
       senderId: senderId ?? this.senderId,
       senderType: senderType ?? this.senderType,
       senderName: senderName ?? this.senderName,

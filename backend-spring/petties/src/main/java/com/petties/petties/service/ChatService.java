@@ -411,7 +411,7 @@ public class ChatService {
 
         ChatWebSocketMessage wsMessage = ChatWebSocketMessage.builder()
                 .type(type)
-                .chatBoxId(conversationId)
+                .conversationId(conversationId)
                 .message(message)
                 .senderId(senderId)
                 .senderType(senderType)

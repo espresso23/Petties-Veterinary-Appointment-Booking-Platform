@@ -24,9 +24,9 @@ public class ChatWebSocketMessage {
     private MessageType type;
 
     /**
-     * Chat Box ID
+     * Conversation ID
      */
-    private String chatBoxId;
+    private String conversationId;
 
     /**
      * Message content (for MESSAGE type)
@@ -52,11 +52,11 @@ public class ChatWebSocketMessage {
      * WebSocket message types
      */
     public enum MessageType {
-        MESSAGE,      // New message
-        TYPING,       // User is typing
-        STOP_TYPING,  // User stopped typing
-        READ,         // Messages marked as read
-        ONLINE,       // User came online
-        OFFLINE       // User went offline
+        MESSAGE, // New message
+        TYPING, // User is typing
+        STOP_TYPING, // User stopped typing
+        READ, // Messages marked as read
+        ONLINE, // User came online
+        OFFLINE // User went offline
     }
 }

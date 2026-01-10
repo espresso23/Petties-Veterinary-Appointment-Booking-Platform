@@ -37,7 +37,7 @@ enum WsMessageType {
 /// WebSocket message payload from server
 class ChatWebSocketMessage {
   final WsMessageType type;
-  final String chatBoxId;
+  final String conversationId;
   final ChatMessage? message;
   final String? senderId;
   final String? senderType;
@@ -45,7 +45,7 @@ class ChatWebSocketMessage {
 
   ChatWebSocketMessage({
     required this.type,
-    required this.chatBoxId,
+    required this.conversationId,
     this.message,
     this.senderId,
     this.senderType,
@@ -55,7 +55,7 @@ class ChatWebSocketMessage {
   factory ChatWebSocketMessage.fromJson(Map<String, dynamic> json) {
     return ChatWebSocketMessage(
       type: WsMessageType.fromString(json['type'] ?? 'MESSAGE'),
-      chatBoxId: json['chatBoxId'] ?? '',
+      conversationId: json['conversationId'] ?? '',
       message: json['message'] != null
           ? ChatMessage.fromJson(json['message'])
           : null,
