@@ -6,9 +6,9 @@ import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
-import com.petties.petties.repository.ChatBoxRepository;
+import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
-import com.petties.petties.model.ChatBox;
+import com.petties.petties.model.ChatConversation;
 import com.petties.petties.model.ChatMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +33,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final PasswordEncoder passwordEncoder;
-    private final ChatBoxRepository chatBoxRepository;
+    private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
 
     @Value("${spring.profiles.active:dev}")
@@ -118,59 +118,71 @@ public class DataInitializer implements CommandLineRunner {
         if (clinicOwner != null) {
             initializeClinic(clinicOwner, "Petties Central Hospital", "123 Pet Street, Hanoi", "0123456789");
             // Sửa: lấy clinic đầu tiên của owner (nếu có)
-            clinic = clinicRepository.findByOwnerUserId(clinicOwner.getUserId(), org.springframework.data.domain.PageRequest.of(0,1))
+            clinic = clinicRepository
+                    .findByOwnerUserId(clinicOwner.getUserId(), org.springframework.data.domain.PageRequest.of(0, 1))
                     .stream().findFirst().orElse(null);
+
+            // QUAN TRỌNG: Assign clinicManager và vet vào clinic này
+            if (clinic != null) {
+                if (clinicManager != null && clinicManager.getWorkingClinic() == null) {
+                    clinicManager.setWorkingClinic(clinic);
+                    userRepository.save(clinicManager);
+                    log.info("   + Assigned clinicManager to clinic: {}", clinic.getName());
+                }
+
+                User vet = userRepository.findByUsername("vet").orElse(null);
+                if (vet != null && vet.getWorkingClinic() == null) {
+                    vet.setWorkingClinic(clinic);
+                    userRepository.save(vet);
+                    log.info("   + Assigned vet to clinic: {}", clinic.getName());
+                }
+            }
         }
 
-        // Seed chat box & messages between pet owner và clinic manager (nếu đủ dữ liệu)
+        // Seed conversation & messages between pet owner và clinic manager (nếu đủ dữ
+        // liệu)
         if (petOwner != null && clinicManager != null && clinic != null) {
-            seedChatBoxAndMessages(petOwner, clinicManager, clinic);
+            seedConversationAndMessages(petOwner, clinicManager, clinic);
         }
     }
 
     /**
-     * Seed ChatBox và ChatMessage mẫu giữa pet owner và clinic manager
+     * Seed ChatConversation và ChatMessage mẫu giữa pet owner và clinic manager
      */
-    private void seedChatBoxAndMessages(User petOwner, User clinicManager, Clinic clinic) {
-        // Kiểm tra đã có ChatBox chưa (1-1 giữa petOwner và clinic)
-        ChatBox chatBox = chatBoxRepository.findByPetOwnerIdAndClinicId(petOwner.getUserId(), clinic.getClinicId())
+    private void seedConversationAndMessages(User petOwner, User clinicManager, Clinic clinic) {
+        // Kiểm tra đã có Conversation chưa (1-1 giữa petOwner và clinic)
+        ChatConversation conversation = conversationRepository
+                .findByPetOwnerIdAndClinicId(petOwner.getUserId(), clinic.getClinicId())
                 .orElse(null);
-        if (chatBox == null) {
-            chatBox = new ChatBox();
-            chatBox.setPetOwnerId(petOwner.getUserId());
-            chatBox.setClinicId(clinic.getClinicId());
-            chatBox.setClinicName(clinic.getName());
-            chatBox.setClinicLogo(null);
-            chatBox.setPetOwnerName(petOwner.getFullName());
-            chatBox.setPetOwnerAvatar(null);
-            chatBox.setUnreadCountPetOwner(0);
-            chatBox.setUnreadCountClinic(0);
-            chatBox.setPetOwnerOnline(false);
-            chatBox.setClinicOnline(false);
-            chatBox.setLastMessage(null);
-            chatBox.setLastMessageAt(null);
-            chatBox = chatBoxRepository.save(chatBox);
+        if (conversation == null) {
+            conversation = ChatConversation.builder()
+                    .petOwnerId(petOwner.getUserId())
+                    .clinicId(clinic.getClinicId())
+                    .clinicName(clinic.getName())
+                    .petOwnerName(petOwner.getFullName())
+                    .build();
+            conversation = conversationRepository.save(conversation);
         }
 
         // Tạo 2 tin nhắn mẫu (1 từ pet owner, 1 từ clinic manager)
-        if (chatMessageRepository.countByChatBoxId(chatBox.getId()) == 0) {
+        if (chatMessageRepository.countByChatBoxId(conversation.getId()) == 0) {
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
             ChatMessage msg1 = new ChatMessage();
-            msg1.setChatBoxId(chatBox.getId());
+            msg1.setChatBoxId(conversation.getId());
             msg1.setSenderId(petOwner.getUserId());
             msg1.setSenderType(ChatMessage.SenderType.PET_OWNER);
             msg1.setContent("Xin chào phòng khám, tôi muốn đặt lịch khám cho thú cưng!");
             msg1.setCreatedAt(now.minusSeconds(120));
-            msg1.setRead(false); // Sửa đúng tên setter
+            msg1.setRead(false);
             chatMessageRepository.save(msg1);
 
             ChatMessage msg2 = new ChatMessage();
-            msg2.setChatBoxId(chatBox.getId());
+            msg2.setChatBoxId(conversation.getId());
             msg2.setSenderId(clinicManager.getUserId());
             msg2.setSenderType(ChatMessage.SenderType.CLINIC);
             msg2.setContent("Chào bạn, bạn muốn đặt lịch vào thời gian nào?");
             msg2.setCreatedAt(now.minusSeconds(60));
-            msg2.setRead(false); // Sửa đúng tên setter
+            msg2.setRead(false);
             chatMessageRepository.save(msg2);
         }
     }

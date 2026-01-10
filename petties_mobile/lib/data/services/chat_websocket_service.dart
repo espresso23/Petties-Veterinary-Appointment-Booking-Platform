@@ -80,11 +80,11 @@ class ChatWebSocketService {
   final Logger _logger = Logger();
   StompClient? _client;
   String? _accessToken;
-  
+
   // Subscriptions management
   final Map<String, StompUnsubscribe?> _subscriptions = {};
   final Map<String, Set<MessageHandler>> _handlers = {};
-  
+
   // Connection state
   bool _isConnecting = false;
   bool _isConnected = false;
@@ -98,19 +98,31 @@ class ChatWebSocketService {
 
   /// Get WebSocket URL from base API URL
   String get _wsUrl {
+    // Priority 1: WS_URL passed via --dart-define
     final wsUrlFromEnv = Environment.wsUrl;
-    if (wsUrlFromEnv != null && wsUrlFromEnv.isNotEmpty) {
+    if (wsUrlFromEnv.isNotEmpty) {
       return wsUrlFromEnv;
     }
+
+    // Priority 2: Derive from baseUrl
     final baseUrl = Environment.baseUrl;
     _logger.i('Environment.baseUrl = $baseUrl');
-    String wsUrl = baseUrl.replaceAll('/api', '/ws');
-    if (wsUrl.startsWith('https://')) {
-      wsUrl = wsUrl.replaceFirst('https://', 'wss://');
-    } else if (wsUrl.startsWith('http://')) {
-      wsUrl = wsUrl.replaceFirst('http://', 'ws://');
+
+    // Remove /api suffix to get base server URL
+    String serverUrl = baseUrl.replaceAll('/api', '');
+
+    // For production/staging (HTTPS), use wss://
+    // For dev (HTTP), use ws://
+    // Note: Mobile uses /api/ws-native endpoint (pure WebSocket, no SockJS)
+    // Backend has context path /api, so WS endpoint is at /api/ws-native
+    if (serverUrl.startsWith('https://')) {
+      return serverUrl.replaceFirst('https://', 'wss://') + '/api/ws-native';
+    } else if (serverUrl.startsWith('http://')) {
+      return serverUrl.replaceFirst('http://', 'ws://') + '/api/ws-native';
     }
-    return wsUrl;
+
+    // Fallback: assume http
+    return 'ws://$serverUrl/ws-native';
   }
 
   /// Whether WebSocket is connected

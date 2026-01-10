@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { MagnifyingGlassIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 import { ChatBoxList, ChatBox } from '../../components/chat'
 import { chatService } from '../../services/api/chatService'
@@ -7,7 +7,7 @@ import { useToast } from '../../hooks/useToast'
 import type { ChatBox as ChatBoxType, ChatMessage, ChatWebSocketMessage } from '../../types/chat'
 
 /**
- * Chat Page for Clinic Owner
+ * Chat Page for Clinic Manager
  * Displays chat boxes with Pet Owners and allows messaging
  */
 export function ChatPage() {
@@ -19,6 +19,7 @@ export function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isPartnerTyping, setIsPartnerTyping] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
 
   // Loading states
   const [loadingChatBoxes, setLoadingChatBoxes] = useState(true)
@@ -28,42 +29,60 @@ export function ChatPage() {
   const [messagesPage, setMessagesPage] = useState(0)
   const [hasMoreMessages, setHasMoreMessages] = useState(false)
 
+  // Typing debounce ref
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Load chat boxes on mount
   useEffect(() => {
     loadChatBoxes()
     connectWebSocket()
 
     return () => {
+      // Cleanup typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
       chatWebSocket.disconnect()
     }
   }, [])
 
-  // Load messages when chat box selected
+  // Subscribe to chat box when selected AND WebSocket is connected
   useEffect(() => {
     let unsubscribe: (() => void) | undefined
 
-    if (selectedChatBox) {
+    if (selectedChatBox && wsConnected) {
       loadMessages(selectedChatBox.id, 0, true)
       unsubscribe = subscribeToChatBox(selectedChatBox.id)
 
       // Mark as read
       chatService.markAsRead(selectedChatBox.id).catch(console.error)
+
+      // Send online status
+      chatWebSocket.sendOnlineStatus(selectedChatBox.id, true)
+    } else if (selectedChatBox && !wsConnected) {
+      // WebSocket not connected yet, just load messages via API
+      loadMessages(selectedChatBox.id, 0, true)
+      chatService.markAsRead(selectedChatBox.id).catch(console.error)
     }
 
-    // Cleanup: unsubscribe when chat box changes
+    // Cleanup: unsubscribe and send offline status when chat box changes
     return () => {
       if (unsubscribe) {
         unsubscribe()
       }
+      // Send offline status when leaving chat box
+      if (selectedChatBox && wsConnected) {
+        chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
+      }
     }
-  }, [selectedChatBox?.id])
+  }, [selectedChatBox?.id, wsConnected])
 
   // ======================== API CALLS ========================
 
   const loadChatBoxes = async () => {
     try {
       setLoadingChatBoxes(true)
-      const response = await chatService.getChatBoxes(0, 50)
+      const response = await chatService.getConversations(0, 50)
       setChatBoxes(response.content)
     } catch (error) {
       console.error('Failed to load chat boxes:', error)
@@ -114,9 +133,12 @@ export function ChatPage() {
   const connectWebSocket = async () => {
     try {
       await chatWebSocket.connect()
+      setWsConnected(true)
       console.log('WebSocket connected')
     } catch (error) {
       console.error('WebSocket connection failed:', error)
+      setWsConnected(false)
+      showToast('error', 'Không thể kết nối real-time. Tin nhắn có thể bị trễ.')
     }
   }
 
@@ -128,14 +150,21 @@ export function ChatPage() {
     switch (wsMessage.type) {
       case 'MESSAGE':
         if (wsMessage.message) {
-          // Map isMe based on senderType for Clinic staff
-          const mappedMessage = {
-            ...wsMessage.message,
-            isMe: wsMessage.message.senderType === 'CLINIC'
-          }
-          // Add to beginning of array because state stores DESC order (newest first)
-          // ChatBox.tsx reverses for display (oldest first, newest at bottom)
-          setMessages((prev) => [mappedMessage, ...prev])
+          // Check if message already exists to avoid duplicate
+          // This happens when we send a message and receive it back via WebSocket broadcast
+          setMessages((prev) => {
+            const messageExists = prev.some((m) => m.id === wsMessage.message!.id)
+            if (messageExists) return prev
+
+            // Map isMe based on senderType for Clinic staff
+            const mappedMessage = {
+              ...wsMessage.message!,
+              isMe: wsMessage.message!.senderType === 'CLINIC'
+            }
+            // Add to beginning of array because state stores DESC order (newest first)
+            // ChatBox.tsx reverses for display (oldest first, newest at bottom)
+            return [mappedMessage, ...prev]
+          })
           // Update chat box list
           updateChatBoxLastMessage(wsMessage.chatBoxId, wsMessage.message)
         }
@@ -185,12 +214,19 @@ export function ChatPage() {
       prev.map((cb) =>
         cb.id === chatBoxId
           ? {
-              ...cb,
-              lastMessage: message.content,
-              lastMessageSender: message.senderType,
-              lastMessageAt: message.createdAt,
-              unreadCount: selectedChatBox?.id === chatBoxId ? 0 : cb.unreadCount + 1,
-            }
+            ...cb,
+            lastMessage: message.content,
+            lastMessageSender: message.senderType,
+            lastMessageAt: message.createdAt,
+            // Only increment unread for messages from PET_OWNER (partner)
+            // Don't count own messages (CLINIC) or if already viewing this chat
+            unreadCount:
+              selectedChatBox?.id === chatBoxId
+                ? 0
+                : message.senderType === 'PET_OWNER'
+                  ? cb.unreadCount + 1
+                  : cb.unreadCount,
+          }
           : cb
       )
     )
@@ -199,31 +235,34 @@ export function ChatPage() {
   // ======================== HANDLERS ========================
 
   const handleSelectChatBox = (chatBox: ChatBoxType) => {
-    setSelectedChatBox(chatBox)
-    setMessages([])
-    setMessagesPage(0)
-    setHasMoreMessages(false)
-    setIsPartnerTyping(false)
-
-    // Update unread count in list
+    // Always update unread count in list
     setChatBoxes((prev) =>
       prev.map((cb) =>
         cb.id === chatBox.id ? { ...cb, unreadCount: 0 } : cb
       )
     )
+
+    // If clicking the same conversation, just mark as read, don't reset state
+    if (selectedChatBox?.id === chatBox.id) {
+      chatService.markAsRead(chatBox.id).catch(console.error)
+      return
+    }
+
+    setSelectedChatBox(chatBox)
+    setMessages([])
+    setMessagesPage(0)
+    setHasMoreMessages(false)
+    setIsPartnerTyping(false)
   }
 
   const handleSendMessage = async (content: string) => {
     if (!selectedChatBox) return
 
     try {
-      const response = await chatService.sendMessage(selectedChatBox.id, { content })
-      // Map isMe for Clinic staff - CLINIC messages are "mine"
-      const message = { ...response, isMe: response.senderType === 'CLINIC' }
-      // Add to beginning because state stores DESC order (newest first)
-      // ChatBox.tsx reverses for display (oldest first, newest at bottom)
-      setMessages((prev) => [message, ...prev])
-      updateChatBoxLastMessage(selectedChatBox.id, message)
+      // Send via REST API - message will be added via WebSocket broadcast
+      // DO NOT add message to state here to avoid duplicate
+      // WebSocket will broadcast the message back to us
+      await chatService.sendMessage(selectedChatBox.id, { content })
     } catch (error) {
       console.error('Failed to send message:', error)
       showToast('error', 'Không thể gửi tin nhắn. Vui lòng thử lại.')
@@ -231,8 +270,24 @@ export function ChatPage() {
   }
 
   const handleTyping = (typing: boolean) => {
-    if (selectedChatBox) {
-      chatWebSocket.sendTyping(selectedChatBox.id, typing)
+    if (!selectedChatBox) return
+
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    if (typing) {
+      // Send typing indicator
+      chatWebSocket.sendTyping(selectedChatBox.id, true)
+
+      // Auto stop typing after 3 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        chatWebSocket.sendTyping(selectedChatBox.id, false)
+      }, 3000)
+    } else {
+      // User stopped typing (e.g., sent message or cleared input)
+      chatWebSocket.sendTyping(selectedChatBox.id, false)
     }
   }
 
@@ -248,7 +303,7 @@ export function ChatPage() {
         {/* Header */}
         <div className="p-5 border-b-2 border-stone-900 bg-white">
           <h1 className="text-2xl font-black uppercase mb-4 tracking-tight text-stone-900">
-            TIN NHẮN
+            CHAT TƯ VẤN
           </h1>
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />

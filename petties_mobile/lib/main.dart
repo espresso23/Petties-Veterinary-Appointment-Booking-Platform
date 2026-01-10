@@ -16,8 +16,13 @@ import 'providers/notification_provider.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'config/env/environment.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔍 Debug: Log environment configuration on startup
+  Environment.printConfig();
 
   // Initialize date formatting for Vietnamese (fast, synchronous)
   await initializeDateFormatting('vi', null);

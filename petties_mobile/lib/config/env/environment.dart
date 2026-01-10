@@ -2,11 +2,11 @@ import 'dart:io';
 
 /// Environment configuration for different build modes
 class Environment {
-    /// WebSocket URL override from --dart-define=WS_URL
-    static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
+  /// WebSocket URL override from --dart-define=WS_URL
+  static const String _wsUrlOverride = String.fromEnvironment('WS_URL');
 
-    /// Get the WebSocket URL from --dart-define, trả về rỗng nếu không có
-    static String get wsUrl => _wsUrlOverride;
+  /// Get the WebSocket URL from --dart-define, trả về rỗng nếu không có
+  static String get wsUrl => _wsUrlOverride;
   Environment._();
 
   // ============================================================
@@ -20,9 +20,9 @@ class Environment {
       // ====== CHỌN 1 TRONG 2 ======
       // Emulator: dùng 10.0.2.2
       // return 'http://10.0.2.2:8080/api';
-      
+
       // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
-      return 'http://192.168.21.200:8080/api';
+      return 'http://10.0.15.78:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -73,6 +73,7 @@ class Environment {
     }
     return 'http://localhost:8000';
   }
+
   static const String _prodAiServiceUrl = 'https://ai.petties.world';
 
   static String get aiServiceUrl {

@@ -2,9 +2,9 @@
  * Chat Types for Petties Web
  */
 
-// ======================== CHAT BOX ========================
+// ======================== CONVERSATION ========================
 
-export interface ChatBox {
+export interface Conversation {
   id: string
   petOwnerId: string
   petOwnerName: string
@@ -20,7 +20,7 @@ export interface ChatBox {
   createdAt: string
 }
 
-export interface CreateChatBoxRequest {
+export interface CreateConversationRequest {
   clinicId: string
   initialMessage?: string
 }
@@ -29,7 +29,7 @@ export interface CreateChatBoxRequest {
 
 export interface ChatMessage {
   id: string
-  chatBoxId: string
+  conversationId: string
   senderId: string
   senderType: 'PET_OWNER' | 'CLINIC'
   senderName: string
@@ -48,7 +48,7 @@ export interface SendMessageRequest {
 
 // ======================== WEBSOCKET ========================
 
-export type WebSocketMessageType = 
+export type WebSocketMessageType =
   | 'MESSAGE'
   | 'TYPING'
   | 'STOP_TYPING'
@@ -58,7 +58,7 @@ export type WebSocketMessageType =
 
 export interface ChatWebSocketMessage {
   type: WebSocketMessageType
-  chatBoxId: string
+  conversationId: string
   message?: ChatMessage
   senderId?: string
   senderType?: 'PET_OWNER' | 'CLINIC'
@@ -68,7 +68,7 @@ export interface ChatWebSocketMessage {
 // ======================== RESPONSE ========================
 
 export interface UnreadCountResponse {
-  totalUnreadChatBoxes: number
+  totalUnreadConversations: number
   totalUnreadMessages: number
 }
 
@@ -82,3 +82,8 @@ export interface PageResponse<T> {
   last: boolean
   empty: boolean
 }
+
+// ======================== BACKWARD COMPATIBILITY ========================
+// Deprecated: Use Conversation instead
+export type ChatBox = Conversation
+export type CreateChatBoxRequest = CreateConversationRequest

@@ -52,7 +52,11 @@ export function ChatBox({
   }
 
   // Messages from API are DESC (newest first), reverse for display (oldest first, newest at bottom)
-  const displayMessages = [...messages].reverse()
+  // Filter duplicates by ID to prevent duplicate key warning
+  const uniqueMessages = messages.filter(
+    (msg, index, self) => index === self.findIndex((m) => m.id === msg.id)
+  )
+  const displayMessages = [...uniqueMessages].reverse()
 
   return (
     <div className="flex-1 flex flex-col bg-white">

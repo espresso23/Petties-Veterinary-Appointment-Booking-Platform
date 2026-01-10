@@ -5,46 +5,47 @@ import 'api_client.dart';
 class ChatService {
   final ApiClient _apiClient = ApiClient.instance;
 
-  /// Tạo hoặc lấy chat box với clinic
-  Future<ChatBox> createOrGetChatBox(String clinicId) async {
+  /// Tạo hoặc lấy conversation với clinic
+  Future<ChatBox> createOrGetConversation(String clinicId) async {
     final response = await _apiClient.post(
-      '/chat/chat-boxes',
+      '/chat/conversations',
       data: {'clinicId': clinicId},
     );
     return ChatBox.fromJson(response.data);
   }
 
-  /// Lấy danh sách chat boxes của user
-  Future<List<ChatBox>> getChatBoxes() async {
-    final response = await _apiClient.get('/chat/chat-boxes');
+  /// Lấy danh sách conversations của user
+  Future<List<ChatBox>> getConversations() async {
+    final response = await _apiClient.get('/chat/conversations');
     final data = response.data;
-    List<dynamic> chatBoxes;
+    List<dynamic> conversations;
 
     if (data is Map && data.containsKey('content')) {
-      chatBoxes = data['content'] ?? [];
+      conversations = data['content'] ?? [];
     } else if (data is List) {
-      chatBoxes = data;
+      conversations = data;
     } else {
-      chatBoxes = [];
+      conversations = [];
     }
 
-    return chatBoxes.map((json) => ChatBox.fromJson(json)).toList();
+    return conversations.map((json) => ChatBox.fromJson(json)).toList();
   }
 
-  /// Lấy chi tiết chat box
-  Future<ChatBox> getChatBox(String chatBoxId) async {
-    final response = await _apiClient.get('/chat/chat-boxes/$chatBoxId');
+  /// Lấy chi tiết conversation
+  Future<ChatBox> getConversation(String conversationId) async {
+    final response =
+        await _apiClient.get('/chat/conversations/$conversationId');
     return ChatBox.fromJson(response.data);
   }
 
-  /// Lấy tin nhắn trong chat box
+  /// Lấy tin nhắn trong conversation
   Future<List<ChatMessage>> getMessages(
-    String chatBoxId, {
+    String conversationId, {
     int page = 0,
     int size = 50,
   }) async {
     final response = await _apiClient.get(
-      '/chat/chat-boxes/$chatBoxId/messages',
+      '/chat/conversations/$conversationId/messages',
       queryParameters: {'page': page, 'size': size},
     );
 
@@ -64,22 +65,37 @@ class ChatService {
   }
 
   /// Gửi tin nhắn
-  Future<ChatMessage> sendMessage(String chatBoxId, String content) async {
+  Future<ChatMessage> sendMessage(String conversationId, String content) async {
     final response = await _apiClient.post(
-      '/chat/chat-boxes/$chatBoxId/messages',
+      '/chat/conversations/$conversationId/messages',
       data: {'content': content},
     );
     return ChatMessage.fromJson(response.data);
   }
 
   /// Đánh dấu đã đọc tin nhắn
-  Future<void> markAsRead(String chatBoxId) async {
-    await _apiClient.put('/chat/chat-boxes/$chatBoxId/read');
+  Future<void> markAsRead(String conversationId) async {
+    await _apiClient.put('/chat/conversations/$conversationId/read');
   }
 
   /// Lấy số tin nhắn chưa đọc
   Future<int> getUnreadCount() async {
     final response = await _apiClient.get('/chat/unread-count');
-    return response.data['count'] ?? 0;
+    return response.data['totalUnreadConversations'] ??
+        response.data['count'] ??
+        0;
   }
+
+  // ======================== BACKWARD COMPATIBILITY ========================
+  // Deprecated: Use methods with Conversation naming instead
+
+  @Deprecated('Use createOrGetConversation instead')
+  Future<ChatBox> createOrGetChatBox(String clinicId) =>
+      createOrGetConversation(clinicId);
+
+  @Deprecated('Use getConversations instead')
+  Future<List<ChatBox>> getChatBoxes() => getConversations();
+
+  @Deprecated('Use getConversation instead')
+  Future<ChatBox> getChatBox(String id) => getConversation(id);
 }

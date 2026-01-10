@@ -45,7 +45,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void dispose() {
     // Unsubscribe from WebSocket when leaving
     if (_chatBox != null) {
-      chatWebSocket.unsubscribeFromChatBox(_chatBox!.id, _handleWebSocketMessage);
+      chatWebSocket.unsubscribeFromChatBox(
+          _chatBox!.id, _handleWebSocketMessage);
       chatWebSocket.sendOnlineStatus(_chatBox!.id, false);
     }
     _scrollController.dispose();
@@ -101,7 +102,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       // Get access token from storage
       final prefs = await SharedPreferences.getInstance();
       final accessToken = prefs.getString(AppConstants.accessTokenKey);
-      
+
       if (accessToken != null) {
         chatWebSocket.setAccessToken(accessToken);
         await chatWebSocket.connect();
@@ -120,8 +121,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     switch (wsMessage.type) {
       case WsMessageType.message:
         if (wsMessage.message != null) {
-          // Only add if not sent by me (to avoid duplicate)
-          if (wsMessage.message!.senderType != SenderType.petOwner) {
+          // Check if message already exists to avoid duplicate
+          // This happens because we add message after API response,
+          // then receive it again via WebSocket broadcast
+          final messageExists =
+              _messages.any((m) => m.id == wsMessage.message!.id);
+          if (!messageExists) {
             setState(() {
               _messages.add(wsMessage.message!);
             });
@@ -146,7 +151,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         // Update message status to SEEN
         setState(() {
           _messages = _messages.map((msg) {
-            if (msg.senderType == SenderType.petOwner && msg.status != MessageStatus.seen) {
+            if (msg.senderType == SenderType.petOwner &&
+                msg.status != MessageStatus.seen) {
               return msg.copyWith(status: MessageStatus.seen, isRead: true);
             }
             return msg;
@@ -178,17 +184,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     setState(() => _isSending = true);
 
     try {
-      final message = await _chatService.sendMessage(
+      // Send via REST API - message will be added via WebSocket broadcast
+      // DO NOT add message to state here to avoid duplicate
+      // WebSocket will broadcast the message back to us
+      await _chatService.sendMessage(
         _chatBox!.id,
         content,
       );
 
       setState(() {
-        _messages.add(message);
         _isSending = false;
       });
-
-      _scrollToBottom();
     } catch (e) {
       setState(() => _isSending = false);
       if (mounted) {
@@ -225,6 +231,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           if (_chatBox != null)
             MessageInput(
               onSend: _sendMessage,
+              onTyping: (typing) =>
+                  chatWebSocket.sendTyping(_chatBox!.id, typing),
               isLoading: _isSending,
             ),
         ],
@@ -403,22 +411,89 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       );
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        final message = _messages[index];
-        final prevMessage = index > 0 ? _messages[index - 1] : null;
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              final message = _messages[index];
+              final prevMessage = index > 0 ? _messages[index - 1] : null;
 
-        // Show avatar if first message or different sender
-        final showAvatar =
-            prevMessage == null || prevMessage.senderType != message.senderType;
+              // Show avatar if first message or different sender
+              final showAvatar = prevMessage == null ||
+                  prevMessage.senderType != message.senderType;
 
-        return MessageBubble(
-          message: message,
-          showAvatar: showAvatar,
+              return MessageBubble(
+                message: message,
+                showAvatar: showAvatar,
+              );
+            },
+          ),
+        ),
+        // Typing indicator
+        if (_isPartnerTyping)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.stone200,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildTypingDot(0),
+                      const SizedBox(width: 4),
+                      _buildTypingDot(1),
+                      const SizedBox(width: 4),
+                      _buildTypingDot(2),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Đang nhập...',
+                  style: TextStyle(
+                    color: AppColors.stone500,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Build animated typing dot with staggered animation
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 600 + (index * 200)),
+      builder: (context, value, child) {
+        return Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.stone500
+                .withValues(alpha: 0.4 + (0.6 * (1 - value).abs())),
+          ),
         );
+      },
+      onEnd: () {
+        // Trigger rebuild to restart animation
+        if (mounted && _isPartnerTyping) {
+          setState(() {});
+        }
       },
     );
   }

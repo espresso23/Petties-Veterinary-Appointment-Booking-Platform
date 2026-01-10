@@ -31,24 +31,31 @@ class ChatWebSocketService {
     this.isConnecting = true
 
     return new Promise((resolve, reject) => {
-      const wsUrl = `${env.API_BASE_URL.replace('/api', '')}/ws`
+      // WebSocket endpoint is at /api/ws due to backend context path
+      const wsUrl = `${env.API_BASE_URL.replace('/api', '')}/api/ws`
       const accessToken = useAuthStore.getState().accessToken
+
+      // Only log connection success, not every attempt
+
+      if (!accessToken) {
+        console.error('[WS] No access token available')
+        this.isConnecting = false
+        reject(new Error('No access token'))
+        return
+      }
 
       this.client = new Client({
         webSocketFactory: () => new SockJS(wsUrl),
         connectHeaders: {
           Authorization: `Bearer ${accessToken}`,
         },
-        debug: (str) => {
-          if (import.meta.env.DEV) {
-            console.log('[WS]', str)
-          }
-        },
+        // Disable verbose STOMP debug logs
+        debug: () => { },
         reconnectDelay: 5000,
         heartbeatIncoming: 4000,
         heartbeatOutgoing: 4000,
         onConnect: () => {
-          console.log('[WS] Connected')
+          console.log('[WS] Connected successfully')
           this.isConnecting = false
           this.reconnectAttempts = 0
           resolve()
@@ -59,13 +66,16 @@ class ChatWebSocketService {
           reject(new Error(frame.headers['message']))
         },
         onDisconnect: () => {
-          console.log('[WS] Disconnected')
           this.isConnecting = false
         },
         onWebSocketClose: () => {
-          console.log('[WS] WebSocket Closed')
           this.isConnecting = false
           this.handleReconnect()
+        },
+        onWebSocketError: (event) => {
+          console.error('[WS] WebSocket Error:', event)
+          this.isConnecting = false
+          reject(new Error('WebSocket connection error'))
         },
       })
 
@@ -77,6 +87,10 @@ class ChatWebSocketService {
    * Disconnect from WebSocket server
    */
   disconnect(): void {
+    // Reset connection flags FIRST to allow reconnection
+    this.isConnecting = false
+    this.reconnectAttempts = 0
+
     if (this.client) {
       // Unsubscribe all
       this.subscriptions.forEach((unsubscribe) => unsubscribe())
@@ -93,11 +107,12 @@ class ChatWebSocketService {
    */
   subscribeToChatBox(chatBoxId: string, handler: MessageHandler): () => void {
     if (!this.client?.connected) {
-      console.warn('[WS] Not connected, cannot subscribe')
-      return () => {}
+      // Silently fail if not connected
+      return () => { }
     }
 
     const destination = `/topic/chat/${chatBoxId}`
+    // Subscribe to chat topic
 
     // Store handler
     if (!this.messageHandlers.has(chatBoxId)) {
@@ -111,6 +126,7 @@ class ChatWebSocketService {
         try {
           const wsMessage: ChatWebSocketMessage = JSON.parse(message.body)
           const handlers = this.messageHandlers.get(chatBoxId)
+          // Dispatch to handlers
           handlers?.forEach((h) => h(wsMessage))
         } catch (e) {
           console.error('[WS] Failed to parse message:', e)
@@ -202,7 +218,7 @@ class ChatWebSocketService {
   private handleReconnect(): void {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
-      console.log(`[WS] Reconnecting... Attempt ${this.reconnectAttempts}`)
+      // Silent reconnection
       setTimeout(() => {
         this.connect().catch(console.error)
       }, 5000 * this.reconnectAttempts)

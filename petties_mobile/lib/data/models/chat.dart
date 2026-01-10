@@ -53,8 +53,10 @@ class ChatBox extends BaseModel {
   final String? lastMessage;
   final String? lastMessageSender;
   final DateTime? lastMessageAt;
+  final int unreadCount; // API returns unreadCount mapped by role
   final int unreadCountPetOwner;
   final int unreadCountClinic;
+  final bool partnerOnline; // API returns partnerOnline mapped by role
   final bool petOwnerOnline;
   final bool clinicOnline;
 
@@ -69,8 +71,10 @@ class ChatBox extends BaseModel {
     this.lastMessage,
     this.lastMessageSender,
     this.lastMessageAt,
+    this.unreadCount = 0,
     this.unreadCountPetOwner = 0,
     this.unreadCountClinic = 0,
+    this.partnerOnline = false,
     this.petOwnerOnline = false,
     this.clinicOnline = false,
   });
@@ -92,13 +96,17 @@ class ChatBox extends BaseModel {
           : json['last_message_at'] != null
               ? DateTime.parse(json['last_message_at'])
               : null,
+      // API returns unreadCount mapped by role (for Pet Owner, this is their unread count)
+      unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       unreadCountPetOwner:
-          json['unreadCountPetOwner'] ?? json['unread_count_pet_owner'] ?? 0,
+          (json['unreadCountPetOwner'] ?? json['unread_count_pet_owner'] ?? 0) as int,
       unreadCountClinic:
-          json['unreadCountClinic'] ?? json['unread_count_clinic'] ?? 0,
+          (json['unreadCountClinic'] ?? json['unread_count_clinic'] ?? 0) as int,
+      // API returns partnerOnline mapped by role (for Pet Owner, this is clinic online status)
+      partnerOnline: (json['partnerOnline'] as bool?) ?? (json['partner_online'] as bool?) ?? false,
       petOwnerOnline:
-          json['petOwnerOnline'] ?? json['pet_owner_online'] ?? false,
-      clinicOnline: json['clinicOnline'] ?? json['clinic_online'] ?? false,
+          (json['petOwnerOnline'] as bool?) ?? (json['pet_owner_online'] as bool?) ?? false,
+      clinicOnline: (json['clinicOnline'] as bool?) ?? (json['clinic_online'] as bool?) ?? false,
     );
   }
 
@@ -123,10 +131,12 @@ class ChatBox extends BaseModel {
   }
 
   /// Lấy số tin nhắn chưa đọc cho Pet Owner
-  int get myUnreadCount => unreadCountPetOwner;
+  /// API trả về unreadCount đã được map theo role, nên ưu tiên dùng unreadCount
+  int get myUnreadCount => unreadCount > 0 ? unreadCount : unreadCountPetOwner;
 
   /// Kiểm tra clinic có online không
-  bool get isClinicOnline => clinicOnline;
+  /// API trả về partnerOnline đã được map theo role, nên ưu tiên dùng partnerOnline
+  bool get isClinicOnline => partnerOnline || clinicOnline;
 
   /// Copy with updated fields
   ChatBox copyWith({
@@ -140,8 +150,10 @@ class ChatBox extends BaseModel {
     String? lastMessage,
     String? lastMessageSender,
     DateTime? lastMessageAt,
+    int? unreadCount,
     int? unreadCountPetOwner,
     int? unreadCountClinic,
+    bool? partnerOnline,
     bool? petOwnerOnline,
     bool? isClinicOnline,
   }) {
@@ -156,8 +168,10 @@ class ChatBox extends BaseModel {
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageSender: lastMessageSender ?? this.lastMessageSender,
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      unreadCount: unreadCount ?? this.unreadCount,
       unreadCountPetOwner: unreadCountPetOwner ?? this.unreadCountPetOwner,
       unreadCountClinic: unreadCountClinic ?? this.unreadCountClinic,
+      partnerOnline: partnerOnline ?? this.partnerOnline,
       petOwnerOnline: petOwnerOnline ?? this.petOwnerOnline,
       clinicOnline: isClinicOnline ?? clinicOnline,
     );

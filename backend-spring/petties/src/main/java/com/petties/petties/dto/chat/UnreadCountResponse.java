@@ -14,6 +14,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UnreadCountResponse {
 
-    private long totalUnreadChatBoxes;
+    private long totalUnreadConversations;
     private long totalUnreadMessages;
 }

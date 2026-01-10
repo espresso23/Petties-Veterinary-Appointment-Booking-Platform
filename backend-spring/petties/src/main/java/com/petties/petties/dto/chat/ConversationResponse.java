@@ -9,13 +9,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Response DTO for chat box data.
+ * Response DTO for chat conversation data.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatBoxResponse {
+public class ConversationResponse {
 
     private String id;
 

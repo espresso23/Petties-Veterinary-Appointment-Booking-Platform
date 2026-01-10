@@ -1,7 +1,7 @@
 import apiClient from './client'
 import type {
-  ChatBox,
-  CreateChatBoxRequest,
+  Conversation,
+  CreateConversationRequest,
   ChatMessage,
   SendMessageRequest,
   UnreadCountResponse,
@@ -13,77 +13,77 @@ import type {
  * Base path: /api/chat
  */
 export const chatService = {
-  // ======================== CHAT BOXES ========================
+  // ======================== CONVERSATIONS ========================
 
   /**
-   * Create or get existing chat box with a clinic
-   * Only Pet Owner can create chat boxes
+   * Create or get existing conversation with a clinic
+   * Only Pet Owner can create conversations
    */
-  createOrGetChatBox: async (request: CreateChatBoxRequest): Promise<ChatBox> => {
-    const response = await apiClient.post<ChatBox>('/chat/chat-boxes', request)
+  createOrGetConversation: async (request: CreateConversationRequest): Promise<Conversation> => {
+    const response = await apiClient.post<Conversation>('/chat/conversations', request)
     return response.data
   },
 
   /**
-   * Get all chat boxes for the current user
+   * Get all conversations for the current user
    */
-  getChatBoxes: async (page = 0, size = 20): Promise<PageResponse<ChatBox>> => {
-    const response = await apiClient.get<PageResponse<ChatBox>>('/chat/chat-boxes', {
+  getConversations: async (page = 0, size = 20): Promise<PageResponse<Conversation>> => {
+    const response = await apiClient.get<PageResponse<Conversation>>('/chat/conversations', {
       params: { page, size },
     })
     return response.data
   },
 
   /**
-   * Get a specific chat box by ID
+   * Get a specific conversation by ID
    */
-  getChatBox: async (chatBoxId: string): Promise<ChatBox> => {
-    const response = await apiClient.get<ChatBox>(`/chat/chat-boxes/${chatBoxId}`)
+  getConversation: async (conversationId: string): Promise<Conversation> => {
+    const response = await apiClient.get<Conversation>(`/chat/conversations/${conversationId}`)
     return response.data
   },
 
   // ======================== MESSAGES ========================
 
   /**
-   * Get messages in a chat box with pagination
+   * Get messages in a conversation with pagination
    */
   getMessages: async (
-    chatBoxId: string,
+    conversationId: string,
     page = 0,
     size = 50
   ): Promise<PageResponse<ChatMessage>> => {
     const response = await apiClient.get<PageResponse<ChatMessage>>(
-      `/chat/chat-boxes/${chatBoxId}/messages`,
+      `/chat/conversations/${conversationId}/messages`,
       { params: { page, size } }
     )
     return response.data
   },
 
   /**
-   * Send a message in a chat box
+   * Send a message in a conversation
    */
   sendMessage: async (
-    chatBoxId: string,
+    conversationId: string,
     request: SendMessageRequest
   ): Promise<ChatMessage> => {
     const response = await apiClient.post<ChatMessage>(
-      `/chat/chat-boxes/${chatBoxId}/messages`,
+      `/chat/conversations/${conversationId}/messages`,
       request
     )
     return response.data
   },
 
   /**
-   * Mark all messages in a chat box as read
+   * Mark all messages in a conversation as read
    */
-  markAsRead: async (chatBoxId: string): Promise<void> => {
-    await apiClient.put(`/chat/chat-boxes/${chatBoxId}/read`)
+  markAsRead: async (conversationId: string): Promise<void> => {
+    await apiClient.put(`/chat/conversations/${conversationId}/read`)
   },
 
   // ======================== UNREAD COUNT ========================
 
   /**
-   * Get total unread chat box count
+   * Get total unread conversation count
    */
   getUnreadCount: async (): Promise<UnreadCountResponse> => {
     const response = await apiClient.get<UnreadCountResponse>('/chat/unread-count')

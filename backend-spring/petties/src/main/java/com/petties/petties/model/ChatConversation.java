@@ -16,27 +16,27 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * ChatBox Document - MongoDB
+ * ChatConversation Document - MongoDB
  * 
- * Represents a 1-1 chat box between Pet Owner and Clinic.
+ * Represents a 1-1 chat conversation between Pet Owner and Clinic.
  * 
  * Design Notes:
  * - petOwnerId: UUID of the Pet Owner (from PostgreSQL users table)
  * - clinicId: UUID of the Clinic (from PostgreSQL clinics table)
- * - One chat box per (petOwner, clinic) pair
- * - lastMessageAt: for sorting chat boxes by recent activity
+ * - One conversation per (petOwner, clinic) pair
+ * - lastMessageAt: for sorting conversations by recent activity
  * - unreadCountPetOwner/unreadCountClinic: track unread messages for each party
  */
-@Document(collection = "chat_boxes")
+@Document(collection = "chat_conversations")
 @CompoundIndexes({
-    @CompoundIndex(name = "pet_owner_clinic_idx", def = "{'petOwnerId': 1, 'clinicId': 1}", unique = true),
-    @CompoundIndex(name = "last_message_idx", def = "{'lastMessageAt': -1}")
+        @CompoundIndex(name = "pet_owner_clinic_idx", def = "{'petOwnerId': 1, 'clinicId': 1}", unique = true),
+        @CompoundIndex(name = "last_message_idx", def = "{'lastMessageAt': -1}")
 })
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatBox {
+public class ChatConversation {
 
     @Id
     private String id;
@@ -101,13 +101,13 @@ public class ChatBox {
     private int unreadCountClinic = 0;
 
     /**
-     * Whether Pet Owner is currently online in this chat box
+     * Whether Pet Owner is currently online in this conversation
      */
     @Builder.Default
     private boolean petOwnerOnline = false;
 
     /**
-     * Whether Clinic staff is currently online in this chat box
+     * Whether Clinic staff is currently online in this conversation
      */
     @Builder.Default
     private boolean clinicOnline = false;

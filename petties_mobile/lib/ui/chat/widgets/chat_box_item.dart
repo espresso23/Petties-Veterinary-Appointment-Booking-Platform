@@ -71,8 +71,8 @@ class ChatBoxItem extends StatelessWidget {
                 : _buildDefaultAvatar(),
           ),
         ),
-        // Online indicator
-        if (chatBox.isClinicOnline)
+        // Online indicator (use == true for null safety)
+        if (chatBox.isClinicOnline == true)
           Positioned(
             right: 2,
             bottom: 2,

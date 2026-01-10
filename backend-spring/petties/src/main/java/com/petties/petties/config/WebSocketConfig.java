@@ -67,7 +67,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
         // Pure WebSocket endpoint (for native mobile clients - React Native, Flutter)
         // Use setAllowedOriginPatterns("*") because mobile clients don't send Origin header
-        registry.addEndpoint("/ws")
+        // This endpoint is at /ws-native (not /ws) to avoid conflict with SockJS
+        registry.addEndpoint("/ws-native")
                 .setAllowedOriginPatterns("*");
     }
 

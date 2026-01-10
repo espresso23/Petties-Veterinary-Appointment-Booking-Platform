@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../config/constants/app_colors.dart';
 
 /// Widget nhập tin nhắn
 class MessageInput extends StatefulWidget {
   final Function(String) onSend;
+  final Function(bool)? onTyping;
   final bool isLoading;
 
   const MessageInput({
     super.key,
     required this.onSend,
+    this.onTyping,
     this.isLoading = false,
   });
 
@@ -19,6 +22,7 @@ class MessageInput extends StatefulWidget {
 class _MessageInputState extends State<MessageInput> {
   final TextEditingController _controller = TextEditingController();
   bool _hasText = false;
+  Timer? _typingTimer;
 
   @override
   void initState() {
@@ -28,6 +32,7 @@ class _MessageInputState extends State<MessageInput> {
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     super.dispose();
@@ -38,11 +43,28 @@ class _MessageInputState extends State<MessageInput> {
     if (hasText != _hasText) {
       setState(() => _hasText = hasText);
     }
+
+    // Trigger typing indicator
+    if (widget.onTyping != null && hasText) {
+      widget.onTyping!(true);
+
+      // Cancel previous timer
+      _typingTimer?.cancel();
+
+      // Set timer to stop typing after 1 second of inactivity
+      _typingTimer = Timer(const Duration(milliseconds: 1000), () {
+        widget.onTyping!(false);
+      });
+    }
   }
 
   void _handleSend() {
     final text = _controller.text.trim();
     if (text.isEmpty || widget.isLoading) return;
+
+    // Stop typing indicator
+    _typingTimer?.cancel();
+    widget.onTyping?.call(false);
 
     widget.onSend(text);
     _controller.clear();

@@ -10,14 +10,14 @@ import lombok.NoArgsConstructor;
 import java.util.UUID;
 
 /**
- * Request DTO for creating a new chat box.
+ * Request DTO for creating a new chat conversation.
  * Used by Pet Owner to start a chat with a Clinic.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreateChatBoxRequest {
+public class CreateConversationRequest {
 
     @NotNull(message = "ID phong kham khong duoc de trong")
     private UUID clinicId;

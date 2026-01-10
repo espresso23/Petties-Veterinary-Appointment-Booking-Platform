@@ -14,8 +14,7 @@ import {
     BeakerIcon,
     BellIcon,
     PresentationChartLineIcon,
-    UserCircleIcon,
-    ChatBubbleLeftRightIcon
+    UserCircleIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -53,10 +52,9 @@ export const ClinicOwnerLayout = () => {
         {
             title: 'CÁ NHÂN',
             items: [
-                { path: '/clinic-owner/chat', label: 'TIN NHAN', icon: ChatBubbleLeftRightIcon },
-                { path: '/clinic-owner/notifications', label: 'THONG BAO', icon: BellIcon, unreadCount },
+                { path: '/clinic-owner/notifications', label: 'THÔNG BÁO', icon: BellIcon, unreadCount },
                 { path: '/clinic-owner/revenue', label: 'DOANH THU', icon: PresentationChartLineIcon },
-                { path: '/clinic-owner/profile', label: 'HO SO CA NHAN', icon: UserCircleIcon },
+                { path: '/clinic-owner/profile', label: 'HỒ SƠ CÁ NHÂN', icon: UserCircleIcon },
             ]
         }
     ]

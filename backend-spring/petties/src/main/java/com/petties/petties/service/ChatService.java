@@ -4,12 +4,12 @@ import com.petties.petties.dto.chat.*;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
-import com.petties.petties.model.ChatBox;
+import com.petties.petties.model.ChatConversation;
 import com.petties.petties.model.ChatMessage;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.Role;
-import com.petties.petties.repository.ChatBoxRepository;
+import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
@@ -30,7 +30,7 @@ import java.util.UUID;
  * Service for Chat functionality.
  * 
  * Handles:
- * - Creating chat boxes between Pet Owner and Clinic
+ * - Creating chat conversations between Pet Owner and Clinic
  * - Sending and receiving messages
  * - Real-time message delivery via WebSocket
  * - Read receipts and unread counts
@@ -40,53 +40,53 @@ import java.util.UUID;
 @Slf4j
 public class ChatService {
 
-    private final ChatBoxRepository chatBoxRepository;
+    private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // ======================== CHAT BOX MANAGEMENT ========================
+    // ======================== CONVERSATION MANAGEMENT ========================
 
     /**
-     * Create or get existing chat box between Pet Owner and Clinic.
-     * Only Pet Owner can initiate a chat box.
+     * Create or get existing conversation between Pet Owner and Clinic.
+     * Only Pet Owner can initiate a conversation.
      */
     @Transactional
-    public ChatBoxResponse createOrGetChatBox(UUID petOwnerId, CreateChatBoxRequest request) {
+    public ConversationResponse createOrGetConversation(UUID petOwnerId, CreateConversationRequest request) {
         // Validate Pet Owner
         User petOwner = userRepository.findById(petOwnerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
 
         if (petOwner.getRole() != Role.PET_OWNER) {
-            throw new ForbiddenException("Chi Pet Owner moi co the tao chat box");
+            throw new ForbiddenException("Chi Pet Owner moi co the tao cuoc hoi thoai");
         }
 
         // Validate Clinic
         Clinic clinic = clinicRepository.findById(request.getClinicId())
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay phong kham"));
 
-        // Check if chat box already exists
-        Optional<ChatBox> existingChatBox = chatBoxRepository
+        // Check if conversation already exists
+        Optional<ChatConversation> existingConversation = conversationRepository
                 .findByPetOwnerIdAndClinicId(petOwnerId, request.getClinicId());
 
-        if (existingChatBox.isPresent()) {
-            // Return existing chat box
-            ChatBox chatBox = existingChatBox.get();
-            
+        if (existingConversation.isPresent()) {
+            // Return existing conversation
+            ChatConversation conversation = existingConversation.get();
+
             // If initial message provided, send it
             if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
-                sendMessage(chatBox.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER, 
+                sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
                         new SendMessageRequest(request.getInitialMessage()));
-                // Refresh chat box
-                chatBox = chatBoxRepository.findById(chatBox.getId()).orElse(chatBox);
+                // Refresh conversation
+                conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
             }
-            
-            return mapToChatBoxResponse(chatBox, petOwnerId);
+
+            return mapToConversationResponse(conversation, petOwnerId);
         }
 
-        // Create new chat box
-        ChatBox chatBox = ChatBox.builder()
+        // Create new conversation
+        ChatConversation conversation = ChatConversation.builder()
                 .petOwnerId(petOwnerId)
                 .petOwnerName(petOwner.getFullName())
                 .petOwnerAvatar(petOwner.getAvatar())
@@ -96,75 +96,75 @@ public class ChatService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        chatBox = chatBoxRepository.save(chatBox);
-        log.info("Created new chat box: {} between Pet Owner: {} and Clinic: {}", 
-                chatBox.getId(), petOwnerId, clinic.getClinicId());
+        conversation = conversationRepository.save(conversation);
+        log.info("Created new conversation: {} between Pet Owner: {} and Clinic: {}",
+                conversation.getId(), petOwnerId, clinic.getClinicId());
 
         // If initial message provided, send it
         if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
-            sendMessage(chatBox.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
+            sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
                     new SendMessageRequest(request.getInitialMessage()));
-            // Refresh chat box
-            chatBox = chatBoxRepository.findById(chatBox.getId()).orElse(chatBox);
+            // Refresh conversation
+            conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
         }
 
-        return mapToChatBoxResponse(chatBox, petOwnerId);
+        return mapToConversationResponse(conversation, petOwnerId);
     }
 
     /**
-     * Get all chat boxes for a user (Pet Owner or Clinic staff).
+     * Get all conversations for a user (Pet Owner or Clinic staff).
      */
-    public Page<ChatBoxResponse> getChatBoxes(UUID userId, Role role, Pageable pageable) {
-        Page<ChatBox> chatBoxes;
+    public Page<ConversationResponse> getConversations(UUID userId, Role role, Pageable pageable) {
+        Page<ChatConversation> conversations;
 
         if (role == Role.PET_OWNER) {
-            chatBoxes = chatBoxRepository.findByPetOwnerIdOrderByLastMessageAtDesc(userId, pageable);
+            conversations = conversationRepository.findByPetOwnerIdOrderByLastMessageAtDesc(userId, pageable);
         } else if (role == Role.CLINIC_OWNER || role == Role.CLINIC_MANAGER || role == Role.VET) {
             // Get clinic ID from user
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
-            
+
             UUID clinicId = getClinicIdForUser(user);
             if (clinicId == null) {
                 throw new BadRequestException("Nguoi dung khong thuoc phong kham nao");
             }
-            
-            chatBoxes = chatBoxRepository.findByClinicIdOrderByLastMessageAtDesc(clinicId, pageable);
+
+            conversations = conversationRepository.findByClinicIdOrderByLastMessageAtDesc(clinicId, pageable);
         } else {
             throw new ForbiddenException("Role khong duoc phep truy cap chat");
         }
 
-        return chatBoxes.map(chatBox -> mapToChatBoxResponse(chatBox, userId));
+        return conversations.map(conversation -> mapToConversationResponse(conversation, userId));
     }
 
     /**
-     * Get a specific chat box by ID.
+     * Get a specific conversation by ID.
      */
-    public ChatBoxResponse getChatBox(String chatBoxId, UUID userId) {
-        ChatBox chatBox = chatBoxRepository.findById(chatBoxId)
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay chat box"));
+    public ConversationResponse getConversation(String conversationId, UUID userId) {
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
 
         // Validate access
-        validateChatBoxAccess(chatBox, userId);
+        validateConversationAccess(conversation, userId);
 
-        return mapToChatBoxResponse(chatBox, userId);
+        return mapToConversationResponse(conversation, userId);
     }
 
     // ======================== MESSAGE MANAGEMENT ========================
 
     /**
-     * Send a message in a chat box.
+     * Send a message in a conversation.
      */
     @Transactional
-    public MessageResponse sendMessage(String chatBoxId, UUID senderId, 
+    public MessageResponse sendMessage(String conversationId, UUID senderId,
             ChatMessage.SenderType senderType, SendMessageRequest request) {
-        
-        // Validate chat box
-        ChatBox chatBox = chatBoxRepository.findById(chatBoxId)
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay chat box"));
+
+        // Validate conversation
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
 
         // Validate access
-        validateChatBoxAccess(chatBox, senderId);
+        validateConversationAccess(conversation, senderId);
 
         // Get sender info
         User sender = userRepository.findById(senderId)
@@ -172,7 +172,7 @@ public class ChatService {
 
         // Create message
         ChatMessage message = ChatMessage.builder()
-                .chatBoxId(chatBoxId)
+                .chatBoxId(conversationId)
                 .senderId(senderId)
                 .senderType(senderType)
                 .senderName(sender.getFullName())
@@ -183,43 +183,44 @@ public class ChatService {
                 .build();
 
         message = messageRepository.save(message);
-        log.debug("Message saved: {} in chat box: {}", message.getId(), chatBoxId);
+        log.debug("Message saved: {} in conversation: {}", message.getId(), conversationId);
 
-        // Update chat box
-        chatBox.setLastMessage(truncateMessage(request.getContent(), 100));
-        chatBox.setLastMessageSender(senderType.name());
-        chatBox.setLastMessageAt(LocalDateTime.now());
+        // Update conversation
+        conversation.setLastMessage(truncateMessage(request.getContent(), 100));
+        conversation.setLastMessageSender(senderType.name());
+        conversation.setLastMessageAt(LocalDateTime.now());
 
         // Increment unread count for recipient
         if (senderType == ChatMessage.SenderType.PET_OWNER) {
-            chatBox.setUnreadCountClinic(chatBox.getUnreadCountClinic() + 1);
+            conversation.setUnreadCountClinic(conversation.getUnreadCountClinic() + 1);
         } else {
-            chatBox.setUnreadCountPetOwner(chatBox.getUnreadCountPetOwner() + 1);
+            conversation.setUnreadCountPetOwner(conversation.getUnreadCountPetOwner() + 1);
         }
 
-        chatBoxRepository.save(chatBox);
+        conversationRepository.save(conversation);
 
         // Create response
         MessageResponse response = mapToMessageResponse(message, senderId);
 
         // Send via WebSocket
-        sendWebSocketMessage(chatBoxId, ChatWebSocketMessage.MessageType.MESSAGE, response, senderId, senderType.name());
+        sendWebSocketMessage(conversationId, ChatWebSocketMessage.MessageType.MESSAGE, response, senderId,
+                senderType.name());
 
         return response;
     }
 
     /**
-     * Get messages in a chat box with pagination.
+     * Get messages in a conversation with pagination.
      */
-    public Page<MessageResponse> getMessages(String chatBoxId, UUID userId, Pageable pageable) {
-        // Validate chat box
-        ChatBox chatBox = chatBoxRepository.findById(chatBoxId)
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay chat box"));
+    public Page<MessageResponse> getMessages(String conversationId, UUID userId, Pageable pageable) {
+        // Validate conversation
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
 
         // Validate access
-        validateChatBoxAccess(chatBox, userId);
+        validateConversationAccess(conversation, userId);
 
-        Page<ChatMessage> messages = messageRepository.findByChatBoxIdOrderByCreatedAtDesc(chatBoxId, pageable);
+        Page<ChatMessage> messages = messageRepository.findByChatBoxIdOrderByCreatedAtDesc(conversationId, pageable);
 
         return messages.map(msg -> mapToMessageResponse(msg, userId));
     }
@@ -228,22 +229,22 @@ public class ChatService {
      * Mark messages as read.
      */
     @Transactional
-    public void markAsRead(String chatBoxId, UUID userId) {
-        // Validate chat box
-        ChatBox chatBox = chatBoxRepository.findById(chatBoxId)
-                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay chat box"));
+    public void markAsRead(String conversationId, UUID userId) {
+        // Validate conversation
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
 
         // Validate access
-        validateChatBoxAccess(chatBox, userId);
+        validateConversationAccess(conversation, userId);
 
         // Determine reader's type
-        ChatMessage.SenderType readerType = chatBox.getPetOwnerId().equals(userId) 
-                ? ChatMessage.SenderType.PET_OWNER 
+        ChatMessage.SenderType readerType = conversation.getPetOwnerId().equals(userId)
+                ? ChatMessage.SenderType.PET_OWNER
                 : ChatMessage.SenderType.CLINIC;
 
         // Find unread messages sent by the OTHER party
         List<ChatMessage> unreadMessages = messageRepository
-                .findByChatBoxIdAndSenderTypeNotAndIsReadFalse(chatBoxId, readerType);
+                .findByChatBoxIdAndSenderTypeNotAndIsReadFalse(conversationId, readerType);
 
         if (!unreadMessages.isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
@@ -256,14 +257,15 @@ public class ChatService {
 
             // Reset unread count
             if (readerType == ChatMessage.SenderType.PET_OWNER) {
-                chatBox.setUnreadCountPetOwner(0);
+                conversation.setUnreadCountPetOwner(0);
             } else {
-                chatBox.setUnreadCountClinic(0);
+                conversation.setUnreadCountClinic(0);
             }
-            chatBoxRepository.save(chatBox);
+            conversationRepository.save(conversation);
 
             // Send read receipt via WebSocket
-            sendWebSocketMessage(chatBoxId, ChatWebSocketMessage.MessageType.READ, null, userId, readerType.name());
+            sendWebSocketMessage(conversationId, ChatWebSocketMessage.MessageType.READ, null, userId,
+                    readerType.name());
         }
     }
 
@@ -271,87 +273,87 @@ public class ChatService {
      * Get unread count for a user.
      */
     public UnreadCountResponse getUnreadCount(UUID userId, Role role) {
-        long unreadChatBoxes;
-        
+        long unreadConversations;
+
         if (role == Role.PET_OWNER) {
-            unreadChatBoxes = chatBoxRepository.countByPetOwnerIdAndUnreadCountPetOwnerGreaterThan(userId, 0);
+            unreadConversations = conversationRepository.countByPetOwnerIdAndUnreadCountPetOwnerGreaterThan(userId, 0);
         } else {
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
             UUID clinicId = getClinicIdForUser(user);
             if (clinicId == null) {
                 return UnreadCountResponse.builder()
-                        .totalUnreadChatBoxes(0)
+                        .totalUnreadConversations(0)
                         .totalUnreadMessages(0)
                         .build();
             }
-            unreadChatBoxes = chatBoxRepository.countByClinicIdAndUnreadCountClinicGreaterThan(clinicId, 0);
+            unreadConversations = conversationRepository.countByClinicIdAndUnreadCountClinicGreaterThan(clinicId, 0);
         }
 
         return UnreadCountResponse.builder()
-                .totalUnreadChatBoxes(unreadChatBoxes)
-                .totalUnreadMessages(unreadChatBoxes) // Simplified for now
+                .totalUnreadConversations(unreadConversations)
+                .totalUnreadMessages(unreadConversations) // Simplified for now
                 .build();
     }
 
     // ======================== ONLINE STATUS ========================
 
     /**
-     * Update user online status in a chat box.
+     * Update user online status in a conversation.
      */
-    public void updateOnlineStatus(String chatBoxId, UUID userId, boolean online) {
-        chatBoxRepository.findById(chatBoxId).ifPresent(chatBox -> {
-            if (chatBox.getPetOwnerId().equals(userId)) {
-                chatBox.setPetOwnerOnline(online);
+    public void updateOnlineStatus(String conversationId, UUID userId, boolean online) {
+        conversationRepository.findById(conversationId).ifPresent(conversation -> {
+            if (conversation.getPetOwnerId().equals(userId)) {
+                conversation.setPetOwnerOnline(online);
             } else {
-                chatBox.setClinicOnline(online);
+                conversation.setClinicOnline(online);
             }
-            chatBoxRepository.save(chatBox);
+            conversationRepository.save(conversation);
 
             // Notify via WebSocket
-            ChatWebSocketMessage.MessageType type = online 
-                    ? ChatWebSocketMessage.MessageType.ONLINE 
+            ChatWebSocketMessage.MessageType type = online
+                    ? ChatWebSocketMessage.MessageType.ONLINE
                     : ChatWebSocketMessage.MessageType.OFFLINE;
-            
-            String senderType = chatBox.getPetOwnerId().equals(userId) ? "PET_OWNER" : "CLINIC";
-            sendWebSocketMessage(chatBoxId, type, null, userId, senderType);
+
+            String senderType = conversation.getPetOwnerId().equals(userId) ? "PET_OWNER" : "CLINIC";
+            sendWebSocketMessage(conversationId, type, null, userId, senderType);
         });
     }
 
     /**
      * Send typing indicator.
      */
-    public void sendTypingIndicator(String chatBoxId, UUID userId, boolean typing) {
-        chatBoxRepository.findById(chatBoxId).ifPresent(chatBox -> {
-            String senderType = chatBox.getPetOwnerId().equals(userId) ? "PET_OWNER" : "CLINIC";
-            ChatWebSocketMessage.MessageType type = typing 
-                    ? ChatWebSocketMessage.MessageType.TYPING 
+    public void sendTypingIndicator(String conversationId, UUID userId, boolean typing) {
+        conversationRepository.findById(conversationId).ifPresent(conversation -> {
+            String senderType = conversation.getPetOwnerId().equals(userId) ? "PET_OWNER" : "CLINIC";
+            ChatWebSocketMessage.MessageType type = typing
+                    ? ChatWebSocketMessage.MessageType.TYPING
                     : ChatWebSocketMessage.MessageType.STOP_TYPING;
-            
-            sendWebSocketMessage(chatBoxId, type, null, userId, senderType);
+
+            sendWebSocketMessage(conversationId, type, null, userId, senderType);
         });
     }
 
     // ======================== HELPER METHODS ========================
 
-    private void validateChatBoxAccess(ChatBox chatBox, UUID userId) {
+    private void validateConversationAccess(ChatConversation conversation, UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
 
         boolean hasAccess = false;
 
-        if (chatBox.getPetOwnerId().equals(userId)) {
+        if (conversation.getPetOwnerId().equals(userId)) {
             hasAccess = true;
         } else {
             // Check if user belongs to the clinic
             UUID clinicId = getClinicIdForUser(user);
-            if (clinicId != null && clinicId.equals(chatBox.getClinicId())) {
+            if (clinicId != null && clinicId.equals(conversation.getClinicId())) {
                 hasAccess = true;
             }
         }
 
         if (!hasAccess) {
-            throw new ForbiddenException("Ban khong co quyen truy cap chat box nay");
+            throw new ForbiddenException("Ban khong co quyen truy cap cuoc hoi thoai nay");
         }
     }
 
@@ -367,23 +369,23 @@ public class ChatService {
         return null;
     }
 
-    private ChatBoxResponse mapToChatBoxResponse(ChatBox chatBox, UUID currentUserId) {
-        boolean isPetOwner = chatBox.getPetOwnerId().equals(currentUserId);
-        
-        return ChatBoxResponse.builder()
-                .id(chatBox.getId())
-                .petOwnerId(chatBox.getPetOwnerId())
-                .petOwnerName(chatBox.getPetOwnerName())
-                .petOwnerAvatar(chatBox.getPetOwnerAvatar())
-                .clinicId(chatBox.getClinicId())
-                .clinicName(chatBox.getClinicName())
-                .clinicLogo(chatBox.getClinicLogo())
-                .lastMessage(chatBox.getLastMessage())
-                .lastMessageSender(chatBox.getLastMessageSender())
-                .lastMessageAt(chatBox.getLastMessageAt())
-                .unreadCount(isPetOwner ? chatBox.getUnreadCountPetOwner() : chatBox.getUnreadCountClinic())
-                .partnerOnline(isPetOwner ? chatBox.isClinicOnline() : chatBox.isPetOwnerOnline())
-                .createdAt(chatBox.getCreatedAt())
+    private ConversationResponse mapToConversationResponse(ChatConversation conversation, UUID currentUserId) {
+        boolean isPetOwner = conversation.getPetOwnerId().equals(currentUserId);
+
+        return ConversationResponse.builder()
+                .id(conversation.getId())
+                .petOwnerId(conversation.getPetOwnerId())
+                .petOwnerName(conversation.getPetOwnerName())
+                .petOwnerAvatar(conversation.getPetOwnerAvatar())
+                .clinicId(conversation.getClinicId())
+                .clinicName(conversation.getClinicName())
+                .clinicLogo(conversation.getClinicLogo())
+                .lastMessage(conversation.getLastMessage())
+                .lastMessageSender(conversation.getLastMessageSender())
+                .lastMessageAt(conversation.getLastMessageAt())
+                .unreadCount(isPetOwner ? conversation.getUnreadCountPetOwner() : conversation.getUnreadCountClinic())
+                .partnerOnline(isPetOwner ? conversation.isClinicOnline() : conversation.isPetOwnerOnline())
+                .createdAt(conversation.getCreatedAt())
                 .build();
     }
 
@@ -404,26 +406,28 @@ public class ChatService {
                 .build();
     }
 
-    private void sendWebSocketMessage(String chatBoxId, ChatWebSocketMessage.MessageType type,
+    private void sendWebSocketMessage(String conversationId, ChatWebSocketMessage.MessageType type,
             MessageResponse message, UUID senderId, String senderType) {
-        
+
         ChatWebSocketMessage wsMessage = ChatWebSocketMessage.builder()
                 .type(type)
-                .chatBoxId(chatBoxId)
+                .chatBoxId(conversationId)
                 .message(message)
                 .senderId(senderId)
                 .senderType(senderType)
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        // Send to chat box topic
-        messagingTemplate.convertAndSend("/topic/chat/" + chatBoxId, wsMessage);
-        log.debug("WebSocket message sent to /topic/chat/{}: type={}", chatBoxId, type);
+        // Send to conversation topic
+        messagingTemplate.convertAndSend("/topic/chat/" + conversationId, wsMessage);
+        log.debug("WebSocket message sent to /topic/chat/{}: type={}", conversationId, type);
     }
 
     private String truncateMessage(String message, int maxLength) {
-        if (message == null) return null;
-        if (message.length() <= maxLength) return message;
+        if (message == null)
+            return null;
+        if (message.length() <= maxLength)
+            return message;
         return message.substring(0, maxLength - 3) + "...";
     }
 }
