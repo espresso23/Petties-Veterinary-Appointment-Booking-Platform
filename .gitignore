@@ -15,3 +15,4 @@ devpetties.pem
 *.log
 logs
 nul
+firebase-service-account.json

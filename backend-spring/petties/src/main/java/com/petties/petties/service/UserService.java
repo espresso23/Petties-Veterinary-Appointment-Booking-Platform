@@ -128,6 +128,9 @@ public class UserService {
                                                 : null)
                                 .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
                                                 : null)
+                                .specialty(user.getSpecialty() != null ? user.getSpecialty().name() : null)
+                                .ratingAvg(user.getRatingAvg())
+                                .ratingCount(user.getRatingCount())
                                 .createdAt(user.getCreatedAt())
                                 .updatedAt(user.getUpdatedAt())
                                 .build();
