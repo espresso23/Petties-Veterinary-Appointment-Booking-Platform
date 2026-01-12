@@ -10,14 +10,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-import logging
 
 from app.config.settings import settings
-from app.config.logging_config import setup_logging
+from app.config.logging_config import setup_logging, get_logger
 
-# Setup logging
-setup_logging()
-logger = logging.getLogger(__name__)
+# Setup logging with Sentry integration
+setup_logging(
+    log_level=settings.LOG_LEVEL,
+    log_file=settings.LOG_FILE,
+    sentry_dsn=settings.SENTRY_DSN,
+    environment=settings.APP_ENV,
+    enable_json_logging=(settings.APP_ENV == "production"),
+)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager

@@ -81,7 +81,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Welcome Header - Brutal Card
-              _buildWelcomeCard(context, user?.username ?? 'Pet Owner'),
+              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Pet Owner'),
               const SizedBox(height: 24),
 
               // Quick Actions
@@ -104,7 +104,32 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           ),
         ),
       ),
+      floatingActionButton: _buildChatFab(context),
       bottomNavigationBar: _buildBrutalNavBar(),
+    );
+  }
+
+  /// Floating Action Button cho Chat - Neobrutalism Style
+  Widget _buildChatFab(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone900, width: 2),
+        boxShadow: const [
+          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+        ],
+      ),
+      child: FloatingActionButton(
+        onPressed: () => context.push(AppRoutes.chatList),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Icon(Icons.chat_bubble_rounded, size: 26),
+      ),
     );
   }
 
@@ -114,9 +139,10 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.primaryBackground,
-        border: Border.all(color: AppColors.stone900, width: 4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(6, 6)),
+          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
         ],
       ),
       child: Column(
@@ -170,13 +196,13 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         const SizedBox(width: 12),
         Expanded(
             child: GestureDetector(
-              onTap: () async {
-                await context.push(AppRoutes.addPet);
-                _fetchPets(); // Refresh after returning
-              },
-              child: _buildActionCard(
-                  Icons.pets, 'Thêm\npet', AppColors.primaryLight),
-            )),
+          onTap: () async {
+            await context.push(AppRoutes.addPet);
+            _fetchPets(); // Refresh after returning
+          },
+          child:
+              _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
+        )),
         const SizedBox(width: 12),
         Expanded(
             child: _buildActionCard(
@@ -190,9 +216,10 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
         color: AppColors.white,
-        border: Border.all(color: AppColors.stone900, width: 3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
         ],
       ),
       child: Column(
@@ -220,7 +247,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, String actionText) {
+  Widget _buildSectionHeader(
+      BuildContext context, String title, String actionText) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -262,9 +290,10 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: AppColors.white,
-          border: Border.all(color: AppColors.stone900, width: 3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
           boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
           ],
         ),
         child: const Center(
@@ -302,15 +331,16 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           final pet = _pets[index];
           return GestureDetector(
             onTap: () {
-               context.push('/pets/${pet.id}');
+              context.push('/pets/${pet.id}');
             },
             child: Container(
               width: 160,
               decoration: BoxDecoration(
                 color: AppColors.white,
-                border: Border.all(color: AppColors.stone900, width: 3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.stone900, width: 2),
                 boxShadow: const [
-                  BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+                  BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
                 ],
               ),
               child: Column(
@@ -324,7 +354,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                           )
                         : Container(
                             color: AppColors.stone200,
-                            child: const Icon(Icons.pets, size: 40, color: AppColors.stone500),
+                            child: const Icon(Icons.pets,
+                                size: 40, color: AppColors.stone500),
                           ),
                   ),
                   Padding(
@@ -368,9 +399,10 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.white,
-        border: Border.all(color: AppColors.stone900, width: 3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
         boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
         ],
       ),
       child: const Center(
@@ -402,7 +434,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 4),
+          top: BorderSide(color: AppColors.stone900, width: 2),
         ),
       ),
       child: Builder(

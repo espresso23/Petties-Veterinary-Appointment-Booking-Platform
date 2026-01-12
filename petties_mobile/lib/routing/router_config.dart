@@ -8,17 +8,21 @@ import '../ui/auth/reset_password_screen.dart';
 import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
+import '../ui/vet/vet_schedule_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
 import '../ui/pet/pet_list_screen.dart';
 import '../ui/pet/add_edit_pet_screen.dart';
 import '../ui/pet/pet_detail_screen.dart';
+import '../ui/screens/notification/notification_list_screen.dart';
+import '../ui/chat/chat_list_screen.dart';
+import '../ui/chat/chat_detail_screen.dart';
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
 /// Handles role-based routing and authentication
-/// 
+///
 /// Mobile App Roles:
 /// - PET_OWNER: ✅ Mobile only
 /// - VET: ✅ Mobile + Web
@@ -26,6 +30,9 @@ import 'app_routes.dart';
 /// - CLINIC_MANAGER: ❌ Web only (blocked on mobile)
 /// - ADMIN: ❌ Web only (blocked on mobile)
 class AppRouterConfig {
+  static final GlobalKey<NavigatorState> rootNavigatorKey =
+      GlobalKey<NavigatorState>();
+
   /// Get the appropriate home route based on user role
   /// Only PET_OWNER and VET are allowed on mobile
   static String _getHomeRouteForRole(String? role) {
@@ -51,7 +58,8 @@ class AppRouterConfig {
 
   static GoRouter createRouter(AuthProvider authProvider) {
     return GoRouter(
-      initialLocation: AppRoutes.onboarding,
+      navigatorKey: rootNavigatorKey,
+      initialLocation: AppRoutes.root,
       redirect: (context, state) {
         final isAuthenticated = authProvider.isAuthenticated;
         final userRole = authProvider.user?.role;
@@ -67,8 +75,10 @@ class AppRouterConfig {
         }
 
         // Block ADMIN, CLINIC_MANAGER, and CLINIC_OWNER users (mobile not supported - web only)
-        if (isAuthenticated && 
-            (userRole == 'ADMIN' || userRole == 'CLINIC_MANAGER' || userRole == 'CLINIC_OWNER')) {
+        if (isAuthenticated &&
+            (userRole == 'ADMIN' ||
+                userRole == 'CLINIC_MANAGER' ||
+                userRole == 'CLINIC_OWNER')) {
           String errorMsg;
           switch (userRole) {
             case 'ADMIN':
@@ -87,16 +97,20 @@ class AppRouterConfig {
         }
 
         // Redirect to role-specific home if authenticated and on login/register/onboarding or root
-        if (isAuthenticated && (isLoginRoute || isOnboardingRoute || currentLocation == AppRoutes.root)) {
+        if (isAuthenticated &&
+            (isLoginRoute ||
+                isOnboardingRoute ||
+                currentLocation == AppRoutes.root)) {
           return _getHomeRouteForRole(userRole);
         }
 
-        final isAuthRoute = isLoginRoute || 
-                           currentLocation == AppRoutes.forgotPassword || 
-                           currentLocation == AppRoutes.resetPassword;
+        final isAuthRoute = isLoginRoute ||
+            currentLocation == AppRoutes.forgotPassword ||
+            currentLocation == AppRoutes.resetPassword;
 
-        // Redirect to login if not authenticated and not explicitly on an allowed public route
-        if (!isAuthenticated && !isAuthRoute && !isOnboardingRoute && currentLocation != AppRoutes.root) {
+        // Redirect to login if not authenticated and not on an allowed public route
+        // THIS INCLUDES ROOT ROUTE - user should not stay on loading screen forever
+        if (!isAuthenticated && !isAuthRoute && !isOnboardingRoute) {
           return AppRoutes.login;
         }
 
@@ -122,13 +136,16 @@ class AppRouterConfig {
             final error = state.uri.queryParameters['error'];
             String? errorMessage;
             if (error == 'admin_web_only') {
-              errorMessage = 'Tài khoản ADMIN chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
+              errorMessage =
+                  'Tài khoản ADMIN chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
             } else if (error == 'clinic_manager_web_only') {
-              errorMessage = 'Tài khoản CLINIC_MANAGER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
+              errorMessage =
+                  'Tài khoản CLINIC_MANAGER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
             } else if (error == 'clinic_owner_web_only') {
-              errorMessage = 'Tài khoản CLINIC_OWNER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
+              errorMessage =
+                  'Tài khoản CLINIC_OWNER chỉ có thể đăng nhập trên web. Vui lòng sử dụng trình duyệt để truy cập.';
             }
-            
+
             return LoginScreen(
               initialErrorMessage: errorMessage,
             );
@@ -149,7 +166,8 @@ class AppRouterConfig {
           builder: (context, state) {
             final email = state.uri.queryParameters['email'] ?? '';
             final cooldownStr = state.uri.queryParameters['cooldown'];
-            final cooldown = cooldownStr != null ? int.tryParse(cooldownStr) : null;
+            final cooldown =
+                cooldownStr != null ? int.tryParse(cooldownStr) : null;
             return ResetPasswordScreen(
               email: email,
               initialCooldown: cooldown,
@@ -168,10 +186,14 @@ class AppRouterConfig {
           path: AppRoutes.vetHome,
           builder: (context, state) => const VetHomeScreen(),
         ),
-        
+        GoRoute(
+          path: AppRoutes.vetSchedule,
+          builder: (context, state) => const VetScheduleScreen(),
+        ),
+
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included
         // as they are blocked by redirect logic above (web only)
-        
+
         // Legacy home route - redirect to role-specific
         GoRoute(
           path: AppRoutes.home,
@@ -218,6 +240,27 @@ class AppRouterConfig {
             return AddEditPetScreen(id: id);
           },
         ),
+        GoRoute(
+          path: AppRoutes.notifications,
+          builder: (context, state) => const NotificationListScreen(),
+        ),
+
+        // Chat Routes
+        GoRoute(
+          path: AppRoutes.chatList,
+          builder: (context, state) => const ChatListScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.chatDetail,
+          builder: (context, state) {
+            final conversationId = state.uri.queryParameters['conversationId'];
+            final clinicId = state.uri.queryParameters['clinicId'];
+            return ChatDetailScreen(
+              conversationId: conversationId,
+              clinicId: clinicId,
+            );
+          },
+        ),
       ],
       errorBuilder: (context, state) => Scaffold(
         body: Center(
@@ -228,4 +271,3 @@ class AppRouterConfig {
     );
   }
 }
-

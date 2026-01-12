@@ -8,6 +8,7 @@ import {
   deleteAvatar,
   changePassword,
 } from '../services/api/userService'
+import { useAuthStore } from './authStore'
 
 interface UserState {
   profile: UserProfile | null
@@ -50,6 +51,15 @@ export const useUserStore = create<UserState>((set, get) => ({
     try {
       const updatedProfile = await updateProfile(data)
       set({ profile: updatedProfile, isLoading: false })
+      // Sync fullName to authStore for Sidebar display
+      const currentUser = useAuthStore.getState().user
+      if (currentUser) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          fullName: updatedProfile.fullName || currentUser.fullName,
+          avatar: updatedProfile.avatar || undefined
+        })
+      }
     } catch (error) {
       let message = 'Lỗi khi cập nhật profile'
       if (isAxiosError(error) && error.response?.data?.message) {
@@ -68,6 +78,12 @@ export const useUserStore = create<UserState>((set, get) => ({
       await uploadAvatar(file)
       // Refetch profile to get the updated avatar URL with fresh timestamp
       await get().fetchProfile()
+      // Sync avatar to authStore for Sidebar display
+      const newAvatar = get().profile?.avatar
+      const currentUser = useAuthStore.getState().user
+      if (currentUser) {
+        useAuthStore.getState().setUser({ ...currentUser, avatar: newAvatar || undefined })
+      }
     } catch (error) {
       let message = 'Lỗi khi upload avatar'
       if (isAxiosError(error) && error.response?.data?.message) {
@@ -86,6 +102,11 @@ export const useUserStore = create<UserState>((set, get) => ({
       await deleteAvatar()
       // Refetch profile to ensure avatar is cleared
       await get().fetchProfile()
+      // Sync avatar removal to authStore for Sidebar display
+      const currentUser = useAuthStore.getState().user
+      if (currentUser) {
+        useAuthStore.getState().setUser({ ...currentUser, avatar: undefined })
+      }
     } catch (error) {
       let message = 'Lỗi khi xóa avatar'
       if (isAxiosError(error) && error.response?.data?.message) {

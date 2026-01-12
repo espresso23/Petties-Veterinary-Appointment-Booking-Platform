@@ -18,10 +18,10 @@ export interface ToastMessage {
  * const { toasts, showToast, removeToast } = useToast()
  *
  * // Show success
- * showToast('success', 'Document uploaded!')
+ * showToast('success', 'Đã tải lên thành công!')
  *
  * // Show error
- * showToast('error', 'Upload failed: Invalid file type')
+ * showToast('error', 'Tải lên thất bại: Định dạng file không hợp lệ')
  * ```
  */
 export const useToast = () => {

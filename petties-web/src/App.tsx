@@ -21,16 +21,19 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/DashboardPage'
-
+import { NotificationsPage as AdminNotificationsPage } from './pages/admin/NotificationsPage'
 import { ToolsPage } from './pages/admin/tools'
 import { KnowledgePage } from './pages/admin/knowledge'
 import { PlaygroundPage } from './pages/admin/playground'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
-import { VetDashboardPage } from './pages/vet/DashboardPage'
+// Role-specific Pages
+import { VetDashboardPage, VetSchedulePage } from './pages/vet'
+import { NotificationsPage as VetNotificationsPage } from './pages/vet/NotificationsPage'
 import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
-import { ClinicManagerDashboardPage } from './pages/clinic-manager/DashboardPage'
+import { ClinicManagerDashboardPage, ChatPage as ClinicManagerChatPage } from './pages/clinic-manager'
+import { NotificationsPage as ClinicManagerNotificationsPage } from './pages/clinic-manager/NotificationsPage'
 import {
   ClinicsListPage,
   ClinicCreatePage,
@@ -39,6 +42,7 @@ import {
 } from './pages/clinic-owner/clinics'
 import { StaffManagementPage } from './pages/clinic-owner/staff'
 import { VetsManagementPage } from './pages/clinic-manager/vets'
+import { VetShiftPage } from './pages/clinic-manager/shifts/VetShiftPage'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -93,6 +97,7 @@ function App() {
             <Route path="tools" element={<ToolsPage />} />
             <Route path="playground" element={<PlaygroundPage />} />
             <Route path="clinics" element={<ClinicApprovalPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
 
@@ -103,6 +108,8 @@ function App() {
             </ProtectedRoute >
           }>
             <Route index element={<VetDashboardPage />} />
+            <Route path="schedule" element={<VetSchedulePage />} />
+            <Route path="notifications" element={<VetNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route >
 
@@ -132,6 +139,9 @@ function App() {
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="vets" element={<VetsManagementPage />} />
+            <Route path="shifts" element={<VetShiftPage />} />
+            <Route path="chat" element={<ClinicManagerChatPage />} />
+            <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
           </Route >
         </Routes >
       </BrowserRouter >

@@ -163,9 +163,9 @@
 ```
 1. Dashboard → "Quản lý nhân viên" (Staff Management)
 2. Chọn "Thêm nhân viên" (Quick Add)
-3. Nhập: Họ tên, Số điện thoại, Vai trò (Vet/Manager)
-4. Lưu → Tài khoản được tạo ngay lập tức
-5. Nhân viên đăng nhập bằng: SĐT / [6 số cuối SĐT]
+3. Nhập: Email, Vai trò (Vet/Manager), Specialty (nếu Vet)
+4. Lưu → Tài khoản được tạo ngay lập tức (Status: ACTIVE)
+5. Nhân viên đăng nhập bằng: Google OAuth (Email đã mời)
 ```
 
 ---
@@ -184,19 +184,7 @@
 5. Lưu → Slots tự động tạo (mỗi 30 phút)
 ```
 
-### 9.2 Tạo lịch tháng (Import Excel)
-
-```
-1. Dashboard → "Lịch làm việc" → "Import Excel"
-2. Tải template Excel (có sẵn mẫu)
-3. Điền lịch cho từng bác sĩ, từng ngày:
-   - Vet Name | Date | Start | End | Break Start | Break End
-4. Upload file → Xem preview
-5. Kiểm tra → Import
-6. Hệ thống tạo VET_SHIFT + SLOT cho cả tháng
-```
-
-### 9.3 Clinic 24/7 - Tạo ca đêm
+### 9.2 Clinic 24/7 - Tạo ca đêm
 
 ```
 1. Thêm ca đêm: Start = 22:00, End = 06:00
@@ -207,7 +195,7 @@
    - Dr. Hùng: 17/12 22:00 - 06:00 (Ca đêm → 18/12)
 ```
 
-### 9.4 Quản lý lịch đã có
+### 9.3 Quản lý lịch đã có
 
 ```
 1. Xem lịch tuần/tháng → Thấy ca của tất cả bác sĩ
@@ -451,15 +439,22 @@ COMMIT;
 
 ---
 
-#### Phase 4: Vet Nhận và Xử lý
+#### Phase 4: Vet Nhận Assignment (Không cần Accept/Reject)
 
-**Scenario A: Vet Accept ✅**
+> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Khi Manager assign, booking tự động CONFIRMED.
+
+**Khi Manager assign xong:**
 
 ```
-1. Dr. Minh nhận notification trên app
-2. Click vào → Xem chi tiết booking:
+1. System tự động:
+   - Status: ASSIGNED → CONFIRMED
+   - Notify Pet Owner: "Lịch hẹn đã xác nhận"
+   - Notify Vet: "Bạn có lịch hẹn mới"
+
+2. Dr. Minh nhận notification trên app
+3. Click vào → Xem chi tiết booking:
    ┌─────────────────────────────────────────┐
-   │ 📅 LỊCH HẸN MỚI                         │
+   │ 📅 LỊCH HẸN ĐƯỢC GÁN                    │
    ├─────────────────────────────────────────┤
    │ 🐱 Pet: Mèo Mimi                        │
    │ 💉 Dịch vụ: Tiêm Vaccine                │
@@ -467,79 +462,36 @@ COMMIT;
    │ 📍 Địa điểm: Phòng khám ABC             │
    │ 👤 Chủ: Nguyễn Văn A                    │
    ├─────────────────────────────────────────┤
-   │     [TỪ CHỐI]        [CHẤP NHẬN]        │
+   │   [📞 GỌI CHỦ PET]   [🗺️ XEM ĐỊA CHỈ]   │
    └─────────────────────────────────────────┘
-3. Click "Chấp nhận"
-4. Confirm → Booking confirmed
+4. Vet chuẩn bị thực hiện dịch vụ vào giờ hẹn
 ```
 
-**Database Changes:**
-```
-UPDATE bookings SET status = 'CONFIRMED' WHERE id = 'B001';
-
-INSERT INTO notifications (user_id, type, title, content)
-VALUES ([PetOwner_id], 'BOOKING', 'Lịch hẹn đã xác nhận', 
-        'Dr. Minh đã xác nhận lịch hẹn Tiêm Vaccine lúc 09:00 ngày 25/12');
-```
-
-**UI Feedback:**
-```
-✅ Vet app: Toast "Đã xác nhận lịch hẹn"
-✅ Pet Owner: Push notification + Badge trên booking
-✅ Dashboard: Status badge ASSIGNED → CONFIRMED (màu xanh)
-```
-
----
-
-**Scenario B: Vet Reject ❌**
-
-```
-1. Dr. Minh xem booking
-2. Click "Từ chối"
-3. Popup nhập lý do:
-   ┌─────────────────────────────────────────┐
-   │ LÝ DO TỪ CHỐI                           │
-   ├─────────────────────────────────────────┤
-   │ ○ Bận việc cá nhân                      │
-   │ ● Không phù hợp chuyên môn              │
-   │ ○ Khác: [________________]              │
-   ├─────────────────────────────────────────┤
-   │           [HỦY]    [XÁC NHẬN]           │
-   └─────────────────────────────────────────┘
-4. Chọn lý do → Xác nhận
-```
-
-**Database Changes (Transaction):**
-```
-BEGIN TRANSACTION;
-
--- 1. Reset booking
+**Database Changes (khi Manager assign):**
+```sql
+-- 1. Update booking - trực tiếp CONFIRMED
 UPDATE bookings SET 
-    assigned_vet_id = NULL,
-    status = 'PENDING'
+    assigned_vet_id = [Dr.Minh_id],
+    status = 'CONFIRMED'
 WHERE id = 'B001';
 
--- 2. Delete junction
-DELETE FROM booking_slots WHERE booking_id = 'B001';
-
--- 3. Restore slot
-UPDATE slots SET status = 'AVAILABLE'
-WHERE id = [slot_09:00_id];
-
--- 4. Notify Manager
+-- 2. Notify Pet Owner
 INSERT INTO notifications (user_id, type, title, content)
-VALUES ([Manager_id], 'BOOKING', 'Booking bị từ chối', 
-        'Dr. Minh từ chối #B001. Lý do: Không phù hợp chuyên môn');
+VALUES ([PetOwner_id], 'BOOKING', 'Lịch hẹn đã xác nhận', 
+        'Dr. Minh sẽ khám Tiêm Vaccine lúc 09:00 ngày 25/12');
 
-COMMIT;
+-- 3. Notify Vet
+INSERT INTO notifications (user_id, type, title, content)
+VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới', 
+        'Bạn được gán booking #B001 - Tiêm Vaccine lúc 09:00');
 ```
 
 **UI Feedback:**
 ```
-✅ Vet app: Toast "Đã từ chối lịch hẹn"
-✅ Manager: Push notification + Badge "Cần gán lại"
-✅ Dashboard: Status badge ASSIGNED → PENDING (quay lại màu cam)
-✅ Slot 09:00 trở lại AVAILABLE cho Vet khác
+✅ Manager Dashboard: Toast "Đã gán Dr. Minh cho booking #B001"
+✅ Booking status badge: PENDING → CONFIRMED (màu xanh)
+✅ Vet nhận push notification
+✅ Pet Owner nhận push notification xác nhận
 ```
 
 ---
@@ -560,7 +512,7 @@ COMMIT;
 5. Tạo 2 records trong BOOKING_SLOT:
    - (booking_id, slot_14:00)
    - (booking_id, slot_14:30)
-6. Nếu Vet reject → Restore CẢ 2 slots về AVAILABLE
+6. Status tự động CONFIRMED (không cần Vet accept)
 ```
 
 **Query tìm Vet có đủ 2 slot liên tiếp:**
@@ -598,8 +550,7 @@ WHERE shift.clinic_id = 'ABC'
 
 **Legend:**
 - 🟢 FREE: Slot trống, có thể nhận booking mới
-- 🟡 #B001: Booking đã assigned, chờ Vet confirm
-- 🔵 #B002, #B003: Booking đã confirmed
+- 🔵 #B001, #B002, #B003: Booking đã CONFIRMED (sau khi Manager assign)
 
 ---
 
@@ -629,19 +580,19 @@ WHERE shift.clinic_id = 'ABC'
 
 ---
 
-## 14. HF-014: Home Visit Geo-Tracking (Real-time)
+## 14. HF-014: SOS Emergency Geo-Tracking (Real-time)
 
 **Actors:** Vet (Mobile), Pet Owner (Mobile), System
 
-> 📌 **Áp dụng cho:** Tất cả booking có `type = HOME_VISIT`
+> 📌 **Áp dụng cho:** Tất cả booking có `type = SOS` (Cấp cứu khẩn cấp)
 > 
 > 🗺️ **Tính năng:** Tracking vị trí bác sĩ realtime giống Grab/Gojek
 
 ### 14.1 Preconditions
 
 ```
-✅ Booking type = HOME_VISIT
-✅ Booking status = CONFIRMED
+✅ Booking type = SOS (Emergency)
+✅ Booking status = CONFIRMED hoặc ASSIGNED (SOS mode)
 ✅ Đến giờ hẹn (hoặc trước 30 phút)
 ✅ Vet app có quyền GPS
 ✅ Pet Owner app có internet
@@ -744,9 +695,9 @@ PUT /api/bookings/B001/location
 **Actor:** Pet Owner (Mobile)
 
 ```
-1. Pet Owner nhận push notification: "Bác sĩ đang đến!"
+1. Pet Owner nhận push notification: "Bác sĩ cứu hộ đang đến!"
 2. Click vào notification → Mở app
-3. Xem booking detail → Tab "Tracking"
+3. Xem booking detail → Tab "SOS Tracking"
 4. Bản đồ hiển thị:
 
    ┌─────────────────────────────────────────┐
@@ -773,7 +724,7 @@ PUT /api/bookings/B001/location
 6. Pet Owner có thể:
    - Phóng to/thu nhỏ bản đồ
    - Xem đường đi dự kiến
-   - Call/Chat với bác sĩ
+   - Gọi điện cho bác sĩ
 ```
 
 **Tech Implementation:**
@@ -1235,6 +1186,349 @@ CREATE TABLE chat_messages (
 
 ---
 
+## 17. HF-017: Tìm Kiếm & Xem Chi Tiết Phòng Khám
+
+**Actors:** Pet Owner (Mobile)
+
+> 📌 **Mục đích:** Pet Owner tìm phòng khám phù hợp dựa trên vị trí, dịch vụ và đánh giá
+
+### 17.1 Preconditions
+
+```
+✅ Pet Owner đã đăng nhập trên Mobile App
+✅ GPS permission được cấp (optional cho nearby search)
+✅ Có ít nhất 1 Clinic status = APPROVED trong hệ thống
+```
+
+---
+
+### 17.2 Kịch bản: Tìm Phòng Khám Gần Đây
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Pet Owner mở app → Tab "Khám phá"
+2. Hiển thị bản đồ với các phòng khám gần nhất (GPS-based)
+   ┌─────────────────────────────────────────┐
+   │      🗺️ BẢN ĐỒ PHÒNG KHÁM              │
+   ├─────────────────────────────────────────┤
+   │                                         │
+   │  [Map với markers phòng khám]           │
+   │                                         │
+   │  📍 Vị trí của bạn                      │
+   │  🏥 Phòng khám ABC (0.5km)              │
+   │  🏥 Phòng khám XYZ (1.2km)              │
+   │  🏥 Pet Care Center (2.0km)             │
+   │                                         │
+   ├─────────────────────────────────────────┤
+   │ 🔍 [Tìm kiếm theo tên hoặc địa chỉ]    │
+   │ 📋 [Xem danh sách] | 🗺️ [Xem bản đồ]   │
+   └─────────────────────────────────────────┘
+
+3. Chuyển sang chế độ List → Danh sách dọc:
+   ┌─────────────────────────────────────────┐
+   │ 🏥 Phòng khám ABC                       │
+   │    📍 0.5 km | ⭐ 4.8 (120 đánh giá)    │
+   │    🏷️ Khám tổng quát, Tiêm vaccine     │
+   │    ⏰ Đang mở (8:00 - 20:00)            │
+   ├─────────────────────────────────────────┤
+   │ 🏥 Phòng khám XYZ                       │
+   │    📍 1.2 km | ⭐ 4.5 (85 đánh giá)     │
+   │    🏷️ Phẫu thuật, Cấp cứu 24/7         │
+   │    ⏰ Mở 24/7                           │
+   └─────────────────────────────────────────┘
+```
+
+---
+
+### 17.3 Kịch bản: Lọc Phòng Khám
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Trên màn hình danh sách → Nhấn icon "Bộ lọc" 🔽
+2. Modal Filter hiển thị:
+   ┌─────────────────────────────────────────┐
+   │ 🔽 BỘ LỌC                               │
+   ├─────────────────────────────────────────┤
+   │ 📍 Khoảng cách:                         │
+   │    ○ Dưới 1 km                          │
+   │    ● Dưới 5 km                          │
+   │    ○ Dưới 10 km                         │
+   │    ○ Tất cả                             │
+   ├─────────────────────────────────────────┤
+   │ 🏷️ Dịch vụ:                             │
+   │    [✅] Khám tổng quát                  │
+   │    [  ] Tiêm vaccine                    │
+   │    [✅] Cấp cứu 24/7                    │
+   │    [  ] Grooming                        │
+   ├─────────────────────────────────────────┤
+   │ ⭐ Đánh giá tối thiểu:                  │
+   │    ★★★★☆ (4 sao trở lên)               │
+   ├─────────────────────────────────────────┤
+   │ 🏙️ Khu vực:                             │
+   │    [Quận 7 ▼]                           │
+   ├─────────────────────────────────────────┤
+   │         [🔄 XÓA BỘ LỌC]                 │
+   │         [✅ ÁP DỤNG]                    │
+   └─────────────────────────────────────────┘
+
+3. Nhấn "Áp dụng" → Danh sách được lọc
+4. Badge hiển thị số filter đang active
+```
+
+---
+
+### 17.4 Kịch bản: Xem Chi Tiết Phòng Khám
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Từ danh sách → Click vào phòng khám
+2. Màn hình chi tiết hiển thị:
+   ┌─────────────────────────────────────────┐
+   │ ← PHÒNG KHÁM ABC                        │
+   ├─────────────────────────────────────────┤
+   │ [Gallery ảnh - swipe]                   │
+   │ 📷 📷 📷                                │
+   ├─────────────────────────────────────────┤
+   │ 📍 123 Nguyễn Văn Linh, Quận 7, TP.HCM │
+   │ 📞 028 1234 5678                        │
+   │ ⏰ Đang mở: 8:00 - 20:00                │
+   │ ⭐ 4.8 (120 đánh giá)                   │
+   ├─────────────────────────────────────────┤
+   │ 🏷️ DỊCH VỤ                              │
+   │ • Khám tổng quát - 200,000₫            │
+   │ • Tiêm vaccine - 150,000₫              │
+   │ • Xét nghiệm máu - 350,000₫            │
+   │ • Grooming - 250,000₫                  │
+   ├─────────────────────────────────────────┤
+   │ 👨‍⚕️ ĐỘI NGŨ BÁC SĨ                       │
+   │ [Avatar] Dr. Minh ⭐4.9                 │
+   │ [Avatar] Dr. Lan ⭐4.7                  │
+   ├─────────────────────────────────────────┤
+   │ 💬 ĐÁNH GIÁ GẦN ĐÂY                     │
+   │ ⭐⭐⭐⭐⭐ - "Bác sĩ rất tận tình..."    │
+   │ ⭐⭐⭐⭐☆ - "Phòng khám sạch sẽ..."      │
+   │ [Xem tất cả 120 đánh giá →]            │
+   ├─────────────────────────────────────────┤
+   │         [📅 ĐẶT LỊCH NGAY]              │
+   └─────────────────────────────────────────┘
+
+3. Nhấn "Đặt lịch ngay" → Chuyển sang HF-003 (Booking Flow)
+```
+
+---
+
+### 17.5 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/clinics/nearby` | GET | Lấy phòng khám gần vị trí (lat, long, radius) |
+| `/api/clinics/{id}` | GET | Chi tiết phòng khám |
+| `/api/clinics/{id}/services` | GET | Danh sách dịch vụ |
+| `/api/clinics/{id}/vets` | GET | Danh sách bác sĩ |
+| `/api/clinics/{id}/reviews` | GET | Đánh giá phòng khám |
+| `/api/clinics/search` | GET | Tìm kiếm theo tên/địa chỉ |
+
+---
+
+### 17.6 Database Query (Nearby Search)
+
+```sql
+-- Haversine formula for nearby clinics
+SELECT c.*, 
+       (6371 * acos(cos(radians(:lat)) * cos(radians(c.latitude)) 
+        * cos(radians(c.longitude) - radians(:long)) 
+        + sin(radians(:lat)) * sin(radians(c.latitude)))) AS distance
+FROM clinics c
+WHERE c.status = 'APPROVED'
+  AND c.is_active = true
+HAVING distance < :radius_km
+ORDER BY distance ASC
+LIMIT 20;
+```
+
+---
+
+## 18. HF-018: Đánh Giá Clinic & Vet Sau Khám
+
+**Actors:** Pet Owner (Mobile)
+
+> 📌 **Mục đích:** Pet Owner đánh giá chất lượng dịch vụ sau khi hoàn thành booking
+
+### 18.1 Preconditions
+
+```
+✅ Pet Owner có booking với status = COMPLETED
+✅ Chưa đánh giá booking này trước đó
+✅ Booking được hoàn thành trong vòng 7 ngày (optional policy)
+```
+
+---
+
+### 18.2 Kịch bản: Đánh Giá Bác Sĩ (Ngay Sau Khám)
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Booking status chuyển → COMPLETED
+2. App hiển thị popup đánh giá bác sĩ:
+   ┌─────────────────────────────────────────┐
+   │ ⭐ ĐÁNH GIÁ BÁC SĨ                      │
+   ├─────────────────────────────────────────┤
+   │ 👨‍⚕️ Dr. Minh Nguyễn                     │
+   │    Phòng khám ABC                       │
+   ├─────────────────────────────────────────┤
+   │ Trải nghiệm của bạn thế nào?            │
+   │                                         │
+   │    ☆  ☆  ☆  ☆  ☆                       │
+   │    1  2  3  4  5                        │
+   ├─────────────────────────────────────────┤
+   │ Nhận xét (tùy chọn):                    │
+   │ ┌─────────────────────────────────────┐ │
+   │ │ Bác sĩ rất tận tình và chuyên      │ │
+   │ │ nghiệp, mèo của tôi đã...          │ │
+   │ └─────────────────────────────────────┘ │
+   ├─────────────────────────────────────────┤
+   │  [BỎ QUA]        [GỬI ĐÁNH GIÁ]        │
+   └─────────────────────────────────────────┘
+
+3. Pet Owner chọn số sao (1-5) → Nhập nhận xét (optional)
+4. Nhấn "Gửi đánh giá" → Toast "Cảm ơn đánh giá của bạn!"
+5. Nếu "Bỏ qua" → Có thể đánh giá sau trong mục "Lịch sử đặt lịch"
+```
+
+**Database Changes:**
+```sql
+INSERT INTO vet_reviews (
+    booking_id, pet_owner_id, vet_id, rating, comment, created_at
+) VALUES (
+    'B001', 'owner_123', 'vet_minh', 5, 
+    'Bác sĩ rất tận tình...', NOW()
+);
+
+-- Update Vet's average rating
+UPDATE users SET 
+    rating_avg = (SELECT AVG(rating) FROM vet_reviews WHERE vet_id = 'vet_minh'),
+    rating_count = (SELECT COUNT(*) FROM vet_reviews WHERE vet_id = 'vet_minh')
+WHERE user_id = 'vet_minh';
+```
+
+---
+
+### 18.3 Kịch bản: Đánh Giá Phòng Khám (Sau 24h)
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. 24 giờ sau COMPLETED → Push notification:
+   "Bạn có hài lòng với Phòng khám ABC? Đánh giá ngay!"
+
+2. Pet Owner click notification → Mở màn hình đánh giá:
+   ┌─────────────────────────────────────────┐
+   │ ⭐ ĐÁNH GIÁ PHÒNG KHÁM                  │
+   ├─────────────────────────────────────────┤
+   │ 🏥 Phòng khám ABC                       │
+   │    Dịch vụ: Khám tổng quát             │
+   │    Ngày khám: 25/12/2024                │
+   ├─────────────────────────────────────────┤
+   │ Chất lượng dịch vụ:                     │
+   │    ★ ★ ★ ★ ☆  (4/5)                    │
+   ├─────────────────────────────────────────┤
+   │ Tags nhanh (chọn nhiều):                │
+   │ [✅ Sạch sẽ] [  Thân thiện]            │
+   │ [✅ Đúng giờ] [  Giá hợp lý]           │
+   │ [  Chuyên nghiệp] [  Hiện đại]         │
+   ├─────────────────────────────────────────┤
+   │ Nhận xét chi tiết:                      │
+   │ ┌─────────────────────────────────────┐ │
+   │ │ Phòng khám sạch sẽ, nhân viên      │ │
+   │ │ lễ phép. Tuy nhiên hơi đông...     │ │
+   │ └─────────────────────────────────────┘ │
+   ├─────────────────────────────────────────┤
+   │ 📷 Thêm ảnh (tùy chọn):                 │
+   │ [+] [+] [+]                             │
+   ├─────────────────────────────────────────┤
+   │         [GỬI ĐÁNH GIÁ]                  │
+   └─────────────────────────────────────────┘
+
+3. Pet Owner hoàn thành → Toast "Đánh giá đã được gửi!"
+4. Review hiển thị trên trang chi tiết phòng khám
+```
+
+**Database Changes:**
+```sql
+INSERT INTO clinic_reviews (
+    booking_id, pet_owner_id, clinic_id, rating, 
+    tags, comment, images, created_at
+) VALUES (
+    'B001', 'owner_123', 'clinic_abc', 4,
+    '["clean", "punctual"]',
+    'Phòng khám sạch sẽ...', 
+    '["img1.jpg", "img2.jpg"]',
+    NOW()
+);
+
+-- Update Clinic's average rating
+UPDATE clinics SET 
+    rating_avg = (SELECT AVG(rating) FROM clinic_reviews WHERE clinic_id = 'clinic_abc'),
+    rating_count = (SELECT COUNT(*) FROM clinic_reviews WHERE clinic_id = 'clinic_abc')
+WHERE clinic_id = 'clinic_abc';
+```
+
+---
+
+### 18.4 Kịch bản: Xem Và Quản Lý Đánh Giá
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Profile → "Đánh giá của tôi"
+2. Danh sách đánh giá đã gửi:
+   ┌─────────────────────────────────────────┐
+   │ 📝 ĐÁNH GIÁ CỦA TÔI                     │
+   ├─────────────────────────────────────────┤
+   │ 🏥 Phòng khám ABC        ⭐⭐⭐⭐☆     │
+   │    25/12/2024 | Khám tổng quát         │
+   │    "Phòng khám sạch sẽ..."             │
+   │    [Sửa] [Xóa]                          │
+   ├─────────────────────────────────────────┤
+   │ 👨‍⚕️ Dr. Minh Nguyễn      ⭐⭐⭐⭐⭐    │
+   │    25/12/2024 | Tiêm vaccine           │
+   │    "Bác sĩ rất tận tình..."            │
+   │    [Sửa] [Xóa]                          │
+   └─────────────────────────────────────────┘
+
+3. Nhấn "Sửa" → Chỉnh sửa đánh giá (trong 48h)
+4. Nhấn "Xóa" → Confirm → Xóa đánh giá
+```
+
+---
+
+### 18.5 Edge Cases
+
+| Case | Xử lý |
+|------|-------|
+| Pet Owner bỏ qua đánh giá | Có thể đánh giá sau trong "Lịch sử đặt lịch" |
+| Booking bị hủy | Không yêu cầu đánh giá |
+| Đánh giá spam/abuse | Flag cho Admin review |
+| Rating 1-2 sao | Yêu cầu nhập lý do bắt buộc |
+| Clinic reply to review | Hiển thị reply bên dưới review |
+
+---
+
+### 18.6 Notification Timeline
+
+| Thời điểm | Notification | Gửi đến |
+|-----------|--------------|---------|
+| Booking COMPLETED | "Đánh giá bác sĩ?" (popup) | Pet Owner |
+| +24 giờ | "Đánh giá phòng khám?" | Pet Owner |
+| +48 giờ (nếu chưa đánh giá) | "Nhắc: Đánh giá phòng khám ABC" | Pet Owner |
+| Sau 7 ngày | Không nhắc nữa | - |
+
+---
+
 **Document Status:** MVP Ready  
-**Last Updated:** 2025-12-24
+**Last Updated:** 2026-01-11
 

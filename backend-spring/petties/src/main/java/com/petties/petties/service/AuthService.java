@@ -89,6 +89,7 @@ public class AuthService {
                                 .email(savedUser.getEmail())
                                 .fullName(savedUser.getFullName() != null ? savedUser.getFullName()
                                                 : savedUser.getUsername())
+                                .avatar(savedUser.getAvatar())
                                 .role(savedUser.getRole().name())
                                 .build();
         }
@@ -132,6 +133,7 @@ public class AuthService {
                                 .username(user.getUsername())
                                 .email(user.getEmail())
                                 .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
+                                .avatar(user.getAvatar())
                                 .role(user.getRole().name())
                                 .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
                                                 : null)
@@ -144,24 +146,24 @@ public class AuthService {
         public AuthResponse refreshToken(String refreshToken) {
                 // Validate token format and expiration
                 if (!tokenProvider.validateToken(refreshToken)) {
-                        throw new UnauthorizedException("Invalid or expired refresh token");
+                        throw new UnauthorizedException("Token làm mới không hợp lệ hoặc đã hết hạn");
                 }
 
                 // Check if it's actually a refresh token
                 String tokenType = tokenProvider.getTokenType(refreshToken);
                 if (!"refresh".equals(tokenType)) {
-                        throw new UnauthorizedException("Invalid token type");
+                        throw new UnauthorizedException("Loại token không hợp lệ");
                 }
 
                 // Check if token exists in database
                 String tokenHash = TokenUtil.hashToken(refreshToken);
                 RefreshToken storedToken = refreshTokenRepository.findByTokenHash(tokenHash)
-                                .orElseThrow(() -> new UnauthorizedException("Refresh token not found"));
+                                .orElseThrow(() -> new UnauthorizedException("Không tìm thấy token làm mới"));
 
                 // Check if token is expired
                 if (storedToken.isExpired()) {
                         refreshTokenRepository.delete(storedToken);
-                        throw new UnauthorizedException("Refresh token expired");
+                        throw new UnauthorizedException("Token làm mới đã hết hạn");
                 }
 
                 // Get user info
@@ -194,6 +196,7 @@ public class AuthService {
                                 .username(user.getUsername())
                                 .email(user.getEmail())
                                 .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
+                                .avatar(user.getAvatar())
                                 .role(user.getRole().name())
                                 .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
                                                 : null)
@@ -205,13 +208,13 @@ public class AuthService {
         @Transactional
         public void logout(String accessToken) {
                 if (!tokenProvider.validateToken(accessToken)) {
-                        throw new UnauthorizedException("Invalid access token");
+                        throw new UnauthorizedException("Token truy cập không hợp lệ");
                 }
 
                 // Check if it's an access token
                 String tokenType = tokenProvider.getTokenType(accessToken);
                 if (!"access".equals(tokenType)) {
-                        throw new UnauthorizedException("Invalid token type");
+                        throw new UnauthorizedException("Loại token không hợp lệ");
                 }
 
                 UUID userId = tokenProvider.getUserIdFromToken(accessToken);
@@ -244,12 +247,13 @@ public class AuthService {
                 refreshTokenRepository.save(token);
         }
 
+        @Transactional(readOnly = true)
         public User getCurrentUser() {
                 Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
                 if (authentication == null || !authentication.isAuthenticated()) {
                         log.warn("Attempted to get current user but no authentication found in SecurityContext");
-                        throw new UnauthorizedException("User not authenticated");
+                        throw new UnauthorizedException("Người dùng chưa được xác thực");
                 }
 
                 Object principal = authentication.getPrincipal();
@@ -278,7 +282,7 @@ public class AuthService {
                                         });
                 }
 
-                throw new UnauthorizedException("Could not extract user information from security context");
+                throw new UnauthorizedException("Không thể lấy thông tin người dùng từ phiên đăng nhập");
         }
 
         /**
@@ -323,7 +327,13 @@ public class AuthService {
                                 .username(user.getUsername())
                                 .email(user.getEmail())
                                 .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
+                                .avatar(user.getAvatar())
                                 .role(user.getRole().name())
+                                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
+                                                : null)
+                                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
+                                                : null)
+                                .specialty(user.getSpecialty() != null ? user.getSpecialty().name() : null)
                                 .build();
         }
 
@@ -332,29 +342,54 @@ public class AuthService {
          * Handles race condition where concurrent requests might try to create
          * the same user simultaneously.
          * 
+         * If user exists but fullName is empty (invited by email),
+         * update fullName from Google profile.
+         * 
          * @param googleUser Google user info
          * @param platform   Platform (mobile/web)
          * @return User (existing or newly created)
          */
         private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
-                // First attempt: try to find existing user
-                return userRepository.findByEmail(googleUser.email())
-                                .orElseGet(() -> {
-                                        try {
-                                                // User not found, create new one
-                                                return createUserFromGoogle(googleUser, platform);
-                                        } catch (DataIntegrityViolationException e) {
-                                                // Race condition: another request created the user first
-                                                // Retry finding the user that was just created
-                                                log.warn("Race condition detected for email: {}. Retrying findByEmail.",
-                                                                googleUser.email());
-                                                return userRepository.findByEmail(googleUser.email())
-                                                                .orElseThrow(() -> new RuntimeException(
-                                                                                "Failed to create or find user for email: "
-                                                                                                + googleUser.email(),
-                                                                                e));
-                                        }
-                                });
+                // First attempt: try to find existing user with workingClinic eager loaded
+                var existingUser = userRepository.findByEmailWithWorkingClinic(googleUser.email());
+
+                if (existingUser.isPresent()) {
+                        User user = existingUser.get();
+                        boolean updated = false;
+
+                        // Update fullName if empty (invited user logging in first time)
+                        if (user.getFullName() == null || user.getFullName().isBlank()) {
+                                user.setFullName(googleUser.name());
+                                updated = true;
+                        }
+
+                        // Update avatar if empty
+                        if (user.getAvatar() == null || user.getAvatar().isBlank()) {
+                                user.setAvatar(googleUser.picture());
+                                updated = true;
+                        }
+
+                        if (updated) {
+                                userRepository.save(user);
+                                log.info("Updated profile for invited user: {}", googleUser.email());
+                        }
+                        return user;
+                }
+
+                // User not found, create new one
+                try {
+                        return createUserFromGoogle(googleUser, platform);
+                } catch (DataIntegrityViolationException e) {
+                        // Race condition: another request created the user first
+                        // Retry finding the user that was just created
+                        log.warn("Race condition detected for email: {}. Retrying findByEmail.",
+                                        googleUser.email());
+                        return userRepository.findByEmail(googleUser.email())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Failed to create or find user for email: "
+                                                                        + googleUser.email(),
+                                                        e));
+                }
         }
 
         /**

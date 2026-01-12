@@ -33,7 +33,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origins:https://petties.world,https://www.petties.world}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
     private String allowedOrigins;
 
     @Bean
@@ -60,7 +60,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition"));
+        // Add text/event-stream for SSE support
+        config.setExposedHeaders(List.of("Authorization", "X-Total-Count", "Content-Disposition", "Content-Type"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -79,7 +80,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/ws/**").permitAll() // WebSocket handshake
+                        .requestMatchers("/ws/**").permitAll() // WebSocket handshake (SockJS)
+                        .requestMatchers("/ws-native/**").permitAll() // WebSocket handshake (native mobile)
+                        .requestMatchers("/sse/**").permitAll() // SSE - auth via query param
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

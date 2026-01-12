@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
-import { StaffTable, QuickAddStaffModal } from '../../../components/clinic-staff'
-import type { StaffMember, QuickAddStaffRequest } from '../../../types/clinicStaff'
+import { StaffTable, QuickAddStaffModal, EditSpecialtyModal } from '../../../components/clinic-staff'
+import type { StaffMember, InviteByEmailRequest, StaffSpecialty } from '../../../types/clinicStaff'
 
 /**
  * Staff Management Page - For Clinic Owner
@@ -17,6 +17,7 @@ export function StaffManagementPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [editingMember, setEditingMember] = useState<StaffMember | null>(null)
 
     // Fetch owner's clinics on mount
     useEffect(() => {
@@ -55,8 +56,8 @@ export function StaffManagementPage() {
         }
     }
 
-    const handleAddStaff = async (data: QuickAddStaffRequest) => {
-        await clinicStaffService.quickAddStaff(selectedClinicId, data)
+    const handleAddStaff = async (data: InviteByEmailRequest) => {
+        await clinicStaffService.inviteByEmail(selectedClinicId, data)
         await fetchStaff()
     }
 
@@ -67,6 +68,17 @@ export function StaffManagementPage() {
         } catch (err: any) {
             setError(err?.userMessage || err?.message || 'Không thể xóa nhân viên')
         }
+    }
+
+    const handleEditSpecialty = (member: StaffMember) => {
+        setEditingMember(member)
+    }
+
+    const handleUpdateSpecialty = async (specialty: StaffSpecialty) => {
+        if (!editingMember) return
+        await clinicStaffService.updateStaffSpecialty(selectedClinicId, editingMember.userId, specialty)
+        setEditingMember(null)
+        await fetchStaff()
     }
 
     const selectedClinic = clinics.find((c) => c.clinicId === selectedClinicId)
@@ -148,7 +160,9 @@ export function StaffManagementPage() {
                         staff={staff}
                         isLoading={isLoading || clinicsLoading}
                         onRemove={handleRemoveStaff}
+                        onEditSpecialty={handleEditSpecialty}
                         canRemove={true}
+                        canEdit={true}
                     />
                 )}
 
@@ -169,8 +183,18 @@ export function StaffManagementPage() {
                 disabledRoles={hasManager ? ['CLINIC_MANAGER'] : []}
                 title="THÊM NHÂN VIÊN MỚI"
             />
+
+            {/* Edit Specialty Modal */}
+            <EditSpecialtyModal
+                isOpen={editingMember !== null}
+                onClose={() => setEditingMember(null)}
+                onSubmit={handleUpdateSpecialty}
+                currentSpecialty={editingMember?.specialty || 'VET_GENERAL'}
+                staffName={editingMember?.fullName || ''}
+            />
         </div>
     )
 }
 
 export default StaffManagementPage
+

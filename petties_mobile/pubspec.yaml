@@ -14,6 +14,8 @@ dependencies:
   # Networking & HTTP
   http: ^1.2.2
   dio: ^5.7.0
+  stomp_dart_client: ^2.0.0
+  web_socket_channel: ^3.0.2
   
   # State Management
   provider: ^6.1.2
@@ -54,6 +56,7 @@ dependencies:
   # Notifications
   firebase_messaging: ^16.0.4
   firebase_core: ^4.2.1
+  flutter_local_notifications: ^18.0.1
   
   # Authentication
   google_sign_in: ^6.2.1
@@ -61,6 +64,8 @@ dependencies:
   # Logging & Error Monitoring
   logger: ^2.5.0
   sentry_flutter: ^9.9.0
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:

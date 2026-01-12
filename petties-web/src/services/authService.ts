@@ -26,6 +26,8 @@ export interface User {
     enabled: boolean
     workingClinicId?: string    // For CLINIC_MANAGER and VET
     workingClinicName?: string  // Clinic name for display
+    avatar?: string             // Profile picture URL
+    specialty?: string          // For VET (VET_GENERAL, VET_SURGERY, etc.)
     createdAt?: string
 }
 

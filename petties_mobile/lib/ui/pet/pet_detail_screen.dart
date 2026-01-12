@@ -76,7 +76,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.stone200,
                     border: const Border(
-                      bottom: BorderSide(color: AppColors.stone900, width: 4),
+                      bottom: BorderSide(color: AppColors.stone900, width: 2),
                     ),
                     image: pet.imageUrl != null
                         ? DecorationImage(
@@ -86,7 +86,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         : null,
                   ),
                   child: pet.imageUrl == null
-                      ? const Icon(Icons.pets, size: 80, color: AppColors.stone400)
+                      ? const Icon(Icons.pets,
+                          size: 80, color: AppColors.stone400)
                       : null,
                 ),
 
@@ -101,9 +102,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          border: Border.all(color: AppColors.stone900, width: 3),
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppColors.stone900, width: 2),
                           boxShadow: const [
-                            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+                            BoxShadow(
+                                color: AppColors.stone900,
+                                offset: Offset(3, 3)),
                           ],
                         ),
                         child: Column(
@@ -123,7 +128,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                   horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.primary,
-                                border: Border.all(color: AppColors.stone900, width: 2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: AppColors.stone900, width: 2),
                               ),
                               child: Text(
                                 '${pet.species} • ${pet.breed}'.toUpperCase(),
@@ -141,8 +148,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       // Details Grid
                       Row(
                         children: [
-                          _buildDetailItem(
-                              'NGÀY SINH', DateFormat('dd/MM/yyyy').format(pet.dateOfBirth)),
+                          _buildDetailItem('NGÀY SINH',
+                              DateFormat('dd/MM/yyyy').format(pet.dateOfBirth)),
                           const SizedBox(width: 16),
                           _buildDetailItem('CÂN NẶNG', '${pet.weight} kg'),
                         ],
@@ -150,10 +157,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          _buildDetailItem(
-                              'GIỚI TÍNH', pet.gender == 'MALE' ? 'Đực' : 'Cái'),
+                          _buildDetailItem('GIỚI TÍNH',
+                              pet.gender == 'MALE' ? 'Đực' : 'Cái'),
                           const SizedBox(width: 16),
-                          _buildDetailItem('TUỔI', _calculateAge(pet.dateOfBirth)),
+                          _buildDetailItem(
+                              'TUỔI', _calculateAge(pet.dateOfBirth)),
                         ],
                       ),
 
@@ -187,16 +195,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final now = DateTime.now();
     int years = now.year - birthDate.year;
     int months = now.month - birthDate.month;
-    
+
     if (months < 0 || (months == 0 && now.day < birthDate.day)) {
       years--;
       months += 12;
     }
-    
+
     if (now.day < birthDate.day) {
       months--;
     }
-    
+
     if (years > 0) {
       return '$years tuổi ${months > 0 ? "$months tháng" : ""}';
     } else {
@@ -210,6 +218,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.white,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.stone900, width: 2),
         ),
         child: Column(
@@ -250,9 +259,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: color,
-          border: Border.all(color: AppColors.stone900, width: 3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
           boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
           ],
         ),
         child: Row(
@@ -287,7 +297,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('HỦY', style: TextStyle(color: AppColors.stone900)),
+            child:
+                const Text('HỦY', style: TextStyle(color: AppColors.stone900)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(

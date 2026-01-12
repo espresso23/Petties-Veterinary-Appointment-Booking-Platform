@@ -4,16 +4,22 @@ import '../../core/error/exceptions.dart';
 import 'api_interceptor.dart';
 import '../../config/env/environment.dart';
 
-/// HTTP client wrapper using Dio
+/// HTTP client wrapper using Dio - Singleton pattern
 class ApiClient {
+  static ApiClient? _instance;
+  static ApiClient get instance => _instance ??= ApiClient._internal();
+
   late final Dio _dio;
 
-  ApiClient({String? baseUrl}) {
+  // Private constructor
+  ApiClient._internal() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: baseUrl ?? Environment.baseUrl,
-        connectTimeout: const Duration(milliseconds: AppConstants.connectTimeout),
-        receiveTimeout: const Duration(milliseconds: AppConstants.receiveTimeout),
+        baseUrl: Environment.baseUrl,
+        connectTimeout:
+            const Duration(milliseconds: AppConstants.connectTimeout),
+        receiveTimeout:
+            const Duration(milliseconds: AppConstants.receiveTimeout),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -22,6 +28,17 @@ class ApiClient {
     );
 
     _dio.interceptors.add(ApiInterceptor());
+  }
+
+  // Factory constructor for backward compatibility
+  factory ApiClient({String? baseUrl}) {
+    // If custom baseUrl is needed, create new instance (rare case)
+    if (baseUrl != null) {
+      final client = ApiClient._internal();
+      client._dio.options.baseUrl = baseUrl;
+      return client;
+    }
+    return instance;
   }
 
   /// GET request
@@ -133,7 +150,9 @@ class ApiClient {
           return AuthException(message, statusCode.toString());
         } else if (statusCode == 404) {
           return NotFoundException(message, statusCode.toString());
-        } else if (statusCode != null && statusCode >= 400 && statusCode < 500) {
+        } else if (statusCode != null &&
+            statusCode >= 400 &&
+            statusCode < 500) {
           return ValidationException(message, statusCode.toString());
         } else {
           return ServerException(message, statusCode.toString());
@@ -153,4 +172,3 @@ class ApiClient {
   /// Get Dio instance for advanced usage
   Dio get dio => _dio;
 }
-

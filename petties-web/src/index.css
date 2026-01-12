@@ -3,9 +3,9 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color-scheme: light;
+  color: #1c1917; /* stone-900 - dark text */
+  background-color: #fafaf9; /* stone-50 - light background */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;

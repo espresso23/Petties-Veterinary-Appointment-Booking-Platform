@@ -58,7 +58,7 @@ flowchart LR
 | **BR-002** | Manager chỉ thêm được Vet | Authorization |
 | **BR-003** | Mỗi slot = 30 phút | Scheduling |
 | **BR-004** | Booking cần Manager gán Vet | Workflow |
-| **BR-005** | Vet có thể Accept/Reject booking | Confirmation |
+| **BR-005** | Manager assign Vet và booking tự động CONFIRMED | Workflow |
 | **BR-006** | Payment trước khi COMPLETED | Checkout |
 
 ---
@@ -113,8 +113,8 @@ flowchart LR
 | Status | Trigger | Actions | Next Status |
 |--------|---------|---------|-------------|
 | PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | ASSIGNED |
-| ASSIGNED | Clinic Manager assigns vet | Notify Vet | CONFIRMED / back to PENDING |
-| CONFIRMED | Vet accepts | Notify Pet Owner | CHECK_IN |
+| ASSIGNED | Clinic Manager assigns vet | Notify Vet, auto CONFIRMED | CONFIRMED |
+| CONFIRMED | Vet assigned | Notify Pet Owner | CHECK_IN |
 | CHECK_IN | Pet arrives, Vet checks in | Update status | IN_PROGRESS |
 | IN_PROGRESS | Service starts | - | CHECK_OUT |
 | CHECK_OUT | Service ends | - | COMPLETED |
@@ -319,7 +319,6 @@ flowchart LR
 **Targets:**
 - Cancellation Rate: < 15%
 - No-Show Rate: < 5%
-- Vet Rejection Rate: < 10%
 - Average Rating: > 4.0/5.0
 
 ---

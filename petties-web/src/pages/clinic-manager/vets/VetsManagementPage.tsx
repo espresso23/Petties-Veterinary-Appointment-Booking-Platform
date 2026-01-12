@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../../store/authStore'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
-import { StaffTable, QuickAddStaffModal } from '../../../components/clinic-staff'
-import type { StaffMember, QuickAddStaffRequest } from '../../../types/clinicStaff'
+import { StaffTable, QuickAddStaffModal, EditSpecialtyModal } from '../../../components/clinic-staff'
+import type { StaffMember, InviteByEmailRequest, StaffSpecialty } from '../../../types/clinicStaff'
 
 /**
  * Vets Management Page - For Clinic Manager
@@ -15,6 +15,7 @@ export function VetsManagementPage() {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [editingMember, setEditingMember] = useState<StaffMember | null>(null)
 
     // Get clinicId directly from user (after authStore update)
     const clinicId = user?.workingClinicId
@@ -43,10 +44,10 @@ export function VetsManagementPage() {
         }
     }
 
-    const handleAddVet = async (data: QuickAddStaffRequest) => {
+    const handleAddVet = async (data: InviteByEmailRequest) => {
         if (!clinicId) return
         // Force role to VET for clinic manager
-        await clinicStaffService.quickAddStaff(clinicId, { ...data, role: 'VET' })
+        await clinicStaffService.inviteByEmail(clinicId, { ...data, role: 'VET' })
         await fetchStaff()
     }
 
@@ -58,6 +59,17 @@ export function VetsManagementPage() {
         } catch (err: any) {
             setError(err?.userMessage || err?.message || 'Không thể xóa bác sĩ')
         }
+    }
+
+    const handleEditSpecialty = (member: StaffMember) => {
+        setEditingMember(member)
+    }
+
+    const handleUpdateSpecialty = async (specialty: StaffSpecialty) => {
+        if (!editingMember || !clinicId) return
+        await clinicStaffService.updateStaffSpecialty(clinicId, editingMember.userId, specialty)
+        setEditingMember(null)
+        await fetchStaff()
     }
 
     if (!clinicId) {
@@ -115,7 +127,9 @@ export function VetsManagementPage() {
                     staff={staff}
                     isLoading={isLoading}
                     onRemove={handleRemoveVet}
+                    onEditSpecialty={handleEditSpecialty}
                     canRemove={true}
+                    canEdit={true}
                 />
 
                 {/* Staff count */}
@@ -134,8 +148,18 @@ export function VetsManagementPage() {
                 allowedRoles={['VET']}
                 title="THÊM BÁC SĨ MỚI"
             />
+
+            {/* Edit Specialty Modal */}
+            <EditSpecialtyModal
+                isOpen={editingMember !== null}
+                onClose={() => setEditingMember(null)}
+                onSubmit={handleUpdateSpecialty}
+                currentSpecialty={editingMember?.specialty || 'VET_GENERAL'}
+                staffName={editingMember?.fullName || ''}
+            />
         </div>
     )
 }
 
 export default VetsManagementPage
+

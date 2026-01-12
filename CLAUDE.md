@@ -124,12 +124,55 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 
 ## Design System
 
-**Style: Neobrutalism**
-- Borders: 4px solid black, no border-radius
-- Shadows: `4px 4px 0 #1c1917` (offset, no blur)
-- Colors: Amber palette (primary), Stone palette (neutral)
-- Typography: Inter font, uppercase headings, font-weight 700
+**Style: Soft Neobrutalism** (Updated January 2025)
+
+Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thiện hơn.
+
+### Core Elements
+| Element | Value | Tailwind Class |
+|---------|-------|----------------|
+| **Border** | 2px solid #1c1917 | `border-2 border-stone-900` |
+| **Card Radius** | 12px | `rounded-xl` |
+| **Button/Input Radius** | 8px | `rounded-lg` |
+| **Card Shadow** | 4px 4px 0 #1c1917 | `shadow-[4px_4px_0_#1c1917]` |
+| **Button Shadow** | 3px 3px 0 #1c1917 | `shadow-[3px_3px_0_#1c1917]` |
+| **Input Shadow** | 2px 2px 0 #1c1917 | `shadow-[2px_2px_0_#1c1917]` |
+
+### Color Palette
+| Color | Hex | Use Case |
+|-------|-----|----------|
+| **Amber-600** (Primary) | `#d97706` | Primary buttons, brand identity |
+| **Coral** | `#FF6B6B` | Featured cards, CTAs, warnings |
+| **Mint/Teal** | `#38B2AC` | Success states, health-related |
+| **Blue** | `#4299E1` | Info, links, secondary actions |
+| **Yellow** | `#FBBF24` | Highlights, badges |
+| **Stone-900** | `#1c1917` | Text, borders, shadows |
+
+### Typography
+| Element | Style |
+|---------|-------|
+| Page Headings | `font-bold`, **normal case** (không uppercase) |
+| Card Titles | `font-bold text-lg`, normal case |
+| Button Text | `font-bold uppercase` |
+| Labels | `text-xs font-bold uppercase` |
+
+### Hover Effects
+```css
+/* Card hover */
+hover:transform: translate(-2px, -2px);
+hover:box-shadow: 6px 6px 0 #1c1917;
+
+/* Button hover */
+hover:transform: translate(-2px, -2px);
+hover:box-shadow: 5px 5px 0 #1c1917;
+```
+
+### Rules
 - **No emojis in UI** - use Heroicons instead
+- **No border-radius > 12px** except for badges/avatars (use `rounded-full`)
+- **No blur shadows** - always offset shadows only
+- CSS file: `petties-web/src/styles/brutalist.css`
+- Style guide: `docs-references/design/design-style-guide.md`
 
 ## Environment & Deployment
 
@@ -182,6 +225,59 @@ Sai: V2__add_phone.sql (Dễ trùng nếu 2 người cùng làm).
 Đúng: V202412301030__add_phone_to_users.sql (Định dạng: V + NămThángNgàyGiờPhút).
 Lưu ý: Giữa Version và Mô tả phải có 2 dấu gạch dưới (__).
 Áp dụng: Flyway sẽ tự động chạy script này khi ứng dụng khởi động.
+
+## Vietnamese-Only Rule (User-Facing Text)
+
+**Tất cả user-facing text PHẢI bằng Tiếng Việt 100%, KHÔNG lẫn lộn tiếng Anh:**
+
+| Component | Example (✅ Đúng) | Example (❌ Sai) |
+|-----------|-------------------|------------------|
+| Toast messages | `showToast('success', 'Đã lưu thành công')` | `showToast('success', 'Saved successfully')` |
+| Exception messages | `throw new BadRequestException("Dữ liệu không hợp lệ")` | `throw new BadRequestException("Invalid data")` |
+| Validation messages | `@NotBlank(message = "Không được để trống")` | `@NotBlank(message = "Must not be blank")` |
+| Error responses | `"Vị trí phòng khám chưa được thiết lập"` | `"Clinic location not available"` |
+| UI labels/buttons | `Đăng nhập`, `Xác nhận` | `Login`, `Confirm` |
+
+**Quy tắc áp dụng:**
+- **Backend (Spring Boot):** Tất cả exception messages trong Services (BadRequestException, ForbiddenException, UnauthorizedException, v.v.)
+- **Frontend (React/Flutter):** Tất cả toast messages, error states, validation text, button labels
+- **API responses:** Error messages trả về cho client
+
+**Log messages giữ tiếng Anh:** `log.info()`, `log.error()`, `log.warn()` - vì logs dành cho developers.
+
+## No Browser Native Dialogs Rule
+
+**KHÔNG sử dụng `window.alert()`, `window.confirm()`, `window.prompt()` trong Frontend:**
+
+| Action | Thay thế bằng |
+|--------|---------------|
+| Thông báo lỗi/thành công | `showToast('error', 'Lỗi...')` hoặc `showToast('success', '...')` |
+| Xác nhận hành động nguy hiểm | **ConfirmModal** component với Neobrutalism style |
+| Nhập dữ liệu đơn giản | **Modal** hoặc **Form** component |
+
+**Lý do:**
+- `window.alert/confirm` có UI xấu, không thể custom styling
+- Không đồng nhất với Neobrutalism design system
+- Không thể kiểm soát text tiếng Việt trên buttons (OK/Cancel)
+- Blocking UI, bad UX
+
+**Pattern cho Confirm Modal:**
+```tsx
+// ❌ SAI - Không dùng
+if (window.confirm('Bạn có chắc muốn xóa?')) { ... }
+
+// ✅ ĐÚNG - Dùng ConfirmModal
+const [showConfirm, setShowConfirm] = useState(false)
+<ConfirmModal
+  isOpen={showConfirm}
+  title="Xác nhận xóa"
+  message="Bạn có chắc muốn xóa mục này?"
+  confirmText="Xóa"
+  cancelText="Hủy"
+  onConfirm={() => handleDelete()}
+  onCancel={() => setShowConfirm(false)}
+/>
+```
 
 ## Documentation-First Development Rule
 
@@ -724,3 +820,46 @@ petties-report-writer (Sequence Diagrams) + petties-report-writer (Test Cases) +
 
 **Design:**
 - `docs-references/design/design-style-guide.md` - Neobrutalism UI guide
+
+## Quick Context Skills
+
+**Khi bắt đầu session mới hoặc cần context về project, sử dụng các skills sau:**
+
+### Skill 1: petties-quick-context (~2 phút)
+**Trigger phrases:**
+- "Cho tôi context về project"
+- "Project đang ở đâu?"
+- "Bắt đầu session mới"
+- "Quick context"
+
+**Claude sẽ:**
+1. Đọc `PROJECT_STATUS.md`
+2. Tóm tắt: Sprint hiện tại, Progress, Tasks đang làm
+
+### Skill 2: petties-onboarding (~10 phút)
+**Trigger phrases:**
+- "Giúp tôi hiểu toàn bộ project"
+- "Tôi mới vào project"
+- "Full onboarding"
+- "Deep context"
+
+**Claude sẽ:**
+1. Đọc 7 files quan trọng
+2. Tóm tắt: Architecture, Modules, Rules, Codebase structure
+
+### Cách sử dụng trực tiếp:
+```
+Sử dụng skill petties-quick-context
+```
+hoặc
+```
+Dùng skill petties-onboarding để giúp tôi hiểu project
+```
+
+### Skills Location:
+```
+.claude/skills/
+├── petties-quick-context/SKILL.md
+└── petties-onboarding/SKILL.md
+```
+

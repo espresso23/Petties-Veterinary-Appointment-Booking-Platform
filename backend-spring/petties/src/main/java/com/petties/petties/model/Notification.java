@@ -3,6 +3,7 @@ package com.petties.petties.model;
 import com.petties.petties.model.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,13 +14,22 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Entity representing clinic status notifications for clinic owners
+ * Entity representing notifications for users
+ *
+ * Types:
+ * - Clinic status (APPROVED, REJECTED, PENDING) - for Clinic Owners
+ * - VetShift notifications (VET_SHIFT_*) - for Vets
  */
 @Entity
-@Table(name = "notifications")
+@Table(name = "notifications", indexes = {
+    @Index(name = "idx_notification_user", columnList = "user_id"),
+    @Index(name = "idx_notification_type", columnList = "type"),
+    @Index(name = "idx_notification_read", columnList = "read")
+})
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Notification {
@@ -31,12 +41,18 @@ public class Notification {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user; // Clinic owner who receives the notification
+    private User user; // User who receives the notification
 
+    // For clinic-related notifications (APPROVED, REJECTED, PENDING)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "clinic_id", nullable = false)
+    @JoinColumn(name = "clinic_id")
     @org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
     private Clinic clinic;
+
+    // For VetShift-related notifications
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shift_id")
+    private VetShift shift;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
@@ -46,9 +62,10 @@ public class Notification {
     private String message;
 
     @Column(name = "reason", columnDefinition = "TEXT")
-    private String reason; // Approval/rejection reason
+    private String reason; // Approval/rejection reason or additional info
 
     @Column(name = "read", nullable = false)
+    @Builder.Default
     private Boolean read = false;
 
     @CreatedDate

@@ -242,37 +242,28 @@ flowchart TB
 
 ---
 
-## 6. Vet Accept/Reject
+## 6. Vet Receives Assignment
 
 **Flow khi Vet nhận notification:**
 
-1. Vet xem chi tiết Booking (Pet, Service, Thời gian, Loại)
-2. Vet chọn **Accept** hoặc **Reject**
+1. Vet nhận notification về booking mới được assign
+2. Vet xem chi tiết Booking (Pet, Service, Thời gian, Loại)
+3. Vet tiến hành thực hiện dịch vụ (không cần accept/reject)
 
-**Nếu Accept:**
-- `status = CONFIRMED`
+**System xử lý sau khi Manager assign:**
+- `status = CONFIRMED` (tự động sau khi assign)
 - Notify Pet Owner: "Lịch hẹn đã xác nhận"
+- Notify Vet: "Bạn có lịch hẹn mới"
 
-**Nếu Reject:**
-- Nhập lý do
-- `status = PENDING` (reset)
-- Restore TẤT CẢ slots
-- `booking.vet_id = null`
-- Notify Manager để gán lại
+> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Manager quyết định assign Vet nào.
 
 ```mermaid
 flowchart TB
-    A["VET nhận notification<br/>Booking mới"] --> B["Xem chi tiết"]
-    B --> C{"Accept / Reject?"}
-    
-    C -->|Accept| D["Status = CONFIRMED"]
-    D --> E["Notify Pet Owner"]
-    
-    C -->|Reject| F["Nhập lý do"]
-    F --> G["Status = PENDING"]
-    G --> H["Restore TẤT CẢ slots"]
-    H --> I["vet_id = null"]
-    I --> J["Notify Manager<br/>để gán lại"]
+    A["Manager assign Vet"] --> B["Status = CONFIRMED"]
+    B --> C["Notify Pet Owner"]
+    B --> D["Notify Vet"]
+    D --> E["Vet xem chi tiết booking"]
+    E --> F["Vet thực hiện dịch vụ"]
 ```
 
 ---
@@ -385,53 +376,6 @@ if (isNightShift) {
 }
 ```
 
-### 8.4 Template Excel cho Clinic 24/7
-
-| Vet Name | Date | Start | End | Break Start | Break End | Note |
-|----------|------|-------|-----|-------------|-----------|------|
-| Dr. Minh | 17/12 | 06:00 | 14:00 | 10:00 | 10:30 | Ca sáng |
-| Dr. Lan | 17/12 | 14:00 | 22:00 | 18:00 | 18:30 | Ca chiều |
-| Dr. Hùng | 17/12 | 22:00 | 06:00 | 02:00 | 02:30 | Ca đêm (→18/12) |
-
----
-
-## 9. Import Lịch từ Excel
-
-### 8.1 Template Excel
-
-| Vet Name | Date | Start | End | Break Start | Break End |
-|----------|------|-------|-----|-------------|-----------|
-| Dr. Minh | 16/12/2025 | 08:00 | 18:00 | 12:00 | 14:00 |
-| Dr. Minh | 17/12/2025 | 08:00 | 18:00 | 12:00 | 14:00 |
-| Dr. Minh | 18/12/2025 | OFF | OFF | OFF | OFF |
-| Dr. Lan | 16/12/2025 | 08:00 | 18:00 | 12:00 | 14:00 |
-| Dr. Lan | 17/12/2025 | 14:00 | 22:00 | 18:00 | 19:00 |
-| Dr. Hùng | 16/12/2025 | 08:00 | 17:00 | 12:00 | 13:00 |
-
-**Ghi chú:**
-- Slot duration mặc định: 30 phút (cấu hình ở Clinic settings)
-- Nếu nghỉ, ghi "OFF" vào tất cả cột giờ
-- Break time có thể để trống nếu không nghỉ trưa
-- System tự động tạo slots dựa trên Start/End/Break
-
-### 8.2 Quy trình Import
-
-```mermaid
-flowchart TB
-    A["Manager upload Excel"] --> B["System validate"]
-    B --> C{"Có lỗi?"}
-    
-    C -->|Có| D["Hiển thị preview<br/>với lỗi"]
-    C -->|Không| E["Hiển thị preview<br/>tất cả hợp lệ"]
-    
-    D --> F["Manager chọn:<br/>Import dòng hợp lệ"]
-    E --> F
-    
-    F --> G["Tạo/Update VetShift"]
-    G --> H["Auto-generate slots<br/>(30 phút/slot)"]
-    H --> I["Hoàn thành"]
-```
-
 ---
 
 ## 9. Tóm Tắt Nghiệp Vụ
@@ -441,8 +385,8 @@ flowchart TB
 | Role | Làm gì |
 |------|--------|
 | **Clinic Owner** | Tạo Service, định nghĩa `slots_required` cho mỗi service |
-| **Manager** | Tạo/Import lịch Vet, Gán Vet cho booking, Xử lý reject/cancel |
-| **Vet** | Accept/Reject booking, Thực hiện dịch vụ, Check-in/out |
+| **Manager** | Tạo/Import lịch Vet, Gán Vet cho booking, Xử lý cancel |
+| **Vet** | Nhận assignment, Thực hiện dịch vụ, Check-in/out |
 | **Pet Owner** | Chọn Service → Chọn giờ (từ list available) → Đặt lịch |
 | **System** | Tạo slots từ shift, Tìm slot liên tiếp, Lock/Restore slots |
 
@@ -486,10 +430,9 @@ flowchart LR
         B2 --> B3["Chọn giờ"]
         B3 --> B4["PENDING"]
         B4 --> B5["Manager<br/>gán Vet"]
-        B5 --> B6["ASSIGNED"]
-        B6 --> B7["Vet Accept"]
-        B7 --> B8["CONFIRMED"]
-        B8 --> B9["Check-in → Khám<br/>→ COMPLETED"]
+        B5 --> B6["CONFIRMED"]
+        B6 --> B7["Vet nhận<br/>notification"]
+        B7 --> B8["Check-in → Khám<br/>→ COMPLETED"]
     end
     
     SETUP --> DAILY
@@ -497,5 +440,5 @@ flowchart LR
 
 ---
 
-**Last Updated:** 2025-12-14
+**Last Updated:** 2026-01-10
 **Author:** Petties Team

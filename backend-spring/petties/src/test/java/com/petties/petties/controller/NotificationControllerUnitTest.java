@@ -101,7 +101,7 @@ class NotificationControllerUnitTest {
 
                 when(notificationService.getNotificationsByUserId(eq(user.getUserId()), any())).thenReturn(page);
 
-                mockMvc.perform(get("/notifications/clinic")
+                mockMvc.perform(get("/notifications/me")
                                 .param("page", "0")
                                 .param("size", "20"))
                                 .andExpect(status().isOk())
@@ -119,7 +119,7 @@ class NotificationControllerUnitTest {
                 Page<NotificationResponse> emptyPage = new PageImpl<>(List.of());
                 when(notificationService.getNotificationsByUserId(eq(user.getUserId()), any())).thenReturn(emptyPage);
 
-                mockMvc.perform(get("/notifications/clinic"))
+                mockMvc.perform(get("/notifications/me"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(0)));
         }
@@ -135,7 +135,7 @@ class NotificationControllerUnitTest {
 
                 when(notificationService.getNotificationsByUserId(eq(user.getUserId()), any())).thenReturn(page);
 
-                mockMvc.perform(get("/notifications/clinic")
+                mockMvc.perform(get("/notifications/me")
                                 .param("page", "1")
                                 .param("size", "10"))
                                 .andExpect(status().isOk())
@@ -151,7 +151,7 @@ class NotificationControllerUnitTest {
                 when(authService.getCurrentUser()).thenReturn(user);
                 when(notificationService.getUnreadCountByUserId(user.getUserId())).thenReturn(5L);
 
-                mockMvc.perform(get("/notifications/clinic/unread-count"))
+                mockMvc.perform(get("/notifications/me/unread-count"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.count").value(5));
         }
@@ -163,7 +163,7 @@ class NotificationControllerUnitTest {
                 when(authService.getCurrentUser()).thenReturn(user);
                 when(notificationService.getUnreadCountByUserId(user.getUserId())).thenReturn(0L);
 
-                mockMvc.perform(get("/notifications/clinic/unread-count"))
+                mockMvc.perform(get("/notifications/me/unread-count"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.count").value(0));
         }
@@ -218,7 +218,7 @@ class NotificationControllerUnitTest {
                 when(authService.getCurrentUser()).thenReturn(user);
                 doNothing().when(notificationService).markAllAsReadByUserId(eq(user.getUserId()));
 
-                mockMvc.perform(put("/notifications/clinic/mark-all-read"))
+                mockMvc.perform(put("/notifications/me/mark-all-read"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.message").value("All notifications marked as read"));
         }
@@ -230,7 +230,7 @@ class NotificationControllerUnitTest {
                 when(authService.getCurrentUser()).thenReturn(user);
                 doNothing().when(notificationService).markAllAsReadByUserId(eq(user.getUserId()));
 
-                mockMvc.perform(put("/notifications/clinic/mark-all-read"))
+                mockMvc.perform(put("/notifications/me/mark-all-read"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.message").value("All notifications marked as read"));
         }

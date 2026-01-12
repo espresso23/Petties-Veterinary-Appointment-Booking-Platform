@@ -5,9 +5,9 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
-import com.petties.petties.dto.clinic.QuickAddStaffRequest;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceAlreadyExistsException;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +28,7 @@ public class ClinicStaffService {
     private final AuthService authService;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional(readOnly = true)
     public List<StaffResponse> getClinicStaff(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
@@ -40,6 +41,7 @@ public class ClinicStaffService {
     /**
      * Check if clinic already has a manager
      */
+    @Transactional(readOnly = true)
     public boolean hasManager(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
@@ -49,64 +51,69 @@ public class ClinicStaffService {
     }
 
     /**
-     * Create a new account and assign as Manager (For Clinic Owner)
+     * Invite staff by email
+     * - If user exists with this email: assign to clinic
+     * - If not: create new user with email, waiting for Google OAuth login
      */
     @Transactional
-    public void quickAddStaff(UUID clinicId, QuickAddStaffRequest request) {
-        // 1. Check if phone already exists (including soft-deleted users)
-        if (userRepository.existsByPhone(request.getPhone())) {
-            throw new ResourceAlreadyExistsException("Số điện thoại này đã được đăng ký tài khoản");
-        }
-
-        // 2. Business Rules for Role Management (Phân quyền)
+    public void inviteByEmail(UUID clinicId, com.petties.petties.dto.clinic.InviteByEmailRequest request) {
         User currentUser = authService.getCurrentUser();
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-        // Rule 0: No one can add an ADMIN via this endpoint
-        if (request.getRole() == Role.ADMIN) {
-            throw new ForbiddenException("Không thể tạo tài khoản ADMIN qua chức năng này");
-        }
-
-        // Rule 1: CLINIC_OWNER must own the clinic
+        // Authorization checks
         if (currentUser.getRole() == Role.CLINIC_OWNER) {
             if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
                 throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
             }
         }
 
-        // Rule 2: CLINIC_MANAGER can ONLY add VETs and must belong to this clinic
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
             if (request.getRole() != Role.VET) {
                 throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Bác sĩ");
             }
-            // Ensure manager belongs to this clinic
             if (currentUser.getWorkingClinic() == null
                     || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
                 throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
             }
         }
 
-        // Rule 3: Each clinic can only have ONE manager
+        // Check if clinic already has manager
         if (request.getRole() == Role.CLINIC_MANAGER && hasManager(clinicId)) {
             throw new ResourceAlreadyExistsException("Phòng khám đã có Quản lý. Mỗi phòng khám chỉ được có 1 Quản lý.");
         }
 
-        // 3. Create new user account
-        User newUser = new User();
-        newUser.setUsername(request.getPhone());
-        newUser.setFullName(request.getFullName());
-        newUser.setPhone(request.getPhone());
-        newUser.setRole(request.getRole());
+        // Check if user already exists with this email
+        User existingUser = userRepository.findByEmail(request.getEmail()).orElse(null);
 
-        // Default password: last 6 digits of phone
-        String defaultPass = request.getPhone().substring(Math.max(0, request.getPhone().length() - 6));
-        newUser.setPassword(passwordEncoder.encode(defaultPass));
-
-        // 4. Assign to clinic
-        newUser.setWorkingClinic(clinic);
-
-        userRepository.save(newUser);
+        if (existingUser != null) {
+            // User exists - check if already assigned to another clinic
+            if (existingUser.getWorkingClinic() != null) {
+                throw new ResourceAlreadyExistsException("Email này đã được gán cho phòng khám khác");
+            }
+            // Assign to this clinic
+            existingUser.setRole(request.getRole());
+            existingUser.setWorkingClinic(clinic);
+            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+                existingUser.setSpecialty(request.getSpecialty());
+            }
+            userRepository.save(existingUser);
+        } else {
+            // Create new user - waiting for Google OAuth login
+            // FullName will be auto-filled when user logs in with Google
+            User newUser = new User();
+            newUser.setEmail(request.getEmail());
+            newUser.setUsername(request.getEmail()); // Use email as username
+            newUser.setRole(request.getRole());
+            newUser.setWorkingClinic(clinic);
+            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+                newUser.setSpecialty(request.getSpecialty());
+            }
+            // Set random password - user must login via Google OAuth
+            // This password cannot be used for login
+            newUser.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+            userRepository.save(newUser);
+        }
     }
 
     /**
@@ -192,6 +199,49 @@ public class ClinicStaffService {
         userRepository.save(staffToRemove);
     }
 
+    /**
+     * Update staff specialty (VET only)
+     */
+    @Transactional
+    public void updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) {
+        User currentUser = authService.getCurrentUser();
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+
+        User staff = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff member not found"));
+
+        // Check staff belongs to this clinic
+        if (staff.getWorkingClinic() == null
+                || !staff.getWorkingClinic().getClinicId().equals(clinicId)) {
+            throw new IllegalArgumentException("User does not belong to this clinic");
+        }
+
+        // Only VETs have specialty
+        if (staff.getRole() != Role.VET) {
+            throw new IllegalArgumentException("Only VET staff can have specialty");
+        }
+
+        // Authorization: CLINIC_OWNER must own the clinic
+        if (currentUser.getRole() == Role.CLINIC_OWNER) {
+            if (!clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        }
+
+        // Authorization: CLINIC_MANAGER must belong to this clinic
+        if (currentUser.getRole() == Role.CLINIC_MANAGER) {
+            if (currentUser.getWorkingClinic() == null
+                    || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
+                throw new ForbiddenException("Bạn không có quyền quản lý nhân sự cho phòng khám này");
+            }
+        }
+
+        // Update specialty
+        staff.setSpecialty(StaffSpecialty.valueOf(specialty));
+        userRepository.save(staff);
+    }
+
     private User findUserByUsernameOrEmail(String usernameOrEmail) {
         return userRepository.findByUsername(usernameOrEmail)
                 .orElseGet(() -> userRepository.findByEmail(usernameOrEmail)
@@ -215,6 +265,7 @@ public class ClinicStaffService {
                 .role(user.getRole())
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
+                .specialty(user.getSpecialty())
                 .build();
     }
 }

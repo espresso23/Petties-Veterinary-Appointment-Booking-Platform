@@ -35,6 +35,11 @@ jobs:
             git fetch origin
             git checkout develop
             git reset --hard origin/develop
+
+            mkdir -p backend-spring/petties/src/main/resources/
+            cat <<EOF > backend-spring/petties/src/main/resources/firebase-service-account.json
+            ${{ secrets.FIREBASE_JSON }}
+            EOF
             
             echo "📋 Current commit:"
             git log --oneline -1
