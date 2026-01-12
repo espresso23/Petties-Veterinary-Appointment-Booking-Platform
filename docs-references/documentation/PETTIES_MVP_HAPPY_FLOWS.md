@@ -163,9 +163,9 @@
 ```
 1. Dashboard → "Quản lý nhân viên" (Staff Management)
 2. Chọn "Thêm nhân viên" (Quick Add)
-3. Nhập: Họ tên, Số điện thoại, Vai trò (Vet/Manager)
-4. Lưu → Tài khoản được tạo ngay lập tức
-5. Nhân viên đăng nhập bằng: SĐT / [6 số cuối SĐT]
+3. Nhập: Email, Vai trò (Vet/Manager), Specialty (nếu Vet)
+4. Lưu → Tài khoản được tạo ngay lập tức (Status: ACTIVE)
+5. Nhân viên đăng nhập bằng: Google OAuth (Email đã mời)
 ```
 
 ---
