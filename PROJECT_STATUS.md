@@ -90,8 +90,9 @@
 
 ### Booking Workflow
 - [ ] Multi-step Booking Wizard
-- [ ] QR Code Check-in
-- [ ] State Machine (PENDING → CONFIRMED → DONE)
+- [ ] Vet Check-in Button (click to start examination)
+- [ ] Vet Checkout Button (complete appointment)
+- [ ] State Machine (PENDING → CONFIRMED → IN_PROGRESS → COMPLETED)
 - [ ] Cancellation & Refund Policy
 
 ---

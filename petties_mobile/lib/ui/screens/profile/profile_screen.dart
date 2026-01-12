@@ -443,7 +443,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Vai trò',
               value: profile.roleDisplayText,
               icon: Icons.medical_services_outlined,
+              showBottomBorder: profile.specialty != null,
             ),
+            if (profile.specialty != null)
+              ProfileInfoCard(
+                label: 'Chuyên môn',
+                value: profile.specialtyDisplayText,
+                icon: Icons.workspace_premium_outlined,
+              ),
           ],
         ),
 

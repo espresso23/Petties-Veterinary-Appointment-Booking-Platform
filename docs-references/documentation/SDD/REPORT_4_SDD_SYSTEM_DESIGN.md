@@ -635,7 +635,8 @@ flowchart TB
 |--------|----------|-------------|--------|
 | GET | `/api/clinics/{id}/staff` | List all staff | CM, CO, Admin |
 | GET | `/api/clinics/{id}/staff/has-manager` | Check manager logic | CM, CO |
-| POST | `/api/clinics/{id}/staff/quick-add` | Quick add Vet/Manager | CM, CO |
+| POST | `/api/clinics/{id}/staff/invite-by-email` | Invite staff by email (Google OAuth) | CM, CO |
+| PATCH | `/api/clinics/{id}/staff/{userId}/specialty` | Update staff specialty | CM, CO |
 | DELETE | `/api/clinics/{id}/staff/{userId}` | Remove staff | CM, CO |
 
 #### 2.1.5 Shift & Slot Management (`/shifts`, `/slots`)

@@ -47,12 +47,21 @@ export function ProfilePage() {
     fetchProfile()
   }, [fetchProfile])
 
+
   useEffect(() => {
     if (profile) {
       setEditForm({
         fullName: profile.fullName || '',
         phone: profile.phone || '',
       })
+      // Sync avatar to authStore for Sidebar display
+      const currentUser = useAuthStore.getState().user
+      if (currentUser && profile.avatar !== currentUser.avatar) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          avatar: profile.avatar || undefined
+        })
+      }
     }
   }, [profile])
 

@@ -1,6 +1,6 @@
 package com.petties.petties.controller;
 
-import com.petties.petties.dto.clinic.QuickAddStaffRequest;
+import com.petties.petties.dto.clinic.InviteByEmailRequest;
 import com.petties.petties.dto.clinic.StaffResponse;
 import com.petties.petties.service.ClinicStaffService;
 import jakarta.validation.Valid;
@@ -35,15 +35,17 @@ public class ClinicStaffController {
     }
 
     /**
-     * Quick add a new staff member (creates account and assigns to clinic)
+     * Invite staff by email - Staff can login with Google
+     * Creates user if not exists, assigns clinic and specialty
+     * FullName and Avatar will be auto-filled from Google profile
      */
-    @PostMapping("/quick-add")
+    @PostMapping("/invite-by-email")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
-    public ResponseEntity<String> quickAddStaff(
+    public ResponseEntity<String> inviteByEmail(
             @PathVariable UUID clinicId,
-            @Valid @RequestBody QuickAddStaffRequest request) {
-        staffService.quickAddStaff(clinicId, request);
-        return ResponseEntity.ok("Staff account created and assigned successfully");
+            @Valid @RequestBody InviteByEmailRequest request) {
+        staffService.inviteByEmail(clinicId, request);
+        return ResponseEntity.ok("Staff invited successfully");
     }
 
     /**
@@ -77,5 +79,19 @@ public class ClinicStaffController {
             @PathVariable UUID userId) {
         staffService.removeStaff(clinicId, userId);
         return ResponseEntity.ok("Staff removed successfully");
+    }
+
+    /**
+     * Update staff specialty (VET only)
+     */
+    @PatchMapping("/{userId}/specialty")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<String> updateStaffSpecialty(
+            @PathVariable UUID clinicId,
+            @PathVariable UUID userId,
+            @RequestBody java.util.Map<String, String> body) {
+        String specialty = body.get("specialty");
+        staffService.updateStaffSpecialty(clinicId, userId, specialty);
+        return ResponseEntity.ok("Staff specialty updated successfully");
     }
 }

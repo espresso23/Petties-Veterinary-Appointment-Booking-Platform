@@ -288,7 +288,7 @@ graph TB
 
 | UC-ID | Use Case Name | Actor | Description |
 |-------|---------------|-------|-------------|
-| UC-VT-01 | Login as Staff | Vet | **READ** user session via phone + auto-generated password |
+| UC-VT-01 | Login as Staff | Vet | **READ** user session via Google OAuth (email invitation from clinic) |
 | UC-VT-02 | View My Schedule | Vet | **READ** vet_shift list in calendar view (month/week/day) |
 | UC-VT-03 | View Assigned Bookings | Vet | **READ** booking list filtered by assigned vet (Today/Upcoming/Done) |
 | UC-VT-04 | View Booking Details | Vet | **READ** booking details (pet info, service, time, location) |
@@ -309,9 +309,9 @@ graph TB
 
 | UC-ID | Use Case Name | Actor | Description |
 |-------|---------------|-------|-------------|
-| UC-CM-01 | Login as Manager | Clinic Manager | **READ** user session via phone + password |
+| UC-CM-01 | Login as Manager | Clinic Manager | **READ** user session via Google OAuth |
 | UC-CM-02 | View Vet List | Clinic Manager | **READ** user list filtered by clinic and role=VET |
-| UC-CM-03 | Create Staff Account (Quick Add) | Clinic Manager | **CREATE** user with role=VET, auto-generate password |
+| UC-CM-03 | Invite Staff by Email | Clinic Manager | **CREATE** user via email, waits for Google OAuth login |
 | UC-CM-03b | Assign Existing Vet to Clinic | Clinic Manager | **UPDATE** user.working_clinic_id |
 | UC-CM-04 | Remove Staff from Clinic | Clinic Manager | **UPDATE** user.working_clinic_id=null |
 | UC-CM-05a | Create Vet Shift | Clinic Manager | **CREATE** vet_shift + auto-generate slots (30-min intervals) |
@@ -1698,39 +1698,44 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 
 ### 3.7 Staffing & Scheduling Flow
  
- #### *3.7.1 Quick Staff Addition*
+ #### *3.7.1 Staff Invitation by Email*
 **Function trigger**
 - **Navigation path:** Owner Dashboard → Staff Management → "Add Staff".
 - **Timing frequency:** On demand (new hires).
 
 **Function description**
 - **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Register new staff with predefined roles and auto-generate credentials.
+- **Purpose:** Invite new staff by email. Staff will login with Google OAuth, and their profile info (name, avatar) will be auto-filled from Google account.
 - **Interface:**
-    - Full Name – text input
-    - Phone Number – text input
-    - Role – radio selection (Vet, Staff, Manager)
+    - Email Address – text input
+    - Role – radio selection (Vet, Manager)
+    - Specialty – dropdown (for Vet role only)
 
 **Data processing**
-1. System checks phone number uniqueness.
-2. System creates a `USER` record linked to the branch.
-3. System sets an auto-generated password (e.g., last 6 digits of phone).
-4. System notifies the staff member via SMS/Email.
+1. System validates email format and uniqueness.
+2. If email already exists in system:
+   - If user is not assigned to another clinic: assign to current clinic.
+   - If user is already assigned to another clinic: reject with error.
+3. If email does not exist: System creates a `USER` record with random password (unusable), assigned to clinic.
+4. Staff logs in via Google OAuth on first access.
+5. System auto-fills `fullName` and `avatar` from Google profile on first login.
 
 **Screen layout**
-Figure 30. Screen Quick Staff Addition (Web)
+Figure 30. Screen Staff Invitation by Email (Web)
 
 **Function details**
-- **Data:** FullName, PhoneNumber, Role.
+- **Data:** Email, Role, Specialty (optional).
 - **Validation:** 
-    - Phone number must not conflict with other users.
+    - Email must be valid format.
+    - Email must not be assigned to another clinic.
     - Role must be valid within clinic context.
 - **Business rules:** BR-35, BR-45, BR-46, BR-47.
 - **Normal case:**
-    1. Manager adds "Dr. Nam" as Vet.
-    2. Dr. Nam receives login info and can start using the app.
+    1. Manager invites "bacsi@gmail.com" as Vet with "General" specialty.
+    2. Dr. Nam logs in via Google OAuth and starts working.
 - **Abnormal/Exception cases:**
-    - A1. Phone exists – "This number is already linked to another account."
+    - A1. Email already assigned to another clinic – "User is already assigned to another clinic."
+
 
  #### *3.7.2 Clinician Roster Management (Vet Shift)*
 **Function trigger**
@@ -2410,8 +2415,8 @@ Sentry Integration: Enabled with issue alerts
 | BR-32 | Clinics can report Owners for NO_SHOW or abusive behavior. |
 | BR-33 | Admin actions include: WARNING, TEMPORARY SUSPENSION, or PERMANENT BAN. |
 | BR-34 | A booking can only be the subject of a violation report once. |
-| BR-35 | Quick Add requires only Name, Phone Number, and Role selection. |
-| BR-36 | Default password for Quick Add accounts is the last 6 digits of the staff phone number. |
+| BR-35 | Staff Invitation requires only Email and Role selection (Specialty for VET). FullName and Avatar are auto-filled from Google profile on first login. |
+| BR-36 | Staff accounts created via email invitation must login via Google OAuth. Password is randomly generated and cannot be used for login. |
 | BR-37 | Each clinic branch is limited to exactly one CLINIC_MANAGER. |
 | BR-38 | A staff member can only be assigned to one branch at any given time. |
 | BR-39 | EMR and Vaccination history are shared across clinics for pet welfare. |

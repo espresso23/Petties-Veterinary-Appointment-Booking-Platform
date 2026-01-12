@@ -50,6 +50,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByIdWithWorkingClinic(@Param("userId") UUID userId);
 
     /**
+     * Find user by email with workingClinic eager loaded.
+     * Used in Google OAuth login to return clinic info.
+     */
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.workingClinic WHERE u.email = :email")
+    Optional<User> findByEmailWithWorkingClinic(@Param("email") String email);
+
+    /**
      * Find all users by role (non-deleted)
      * Used to get all ADMINs for notifications
      */
