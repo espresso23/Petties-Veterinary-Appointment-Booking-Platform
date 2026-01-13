@@ -46,6 +46,15 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true />
 
+		<!-- App Transport Security - Allow HTTP for development -->
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true />
+			<key>NSAllowsLocalNetworking</key>
+			<true />
+		</dict>
+
 		<!-- Firebase Configuration -->
 		<key>FirebaseAppDelegateProxyEnabled</key>
 		<true />

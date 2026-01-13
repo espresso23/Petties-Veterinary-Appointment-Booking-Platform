@@ -38,6 +38,8 @@ public class PetService {
         pet.setDateOfBirth(request.getDateOfBirth());
         pet.setWeight(request.getWeight());
         pet.setGender(request.getGender());
+        pet.setColor(request.getColor());
+        pet.setAllergies(request.getAllergies());
         pet.setUser(currentUser);
 
         if (image != null && !image.isEmpty()) {
@@ -123,6 +125,8 @@ public class PetService {
         pet.setDateOfBirth(request.getDateOfBirth());
         pet.setWeight(request.getWeight());
         pet.setGender(request.getGender());
+        pet.setColor(request.getColor());
+        pet.setAllergies(request.getAllergies());
 
         if (image != null && !image.isEmpty()) {
             // Delete old image if exists
@@ -170,6 +174,8 @@ public class PetService {
         response.setDateOfBirth(pet.getDateOfBirth());
         response.setWeight(pet.getWeight());
         response.setGender(pet.getGender());
+        response.setColor(pet.getColor());
+        response.setAllergies(pet.getAllergies());
         response.setImageUrl(pet.getImageUrl());
         return response;
     }

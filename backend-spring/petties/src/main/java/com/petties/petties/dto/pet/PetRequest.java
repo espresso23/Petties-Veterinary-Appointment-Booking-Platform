@@ -26,4 +26,8 @@ public class PetRequest {
 
     @NotBlank(message = "Giới tính không được để trống")
     private String gender;
+
+    private String color; // Optional for backward compatibility with existing clients
+
+    private String allergies; // Optional - null if no allergies
 }
