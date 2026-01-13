@@ -237,6 +237,9 @@ class AuthProvider extends ChangeNotifier {
       _user = await _authService.getCurrentUser();
       await _authService.saveUserProfile(_user!);
 
+      // Register FCM token for push notifications
+      await FcmService().registerAfterLogin();
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -279,6 +282,9 @@ class AuthProvider extends ChangeNotifier {
       // Step 3: Get user info and save it
       _user = await _authService.getCurrentUser();
       await _authService.saveUserProfile(_user!);
+
+      // Step 4: Register FCM token for push notifications
+      await FcmService().registerAfterLogin();
 
       _isLoading = false;
       notifyListeners();

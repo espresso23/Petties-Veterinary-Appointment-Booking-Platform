@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { StaffMember, QuickAddStaffRequest } from '../../types/clinicStaff'
+import type { StaffMember, InviteByEmailRequest } from '../../types/clinicStaff'
 
 /**
  * ClinicStaff Service
@@ -23,10 +23,11 @@ export const clinicStaffService = {
     },
 
     /**
-     * Quick add a new staff member (creates account and assigns to clinic)
+     * Invite staff by email - Staff login with Google
+     * FullName and Avatar auto-filled from Google profile
      */
-    quickAddStaff: async (clinicId: string, data: QuickAddStaffRequest): Promise<void> => {
-        await apiClient.post(`/clinics/${clinicId}/staff/quick-add`, data)
+    inviteByEmail: async (clinicId: string, data: InviteByEmailRequest): Promise<void> => {
+        await apiClient.post(`/clinics/${clinicId}/staff/invite-by-email`, data)
     },
 
     /**
@@ -48,5 +49,12 @@ export const clinicStaffService = {
      */
     removeStaff: async (clinicId: string, userId: string): Promise<void> => {
         await apiClient.delete(`/clinics/${clinicId}/staff/${userId}`)
+    },
+
+    /**
+     * Update staff specialty
+     */
+    updateStaffSpecialty: async (clinicId: string, userId: string, specialty: string): Promise<void> => {
+        await apiClient.patch(`/clinics/${clinicId}/staff/${userId}/specialty`, { specialty })
     },
 }

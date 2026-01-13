@@ -36,20 +36,16 @@
 2. Xem hồ sơ của tôi ✅
 3. Xem lịch làm việc của tôi
 4. Xem booking được gán
-5. Phê duyệt booking
-6. Từ chối booking
-7. Check-in bệnh nhân
-8. Check-out bệnh nhân
-9. Xem hồ sơ y tế thú cưng
-10. Xem sổ tiêm chủng của pet
-11. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
-12. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]**
-13. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
-14. Video Consultation với pet owner(optionally)
-15. Ghi đơn thuốc vào hồ sơ bệnh án (EMR)
-16. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
-17. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
-18. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
+5. Check-in bệnh nhân
+6. Check-out bệnh nhân
+7. Xem hồ sơ y tế thú cưng
+8. Xem sổ tiêm chủng của pet
+9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
+10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]**
+11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
+12. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
+13. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
+14. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
 
 ---
 
@@ -58,15 +54,14 @@
 2. Xem danh sách bác sĩ ✅ (BE)
 3. Thêm bác sĩ thủ công ✅ (BE)
 4. Xóa/bỏ liên kết bác sĩ ✅ (BE)
-5. Import lịch bác sĩ từ Excel
-6. Import lịch bác sĩ thủ công
-7. Xem booking mới
-8. Gán bác sĩ cho booking
-9. Gán lại booking (nếu bác sĩ từ chối)
-10. Gán dịch vụ nếu user chưa chọn được
-11. Quản lý hủy & hoàn tiền
-12. Xem dashboard hôm nay
-13. Quản lý ca làm việc nhân viên
+5. Import lịch bác sĩ thủ công ✅
+6. Xem booking mới
+7. Gán bác sĩ cho booking
+8. Gán lại booking (nếu bác sĩ từ chối)
+9. Gán dịch vụ nếu user chưa chọn được
+10. Quản lý hủy & hoàn tiền
+11. Xem dashboard hôm nay
+12. Quản lý ca làm việc nhân viên
 14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)

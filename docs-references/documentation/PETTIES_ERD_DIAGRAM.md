@@ -1,21 +1,25 @@
 # PETTIES MVP ERD - Professional Complete Edition
 
-**Version:** 3.2 MVP (Synced with SRS & Codebase)  
-**Last Updated:** 2025-12-30  
-**Scope:** Core Features (Sprint 1-9) + Chat Extension + AI Service  
-**Total Entities:** 30 (20 Core + 3 Auth & User + 7 AI Service)  
+**Version:** 3.3 MVP (MongoDB Medical Records)  
+**Last Updated:** 2026-01-11  
+**Scope:** Core Features (Sprint 1-10) + Chat + Medical Records + AI Service  
+**Total Entities:** 28 (PostgreSQL: 18 Core + 3 Auth | MongoDB: 4 Documents | AI: 3)  
 **Status:** Production-Ready Documentation  
 
 ---
 
 ## Executive Summary
 
-Petties is a veterinary appointment booking platform connecting pet owners with veterinary clinics. The system uses a **service-centric pricing model** where all pricing logic is managed at the SERVICE level, ensuring scalability and easy maintenance. BOOKING entities store only the final calculated price, not intermediate pricing components.
+Petties is a veterinary appointment booking platform connecting pet owners with veterinary clinics. The system uses a **hybrid database architecture**:
 
-**Key Design Principle:** 
+**Database Distribution:**
+- **PostgreSQL:** Transactional data (Users, Clinics, Bookings, Payments)
+- **MongoDB:** Document-based data (Chat, EMR, Vaccination Records)
+
+**Key Design Principles:** 
 - **SERVICE owns pricing logic** (base price, weight-based pricing, distance fees)  
 - **BOOKING stores final price only** (total_price = calculated during booking)  
-- **No redundant price data** in BOOKING to ensure data consistency
+- **Medical Records in MongoDB** (EMR with embedded Prescriptions, Vaccination Records)
 
 ---
 
@@ -164,32 +168,45 @@ erDiagram
         uuid slot_id FK
     }
 
-    %% ========== BOOKING (SIMPLIFIED) ==========
+    %% ========== BOOKING ==========
+    %% Note: Real-time GPS tracking for SOS uses Redis, not stored in BOOKING
+    %% Note: Services linked via BOOKING_SERVICE junction table (M:N)
     BOOKING {
         uuid id PK
         varchar booking_code UK
         uuid pet_id FK
         uuid pet_owner_id FK
         uuid clinic_id FK
-        uuid service_id FK
         uuid assigned_vet_id FK "nullable"
         date booking_date "NOT NULL"
         time booking_time "NOT NULL"
-        enum type "IN_CLINIC|HOME_VISIT"
-        varchar home_address "nullable (for HOME_VISIT)"
-        decimal home_lat "nullable (Home latitude)"
-        decimal home_long "nullable (Home longitude)"
-        decimal distance_km "nullable"
-        decimal vet_current_lat "nullable (GPS tracking)"
-        decimal vet_current_long "nullable (GPS tracking)"
-        timestamp vet_location_updated_at "nullable (Last GPS update)"
-        decimal total_price "NOT NULL"
+        enum type "IN_CLINIC|HOME_VISIT|SOS"
+        varchar home_address "nullable (for HOME_VISIT/SOS)"
+        decimal home_lat "nullable (Destination latitude)"
+        decimal home_long "nullable (Destination longitude)"
+        decimal distance_km "nullable (calculated)"
+        decimal total_price "NOT NULL (sum of all services)"
         enum status "PENDING|ASSIGNED|CONFIRMED|ON_THE_WAY|ARRIVED|CHECK_IN|IN_PROGRESS|CHECK_OUT|COMPLETED|CANCELLED|NO_SHOW"
         varchar cancellation_reason "nullable"
         uuid cancelled_by "nullable (USER_ID)"
         text notes
         timestamp created_at
     }
+
+    BOOKING_SERVICE {
+        uuid id PK
+        uuid booking_id FK "NOT NULL"
+        uuid service_id FK "NOT NULL"
+        decimal unit_price "NOT NULL (snapshot price at booking time)"
+        int quantity "DEFAULT 1"
+        timestamp created_at
+    }
+
+    %% ========== SOS GPS TRACKING (Redis) ==========
+    %% Key: "sos:location:{bookingId}"
+    %% Value: {vetId, lat, long, updatedAt, status}
+    %% TTL: 60 seconds (auto-expire)
+    %% Only for type=SOS bookings
 
     PAYMENT {
         uuid id PK
@@ -202,12 +219,18 @@ erDiagram
         timestamp created_at
     }
 
-    %% ========== MEDICAL RECORDS ==========
-    EMR {
-        uuid id PK
-        uuid booking_id FK "NOT NULL"
-        uuid pet_id FK
-        uuid vet_id FK
+    %% ========== MEDICAL RECORDS (MongoDB) ==========
+    %% Note: These are stored in MongoDB, not PostgreSQL
+    %% Shown here for reference only
+
+    EMR_RECORD {
+        string id PK "MongoDB ObjectId"
+        uuid pet_id "Index - NOT NULL"
+        uuid booking_id "Index - Links to PostgreSQL"
+        uuid vet_id
+        uuid clinic_id
+        string clinic_name "Denormalized"
+        string vet_name "Denormalized"
         text subjective "S - Triệu chứng do chủ nuôi mô tả"
         text objective "O - Quan sát lâm sàng"
         text assessment "A - Chẩn đoán bệnh"
@@ -215,38 +238,24 @@ erDiagram
         text notes "Ghi chú thêm"
         decimal weight_kg
         decimal temperature_c
+        array images "Embedded: [{url, description}]"
+        array prescriptions "Embedded: [{medicineName, dosage, frequency, durationDays, instructions}]"
         timestamp examination_date
         timestamp created_at
     }
 
-    EMR_IMAGE {
-        uuid id PK
-        uuid emr_id FK "NOT NULL"
-        varchar image_url "NOT NULL"
-        text description "nullable (mô tả ảnh: X-quang, Triệu chứng...)"
-        timestamp created_at
-    }
-
-    PRESCRIPTION {
-        uuid id PK
-        uuid emr_id FK
-        varchar medicine_name "NOT NULL"
-        varchar dosage "NOT NULL"
-        varchar frequency "NOT NULL"
-        int duration_days
-        text instructions
-        timestamp created_at
-    }
-
-    VACCINATION {
-        uuid id PK
-        uuid pet_id FK
-        uuid vet_id FK
-        uuid clinic_id FK
-        uuid booking_id FK "NOT NULL"
-        varchar vaccine_name "NOT NULL"
+    VACCINATION_RECORD {
+        string id PK "MongoDB ObjectId"
+        uuid pet_id "Index - NOT NULL"
+        uuid booking_id "Links to PostgreSQL"
+        uuid vet_id
+        uuid clinic_id
+        string clinic_name "Denormalized"
+        string vet_name "Denormalized"
+        string vaccine_name "NOT NULL"
         date vaccination_date "NOT NULL"
-        date next_due_date
+        date next_due_date "Index - For reminders"
+        text notes "nullable"
         timestamp created_at
     }
 

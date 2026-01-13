@@ -2,7 +2,7 @@
 
 **Document Purpose:** Tổng hợp đầy đủ các module/feature của project Petties khi hoàn thành
 **For:** Stakeholder review, scope verification, team alignment
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-10
 
 ---
 
@@ -71,7 +71,7 @@
 | 16 | **Booking Management** | CLINIC_MANAGER | Booking list, assign vet, status tracking | ⏳ Pending |
 | 17 | **Chat System** | CM, VET | Conversations list, chat room | ⏳ Pending |
 | 18 | **Vet Dashboard** | VET | Schedule, assigned bookings, quick actions | ✅ Done |
-| 19 | **Vet Booking Actions** | VET | Approve/reject, check-in/out | ⏳ Pending |
+| 19 | **Vet Booking Actions** | VET | View assigned, check-in/out | ⏳ Pending |
 | 20 | **Patient Management** | CM, VET | Patient lookup, EMR history (read-only for CM) | ❌ Phase 2 |
 | 21 | **Profile Page** | All | View/edit profile, avatar, password | ✅ Done |
 | 22 | **Notifications** | All | Notification list, mark read | ✅ Done |
@@ -98,7 +98,7 @@
 | 14 | **SOS Emergency** | PET_OWNER | Emergency booking, track rescue vet, ETA | ❌ Phase 2 |
 | 15 | **Vet Home** | VET | Today's appointments, quick stats | ✅ Done |
 | 16 | **Vet Schedule** | VET | Calendar view, shift info, view-only slots | ✅ Done |
-| 17 | **Vet Bookings** | VET | Assigned bookings, approve/reject, check-in/out, add incurred services | ⏳ Pending |
+| 17 | **Vet Bookings** | VET | Assigned bookings, view details, check-in/out, add incurred services | ⏳ Pending |
 | 18 | **EMR Creation** | VET | Create/edit medical records | ❌ Phase 2 |
 | 19 | **Vaccination Entry** | VET | Add vaccination records | ❌ Phase 2 |
 | 20 | **Vet Chat** | VET | Chat with Pet Owner | ⏳ Pending |
@@ -138,10 +138,9 @@
 | 01 | SOS Emergency Booking | Logic phức tạp, GPS tracking, priority queue | High |
 | 02 | SOS Vet Response | GPS broadcast, route navigation phức tạp | High |
 | 03 | Video Consultation | WebRTC phức tạp | Low |
-| 04 | Excel Import | Manual đủ cho MVP | Low |
-| 05 | Multi-Agent Architecture | Simplified to Single Agent | Low |
-| 06 | Email/SMS Notifications | Push đủ cho MVP | Medium |
-| 07 | Multi-language | Defer sau MVP | Low |
+| 04 | Multi-Agent Architecture | Simplified to Single Agent | Low |
+| 05 | Email/SMS Notifications | Push đủ cho MVP | Medium |
+| 06 | Multi-language | Defer sau MVP | Low |
 
 ---
 
@@ -150,7 +149,7 @@
 | Role | Web | Mobile | Primary Use Cases |
 |------|:---:|:------:|-------------------|
 | **PET_OWNER** | - | ✅ | Book appointments, manage pets, chat with AI, view EMR, SOS emergency |
-| **VET** | ✅ | ✅ | Manage schedule, approve bookings, create EMR, add incurred services, chat, SOS response |
+| **VET** | ✅ | ✅ | Manage schedule, view assigned bookings, create EMR, add incurred services, chat, SOS response |
 | **CLINIC_MANAGER** | ✅ | - | Assign vets, manage bookings, view calendar, chat |
 | **CLINIC_OWNER** | ✅ | - | Manage clinics, services, pricing, staff, view revenue |
 | **ADMIN** | ✅ | - | Approve clinics, configure AI agent, manage system |

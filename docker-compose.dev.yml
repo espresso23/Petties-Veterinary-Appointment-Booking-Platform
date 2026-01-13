@@ -129,6 +129,7 @@ services:
         condition: service_healthy
     networks:
       - petties-dev-network
+  
 
   # ============================================
   # PYTHON AI AGENT SERVICE (Development)

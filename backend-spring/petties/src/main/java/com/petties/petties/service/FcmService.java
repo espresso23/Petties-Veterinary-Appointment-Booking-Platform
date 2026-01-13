@@ -5,6 +5,7 @@ import com.petties.petties.model.User;
 import com.petties.petties.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -19,11 +20,21 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class FcmService {
 
     private final FirebaseMessaging firebaseMessaging;
     private final UserRepository userRepository;
+
+    public FcmService(
+            @org.springframework.lang.Nullable FirebaseMessaging firebaseMessaging,
+            UserRepository userRepository) {
+        this.firebaseMessaging = firebaseMessaging;
+        this.userRepository = userRepository;
+
+        if (firebaseMessaging == null) {
+            log.warn("FirebaseMessaging not available. Push notifications will be disabled.");
+        }
+    }
 
     /**
      * Register FCM token for a user

@@ -91,7 +91,8 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. Header Section
-                _buildHeader(context, dateStr, user?.fullName ?? user?.username ?? 'Doctor'),
+                _buildHeader(context, dateStr,
+                    user?.fullName ?? user?.username ?? 'Doctor'),
 
                 const SizedBox(height: 20),
 
@@ -391,20 +392,25 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                '$pendingRequests',
-                                style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.stone900),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '$pendingRequests',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.stone900),
+                                ),
                               ),
-                              const Text(
-                                'Chờ xử lý',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.stone500),
-                                overflow: TextOverflow.ellipsis,
+                              const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  'Chờ xử lý',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.stone500),
+                                ),
                               ),
                             ],
                           ),
@@ -439,20 +445,25 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                '$hospitalized',
-                                style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.stone900),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '$hospitalized',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.stone900),
+                                ),
                               ),
-                              const Text(
-                                'Nội trú',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.stone500),
-                                overflow: TextOverflow.ellipsis,
+                              const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  'Nội trú',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.stone500),
+                                ),
                               ),
                             ],
                           ),

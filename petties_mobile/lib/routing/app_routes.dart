@@ -44,6 +44,10 @@ class AppRoutes {
   static const String editPet = '/pets/:id/edit';
   static const String petDetails = '/pets/:id';
 
+  // Chat
+  static const String chatList = '/chat';
+  static const String chatDetail = '/chat/detail';
+
   // Other
   static const String aboutUs = '/about';
   static const String termsOfService = '/terms';

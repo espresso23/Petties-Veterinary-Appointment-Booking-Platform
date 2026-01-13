@@ -1,6 +1,6 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-07  
+> **Last Updated:** 2026-01-10  
 > **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)  
 > **Overall Progress:** 55%
 
@@ -66,7 +66,6 @@
 1. **VetShift Refinements**
    - [x] Calendar Picker Component
    - [x] Shift Conflict Detection
-   - [ ] Import from Excel
 
 2. **Notification System**
    - [x] FCM Backend Integration
@@ -91,8 +90,9 @@
 
 ### Booking Workflow
 - [ ] Multi-step Booking Wizard
-- [ ] QR Code Check-in
-- [ ] State Machine (PENDING → CONFIRMED → DONE)
+- [ ] Vet Check-in Button (click to start examination)
+- [ ] Vet Checkout Button (complete appointment)
+- [ ] State Machine (PENDING → CONFIRMED → IN_PROGRESS → COMPLETED)
 - [ ] Cancellation & Refund Policy
 
 ---

@@ -447,6 +447,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
 
+        // Vet-specific info section (specialty + rating)
+        const ProfileSectionHeader(title: 'Thông tin chuyên môn'),
+        ProfileInfoGroup(
+          children: [
+            ProfileInfoCard(
+              label: 'Chuyên môn',
+              value: profile.specialtyDisplayText ?? 'Chưa cập nhật',
+              icon: Icons.workspace_premium_outlined,
+              showBottomBorder:
+                  profile.ratingAvg != null || profile.ratingCount != null,
+            ),
+            if (profile.ratingAvg != null || profile.ratingCount != null)
+              _buildRatingCard(profile),
+          ],
+        ),
+
         // Actions section
         const ProfileSectionHeader(title: 'Thao tác'),
         ProfileInfoGroup(
@@ -474,6 +490,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
         const SizedBox(height: 32),
       ],
+    );
+  }
+
+  /// Build rating card for VET profile with star icon
+  Widget _buildRatingCard(UserProfile profile) {
+    final rating = profile.ratingAvg ?? 0.0;
+    final count = profile.ratingCount ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              border: Border.all(color: AppColors.stone900, width: 2),
+            ),
+            child: Icon(
+              Icons.star_rounded,
+              color: AppColors.warning,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ĐÁNH GIÁ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.stone500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      rating > 0 ? rating.toStringAsFixed(1) : 'Chưa có',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.stone900,
+                      ),
+                    ),
+                    if (rating > 0) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.star_rounded,
+                        color: AppColors.warning,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '($count đánh giá)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.stone500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

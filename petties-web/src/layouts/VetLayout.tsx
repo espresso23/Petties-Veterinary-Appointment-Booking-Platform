@@ -6,6 +6,7 @@ import { Sidebar } from '../components/Sidebar/Sidebar'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
+import { useSyncProfile } from '../hooks/useSyncProfile'
 import {
     Squares2X2Icon,
     CalendarIcon,
@@ -26,6 +27,9 @@ export const VetLayout = () => {
 
     // Initialize SSE
     useSseNotification()
+
+    // Auto-sync profile (avatar, fullName) to authStore for Sidebar
+    useSyncProfile()
 
     useEffect(() => {
         refreshUnreadCount()

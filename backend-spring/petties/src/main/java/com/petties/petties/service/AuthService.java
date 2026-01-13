@@ -329,6 +329,11 @@ public class AuthService {
                                 .fullName(user.getFullName() != null ? user.getFullName() : user.getUsername())
                                 .avatar(user.getAvatar())
                                 .role(user.getRole().name())
+                                .workingClinicId(user.getWorkingClinic() != null ? user.getWorkingClinic().getClinicId()
+                                                : null)
+                                .workingClinicName(user.getWorkingClinic() != null ? user.getWorkingClinic().getName()
+                                                : null)
+                                .specialty(user.getSpecialty() != null ? user.getSpecialty().name() : null)
                                 .build();
         }
 
@@ -337,29 +342,54 @@ public class AuthService {
          * Handles race condition where concurrent requests might try to create
          * the same user simultaneously.
          * 
+         * If user exists but fullName is empty (invited by email),
+         * update fullName from Google profile.
+         * 
          * @param googleUser Google user info
          * @param platform   Platform (mobile/web)
          * @return User (existing or newly created)
          */
         private User findOrCreateGoogleUser(GoogleAuthService.GoogleUserInfo googleUser, String platform) {
-                // First attempt: try to find existing user
-                return userRepository.findByEmail(googleUser.email())
-                                .orElseGet(() -> {
-                                        try {
-                                                // User not found, create new one
-                                                return createUserFromGoogle(googleUser, platform);
-                                        } catch (DataIntegrityViolationException e) {
-                                                // Race condition: another request created the user first
-                                                // Retry finding the user that was just created
-                                                log.warn("Race condition detected for email: {}. Retrying findByEmail.",
-                                                                googleUser.email());
-                                                return userRepository.findByEmail(googleUser.email())
-                                                                .orElseThrow(() -> new RuntimeException(
-                                                                                "Failed to create or find user for email: "
-                                                                                                + googleUser.email(),
-                                                                                e));
-                                        }
-                                });
+                // First attempt: try to find existing user with workingClinic eager loaded
+                var existingUser = userRepository.findByEmailWithWorkingClinic(googleUser.email());
+
+                if (existingUser.isPresent()) {
+                        User user = existingUser.get();
+                        boolean updated = false;
+
+                        // Update fullName if empty (invited user logging in first time)
+                        if (user.getFullName() == null || user.getFullName().isBlank()) {
+                                user.setFullName(googleUser.name());
+                                updated = true;
+                        }
+
+                        // Update avatar if empty
+                        if (user.getAvatar() == null || user.getAvatar().isBlank()) {
+                                user.setAvatar(googleUser.picture());
+                                updated = true;
+                        }
+
+                        if (updated) {
+                                userRepository.save(user);
+                                log.info("Updated profile for invited user: {}", googleUser.email());
+                        }
+                        return user;
+                }
+
+                // User not found, create new one
+                try {
+                        return createUserFromGoogle(googleUser, platform);
+                } catch (DataIntegrityViolationException e) {
+                        // Race condition: another request created the user first
+                        // Retry finding the user that was just created
+                        log.warn("Race condition detected for email: {}. Retrying findByEmail.",
+                                        googleUser.email());
+                        return userRepository.findByEmail(googleUser.email())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Failed to create or find user for email: "
+                                                                        + googleUser.email(),
+                                                        e));
+                }
         }
 
         /**

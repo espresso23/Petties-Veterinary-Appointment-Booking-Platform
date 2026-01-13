@@ -1,20 +1,23 @@
 import { useState } from 'react'
-import { TrashIcon, UserCircleIcon } from '@heroicons/react/24/outline'
-import type { StaffMember } from '../../types/clinicStaff'
+import { TrashIcon, UserCircleIcon, PencilIcon } from '@heroicons/react/24/outline'
+import type { StaffMember, StaffSpecialty } from '../../types/clinicStaff'
+import { SPECIALTY_LABELS } from '../../types/clinicStaff'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 
 interface StaffTableProps {
     staff: StaffMember[]
     isLoading?: boolean
     onRemove?: (userId: string) => void
+    onEditSpecialty?: (member: StaffMember) => void
     canRemove?: boolean
+    canEdit?: boolean
 }
 
 /**
  * Staff Table Component - Neobrutalism Design
  * Displays staff members in a table with actions
  */
-export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: StaffTableProps) {
+export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRemove = true, canEdit = true }: StaffTableProps) {
     const [removingId, setRemovingId] = useState<string | null>(null)
     const [confirmDialog, setConfirmDialog] = useState<{
         isOpen: boolean
@@ -54,6 +57,27 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
         return (
             <span className="px-3 py-1 bg-amber-100 text-amber-800 border-2 border-stone-900 font-bold text-xs uppercase shadow-[2px_2px_0_#1c1917]">
                 QUẢN LÝ PHÒNG KHÁM
+            </span>
+        )
+    }
+
+    const getSpecialtyBadge = (specialty?: StaffSpecialty) => {
+        if (!specialty) return <span className="text-stone-400">-</span>
+
+        const label = SPECIALTY_LABELS[specialty] || specialty
+
+        // Neobrutalism colors - matching app design
+        const colorClasses: Record<StaffSpecialty, string> = {
+            VET_GENERAL: 'bg-blue-100 text-blue-800',
+            VET_SURGERY: 'bg-purple-100 text-purple-800',
+            VET_DENTAL: 'bg-cyan-100 text-cyan-800',
+            VET_DERMATOLOGY: 'bg-pink-100 text-pink-800',
+            GROOMER: 'bg-orange-100 text-orange-800',
+        }
+
+        return (
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] ${colorClasses[specialty]}`}>
+                {label}
             </span>
         )
     }
@@ -100,9 +124,9 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
                                     VAI TRÒ
                                 </th>
                                 <th className="text-left p-4 font-bold uppercase text-sm text-stone-900">
-                                    LIÊN HỆ
+                                    CHUYÊN MÔN
                                 </th>
-                                {canRemove && (
+                                {(canRemove || canEdit) && (
                                     <th className="text-right p-4 font-bold uppercase text-sm text-stone-900">
                                         HÀNH ĐỘNG
                                     </th>
@@ -132,8 +156,17 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
                                                 </div>
                                             )}
                                             <div>
-                                                <p className="font-bold text-stone-900">{member.fullName}</p>
-                                                <p className="text-xs text-stone-500">@{member.username}</p>
+                                                <p className="font-bold text-stone-900">
+                                                    {member.fullName || member.email || member.username}
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-stone-500">@{member.username}</span>
+                                                    {!member.fullName && (
+                                                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300">
+                                                            Chờ đăng nhập
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -144,20 +177,33 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
                                     </td>
                                     <td className="p-4">{getRoleBadge(member.role)}</td>
                                     <td className="p-4">
-                                        <div className="text-sm">
-                                            <p className="text-stone-700 font-medium">{member.email || '-'}</p>
-                                        </div>
+                                        <span className="text-stone-700 font-medium text-sm">
+                                            {member.role === 'VET' ? getSpecialtyBadge(member.specialty) : '-'}
+                                        </span>
                                     </td>
-                                    {canRemove && (
+                                    {(canRemove || canEdit) && (
                                         <td className="p-4 text-right">
-                                            <button
-                                                onClick={() => handleRemoveClick(member.userId, member.fullName)}
-                                                disabled={removingId === member.userId}
-                                                className="p-2 text-red-600 hover:bg-red-100 border-2 border-transparent hover:border-red-600 transition-all disabled:opacity-50"
-                                                title="Xóa nhân viên"
-                                            >
-                                                <TrashIcon className="w-5 h-5" />
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                                    <button
+                                                        onClick={() => onEditSpecialty(member)}
+                                                        className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-transparent hover:border-amber-600 transition-all"
+                                                        title="Sửa chuyên môn"
+                                                    >
+                                                        <PencilIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                                {canRemove && (
+                                                    <button
+                                                        onClick={() => handleRemoveClick(member.userId, member.fullName)}
+                                                        disabled={removingId === member.userId}
+                                                        className="p-2 text-red-600 hover:bg-red-100 border-2 border-transparent hover:border-red-600 transition-all disabled:opacity-50"
+                                                        title="Xóa nhân viên"
+                                                    >
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     )}
                                 </tr>
@@ -186,24 +232,45 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
                                         </div>
                                     )}
                                     <div>
-                                        <p className="font-bold text-stone-900">{member.fullName}</p>
-                                        <p className="text-xs text-stone-500 mb-1">@{member.username}</p>
+                                        <p className="font-bold text-stone-900">
+                                            {member.fullName || member.email || member.username}
+                                        </p>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xs text-stone-500">@{member.username}</span>
+                                            {!member.fullName && (
+                                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300">
+                                                    Chờ đăng nhập
+                                                </span>
+                                            )}
+                                        </div>
                                         {getRoleBadge(member.role)}
                                     </div>
                                 </div>
-                                {canRemove && (
-                                    <button
-                                        onClick={() => handleRemoveClick(member.userId, member.fullName)}
-                                        disabled={removingId === member.userId}
-                                        className="p-2 text-red-600 hover:bg-red-100 border-2 border-red-600"
-                                    >
-                                        <TrashIcon className="w-5 h-5" />
-                                    </button>
-                                )}
+                                <div className="flex gap-1">
+                                    {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                        <button
+                                            onClick={() => onEditSpecialty(member)}
+                                            className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-amber-600"
+                                        >
+                                            <PencilIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                    {canRemove && (
+                                        <button
+                                            onClick={() => handleRemoveClick(member.userId, member.fullName)}
+                                            disabled={removingId === member.userId}
+                                            className="p-2 text-red-600 hover:bg-red-100 border-2 border-red-600"
+                                        >
+                                            <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="mt-3 text-sm text-stone-600 space-y-1">
                                 {member.phone && <p>SĐT: {member.phone}</p>}
-                                {member.email && <p>Email: {member.email}</p>}
+                                {member.role === 'VET' && (
+                                    <p>Chuyên môn: {getSpecialtyBadge(member.specialty)}</p>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -224,3 +291,4 @@ export function StaffTable({ staff, isLoading, onRemove, canRemove = true }: Sta
         </>
     )
 }
+

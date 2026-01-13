@@ -168,6 +168,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         {user?.fullName || 'User'}
                                     </p>
                                     <p className="text-[9px] font-medium text-stone-500 truncate mt-0.5">{user?.email}</p>
+                                    {user?.specialty && (
+                                        <p className="text-[8px] font-bold text-amber-600 truncate mt-0.5 uppercase">
+                                            {user.specialty === 'VET_GENERAL' && 'BS Thú y'}
+                                            {user.specialty === 'VET_SURGERY' && 'BS Phẫu thuật'}
+                                            {user.specialty === 'VET_DENTAL' && 'BS Nha khoa'}
+                                            {user.specialty === 'VET_DERMATOLOGY' && 'BS Da liễu'}
+                                            {user.specialty === 'GROOMER' && 'Grooming'}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                             <button
