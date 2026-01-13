@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/chat.dart';
 import 'package:intl/intl.dart';
+import '../chat_detail_screen.dart';
 
 /// Widget hiển thị một tin nhắn trong chat
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
+  final Function(ChatMessage)? onImageTap;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.showAvatar = true,
+    this.onImageTap,
   });
 
   @override
@@ -105,16 +108,66 @@ class MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Message content
-          Text(
-            message.content,
-            style: TextStyle(
-              fontSize: 15,
-              color: isMine ? AppColors.white : AppColors.stone900,
-              height: 1.3,
+          // Image content
+          if ((message.messageType == MessageType.image || message.messageType == MessageType.imageText) && message.imageUrl != null && message.imageUrl!.isNotEmpty) ...[
+            GestureDetector(
+              onTap: () {
+                // Call the callback to show image carousel
+                onImageTap?.call(message);
+              },
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 200, maxHeight: 200),
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    message.imageUrl!,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: 100,
+                        height: 100,
+                        color: AppColors.stone100,
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 100,
+                        height: 100,
+                        color: AppColors.stone100,
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            color: AppColors.stone400,
+                            size: 32,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
+          ],
+          // Text content (only show if there's actual text content)
+          if (message.content.isNotEmpty) ...[
+            Text(
+              message.content,
+              style: TextStyle(
+                fontSize: 15,
+                color: isMine ? AppColors.white : AppColors.stone900,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
           // Time & Status
           Row(
             mainAxisSize: MainAxisSize.min,

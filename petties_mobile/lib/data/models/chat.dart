@@ -41,6 +41,27 @@ enum MessageStatus {
   }
 }
 
+/// Enum cho loại tin nhắn
+enum MessageType {
+  text('TEXT'),
+  image('IMAGE'),
+  imageText('IMAGE_TEXT');
+
+  final String value;
+  const MessageType(this.value);
+
+  static MessageType fromString(String? value) {
+    switch (value?.toUpperCase()) {
+      case 'IMAGE':
+        return MessageType.image;
+      case 'IMAGE_TEXT':
+        return MessageType.imageText;
+      default:
+        return MessageType.text;
+    }
+  }
+}
+
 /// Model cho cuộc hội thoại (ChatConversation)
 class ChatConversation extends BaseModel {
   final String id;
@@ -202,6 +223,8 @@ class ChatMessage extends BaseModel {
   final String? senderName;
   final String? senderAvatar;
   final String content;
+  final MessageType messageType;
+  final String? imageUrl;
   final MessageStatus status;
   final bool isRead;
   final DateTime? readAt;
@@ -215,6 +238,8 @@ class ChatMessage extends BaseModel {
     this.senderName,
     this.senderAvatar,
     required this.content,
+    this.messageType = MessageType.text,
+    this.imageUrl,
     this.status = MessageStatus.sent,
     this.isRead = false,
     this.readAt,
@@ -234,6 +259,8 @@ class ChatMessage extends BaseModel {
       senderName: json['senderName'] ?? json['sender_name'],
       senderAvatar: json['senderAvatar'] ?? json['sender_avatar'],
       content: json['content'] ?? '',
+      messageType: MessageType.fromString(json['messageType'] ?? json['message_type']),
+      imageUrl: json['imageUrl'] ?? json['image_url'],
       status: MessageStatus.fromString(json['status']),
       isRead: json['isRead'] ?? json['is_read'] ?? false,
       readAt: json['readAt'] != null

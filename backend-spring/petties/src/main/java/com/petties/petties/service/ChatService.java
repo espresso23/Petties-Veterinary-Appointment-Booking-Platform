@@ -77,7 +77,7 @@ public class ChatService {
             // If initial message provided, send it
             if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
                 sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
-                        new SendMessageRequest(request.getInitialMessage()));
+                        new SendMessageRequest(request.getInitialMessage(), null));
                 // Refresh conversation
                 conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
             }
@@ -103,7 +103,7 @@ public class ChatService {
         // If initial message provided, send it
         if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
             sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
-                    new SendMessageRequest(request.getInitialMessage()));
+                    new SendMessageRequest(request.getInitialMessage(), null));
             // Refresh conversation
             conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
         }
@@ -178,6 +178,8 @@ public class ChatService {
                 .senderName(sender.getFullName())
                 .senderAvatar(sender.getAvatar())
                 .content(request.getContent())
+                .messageType(determineMessageType(request.getContent(), request.getImageUrl()))
+                .imageUrl(request.getImageUrl())
                 .status(ChatMessage.MessageStatus.SENT)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -185,8 +187,17 @@ public class ChatService {
         message = messageRepository.save(message);
         log.debug("Message saved: {} in conversation: {}", message.getId(), conversationId);
 
-        // Update conversation
-        conversation.setLastMessage(truncateMessage(request.getContent(), 100));
+        // Update conversation with appropriate last message preview
+        String lastMessagePreview;
+        if (message.getMessageType() == ChatMessage.MessageType.IMAGE) {
+            lastMessagePreview = "[Hình ảnh]";
+        } else if (message.getMessageType() == ChatMessage.MessageType.IMAGE_TEXT) {
+            lastMessagePreview = truncateMessage(request.getContent(), 100);
+        } else {
+            lastMessagePreview = truncateMessage(request.getContent(), 100);
+        }
+
+        conversation.setLastMessage(lastMessagePreview);
         conversation.setLastMessageSender(senderType.name());
         conversation.setLastMessageAt(LocalDateTime.now());
 
@@ -336,7 +347,7 @@ public class ChatService {
 
     // ======================== HELPER METHODS ========================
 
-    private void validateConversationAccess(ChatConversation conversation, UUID userId) {
+    public void validateConversationAccess(ChatConversation conversation, UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
 
@@ -389,7 +400,11 @@ public class ChatService {
                 .build();
     }
 
-    private MessageResponse mapToMessageResponse(ChatMessage msg, UUID currentUserId) {
+    public ChatMessage saveMessage(ChatMessage message) {
+        return messageRepository.save(message);
+    }
+
+    public MessageResponse mapToMessageResponse(ChatMessage msg, UUID currentUserId) {
         return MessageResponse.builder()
                 .id(msg.getId())
                 .chatBoxId(msg.getChatBoxId())
@@ -398,6 +413,8 @@ public class ChatService {
                 .senderName(msg.getSenderName())
                 .senderAvatar(msg.getSenderAvatar())
                 .content(msg.getContent())
+                .messageType(msg.getMessageType().name())
+                .imageUrl(msg.getImageUrl())
                 .status(msg.getStatus().name())
                 .isRead(msg.isRead())
                 .readAt(msg.getReadAt())
@@ -406,7 +423,7 @@ public class ChatService {
                 .build();
     }
 
-    private void sendWebSocketMessage(String conversationId, ChatWebSocketMessage.MessageType type,
+    public void sendWebSocketMessage(String conversationId, ChatWebSocketMessage.MessageType type,
             MessageResponse message, UUID senderId, String senderType) {
 
         ChatWebSocketMessage wsMessage = ChatWebSocketMessage.builder()
@@ -429,5 +446,53 @@ public class ChatService {
         if (message.length() <= maxLength)
             return message;
         return message.substring(0, maxLength - 3) + "...";
+    }
+
+    private ChatMessage.MessageType determineMessageType(String content, String imageUrl) {
+        if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+            if (content != null && !content.trim().isEmpty()) {
+                return ChatMessage.MessageType.IMAGE_TEXT; // Combined text + image
+            }
+            return ChatMessage.MessageType.IMAGE; // Image only
+        }
+        return ChatMessage.MessageType.TEXT; // Text only
+    }
+
+    /**
+     * Get all images in a conversation.
+     * Returns list of MessageResponse containing only image messages.
+     */
+    public List<MessageResponse> getConversationImages(String conversationId, UUID currentUserId) {
+        // Validate conversation access
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
+        validateConversationAccess(conversation, currentUserId);
+
+        // Get all image messages in conversation, ordered by creation time (newest first)
+        List<ChatMessage> imageMessages = messageRepository
+                .findByChatBoxIdAndMessageTypeOrderByCreatedAtDesc(
+                        conversationId, ChatMessage.MessageType.IMAGE);
+
+        // Convert to MessageResponse
+        List<MessageResponse> result = new java.util.ArrayList<>();
+        for (ChatMessage msg : imageMessages) {
+            result.add(MessageResponse.builder()
+                    .id(msg.getId())
+                    .chatBoxId(msg.getChatBoxId())
+                    .senderId(msg.getSenderId())
+                    .senderType(msg.getSenderType().name())
+                    .senderName(msg.getSenderName())
+                    .senderAvatar(msg.getSenderAvatar())
+                    .content(msg.getContent())
+                    .messageType(msg.getMessageType().name())
+                    .imageUrl(msg.getImageUrl())
+                    .status(msg.getStatus().name())
+                    .isRead(msg.isRead())
+                    .readAt(msg.getReadAt())
+                    .createdAt(msg.getCreatedAt())
+                    .isMe(msg.getSenderId().equals(currentUserId))
+                    .build());
+        }
+        return result;
     }
 }

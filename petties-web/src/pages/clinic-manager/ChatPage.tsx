@@ -4,6 +4,7 @@ import { ChatBoxList, ChatBox } from '../../components/chat'
 import { chatService } from '../../services/api/chatService'
 import { chatWebSocket } from '../../services/websocket/chatWebSocket'
 import { useToast } from '../../hooks/useToast'
+import { useChatStore } from '../../store/chatStore'
 import type { ChatBox as ChatBoxType, ChatMessage, ChatWebSocketMessage } from '../../types/chat'
 
 /**
@@ -12,6 +13,9 @@ import type { ChatBox as ChatBoxType, ChatMessage, ChatWebSocketMessage } from '
  */
 export function ChatPage() {
   const { showToast } = useToast()
+  const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
+  const decrementChatUnreadCount = useChatStore((state) => state.decrementUnreadCount)
+  const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
 
   // State
   const [chatBoxes, setChatBoxes] = useState<ChatBoxType[]>([])
@@ -107,6 +111,11 @@ export function ChatPage() {
     selectedChatBoxIdRef.current = selectedChatBox?.id ?? null
   }, [selectedChatBox?.id])
 
+  // Refresh chat unread count when page loads
+  useEffect(() => {
+    refreshChatUnreadCount()
+  }, [refreshChatUnreadCount])
+
   const updateChatBoxLastMessage = useCallback((chatBoxId: string, message: ChatMessage) => {
     // Use ref to get the current selected chat box ID (avoids stale closure)
     const currentSelectedId = selectedChatBoxIdRef.current
@@ -118,7 +127,7 @@ export function ChatPage() {
         cb.id === chatBoxId
           ? {
             ...cb,
-            lastMessage: message.content,
+            lastMessage: message.messageType === 'IMAGE' ? '[Hình ảnh]' : (message.content || ''),
             lastMessageSender: message.senderType,
             lastMessageAt: message.createdAt,
             // Unread count logic:
@@ -142,6 +151,12 @@ export function ChatPage() {
       console.log('[WS DEBUG] setChatBoxes - sorted[0]:', sorted[0]?.lastMessage, sorted[0]?.lastMessageSender)
       return sorted
     })
+
+    // Update global chat unread count for navigation badge
+    // Increment if message is from PET_OWNER and chat is not currently selected
+    if (message.senderType === 'PET_OWNER' && currentSelectedId !== chatBoxId) {
+      incrementChatUnreadCount()
+    }
 
     // Also update selectedChatBox if it's the one receiving the message
     if (currentSelectedId === chatBoxId) {
@@ -232,6 +247,7 @@ export function ChatPage() {
   // Load chat boxes on mount
   useEffect(() => {
     loadChatBoxes()
+    refreshChatUnreadCount()
     connectWebSocket()
 
     return () => {
@@ -239,7 +255,8 @@ export function ChatPage() {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
       }
-      chatWebSocket.disconnect()
+      // Don't disconnect WebSocket as layout needs it for global updates
+      // chatWebSocket.disconnect()
     }
   }, [])
 
@@ -258,10 +275,11 @@ export function ChatPage() {
       return chatWebSocket.subscribeToChatBox(cb.id, handleWebSocketMessage)
     })
 
-    return () => {
-      console.log('[WS DEBUG] Unsubscribing from all chat boxes')
-      unsubscribes.forEach(unsub => unsub())
-    }
+    // Keep subscriptions active for global updates even when navigating away
+    // return () => {
+    //   console.log('[WS DEBUG] Unsubscribing from all chat boxes')
+    //   unsubscribes.forEach(unsub => unsub())
+    // }
   }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
 
   // Load messages and send online status for the selected chat box
@@ -270,7 +288,10 @@ export function ChatPage() {
       loadMessages(selectedChatBox.id, 0, true)
 
       // Mark as read
-      chatService.markAsRead(selectedChatBox.id).catch(console.error)
+      chatService.markAsRead(selectedChatBox.id).then(() => {
+        // Refresh global unread count after marking as read
+        refreshChatUnreadCount()
+      }).catch(console.error)
 
       // Send online status
       chatWebSocket.sendOnlineStatus(selectedChatBox.id, true)
@@ -287,12 +308,20 @@ export function ChatPage() {
   // ======================== HANDLERS ========================
 
   const handleSelectChatBox = (chatBox: ChatBoxType) => {
+    // Get the current unread count before setting to 0
+    const currentUnreadCount = chatBox.unreadCount
+
     // Always update unread count in list
     setChatBoxes((prev) =>
       prev.map((cb) =>
         cb.id === chatBox.id ? { ...cb, unreadCount: 0 } : cb
       )
     )
+
+    // Decrement global unread count by the number of unread messages in this chat
+    if (currentUnreadCount > 0) {
+      decrementChatUnreadCount(currentUnreadCount)
+    }
 
     // If clicking the same conversation, just mark as read, don't reset state
     if (selectedChatBox?.id === chatBox.id) {
@@ -318,6 +347,52 @@ export function ChatPage() {
     } catch (error) {
       console.error('Failed to send message:', error)
       showToast('error', 'Không thể gửi tin nhắn. Vui lòng thử lại.')
+    }
+  }
+
+  const handleImageUpload = async (file: File) => {
+    if (!selectedChatBox) return
+
+    try {
+      // Upload image first
+      const uploadResponse = await chatService.uploadImage(selectedChatBox.id, file)
+      const imageUrl = uploadResponse.imageUrl
+
+      // Send message with image URL
+      await chatService.sendMessage(selectedChatBox.id, {
+        content: '', // Empty content for image-only messages
+        imageUrl
+      })
+    } catch (error) {
+      console.error('Failed to upload image:', error)
+      showToast('error', 'Không thể tải lên hình ảnh. Vui lòng thử lại.')
+      throw error
+    }
+  }
+
+  const handleCombinedMessage = async (content: string, imageFile: File) => {
+    if (!selectedChatBox) return
+
+    console.log('ChatPage.handleCombinedMessage called', { content, imageFile: imageFile.name })
+
+    try {
+      // Upload image first
+      const uploadResponse = await chatService.uploadImage(selectedChatBox.id, imageFile)
+      const imageUrl = uploadResponse.imageUrl
+
+      console.log('ChatPage.handleCombinedMessage: Image uploaded', { imageUrl })
+
+      // Send message with both text and image URL
+      await chatService.sendMessage(selectedChatBox.id, {
+        content,
+        imageUrl
+      })
+
+      console.log('ChatPage.handleCombinedMessage: Combined message sent')
+    } catch (error) {
+      console.error('Failed to send combined message:', error)
+      showToast('error', 'Không thể gửi tin nhắn. Vui lòng thử lại.')
+      throw error
     }
   }
 
@@ -384,6 +459,8 @@ export function ChatPage() {
           chatBox={selectedChatBox}
           messages={messages}
           onSendMessage={handleSendMessage}
+          onImageUpload={handleImageUpload}
+          onCombinedMessage={handleCombinedMessage}
           onTyping={handleTyping}
           onLoadMore={loadMoreMessages}
           loading={loadingMessages}
