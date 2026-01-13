@@ -10,13 +10,16 @@ import { useUserStore } from '../store/userStore'
  */
 export const useSyncProfile = () => {
     const user = useAuthStore((state) => state.user)
-    const setUser = useAuthStore((state) => state.setUser)
     const fetchProfile = useUserStore((state) => state.fetchProfile)
     const clearProfile = useUserStore((state) => state.clearProfile)
     const profile = useUserStore((state) => state.profile)
 
     // Track previous user ID to detect user changes
     const prevUserIdRef = useRef<string | null>(null)
+
+    // Track synced values to prevent infinite loops
+    const syncedAvatarRef = useRef<string | undefined>(undefined)
+    const syncedFullNameRef = useRef<string | undefined>(undefined)
 
     // Clear profile and fetch new one when user changes (logout/login different account)
     useEffect(() => {
@@ -26,6 +29,9 @@ export const useSyncProfile = () => {
         // User changed (logged out, or logged in as different user)
         if (prevUserId !== null && prevUserId !== currentUserId) {
             clearProfile()
+            // Reset sync tracking
+            syncedAvatarRef.current = undefined
+            syncedFullNameRef.current = undefined
         }
 
         // Fetch profile for new user
@@ -34,23 +40,35 @@ export const useSyncProfile = () => {
         }
 
         prevUserIdRef.current = currentUserId
-    }, [user, profile, fetchProfile, clearProfile])
+    }, [user?.userId, profile?.userId, fetchProfile, clearProfile])
 
     // Sync profile data to authStore when profile is loaded
+    // Use refs to prevent infinite loops
     useEffect(() => {
         if (user && profile && profile.userId === user.userId) {
-            const needsUpdate =
-                profile.avatar !== user.avatar ||
-                profile.fullName !== user.fullName
+            const avatarNeedsUpdate =
+                profile.avatar !== user.avatar &&
+                profile.avatar !== syncedAvatarRef.current
 
-            if (needsUpdate) {
-                setUser({
+            const fullNameNeedsUpdate =
+                profile.fullName !== user.fullName &&
+                profile.fullName !== syncedFullNameRef.current
+
+            if (avatarNeedsUpdate || fullNameNeedsUpdate) {
+                const newAvatar = profile.avatar || undefined
+                const newFullName = profile.fullName || user.fullName
+
+                // Track what we're syncing to prevent re-syncing
+                syncedAvatarRef.current = newAvatar
+                syncedFullNameRef.current = newFullName
+
+                useAuthStore.getState().setUser({
                     ...user,
-                    avatar: profile.avatar || undefined,
-                    fullName: profile.fullName || user.fullName,
+                    avatar: newAvatar,
+                    fullName: newFullName,
                 })
             }
         }
-    }, [user, profile, setUser])
+    }, [user?.userId, user?.avatar, user?.fullName, profile?.userId, profile?.avatar, profile?.fullName])
 }
 
