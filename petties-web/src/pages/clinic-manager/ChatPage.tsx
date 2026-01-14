@@ -107,14 +107,16 @@ export function ChatPage() {
   // Use a ref to always have access to the current selectedChatBox.id
   // This avoids stale closures in WebSocket handlers
   const selectedChatBoxIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    selectedChatBoxIdRef.current = selectedChatBox?.id ?? null
-  }, [selectedChatBox?.id])
+  const setActiveConversationId = useChatStore((state) => state.setActiveConversationId)
 
-  // Refresh chat unread count when page loads
   useEffect(() => {
-    refreshChatUnreadCount()
-  }, [refreshChatUnreadCount])
+    const currentId = selectedChatBox?.id ?? null
+    selectedChatBoxIdRef.current = currentId
+    setActiveConversationId(currentId)
+    return () => setActiveConversationId(null)
+  }, [selectedChatBox?.id, setActiveConversationId])
+
+  // Removed duplicate refresh call - already handled in mount effect below
 
   const updateChatBoxLastMessage = useCallback((chatBoxId: string, message: ChatMessage) => {
     // Use ref to get the current selected chat box ID (avoids stale closure)
@@ -123,24 +125,34 @@ export function ChatPage() {
 
     setChatBoxes((prev) => {
       console.log('[WS DEBUG] setChatBoxes - prev length:', prev.length)
-      const updated = prev.map((cb) =>
-        cb.id === chatBoxId
-          ? {
-            ...cb,
-            lastMessage: message.messageType === 'IMAGE' ? '[Hình ảnh]' : (message.content || ''),
-            lastMessageSender: message.senderType,
-            lastMessageAt: message.createdAt,
-            // Unread count logic:
-            // - If viewing this chat: 0
-            // - If CLINIC sent (own message): 0 (implicitly read by sending)
-            // - If PET_OWNER sent: increment
-            unreadCount:
-              currentSelectedId === chatBoxId || message.senderType === 'CLINIC'
-                ? 0
-                : cb.unreadCount + 1,
-          }
-          : cb
-      )
+      // Track decrement needed
+      let decrementAmount = 0
+
+      const updated = prev.map((cb) => {
+        if (cb.id !== chatBoxId) return cb
+
+        const isReadNow = currentSelectedId === chatBoxId || message.senderType === 'CLINIC'
+
+        // Handle potentially undefined unreadCount to avoid NaN
+        const currentCount = cb.unreadCount || 0
+        const newUnreadCount = isReadNow ? 0 : currentCount + 1
+
+        if (isReadNow && currentCount > 0) {
+          decrementAmount = currentCount
+        }
+
+        return {
+          ...cb,
+          lastMessage: message.messageType === 'IMAGE' ? '[Hình ảnh]' : (message.content || ''),
+          lastMessageSender: message.senderType,
+          lastMessageAt: message.createdAt,
+          unreadCount: newUnreadCount,
+        }
+      })
+
+      if (decrementAmount > 0) {
+        setTimeout(() => decrementChatUnreadCount(decrementAmount), 0)
+      }
 
       // Re-sort: newest message first
       const sorted = [...updated].sort((a, b) => {
@@ -153,14 +165,22 @@ export function ChatPage() {
     })
 
     // Update global chat unread count for navigation badge
-    // Increment if message is from PET_OWNER and chat is not currently selected
+    // HANDLED BY LAYOUT SUBSCRIPTION NOW
+    /*
     if (message.senderType === 'PET_OWNER' && currentSelectedId !== chatBoxId) {
       incrementChatUnreadCount()
     }
+    */
 
     // Also update selectedChatBox if it's the one receiving the message
     if (currentSelectedId === chatBoxId) {
       console.log('[WS DEBUG] Also updating selectedChatBox')
+
+      // FORCE MARK READ ON SERVER if message is from PET_OWNER
+      if (message.senderType === 'PET_OWNER') {
+        chatService.markAsRead(chatBoxId).catch(err => console.error('Auto mark read failed', err))
+      }
+
       setSelectedChatBox(prev => prev ? {
         ...prev,
         lastMessage: message.content,
@@ -276,10 +296,11 @@ export function ChatPage() {
     })
 
     // Keep subscriptions active for global updates even when navigating away
-    // return () => {
-    //   console.log('[WS DEBUG] Unsubscribing from all chat boxes')
-    //   unsubscribes.forEach(unsub => unsub())
-    // }
+    // ACTUALLY: We MUST unsubscribe to prevent duplicate handlers (multiplier bug)
+    return () => {
+      console.log('[WS DEBUG] Unsubscribing from all chat boxes, count:', unsubscribes.length)
+      unsubscribes.forEach(unsub => unsub())
+    }
   }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
 
   // Load messages and send online status for the selected chat box
@@ -287,11 +308,8 @@ export function ChatPage() {
     if (selectedChatBox) {
       loadMessages(selectedChatBox.id, 0, true)
 
-      // Mark as read
-      chatService.markAsRead(selectedChatBox.id).then(() => {
-        // Refresh global unread count after marking as read
-        refreshChatUnreadCount()
-      }).catch(console.error)
+      // Mark as read (handleSelectChatBox already updates UI immediately via decrementChatUnreadCount)
+      chatService.markAsRead(selectedChatBox.id).catch(console.error)
 
       // Send online status
       chatWebSocket.sendOnlineStatus(selectedChatBox.id, true)
@@ -307,33 +325,39 @@ export function ChatPage() {
 
   // ======================== HANDLERS ========================
 
-  const handleSelectChatBox = (chatBox: ChatBoxType) => {
-    // Get the current unread count before setting to 0
-    const currentUnreadCount = chatBox.unreadCount
+  const handleSelectChatBox = async (chatBox: ChatBox) => {
+    // If clicking same chat, do nothing
+    if (selectedChatBox?.id === chatBox.id) return
 
-    // Always update unread count in list
+    // Get the current unread count before setting to 0, ensuring number type
+    const count = Number(chatBox.unreadCount || 0)
+
+    // 1. GLOBAL BADGE: Decrement immediately if needed
+    if (count > 0) {
+      decrementChatUnreadCount(count)
+    }
+
+    // 2. LOCAL BADGE: Optimistically clear unread count in the list
     setChatBoxes((prev) =>
       prev.map((cb) =>
         cb.id === chatBox.id ? { ...cb, unreadCount: 0 } : cb
       )
     )
 
-    // Decrement global unread count by the number of unread messages in this chat
-    if (currentUnreadCount > 0) {
-      decrementChatUnreadCount(currentUnreadCount)
-    }
-
-    // If clicking the same conversation, just mark as read, don't reset state
-    if (selectedChatBox?.id === chatBox.id) {
-      chatService.markAsRead(chatBox.id).catch(console.error)
-      return
-    }
-
-    setSelectedChatBox(chatBox)
+    // 3. SET SELECTED CHAT (with 0 unread)
+    setSelectedChatBox({ ...chatBox, unreadCount: 0 })
     setMessages([])
     setMessagesPage(0)
     setHasMoreMessages(false)
     setIsPartnerTyping(false)
+
+    // 4. BACKEND SYNC: Mark as read
+    chatService.markAsRead(chatBox.id)
+      .then(() => console.log('Marked as read:', chatBox.id))
+      .catch((err) => console.error('Failed to mark as read', err))
+
+    // 5. LOAD MESSAGES
+    await loadMessages(chatBox.id, 0, true)
   }
 
   const handleSendMessage = async (content: string) => {
@@ -350,21 +374,56 @@ export function ChatPage() {
     }
   }
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
   const handleImageUpload = async (file: File) => {
     if (!selectedChatBox) return
 
-    try {
-      // Upload image first
-      const uploadResponse = await chatService.uploadImage(selectedChatBox.id, file)
-      const imageUrl = uploadResponse.imageUrl
+    // Check file size limit (10MB)
+    if (file.size > MAX_FILE_SIZE) {
+      showToast('error', 'Ảnh vượt quá 10MB. Vui lòng chọn ảnh nhỏ hơn.')
+      return
+    }
 
-      // Send message with image URL
-      await chatService.sendMessage(selectedChatBox.id, {
-        content: '', // Empty content for image-only messages
-        imageUrl
-      })
+    // Create optimistic message with local blob URL for immediate display
+    const localImageUrl = URL.createObjectURL(file)
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      conversationId: selectedChatBox.id,
+      senderId: '', // Will be filled by server
+      senderType: 'CLINIC',
+      senderName: 'Clinic Manager User',
+      senderAvatar: null,
+      content: '',
+      messageType: 'IMAGE',
+      imageUrl: localImageUrl,
+      status: 'SENT',
+      isRead: false,
+      readAt: null,
+      createdAt: new Date().toISOString(),
+      isMe: true
+    }
+
+    // Add optimistic message immediately (at beginning since we store DESC order)
+    setMessages(prev => [optimisticMessage, ...prev])
+
+    try {
+      // Upload image - this already creates and broadcasts the message via WebSocket
+      await chatService.uploadImage(selectedChatBox.id, file)
+
+      // Remove optimistic message when real message arrives via WebSocket
+      // WebSocket handler will add the real message
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+
+      // Cleanup blob URL
+      URL.revokeObjectURL(localImageUrl)
     } catch (error) {
       console.error('Failed to upload image:', error)
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+      URL.revokeObjectURL(localImageUrl)
       showToast('error', 'Không thể tải lên hình ảnh. Vui lòng thử lại.')
       throw error
     }
@@ -372,6 +431,12 @@ export function ChatPage() {
 
   const handleCombinedMessage = async (content: string, imageFile: File) => {
     if (!selectedChatBox) return
+
+    // Check file size limit (10MB)
+    if (imageFile.size > MAX_FILE_SIZE) {
+      showToast('error', 'Ảnh vượt quá 10MB. Vui lòng chọn ảnh nhỏ hơn.')
+      return
+    }
 
     console.log('ChatPage.handleCombinedMessage called', { content, imageFile: imageFile.name })
 

@@ -3,12 +3,14 @@ import { chatService } from '../services/api/chatService'
 
 interface ChatState {
   unreadCount: number
+  activeConversationId: string | null
   isLoading: boolean
   setUnreadCount: (count: number) => void
   incrementUnreadCount: () => void
   refreshUnreadCount: () => Promise<void>
   decrementUnreadCount: (amount?: number) => void
   resetUnreadCount: () => void
+  setActiveConversationId: (id: string | null) => void
 }
 
 /**
@@ -17,7 +19,9 @@ interface ChatState {
  */
 export const useChatStore = create<ChatState>((set, get) => ({
   unreadCount: 0,
+  activeConversationId: null, // Track active chat globally
   isLoading: false,
+  setActiveConversationId: (id: string | null) => set({ activeConversationId: id }),
   setUnreadCount: (count: number) => {
     set({ unreadCount: count })
   },

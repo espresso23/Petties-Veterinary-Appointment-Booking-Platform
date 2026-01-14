@@ -54,4 +54,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
      * Used to get all ADMINs for notifications
      */
     List<User> findByRoleAndDeletedAtIsNull(Role role);
+
+    /**
+     * Find users by working clinic and role.
+     * Used to find clinic managers for chat push notifications.
+     */
+    List<User> findByWorkingClinicAndRole(com.petties.petties.model.Clinic workingClinic, Role role);
 }

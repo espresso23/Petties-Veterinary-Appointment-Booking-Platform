@@ -64,12 +64,17 @@ class _CameraScreenState extends State<CameraScreen> {
     try {
       final image = await _controller!.takePicture();
       final file = File(image.path);
-      widget.onImageCaptured(file);
-      Navigator.of(context).pop();
+      // Just pop with the file - let caller handle the callback
+      // The callback was already popping, causing double pop
+      if (mounted) {
+        Navigator.of(context).pop(file);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể chụp ảnh')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể chụp ảnh')),
+        );
+      }
     }
   }
 

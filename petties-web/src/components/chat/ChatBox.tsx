@@ -3,19 +3,29 @@ import { EllipsisVerticalIcon, PhotoIcon } from '@heroicons/react/24/outline'
 import type { ChatMessage, ChatBox as ChatBoxType } from '../../types/chat'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
+import { useAuthStore } from '../../store/authStore'
 
 interface ImageGroupProps {
   messages: ChatMessage[]
   onImageClick?: (imageUrl: string, groupMessages?: ChatMessage[]) => void
+  myAvatar?: string
+  partnerAvatar?: string
 }
 
 /**
  * Component for displaying grouped image messages like Messenger
  */
-function ImageGroup({ messages, onImageClick }: ImageGroupProps) {
+function ImageGroup({ messages, onImageClick, myAvatar, partnerAvatar }: ImageGroupProps) {
   const isMe = messages[0].isMe
+
+  // Choose avatar
+  const avatarUrl = isMe
+    ? (myAvatar || messages[0].senderAvatar)
+    : (partnerAvatar || messages[0].senderAvatar)
+
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr)
+    // Ensure UTC interpretation if 'Z' or offset is missing
+    const date = new Date(dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`)
     return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
   }
 
@@ -48,70 +58,91 @@ function ImageGroup({ messages, onImageClick }: ImageGroupProps) {
     return 'hidden'
   }
 
-  return (
-    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-4`}>
-      {/* Sender name */}
-      <span className={`text-xs font-bold mb-1 px-1 ${isMe ? 'text-amber-700' : 'text-stone-600'}`}>
-        {messages[0].senderName}
-      </span>
+  const containerClass = `flex gap-2 mb-4 ${isMe ? 'flex-row-reverse' : 'flex-row'}`
 
-      {/* Image grid */}
-      <div className="max-w-[280px]">
-        <div className={`grid ${getGridLayout(messages.length)} gap-2`}>
-          {messages.slice(0, 3).map((message, index) => (
-            <div
-              key={message.id}
-              className={`relative ${getImageStyles(index, messages.length)}`}
-            >
-              <img
-                src={message.imageUrl}
-                alt={`Hình ảnh ${index + 1}`}
-                className="w-full h-full object-cover rounded-lg border border-stone-900 shadow-[2px_2px_0_#1c1917] cursor-pointer hover:shadow-[3px_3px_0_#1c1917] transition-all"
-                onClick={() => handleImageClick(message.imageUrl!, index)}
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement
-                  if (img.naturalWidth === 0) {
-                    console.error('Image failed to load:', message.imageUrl)
-                  }
-                }}
-                onError={(e) => {
-                  console.error('Image failed to load:', message.imageUrl)
-                  const img = e.target as HTMLImageElement
-                  img.style.display = 'none'
-                }}
-              />
-              {/* Overlay for 3rd image when there are more than 3 */}
-              {index === 2 && messages.length > 3 && (
-                <div 
-                  className="absolute inset-0 bg-black bg-opacity-60 rounded-lg flex items-center justify-center cursor-pointer hover:bg-opacity-70 transition-all"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleGroupOverlayClick()
-                  }}
-                >
-                  <span className="text-white font-bold text-lg">+1</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+  return (
+    <div className={containerClass}>
+      {/* Avatar */}
+      <div className="flex-shrink-0 order-1">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={isMe ? "Tôi" : messages[0].senderName}
+            className="w-8 h-8 rounded-full object-cover border border-stone-200"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center border border-stone-300">
+            <span className="text-xs font-bold text-stone-500">
+              {messages[0].senderName?.charAt(0).toUpperCase() || (isMe ? 'T' : 'K')}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Timestamp */}
-      <div className="flex items-center gap-1 mt-1 px-1">
-        <span className="text-[11px] text-stone-500 font-medium">
-          {formatTime(messages[messages.length - 1].createdAt)}
+      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[280px]`}>
+        {/* Sender name */}
+        <span className={`text-xs font-bold mb-1 px-1 ${isMe ? 'text-amber-700' : 'text-stone-600'}`}>
+          {messages[0].senderName}
         </span>
-        {isMe && messages.some(msg => msg.status === 'SEEN') && (
-          <span className="group relative">
-            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-bold text-white bg-stone-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-              Đã xem
-            </span>
+
+        {/* Image grid */}
+        <div className="w-full">
+          <div className={`grid ${getGridLayout(messages.length)} gap-2`}>
+            {messages.slice(0, 3).map((message, index) => (
+              <div
+                key={message.id}
+                className={`relative ${getImageStyles(index, messages.length)}`}
+              >
+                <img
+                  src={message.imageUrl}
+                  alt={`Hình ảnh ${index + 1}`}
+                  className="w-full h-full object-cover rounded-lg border border-stone-900 shadow-[2px_2px_0_#1c1917] cursor-pointer hover:shadow-[3px_3px_0_#1c1917] transition-all"
+                  onClick={() => handleImageClick(message.imageUrl!, index)}
+                  onLoad={(e) => {
+                    const img = e.target as HTMLImageElement
+                    if (img.naturalWidth === 0) {
+                      console.error('Image failed to load:', message.imageUrl)
+                    }
+                  }}
+                  onError={(e) => {
+                    console.error('Image failed to load:', message.imageUrl)
+                    const img = e.target as HTMLImageElement
+                    img.style.display = 'none'
+                  }}
+                />
+                {/* Overlay for 3rd image when there are more than 3 */}
+                {index === 2 && messages.length > 3 && (
+                  <div
+                    className="absolute inset-0 bg-black bg-opacity-60 rounded-lg flex items-center justify-center cursor-pointer hover:bg-opacity-70 transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleGroupOverlayClick()
+                    }}
+                  >
+                    <span className="text-white font-bold text-lg">+{messages.length - 3}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Timestamp */}
+        <div className="flex items-center gap-1 mt-1 px-1">
+          <span className="text-[11px] text-stone-500 font-medium">
+            {formatTime(messages[messages.length - 1].createdAt)}
           </span>
-        )}
+          {isMe && messages.some(msg => msg.status === 'SEEN') && (
+            <span className="group relative">
+              <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-xs font-bold text-white bg-stone-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                Đã xem
+              </span>
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -144,6 +175,10 @@ export function ChatBox({
   hasMore = false,
   isPartnerTyping = false,
 }: ChatBoxProps) {
+  const { user } = useAuthStore()
+  const myAvatar = user?.avatar
+  const partnerAvatar = chatBox.petOwnerAvatar ?? undefined // Convert null to undefined
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
@@ -168,7 +203,7 @@ export function ChatBox({
         sender: message.senderName,
         id: message.id
       }))
-      // Show newest first
+    // Show newest first
   }
 
   // Load images for gallery with pagination
@@ -414,10 +449,26 @@ export function ChatBox({
           {groupedMessages.map((item, index) => {
             if (Array.isArray(item)) {
               // Image group
-              return <ImageGroup key={`group-${index}`} messages={item} onImageClick={handleImageGroupClick} />
+              return (
+                <ImageGroup
+                  key={`group-${index}`}
+                  messages={item}
+                  onImageClick={handleImageGroupClick}
+                  myAvatar={myAvatar}
+                  partnerAvatar={partnerAvatar}
+                />
+              )
             } else {
               // Single message
-              return <MessageBubble key={item.id} message={item} onImageClick={handleSingleImageClick} />
+              return (
+                <MessageBubble
+                  key={item.id}
+                  message={item}
+                  onImageClick={handleSingleImageClick}
+                  myAvatar={myAvatar}
+                  partnerAvatar={partnerAvatar}
+                />
+              )
             }
           })}
 
@@ -443,8 +494,8 @@ export function ChatBox({
       {showImageGallery && (
         <div className="fixed right-0 top-0 h-full w-96 bg-white border-l-2 border-stone-900 shadow-[-4px_0_8px_rgba(0,0,0,0.1)] z-50 transform transition-transform duration-300 ease-in-out">
           {/* Header */}
-          <div className="p-6 border-b-2 border-stone-900 bg-stone-50">
-            <div className="flex items-center justify-between">
+          <div className="h-20 px-6 border-b-2 border-stone-900 bg-stone-50 flex items-center">
+            <div className="flex items-center justify-between w-full">
               <h3 className="text-xl font-bold text-stone-900">
                 Ảnh đã gửi
               </h3>
@@ -501,62 +552,75 @@ export function ChatBox({
         </div>
       )}
 
-      {/* Image Modal */}
+      {/* Image Modal - Messenger Style */}
       {showImageModal && modalImages.length > 0 && (
-        <>
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="relative max-w-4xl max-h-full flex items-center">
-              {/* Previous button */}
-              {modalImages.length > 1 && currentModalIndex > 0 && (
-                <button
-                  onClick={() => {
-                    const newIndex = currentModalIndex - 1
-                    setCurrentModalIndex(newIndex)
-                  }}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all z-10"
-                >
-                  ‹
-                </button>
-              )}
+        <div
+          className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
+          onClick={() => setShowImageModal(false)}
+        >
+          {/* Close button - top right */}
+          <button
+            onClick={() => setShowImageModal(false)}
+            className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
 
-              <img
-                src={modalImages[currentModalIndex].imageUrl}
-                alt={`Hình ảnh ${currentModalIndex + 1}`}
-                className="max-w-full max-h-full object-contain rounded-lg"
-                onClick={(e) => e.stopPropagation()}
-              />
+          {/* Previous button - left side */}
+          {modalImages.length > 1 && currentModalIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setCurrentModalIndex(currentModalIndex - 1)
+              }}
+              className="absolute left-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
 
-              {/* Next button */}
-              {modalImages.length > 1 && currentModalIndex < modalImages.length - 1 && (
-                <button
-                  onClick={() => {
-                    const newIndex = currentModalIndex + 1
-                    setCurrentModalIndex(newIndex)
-                  }}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all z-10"
-                >
-                  ›
-                </button>
-              )}
-
-              {/* Close button */}
-              <button
-                onClick={() => setShowImageModal(false)}
-                className="absolute top-4 right-4 w-10 h-10 bg-black bg-opacity-50 text-white rounded-full flex items-center justify-center hover:bg-opacity-75 transition-all"
-              >
-                ✕
-              </button>
-
-              {/* Image counter */}
-              {modalImages.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
-                  {currentModalIndex + 1} / {modalImages.length}
-                </div>
-              )}
-            </div>
+          {/* Image container - centered with proper sizing */}
+          <div
+            className="relative flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={modalImages[currentModalIndex].imageUrl ?? ''}
+              alt={`Hình ảnh ${currentModalIndex + 1}`}
+              className="max-w-[85vw] max-h-[85vh] min-w-[300px] min-h-[200px] object-contain rounded-lg shadow-2xl"
+              style={{
+                width: 'auto',
+                height: 'auto',
+              }}
+            />
           </div>
-          <div className="fixed inset-0 z-40" onClick={() => setShowImageModal(false)} />
-        </>
+
+          {/* Next button - right side */}
+          {modalImages.length > 1 && currentModalIndex < modalImages.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setCurrentModalIndex(currentModalIndex + 1)
+              }}
+              className="absolute right-6 top-1/2 -translate-y-1/2 w-14 h-14 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-all z-20"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Image counter - bottom center */}
+          {modalImages.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-medium z-20">
+              {currentModalIndex + 1} / {modalImages.length}
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

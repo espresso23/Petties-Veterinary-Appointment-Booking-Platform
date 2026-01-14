@@ -48,6 +48,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 
   // Show local notification
+  // Show local notification
+  // FIXED: Commented out to prevent double notifications on Android.
+  // When 'notification' key is present in FCM payload, Android System automatically shows notification.
+  // Manual display here causes duplicates.
+  /*
   if (message.notification != null) {
     const androidDetails = AndroidNotificationDetails(
       'petties_notifications',
@@ -77,6 +82,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       payload: message.data.isNotEmpty ? jsonEncode(message.data) : null,
     );
   }
+  */
 }
 
 /// FCM Service for handling push notifications

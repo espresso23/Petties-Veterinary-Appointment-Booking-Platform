@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.util.List;
+
+import com.petties.petties.repository.ChatConversationRepository;
+import com.petties.petties.model.ChatConversation;
+import com.petties.petties.model.enums.Role;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +28,7 @@ public class UserService {
         private final UserRepository userRepository;
         private final CloudinaryService cloudinaryService;
         private final PasswordEncoder passwordEncoder;
+        private final ChatConversationRepository chatConversationRepository;
 
         @Transactional(readOnly = true)
         public UserResponse getUserById(UUID userId) {
@@ -75,9 +81,30 @@ public class UserService {
                 UploadResponse uploadResult = cloudinaryService.uploadAvatar(file);
 
                 // Update user
-                user.setAvatar(uploadResult.getUrl());
+                String newAvatarUrl = uploadResult.getUrl();
+                user.setAvatar(newAvatarUrl);
                 user.setAvatarPublicId(uploadResult.getPublicId());
                 user = userRepository.save(user);
+
+                // Sync avatar to Chat Conversations (MongoDB)
+                // If user is PET_OWNER, update petOwnerAvatar in all their conversations
+                if (user.getRole() == Role.PET_OWNER) {
+                        try {
+                                List<ChatConversation> conversations = chatConversationRepository
+                                                .findByPetOwnerIdOrderByLastMessageAtDesc(
+                                                                userId,
+                                                                org.springframework.data.domain.Pageable.unpaged())
+                                                .getContent();
+
+                                conversations.forEach(conv -> {
+                                        conv.setPetOwnerAvatar(newAvatarUrl);
+                                        chatConversationRepository.save(conv);
+                                });
+                        } catch (Exception e) {
+                                // Log error but don't fail the request
+                                System.err.println("Failed to sync avatar to conversations: " + e.getMessage());
+                        }
+                }
 
                 return mapToResponse(user);
         }
@@ -94,6 +121,24 @@ public class UserService {
                 user.setAvatar(null);
                 user.setAvatarPublicId(null);
                 user = userRepository.save(user);
+
+                // Sync avatar removal to Chat Conversations (MongoDB)
+                if (user.getRole() == Role.PET_OWNER) {
+                        try {
+                                List<ChatConversation> conversations = chatConversationRepository
+                                                .findByPetOwnerIdOrderByLastMessageAtDesc(
+                                                                userId,
+                                                                org.springframework.data.domain.Pageable.unpaged())
+                                                .getContent();
+
+                                conversations.forEach(conv -> {
+                                        conv.setPetOwnerAvatar(null);
+                                        chatConversationRepository.save(conv);
+                                });
+                        } catch (Exception e) {
+                                System.err.println("Failed to sync avatar removal to conversations: " + e.getMessage());
+                        }
+                }
 
                 return mapToResponse(user);
         }

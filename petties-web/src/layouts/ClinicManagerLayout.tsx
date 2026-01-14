@@ -8,6 +8,7 @@ import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { chatWebSocket } from '../services/websocket/chatWebSocket'
+import { chatService } from '../services/api/chatService'
 import type { ChatWebSocketMessage } from '../types/chat'
 import {
     Squares2X2Icon,
@@ -60,13 +61,54 @@ export const ClinicManagerLayout = () => {
         refreshUnreadCount()
         refreshChatUnreadCount()
 
-        // Refresh chat unread count periodically to ensure it's up to date
-        const interval = setInterval(() => {
-            refreshChatUnreadCount()
-        }, 30000) // Every 30 seconds
+        // GLOBAL SUBSCRIPTION for Sidebar Badge
+        let unsubscribes: (() => void)[] = []
 
-        return () => clearInterval(interval)
-    }, [refreshUnreadCount, refreshChatUnreadCount])
+        const setupGlobalSubscriptions = async () => {
+            try {
+                // Fetch recent conversations to listen for updates
+                // We fetch top 50. If user receives msg from old chat (50+), it won't trigger badge instantly.
+                // This is a trade-off for performance.
+                const response = await chatService.getConversations(0, 50)
+                const conversations = response.content
+
+                console.log('[Layout] Setting up global subscriptions for', conversations.length, 'chats')
+
+                // Subscribe to each to detect new messages
+                unsubscribes = conversations.map(conv => {
+                    return chatWebSocket.subscribeToChatBox(conv.id, (wsMessage: ChatWebSocketMessage) => {
+                        if (wsMessage.type === 'MESSAGE' && wsMessage.message) {
+                            const msg = wsMessage.message
+                            if (msg.senderType === 'PET_OWNER') {
+                                // Check if this chat is currently active in view
+                                // Direct store access to get fresh state without re-running effect
+                                const currentActiveId = useChatStore.getState().activeConversationId
+
+                                if (currentActiveId !== conv.id) {
+                                    console.log('[Layout] Incrementing global badge for chat', conv.id)
+                                    incrementChatUnreadCount()
+                                } else {
+                                    console.log('[Layout] Skipping global increment - Chat active:', conv.id)
+                                }
+                            }
+                        }
+                    })
+                })
+            } catch (error) {
+                console.error('[Layout] Failed to setup global subscriptions:', error)
+            }
+        }
+
+        // Wait a bit for connection to be ready (it connects in parallel effect)
+        const timer = setTimeout(() => {
+            setupGlobalSubscriptions()
+        }, 1000)
+
+        return () => {
+            clearTimeout(timer)
+            unsubscribes.forEach(u => u())
+        }
+    }, [refreshUnreadCount, refreshChatUnreadCount, incrementChatUnreadCount])
 
     const navGroups: NavGroup[] = [
         {

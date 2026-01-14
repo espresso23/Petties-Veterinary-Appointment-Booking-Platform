@@ -33,7 +33,7 @@ class _MessageInputState extends State<MessageInput> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _hasText = false;
   Timer? _typingTimer;
-  File? _selectedImage;
+  List<File> _selectedImages = []; // Changed to list for multi-image support
   bool _isUploadingImage = false;
 
   @override
@@ -72,9 +72,9 @@ class _MessageInputState extends State<MessageInput> {
 
   void _handleSend() {
     final text = _controller.text.trim();
-    print('DEBUG: _handleSend called with text: "$text", hasImage: ${_selectedImage != null}');
+    print('DEBUG: _handleSend called with text: "$text", hasImages: ${_selectedImages.length}');
 
-    if (text.isEmpty && _selectedImage == null || widget.isLoading) {
+    if (text.isEmpty && _selectedImages.isEmpty || widget.isLoading) {
       print('DEBUG: Early return - no content or loading');
       return;
     }
@@ -83,48 +83,59 @@ class _MessageInputState extends State<MessageInput> {
     _typingTimer?.cancel();
     widget.onTyping?.call(false);
 
-    // If both text and image are present, handle combined message
-    if (text.isNotEmpty && _selectedImage != null) {
-      print('DEBUG: Calling _handleSendCombined');
-      _handleSendCombined(text);
+    // If both text and images are present, send text first then all images
+    if (text.isNotEmpty && _selectedImages.isNotEmpty) {
+      print('DEBUG: Sending text first, then images separately');
+      widget.onSend(text);
+      _controller.clear();
+      _uploadImages();
     } else if (text.isNotEmpty) {
       print('DEBUG: Sending text only');
       // Text only
       widget.onSend(text);
       _controller.clear();
-    } else if (_selectedImage != null) {
-      print('DEBUG: Sending image only');
-      // Image only
-      _uploadImage();
+    } else if (_selectedImages.isNotEmpty) {
+      print('DEBUG: Sending images only');
+      // Images only
+      _uploadImages();
     }
   }
 
-  Future<void> _handleSendCombined(String text) async {
-    if (_selectedImage == null) return;
-
-    print('DEBUG: _handleSendCombined called with text: "$text" and image: ${_selectedImage!.path}');
+  // Upload all selected images one by one
+  Future<void> _uploadImages() async {
+    if (_selectedImages.isEmpty || widget.onImageUpload == null) return;
 
     setState(() {
       _isUploadingImage = true;
     });
 
-    try {
-      // Send combined message with text and image file in one request
-      print('DEBUG: Sending combined message with file...');
-      widget.onSendCombined!(text, _selectedImage!);
-      print('DEBUG: Combined message sent successfully');
+    int successCount = 0;
+    int failCount = 0;
+    final imagesToUpload = List<File>.from(_selectedImages);
 
-      // Clear both text and image
-      _controller.clear();
+    try {
+      for (final image in imagesToUpload) {
+        try {
+          print('DEBUG: Uploading image: ${image.path}');
+          await widget.onImageUpload!(image);
+          successCount++;
+          print('DEBUG: Image uploaded successfully');
+        } catch (e) {
+          print('DEBUG: Failed to upload image: $e');
+          failCount++;
+        }
+      }
+
+      // Clear selected images
       setState(() {
-        _selectedImage = null;
+        _selectedImages = [];
       });
-    } catch (e) {
-      print('DEBUG: Error in _handleSendCombined: $e');
-      // Don't clear text on error so user can try again
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể gửi tin nhắn')),
-      );
+
+      if (failCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload: $successCount thành công, $failCount thất bại')),
+        );
+      }
     } finally {
       setState(() {
         _isUploadingImage = false;
@@ -132,21 +143,48 @@ class _MessageInputState extends State<MessageInput> {
     }
   }
 
+  static const int _maxFileSizeBytes = 10 * 1024 * 1024; // 10MB
+
   Future<void> _pickImage() async {
     // Xin quyền truy cập ảnh
     final status = await Permission.photos.request();
     if (status.isGranted) {
       try {
-        final pickedFile = await _imagePicker.pickImage(
-          source: ImageSource.gallery,
+        // Changed to pickMultiImage for multi-selection
+        final pickedFiles = await _imagePicker.pickMultiImage(
           maxWidth: 1920,
           maxHeight: 1080,
           imageQuality: 85,
         );
-        if (pickedFile != null) {
-          setState(() {
-            _selectedImage = File(pickedFile.path);
-          });
+        if (pickedFiles.isNotEmpty) {
+          List<File> validFiles = [];
+          List<String> oversizedFiles = [];
+          
+          for (final xfile in pickedFiles) {
+            final file = File(xfile.path);
+            final fileSize = await file.length();
+            
+            if (fileSize > _maxFileSizeBytes) {
+              oversizedFiles.add(xfile.name);
+            } else {
+              validFiles.add(file);
+            }
+          }
+          
+          if (oversizedFiles.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${oversizedFiles.length} ảnh vượt quá 10MB và không được thêm'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          
+          if (validFiles.isNotEmpty) {
+            setState(() {
+              _selectedImages.addAll(validFiles);
+            });
+          }
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,21 +202,37 @@ class _MessageInputState extends State<MessageInput> {
     // Xin quyền truy cập camera
     final status = await Permission.camera.request();
     if (status.isGranted) {
-      // Navigate to custom camera screen
-      final result = await Navigator.of(context).push<File>(
-        MaterialPageRoute(
-          builder: (context) => CameraScreen(
-            onImageCaptured: (file) {
-              Navigator.of(context).pop(file); // Return the captured image
-            },
+      try {
+        // Navigate to custom camera screen and wait for result
+        final result = await Navigator.of(context).push<File>(
+          MaterialPageRoute(
+            builder: (context) => CameraScreen(
+              onImageCaptured: (_) {}, // Not used anymore, result returned via pop
+            ),
           ),
-        ),
-      );
+        );
 
-      if (result != null) {
-        setState(() {
-          _selectedImage = result;
-        });
+        if (result != null && mounted) {
+          final fileSize = await result.length();
+          if (fileSize > _maxFileSizeBytes) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ảnh vượt quá 10MB, vui lòng chụp với chất lượng thấp hơn'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          } else {
+            setState(() {
+              _selectedImages.add(result);
+            });
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không thể mở camera')),
+          );
+        }
       }
     } else if (status.isDenied || status.isPermanentlyDenied) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -187,32 +241,15 @@ class _MessageInputState extends State<MessageInput> {
     }
   }
 
-  Future<void> _uploadImage() async {
-    if (_selectedImage == null || widget.onImageUpload == null) return;
-
+  void _removeImage(int index) {
     setState(() {
-      _isUploadingImage = true;
+      _selectedImages.removeAt(index);
     });
-
-    try {
-      await widget.onImageUpload!(_selectedImage!);
-      setState(() {
-        _selectedImage = null;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể tải lên hình ảnh')),
-      );
-    } finally {
-      setState(() {
-        _isUploadingImage = false;
-      });
-    }
   }
 
-  void _removeImage() {
+  void _clearAllImages() {
     setState(() {
-      _selectedImage = null;
+      _selectedImages = [];
     });
   }
 
@@ -221,59 +258,102 @@ class _MessageInputState extends State<MessageInput> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Image preview
-        if (_selectedImage != null)
+        // Image preview for multiple images
+        if (_selectedImages.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(12),
             color: AppColors.stone50,
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.stone900, width: 2),
-                    boxShadow: [
-                      BoxShadow(color: const Color(0xFF1C1917), offset: const Offset(2, 2)),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Image.file(
-                      _selectedImage!,
-                      fit: BoxFit.cover,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _selectedImages.length == 1
+                          ? 'Hình ảnh sẽ được gửi'
+                          : '${_selectedImages.length} hình ảnh sẽ được gửi',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.stone900,
+                      ),
                     ),
-                  ),
+                    if (_selectedImages.length > 1)
+                      TextButton(
+                        onPressed: _clearAllImages,
+                        child: const Text(
+                          'Xóa tất cả',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
                     children: [
-                      Text(
-                        'Hình ảnh sẽ được gửi',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.stone900,
+                      for (int i = 0; i < _selectedImages.length; i++)
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.stone900, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(color: const Color(0xFF1C1917), offset: const Offset(2, 2)),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.file(
+                                    _selectedImages[i],
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: GestureDetector(
+                                  onTap: () => _removeImage(i),
+                                  child: Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.error,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: AppColors.white, width: 1.5),
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 12,
+                                      color: AppColors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        'Nhấn nút gửi để gửi hình ảnh',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.stone500,
-                        ),
-                      ),
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: _removeImage,
-                  icon: Icon(Icons.close, color: AppColors.stone500),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                const SizedBox(height: 4),
+                Text(
+                  'Nhấn nút gửi để gửi hình ảnh',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.stone500,
+                  ),
                 ),
               ],
             ),
@@ -394,12 +474,12 @@ class _MessageInputState extends State<MessageInput> {
                 // Send button
                 Container(
                   decoration: BoxDecoration(
-                    color: (_hasText || _selectedImage != null)
+                    color: (_hasText || _selectedImages.isNotEmpty)
                         ? AppColors.primary
                         : AppColors.stone300,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.stone900, width: 2),
-                    boxShadow: (_hasText || _selectedImage != null)
+                    boxShadow: (_hasText || _selectedImages.isNotEmpty)
                         ? [
                             BoxShadow(
                                 color: AppColors.stone900, offset: const Offset(2, 2)),
@@ -409,7 +489,7 @@ class _MessageInputState extends State<MessageInput> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: (_hasText || _selectedImage != null) && !widget.isLoading && !_isUploadingImage
+                      onTap: (_hasText || _selectedImages.isNotEmpty) && !widget.isLoading && !_isUploadingImage
                           ? _handleSend
                           : null,
                       borderRadius: BorderRadius.circular(6),
@@ -426,7 +506,7 @@ class _MessageInputState extends State<MessageInput> {
                               )
                             : Icon(
                                 Icons.send_rounded,
-                                color: (_hasText || _selectedImage != null)
+                                color: (_hasText || _selectedImages.isNotEmpty)
                                     ? AppColors.white
                                     : AppColors.stone500,
                                 size: 22,
