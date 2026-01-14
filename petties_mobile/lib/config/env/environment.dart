@@ -34,8 +34,10 @@ class Environment {
       'https://api-test.petties.world/ai';
 
   // Flavor from build arguments
-  static const String _flavor =
-      String.fromEnvironment('FLAVOR', defaultValue: 'dev');
+  static const String _flavor = String.fromEnvironment(
+    'FLAVOR',
+    defaultValue: 'dev',
+  );
   static const String _apiUrlOverride = String.fromEnvironment('API_URL');
 
   /// Get the base URL based on flavor
@@ -91,15 +93,15 @@ class Environment {
   // ============================================================
   // Google OAuth Configuration
   // ============================================================
-  // ⚠️ IMPORTANT: Replace these with your actual Client IDs from Google Cloud Console
+  // ⚠️ IMPORTANT: These values come from google-services.json
   //
-  // Server Client ID (Web type) - used for backend verification
-  // This is the same for all platforms
+  // Server Client ID (Web type - client_type: 3) - used for backend verification
+  // Backend uses this to verify the ID token sent from mobile app
   static const String _googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
-    // ⚠️ PHẢI dùng WEB Client ID, không phải iOS/Android Client ID
+    // Web Client ID (client_type: 3) from google-services.json
     defaultValue:
-        '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com',
+        '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification
