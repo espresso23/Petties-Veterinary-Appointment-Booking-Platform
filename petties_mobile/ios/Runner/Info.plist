@@ -72,5 +72,9 @@
 		</array>
 		<key>GIDClientID</key>
 		<string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
+		<key>UIBackgroundModes</key>
+		<array>
+		<string>location</string>
+		</array>
 	</dict>
 </plist>

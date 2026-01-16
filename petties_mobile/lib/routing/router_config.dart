@@ -18,6 +18,10 @@ import '../ui/pet/pet_detail_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
+import '../ui/clinics/clinic_search_view.dart';
+import '../ui/clinics/clinic_detail_view.dart';
+import '../ui/clinics/clinic_map_view.dart';
+
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -189,6 +193,23 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.vetSchedule,
           builder: (context, state) => const VetScheduleScreen(),
+        ),
+        // Clinic routes
+        GoRoute(
+          path: AppRoutes.clinicSearch,
+          builder: (context, state) => const ClinicSearchView(),
+        ),
+        // Map route must come BEFORE detail route (more specific first)
+        GoRoute(
+          path: AppRoutes.clinicMap,
+          builder: (context, state) => const ClinicMapView(),
+        ),
+        GoRoute(
+          path: AppRoutes.clinicDetail,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return ClinicDetailView(clinicId: id);
+          },
         ),
 
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included

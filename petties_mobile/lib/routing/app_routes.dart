@@ -23,6 +23,11 @@ class AppRoutes {
   static const String vetHome = '/vet/home';
   static const String vetSchedule = '/vet/schedule';
 
+  // Clinic
+  static const String clinicSearch = '/clinics/search';
+  static const String clinicDetail = '/clinics/:id';
+  static const String clinicMap = '/clinics/map';
+
   // Booking Flow
   static const String clinicDetails = '/clinic/:id';
   static const String selectService = '/booking/select-service';
