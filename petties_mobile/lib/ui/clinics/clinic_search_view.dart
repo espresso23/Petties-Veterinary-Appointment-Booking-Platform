@@ -291,7 +291,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Tìm phòng khám, bác sĩ...',
+                  hintText: 'Tìm phòng khám, dịch vụ...',
                   hintStyle: TextStyle(
                     fontSize: 14,
                     color: AppColors.stone400,
