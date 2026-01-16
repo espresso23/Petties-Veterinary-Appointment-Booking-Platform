@@ -81,7 +81,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Welcome Header - Brutal Card
-              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Pet Owner'),
+              _buildWelcomeCard(
+                  context, user?.fullName ?? user?.username ?? 'Pet Owner'),
               const SizedBox(height: 24),
 
               // Quick Actions
@@ -452,7 +453,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                 // Already on home
                 break;
               case 1:
-                // TODO: Navigate to explore
+                // KHÁM PHÁ - Navigate to clinic search
+                context.push(AppRoutes.clinicSearch);
                 break;
               case 2:
                 // TODO: Navigate to bookings
@@ -463,13 +465,13 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             }
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.explore), label: 'KHAM PHA'),
+                icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
+                icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.person), label: 'TAI KHOAN'),
+                icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
           ],
         ),
       ),

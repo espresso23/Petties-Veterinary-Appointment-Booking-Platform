@@ -47,6 +47,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        manifestPlaceholders["MAP_API_KEY"] = project.findProperty("MAP_API_KEY") as String? ?: ""
     }
 
     // Flavor configuration for dev/test/prod environments

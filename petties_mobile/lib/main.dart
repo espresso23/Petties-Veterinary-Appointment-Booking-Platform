@@ -13,16 +13,12 @@ import 'utils/storage_service.dart';
 import 'core/services/sentry_service.dart';
 import 'utils/fcm_service.dart';
 import 'providers/notification_provider.dart';
+import 'providers/clinic_provider.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'config/env/environment.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 🔍 Debug: Log environment configuration on startup
-  Environment.printConfig();
 
   // Initialize date formatting for Vietnamese (fast, synchronous)
   await initializeDateFormatting('vi', null);
@@ -44,6 +40,7 @@ void main() async {
   final authProvider = AuthProvider();
   final userProvider = UserProvider();
   final notificationProvider = NotificationProvider();
+  final clinicProvider = ClinicProvider();
 
   // Initialize Sentry and run app immediately
   // FCM will be initialized AFTER first frame renders
@@ -54,6 +51,7 @@ void main() async {
           ChangeNotifierProvider.value(value: authProvider),
           ChangeNotifierProvider.value(value: userProvider),
           ChangeNotifierProvider.value(value: notificationProvider),
+          ChangeNotifierProvider.value(value: clinicProvider),
         ],
         child: PettiesApp(authProvider: authProvider),
       ),
