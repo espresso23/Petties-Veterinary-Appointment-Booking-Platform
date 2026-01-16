@@ -592,8 +592,9 @@ export const VetShiftPage = () => {
             workDates: [selectedShift.workDate],
             startTime: selectedShift.startTime.substring(0, 5),
             endTime: selectedShift.endTime.substring(0, 5),
-            breakStart: selectedShift.breakStart?.substring(0, 5) || '12:00',
-            breakEnd: selectedShift.breakEnd?.substring(0, 5) || '13:00',
+            isOvernight: selectedShift.isOvernight,
+            breakStart: selectedShift.isOvernight ? undefined : (selectedShift.breakStart?.substring(0, 5) || '12:00'),
+            breakEnd: selectedShift.isOvernight ? undefined : (selectedShift.breakEnd?.substring(0, 5) || '13:00'),
             repeatWeeks: 4,
         })
         setSelectedShift(null)
@@ -1330,11 +1331,59 @@ export const VetShiftPage = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-xs font-bold text-stone-500 mb-1 block">Giờ vào</label>
-                                <input type="time" value={formData.startTime} onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} className="w-full p-3 bg-white border-2 border-stone-200 rounded-xl font-bold focus:border-stone-900 focus:outline-none" />
+                                <input
+                                    type="time"
+                                    value={formData.startTime}
+                                    onChange={(e) => {
+                                        const newStart = e.target.value
+                                        const endBeforeStart = formData.endTime < newStart
+                                        let newOvernight = formData.isOvernight || false
+
+                                        if (endBeforeStart && !formData.isOvernight) {
+                                            newOvernight = true
+                                        } else if (!endBeforeStart && formData.isOvernight) {
+                                            newOvernight = false
+                                            showToast('info', 'Ca đêm không cần cho khung giờ này - đã tự động tắt')
+                                        }
+
+                                        setFormData({
+                                            ...formData,
+                                            startTime: newStart,
+                                            isOvernight: newOvernight,
+                                            breakStart: newOvernight ? undefined : formData.breakStart,
+                                            breakEnd: newOvernight ? undefined : formData.breakEnd
+                                        })
+                                    }}
+                                    className="w-full p-3 bg-white border-2 border-stone-200 rounded-xl font-bold focus:border-stone-900 focus:outline-none"
+                                />
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-stone-500 mb-1 block">Giờ ra</label>
-                                <input type="time" value={formData.endTime} onChange={(e) => setFormData({ ...formData, endTime: e.target.value })} className="w-full p-3 bg-white border-2 border-stone-200 rounded-xl font-bold focus:border-stone-900 focus:outline-none" />
+                                <input
+                                    type="time"
+                                    value={formData.endTime}
+                                    onChange={(e) => {
+                                        const newEnd = e.target.value
+                                        const endBeforeStart = newEnd < formData.startTime
+                                        let newOvernight = formData.isOvernight || false
+
+                                        if (endBeforeStart && !formData.isOvernight) {
+                                            newOvernight = true
+                                        } else if (!endBeforeStart && formData.isOvernight) {
+                                            newOvernight = false
+                                            showToast('info', 'Ca đêm không cần cho khung giờ này - đã tự động tắt')
+                                        }
+
+                                        setFormData({
+                                            ...formData,
+                                            endTime: newEnd,
+                                            isOvernight: newOvernight,
+                                            breakStart: newOvernight ? undefined : formData.breakStart,
+                                            breakEnd: newOvernight ? undefined : formData.breakEnd
+                                        })
+                                    }}
+                                    className="w-full p-3 bg-white border-2 border-stone-200 rounded-xl font-bold focus:border-stone-900 focus:outline-none"
+                                />
                             </div>
                         </div>
 
@@ -1343,6 +1392,11 @@ export const VetShiftPage = () => {
                             className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.isOvernight ? 'bg-indigo-50 border-indigo-300' : 'bg-stone-50 border-stone-200 hover:border-stone-300'}`}
                             onClick={() => {
                                 const newOvernight = !formData.isOvernight
+                                // Refuse to enable overnight manually if end >= start (daytime)
+                                if (newOvernight && formData.endTime >= formData.startTime && formData.startTime !== formData.endTime) {
+                                    showToast('warning', 'Khung giờ này không cần chế độ ca đêm')
+                                    return
+                                }
                                 setFormData({
                                     ...formData,
                                     isOvernight: newOvernight,

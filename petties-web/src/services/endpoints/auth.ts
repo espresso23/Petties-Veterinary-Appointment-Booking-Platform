@@ -151,14 +151,8 @@ export async function refreshToken(): Promise<AuthResponse> {
   // Lưu tokens mới (đồng bộ với localStorage)
   useAuthStore.getState().setTokens(data.accessToken, data.refreshToken)
 
-  // Update user info if available in response
-  if (data.userId || data.username) {
-    const currentUser = useAuthStore.getState().user
-    if (currentUser) {
-      // Keep existing user, just update tokens
-      useAuthStore.getState().setUser(currentUser)
-    }
-  }
+  // Note: We don't need to call setUser here - user data doesn't change with token refresh
+  // Removing the setUser call prevents unnecessary re-renders
 
   return data
 }

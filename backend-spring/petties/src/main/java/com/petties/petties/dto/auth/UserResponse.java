@@ -26,6 +26,12 @@ public class UserResponse {
     private Role role;
     private UUID workingClinicId; // For CLINIC_MANAGER and VET
     private String workingClinicName; // Clinic name for display
+
+    // VET-specific fields
+    private String specialty; // VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER
+    private java.math.BigDecimal ratingAvg; // Rating trung bình (1.0 - 5.0)
+    private Integer ratingCount; // Số lượt đánh giá
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

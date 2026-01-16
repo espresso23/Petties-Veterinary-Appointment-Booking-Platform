@@ -1,19 +1,21 @@
 import { useState } from 'react'
-import { XMarkIcon } from '@heroicons/react/24/outline'
-import type { QuickAddStaffRequest, StaffRole } from '../../types/clinicStaff'
+import { XMarkIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
+import type { InviteByEmailRequest, StaffRole, StaffSpecialty } from '../../types/clinicStaff'
+import { SPECIALTY_LABELS } from '../../types/clinicStaff'
 
-interface QuickAddStaffModalProps {
+interface AddStaffModalProps {
     isOpen: boolean
     onClose: () => void
-    onSubmit: (data: QuickAddStaffRequest) => Promise<void>
+    onSubmit: (data: InviteByEmailRequest) => Promise<void>
     allowedRoles?: StaffRole[]
     disabledRoles?: StaffRole[]
     title?: string
 }
 
 /**
- * Quick Add Staff Modal - Neobrutalism Design
- * Form to quickly add a new staff member
+ * Add Staff Modal - Email Only (Neobrutalism Design)
+ * Staff will login with Google OAuth
+ * FullName and Avatar auto-filled from Google profile
  */
 export function QuickAddStaffModal({
     isOpen,
@@ -22,10 +24,10 @@ export function QuickAddStaffModal({
     allowedRoles = ['VET', 'CLINIC_MANAGER'],
     disabledRoles = [],
     title = 'THÊM NHÂN VIÊN MỚI',
-}: QuickAddStaffModalProps) {
-    const [fullName, setFullName] = useState('')
-    const [phone, setPhone] = useState('')
+}: AddStaffModalProps) {
+    const [email, setEmail] = useState('')
     const [role, setRole] = useState<StaffRole>(allowedRoles[0])
+    const [specialty, setSpecialty] = useState<StaffSpecialty>('VET_GENERAL')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -33,30 +35,26 @@ export function QuickAddStaffModal({
         e.preventDefault()
         setError(null)
 
-        // Validation
-        if (!fullName.trim()) {
-            setError('Vui lòng nhập họ tên')
+        // Email validation
+        if (!email.trim()) {
+            setError('Vui lòng nhập email')
             return
         }
-
-        if (!phone.trim()) {
-            setError('Vui lòng nhập số điện thoại')
-            return
-        }
-
-        const phoneRegex = /^[0-9]{10,11}$/
-        if (!phoneRegex.test(phone)) {
-            setError('Số điện thoại không hợp lệ (10-11 số)')
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email)) {
+            setError('Email không hợp lệ')
             return
         }
 
         setIsSubmitting(true)
         try {
-            await onSubmit({ fullName: fullName.trim(), phone: phone.trim(), role })
+            await onSubmit({
+                email: email.trim(),
+                role,
+                specialty: role === 'VET' ? specialty : undefined
+            })
             // Reset form
-            setFullName('')
-            setPhone('')
-            setRole(allowedRoles[0])
+            resetForm()
             onClose()
         } catch (err: any) {
             setError(err?.userMessage || err?.message || 'Có lỗi xảy ra')
@@ -65,12 +63,16 @@ export function QuickAddStaffModal({
         }
     }
 
+    const resetForm = () => {
+        setEmail('')
+        setRole(allowedRoles[0])
+        setSpecialty('VET_GENERAL')
+        setError(null)
+    }
+
     const handleClose = () => {
         if (!isSubmitting) {
-            setFullName('')
-            setPhone('')
-            setRole(allowedRoles[0])
-            setError(null)
+            resetForm()
             onClose()
         }
     }
@@ -107,38 +109,27 @@ export function QuickAddStaffModal({
                         </div>
                     )}
 
-                    {/* Full Name */}
-                    <div>
-                        <label className="block text-sm font-bold uppercase text-stone-700 mb-2">
-                            HỌ VÀ TÊN
-                        </label>
-                        <input
-                            type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            placeholder="Nguyễn Văn A"
-                            className="input-brutal"
-                            disabled={isSubmitting}
-                        />
+                    {/* Info Banner */}
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 border-2 border-blue-300">
+                        <EnvelopeIcon className="w-6 h-6 text-blue-600 flex-shrink-0" />
+                        <p className="text-xs text-blue-800">
+                            Nhân viên sẽ đăng nhập bằng Google. Tên và ảnh sẽ tự động lấy từ tài khoản Google.
+                        </p>
                     </div>
 
-                    {/* Phone */}
+                    {/* Email Input */}
                     <div>
                         <label className="block text-sm font-bold uppercase text-stone-700 mb-2">
-                            SỐ ĐIỆN THOẠI
+                            EMAIL
                         </label>
                         <input
-                            type="tel"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                            placeholder="0901234567"
-                            maxLength={11}
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="bacsi@gmail.com"
                             className="input-brutal"
                             disabled={isSubmitting}
                         />
-                        <p className="mt-1 text-xs text-stone-500">
-                            Mật khẩu mặc định: 6 số cuối SĐT
-                        </p>
                     </div>
 
                     {/* Role */}
@@ -187,6 +178,27 @@ export function QuickAddStaffModal({
                             )}
                         </div>
                     </div>
+
+                    {/* Specialty - Only show when role is VET */}
+                    {role === 'VET' && (
+                        <div>
+                            <label className="block text-sm font-bold uppercase text-stone-700 mb-2">
+                                CHUYÊN MÔN
+                            </label>
+                            <select
+                                value={specialty}
+                                onChange={(e) => setSpecialty(e.target.value as StaffSpecialty)}
+                                className="input-brutal"
+                                disabled={isSubmitting}
+                            >
+                                {(Object.keys(SPECIALTY_LABELS) as StaffSpecialty[]).map((key) => (
+                                    <option key={key} value={key}>
+                                        {SPECIALTY_LABELS[key]}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-4 pt-2">
