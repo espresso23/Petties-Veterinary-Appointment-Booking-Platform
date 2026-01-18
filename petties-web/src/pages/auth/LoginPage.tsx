@@ -9,7 +9,7 @@ import { HomeIcon, CpuChipIcon, ClipboardDocumentListIcon } from '@heroicons/rea
 import '../../styles/brutalist.css'
 
 // Google Client ID (Web)
-const GOOGLE_CLIENT_ID = '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com'
+const GOOGLE_CLIENT_ID = '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com'
 
 // Helper to get role-based dashboard path
 function getRoleDashboard(role: string): string {

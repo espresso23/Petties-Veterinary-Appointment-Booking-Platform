@@ -9,6 +9,8 @@ class Pet {
   final String? color;
   final String? allergies;
   final String? imageUrl;
+  final String? ownerName;
+  final String? ownerPhone;
 
   Pet({
     required this.id,
@@ -21,6 +23,8 @@ class Pet {
     this.color,
     this.allergies,
     this.imageUrl,
+    this.ownerName,
+    this.ownerPhone,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) {
@@ -37,6 +41,8 @@ class Pet {
       color: json['color'],
       allergies: json['allergies'],
       imageUrl: json['imageUrl'],
+      ownerName: json['ownerName'],
+      ownerPhone: json['ownerPhone'],
     );
   }
 
@@ -52,6 +58,8 @@ class Pet {
       'color': color,
       'allergies': allergies,
       'imageUrl': imageUrl,
+      'ownerName': ownerName,
+      'ownerPhone': ownerPhone,
     };
   }
 }

@@ -22,7 +22,7 @@ class Environment {
       // return 'http://10.0.2.2:8080/api';
 
       // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
-      return 'http://10.0.14.209:8080/api';
+      return 'http://10.0.2.2:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -99,7 +99,7 @@ class Environment {
     'GOOGLE_SERVER_CLIENT_ID',
     // ⚠️ PHẢI dùng WEB Client ID, không phải iOS/Android Client ID
     defaultValue:
-        '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com',
+        '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification

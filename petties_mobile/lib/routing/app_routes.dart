@@ -23,6 +23,15 @@ class AppRoutes {
   static const String vetHome = '/vet/home';
   static const String vetSchedule = '/vet/schedule';
 
+  // VET Patient Routes
+  static const String vetPatients = '/vet/patients';
+  static const String vetPatientDetail = '/vet/patients/:petId';
+  
+  // VET EMR Routes
+  static const String vetCreateEmr = '/vet/emr/create/:petId';
+  static const String vetEmrDetail = '/vet/emr/:emrId';
+  static const String vetEmrEdit = '/vet/emr/edit/:emrId';
+
   // Booking Flow
   static const String clinicDetails = '/clinic/:id';
   static const String selectService = '/booking/select-service';
@@ -54,3 +63,4 @@ class AppRoutes {
   static const String privacyPolicy = '/privacy';
   static const String help = '/help';
 }
+

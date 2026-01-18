@@ -1,2 +1,7 @@
 export { VetDashboardPage } from './DashboardPage'
 export { VetSchedulePage } from './VetSchedulePage'
+export { CreateEmrPage } from './emr/CreateEmrPage'
+export { EditEmrPage } from './emr/EditEmrPage'
+export { EmrDetailPage } from './emr/EmrDetailPage'
+export { VetPatientsPage } from './patients/VetPatientsPage'
+export { NotificationsPage } from './NotificationsPage'

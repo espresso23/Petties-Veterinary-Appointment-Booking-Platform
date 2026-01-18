@@ -52,6 +52,9 @@ class PetService {
     }
   }
 
+  /// Alias for getPet
+  Future<Pet> getPetById(String id) => getPet(id);
+
   /// Create new pet
   Future<Pet> createPet({
     required String name,
@@ -141,6 +144,19 @@ class PetService {
   Future<void> deletePet(String id) async {
     try {
       await _apiClient.delete('/pets/$id');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// VET: Update only pet allergies
+  Future<Pet> updateAllergies(String petId, String? allergies) async {
+    try {
+      final response = await _apiClient.patch(
+        '/pets/$petId/allergies',
+        data: {'allergies': allergies ?? ''},
+      );
+      return Pet.fromJson(response.data);
     } catch (e) {
       rethrow;
     }

@@ -1,11 +1,16 @@
 package com.petties.petties.config;
 
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
+import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.Prescription;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
+import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
+import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.model.ChatConversation;
@@ -32,6 +37,8 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
+    private final PetRepository petRepository;
+    private final EmrRecordRepository emrRecordRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -113,6 +120,10 @@ public class DataInitializer implements CommandLineRunner {
                 Role.CLINIC_MANAGER);
         initializeUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", Role.VET);
 
+        // Create more pet owners for testing
+        User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
+        User petOwner3 = initializeUser("petOwner3", "owner", "tran.binh@gmail.com", "Trần Thị Bình", Role.PET_OWNER);
+
         // Initialize a clinic for the clinic owner
         Clinic clinic = null;
         if (clinicOwner != null) {
@@ -139,10 +150,228 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
 
+        // Seed pets for pet owners
+        seedTestPets(petOwner, petOwner2, petOwner3);
+
+        // Seed EMR records for pets
+        User vet = userRepository.findByUsername("vet").orElse(null);
+        if (vet != null && clinic != null) {
+            seedTestEmrRecords(vet, clinic);
+        }
+
         // Seed conversation & messages between pet owner và clinic manager (nếu đủ dữ
         // liệu)
         if (petOwner != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner, clinicManager, clinic);
+        }
+    }
+
+    /**
+     * Seed test pets for development/testing
+     */
+    private void seedTestPets(User petOwner1, User petOwner2, User petOwner3) {
+        log.info("🐾 Seeding test pets...");
+
+        // Pets for petOwner1 (John Pet Owner)
+        if (petOwner1 != null && !petRepository.existsByUserUserId(petOwner1.getUserId())) {
+            createPet(petOwner1, "Bella", "Chó", "Golden Retriever", "2022-03-15", 15.5, "Cái", "Vàng kem",
+                    "Dị ứng Penicillin");
+            createPet(petOwner1, "Mimi", "Mèo", "Mèo Anh lông ngắn", "2023-06-20", 4.2, "Cái", "Xám", null);
+        }
+
+        // Pets for petOwner2 (Nguyễn Văn An)
+        if (petOwner2 != null && !petRepository.existsByUserUserId(petOwner2.getUserId())) {
+            createPet(petOwner2, "Rocky", "Chó", "French Bulldog", "2021-11-10", 12.0, "Đực", "Trắng đen", null);
+            createPet(petOwner2, "Lucky", "Chó", "Corgi", "2023-01-05", 10.5, "Đực", "Vàng trắng",
+                    "Dị ứng thức ăn biển");
+        }
+
+        // Pets for petOwner3 (Trần Thị Bình)
+        if (petOwner3 != null && !petRepository.existsByUserUserId(petOwner3.getUserId())) {
+            createPet(petOwner3, "Bunny", "Thỏ", "Holland Lop", "2024-02-14", 2.5, "Cái", "Trắng nâu", null);
+        }
+    }
+
+    /**
+     * Helper to create a pet
+     */
+    private void createPet(User owner, String name, String species, String breed, String dob, double weight,
+            String gender, String color, String allergies) {
+        try {
+            Pet pet = new Pet();
+            pet.setUser(owner);
+            pet.setName(name);
+            pet.setSpecies(species);
+            pet.setBreed(breed);
+            pet.setDateOfBirth(java.time.LocalDate.parse(dob));
+            pet.setWeight(weight);
+            pet.setGender(gender);
+            pet.setColor(color);
+            pet.setAllergies(allergies);
+            petRepository.save(pet);
+            log.info("   + Created pet '{}' ({}) for owner '{}'", name, species, owner.getFullName());
+        } catch (Exception e) {
+            log.error("   x Failed to create pet '{}': {}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Seed test EMR records for development/testing
+     */
+    private void seedTestEmrRecords(User vet, Clinic clinic) {
+        log.info("📋 Seeding test EMR records...");
+
+        // Get all pets to create EMR records for
+        java.util.List<Pet> allPets = petRepository.findAll();
+        if (allPets.isEmpty()) {
+            log.info("   - No pets found, skipping EMR seeding");
+            return;
+        }
+
+        // Check if EMR records already exist
+        if (emrRecordRepository.count() > 0) {
+            log.info("   - EMR records already exist, skipping");
+            return;
+        }
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        for (Pet pet : allPets) {
+            if (pet.getName().equals("Bella")) {
+                // EMR 1 for Bella - Viêm tai ngoài
+                EmrRecord emr1 = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Chủ nuôi báo cáo: Bé gãi tai nhiều trong 3 ngày qua, có mùi hôi từ tai, lắc đầu thường xuyên.")
+                        .objective(
+                                "Kiểm tra lâm sàng: Tai trái đỏ, có dịch màu nâu đen, mùi hôi. Nhiệt độ 39.2°C. Phản xạ đau khi sờ tai. Cân nặng: 15.2kg.")
+                        .assessment(
+                                "Chẩn đoán: Viêm tai ngoài (Otitis Externa) do nhiễm nấm Malassezia. Khuyến nghị xét nghiệm tế bào học để xác nhận.")
+                        .plan("1. Vệ sinh tai bằng dung dịch chuyên dụng 2 lần/ngày\n2. Thuốc nhỏ tai Otomax 5-7 giọt/tai x 2 lần/ngày x 7 ngày\n3. Tái khám sau 7 ngày\n4. Tránh để nước vào tai khi tắm")
+                        .notes("Lưu ý: Bé có tiền sử dị ứng Penicillin, đã tránh kê thuốc kháng sinh nhóm này.")
+                        .weightKg(new java.math.BigDecimal("15.2"))
+                        .temperatureC(new java.math.BigDecimal("39.2"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Otomax")
+                                        .dosage("5-7 giọt/tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(7)
+                                        .instructions("Nhỏ vào tai sau khi vệ sinh, massage nhẹ chân tai")
+                                        .build(),
+                                Prescription.builder()
+                                        .medicineName("Dung dịch vệ sinh tai EpiOtic")
+                                        .dosage("Đủ để đầy ống tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(14)
+                                        .instructions("Đổ vào tai, massage 30 giây, lau sạch bằng bông")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(7))
+                        .createdAt(now.minusDays(7))
+                        .build();
+                emrRecordRepository.save(emr1);
+                log.info("   + Created EMR for pet 'Bella' - Viêm tai ngoài");
+
+                // EMR 2 for Bella - Tái khám
+                EmrRecord emr2 = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Tái khám sau 7 ngày điều trị viêm tai. Chủ nuôi cho biết bé đã bớt gãi, không còn lắc đầu nhiều.")
+                        .objective(
+                                "Tai đã giảm viêm đáng kể, dịch tiết giảm. Không còn mùi hôi. Nhiệt độ 38.5°C bình thường. Cân nặng: 15.5kg.")
+                        .assessment("Viêm tai ngoài đang hồi phục tốt. Tiếp tục điều trị thêm 5 ngày.")
+                        .plan("1. Tiếp tục thuốc nhỏ tai thêm 5 ngày\n2. Giảm vệ sinh tai xuống 1 lần/ngày\n3. Tái khám sau 1 tuần nếu còn triệu chứng")
+                        .notes("Đáp ứng điều trị tốt.")
+                        .weightKg(new java.math.BigDecimal("15.5"))
+                        .temperatureC(new java.math.BigDecimal("38.5"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Otomax")
+                                        .dosage("5-7 giọt/tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(5)
+                                        .instructions("Tiếp tục như trước")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now)
+                        .createdAt(now)
+                        .build();
+                emrRecordRepository.save(emr2);
+                log.info("   + Created EMR for pet 'Bella' - Tái khám");
+
+            } else if (pet.getName().equals("Rocky")) {
+                // EMR for Rocky - Tiêu chảy
+                EmrRecord emr = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Bé tiêu chảy 2 ngày nay, phân lỏng có nhầy. Ăn ít, uống nước bình thường. Không nôn.")
+                        .objective(
+                                "Bụng hơi chướng, có tiếng óc ách khi ấn. Niêm mạc hồng nhạt. Nhiệt độ 39.0°C. Không có dấu hiệu mất nước nghiêm trọng. Cân nặng 11.8kg.")
+                        .assessment(
+                                "Viêm ruột cấp tính, nghi do thay đổi thức ăn hoặc ăn phải thức ăn không phù hợp. Theo dõi thêm triệu chứng.")
+                        .plan("1. Nhịn ăn 12 giờ, chỉ cho uống nước\n2. Sau đó cho ăn thức ăn dễ tiêu (cháo gà, cơm nát)\n3. Thuốc trị tiêu chảy và probiotics\n4. Tái khám nếu không cải thiện sau 48h hoặc có nôn")
+                        .weightKg(new java.math.BigDecimal("11.8"))
+                        .temperatureC(new java.math.BigDecimal("39.0"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Smecta")
+                                        .dosage("1/2 gói")
+                                        .frequency("3 lần/ngày")
+                                        .durationDays(3)
+                                        .instructions("Pha với 10ml nước, cho uống trước ăn 30 phút")
+                                        .build(),
+                                Prescription.builder()
+                                        .medicineName("FortiFlora Probiotic")
+                                        .dosage("1 gói")
+                                        .frequency("1 lần/ngày")
+                                        .durationDays(7)
+                                        .instructions("Rắc lên thức ăn")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(3))
+                        .createdAt(now.minusDays(3))
+                        .build();
+                emrRecordRepository.save(emr);
+                log.info("   + Created EMR for pet 'Rocky' - Tiêu chảy");
+
+            } else if (pet.getName().equals("Mimi")) {
+                // EMR for Mimi - Khám sức khỏe định kỳ
+                EmrRecord emr = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Khám sức khỏe định kỳ. Chủ nuôi không có than phiền gì đặc biệt. Bé ăn uống bình thường, chơi đùa vui vẻ.")
+                        .objective(
+                                "Toàn trạng khỏe mạnh. Lông mượt, mắt sáng. Niêm mạc hồng. Răng sạch, không có cao răng. Tim phổi bình thường. Cân nặng 4.3kg, tăng 0.1kg so với lần khám trước.")
+                        .assessment("Sức khỏe tổng quát tốt. Khuyến nghị tiêm phòng vaccine dại theo lịch.")
+                        .plan("1. Tiêm vaccine dại (đã thực hiện)\n2. Tái khám định kỳ sau 6 tháng\n3. Tẩy giun định kỳ 3 tháng/lần")
+                        .notes("Đã tiêm vaccine dại Nobivac. Bé phản ứng tốt sau tiêm, không có dấu hiệu bất thường.")
+                        .weightKg(new java.math.BigDecimal("4.3"))
+                        .temperatureC(new java.math.BigDecimal("38.8"))
+                        .prescriptions(java.util.List.of())
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(14))
+                        .createdAt(now.minusDays(14))
+                        .build();
+                emrRecordRepository.save(emr);
+                log.info("   + Created EMR for pet 'Mimi' - Khám định kỳ");
+            }
         }
     }
 

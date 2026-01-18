@@ -9,6 +9,10 @@ import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
 import '../ui/vet/vet_schedule_screen.dart';
+import '../ui/vet/patient/patient_screens.dart';
+import '../ui/vet/emr/create_emr_screen.dart';
+import '../ui/vet/emr/emr_detail_screen.dart';
+import '../ui/vet/emr/edit_emr_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
@@ -189,6 +193,41 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.vetSchedule,
           builder: (context, state) => const VetScheduleScreen(),
+        ),
+        
+        // VET Patient Routes
+        GoRoute(
+          path: AppRoutes.vetPatients,
+          builder: (context, state) => const PatientListScreen(),
+        ),
+        
+        // VET EMR Routes
+        GoRoute(
+          path: AppRoutes.vetCreateEmr,
+          builder: (context, state) {
+            final petId = state.pathParameters['petId']!;
+            final petName = state.uri.queryParameters['petName'];
+            final petSpecies = state.uri.queryParameters['petSpecies'];
+            return CreateEmrScreen(
+              petId: petId,
+              petName: petName,
+              petSpecies: petSpecies,
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.vetEmrDetail,
+          builder: (context, state) {
+            final emrId = state.pathParameters['emrId']!;
+            return EmrDetailScreen(emrId: emrId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.vetEmrEdit,
+          builder: (context, state) {
+            final emrId = state.pathParameters['emrId']!;
+            return EditEmrScreen(emrId: emrId);
+          },
         ),
 
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included

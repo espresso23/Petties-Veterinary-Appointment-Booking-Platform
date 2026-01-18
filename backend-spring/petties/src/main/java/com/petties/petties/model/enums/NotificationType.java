@@ -34,5 +34,8 @@ public enum NotificationType {
     BOOKING_CANCELLED,
 
     // Additional Clinic notifications
-    CLINIC_VERIFIED
+    CLINIC_VERIFIED,
+
+    // Re-examination
+    RE_EXAMINATION_REMINDER
 }
