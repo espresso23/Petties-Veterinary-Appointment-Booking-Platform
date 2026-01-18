@@ -11,6 +11,7 @@ interface AuthState {
     email: string
     role: string
     avatar?: string
+    specialty?: string  // VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER
     workingClinicId?: string
     workingClinicName?: string
   } | null

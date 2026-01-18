@@ -10,6 +10,7 @@ import { useSseNotification } from '../hooks/useSseNotification'
 import { chatWebSocket } from '../services/websocket/chatWebSocket'
 import { chatService } from '../services/api/chatService'
 import type { ChatWebSocketMessage } from '../types/chat'
+import { useSyncProfile } from '../hooks/useSyncProfile'
 import {
     Squares2X2Icon,
     UserGroupIcon,
@@ -35,6 +36,9 @@ export const ClinicManagerLayout = () => {
 
     // Initialize SSE
     useSseNotification()
+
+    // Auto-sync profile (avatar, fullName) to authStore for Sidebar
+    useSyncProfile()
 
     // Connect to chat WebSocket for global unread count updates
     useEffect(() => {
@@ -109,6 +113,7 @@ export const ClinicManagerLayout = () => {
             unsubscribes.forEach(u => u())
         }
     }, [refreshUnreadCount, refreshChatUnreadCount, incrementChatUnreadCount])
+
 
     const navGroups: NavGroup[] = [
         {

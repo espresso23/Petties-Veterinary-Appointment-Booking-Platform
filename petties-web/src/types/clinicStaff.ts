@@ -5,6 +5,22 @@
 
 export type StaffRole = 'VET' | 'CLINIC_MANAGER'
 
+// Chuyên môn của nhân viên
+export type StaffSpecialty =
+    | 'VET_GENERAL'      // Bác sĩ thú y tổng quát
+    | 'VET_SURGERY'      // Bác sĩ phẫu thuật
+    | 'VET_DENTAL'       // Bác sĩ nha khoa
+    | 'VET_DERMATOLOGY'  // Bác sĩ da liễu
+    | 'GROOMER'          // Nhân viên Grooming
+
+export const SPECIALTY_LABELS: Record<StaffSpecialty, string> = {
+    VET_GENERAL: 'Bác sĩ thú y tổng quát',
+    VET_SURGERY: 'Bác sĩ phẫu thuật',
+    VET_DENTAL: 'Bác sĩ nha khoa',
+    VET_DERMATOLOGY: 'Bác sĩ da liễu',
+    GROOMER: 'Nhân viên Grooming',
+}
+
 export interface StaffMember {
     userId: string
     fullName: string
@@ -13,14 +29,23 @@ export interface StaffMember {
     role: StaffRole
     phone?: string
     avatar?: string
-}
-
-export interface QuickAddStaffRequest {
-    fullName: string
-    phone: string
-    role: StaffRole
+    specialty?: StaffSpecialty
 }
 
 export interface AssignStaffRequest {
     usernameOrEmail: string
 }
+
+export interface InviteByEmailRequest {
+    email: string
+    role: StaffRole
+    specialty?: StaffSpecialty
+}
+
+export interface InviteByEmailRequest {
+    email: string
+    role: StaffRole
+    specialty?: StaffSpecialty
+}
+
+

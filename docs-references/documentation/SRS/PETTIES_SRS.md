@@ -156,231 +156,118 @@ graph TB
 | **CLINIC_OWNER** | Web only | Chủ phòng khám, quản lý dịch vụ, doanh thu |
 | **ADMIN** | Web only | Admin nền tảng, duyệt phòng khám, quản lý AI |
 
-### 2.2 Use Cases
+### 2.2 User Stories (Organized by Epic/Module)
+> **Note:** Requirements are now organized by Functional Module rather than by User Role to align with System Design.
 
-#### 2.2.1 Pet Owner Use Cases
+#### 2.2.1 Authentication & Onboarding
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-01 | Pet Owner | **Register & Login** (Email/OTP) | High |
+| UC-PO-02 | Pet Owner | **Google Login** (OAuth 2.0) | High |
+| UC-VT-01 | Vet | **Staff Login** (Invited Account) | High |
+| UC-CM-01 | Manager | **Manager Login** | High |
+| UC-CM-03 | Manager | **Invite Staff** (Quick Add by Email) | High |
+| UC-CO-01 | Clinic Owner | **Register Clinic** (Pending Approval) | High |
+| UC-AD-01 | Admin | **Admin Login** | High |
 
-| UC-ID | Use Case | Priority | Sprint |
-|-------|----------|----------|--------|
-| UC-PO-01 | Đăng ký và Đăng nhập | High | 1 |
-| UC-PO-02 | Đăng nhập bằng Google | High | 1 |
-| UC-PO-03 | Quản lý hồ sơ cá nhân | Medium | 2 |
-| UC-PO-04 | Tạo/Sửa/Xóa hồ sơ thú cưng | High | 2 |
-| UC-PO-05 | Tìm kiếm phòng khám | High | 4 |
-| UC-PO-06 | Đặt lịch khám tại phòng (Clinic Visit) | High | 4-6 |
-| UC-PO-07 | Đặt lịch khám tại nhà (Home Visit) | High | 4-6 |
-| UC-PO-08 | Xem danh sách booking | High | 4 |
-| UC-PO-09 | Hủy booking | Medium | 5 |
-| UC-PO-10 | Thanh toán online (Stripe) | High | 8 |
-| UC-PO-11 | Xem hồ sơ y tế thú cưng (EMR) | Medium | 7 |
-| UC-PO-12 | Xem sổ tiêm chủng | Medium | 7 |
-| UC-PO-13 | Đánh giá bác sĩ/phòng khám | Low | 9 |
-| UC-PO-14a | Hỏi đáp cẩm nang chăm sóc thú y (RAG) | Medium | 10 |
-| UC-PO-14b | Tra cứu triệu chứng & Gợi ý hướng xử lý | Medium | 10 |
-| UC-PO-14c | Hỗ trợ đặt lịch khám tự động qua AI | Medium | 10 |
-| UC-PO-15 | Đặt lịch cứu hộ khẩn cấp (SOS) & Định tuyến Bác sĩ | High | 11 |
-| UC-PO-16 | Báo cáo vi phạm Clinic/Vet | Low | 9 |
-| UC-PO-17 | **[SOS] Theo dõi vị trí bác sĩ trên bản đồ** | High | 11 |
-| UC-PO-18 | **[SOS] Xem lộ trình di chuyển & ETA cứu hộ** | High | 11 |
-| UC-PO-19 | **[SOS] Nhận thông báo khi bác sĩ sắp đến (SOS mode)** | High | 11 |
+#### 2.2.2 User Profile & Account Setup
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-03 | Pet Owner | **Manage Personal Profile** (Update Info, Avatar) | Medium |
+| UC-PO-03d| Pet Owner | **Change Password** | Medium |
+| UC-PO-03c| Pet Owner | **Change Email** | Low |
 
-#### 2.2.2 Vet Use Cases
+#### 2.2.3 Pet Records & Health Hub
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-04 | Pet Owner | **Manage Pet Profiles** (Add/Edit/Delete) | High |
+| UC-PO-11 | Pet Owner | **View Pet EMR Records** | Medium |
+| UC-PO-12 | Pet Owner | **View Vaccination Records** | Medium |
+| UC-VT-13 | Vet | **View Patient History** (Mobile) | High |
 
-| UC-ID | Use Case | Priority | Sprint |
-|-------|----------|----------|--------|
-| UC-VT-01 | Đăng nhập (Account được cấp) | High | 3 |
-| UC-VT-02 | Xem lịch làm việc | High | 3 |
-| UC-VT-03 | Xem booking được gán | High | 4 |
-| UC-VT-04 | Phê duyệt/Từ chối booking | High | 5 |
-| UC-VT-05 | Check-in bệnh nhân | High | 6 |
-| UC-VT-06 | Ghi hồ sơ bệnh án (EMR) | High | 7 |
-| UC-VT-07 | Ghi đơn thuốc | Medium | 7 |
-| UC-VT-08 | Cập nhật sổ tiêm chủng | Medium | 7 |
-| UC-VT-09 | Checkout bệnh nhân | High | 6 |
-| UC-VT-10 | **[SOS] Chấp nhận yêu cầu cứu hộ** (UPDATE Booking status + CREATE SOS Session) | High | 11 |
-| UC-VT-11 | **[SOS] Xác nhận đã đến nơi cứu hộ** (UPDATE SOS Session status) | High | 11 |
-| UC-VT-12 | **Tra cứu bệnh nhân đã khám** | Medium | 9 |
-| UC-VT-13 | **Xem Lịch sử Bệnh nhân (Mobile View)** | High | 6 |
+#### 2.2.4 Clinic Discovery & Search
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-05 | Pet Owner | **Search Clinics** (Location/Filter) | High |
+| UC-PO-05b| Pet Owner | **View Clinic Details** | High |
 
-#### 2.2.3 Clinic Manager Use Cases
+#### 2.2.5 Booking & Appointment Lifecycle
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-06 | Pet Owner | **Book Clinic Visit** | High |
+| UC-PO-07 | Pet Owner | **Book Home Visit** | High |
+| UC-PO-08 | Pet Owner | **View My Bookings** | High |
+| UC-PO-09 | Pet Owner | **Cancel Booking** | Medium |
+| UC-PO-10 | Pet Owner | **Online Payment** (Stripe) | High |
+| UC-VT-03 | Vet | **View Assigned Bookings** | High |
+| UC-VT-04 | Vet | **Update Appointment Progress** | High |
+| UC-VT-05 | Vet | **Check-in Patient** | High |
+| UC-VT-09 | Vet | **Check-out Patient** | High |
+| UC-CM-05 | Manager | **View New Bookings** | High |
+| UC-CM-06 | Manager | **Assign Vet to Booking** | High |
+| UC-CM-07 | Manager | **Handle Cancellations & Refunds** | Medium |
 
-| UC-ID | Use Case | Priority | Sprint |
-|-------|----------|----------|--------|
-| UC-CM-01 | Đăng nhập | High | 1 |
-| UC-CM-02 | Xem danh sách bác sĩ | High | 3 |
-| UC-CM-03 | Thêm nhanh bác sĩ (Quick Add) | High | 3 |
-| UC-CM-03b| Gán bác sĩ từ tài khoản có sẵn | Medium | 3 |
-| UC-CM-04 | Tạo lịch bác sĩ thủ công | High | 3 |
-| UC-CM-05 | Xem booking mới | High | 4 |
-| UC-CM-06 | Gán bác sĩ cho booking | High | 5 |
-| UC-CM-07 | Quản lý hủy & hoàn tiền | Medium | 8 |
-| UC-CM-08 | **Xem danh sách bệnh nhân** | Medium | 9 |
-| UC-CM-09 | **Xem hồ sơ bệnh nhân (EMR/Vaccination)** | Medium | 9 |
+#### 2.2.6 Staffing & Scheduling
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-VT-02 | Vet | **View Personal Schedule** | High |
+| UC-CM-02 | Manager | **View Staff List** | High |
+| UC-CM-04 | Manager | **Create Vet Shift** (Manual Scheduling) | High |
+| UC-CM-05 | Manager | **Manage Shifts** (Delete/Edit) | Medium |
+| UC-CO-06 | Clinic Owner | **Quick Add Staff** (Manager/Vet) | Medium |
+| UC-CO-07 | Clinic Owner | **Manage Clinic Staff** | Medium |
 
-#### 2.2.4 Clinic Owner Use Cases
+#### 2.2.7 Clinical Operations & Service Setup
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-CO-02 | Clinic Owner | **Manage Clinic Info** | High |
+| UC-CO-03 | Clinic Owner | **Configure Clinic Services** | High |
+| UC-CO-04 | Clinic Owner | **Configure Pricing & Weights** | High |
+| UC-CO-08 | Clinic Owner | **Manage Master Services** | High |
+| UC-CO-05 | Clinic Owner | **View Revenue Reports** | Medium |
 
-| UC-ID | Use Case | Priority | Sprint |
-|-------|----------|----------|--------|
-| UC-CO-01 | Đăng ký phòng khám | High | 2 |
-| UC-CO-02 | Quản lý thông tin phòng khám | High | 2 |
-| UC-CO-03 | Cấu hình Dịch vụ tại phòng khám (Hybrid) | High | 2 |
-| UC-CO-04 | Cấu hình giá & Khung cân nặng | High | 2 |
-| UC-CO-08 | Quản lý Danh mục Dịch vụ (Master Services) | High | 2 |
-| UC-CO-09 | Cài đặt Khung giá Cân nặng (Weight Tiers) | High | 2 |
-| UC-CO-05 | Theo dõi biểu đồ doanh thu | Medium | 9 |
-| UC-CO-06 | Thêm nhanh quản lý (Quick Add) | Medium | 3 |
-| UC-CO-07 | Quản lý nhân sự (Manager & Vet) | Medium | 3 |
+#### 2.2.8 Patient Management (EMR & Care)
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-VT-06 | Vet | **Create EMR Record** (SOAP) | High |
+| UC-VT-07 | Vet | **Prescribe Medication** | Medium |
+| UC-VT-08 | Vet | **Add Vaccination Record** | Medium |
+| UC-VT-12 | Vet | **Patient Lookup** | Medium |
+| UC-CM-08 | Manager | **View Patient List** | Medium |
+| UC-CM-09 | Manager | **View Patient Records** | Medium |
 
-#### 2.2.5 Admin Use Cases
+#### 2.2.9 SOS Emergency Services
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-15 | Pet Owner | **Request SOS** | High |
+| UC-PO-17 | Pet Owner | **Track Vet Location** | High |
+| UC-PO-18 | Pet Owner | **View ETA & Route** | High |
+| UC-PO-19 | Pet Owner | **Receive Arrival Alert** | High |
+| UC-VT-10 | Vet | **Receive SOS Assignment** | High |
+| UC-VT-11 | Vet | **Start Emergency Travel** (Manual Click) | High |
+| UC-VT-11b| Vet | **Confirm SOS Arrival** (Manual Click/Auto-Geofence) | High |
+| UC-CM-13 | Manager | **Dispatch SOS** (if manual) | Medium |
 
-| UC-ID | Use Case | Priority | Sprint |
-|-------|----------|----------|--------|
-| UC-AD-01 | Đăng nhập | High | 1 |
-| UC-AD-02 | Xem danh sách phòng khám pending | High | 2 |
-| UC-AD-03 | Xét duyệt/Từ chối phòng khám | High | 2 |
-| UC-AD-04 | Theo dõi số liệu thống kê nền tảng | Medium | 9 |
-| UC-AD-05 | Quản lý công cụ của Agent (Agent Tools) | Low | 10 |
-| UC-AD-06 | Quản lý Knowledge Base (LlamaIndex RAG) | Low | 10 |
-| UC-AD-07 | Thử nghiệm & Cấu hình Agent (Playground) | Low | 11 |
-| UC-AD-08 | Theo dõi danh sách báo cáo vi phạm | Medium | 9 |
-| UC-AD-09 | Xử lý User Report (Warn/Suspend/Ban/Reject) | Medium | 9 |
+#### 2.2.10 AI Assistance & Agents
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-PO-14a| Pet Owner | **Ask Pet Care Advice** (RAG) | Medium |
+| UC-PO-14b| Pet Owner | **Symptom Check** | Medium |
+| UC-PO-14c| Pet Owner | **AI Booking Assistant** | Medium |
+| UC-AD-05 | Admin | **Manage Agent Tools** | Low |
+| UC-AD-06 | Admin | **Manage Knowledge Base** | Low |
+| UC-AD-07 | Admin | **Test Agent Playground** | Low |
 
-#### 2.2.6 Use Case Summary Table
-
-> **Summary:** Complete list of all Use Cases with UC-ID, Use Case Name, Actor, and Description.
-
-##### 📱 Pet Owner (25 Use Cases)
-
-| UC-ID | Use Case Name | Actor | Description |
-|-------|---------------|-------|-------------|
-| UC-PO-01a | Register Account | Pet Owner | **CREATE** user account with email + OTP verification |
-| UC-PO-01b | Login with Credentials | Pet Owner | **READ** user session via username/password authentication |
-| UC-PO-02 | Login with Google | Pet Owner | **READ/CREATE** user session via Google OAuth 2.0 |
-| UC-PO-03a | View Profile Info | Pet Owner | **READ** user.fullname, user.email, user.phone, user.avatar |
-| UC-PO-03b | Update Profile Info | Pet Owner | **UPDATE** user.fullname, user.phone |
-| UC-PO-03c | Upload Avatar | Pet Owner | **UPDATE** user.avatar via Cloudinary upload |
-| UC-PO-03d | Change Password | Pet Owner | **UPDATE** user.password (requires current password) |
-| UC-PO-04a | View Pet List | Pet Owner | **READ** list of pets owned by user |
-| UC-PO-04b | View Pet Details | Pet Owner | **READ** pet.name, pet.species, pet.breed, pet.dob, pet.weight, pet.avatar |
-| UC-PO-04c | Create Pet Profile | Pet Owner | **CREATE** pet with name, species, breed, dob, weight, avatar |
-| UC-PO-04d | Update Pet Profile | Pet Owner | **UPDATE** pet.name, pet.breed, pet.weight, pet.avatar |
-| UC-PO-04e | Delete Pet Profile | Pet Owner | **DELETE** pet by ID (soft delete) |
-| UC-PO-05a | Search Clinics | Pet Owner | **READ** clinic list filtered by name, GPS location, rating, services |
-| UC-PO-05b | View Clinic Details | Pet Owner | **READ** clinic.info, clinic.services, clinic.images, clinic.reviews |
-| UC-PO-06 | Create Clinic Visit Booking | Pet Owner | **CREATE** booking with type=CLINIC_VISIT, slot selection |
-| UC-PO-07 | Create Home Visit Booking | Pet Owner | **CREATE** booking with type=HOME_VISIT, address, surcharge |
-| UC-PO-08 | View My Bookings | Pet Owner | **READ** booking list with status filters (Upcoming/Past/Cancelled) |
-| UC-PO-09 | Cancel Booking | Pet Owner | **UPDATE** booking.status='CANCELLED' (allowed before 4h of appointment) |
-| UC-PO-10 | Submit Payment | Pet Owner | **CREATE** payment via Stripe or mark as Cash |
-| UC-PO-11 | View Pet EMR Records | Pet Owner | **READ** emr list for pet (SOAP notes, prescriptions) |
-| UC-PO-12 | View Vaccination Records | Pet Owner | **READ** vaccination list for pet with next due dates |
-| UC-PO-13 | Create Review | Pet Owner | **CREATE** review with rating (1-5) and comment after COMPLETED booking |
-| UC-PO-14a | Query Pet Care Knowledge | Pet Owner | **READ** AI response from RAG knowledge base |
-| UC-PO-14b | Query Symptom Checker | Pet Owner | **READ** AI-suggested conditions based on symptom description |
-| UC-PO-14c | Create AI-Assisted Booking | Pet Owner | **CREATE** booking via AI conversation flow |
-| UC-PO-15 | Create SOS Request | Pet Owner | **CREATE** booking with type=SOS, urgent flag |
-| UC-PO-16 | Create Violation Report | Pet Owner | **CREATE** user_report against clinic or vet |
-| UC-PO-17 | View SOS Vet Location | Pet Owner | **READ** realtime vet GPS location on map during SOS |
-| UC-PO-18 | View SOS Route & ETA | Pet Owner | **READ** travel route and estimated arrival time |
-| UC-PO-19 | Receive SOS Notification | Pet Owner | **READ** push notification when vet approaches/arrives |
-
-##### 👨‍⚕️ Vet (17 Use Cases)
-
-| UC-ID | Use Case Name | Actor | Description |
-|-------|---------------|-------|-------------|
-| UC-VT-01 | Login as Staff | Vet | **READ** user session via phone + auto-generated password |
-| UC-VT-02 | View My Schedule | Vet | **READ** vet_shift list in calendar view (month/week/day) |
-| UC-VT-03 | View Assigned Bookings | Vet | **READ** booking list filtered by assigned vet (Today/Upcoming/Done) |
-| UC-VT-04 | View Booking Details | Vet | **READ** booking details (pet info, service, time, location) |
-| UC-VT-05 | Check-in Patient | Vet | **UPDATE** booking.status='CHECKED_IN', set check_in_time |
-| UC-VT-06 | Create EMR Record | Vet | **CREATE** emr with SOAP fields (subjective, objective, assessment, plan) |
-| UC-VT-07 | Add Prescription | Vet | **CREATE** prescription linked to EMR (drug, dosage, frequency, duration) |
-| UC-VT-08 | Add Vaccination Record | Vet | **CREATE** vaccination with vaccine_name, batch_number, next_due_date |
-| UC-VT-09 | Check-out Patient | Vet | **UPDATE** booking.status='COMPLETED', set check_out_time |
-| UC-VT-10 | Receive SOS Assignment | Vet | **READ** sos_session notification + **UPDATE** GPS auto-enable |
-| UC-VT-11 | Confirm SOS Arrival | Vet | **UPDATE** sos_session.status='ARRIVED' + **UPDATE** booking.status='CHECKED_IN' (semi-auto via geofence) |
-| UC-VT-12 | Search Patients | Vet | **READ** pet list filtered by clinic, name, owner |
-| UC-VT-13a | View Patient EMR History | Vet | **READ** emr list for pet (cross-clinic if entitlement) |
-| UC-VT-13b | View Patient Vaccination History | Vet | **READ** vaccination list for pet |
-| UC-VT-14 | Update EMR Record | Vet | **UPDATE** emr fields (allowed within 24h of creation) |
-| UC-VT-15 | Update Vaccination Record | Vet | **UPDATE** vaccination fields (restricted by business rules) |
-
-##### 👩‍💼 Clinic Manager (18 Use Cases)
-
-| UC-ID | Use Case Name | Actor | Description |
-|-------|---------------|-------|-------------|
-| UC-CM-01 | Login as Manager | Clinic Manager | **READ** user session via phone + password |
-| UC-CM-02 | View Vet List | Clinic Manager | **READ** user list filtered by clinic and role=VET |
-| UC-CM-03 | Create Staff Account (Quick Add) | Clinic Manager | **CREATE** user with role=VET, auto-generate password |
-| UC-CM-03b | Assign Existing Vet to Clinic | Clinic Manager | **UPDATE** user.working_clinic_id |
-| UC-CM-04 | Remove Staff from Clinic | Clinic Manager | **UPDATE** user.working_clinic_id=null |
-| UC-CM-05a | Create Vet Shift | Clinic Manager | **CREATE** vet_shift + auto-generate slots (30-min intervals) |
-| UC-CM-05b | Delete Vet Shift | Clinic Manager | **DELETE** vet_shift (blocked if has BOOKED slots) |
-| UC-CM-05c | Bulk Delete Shifts | Clinic Manager | **DELETE** multiple vet_shifts via selection |
-| UC-CM-05d | Block Slot | Clinic Manager | **UPDATE** slot.status='BLOCKED' |
-| UC-CM-05e | Unblock Slot | Clinic Manager | **UPDATE** slot.status='AVAILABLE' |
-| UC-CM-06 | View New Bookings | Clinic Manager | **READ** booking list filtered by status=PENDING |
-| UC-CM-07 | Assign Vet to Booking | Clinic Manager | **UPDATE** booking.assigned_vet_id |
-| UC-CM-08a | View Cancellation Requests | Clinic Manager | **READ** booking list with cancellation requests |
-| UC-CM-08b | Process Refund | Clinic Manager | **UPDATE** booking.refund_status, **CREATE** refund record |
-| UC-CM-09 | View Patient List | Clinic Manager | **READ** pet list with DUE/OVERDUE vaccination status |
-| UC-CM-10 | View Patient Records | Clinic Manager | **READ** emr and vaccination records for pet |
-| UC-CM-11 | View Schedule Calendar | Clinic Manager | **READ** vet_shift list in calendar view (Week/Day/Month) |
-| UC-CM-12 | Receive Booking Notification | Clinic Manager | **READ** push notification for new bookings |
-
-##### 🏥 Clinic Owner (16 Use Cases)
-
-| UC-ID | Use Case Name | Actor | Description |
-|-------|---------------|-------|-------------|
-| UC-CO-01 | Register Clinic | Clinic Owner | **CREATE** clinic with status=PENDING (await Admin approval) |
-| UC-CO-02a | View Clinic Info | Clinic Owner | **READ** clinic.name, clinic.address, clinic.phone, clinic.operating_hours |
-| UC-CO-02b | Update Clinic Info | Clinic Owner | **UPDATE** clinic.name, clinic.address, clinic.phone, clinic.operating_hours |
-| UC-CO-02c | Upload Clinic Images | Clinic Owner | **CREATE** clinic_image records via Cloudinary |
-| UC-CO-02d | Delete Clinic Image | Clinic Owner | **DELETE** clinic_image by ID |
-| UC-CO-03a | View Clinic Services | Clinic Owner | **READ** clinic_service list for clinic |
-| UC-CO-03b | Add Service from Template | Clinic Owner | **CREATE** clinic_service linked to master_service |
-| UC-CO-03c | Create Custom Service | Clinic Owner | **CREATE** clinic_service with custom name, description |
-| UC-CO-03d | Update Clinic Service | Clinic Owner | **UPDATE** clinic_service.price, clinic_service.status |
-| UC-CO-04 | Configure Weight Pricing | Clinic Owner | **CREATE/UPDATE** weight_tier pricing for services |
-| UC-CO-05 | View Revenue Dashboard | Clinic Owner | **READ** revenue statistics with date range filters |
-| UC-CO-06 | Create Staff Account | Clinic Owner | **CREATE** user with role=VET or role=MANAGER |
-| UC-CO-07a | View Staff List | Clinic Owner | **READ** user list filtered by clinic |
-| UC-CO-07b | Remove Staff from Clinic | Clinic Owner | **UPDATE** user.working_clinic_id=null |
-| UC-CO-08a | View Master Services | Clinic Owner | **READ** master_service list for owner |
-| UC-CO-08b | Create Master Service | Clinic Owner | **CREATE** master_service template |
-| UC-CO-08c | Update Master Service | Clinic Owner | **UPDATE** master_service.name, master_service.description |
-
-##### 🔧 Admin (15 Use Cases)
-
-| UC-ID | Use Case Name | Actor | Description |
-|-------|---------------|-------|-------------|
-| UC-AD-01 | Login as Admin | Admin | **READ** user session via admin credentials |
-| UC-AD-02 | View Pending Clinics | Admin | **READ** clinic list filtered by status=PENDING |
-| UC-AD-03a | Approve Clinic | Admin | **UPDATE** clinic.status='APPROVED' |
-| UC-AD-03b | Reject Clinic | Admin | **UPDATE** clinic.status='REJECTED' with reason |
-| UC-AD-04 | View Platform Statistics | Admin | **READ** aggregated stats (users, clinics, bookings) |
-| UC-AD-05a | View Agent Tools | Admin | **READ** mcp_tool list |
-| UC-AD-05b | Create Agent Tool | Admin | **CREATE** mcp_tool with name, function |
-| UC-AD-05c | Update Agent Tool | Admin | **UPDATE** mcp_tool configuration |
-| UC-AD-06a | View Knowledge Base | Admin | **READ** document list in vector store |
-| UC-AD-06b | Upload Document | Admin | **CREATE** document in Qdrant via LlamaIndex RAG |
-| UC-AD-06c | Delete Document | Admin | **DELETE** document from vector store |
-| UC-AD-07 | Test Agent (Playground) | Admin | **READ** AI response via chat testing interface |
-| UC-AD-08 | View User Reports | Admin | **READ** user_report list |
-| UC-AD-09a | Warn User | Admin | **UPDATE** user_report.action='WARN' |
-| UC-AD-09b | Suspend User | Admin | **UPDATE** user.status='SUSPENDED' |
-| UC-AD-09c | Ban User | Admin | **UPDATE** user.status='BANNED' |
-
-##### 📊 Summary
-
-| Actor | Use Cases | Platform | Implementation Status |
-|-------|:---------:|----------|----------------------|
-| Pet Owner | 30 | Mobile | ~45% Implemented |
-| Vet | 17 | Mobile + Web | ~55% Implemented |
-| Clinic Manager | 18 | Web | ~65% Implemented |
-| Clinic Owner | 17 | Web | ~80% Implemented |
-| Admin | 16 | Web | ~50% Implemented |
-| **TOTAL** | **98** | - | **~58% Overall** |
+#### 2.2.11 Platform Administration & Governance
+| UC-ID | Actor | User Story / Requirement | Priority |
+| :--- | :--- | :--- | :--- |
+| UC-AD-02 | Admin | **View Pending Clinics** | High |
+| UC-AD-03 | Admin | **Approve/Reject Clinic** | High |
+| UC-AD-04 | Admin | **View Platform Stats** | Medium |
+| UC-AD-08 | Admin | **View User Reports** | Medium |
+| UC-AD-09 | Admin | **Moderate Users** (Ban/Suspend) | Medium |
+| UC-PO-13 | Pet Owner | **Rate & Review** | Low |
+| UC-PO-16 | Pet Owner | **Report Violation** | Low |
 
 ---
 
@@ -431,6 +318,12 @@ flowchart LR
         MyBookings --> BookingDetail[Booking Detail]
     end
 
+    subgraph SOS_Emergency[SOS Emergency]
+        Home --> SOSRequest[Request SOS]
+        SOSRequest --> SOSTracking[SOS Tracking]
+        SOSTracking --> SOSArrived[Vet Arrived]
+    end
+
     subgraph Home_Visit[Home Visit]
         BookingDetail --> TrackVet[Track Vet Location]
     end
@@ -458,7 +351,7 @@ flowchart LR
 ---
 
 ##### 3.1.1.2 Mobile App - Vet Flow (16 screens)
-##### 3.1.1.2 Mobile App - Vet Flow (16 screens)
+
 
 ```mermaid
 flowchart LR
@@ -475,16 +368,14 @@ flowchart LR
     subgraph Booking_Management[Booking Management]
         Dashboard --> AssignedBookings[Assigned Bookings]
         AssignedBookings --> BookingDetail[Booking Detail]
-        BookingDetail --> AcceptReject[Accept/Reject]
     end
 
     subgraph Home_Visit[Home Visit]
-        AcceptReject --> StartTravel[Start Travel]
-        StartTravel --> CheckIn[Check-in]
+        BookingDetail --> CheckIn["Check-in - Auto Travel Status"]
     end
 
     subgraph Clinical_Workspace[Clinical Workspace]
-        AcceptReject --> CheckIn
+        BookingDetail --> CheckIn
         CheckIn --> CreateEMR[Create EMR]
         CreateEMR --> AddVaccination[Add Vaccination]
         CreateEMR --> CheckOut[Check-out]
@@ -494,12 +385,6 @@ flowchart LR
     subgraph Patient_Management[Patient Management]
         Dashboard --> PatientsList[Patients List]
         PatientsList --> PetHistory[Pet History]
-    end
-
-    subgraph Notification
-
-    subgraph Notification
-        Dashboard --> Notifications
     end
 
     subgraph Notification
@@ -539,14 +424,6 @@ flowchart LR
     subgraph Patient_Management[Patient Management]
         Dashboard --> PatientList[Patient List]
         PatientList --> PatientHistory[Patient History]
-    end
-
-    subgraph Notification
-        Dashboard --> Notifications
-    end
-
-    subgraph Notification
-        Dashboard --> Notifications
     end
 
     subgraph Profile
@@ -603,7 +480,6 @@ flowchart LR
 ---
 
 ##### 3.1.1.5 Web App - Clinic Manager Flow (13 screens)
-##### 3.1.1.5 Web App - Clinic Manager Flow (13 screens)
 
 ```mermaid
 flowchart LR
@@ -633,16 +509,6 @@ flowchart LR
     end
 
     subgraph Financial
-
-    subgraph Financial
-        Dashboard --> RevenueReports[Revenue Reports]
-    end
-
-    subgraph Notification
-        Dashboard --> Notifications
-    end
-
-    subgraph Financial
         Dashboard --> RevenueReports[Revenue Reports]
     end
 
@@ -657,7 +523,6 @@ flowchart LR
 
 ---
 
-##### 3.1.1.6 Web App - Admin Flow (12 screens)
 ##### 3.1.1.6 Web App - Admin Flow (12 screens)
 
 ```mermaid
@@ -690,10 +555,6 @@ flowchart LR
     subgraph Moderation_Reporting[Moderation & Reporting]
         Dashboard --> UserReports[User Reports]
         UserReports --> ReportDetail[Report Detail]
-    end
-
-    subgraph Notification
-        Dashboard --> Notifications
     end
 
     subgraph Notification
@@ -837,11 +698,12 @@ flowchart LR
 |   → Enter email/password | X | | | | | |
 |   → Google Sign-in | X | | | | | |
 |   → Forgot Password link | X | | | | | |
-| Login Screen (Mobile - Vet) | X | | | | | |
-|   → Enter phone/password | X | | | | | |
-| Login Screen (Web) | X | | X | X | X | X |
-|   → Enter credentials | X | | X | X | X | X |
-|   → Forgot Password link | X | | X | X | X | X |
+| Login Screen (Mobile - Vet) | | | X | | | |
+|   → Google Sign-in | | | X | | | |
+| Login Screen (Web) | | | X | X | X | X |
+|   → Google Sign-in (Staff) | | | X | X | X | X |
+|   → Email/Password (Admin) | | | | | | X |
+|   → Forgot Password link | | | | | | X |
 | Register Screen | X | | | X | | |
 |   → Fill registration form | X | | | X | | |
 |   → Verify OTP | X | | | X | | |
@@ -981,7 +843,7 @@ flowchart LR
 | # | Feature | System Function | Description |
 |---|---------|-----------------|-------------|
 | 1 | Slot Generation | AutoSlotGenerationService | Auto-generate 30-minute slots from VET_SHIFT when Manager creates a work shift |
-| 2 | Booking Expiration | BookingExpirationJob | Update status PENDING → EXPIRED after 24h without confirmation |
+| 2 | Booking Expiration | BookingExpirationJob | Update status PENDING → EXPIRED/RELEASED after 15 minutes of non-payment (Slot reservation TTL) |
 | 3 | Push Notification | FCMNotificationService | Send push notifications to mobile devices (booking updates, reminders) |
 | 4 | Email Notification | EmailNotificationService | Send confirmation emails and appointment reminders |
 | 5 | OTP Generation | OtpGenerationService | Generate 6-digit OTP codes, store in Redis with 5-minute TTL |
@@ -1000,6 +862,8 @@ flowchart LR
 | 18 | Image Upload | CloudinaryUploadService | Upload and optimize images (avatar, pet, clinic) |
 | 19 | Token Cleanup | TokenCleanupJob | Daily cron to delete expired refresh tokens and blacklisted tokens |
 | 20 | No-Show Detection | NoShowDetectionJob | Mark booking as NO_SHOW if not checked-in after 30 minutes |
+| 21 | EMR Locking | EMRLockingJob | Hourly job to LOCK EMRs that are >24h old (BR-57) |
+| 22 | Patient Auto-Creation | PatientAutoCreationListener | Event listener to create ClinicPatient on first Check-in (BR-58) |
 
 
 #### 3.1.5 Entity Relationship Diagram
@@ -1698,39 +1562,44 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 
 ### 3.7 Staffing & Scheduling Flow
  
- #### *3.7.1 Quick Staff Addition*
+ #### *3.7.1 Staff Invitation by Email*
 **Function trigger**
 - **Navigation path:** Owner Dashboard → Staff Management → "Add Staff".
 - **Timing frequency:** On demand (new hires).
 
 **Function description**
 - **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Register new staff with predefined roles and auto-generate credentials.
+- **Purpose:** Invite new staff by email. Staff will login with Google OAuth, and their profile info (name, avatar) will be auto-filled from Google account.
 - **Interface:**
-    - Full Name – text input
-    - Phone Number – text input
-    - Role – radio selection (Vet, Staff, Manager)
+    - Email Address – text input
+    - Role – radio selection (Vet, Manager)
+    - Specialty – dropdown (for Vet role only)
 
 **Data processing**
-1. System checks phone number uniqueness.
-2. System creates a `USER` record linked to the branch.
-3. System sets an auto-generated password (e.g., last 6 digits of phone).
-4. System notifies the staff member via SMS/Email.
+1. System validates email format and uniqueness.
+2. If email already exists in system:
+   - If user is not assigned to another clinic: assign to current clinic.
+   - If user is already assigned to another clinic: reject with error.
+3. If email does not exist: System creates a `USER` record with random password (unusable), assigned to clinic.
+4. Staff logs in via Google OAuth on first access.
+5. System auto-fills `fullName` and `avatar` from Google profile on first login.
 
 **Screen layout**
-Figure 30. Screen Quick Staff Addition (Web)
+Figure 30. Screen Staff Invitation by Email (Web)
 
 **Function details**
-- **Data:** FullName, PhoneNumber, Role.
+- **Data:** Email, Role, Specialty (optional).
 - **Validation:** 
-    - Phone number must not conflict with other users.
+    - Email must be valid format.
+    - Email must not be assigned to another clinic.
     - Role must be valid within clinic context.
 - **Business rules:** BR-35, BR-45, BR-46, BR-47.
 - **Normal case:**
-    1. Manager adds "Dr. Nam" as Vet.
-    2. Dr. Nam receives login info and can start using the app.
+    1. Manager invites "bacsi@gmail.com" as Vet with "General" specialty.
+    2. Dr. Nam logs in via Google OAuth and starts working.
 - **Abnormal/Exception cases:**
-    - A1. Phone exists – "This number is already linked to another account."
+    - A1. Email already assigned to another clinic – "User is already assigned to another clinic."
+
 
  #### *3.7.2 Clinician Roster Management (Vet Shift)*
 **Function trigger**
@@ -2073,20 +1942,22 @@ Figure 41. Screen Proactive Vet Tracking (SOS Emergency - Mobile)
 - **Actors/Roles:** Vet.
 - **Purpose:** Enables emergency travel mode and GPS broadcast for SOS.
 - **Interface:**
+- **Interface:**
     - Navigation button (Open External Maps)
-    - "Mark Arrived" button
+    - **Status Indicator** (En Route / Arriving)
 
 **Data processing**
 1. Sets booking travel status to `EN_ROUTE`.
 2. Continuously sends coordinates to the server.
-3. Upon "Mark Arrived", sets status to `ARRIVED`.
+3. **Automatic Arrival:** System detects when Vet is within 100m of Owner's location and updates status to `ARRIVED` automatically.
+4. **Fallback:** Manual "Confirmed Arrival" option if GPS fails.
 
 **Screen layout**
 Figure 42. Screen SOS Travel Logistics (Vet Side - Mobile)
 
 **Function details**
 - **Data:** Vet Lat/Lng.
-- **Normal case:** Vet starts travel, owner sees updates on map.
+- **Normal case:** Vet starts travel, system auto-completes arrival upon reaching destination.
 
 ### 3.11 AI Assistance Flow
 
@@ -2386,7 +2257,7 @@ Sentry Integration: Enabled with issue alerts
 | BR-08 | Fully refundable if cancelled > 24 hours before appointment. |
 | BR-09 | 50% refund if cancelled between 4-24 hours. 0% refund if < 4 hours. |
 | BR-10 | System calculates refund amount automatically based on effective time of cancellation. |
-| BR-11 | Users can log in using their primary identifier (Phone number OR Email). For staff, the phone number serves as the default username. |
+| BR-11 | Users identify is Email. Staff accounts must use Google OAuth for login. |
 | BR-12 | Password must be at least 6 characters. |
 | BR-13 | OTP is valid for 5 minutes, with a maximum of 5 attempts for both login and sensitive actions (Email change, Password reset). |
 | BR-14 | Staff accounts (Manager/Vet) are created via the Quick Add feature by Owners. |
@@ -2410,8 +2281,8 @@ Sentry Integration: Enabled with issue alerts
 | BR-32 | Clinics can report Owners for NO_SHOW or abusive behavior. |
 | BR-33 | Admin actions include: WARNING, TEMPORARY SUSPENSION, or PERMANENT BAN. |
 | BR-34 | A booking can only be the subject of a violation report once. |
-| BR-35 | Quick Add requires only Name, Phone Number, and Role selection. |
-| BR-36 | Default password for Quick Add accounts is the last 6 digits of the staff phone number. |
+| BR-35 | Staff Invitation requires only Email and Role selection (Specialty for VET). FullName and Avatar are auto-filled from Google profile on first login. |
+| BR-36 | Staff accounts created via email invitation must login via Google OAuth. Password is randomly generated and cannot be used for login. |
 | BR-37 | Each clinic branch is limited to exactly one CLINIC_MANAGER. |
 | BR-38 | A staff member can only be assigned to one branch at any given time. |
 | BR-39 | EMR and Vaccination history are shared across clinics for pet welfare. |
@@ -2430,6 +2301,10 @@ Sentry Integration: Enabled with issue alerts
 | BR-52 | Real-time GPS tracking is active ONLY for SOS Emergency bookings when the status is EN_ROUTE. Standard Home Visits do not include real-time tracking. |
 | BR-53 | Additional services and miscellaneous incurred costs must be visible in the final invoice/summary. |
 | BR-54 | Adding additional services or custom costs automatically updates the total price of the booking for final reconciliation. |
+| BR-55 | **[EMR]** EMR có thể UPDATE bởi Vet thuộc **cùng phòng khám đã tạo EMR** trong vòng **24 giờ** kể từ lúc tạo. |
+| BR-56 | **[EMR]** EMR từ **phòng khám khác** chỉ được phép **READ-ONLY**, không thể chỉnh sửa. |
+| BR-57 | **[EMR]** Sau 24 giờ kể từ thời điểm tạo, EMR bị **khóa vĩnh viễn** - chỉ READ-ONLY cho tất cả. |
+| BR-58 | **[Patient]** Khi Pet khám **lần đầu** tại Clinic, hệ thống **TỰ ĐỘNG tạo ClinicPatient** record để liên kết Pet với Clinic, giúp hạn chế nhập thủ công. |
 
 
 ### 5.2 Common Requirements

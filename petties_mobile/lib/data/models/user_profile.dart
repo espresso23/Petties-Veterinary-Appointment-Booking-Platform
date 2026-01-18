@@ -10,6 +10,10 @@ class UserProfile extends BaseModel {
   final String? phone;
   final String? avatar;
   final String role;
+  final String?
+      specialty; // VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER
+  final double? ratingAvg; // Rating trung bình (1.0 - 5.0)
+  final int? ratingCount; // Số lượt đánh giá
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -21,6 +25,9 @@ class UserProfile extends BaseModel {
     this.phone,
     this.avatar,
     required this.role,
+    this.specialty,
+    this.ratingAvg,
+    this.ratingCount,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -34,6 +41,11 @@ class UserProfile extends BaseModel {
       phone: json['phone'],
       avatar: json['avatar'],
       role: json['role'] ?? '',
+      specialty: json['specialty'],
+      ratingAvg: json['ratingAvg'] != null
+          ? (json['ratingAvg'] as num).toDouble()
+          : null,
+      ratingCount: json['ratingCount'],
       createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']),
       updatedAt: _parseDateTime(json['updatedAt'] ?? json['updated_at']),
     );
@@ -64,6 +76,9 @@ class UserProfile extends BaseModel {
       phone: other.phone ?? phone,
       avatar: other.avatar ?? avatar,
       role: other.role.isNotEmpty ? other.role : role,
+      specialty: other.specialty ?? specialty,
+      ratingAvg: other.ratingAvg ?? ratingAvg,
+      ratingCount: other.ratingCount ?? ratingCount,
       createdAt: other.createdAt,
       updatedAt: other.updatedAt,
     );
@@ -79,6 +94,9 @@ class UserProfile extends BaseModel {
       'phone': phone,
       'avatar': avatar,
       'role': role,
+      'specialty': specialty,
+      'ratingAvg': ratingAvg,
+      'ratingCount': ratingCount,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
@@ -92,6 +110,9 @@ class UserProfile extends BaseModel {
     String? phone,
     String? avatar,
     String? role,
+    String? specialty,
+    double? ratingAvg,
+    int? ratingCount,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -103,6 +124,9 @@ class UserProfile extends BaseModel {
       phone: phone ?? this.phone,
       avatar: avatar ?? this.avatar,
       role: role ?? this.role,
+      specialty: specialty ?? this.specialty,
+      ratingAvg: ratingAvg ?? this.ratingAvg,
+      ratingCount: ratingCount ?? this.ratingCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -126,6 +150,24 @@ class UserProfile extends BaseModel {
         return 'Quản trị viên';
       default:
         return role;
+    }
+  }
+
+  /// Get specialty display text in Vietnamese
+  String? get specialtyDisplayText {
+    switch (specialty) {
+      case 'VET_GENERAL':
+        return 'Bác sĩ thú y tổng quát';
+      case 'VET_SURGERY':
+        return 'Bác sĩ phẫu thuật';
+      case 'VET_DENTAL':
+        return 'Bác sĩ nha khoa';
+      case 'VET_DERMATOLOGY':
+        return 'Bác sĩ da liễu';
+      case 'GROOMER':
+        return 'Nhân viên Grooming';
+      default:
+        return null;
     }
   }
 
