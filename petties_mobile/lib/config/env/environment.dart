@@ -17,11 +17,15 @@ class Environment {
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
     if (Platform.isAndroid) {
-      // ====== CHỌN 1 TRONG 2 ======
-      // Emulator: dùng 10.0.2.2
+      // ====== CHỌN 1 TRONG CÁC CÁCH ======
+      // 1. Physical Device (adb reverse): dùng localhost
+      // Chạy: adb reverse tcp:8080 tcp:8080
+      // return 'http://localhost:8080/api';
+
+      // 2. Emulator: dùng 10.0.2.2
       // return 'http://10.0.2.2:8080/api';
 
-      // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
+      // 3. Physical Device (WiFi): dùng IP LAN (ipconfig)
       return 'http://192.168.17.213:8080/api';
     }
     // iOS Simulator uses localhost
@@ -71,7 +75,7 @@ class Environment {
   /// AI Service URL
   static String get _devAiServiceUrl {
     if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8000';
+      return 'http://localhost:8000';
     }
     return 'http://localhost:8000';
   }

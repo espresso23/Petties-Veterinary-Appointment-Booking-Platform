@@ -25,3 +25,6 @@ export { useNotificationStore } from './notificationStore'
 // Export bookingStore
 export { useBookingStore } from './bookingStore'
 
+// Export chatStore
+export { useChatStore } from './chatStore'
+
