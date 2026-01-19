@@ -101,12 +101,19 @@ class ChatConversation extends BaseModel {
   });
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
+    // Helper to safely get string or null
+    String? getString(String camel, String snake) {
+      final val = json[camel] ?? json[snake];
+      if (val == null || val.toString().isEmpty) return null;
+      return val.toString();
+    }
+
     return ChatConversation(
       id: json['id'] ?? '',
       petOwnerId: json['petOwnerId'] ?? json['pet_owner_id'] ?? '',
       clinicId: json['clinicId'] ?? json['clinic_id'] ?? '',
       clinicName: json['clinicName'] ?? json['clinic_name'],
-      clinicLogo: json['clinicLogo'] ?? json['clinic_logo'],
+      clinicLogo: getString('clinicLogo', 'clinic_logo'),
       petOwnerName: json['petOwnerName'] ?? json['pet_owner_name'],
       petOwnerAvatar: json['petOwnerAvatar'] ?? json['pet_owner_avatar'],
       lastMessage: json['lastMessage'] ?? json['last_message'],
@@ -174,6 +181,15 @@ class ChatConversation extends BaseModel {
   /// API trả về partnerOnline đã được map theo role, nên ưu tiên dùng partnerOnline
   bool get isClinicOnline => partnerOnline || clinicOnline;
 
+  /// Get secure logo URL (force https)
+  String? get secureClinicLogo {
+    if (clinicLogo == null || clinicLogo!.isEmpty) return null;
+    if (clinicLogo!.startsWith('http://')) {
+      return clinicLogo!.replaceFirst('http://', 'https://');
+    }
+    return clinicLogo;
+  }
+
   /// Copy with updated fields
   ChatConversation copyWith({
     String? id,
@@ -229,6 +245,7 @@ class ChatMessage extends BaseModel {
   final bool isRead;
   final DateTime? readAt;
   final DateTime createdAt;
+  final bool isUploading; // Flag for upload state
 
   ChatMessage({
     required this.id,
@@ -244,6 +261,7 @@ class ChatMessage extends BaseModel {
     this.isRead = false,
     this.readAt,
     required this.createdAt,
+    this.isUploading = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -273,6 +291,7 @@ class ChatMessage extends BaseModel {
           : json['created_at'] != null
               ? DateTime.parse(json['created_at'])
               : DateTime.now(),
+      isUploading: json['isUploading'] ?? false, // Default to false when parsing from JSON
     );
   }
 
@@ -305,10 +324,13 @@ class ChatMessage extends BaseModel {
     String? senderName,
     String? senderAvatar,
     String? content,
+    MessageType? messageType,
+    String? imageUrl,
     MessageStatus? status,
     bool? isRead,
     DateTime? readAt,
     DateTime? createdAt,
+    bool? isUploading,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -318,10 +340,13 @@ class ChatMessage extends BaseModel {
       senderName: senderName ?? this.senderName,
       senderAvatar: senderAvatar ?? this.senderAvatar,
       content: content ?? this.content,
+      messageType: messageType ?? this.messageType,
+      imageUrl: imageUrl ?? this.imageUrl,
       status: status ?? this.status,
       isRead: isRead ?? this.isRead,
       readAt: readAt ?? this.readAt,
       createdAt: createdAt ?? this.createdAt,
+      isUploading: isUploading ?? this.isUploading,
     );
   }
 }

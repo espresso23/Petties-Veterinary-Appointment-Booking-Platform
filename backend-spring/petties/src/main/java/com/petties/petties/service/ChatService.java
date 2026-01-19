@@ -84,6 +84,9 @@ public class ChatService {
                 conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
             }
 
+            // Sync data
+            syncConversationData(conversation);
+
             return mapToConversationResponse(conversation, petOwnerId);
         }
 
@@ -116,6 +119,7 @@ public class ChatService {
     /**
      * Get all conversations for a user (Pet Owner or Clinic staff).
      */
+    @Transactional
     public Page<ConversationResponse> getConversations(UUID userId, Role role, Pageable pageable) {
         Page<ChatConversation> conversations;
 
@@ -136,22 +140,8 @@ public class ChatService {
             throw new ForbiddenException("Role khong duoc phep truy cap chat");
         }
 
-        // Lazy migration: Populate missing Pet Owner avatars if necessary
-        // This handles conversations created before the sync logic was implemented
-        conversations.forEach(conv -> {
-            if (conv.getPetOwnerAvatar() == null && conv.getPetOwnerId() != null) {
-                userRepository.findById(conv.getPetOwnerId()).ifPresent(user -> {
-                    if (user.getAvatar() != null) {
-                        conv.setPetOwnerAvatar(user.getAvatar());
-                        // Denormalize name too if missing
-                        if (conv.getPetOwnerName() == null || conv.getPetOwnerName().isEmpty()) {
-                            conv.setPetOwnerName(user.getFullName());
-                        }
-                        conversationRepository.save(conv);
-                    }
-                });
-            }
-        });
+        // Sync denormalized data to ensure avatars and names are up to date
+        conversations.forEach(this::syncConversationData);
 
         return conversations.map(conversation -> mapToConversationResponse(conversation, userId));
     }
@@ -159,6 +149,7 @@ public class ChatService {
     /**
      * Get a specific conversation by ID.
      */
+    @Transactional
     public ConversationResponse getConversation(String conversationId, UUID userId) {
         ChatConversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
@@ -166,7 +157,63 @@ public class ChatService {
         // Validate access
         validateConversationAccess(conversation, userId);
 
+        // Sync data before returning
+        syncConversationData(conversation);
+
         return mapToConversationResponse(conversation, userId);
+    }
+
+    /**
+     * Sync denormalized data (avatars, names) from source entities.
+     */
+    private void syncConversationData(ChatConversation conv) {
+        boolean needsSave = false;
+
+        // Sync Pet Owner data
+        if (conv.getPetOwnerId() != null) {
+            Optional<User> userOpt = userRepository.findById(conv.getPetOwnerId());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                // Check avatar
+                if (!java.util.Objects.equals(conv.getPetOwnerAvatar(), user.getAvatar())) {
+                    conv.setPetOwnerAvatar(user.getAvatar());
+                    needsSave = true;
+                }
+                // Check name (only if missing or if forced sync logic is desired, but let's
+                // prioritize avatar)
+                if (conv.getPetOwnerName() == null || !conv.getPetOwnerName().equals(user.getFullName())) {
+                    conv.setPetOwnerName(user.getFullName());
+                    needsSave = true;
+                }
+            }
+        }
+
+        // Sync Clinic data
+        if (conv.getClinicId() != null) {
+            Optional<Clinic> clinicOpt = clinicRepository.findById(conv.getClinicId());
+            if (clinicOpt.isPresent()) {
+                Clinic clinic = clinicOpt.get();
+                // Check logo
+                if (!java.util.Objects.equals(conv.getClinicLogo(), clinic.getLogo())) {
+                    log.info("Syncing Clinic Logo for convo {}: old='{}', new='{}'",
+                            conv.getId(), conv.getClinicLogo(), clinic.getLogo());
+                    conv.setClinicLogo(clinic.getLogo());
+                    needsSave = true;
+                }
+                // Check name
+                if (conv.getClinicName() == null || !conv.getClinicName().equals(clinic.getName())) {
+                    conv.setClinicName(clinic.getName());
+                    needsSave = true;
+                }
+            } else {
+                log.warn("Clinic not found for sync: {}", conv.getClinicId());
+            }
+        }
+
+        if (needsSave) {
+            conversationRepository.save(conv);
+            log.info("Saved synced conversation: {}", conv.getId());
+        }
     }
 
     // ======================== MESSAGE MANAGEMENT ========================
@@ -195,7 +242,9 @@ public class ChatService {
                 .senderId(senderId)
                 .senderType(senderType)
                 .senderName(sender.getFullName())
-                .senderAvatar(sender.getAvatar())
+                .senderAvatar(senderType == ChatMessage.SenderType.CLINIC
+                        ? clinicRepository.findById(conversation.getClinicId()).map(Clinic::getLogo).orElse(null)
+                        : sender.getAvatar())
                 .content(request.getContent())
                 .messageType(determineMessageType(request.getContent(), request.getImageUrl()))
                 .imageUrl(request.getImageUrl())
@@ -449,7 +498,7 @@ public class ChatService {
                 .petOwnerAvatar(conversation.getPetOwnerAvatar())
                 .clinicId(conversation.getClinicId())
                 .clinicName(conversation.getClinicName())
-                .clinicLogo(conversation.getClinicLogo())
+                .clinicLogo(resolveClinicLogo(conversation))
                 .lastMessage(conversation.getLastMessage())
                 .lastMessageSender(conversation.getLastMessageSender())
                 .lastMessageAt(conversation.getLastMessageAt())
@@ -457,6 +506,20 @@ public class ChatService {
                 .partnerOnline(isPetOwner ? conversation.isClinicOnline() : conversation.isPetOwnerOnline())
                 .createdAt(conversation.getCreatedAt())
                 .build();
+    }
+
+    private String resolveClinicLogo(ChatConversation conversation) {
+        // FORCE FETCH: Always get latest logo from Clinic table to avoid stale MongoDB
+        // data
+        String logo = clinicRepository.findById(conversation.getClinicId())
+                .map(c -> {
+                    log.info("DEBUG: FORCE_RESOLVE found logo for clinic {}: {}", c.getClinicId(), c.getLogo());
+                    return c.getLogo();
+                })
+                .orElse(null);
+
+        log.info("DEBUG: Final Clinic Logo for conv " + conversation.getId() + ": " + logo);
+        return logo;
     }
 
     public ChatMessage saveMessage(ChatMessage message) {

@@ -4,17 +4,240 @@ import '../../../data/models/chat.dart';
 import 'package:intl/intl.dart';
 import '../chat_detail_screen.dart';
 
+/// Widget hiển thị ảnh với loading animation
+class LoadingNetworkImage extends StatelessWidget {
+  final String imageUrl;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
+
+  const LoadingNetworkImage({
+    super.key,
+    required this.imageUrl,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+    this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(10),
+      child: Image.network(
+        imageUrl,
+        fit: fit,
+        width: width,
+        height: height,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          
+          final progress = loadingProgress.expectedTotalBytes != null
+              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+              : null;
+          
+          return Container(
+            width: width ?? 180,
+            height: height ?? 140,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              borderRadius: borderRadius ?? BorderRadius.circular(10),
+            ),
+            child: Stack(
+              children: [
+                // Shimmer effect
+                Positioned.fill(
+                  child: _ShimmerEffect(),
+                ),
+                // Loading indicator
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          value: progress,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          backgroundColor: AppColors.stone200,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        progress != null ? '${(progress * 100).toInt()}%' : 'Đang tải...',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.stone500,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: width ?? 180,
+            height: height ?? 140,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              borderRadius: borderRadius ?? BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.stone300,
+                width: 1,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  color: AppColors.stone400,
+                  size: 32,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Không tải được',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.stone400,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Shimmer effect widget for loading state
+class _ShimmerEffect extends StatefulWidget {
+  @override
+  State<_ShimmerEffect> createState() => _ShimmerEffectState();
+}
+
+class _ShimmerEffectState extends State<_ShimmerEffect> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+    
+    _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment(_animation.value - 1, 0),
+              end: Alignment(_animation.value, 0),
+              colors: const [
+                AppColors.stone100,
+                AppColors.stone50,
+                AppColors.stone100,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Widget hiển thị placeholder khi đang upload ảnh
+class UploadingPlaceholder extends StatelessWidget {
+  final double? width;
+  final double? height;
+
+  const UploadingPlaceholder({
+    super.key,
+    this.width,
+    this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width ?? 180,
+      height: height ?? 140,
+      decoration: BoxDecoration(
+        color: AppColors.stone100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone900, width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.stone900,
+            offset: Offset(2, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              backgroundColor: AppColors.stone200,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Đang tải lên...',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.stone500,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 /// Widget hiển thị một tin nhắn trong chat
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
   final Function(ChatMessage)? onImageTap;
+  final String? clinicLogo;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.showAvatar = true,
     this.onImageTap,
+    this.clinicLogo,
   });
 
   @override
@@ -56,13 +279,19 @@ class MessageBubble extends StatelessWidget {
         color: AppColors.stone100,
       ),
       child: ClipOval(
-        child: message.senderAvatar != null && message.senderAvatar!.isNotEmpty
+        child: clinicLogo != null && clinicLogo!.isNotEmpty
             ? Image.network(
-                message.senderAvatar!,
+                clinicLogo!,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
               )
-            : _buildDefaultAvatar(),
+            : (message.senderAvatar != null && message.senderAvatar!.isNotEmpty
+                ? Image.network(
+                    message.senderAvatar!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                  )
+                : _buildDefaultAvatar()),
       ),
     );
   }
@@ -84,6 +313,37 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildBubble(bool isMine) {
+    // Show uploading placeholder when image is being uploaded
+    if (message.isUploading && message.messageType == MessageType.image) {
+      return Column(
+        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          const UploadingPlaceholder(
+            width: 220,
+            height: 180,
+          ),
+          const SizedBox(height: 4),
+          // Timestamp
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatTime(message.createdAt),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.stone400,
+                ),
+              ),
+              if (isMine) ...[
+                const SizedBox(width: 4),
+                _buildStatusIcon(),
+              ],
+            ],
+          ),
+        ],
+      );
+    }
+
     // Special rendering for IMAGE_TEXT: image without bubble, text WITH colored bubble
     if (message.messageType == MessageType.imageText && message.imageUrl != null && message.imageUrl!.isNotEmpty) {
       return Column(
@@ -107,40 +367,10 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ],
               ),
-              child: ClipRRect(
+              child: LoadingNetworkImage(
+                imageUrl: message.imageUrl!,
+                fit: BoxFit.cover,
                 borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  message.imageUrl!,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      width: 100,
-                      height: 100,
-                      color: AppColors.stone100,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 100,
-                      height: 100,
-                      color: AppColors.stone100,
-                      child: const Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          color: AppColors.stone400,
-                          size: 32,
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ),
             ),
           ),
@@ -246,40 +476,10 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ],
               ),
-              child: ClipRRect(
+              child: LoadingNetworkImage(
+                imageUrl: message.imageUrl!,
+                fit: BoxFit.cover,
                 borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  message.imageUrl!,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Container(
-                      width: 100,
-                      height: 100,
-                      color: AppColors.stone100,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 100,
-                      height: 100,
-                      color: AppColors.stone100,
-                      child: const Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          color: AppColors.stone400,
-                          size: 32,
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ),
             ),
           ),

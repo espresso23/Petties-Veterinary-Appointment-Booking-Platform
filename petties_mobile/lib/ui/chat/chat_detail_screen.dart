@@ -97,6 +97,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         _conversation = conversation;
         _messages = messages.reversed.toList(); // Newest at bottom
         _isLoading = false;
+        
+        // Debug clinic logo
+        print('DEBUG: Conversation loaded. Clinic: ${_conversation?.clinicName}, Logo: "${_conversation?.clinicLogo}"');
       });
 
       // Connect WebSocket and subscribe
@@ -148,8 +151,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             });
             _scrollToBottom();
 
-            // Show push notification if app is not in foreground
-            _showChatNotification(wsMessage.message!);
+
           }
         }
         break;
@@ -229,12 +231,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      try {
+        if (_scrollController.hasClients) {
+          final position = _scrollController.position;
+          if (position.hasContentDimensions) {
+            _scrollController.animateTo(
+              position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+      } catch (e) {
+        // Ignore scroll errors - can happen during widget lifecycle transitions
+        debugPrint('Scroll to bottom error: $e');
       }
     });
   }
@@ -673,34 +683,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _showChatNotification(ChatMessage message) async {
-    // Only show notification if app is not currently active/visible
-    // This prevents showing notifications when user is already in the chat
-    final appLifecycleState = WidgetsBinding.instance.lifecycleState;
-    if (appLifecycleState == AppLifecycleState.resumed) {
-      // App is in foreground, don't show notification
-      return;
-    }
 
-    final fcmService = FcmService();
-
-    // Create notification data for navigation
-    final notificationData = {
-      'type': 'chat_message',
-      'conversationId': _conversation?.id,
-      'clinicId': _conversation?.clinicId,
-      'clinicName': _conversation?.clinicName,
-    };
-
-    // Show local notification
-    await fcmService.showLocalNotification(
-      title: _conversation?.clinicName ?? 'Petties',
-      body: (message.messageType == MessageType.image || message.messageType == MessageType.imageText)
-          ? 'Đã gửi một hình ảnh'
-          : message.content ?? 'Tin nhắn mới',
-      data: notificationData,
-    );
-  }
 
   String _formatMessageDate(DateTime date) {
     final now = DateTime.now();
@@ -758,14 +741,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     color: AppColors.stone100,
                   ),
                   child: ClipOval(
-                    child: _conversation!.clinicLogo != null &&
-                            _conversation!.clinicLogo!.isNotEmpty
+                    child: _conversation!.secureClinicLogo != null
                         ? Image.network(
-                            _conversation!.clinicLogo!,
+                            _conversation!.secureClinicLogo!,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('DEBUG: AppBar Avatar Error: $error, URL: ${_conversation!.clinicLogo}');
+                              return Image.asset(
+                                'assets/images/logo/app_icon.png',
+                                fit: BoxFit.cover,
+                              );
+                            },
                           )
-                        : _buildDefaultAvatar(),
+                        : Image.asset(
+                            'assets/images/logo/app_icon.png',
+                            fit: BoxFit.cover,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -943,6 +934,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 return MessageBubble(
                   message: message,
                   showAvatar: showAvatar,
+                  clinicLogo: message.senderType == SenderType.clinic
+                      ? _conversation?.clinicLogo
+                      : null,
                   onImageTap: (tappedMessage) {
                     // Always show counter in total conversation images
                     final allImages = _messages
@@ -1518,13 +1512,29 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         color: AppColors.stone100,
       ),
       child: ClipOval(
-        child: message.senderAvatar != null && message.senderAvatar!.isNotEmpty
+        child: (message.senderType == SenderType.clinic &&
+                _conversation?.secureClinicLogo != null)
             ? Image.network(
-                message.senderAvatar!,
+                _conversation!.secureClinicLogo!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                errorBuilder: (_, error, __) {
+                  debugPrint('DEBUG: Msg Avatar Error for clinic: $error');
+                  return Image.asset(
+                    'assets/images/logo/app_icon.png',
+                    fit: BoxFit.cover,
+                  );
+                },
               )
-            : _buildDefaultAvatar(),
+            : (message.senderAvatar != null && message.senderAvatar!.isNotEmpty
+                ? Image.network(
+                    message.senderAvatar!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                  )
+                : Image.asset(
+                    'assets/images/logo/app_icon.png',
+                    fit: BoxFit.cover,
+                  )),
       ),
     );
   }
