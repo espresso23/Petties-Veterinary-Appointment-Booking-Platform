@@ -136,6 +136,9 @@ public class ClinicService {
                         throw new ForbiddenException("Bạn chỉ có thể cập nhật phòng khám của mình");
                 }
 
+                // !! FIX: Capture old address BEFORE updating to detect changes
+                String oldAddress = clinic.getAddress();
+
                 // Update fields
                 clinic.setName(request.getName());
                 clinic.setDescription(request.getDescription());
@@ -156,7 +159,7 @@ public class ClinicService {
                         clinic.setLongitude(request.getLongitude());
                         log.info("Using provided coordinates for update: lat={}, lng={}", request.getLatitude(),
                                         request.getLongitude());
-                } else if (request.getAddress() != null && !request.getAddress().equals(clinic.getAddress())) {
+                } else if (request.getAddress() != null && !request.getAddress().equals(oldAddress)) {
                         // Re-geocode if address changed and no coordinates provided
                         try {
                                 GeocodeResponse geocode = locationService.geocode(request.getAddress());

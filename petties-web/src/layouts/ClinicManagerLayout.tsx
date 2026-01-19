@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
+import { useBookingStore } from '../store/bookingStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
@@ -15,7 +16,8 @@ import {
     ChatBubbleLeftRightIcon,
     CurrencyDollarIcon,
     BellIcon,
-    UserCircleIcon
+    UserCircleIcon,
+    ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline'
 import '../styles/brutalist.css'
 
@@ -25,17 +27,39 @@ export const ClinicManagerLayout = () => {
     const user = useAuthStore((state) => state.user)
     const unreadCount = useNotificationStore((state) => state.unreadCount)
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const pendingBookingCount = useBookingStore((state) => state.pendingBookingCount)
+    const refreshPendingBookingCount = useBookingStore((state) => state.refreshPendingBookingCount)
+    const incrementPendingBookingCount = useBookingStore((state) => state.incrementPendingBookingCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
-    // Initialize SSE
-    useSseNotification()
+    // Initialize SSE with booking update handler
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[ClinicManagerLayout] Booking update received:', data)
+            // Refresh pending count on booking events
+            if (data.action === 'ASSIGNED' || data.action === 'CANCELLED' || data.action === 'COMPLETED') {
+                if (user?.workingClinicId) {
+                    refreshPendingBookingCount(user.workingClinicId)
+                }
+            }
+        },
+        onNotification: (notification) => {
+            // New booking created → increment pending count
+            if (notification.type === 'BOOKING_CREATED') {
+                incrementPendingBookingCount()
+            }
+        }
+    })
 
     // Auto-sync profile (avatar, fullName) to authStore for Sidebar
     useSyncProfile()
 
     useEffect(() => {
         refreshUnreadCount()
-    }, [refreshUnreadCount])
+        if (user?.workingClinicId) {
+            refreshPendingBookingCount(user.workingClinicId)
+        }
+    }, [refreshUnreadCount, refreshPendingBookingCount, user?.workingClinicId])
 
 
     const navGroups: NavGroup[] = [
@@ -45,7 +69,8 @@ export const ClinicManagerLayout = () => {
                 { path: '/clinic-manager', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-manager/vets', label: 'BÁC SĨ', icon: UserGroupIcon },
                 { path: '/clinic-manager/shifts', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
-                { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon },
+                { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
+                { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
             ]
         },
         {

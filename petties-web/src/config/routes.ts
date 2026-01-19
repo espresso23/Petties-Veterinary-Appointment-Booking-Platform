@@ -29,6 +29,7 @@ export const ROUTES = {
   clinicManager: {
     dashboard: '/clinic-manager',
     profile: '/clinic-manager/profile',
+    bookings: '/clinic-manager/bookings',
   },
 } as const
 

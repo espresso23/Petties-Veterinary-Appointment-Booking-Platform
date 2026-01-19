@@ -91,6 +91,7 @@ public class ClinicServiceService {
         ClinicService service = new ClinicService();
         service.setClinic(clinic);
         service.setName(request.getName());
+        service.setDescription(request.getDescription());
         service.setBasePrice(request.getBasePrice());
         service.setSlotsRequired(request.getSlotsRequired());
         // Auto-calculate durationTime: 1 slot = 30 minutes
@@ -161,6 +162,9 @@ public class ClinicServiceService {
 
         if (request.getName() != null) {
             service.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            service.setDescription(request.getDescription());
         }
         if (request.getBasePrice() != null) {
             service.setBasePrice(request.getBasePrice());
@@ -371,6 +375,7 @@ public class ClinicServiceService {
         clinicService.setMasterService(masterService);
         clinicService.setIsCustom(false); // Inherited
         clinicService.setName(masterService.getName());
+        clinicService.setDescription(masterService.getDescription());
 
         // Sử dụng giá clinic nếu được cung cấp, ngược lại dùng giá mặc định từ master
         clinicService.setBasePrice(clinicPrice != null ? clinicPrice : masterService.getDefaultPrice());
@@ -380,7 +385,15 @@ public class ClinicServiceService {
         clinicService.setIsActive(true); // Mặc định active khi inherit
         clinicService.setIsHomeVisit(masterService.getIsHomeVisit());
         clinicService.setPricePerKm(clinicPricePerKm != null ? clinicPricePerKm : masterService.getDefaultPricePerKm());
-        clinicService.setServiceCategory(masterService.getServiceCategory());
+        // Convert string to enum for serviceCategory
+        if (masterService.getServiceCategory() != null) {
+            try {
+                clinicService.setServiceCategory(
+                        com.petties.petties.model.enums.ServiceCategory.valueOf(masterService.getServiceCategory()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown service category from master: {}", masterService.getServiceCategory());
+            }
+        }
         clinicService.setPetType(masterService.getPetType());
 
         // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan
@@ -417,10 +430,12 @@ public class ClinicServiceService {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
 
-        // Validate user has permission: strictly the clinic owner
+        // Validate user has permission: owner OR manager of this clinic
         User currentUser = getCurrentUser();
         boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
-        if (!isOwner) {
+        boolean isManager = currentUser.getWorkingClinic() != null
+                && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+        if (!isOwner && !isManager) {
             throw new ForbiddenException("Bạn không có quyền xem dịch vụ của clinic này");
         }
 
@@ -449,6 +464,7 @@ public class ClinicServiceService {
                         service.getMasterService() != null ? service.getMasterService().getMasterServiceId() : null) // NEW
                 .isCustom(service.getIsCustom()) // NEW
                 .name(service.getName())
+                .description(service.getDescription())
                 .basePrice(service.getBasePrice())
                 .durationTime(service.getDurationTime())
                 .slotsRequired(service.getSlotsRequired())

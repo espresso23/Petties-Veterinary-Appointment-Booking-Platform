@@ -8,15 +8,12 @@ import {
   InformationCircleIcon,
   ExclamationCircleIcon,
   MinusIcon,
-  BeakerIcon,
-  HeartIcon,
-  ScissorsIcon,
-  HomeIcon,
   ChevronDownIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
 import type { ClinicServiceResponse } from '../../types/service'
 import type { WeightPriceDto } from '../../types/service'
+import { SERVICE_CATEGORIES, getCategoryById } from '../../constants/serviceCategory'
 
 interface ServiceModalProps {
   isOpen: boolean
@@ -34,6 +31,7 @@ export function ServiceModal({
   isSubmitting = false,
 }: ServiceModalProps) {
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [basePrice, setBasePrice] = useState('')
   const [slotsRequired, setSlotsRequired] = useState(1)
   const [isHomeVisit, setIsHomeVisit] = useState(false)
@@ -46,13 +44,8 @@ export function ServiceModal({
   const [isCategoryOpen, setIsCategoryOpen] = useState(false)
   const [isPetTypeOpen, setIsPetTypeOpen] = useState(false)
 
-  const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
-  ]
+  // Use centralized categories from constants
+  const categories = SERVICE_CATEGORIES
 
   const petTypes = [
     { id: 'Chó', label: 'Chó' },
@@ -60,13 +53,14 @@ export function ServiceModal({
     { id: 'Khác', label: 'Khác (Tự nhập)' },
   ]
 
-  const selectedCategory = categories.find(c => c.id === serviceCategory)
+  const selectedCategory = getCategoryById(serviceCategory)
   const selectedPetType = petTypes.find(p => p.id === petType)
 
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         setName(initialData.name)
+        setDescription(initialData.description || '')
         setBasePrice(initialData.basePrice.toString())
         setSlotsRequired(initialData.slotsRequired)
         setIsHomeVisit(initialData.isHomeVisit)
@@ -88,6 +82,7 @@ export function ServiceModal({
         setWeightPrices(initialData.weightPrices || [])
       } else {
         setName('')
+        setDescription('')
         setBasePrice('')
         setSlotsRequired(1)
         setIsHomeVisit(false)
@@ -133,6 +128,7 @@ export function ServiceModal({
 
     onSave({
       name,
+      description: description || undefined,
       basePrice: Number(basePrice),
       slotsRequired: Number(slotsRequired),
       isHomeVisit,
@@ -157,7 +153,7 @@ export function ServiceModal({
           style={{ backgroundColor: '#FF6B35' }}
           className="flex items-center justify-between border-b-4 border-black p-6"
         >
-          <h2 className="text-2xl font-black uppercase text-black">
+          <h2 className="text-[21px] font-black uppercase text-black">
             {initialData ? 'Cập nhật dịch vụ' : 'Thêm dịch vụ mới'}
           </h2>
           <button
@@ -210,6 +206,34 @@ export function ServiceModal({
                 marginBottom: '8px'
               }}
             >
+              Mô tả dịch vụ
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full p-3 border-4 border-black focus:outline-none focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow resize-none"
+              placeholder="Mô tả chi tiết về dịch vụ..."
+              style={{
+                fontWeight: '700',
+                fontSize: '16px',
+                color: '#000000',
+                backgroundColor: '#ffffff'
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              style={{
+                fontWeight: '900',
+                fontSize: '18px',
+                textTransform: 'uppercase',
+                display: 'block',
+                color: '#000000',
+                marginBottom: '8px'
+              }}
+            >
               Giá (VND)
             </label>
             <div className="relative">
@@ -228,7 +252,7 @@ export function ServiceModal({
                 }}
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-gray-400">
-                VNĐ
+                đ
               </div>
             </div>
           </div>
@@ -325,7 +349,7 @@ export function ServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: selectedCategory.color }}
                     >
-                      <selectedCategory.icon className="w-5 h-5 text-black" />
+                      <selectedCategory.icon className="w-5 h-5" style={{ color: selectedCategory.textColor }} />
                     </div>
                     <span className="font-bold text-black">{selectedCategory.label}</span>
                   </>
@@ -355,7 +379,7 @@ export function ServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: cat.color }}
                     >
-                      <cat.icon className="w-5 h-5 text-black" />
+                      <cat.icon className="w-5 h-5" style={{ color: cat.textColor }} />
                     </div>
                     <span className={`font-black uppercase text-sm ${serviceCategory === cat.id ? 'text-[#FF6B35]' : 'text-black'}`}>
                       {cat.label}

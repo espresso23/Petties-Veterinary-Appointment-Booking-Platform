@@ -22,7 +22,7 @@ class Environment {
       // return 'http://10.0.2.2:8080/api';
 
       // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
-      return 'http://10.0.14.209:8080/api';
+      return 'http://192.168.17.213:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';

@@ -6,11 +6,11 @@ import '../../providers/auth_provider.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../providers/notification_provider.dart';
-import '../../data/services/vet_shift_service.dart';
-import '../../data/models/vet_shift.dart';
+import '../../data/services/booking_service.dart';
+import '../../data/models/booking.dart';
 
 /// VET Home Screen - Redesigned based on Image 0
-/// Maintains existing functionality logic but with new UI structure.
+/// Uses optimized single API call for home summary data
 class VetHomeScreen extends StatefulWidget {
   const VetHomeScreen({super.key});
 
@@ -19,10 +19,10 @@ class VetHomeScreen extends StatefulWidget {
 }
 
 class _VetHomeScreenState extends State<VetHomeScreen> {
-  final VetShiftService _vetShiftService = VetShiftService();
+  final BookingService _bookingService = BookingService();
   bool _isLoading = true;
-  VetShiftResponse? _todayShift;
-  List<SlotResponse> _upcomingSlots = [];
+  VetHomeSummaryResponse? _summary;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -35,34 +35,21 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
 
   Future<void> _fetchData() async {
     try {
-      final now = DateTime.now();
-      final todayStr = DateFormat('yyyy-MM-dd').format(now);
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
-      // Fetch shifts for today to get appointment counts
-      final shifts = await _vetShiftService.getMyShifts(
-          startDate: todayStr, endDate: todayStr);
+      final summary = await _bookingService.getVetHomeSummary();
 
-      if (shifts.isNotEmpty) {
-        // We need detailed slots for today
-        final shiftDetail =
-            await _vetShiftService.getShiftDetail(shifts.first.shiftId);
-        setState(() {
-          _todayShift = shiftDetail;
-          // Filter slots that are BOOKED and in the future (or just all booked for today)
-          // For simplicity, showing all booked slots for today
-          _upcomingSlots = shiftDetail.slots
-                  ?.where((slot) => slot.status == SlotStatus.BOOKED)
-                  .toList() ??
-              [];
-        });
-      } else {
-        setState(() {
-          _todayShift = null;
-          _upcomingSlots = [];
-        });
-      }
+      setState(() {
+        _summary = summary;
+      });
     } catch (e) {
       debugPrint('Error fetching vet home data: $e');
+      setState(() {
+        _errorMessage = 'Không thể tải dữ liệu. Kéo xuống để thử lại.';
+      });
     } finally {
       if (mounted) {
         setState(() {
@@ -156,29 +143,32 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              dateStr,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.stone500,
-                fontWeight: FontWeight.w600,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.stone500,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Xin chào, BS. $fullName',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: AppColors.stone900,
-                letterSpacing: -0.5,
+              const SizedBox(height: 4),
+              Text(
+                'Xin chào, BS. $fullName',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900,
+                  letterSpacing: -0.5,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        const SizedBox(width: 12),
         Row(
           children: [
             // Notification Bell
@@ -284,12 +274,9 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
   }
 
   Widget _buildDashboardGrid() {
-    final appointmentCount = _todayShift?.bookedSlots ?? 0;
-
-    // We don't have APIs for these yet, so showing 0 or placeholders
-    // Or we could remove them. Keeping structure but with 0.
-    const pendingRequests = 0;
-    const hospitalized = 0;
+    final appointmentCount = _summary?.todayBookingsCount ?? 0;
+    final pendingRequests = _summary?.pendingCount ?? 0;
+    final inProgressCount = _summary?.inProgressCount ?? 0;
 
     return SizedBox(
       height: 180,
@@ -369,7 +356,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
             flex: 1,
             child: Column(
               children: [
-                // Top Small Card
+                // Top Small Card - Pending (Chờ xử lý)
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -422,7 +409,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Bottom Small Card
+                // Bottom Small Card - In Progress (Đang khám)
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -448,7 +435,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                               FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  '$hospitalized',
+                                  '$inProgressCount',
                                   style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w900,
@@ -458,7 +445,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                               const FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  'Nội trú',
+                                  'Đang khám',
                                   style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
@@ -471,12 +458,12 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                         Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                              color: AppColors.stone100,
+                              color: AppColors.successLight,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                  color: AppColors.stone900, width: 1.5)),
-                          child: const Icon(Icons.add,
-                              color: AppColors.stone900, size: 16),
+                                  color: AppColors.successDark, width: 1.5)),
+                          child: const Icon(Icons.medical_services,
+                              color: AppColors.successDark, size: 16),
                         ),
                       ],
                     ),
@@ -499,7 +486,33 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
       ));
     }
 
-    if (_upcomingSlots.isEmpty) {
+    if (_errorMessage != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.errorLight, width: 2),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.stone500, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final upcomingBookings = _summary?.upcomingBookings ?? [];
+
+    if (upcomingBookings.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(32),
@@ -513,7 +526,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
             Icon(Icons.event_busy, size: 48, color: AppColors.stone300),
             SizedBox(height: 12),
             Text(
-              "No upcoming appointments",
+              "Không có lịch hẹn sắp tới",
               style: TextStyle(
                   color: AppColors.stone500, fontWeight: FontWeight.w600),
             ),
@@ -522,21 +535,74 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
       );
     }
 
-    // Limit to 2 items
-    final displaySlots = _upcomingSlots.take(2).toList();
+    // Limit to 2 items for home screen
+    final displayBookings = upcomingBookings.take(2).toList();
 
     return Column(
-      children: displaySlots.map((slot) {
+      children: displayBookings.map((booking) {
+        // Format time display
+        String timeDisplay = '';
+        if (booking.bookingTime != null) {
+          final startTime = booking.bookingTime!.substring(0, 5);
+          final endTime = booking.endTime?.substring(0, 5) ?? '';
+          timeDisplay =
+              endTime.isNotEmpty ? '$startTime - $endTime' : startTime;
+        }
+
+        // Determine status tag
+        String statusTag = 'BOOKED';
+        Color tagColor = AppColors.warningLight;
+        Color tagTextColor = AppColors.primaryDark;
+
+        if (booking.status == 'IN_PROGRESS') {
+          statusTag = 'ĐANG KHÁM';
+          tagColor = AppColors.successLight;
+          tagTextColor = AppColors.successDark;
+        } else if (booking.status == 'ASSIGNED') {
+          statusTag = 'ĐÃ ASSIGN';
+          tagColor = AppColors.infoLight;
+          tagTextColor = AppColors.info;
+        } else if (booking.status == 'CONFIRMED') {
+          statusTag = 'ĐÃ XÁC NHẬN';
+          tagColor = AppColors.warningLight;
+          tagTextColor = AppColors.primaryDark;
+        }
+
+        // Format date for display
+        String dateDisplay = '';
+        if (booking.bookingDate != null) {
+          try {
+            final date = DateTime.parse(booking.bookingDate!);
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            final bookingDay = DateTime(date.year, date.month, date.day);
+
+            if (bookingDay == today) {
+              dateDisplay = 'Hôm nay';
+            } else if (bookingDay == today.add(const Duration(days: 1))) {
+              dateDisplay = 'Ngày mai';
+            } else {
+              dateDisplay = DateFormat('dd/MM').format(date);
+            }
+          } catch (_) {
+            dateDisplay = booking.bookingDate!;
+          }
+        }
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: _buildAppointmentItem(
-            petName: slot.petName ?? 'Unknown Pet',
-            petInfo: 'Visit', // Missing breed info in basic slot response
-            time: slot.startTime.substring(0, 5),
-            ownerName: slot.petOwnerName ?? 'Unknown Owner',
-            tag: 'BOOKED',
-            tagColor: AppColors.warningLight,
-            tagTextColor: AppColors.primaryDark,
+            context: context,
+            bookingId: booking.bookingId,
+            petName: booking.petName ?? 'Unknown Pet',
+            petInfo: booking.primaryServiceName ?? 'Khám bệnh',
+            time: timeDisplay,
+            ownerName: booking.ownerName ?? 'Unknown Owner',
+            tag: statusTag,
+            tagColor: tagColor,
+            tagTextColor: tagTextColor,
+            dateDisplay: dateDisplay,
+            isHomeVisit: booking.type == 'HOME_VISIT',
           ),
         );
       }).toList(),
@@ -544,6 +610,8 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
   }
 
   Widget _buildAppointmentItem({
+    required BuildContext context,
+    String? bookingId,
     required String petName,
     required String petInfo,
     required String time,
@@ -551,101 +619,128 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
     required String tag,
     required Color tagColor,
     required Color tagTextColor,
+    String? dateDisplay,
+    bool isHomeVisit = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [
-          BoxShadow(
-            color: AppColors.stone900,
-            offset: Offset(4, 4),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          // Date Box (Using today's date logic since we filter for today mainly)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.stone100,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.stone900, width: 1.5),
-            ),
-            child: const Column(
-              children: [
-                Icon(Icons.pets, color: AppColors.stone500, size: 20),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(petName,
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.stone900)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: tagColor,
-                        borderRadius: BorderRadius.circular(8),
-                        border:
-                            Border.all(color: tagTextColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: tagTextColor),
+    return GestureDetector(
+      onTap: bookingId != null
+          ? () => context.push('/vet/booking/$bookingId')
+          : null,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(4, 4),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            // Date/Icon Box
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: isHomeVisit ? AppColors.infoLight : AppColors.stone100,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.stone900, width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  if (dateDisplay != null && dateDisplay.isNotEmpty)
+                    Text(
+                      dateDisplay,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            isHomeVisit ? AppColors.info : AppColors.stone600,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(petInfo,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.stone500,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time_filled,
-                        size: 14, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(time,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.stone900)),
-                    const SizedBox(width: 12),
-                    const Icon(Icons.person,
-                        size: 14, color: AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(ownerName,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.stone900)),
-                  ],
-                ),
-              ],
+                  Icon(
+                    isHomeVisit ? Icons.home : Icons.pets,
+                    color: isHomeVisit ? AppColors.info : AppColors.stone500,
+                    size: 20,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(petName,
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.stone900),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: tagColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border:
+                              Border.all(color: tagTextColor.withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          tag,
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: tagTextColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(petInfo,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.stone500,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time_filled,
+                          size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(time,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.stone900)),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.person,
+                          size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(ownerName,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.stone900),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -681,25 +776,27 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                     child: const Icon(Icons.add, color: AppColors.successDark),
                   ),
                   const SizedBox(width: 12),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'New\nBooking',
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                            color: AppColors.stone900),
-                      ),
-                      Text(
-                        'Schedule visit',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.stone500,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lịch hẹn\nmới',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                              color: AppColors.stone900),
+                        ),
+                        Text(
+                          'Đặt lịch nhanh',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.stone500,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
                   )
                 ],
               ),
@@ -732,25 +829,28 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                     child: const Icon(Icons.description, color: AppColors.info),
                   ),
                   const SizedBox(width: 12),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Lab\nResults',
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                            color: AppColors.stone900),
-                      ),
-                      Text(
-                        'Check status',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.stone500,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hồ sơ\nbệnh án',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                              color: AppColors.stone900),
+                        ),
+                        Text(
+                          'Xem EMR',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.stone500,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
                   )
                 ],
               ),
@@ -772,12 +872,12 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(context, Icons.grid_view_rounded, 'Home', true, null),
-          _buildNavItem(context, Icons.calendar_today_rounded, 'Calendar',
-              false, () => context.push(AppRoutes.vetSchedule)),
-          _buildNavItem(context, Icons.pets_rounded, 'Patients', false, null),
+          _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch', false,
+              () => context.push(AppRoutes.vetSchedule)),
+          _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false, null),
           _buildNavItem(
-              context, Icons.folder_open_rounded, 'Records', false, null),
-          _buildNavItem(context, Icons.person_rounded, 'Profile', false,
+              context, Icons.folder_open_rounded, 'Hồ sơ', false, null),
+          _buildNavItem(context, Icons.person_rounded, 'Cá nhân', false,
               () => context.push(AppRoutes.profile)),
         ],
       ),

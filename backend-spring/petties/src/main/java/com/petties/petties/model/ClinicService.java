@@ -45,6 +45,9 @@ public class ClinicService {
     @Column(name = "name", nullable = false, length = 200)
     private String name;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "base_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal basePrice;
 
@@ -63,8 +66,9 @@ public class ClinicService {
     @Column(name = "price_per_km", precision = 19, scale = 2)
     private BigDecimal pricePerKm;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "service_category", length = 100)
-    private String serviceCategory;
+    private com.petties.petties.model.enums.ServiceCategory serviceCategory;
 
     @Column(name = "pet_type", length = 100)
     private String petType;

@@ -94,6 +94,10 @@ public class User {
     @Column(name = "fcm_token", length = 500)
     private String fcmToken;
 
+    // Address for Pet Owner (used in bookings)
+    @Column(name = "address", length = 500)
+    private String address;
+
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();

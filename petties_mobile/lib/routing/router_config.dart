@@ -9,6 +9,7 @@ import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
 import '../ui/vet/vet_schedule_screen.dart';
+import '../ui/vet/vet_booking_detail_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
@@ -189,6 +190,13 @@ class AppRouterConfig {
         GoRoute(
           path: AppRoutes.vetSchedule,
           builder: (context, state) => const VetScheduleScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.vetBookingDetail,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId']!;
+            return VetBookingDetailScreen(bookingId: bookingId);
+          },
         ),
 
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included

@@ -50,6 +50,7 @@ export interface ClinicServiceResponse {
   masterServiceId?: string // NEW: null if custom
   isCustom: boolean // NEW: true = custom, false = inherited
   name: string
+  description?: string
   basePrice: number
   durationTime: number
   slotsRequired: number
@@ -66,6 +67,7 @@ export interface ClinicServiceResponse {
 export interface ClinicServiceRequest {
   clinicId: string
   name: string
+  description?: string
   basePrice: number
   slotsRequired: number
   isActive?: boolean

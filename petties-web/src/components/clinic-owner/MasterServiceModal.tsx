@@ -9,13 +9,11 @@ import {
   TrashIcon,
   PencilIcon,
   InformationCircleIcon,
-  BeakerIcon,
-  HeartIcon,
-  ScissorsIcon,
   HomeIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
 import type { MasterServiceResponse, WeightPriceDto } from '../../types/service'
+import { SERVICE_CATEGORIES, getCategoryById } from '../../constants/serviceCategory'
 
 interface MasterServiceModalProps {
   isOpen: boolean
@@ -50,13 +48,8 @@ export function MasterServiceModal({
     petType?: string
   }>({})
 
-  const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
-  ]
+  // Use centralized categories from constants
+  const categories = SERVICE_CATEGORIES
 
   const petTypes = [
     { id: 'Chó', label: 'Chó' },
@@ -64,7 +57,7 @@ export function MasterServiceModal({
     { id: 'Khác', label: 'Khác (Tự nhập)' },
   ]
 
-  const selectedCategory = categories.find(c => c.id === serviceCategory)
+  const selectedCategory = getCategoryById(serviceCategory)
   const selectedPetType = petTypes.find(p => p.id === petType)
 
   useEffect(() => {
@@ -187,14 +180,15 @@ export function MasterServiceModal({
           style={{ backgroundColor: '#FF6B35' }}
           className="flex items-center justify-between border-b-4 border-black p-6"
         >
-          <h2 className="text-2xl font-black uppercase text-white">
+          <h2 className="text-[21px] font-black uppercase text-white">
             {initialData ? 'CẬP NHẬT DỊCH VỤ MẪU' : 'TẠO DỊCH VỤ MẪU MỚI'}
           </h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center bg-black text-white border-2 border-black hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.4)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+            style={{ backgroundColor: '#000000', color: '#ffffff' }}
+            className="w-10 h-10 flex items-center justify-center border-2 border-black hover:bg-gray-800 transition-all shadow-[4px_4px_0px_0px_rgba(255,255,255,0.4)] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <XMarkIcon className="w-6 h-6" style={{ color: '#ffffff' }} />
           </button>
         </div>
 
@@ -288,7 +282,7 @@ export function MasterServiceModal({
                 }}
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-gray-400">
-                VNĐ
+                đ
               </div>
             </div>
           </div>
@@ -431,7 +425,7 @@ export function MasterServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: selectedCategory.color }}
                     >
-                      <selectedCategory.icon className="w-5 h-5 text-black" />
+                      <selectedCategory.icon className="w-5 h-5" style={{ color: selectedCategory.textColor }} />
                     </div>
                     <span className="font-bold text-black">{selectedCategory.label}</span>
                   </>
@@ -461,7 +455,7 @@ export function MasterServiceModal({
                       className="p-2 border-2 border-black"
                       style={{ backgroundColor: cat.color }}
                     >
-                      <cat.icon className="w-5 h-5 text-black" />
+                      <cat.icon className="w-5 h-5" style={{ color: cat.textColor }} />
                     </div>
                     <span className={`font-black uppercase text-sm ${serviceCategory === cat.id ? 'text-[#FF6B35]' : 'text-black'}`}>
                       {cat.label}
