@@ -104,32 +104,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           ),
         ),
       ),
-      floatingActionButton: _buildChatFab(context),
-      bottomNavigationBar: _buildBrutalNavBar(),
-    );
-  }
-
-  /// Floating Action Button cho Chat - Neobrutalism Style
-  Widget _buildChatFab(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
-        ],
-      ),
-      child: FloatingActionButton(
-        onPressed: () => context.push(AppRoutes.chatList),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Icon(Icons.chat_bubble_rounded, size: 26),
-      ),
+      bottomNavigationBar: _buildBrutalNavBar(context),
     );
   }
 
@@ -429,7 +404,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
-  Widget _buildBrutalNavBar() {
+  Widget _buildBrutalNavBar(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
@@ -437,41 +412,38 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           top: BorderSide(color: AppColors.stone900, width: 2),
         ),
       ),
-      child: Builder(
-        builder: (context) => BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.stone400,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-          currentIndex: 0,
-          elevation: 0,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                // Already on home
-                break;
-              case 1:
-                // TODO: Navigate to explore
-                break;
-              case 2:
-                // TODO: Navigate to bookings
-                break;
-              case 3:
-                context.push(AppRoutes.profile);
-                break;
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.explore), label: 'KHAM PHA'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person), label: 'TAI KHOAN'),
-          ],
-        ),
+      child: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: AppColors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.stone400,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 10),
+        unselectedLabelStyle: const TextStyle(fontSize: 10),
+        currentIndex: 0,
+        elevation: 0,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              // Already on home
+              break;
+            case 1:
+              // Navigate to chat
+              context.push(AppRoutes.chatList);
+              break;
+            case 2:
+              // TODO: Navigate to bookings
+              break;
+            case 3:
+              context.push(AppRoutes.profile);
+              break;
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'Tin nhắn'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Lịch hẹn'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Tài khoản'),
+        ],
       ),
     );
   }

@@ -22,3 +22,6 @@ export { useClinicStore } from './clinicStore'
 // Export notificationStore
 export { useNotificationStore } from './notificationStore'
 
+// Export chatStore
+export { useChatStore } from './chatStore'
+

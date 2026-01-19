@@ -48,7 +48,7 @@ public class ChatWebSocketController {
             @DestinationVariable String chatBoxId,
             @Payload SendMessageRequest request,
             Principal principal) {
-        
+
         if (principal == null) {
             log.warn("Unauthorized WebSocket message attempt");
             return;
@@ -57,7 +57,7 @@ public class ChatWebSocketController {
         try {
             UUID userId = UUID.fromString(principal.getName());
             User user = userRepository.findById(userId).orElse(null);
-            
+
             if (user == null) {
                 log.warn("User not found for WebSocket message: {}", userId);
                 return;
@@ -69,9 +69,13 @@ public class ChatWebSocketController {
             };
 
             // Send message (will broadcast via ChatService)
-            chatService.sendMessage(chatBoxId, userId, senderType, request);
-            log.debug("WebSocket message processed for chat box: {}", chatBoxId);
-            
+            // FIXED: Commented out to prevent double messages/notifications.
+            // Clients should use REST API to send messages (for consistency and file
+            // support).
+            // chatService.sendMessage(chatBoxId, userId, senderType, request);
+
+            log.warn("WebSocket message sending is disabled. Use REST API instead.");
+
         } catch (Exception e) {
             log.error("Error processing WebSocket message: {}", e.getMessage(), e);
         }
@@ -86,8 +90,9 @@ public class ChatWebSocketController {
             @DestinationVariable String chatBoxId,
             @Payload TypingPayload payload,
             Principal principal) {
-        
-        if (principal == null) return;
+
+        if (principal == null)
+            return;
 
         try {
             UUID userId = UUID.fromString(principal.getName());
@@ -105,8 +110,9 @@ public class ChatWebSocketController {
     public void handleRead(
             @DestinationVariable String chatBoxId,
             Principal principal) {
-        
-        if (principal == null) return;
+
+        if (principal == null)
+            return;
 
         try {
             UUID userId = UUID.fromString(principal.getName());
@@ -125,8 +131,9 @@ public class ChatWebSocketController {
             @DestinationVariable String chatBoxId,
             @Payload OnlinePayload payload,
             Principal principal) {
-        
-        if (principal == null) return;
+
+        if (principal == null)
+            return;
 
         try {
             UUID userId = UUID.fromString(principal.getName());
@@ -140,13 +147,17 @@ public class ChatWebSocketController {
      * Simple payload for typing indicator
      */
     public record TypingPayload(boolean typing) {
-        public boolean isTyping() { return typing; }
+        public boolean isTyping() {
+            return typing;
+        }
     }
 
     /**
      * Simple payload for online status
      */
     public record OnlinePayload(boolean online) {
-        public boolean isOnline() { return online; }
+        public boolean isOnline() {
+            return online;
+        }
     }
 }

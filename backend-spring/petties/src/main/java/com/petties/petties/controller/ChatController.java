@@ -1,21 +1,29 @@
 package com.petties.petties.controller;
 
 import com.petties.petties.dto.chat.*;
+import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.model.ChatConversation;
 import com.petties.petties.model.User;
 import com.petties.petties.model.ChatMessage;
+import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ChatService;
+import com.petties.petties.service.CloudinaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
 
 /**
  * REST Controller for Chat functionality.
@@ -38,6 +46,8 @@ public class ChatController {
 
     private final ChatService chatService;
     private final AuthService authService;
+    private final CloudinaryService cloudinaryService;
+    private final ChatConversationRepository conversationRepository;
 
     // ======================== CONVERSATION ENDPOINTS ========================
 
@@ -106,14 +116,29 @@ public class ChatController {
     }
 
     /**
-     * POST /api/chat/conversations/{id}/messages
-     * Send a message in a conversation.
+     * GET /api/chat/conversations/{id}/images
+     * Get all images in a conversation.
      */
-    @PostMapping("/conversations/{id}/messages")
+    @GetMapping("/conversations/{id}/images")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<MessageResponse>> getConversationImages(@PathVariable String id) {
+        User currentUser = authService.getCurrentUser();
+        List<MessageResponse> images = chatService.getConversationImages(id, currentUser.getUserId());
+        return ResponseEntity.ok(images);
+    }
+
+    /**
+     * POST /api/chat/conversations/{id}/messages
+     * Send a text message in a conversation.
+     */
+    @PostMapping(value = "/conversations/{id}/messages", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<MessageResponse> sendMessage(
             @PathVariable String id,
             @Valid @RequestBody SendMessageRequest request) {
+
+        log.info("sendMessage (JSON) called with content: '{}' imageUrl: '{}'", 
+                request.getContent(), request.getImageUrl());
 
         User currentUser = authService.getCurrentUser();
 
@@ -126,6 +151,149 @@ public class ChatController {
         MessageResponse response = chatService.sendMessage(
                 id, currentUser.getUserId(), senderType, request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/chat/conversations/{id}/messages
+     * Send a message with file in a conversation.
+     */
+    @PostMapping(value = "/conversations/{id}/messages", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<MessageResponse> sendMessageWithFile(
+            @PathVariable String id,
+            @RequestPart(value = "content", required = false) String content,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+
+        log.info("sendMessageWithFile (multipart) called with content: '{}' file: {}", 
+                content, file != null ? file.getOriginalFilename() : "null");
+
+        User currentUser = authService.getCurrentUser();
+
+        // Validate that at least content or file is provided
+        if ((content == null || content.trim().isEmpty()) && (file == null || file.isEmpty())) {
+            return ResponseEntity.badRequest().body(null);
+        }
+
+        // Handle file upload if present
+        String imageUrl = null;
+        if (file != null && !file.isEmpty()) {
+            // Validate file size (max 10MB)
+            if (file.getSize() > 10 * 1024 * 1024) {
+                return ResponseEntity.badRequest().body(null);
+            }
+
+            try {
+                imageUrl = cloudinaryService.uploadFile(file, "chat-images").getUrl();
+                log.info("Uploaded image for message, URL: {}", imageUrl);
+            } catch (Exception e) {
+                log.error("Failed to upload image", e);
+                return ResponseEntity.internalServerError().body(null);
+            }
+        }
+
+        // Create SendMessageRequest
+        SendMessageRequest request = SendMessageRequest.builder()
+                .content(content != null ? content.trim() : "")
+                .imageUrl(imageUrl)
+                .build();
+
+        log.info("Sending message with content: '{}' and imageUrl: '{}'", request.getContent(), request.getImageUrl());
+
+        // Determine sender type based on role
+        ChatMessage.SenderType senderType = switch (currentUser.getRole()) {
+            case PET_OWNER -> ChatMessage.SenderType.PET_OWNER;
+            default -> ChatMessage.SenderType.CLINIC;
+        };
+
+        MessageResponse response = chatService.sendMessage(
+                id, currentUser.getUserId(), senderType, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/chat/conversations/{id}/images
+     * Upload an image for a conversation.
+     */
+    @PostMapping("/conversations/{id}/images")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> uploadImage(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) {
+
+        User currentUser = authService.getCurrentUser();
+
+        // Get conversation and validate access
+        ChatConversation conversation = conversationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
+        chatService.validateConversationAccess(conversation, currentUser.getUserId());
+
+        // Validate file
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "File khong duoc de trong"));
+        }
+
+        // Validate file type
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Chi chap nhan file hinh anh"));
+        }
+
+        // Validate file size (max 10MB)
+        if (file.getSize() > 10 * 1024 * 1024) {
+            return ResponseEntity.badRequest().body(Map.of("error", "File qua lon. Toi da 10MB"));
+        }
+
+        try {
+            // Upload to Cloudinary
+            String imageUrl = cloudinaryService.uploadFile(file, "chat-images").getUrl();
+
+            // Determine sender type
+            ChatMessage.SenderType senderType = switch (currentUser.getRole()) {
+                case PET_OWNER -> ChatMessage.SenderType.PET_OWNER;
+                default -> ChatMessage.SenderType.CLINIC;
+            };
+
+            // Create message
+            ChatMessage message = ChatMessage.builder()
+                    .chatBoxId(id)
+                    .senderId(currentUser.getUserId())
+                    .senderType(senderType)
+                    .senderName(currentUser.getFullName())
+                    .senderAvatar(currentUser.getAvatar())
+                    .content("")
+                    .messageType(ChatMessage.MessageType.IMAGE)
+                    .imageUrl(imageUrl)
+                    .status(ChatMessage.MessageStatus.SENT)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            message = chatService.saveMessage(message);
+
+            // Update conversation
+            conversation.setLastMessage("[Hình ảnh]");
+            conversation.setLastMessageSender(senderType.name());
+            conversation.setLastMessageAt(LocalDateTime.now());
+
+            if (senderType == ChatMessage.SenderType.PET_OWNER) {
+                conversation.setUnreadCountClinic(conversation.getUnreadCountClinic() + 1);
+            } else {
+                conversation.setUnreadCountPetOwner(conversation.getUnreadCountPetOwner() + 1);
+            }
+
+            conversationRepository.save(conversation);
+
+            // Create response
+            MessageResponse response = chatService.mapToMessageResponse(message, currentUser.getUserId());
+
+            // Send WebSocket
+            chatService.sendWebSocketMessage(id, ChatWebSocketMessage.MessageType.MESSAGE, response, currentUser.getUserId(), senderType.name());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Failed to upload image", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "Upload hinh anh that bai"));
+        }
     }
 
     /**
