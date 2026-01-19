@@ -29,7 +29,7 @@ function ImageGroup({ messages, onImageClick, myAvatar, partnerAvatar }: ImageGr
     return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const handleImageClick = (imageUrl: string, index: number) => {
+  const handleImageClick = (imageUrl: string) => {
     if (onImageClick) {
       onImageClick(imageUrl, messages)
     }
@@ -94,10 +94,10 @@ function ImageGroup({ messages, onImageClick, myAvatar, partnerAvatar }: ImageGr
                 className={`relative ${getImageStyles(index, messages.length)}`}
               >
                 <img
-                  src={message.imageUrl}
+                  src={message.imageUrl ?? undefined}
                   alt={`Hình ảnh ${index + 1}`}
                   className="w-full h-full object-cover rounded-lg border border-stone-900 shadow-[2px_2px_0_#1c1917] cursor-pointer hover:shadow-[3px_3px_0_#1c1917] transition-all"
-                  onClick={() => handleImageClick(message.imageUrl!, index)}
+                  onClick={() => handleImageClick(message.imageUrl!)}
                   onLoad={(e) => {
                     const img = e.target as HTMLImageElement
                     if (img.naturalWidth === 0) {
@@ -334,7 +334,7 @@ export function ChatBox({
   }
 
   // Handle click on image in ImageGroup
-  const handleImageGroupClick = (imageUrl: string, groupMessages?: ChatMessage[]) => {
+  const handleImageGroupClick = (imageUrl: string, _groupMessages?: ChatMessage[]) => {
     // Always show counter in total conversation images
     const allImages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
     const idx = allImages.findIndex(img => img.imageUrl === imageUrl)

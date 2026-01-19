@@ -13,7 +13,7 @@ import type { ChatBox as ChatBoxType, ChatMessage, ChatWebSocketMessage } from '
  */
 export function ChatPage() {
   const { showToast } = useToast()
-  const incrementChatUnreadCount = useChatStore((state) => state.incrementUnreadCount)
+  // incrementUnreadCount removed - handled by layout subscription
   const decrementChatUnreadCount = useChatStore((state) => state.decrementUnreadCount)
   const refreshChatUnreadCount = useChatStore((state) => state.refreshUnreadCount)
 
@@ -325,7 +325,7 @@ export function ChatPage() {
 
   // ======================== HANDLERS ========================
 
-  const handleSelectChatBox = async (chatBox: ChatBox) => {
+  const handleSelectChatBox = async (chatBox: ChatBoxType) => {
     // If clicking same chat, do nothing
     if (selectedChatBox?.id === chatBox.id) return
 

@@ -17,7 +17,7 @@ interface ChatState {
  * Zustand store for managing chat unread count state
  * Shared across components to keep chat unread count synchronized
  */
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   unreadCount: 0,
   activeConversationId: null, // Track active chat globally
   isLoading: false,
