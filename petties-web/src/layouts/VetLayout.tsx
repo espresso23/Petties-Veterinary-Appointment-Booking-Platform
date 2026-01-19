@@ -26,7 +26,6 @@ export const VetLayout = () => {
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
     const assignedBookingCount = useBookingStore((state) => state.assignedBookingCount)
     const refreshAssignedBookingCount = useBookingStore((state) => state.refreshAssignedBookingCount)
-    const incrementAssignedBookingCount = useBookingStore((state) => state.incrementAssignedBookingCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
     // Initialize SSE with booking update handler
