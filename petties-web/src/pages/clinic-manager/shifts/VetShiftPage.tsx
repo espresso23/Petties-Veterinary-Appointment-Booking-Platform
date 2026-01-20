@@ -1338,7 +1338,7 @@ export const VetShiftPage = () => {
                                                     <img src={vets.find(v => v.userId === formData.vetId)?.avatar} alt="avt" className="w-6 h-6 rounded-full border border-stone-900 object-cover" />
                                                 ) : (
                                                     <div className="w-6 h-6 rounded-full bg-amber-100 border border-stone-900 flex items-center justify-center text-[10px] font-bold text-amber-600">
-                                                        {vets.find(v => v.userId === formData.vetId)?.fullName.charAt(0)}
+                                                        {vets.find(v => v.userId === formData.vetId)?.fullName?.charAt(0) || '?'}
                                                     </div>
                                                 )}
                                                 <span className="text-stone-900 font-bold">{vets.find(v => v.userId === formData.vetId)?.fullName}</span>
@@ -1369,7 +1369,7 @@ export const VetShiftPage = () => {
                                                             <img src={v.avatar} alt="avt" className="w-8 h-8 rounded-full border-2 border-stone-900 object-cover" />
                                                         ) : (
                                                             <div className="w-8 h-8 rounded-full bg-amber-100 border-2 border-stone-900 flex items-center justify-center font-bold text-amber-600">
-                                                                {v.fullName.charAt(0)}
+                                                                {v.fullName?.charAt(0) || '?'}
                                                             </div>
                                                         )}
                                                         <div className="font-bold text-stone-900 text-sm">{v.fullName}</div>

@@ -38,5 +38,8 @@ public enum NotificationType {
     VET_ON_WAY, // Bác sĩ đang trên đường đến (HOME_VISIT/SOS)
 
     // Additional Clinic notifications
-    CLINIC_VERIFIED
+    CLINIC_VERIFIED,
+
+    // Re-examination
+    RE_EXAMINATION_REMINDER
 }

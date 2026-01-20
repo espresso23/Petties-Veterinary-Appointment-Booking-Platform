@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
@@ -13,16 +14,21 @@ import 'config/theme/app_theme.dart';
 import 'utils/storage_service.dart';
 import 'core/services/sentry_service.dart';
 import 'utils/fcm_service.dart';
+import 'providers/notification_provider.dart';
+import 'providers/clinic_provider.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
-
-import 'config/env/environment.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔍 Debug: Log environment configuration on startup
-  Environment.printConfig();
+  // Load environment variables from .env file
+  try {
+    await dotenv.load(fileName: '.env');
+    debugPrint('✅ Loaded .env file');
+  } catch (e) {
+    debugPrint('⚠️ Could not load .env file: $e');
+  }
 
   // Initialize date formatting for Vietnamese (fast, synchronous)
   await initializeDateFormatting('vi', null);
@@ -47,6 +53,7 @@ void main() async {
   final authProvider = AuthProvider();
   final userProvider = UserProvider();
   final notificationProvider = NotificationProvider();
+  final clinicProvider = ClinicProvider();
 
   // Initialize Sentry and run app immediately
   // FCM will be initialized AFTER first frame renders
@@ -57,6 +64,7 @@ void main() async {
           ChangeNotifierProvider.value(value: authProvider),
           ChangeNotifierProvider.value(value: userProvider),
           ChangeNotifierProvider.value(value: notificationProvider),
+          ChangeNotifierProvider.value(value: clinicProvider),
         ],
         child: PettiesApp(authProvider: authProvider),
       ),

@@ -164,6 +164,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                   color: AppColors.stone900,
                   letterSpacing: -0.5,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -781,7 +782,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Lịch hẹn\nmới',
+                          'Đặt lịch mới',
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -789,11 +790,12 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                               color: AppColors.stone900),
                         ),
                         Text(
-                          'Đặt lịch nhanh',
+                          'Lên lịch khám',
                           style: TextStyle(
                               fontSize: 11,
                               color: AppColors.stone500,
                               fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -806,7 +808,10 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
         const SizedBox(width: 16),
         Expanded(
           child: InkWell(
-            onTap: () {},
+            onTap: () {
+              // Navigate to Patient List
+              context.push(AppRoutes.vetPatients);
+            },
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -822,20 +827,19 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.infoLight, // Blue
+                      color: AppColors.primary.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.info, width: 1.5),
+                      border: Border.all(color: AppColors.primary, width: 1.5),
                     ),
-                    child: const Icon(Icons.description, color: AppColors.info),
+                    child: const Icon(Icons.pets, color: AppColors.primary),
                   ),
-                  const SizedBox(width: 12),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Hồ sơ\nbệnh án',
+                          'Bệnh nhân',
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
@@ -843,11 +847,12 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
                               color: AppColors.stone900),
                         ),
                         Text(
-                          'Xem EMR',
+                          'Danh sách thú cưng',
                           style: TextStyle(
                               fontSize: 11,
                               color: AppColors.stone500,
                               fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -871,10 +876,12 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(context, Icons.grid_view_rounded, 'Home', true, null),
-          _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch', false,
-              () => context.push(AppRoutes.vetSchedule)),
-          _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false, null),
+          _buildNavItem(
+              context, Icons.grid_view_rounded, 'Trang chủ', true, null),
+          _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch hẹn',
+              false, () => context.push(AppRoutes.vetSchedule)),
+          _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,
+              () => context.push(AppRoutes.vetPatients)),
           _buildNavItem(
               context, Icons.folder_open_rounded, 'Hồ sơ', false, null),
           _buildNavItem(context, Icons.person_rounded, 'Cá nhân', false,

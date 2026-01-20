@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Environment configuration for different build modes
 class Environment {
@@ -23,10 +24,10 @@ class Environment {
       // return 'http://localhost:8080/api';
 
       // 2. Emulator: dùng 10.0.2.2
-      // return 'http://10.0.2.2:8080/api';
+      return 'http://10.0.2.2:8080/api';
 
       // 3. Physical Device (WiFi): dùng IP LAN (ipconfig)
-      return 'http://192.168.17.213:8080/api';
+      // return 'http://192.168.17.213:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -127,5 +128,45 @@ class Environment {
     print('AI Service URL: $aiServiceUrl');
     // ignore: avoid_print
     print('================================');
+  }
+
+  // ============================================================
+  // Map & Location API Keys (loaded from .env or --dart-define)
+  // ============================================================
+
+  // Compile-time dart-define values
+  static const String _mapApiKeyFromDartDefine =
+      String.fromEnvironment('MAP_API_KEY');
+  static const String _goongApiKeyFromDartDefine =
+      String.fromEnvironment('GOONG_API_KEY');
+
+  /// Google Maps API Key
+  /// Priority: --dart-define > .env file (via dotenv)
+  static String get mapApiKey {
+    if (_mapApiKeyFromDartDefine.isNotEmpty) {
+      return _mapApiKeyFromDartDefine;
+    }
+    // Fallback to dotenv (requires dotenv.load() in main.dart)
+    try {
+      final key = dotenv.env['MAP_API_KEY'] ?? '';
+      return key;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Goong.io API Key for geocoding/directions
+  /// Priority: --dart-define > .env file (via dotenv)
+  static String get goongApiKey {
+    if (_goongApiKeyFromDartDefine.isNotEmpty) {
+      return _goongApiKeyFromDartDefine;
+    }
+    // Fallback to dotenv (requires dotenv.load() in main.dart)
+    try {
+      final key = dotenv.env['GOONG_API_KEY'] ?? '';
+      return key;
+    } catch (_) {
+      return '';
+    }
   }
 }

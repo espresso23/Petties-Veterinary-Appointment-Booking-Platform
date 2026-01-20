@@ -154,6 +154,7 @@ interface ChatBoxProps {
   onImageUpload?: (file: File) => Promise<void>
   onCombinedMessage?: (content: string, imageFile: File) => Promise<void>
   onTyping?: (typing: boolean) => void
+  onError?: (message: string) => void
   onLoadMore?: () => void
   loading?: boolean
   hasMore?: boolean
@@ -170,13 +171,16 @@ export function ChatBox({
   onImageUpload,
   onCombinedMessage,
   onTyping,
+  onError,
   onLoadMore,
   loading = false,
   hasMore = false,
   isPartnerTyping = false,
 }: ChatBoxProps) {
   const { user } = useAuthStore()
-  const myAvatar = user?.avatar
+  // Use clinic logo as my avatar if available. Do NOT fallback to user avatar (manager) as per requirements.
+  console.log('ChatBox debug:', { clinicLogo: chatBox.clinicLogo, userAvatar: user?.avatar })
+  const myAvatar = chatBox.clinicLogo || undefined
   const partnerAvatar = chatBox.petOwnerAvatar ?? undefined // Convert null to undefined
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -488,7 +492,7 @@ export function ChatBox({
       </div>
 
       {/* Message Input */}
-      <MessageInput onSend={onSendMessage} onImageUpload={onImageUpload} onCombinedMessage={onCombinedMessage} onTyping={onTyping} />
+      <MessageInput onSend={onSendMessage} onImageUpload={onImageUpload} onCombinedMessage={onCombinedMessage} onTyping={onTyping} onError={onError} />
 
       {/* Image Gallery Sidebar */}
       {showImageGallery && (

@@ -19,6 +19,17 @@ class ChatService {
   Future<List<ChatConversation>> getConversations() async {
     final response = await _apiClient.get('/chat/conversations');
     final data = response.data;
+    
+    // DEBUG LOGGING
+    print('DEBUG: getConversations Raw Data Type: ${data.runtimeType}');
+    if (data is Map && data.containsKey('content')) {
+      final list = data['content'] as List;
+      if (list.isNotEmpty) {
+        print('DEBUG: First Item clinicLogo: ${list[0]['clinicLogo']}');
+        print('DEBUG: First Item clinic_logo: ${list[0]['clinic_logo']}');
+      }
+    }
+
     List<dynamic> conversations;
 
     if (data is Map && data.containsKey('content')) {
@@ -37,6 +48,16 @@ class ChatService {
   Future<ChatConversation> getConversation(String conversationId) async {
     final response =
         await _apiClient.get('/chat/conversations/$conversationId');
+    final data = response.data;
+    
+    // DEBUG SINGULAR
+    print('DEBUG: Single Conv Raw: $data');
+    if (data is Map) {
+       print('DEBUG: Single Conv clinicLogo: ${data['clinicLogo']}');
+       print('DEBUG: Single Conv clinic_logo: ${data['clinic_logo']}');
+       print('DEBUG: Single Conv clinicId: ${data['clinicId']}');
+    }
+
     return ChatConversation.fromJson(response.data);
   }
 

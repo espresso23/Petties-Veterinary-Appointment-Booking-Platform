@@ -81,7 +81,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Welcome Header - Brutal Card
-              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Pet Owner'),
+              _buildWelcomeCard(
+                  context, user?.fullName ?? user?.username ?? 'Pet Owner'),
               const SizedBox(height: 24),
 
               // Quick Actions
@@ -412,38 +413,42 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           top: BorderSide(color: AppColors.stone900, width: 2),
         ),
       ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 10),
-        unselectedLabelStyle: const TextStyle(fontSize: 10),
-        currentIndex: 0,
-        elevation: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              // Already on home
-              break;
-            case 1:
-              // Navigate to chat
-              context.push(AppRoutes.chatList);
-              break;
-            case 2:
-              // TODO: Navigate to bookings
-              break;
-            case 3:
-              context.push(AppRoutes.profile);
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'Tin nhắn'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Lịch hẹn'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Tài khoản'),
-        ],
+      child: Builder(
+        builder: (context) => BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.stone400,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+          currentIndex: 0,
+          elevation: 0,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                // Already on home
+                break;
+              case 1:
+                // KHÁM PHÁ - Navigate to clinic search
+                context.push(AppRoutes.clinicSearch);
+                break;
+              case 2:
+                // TODO: Navigate to bookings
+                break;
+              case 3:
+                context.push(AppRoutes.profile);
+                break;
+            }
+          },
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
+          ],
+        ),
       ),
     );
   }

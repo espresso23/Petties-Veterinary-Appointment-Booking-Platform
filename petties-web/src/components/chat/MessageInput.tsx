@@ -6,6 +6,7 @@ interface MessageInputProps {
   onImageUpload?: (file: File) => Promise<void>
   onCombinedMessage?: (content: string, imageFile: File) => Promise<void>
   onTyping?: (typing: boolean) => void
+  onError?: (message: string) => void
   disabled?: boolean
   placeholder?: string
 }
@@ -18,6 +19,7 @@ export function MessageInput({
   onImageUpload,
   onCombinedMessage,
   onTyping,
+  onError,
   disabled = false,
   placeholder = 'Nhap tin nhan...',
 }: MessageInputProps) {
@@ -126,7 +128,7 @@ export function MessageInput({
         }
       } catch (error) {
         console.error('Combined message failed:', error)
-        alert('Gửi tin nhắn thất bại')
+        onError?.('Gửi tin nhắn thất bại. Vui lòng thử lại.')
       } finally {
         setIsUploading(false)
       }
@@ -162,7 +164,7 @@ export function MessageInput({
 
         // Show result to user
         if (failCount > 0) {
-          alert(`Upload hoàn tất: ${successCount} thành công, ${failCount} thất bại`)
+          onError?.(`Tải lên thất bại ${failCount} ảnh. Vui lòng thử lại.`)
         }
       } finally {
         setIsUploading(false)
@@ -197,13 +199,13 @@ export function MessageInput({
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert(`File ${file.name} không phải là hình ảnh`)
+        onError?.(`File ${file.name} không phải là hình ảnh`)
         continue
       }
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert(`File ${file.name} quá lớn. Tối đa 10MB`)
+        onError?.(`File ${file.name} quá lớn. Tối đa 10MB`)
         continue
       }
 

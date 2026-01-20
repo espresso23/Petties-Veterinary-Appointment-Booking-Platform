@@ -385,8 +385,7 @@ export function ChatPage() {
       return
     }
 
-    // Create optimistic message with local blob URL for immediate display
-    const localImageUrl = URL.createObjectURL(file)
+    // Create optimistic message with uploading state (no image URL yet)
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     const optimisticMessage: ChatMessage = {
@@ -398,12 +397,13 @@ export function ChatPage() {
       senderAvatar: null,
       content: '',
       messageType: 'IMAGE',
-      imageUrl: localImageUrl,
+      imageUrl: null, // No URL yet - showing uploading placeholder
       status: 'SENT',
       isRead: false,
       readAt: null,
       createdAt: new Date().toISOString(),
-      isMe: true
+      isMe: true,
+      isUploading: true // Flag to show uploading indicator
     }
 
     // Add optimistic message immediately (at beginning since we store DESC order)
@@ -416,14 +416,10 @@ export function ChatPage() {
       // Remove optimistic message when real message arrives via WebSocket
       // WebSocket handler will add the real message
       setMessages(prev => prev.filter(m => m.id !== tempId))
-
-      // Cleanup blob URL
-      URL.revokeObjectURL(localImageUrl)
     } catch (error) {
       console.error('Failed to upload image:', error)
       // Remove optimistic message on error
       setMessages(prev => prev.filter(m => m.id !== tempId))
-      URL.revokeObjectURL(localImageUrl)
       showToast('error', 'Không thể tải lên hình ảnh. Vui lòng thử lại.')
       throw error
     }
@@ -527,6 +523,7 @@ export function ChatPage() {
           onImageUpload={handleImageUpload}
           onCombinedMessage={handleCombinedMessage}
           onTyping={handleTyping}
+          onError={(message) => showToast('error', message)}
           onLoadMore={loadMoreMessages}
           loading={loadingMessages}
           hasMore={hasMoreMessages}

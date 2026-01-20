@@ -28,8 +28,8 @@ import { PlaygroundPage } from './pages/admin/playground'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
-// Role-specific Pages
-import { VetDashboardPage, VetSchedulePage, VetBookingsPage } from './pages/vet'
+import { VetDashboardPage, VetSchedulePage, VetBookingsPage, CreateEmrPage, EmrDetailPage, VetPatientsPage, EditEmrPage } from './pages/vet'
+import VaccinationPage from './pages/vet/vaccine/VaccinationPage'
 import { NotificationsPage as VetNotificationsPage } from './pages/vet/NotificationsPage'
 import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage, ChatPage as ClinicManagerChatPage } from './pages/clinic-manager'
@@ -112,8 +112,13 @@ function App() {
             <Route index element={<VetDashboardPage />} />
             <Route path="schedule" element={<VetSchedulePage />} />
             <Route path="bookings" element={<VetBookingsPage />} />
+            <Route path="patients" element={<VetPatientsPage />} />
             <Route path="notifications" element={<VetNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="emr/create/:petId" element={<CreateEmrPage />} />
+            <Route path="emr/edit/:emrId" element={<EditEmrPage />} />
+            <Route path="emr/detail/:emrId" element={<EmrDetailPage />} />
+            <Route path="patients/:petId/vaccinations" element={<VaccinationPage />} />
           </Route >
 
           {/* Clinic Owner Routes */}

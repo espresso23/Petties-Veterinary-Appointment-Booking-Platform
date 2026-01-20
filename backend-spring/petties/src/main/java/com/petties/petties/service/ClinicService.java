@@ -26,6 +26,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.petties.petties.model.OperatingHours;
+import java.time.LocalTime;
+import java.util.Map;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -192,9 +196,101 @@ public class ClinicService {
         }
 
         @Transactional(readOnly = true)
-        public Page<ClinicResponse> searchClinics(String name, Pageable pageable) {
-                Page<Clinic> clinics = clinicRepository.searchByName(name, pageable);
-                return clinics.map(this::mapToResponse);
+        public Page<ClinicResponse> searchClinics(
+                        BigDecimal latitude, BigDecimal longitude, Double radiusKm,
+                        String query, Boolean isOpenNow,
+                        String province, String district,
+                        BigDecimal minPrice, BigDecimal maxPrice,
+                        String service,
+                        Boolean sortByRating, Boolean sortByDistance,
+                        Pageable pageable) {
+
+                // 1. Fetch from repository with text and distance filters
+                List<Clinic> clinics = clinicRepository.searchClinicsInternal(
+                                query, latitude, longitude, radiusKm,
+                                province, district, minPrice, maxPrice, service);
+
+                // 2. Map and calculate distances
+                List<ClinicResponse> responses = clinics.stream()
+                                .map(clinic -> {
+                                        ClinicResponse response = mapToResponse(clinic);
+                                        if (latitude != null && longitude != null && clinic.getLatitude() != null
+                                                        && clinic.getLongitude() != null) {
+                                                double distance = locationService.calculateDistance(
+                                                                latitude, longitude,
+                                                                clinic.getLatitude(), clinic.getLongitude());
+                                                response.setDistance(distance);
+                                        }
+                                        return response;
+                                })
+                                .collect(Collectors.toList());
+
+                // 3. Filter by open status if requested
+                if (Boolean.TRUE.equals(isOpenNow)) {
+                        responses = responses.stream()
+                                        .filter(resp -> isClinicOpen(resp.getOperatingHours()))
+                                        .collect(Collectors.toList());
+                }
+
+                // 4. Sort
+                if (Boolean.TRUE.equals(sortByRating)) {
+                        responses.sort((a, b) -> {
+                                BigDecimal rA = a.getRatingAvg() != null ? a.getRatingAvg() : BigDecimal.ZERO;
+                                BigDecimal rB = b.getRatingAvg() != null ? b.getRatingAvg() : BigDecimal.ZERO;
+                                return rB.compareTo(rA);
+                        });
+                } else if (Boolean.TRUE.equals(sortByDistance)) {
+                        responses.sort((a, b) -> {
+                                Double dA = a.getDistance() != null ? a.getDistance() : Double.MAX_VALUE;
+                                Double dB = b.getDistance() != null ? b.getDistance() : Double.MAX_VALUE;
+                                return dA.compareTo(dB);
+                        });
+                }
+
+                // 5. Paginate
+                int start = (int) pageable.getOffset();
+                int end = Math.min(start + pageable.getPageSize(), responses.size());
+                List<ClinicResponse> pagedResponses = start < responses.size()
+                                ? responses.subList(start, end)
+                                : List.of();
+
+                return new PageImpl<>(pagedResponses, pageable, responses.size());
+        }
+
+        private boolean isClinicOpen(Map<String, OperatingHours> hoursMap) {
+                if (hoursMap == null || hoursMap.isEmpty())
+                        return false;
+
+                LocalDateTime now = LocalDateTime.now();
+                String day = now.getDayOfWeek().name().toLowerCase(); // e.g., monday
+
+                OperatingHours hours = hoursMap.entrySet().stream()
+                                .filter(e -> e.getKey().equalsIgnoreCase(day))
+                                .map(Map.Entry::getValue)
+                                .findFirst()
+                                .orElse(null);
+
+                if (hours == null || Boolean.TRUE.equals(hours.getIsClosed())) {
+                        return false;
+                }
+
+                LocalTime currentTime = now.toLocalTime();
+
+                if (hours.getOpenTime() != null && hours.getCloseTime() != null) {
+                        if (currentTime.isBefore(hours.getOpenTime()) || currentTime.isAfter(hours.getCloseTime())) {
+                                return false;
+                        }
+                } else {
+                        return false;
+                }
+
+                if (hours.getBreakStart() != null && hours.getBreakEnd() != null) {
+                        if (currentTime.isAfter(hours.getBreakStart()) && currentTime.isBefore(hours.getBreakEnd())) {
+                                return false;
+                        }
+                }
+
+                return true;
         }
 
         @Transactional(readOnly = true)

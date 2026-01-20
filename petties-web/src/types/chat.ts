@@ -42,6 +42,7 @@ export interface ChatMessage {
   readAt: string | null
   createdAt: string
   isMe: boolean
+  isUploading?: boolean // Used for optimistic UI during upload
 }
 
 export interface SendMessageRequest {
