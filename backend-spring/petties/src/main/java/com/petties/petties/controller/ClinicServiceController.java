@@ -155,7 +155,7 @@ public class ClinicServiceController {
      * Allows both CLINIC_OWNER and CLINIC_MANAGER to view services
      */
     @GetMapping("/by-clinic/{clinicId}")
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<List<ClinicServiceResponse>> getServicesByClinicId(@PathVariable UUID clinicId) {
         List<ClinicServiceResponse> services = serviceService.getServicesByClinicId(clinicId);
         return ResponseEntity.ok(services);

@@ -2149,8 +2149,10 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 
 | # | Method | Endpoint | Role | Description | Status |
 |---|--------|----------|------|-------------|--------|
+| 0 | GET | `/bookings/public/available-slots` | Public | Lấy danh sách slot trống (Smart Availability) | 🔨 To Implement |
 | 1 | POST | `/bookings` | PET_OWNER | Tạo booking mới | ✅ Done |
-| 2 | GET | `/bookings/clinic/{clinicId}` | MANAGER, ADMIN | Lấy danh sách booking của clinic | ✅ Done |
+| 2 | GET | `/services/by-clinic/{clinicId}` | Public | Lấy danh sách dịch vụ của phòng khám | ✅ Done |
+| 3 | GET | `/bookings/clinic/{clinicId}` | MANAGER, ADMIN | Lấy danh sách booking của clinic | ✅ Done |
 | 3 | GET | `/bookings/vet/{vetId}` | VET, MANAGER, ADMIN | Lấy booking được gán cho vet | ✅ Done |
 | 4 | GET | `/bookings/{bookingId}` | All | Lấy chi tiết booking | ✅ Done |
 | 5 | GET | `/bookings/code/{bookingCode}` | All | Lấy booking theo mã | ✅ Done |
@@ -2274,36 +2276,64 @@ classDiagram
 
 #### 3.8.2 Create Appointment (BOK-1 Mobile Booking Wizard)
 
+**Smart Availability Algorithm**:
+The system implements a "Smart Availability" feature that automatically filters available time slots based on:
+1. Selected service(s) and their required vet specialties
+2. Vet working shifts for the selected date
+3. Existing bookings (to avoid double-booking)
+
+For multi-service bookings, the algorithm ensures **consecutive slots** can be fulfilled by checking each service in sequence.
+
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI as Mobile Wizard (5-Steps)
+    participant UI as Mobile Wizard (3-Steps)
     participant BC as BookingController
     participant BS as BookingService
+    participant VAS as VetAssignmentService
     participant SR as SlotRepository
     participant DB as Database
 
-    PO->>UI: 1. Step 1-3: Choose Pet, Service, Vet
-    UI->>BC: 2. GET /api/clinics/{id}/available-slots (filtered)
-    BC-->>UI: 3. Available Slots List
-    PO->>UI: 4. Step 4: Select Slot & Date
-    PO->>UI: 5. Step 5: Review & Enter Address (if Home)
+    PO->>UI: 1. Step 1: Select Service(s)
+    PO->>UI: 2. Step 2: Select Date
     activate UI
-    UI->>BC: 6. createBooking(BookingRequest)
+    UI->>BC: 3. GET /api/bookings/public/available-slots?clinicId&date&serviceIds[]
     activate BC
-    BC->>BS: 7. createBooking(request)
+    BC->>BS: 4. getAvailableSlots(clinicId, date, serviceIds)
     activate BS
-    BS->>BS: 8. Validate slots (availability & distance)
-    BS->>BS: 9. Calculate total price (Base + Weight + Distance)
-    BS->>DB: 10. saveAll (Booking + link to Slots)
-    BS->>SR: 11. Lock Slots (status=BOOKED, TTL=15m for payment)
-    BS-->>BC: 12. BookingResponse
+    BS->>VAS: 5. findAvailableTimeSlotsWithSmartMatching(...)
+    activate VAS
+    Note over VAS: Smart Availability Logic:<br/>1. Fetch all services with required specialties<br/>2. Query vets with matching specialties<br/>3. Check vet shifts for date<br/>4. Filter out booked slots<br/>5. Validate consecutive slots for multi-service
+    VAS-->>BS: 6. List of valid start times
+    deactivate VAS
+    BS-->>BC: 7. Available slot times
     deactivate BS
-    BC-->>UI: 13. 201 Created
+    BC-->>UI: 8. JSON Array of available times
     deactivate BC
-    UI-->>PO: 14. Show "Proceed to Payment" (Step 6)
+    UI-->>PO: 9. Display time grid (available slots)
+    
+    PO->>UI: 10. Select time slot
+    PO->>UI: 11. Step 3: Review & Confirm
+    UI->>BC: 12. POST /api/bookings (with serviceIds, slotIds, NO vetId)
+    activate BC
+    BC->>BS: 13. createBooking(request)
+    activate BS
+    BS->>BS: 14. Validate slots still available
+    BS->>BS: 15. Calculate total price (Base + Weight + Distance)
+    BS->>DB: 16. Save Booking (status=PENDING)
+    BS->>SR: 17. Lock Slots (TTL=15m for payment)
+    BS-->>BC: 18. BookingResponse
+    deactivate BS
+    BC-->>UI: 19. 201 Created
+    deactivate BC
+    UI-->>PO: 20. Show "Proceed to Payment"
     deactivate UI
 ```
+
+**Key Technical Details**:
+- **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
+- **Vet Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
+- **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
 
 #### 3.8.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
 

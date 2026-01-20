@@ -1,6 +1,6 @@
 # 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
 ## Project: Veterinary Appointment & SOS Platform
-**Version:** 7.0 | **Last Updated:** 08/01/2026 | **Audited from Codebase**  
+**Version:** 7.1 | **Last Updated:** 20/01/2026 | **Audited from Codebase**  
 **Team Size:** 5 members | **Sprint Duration:** 1 week | **Target Effort:** ~40h/person/week
 
 ---
@@ -69,9 +69,9 @@
 | US-MED-01 | Xem lịch sử khám bệnh của Pet | 💡 |
 | US-MED-02 | Ghi bệnh án SOAP | 💡 |
 | US-MED-03 | Ghi/Xem sổ tiêm chủng | 💡 |
-| US-APT-03 | Vet click Check-in bắt đầu khám | 💡 |
-| US-APT-04 | Cập nhật dịch vụ phát sinh (nếu có) | 💡 |
-| US-APT-05 | Checkout (hoàn thành khám) | 💡 |
+| US-APT-03 | Vet click Check-in bắt đầu khám | ✅ |
+| US-APT-04 | Cập nhật dịch vụ phát sinh (nếu có) | ✅ |
+| US-APT-05 | Checkout (hoàn thành khám) | ✅ |
 | US-NTF-01 | Nhận thông báo đẩy (Push) | ✅ |
 | US-NTF-03 | Xem danh sách thông báo | ✅ |
 
@@ -315,7 +315,7 @@
 |-----------|---------|
 | **Goal** | Complete appointment lifecycle from booking to checkout |
 | **Sprints** | S7-S8 |
-| **Status** | 💡 0% Not Started |
+| **Status** | 🔄 60% In Progress (Backend Done) |
 
 **Actor Benefits:**
 - 🐾 **Pet Owner:** Book clinic/home visit, track status, cancel if needed
@@ -339,7 +339,7 @@
 |-----------|---------|
 | **Goal** | Centralized medical history with SOAP notes and vaccination records |
 | **Sprints** | S8 |
-| **Status** | 💡 0% Not Started |
+| **Status** | 🔄 50% In Progress (Backend Done) |
 
 **Actor Benefits:**
 - 👨‍⚕️ **Vet:** Record diagnoses professionally (SOAP format), prescriptions
@@ -1522,17 +1522,17 @@
 | EPIC-CLINIC | 4 | 4 | 0 | 0 | ✅ 100% |
 | EPIC-DISCOVERY | 5 | 0 | 2 | 3 | 🔄 40% |
 | EPIC-SCHED | 3 | 3 | 0 | 0 | ✅ 100% |
-| EPIC-MEDICAL | 3 | 0 | 0 | 3 | 💡 0% |
-| EPIC-APPOINTMENT | 5 | 0 | 0 | 5 | 💡 0% |
+| EPIC-MEDICAL | 3 | 0 | 2 | 1 | � 50% |
+| EPIC-APPOINTMENT | 5 | 3 | 1 | 1 | � 80% |
 | EPIC-AI | 5 | 1 | 1 | 3 | 🔄 30% |
 | EPIC-NOTI | 3 | 3 | 0 | 0 | ✅ 100% |
 | EPIC-SOS | 3 | 0 | 0 | 3 | 💡 0% |
 | EPIC-PAYMENT | 3 | 0 | 0 | 3 | 💡 0% |
 | EPIC-CHAT | 1 | 0 | 0 | 1 | 💡 0% |
-| **TOTAL** | **42** | **18** | **3** | **21** | **43%** |
+| **TOTAL** | **42** | **21** | **6** | **15** | **58%** |
 
 ---
 
 **Author:** Petties Team  
-**Last Updated:** 08/01/2026  
+**Last Updated:** 20/01/2026  
 **Audited By:** Codebase analysis

@@ -1,6 +1,7 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.AvailableVetResponse;
+import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
@@ -856,6 +857,32 @@ public class BookingService {
                                 .isHomeVisit(service.getIsHomeVisit())
                                 .pricePerKm(service.getPricePerKm())
                                 .isActive(service.getIsActive())
+                                .build();
+        }
+
+        // ========== SMART AVAILABILITY ==========
+
+        /**
+         * Get available time slots for booking
+         * Delegates to VetAssignmentService for Smart Availability algorithm
+         * 
+         * @param clinicId   Clinic ID
+         * @param date       Booking date
+         * @param serviceIds List of service IDs
+         * @return Available slots response with start times
+         */
+        public AvailableSlotsResponse getAvailableSlots(
+                        UUID clinicId, LocalDate date, List<UUID> serviceIds) {
+
+                log.info("Getting available slots for clinic {}, date {}, services {}", clinicId, date, serviceIds);
+
+                // Delegate to VetAssignmentService for Smart Availability algorithm
+                List<LocalTime> availableStartTimes = vetAssignmentService.findAvailableSlots(clinicId, date,
+                                serviceIds);
+
+                return AvailableSlotsResponse.builder()
+                                .availableSlots(availableStartTimes)
+                                .totalSlots(availableStartTimes.size())
                                 .build();
         }
 

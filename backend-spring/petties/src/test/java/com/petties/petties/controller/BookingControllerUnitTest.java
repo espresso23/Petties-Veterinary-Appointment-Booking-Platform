@@ -38,6 +38,10 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 /**
  * Unit tests for BookingController using @WebMvcTest and MockMvc.
  *
@@ -140,17 +144,37 @@ class BookingControllerUnitTest {
                                 .build();
         }
 
+        /**
+         * Helper method to setup SecurityContext with UserPrincipal
+         * Required because BookingController casts UserDetails to UserPrincipal
+         */
+        private void setupUserPrincipalAuth(UUID userId) {
+                UserDetailsServiceImpl.UserPrincipal userPrincipal = mock(UserDetailsServiceImpl.UserPrincipal.class);
+                when(userPrincipal.getUserId()).thenReturn(userId);
+
+                Authentication authentication = mock(Authentication.class);
+                when(authentication.getPrincipal()).thenReturn(userPrincipal);
+
+                SecurityContext securityContext = mock(SecurityContext.class);
+                when(securityContext.getAuthentication()).thenReturn(authentication);
+
+                SecurityContextHolder.setContext(securityContext);
+        }
+
         // ==================== CREATE BOOKING TESTS ====================
 
         @Test
-        @DisplayName("createBooking_validRequest_returns201")
+        @DisplayName("TC-BOOKING-CREATE-001: Create booking with valid request - Returns 201")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_validRequest_returns201() throws Exception {
                 // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
                 BookingRequest request = createMockBookingRequest();
                 BookingResponse response = createMockBookingResponse();
 
-                when(bookingService.createBooking(any(BookingRequest.class), any(UUID.class)))
+                when(bookingService.createBooking(any(BookingRequest.class), eq(userId)))
                                 .thenReturn(response);
 
                 // Act & Assert
@@ -163,11 +187,11 @@ class BookingControllerUnitTest {
                                 .andExpect(jsonPath("$.clinicName").value("Pet Care Clinic"))
                                 .andExpect(jsonPath("$.status").value("PENDING"));
 
-                verify(bookingService).createBooking(any(BookingRequest.class), any(UUID.class));
+                verify(bookingService).createBooking(any(BookingRequest.class), eq(userId));
         }
 
         @Test
-        @DisplayName("createBooking_missingPetId_returns400")
+        @DisplayName("TC-BOOKING-CREATE-002: Create booking without petId - Returns 400")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_missingPetId_returns400() throws Exception {
                 // Arrange - Request without petId
@@ -189,7 +213,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("createBooking_missingClinicId_returns400")
+        @DisplayName("TC-BOOKING-CREATE-003: Create booking without clinicId - Returns 400")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_missingClinicId_returns400() throws Exception {
                 // Arrange - Request without clinicId
@@ -211,7 +235,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("createBooking_missingBookingDate_returns400")
+        @DisplayName("TC-BOOKING-CREATE-004: Create booking without bookingDate - Returns 400")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_missingBookingDate_returns400() throws Exception {
                 // Arrange - Request without bookingDate
@@ -233,13 +257,16 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("createBooking_petNotFound_returns404")
+        @DisplayName("TC-BOOKING-CREATE-005: Create booking with non-existent pet - Returns 404")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_petNotFound_returns404() throws Exception {
                 // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
                 BookingRequest request = createMockBookingRequest();
 
-                when(bookingService.createBooking(any(BookingRequest.class), any(UUID.class)))
+                when(bookingService.createBooking(any(BookingRequest.class), eq(userId)))
                                 .thenThrow(new ResourceNotFoundException("Pet not found"));
 
                 // Act & Assert
@@ -253,7 +280,7 @@ class BookingControllerUnitTest {
         // ==================== GET BOOKINGS BY CLINIC TESTS ====================
 
         @Test
-        @DisplayName("getBookingsByClinic_validClinicId_returns200")
+        @DisplayName("TC-BOOKING-GET-001: Get bookings by clinic - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getBookingsByClinic_validClinicId_returns200() throws Exception {
                 // Arrange
@@ -274,7 +301,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getBookingsByClinic_withStatusFilter_returns200")
+        @DisplayName("TC-BOOKING-GET-002: Get bookings by clinic with status filter - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getBookingsByClinic_withStatusFilter_returns200() throws Exception {
                 // Arrange
@@ -297,7 +324,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getBookingsByClinic_emptyResult_returns200WithEmptyList")
+        @DisplayName("TC-BOOKING-GET-003: Get bookings by clinic with empty result - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getBookingsByClinic_emptyResult_returns200WithEmptyList() throws Exception {
                 // Arrange
@@ -316,7 +343,7 @@ class BookingControllerUnitTest {
         // ==================== GET BOOKINGS BY VET TESTS ====================
 
         @Test
-        @DisplayName("getBookingsByVet_validVetId_returns200")
+        @DisplayName("TC-BOOKING-GET-004: Get bookings by vet - Returns 200")
         @WithMockUser(roles = "VET")
         void getBookingsByVet_validVetId_returns200() throws Exception {
                 // Arrange
@@ -338,7 +365,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getBookingsByVet_withStatusFilter_returns200")
+        @DisplayName("TC-BOOKING-GET-005: Get bookings by vet with status filter - Returns 200")
         @WithMockUser(roles = "VET")
         void getBookingsByVet_withStatusFilter_returns200() throws Exception {
                 // Arrange
@@ -360,7 +387,7 @@ class BookingControllerUnitTest {
         // ==================== GET BOOKING BY ID TESTS ====================
 
         @Test
-        @DisplayName("getBookingById_existingBooking_returns200")
+        @DisplayName("TC-BOOKING-GET-006: Get booking by ID - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getBookingById_existingBooking_returns200() throws Exception {
                 // Arrange
@@ -380,7 +407,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getBookingById_notFound_returns404")
+        @DisplayName("TC-BOOKING-GET-007: Get booking by ID not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getBookingById_notFound_returns404() throws Exception {
                 // Arrange
@@ -398,7 +425,7 @@ class BookingControllerUnitTest {
         // ==================== GET BOOKING BY CODE TESTS ====================
 
         @Test
-        @DisplayName("getBookingByCode_existingBooking_returns200")
+        @DisplayName("TC-BOOKING-GET-008: Get booking by code - Returns 200")
         @WithMockUser(roles = "PET_OWNER")
         void getBookingByCode_existingBooking_returns200() throws Exception {
                 // Arrange
@@ -417,7 +444,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getBookingByCode_notFound_returns404")
+        @DisplayName("TC-BOOKING-GET-009: Get booking by code not found - Returns 404")
         @WithMockUser(roles = "PET_OWNER")
         void getBookingByCode_notFound_returns404() throws Exception {
                 // Arrange
@@ -435,7 +462,7 @@ class BookingControllerUnitTest {
         // ==================== CHECK VET AVAILABILITY TESTS ====================
 
         @Test
-        @DisplayName("checkVetAvailability_allServicesHaveVets_returns200")
+        @DisplayName("TC-BOOKING-VET-001: Check vet availability - All services have vets - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void checkVetAvailability_allServicesHaveVets_returns200() throws Exception {
                 // Arrange
@@ -468,7 +495,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("checkVetAvailability_someServicesMissingVets_returns200WithWarning")
+        @DisplayName("TC-BOOKING-VET-002: Check vet availability - Some services missing vets - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void checkVetAvailability_someServicesMissingVets_returns200WithWarning() throws Exception {
                 // Arrange
@@ -516,7 +543,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("checkVetAvailability_bookingNotFound_returns404")
+        @DisplayName("TC-BOOKING-VET-003: Check vet availability - Booking not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void checkVetAvailability_bookingNotFound_returns404() throws Exception {
                 // Arrange
@@ -533,7 +560,7 @@ class BookingControllerUnitTest {
         // ==================== CONFIRM BOOKING TESTS ====================
 
         @Test
-        @DisplayName("confirmBooking_validRequest_returns200")
+        @DisplayName("TC-BOOKING-CONFIRM-001: Confirm booking with valid request - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_validRequest_returns200() throws Exception {
                 // Arrange
@@ -559,7 +586,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("confirmBooking_withManualVetAssignment_returns200")
+        @DisplayName("TC-BOOKING-CONFIRM-002: Confirm booking with manual vet assignment - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_withManualVetAssignment_returns200() throws Exception {
                 // Arrange
@@ -588,7 +615,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("confirmBooking_allowPartial_returns200")
+        @DisplayName("TC-BOOKING-CONFIRM-003: Confirm booking allowing partial - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_allowPartial_returns200() throws Exception {
                 // Arrange
@@ -612,7 +639,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("confirmBooking_removeUnavailableServices_returns200")
+        @DisplayName("TC-BOOKING-CONFIRM-004: Confirm booking removing unavailable services - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_removeUnavailableServices_returns200() throws Exception {
                 // Arrange
@@ -637,7 +664,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("confirmBooking_bookingNotPending_returns400")
+        @DisplayName("TC-BOOKING-CONFIRM-005: Confirm booking not pending - Returns 400")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_bookingNotPending_returns400() throws Exception {
                 // Arrange
@@ -655,7 +682,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("confirmBooking_bookingNotFound_returns404")
+        @DisplayName("TC-BOOKING-CONFIRM-006: Confirm booking not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void confirmBooking_bookingNotFound_returns404() throws Exception {
                 // Arrange
@@ -674,17 +701,20 @@ class BookingControllerUnitTest {
         // ==================== CANCEL BOOKING TESTS ====================
 
         @Test
-        @DisplayName("cancelBooking_validRequest_returns200")
+        @DisplayName("TC-BOOKING-CANCEL-001: Cancel booking with valid request - Returns 200")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void cancelBooking_validRequest_returns200() throws Exception {
                 // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
                 UUID bookingId = UUID.randomUUID();
                 String reason = "Thú cưng đã khỏe lại";
 
                 BookingResponse response = createMockBookingResponse();
                 response.setStatus(BookingStatus.CANCELLED);
 
-                when(bookingService.cancelBooking(eq(bookingId), eq(reason), any(UUID.class)))
+                when(bookingService.cancelBooking(eq(bookingId), eq(reason), eq(userId)))
                                 .thenReturn(response);
 
                 // Act & Assert
@@ -693,17 +723,20 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("CANCELLED"));
 
-                verify(bookingService).cancelBooking(eq(bookingId), eq(reason), any(UUID.class));
+                verify(bookingService).cancelBooking(eq(bookingId), eq(reason), eq(userId));
         }
 
         @Test
-        @DisplayName("cancelBooking_bookingNotFound_returns404")
+        @DisplayName("TC-BOOKING-CANCEL-002: Cancel booking not found - Returns 404")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void cancelBooking_bookingNotFound_returns404() throws Exception {
                 // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
                 UUID bookingId = UUID.randomUUID();
 
-                when(bookingService.cancelBooking(eq(bookingId), any(), any(UUID.class)))
+                when(bookingService.cancelBooking(eq(bookingId), any(), eq(userId)))
                                 .thenThrow(new ResourceNotFoundException("Booking not found"));
 
                 // Act & Assert
@@ -713,13 +746,16 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("cancelBooking_cannotBeCancelled_returns400")
+        @DisplayName("TC-BOOKING-CANCEL-003: Cancel booking cannot be cancelled - Returns 400")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void cancelBooking_cannotBeCancelled_returns400() throws Exception {
                 // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
                 UUID bookingId = UUID.randomUUID();
 
-                when(bookingService.cancelBooking(eq(bookingId), any(), any(UUID.class)))
+                when(bookingService.cancelBooking(eq(bookingId), any(), eq(userId)))
                                 .thenThrow(new BadRequestException("Booking cannot be cancelled in current status"));
 
                 // Act & Assert
@@ -733,7 +769,7 @@ class BookingControllerUnitTest {
         // ==================== GET MY BOOKINGS TESTS ====================
 
         @Test
-        @DisplayName("getMyBookings_petOwner_returns200")
+        @DisplayName("TC-BOOKING-OWNER-001: Get my bookings as pet owner - Returns 200")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void getMyBookings_petOwner_returns200() throws Exception {
                 // Act & Assert
@@ -746,7 +782,7 @@ class BookingControllerUnitTest {
         // ====================
 
         @Test
-        @DisplayName("getAvailableVetsForReassign_validRequest_returns200")
+        @DisplayName("TC-BOOKING-REASSIGN-001: Get available vets for reassign - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getAvailableVetsForReassign_validRequest_returns200() throws Exception {
                 // Arrange
@@ -786,7 +822,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("getAvailableVetsForReassign_bookingNotFound_returns404")
+        @DisplayName("TC-BOOKING-REASSIGN-002: Get available vets for reassign - Booking not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void getAvailableVetsForReassign_bookingNotFound_returns404() throws Exception {
                 // Arrange
@@ -804,7 +840,7 @@ class BookingControllerUnitTest {
         // ==================== REASSIGN VET TESTS ====================
 
         @Test
-        @DisplayName("reassignVet_validRequest_returns200")
+        @DisplayName("TC-BOOKING-REASSIGN-003: Reassign vet with valid request - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void reassignVet_validRequest_returns200() throws Exception {
                 // Arrange
@@ -834,7 +870,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("reassignVet_serviceNotFound_returns404")
+        @DisplayName("TC-BOOKING-REASSIGN-004: Reassign vet - Service not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void reassignVet_serviceNotFound_returns404() throws Exception {
                 // Arrange
@@ -857,7 +893,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("reassignVet_vetNotFound_returns404")
+        @DisplayName("TC-BOOKING-REASSIGN-005: Reassign vet - Vet not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void reassignVet_vetNotFound_returns404() throws Exception {
                 // Arrange
@@ -880,7 +916,7 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("reassignVet_noAvailableSlots_returns400")
+        @DisplayName("TC-BOOKING-REASSIGN-006: Reassign vet - No available slots - Returns 400")
         @WithMockUser(roles = "CLINIC_MANAGER")
         void reassignVet_noAvailableSlots_returns400() throws Exception {
                 // Arrange

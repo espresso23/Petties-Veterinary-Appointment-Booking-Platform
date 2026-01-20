@@ -1677,37 +1677,46 @@ Figure 31. Screen Clinician Roster Management (Web) - Now including Conflict War
     - "Proceed to Payment" – primary action button
 
 **Data processing**
-1. **[BOK-1] Mobile Booking Wizard (Multi-step Flow):**
-    - **Step 1: Pet Choice**: List of pets linked to the user account. Selection is mandatory.
-    - **Step 2: Service Choice**: Filtered list of services for the selected clinic. Displays base price.
-    - **Step 3: Vet Choice (Optional/Mandatory)**: 
-        - If the user prefers a specific doctor, they select from the Vet list.
-        - System automatically filters the availability in Step 4 based on this choice.
-    - **Step 4: Scheduling**: 
+1. **[BOK-1] Mobile Booking Wizard (3-step Flow with Smart Availability):**
+    - **Step 1: Service Choice**: 
+        - Pet Owner selects one or more services from the clinic's service catalog.
+        - Each service displays: Name, Category, Base Price, Duration.
+        - Services are publicly viewable (no authentication required for browsing).
+    - **Step 2: Time Slot Selection (Smart Availability)**: 
+        - **Smart Availability Algorithm**:
+            - Input: Selected services (with required specialties), Clinic ID, Date.
+            - System automatically finds time slots where **at least one vet** with the required specialty is available.
+            - For multi-service bookings: System ensures consecutive slots can be fulfilled by checking vet availability for each service in sequence.
+            - Returns: List of valid start times (30-minute intervals).
         - Interactive calendar showing days with available slots.
-        - Slot grid showing 30-minute intervals. 
-        - Conflicts with the user's *own* existing bookings are blocked.
-    - **Step 5: Review & Summary**: 
-        - Final price calculation: `Base Price` + `Weight Surcharge` (based on pet's last weight) + `Home Visit Fee` (if applicable, based on distance).
-        - Slot locking (TTL 15 minutes).
-2. System creates a `BOOKING` record with `PENDING_PAYMENT` status.
+        - Slot grid showing available 30-minute intervals.
+        - **No Vet Selection**: Vet assignment is handled by Manager post-booking.
+    - **Step 3: Review & Summary**: 
+        - Final price calculation: `Base Price` + `Weight Surcharge` (based on pet's last weight) + `Distance Fee` (if Home Visit, based on distance).
+        - User confirms booking details.
+        - Slot locking (TTL 15 minutes for payment).
+2. System creates a `BOOKING` record with `PENDING` status (awaiting payment).
+3. **Post-Booking Flow**: Manager assigns vet via Dashboard (UC-CM-06, Section 3.8.3).
 
 **Screen layout**
-Figure 32. Screen Mobile Booking Wizard (BOK-1) - Steps 1 through 5.
+Figure 32. Screen Mobile Booking Wizard (BOK-1) - 3 Steps: Service Selection, Time Selection, Summary.
 
 **Function details**
-- **Data:** PetID, ServiceID, VetID (optional), SlotID, BookingDate, Address (for Home Visit).
+- **Data:** PetID, ServiceID(s), SlotID(s), BookingDate, Address (for Home Visit).
 - **Validation:** 
     - Appointment must be booked at least 2 hours in advance (BR-001-01).
     - User cannot book for a pet they do not own.
-- **Business rules:** BR-01, BR-02, BR-05.
+    - Selected slots must be available (not already booked).
+- **Business rules:** BR-01, BR-02, BR-05, **BR-14 (Smart Availability Matching)**.
 - **Normal case:**
-    1. User books a vaccination for "Bella" on Friday at 9:00 AM using the 5-step wizard.
-    2. System calculates total fees and proceeds to payment.
+    1. Pet Owner selects "Vaccination" service for their pet "Bella".
+    2. System shows available time slots on Friday where a vet with VET_VACCINATION specialty is free.
+    3. User selects 9:00 AM slot and proceeds to payment.
 - **Abnormal/Exception cases:**
-    - A1. Slot taken – Another user just completed payment for this slot.
+    - A1. Slot taken – Another user completed payment for this slot during the 15-minute TTL.
     - A2. Past date – User attempts to select a time that has already passed.
     - A3. Address out of range – Home visit distance exceeds clinic service range.
+    - A4. No available slots – No vet with required specialty is available on selected date.
 
  #### *3.8.2 Payment & Confirmation*
 **Function trigger**

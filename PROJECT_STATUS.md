@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-18
+> **Last Updated:** 2026-01-20
 > **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)
-> **Overall Progress:** 65%
+> **Overall Progress:** 72%
 
 ---
 
@@ -16,8 +16,8 @@
 | Vet Scheduling | ✅ Done | 100% |
 | Notifications | 🔄 Active | 60% |
 | AI Assistant | 🔄 Active | 40% |
-| Booking Flow | 🔄 Active | 70% |
-| EMR (Medical Records) | ⏳ Pending | 20% |
+| Booking Flow | 🔄 Active | 85% |
+| EMR (Medical Records) | 🔄 Active | 40% |
 | SOS Emergency | 💡 Planned | 0% |
 
 ---
@@ -39,6 +39,8 @@
 - Overnight Shift Support
 - SSE Real-time Events
 - FCM Push Notifications
+- Smart Availability API (Optimal Slot Finding)
+- Standardized Controller Unit Tests (Auth, Booking, EMR)
 
 ### Web (Next.js)
 - Admin Dashboard
@@ -98,10 +100,10 @@
 ## ⏳ Upcoming (Sprint 11-12)
 
 ### EMR & Medical Records
-- [ ] Cross-clinic EMR History API
-- [ ] SOAP Note Entry (Vet)
-- [ ] Vaccination Card
-- [ ] Electronic Prescription (Rx)
+- [x] SOAP Note Entry (Vet) - Backend Done
+- [x] Vaccination Card - Backend Done
+- [x] Electronic Prescription (Rx) - Backend Done
+- [ ] Cross-clinic EMR History API (Verification pending)
 
 ### Booking Workflow
 - [ ] Multi-step Booking Wizard

@@ -45,6 +45,7 @@ public class VetAssignmentService {
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
     private final BookingSlotRepository bookingSlotRepository;
+    private final com.petties.petties.repository.ClinicServiceRepository clinicServiceRepository;
 
     /**
      * Auto-assign vet for a booking based on:
@@ -1108,5 +1109,161 @@ public class VetAssignmentService {
 
         log.info("Returning {} vet options for booking {}", result.size(), booking.getBookingCode());
         return result;
+    }
+
+    /**
+     * Find available time slots using Smart Availability Algorithm
+     * Returns list of start times where ALL services can be fulfilled consecutively
+     * 
+     * Algorithm:
+     * 1. Fetch all services with their required specialties
+     * 2. Query vets with matching specialties for each service
+     * 3. Check vet shifts for the specified date
+     * 4. Filter out already booked slots
+     * 5. For multi-service: validate consecutive slots can be fulfilled
+     * 
+     * @param clinicId   Clinic ID
+     * @param date       Booking date
+     * @param serviceIds List of service IDs
+     * @return List of valid start times (LocalTime)
+     */
+    public List<LocalTime> findAvailableSlots(UUID clinicId, LocalDate date, List<UUID> serviceIds) {
+        log.info("Finding available slots for clinic {}, date {}, services {}", clinicId, date, serviceIds);
+
+        // Step 1: Fetch services and determine required specialties
+        List<com.petties.petties.model.ClinicService> services = new ArrayList<>();
+        Map<com.petties.petties.model.ClinicService, StaffSpecialty> requiredSpecialties = new HashMap<>();
+
+        for (UUID serviceId : serviceIds) {
+            com.petties.petties.model.ClinicService service = clinicServiceRepository.findById(serviceId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Service not found: " + serviceId));
+
+            services.add(service);
+
+            StaffSpecialty required = service.getServiceCategory() != null
+                    ? service.getServiceCategory().getRequiredSpecialty()
+                    : StaffSpecialty.VET_GENERAL;
+            requiredSpecialties.put(service, required);
+
+            log.debug("Service {} requires specialty {}", service.getName(), required);
+        }
+
+        // Step 2: Get all vets in clinic
+        List<User> allVets = userRepository.findByWorkingClinicIdAndRole(clinicId, Role.VET);
+        log.debug("Found {} vets in clinic", allVets.size());
+
+        // Step 3: Filter vets by specialty for EACH service
+        Map<com.petties.petties.model.ClinicService, List<User>> matchingVets = new HashMap<>();
+        for (com.petties.petties.model.ClinicService service : services) {
+            StaffSpecialty required = requiredSpecialties.get(service);
+            List<User> vetsForService = allVets.stream()
+                    .filter(vet -> vet.getSpecialty() == required)
+                    .collect(Collectors.toList());
+            matchingVets.put(service, vetsForService);
+
+            log.debug("Service {} matched with {} vets", service.getName(), vetsForService.size());
+
+            if (vetsForService.isEmpty()) {
+                log.warn("No vets found for specialty {}", required);
+                return Collections.emptyList(); // Cannot fulfill this service
+            }
+        }
+
+        // Step 4: Get all vet shifts for the date
+        List<VetShift> shifts = vetShiftRepository.findByClinic_ClinicIdAndWorkDate(clinicId, date);
+        log.debug("Found {} shifts on date {}", shifts.size(), date);
+
+        // Step 5: Generate all possible 30-minute slots (08:00 - 20:00)
+        List<LocalTime> allPossibleSlots = new ArrayList<>();
+        LocalTime start = LocalTime.of(8, 0);
+        LocalTime end = LocalTime.of(20, 0);
+        LocalTime current = start;
+
+        while (current.isBefore(end)) {
+            allPossibleSlots.add(current);
+            current = current.plusMinutes(30);
+        }
+
+        log.debug("Checking {} possible time slots", allPossibleSlots.size());
+
+        // Step 6: Check EACH slot for validity
+        List<LocalTime> availableSlots = new ArrayList<>();
+
+        for (LocalTime startTime : allPossibleSlots) {
+            boolean isValid = true;
+            LocalTime currentTime = startTime;
+
+            // Check EACH service in sequence (consecutive slots)
+            for (com.petties.petties.model.ClinicService service : services) {
+                // Calculate end time for this service
+                int durationMinutes = service.getDurationTime();
+                LocalTime endTime = currentTime.plusMinutes(durationMinutes);
+                final LocalTime slotStart = currentTime; // Effective final for lambda
+
+                // Check if ANY vet with required specialty is free
+                List<User> vetsForService = matchingVets.get(service);
+                boolean hasAvailableVet = false;
+
+                for (User vet : vetsForService) {
+                    // Check if vet has shift covering this time range
+                    boolean hasShift = shifts.stream()
+                            .anyMatch(shift -> shift.getVet().getUserId().equals(vet.getUserId()) &&
+                                    !shift.getStartTime().isAfter(slotStart) && // Use slotStart here
+                                    !shift.getEndTime().isBefore(endTime));
+
+                    if (!hasShift) {
+                        continue;
+                    }
+
+                    // Check if vet is free (no bookings in this time range)
+                    boolean isVetFree = !hasBookingInTimeRange(vet.getUserId(), date, currentTime, endTime);
+
+                    if (isVetFree) {
+                        hasAvailableVet = true;
+                        break; // Found one available vet, that's enough
+                    }
+                }
+
+                if (!hasAvailableVet) {
+                    isValid = false;
+                    break; // This service can't be fulfilled at this time
+                }
+
+                // Move time cursor to next service
+                currentTime = endTime;
+            }
+
+            if (isValid) {
+                availableSlots.add(startTime);
+            }
+        }
+
+        log.info("Found {} available slots for services {}", availableSlots.size(), serviceIds);
+        return availableSlots;
+    }
+
+    /**
+     * Helper: Check if vet has any booking in the specified time range
+     */
+    private boolean hasBookingInTimeRange(UUID vetId, LocalDate date, LocalTime startTime, LocalTime endTime) {
+        List<Booking> vetBookings = bookingRepository.findByVetIdAndDate(vetId, date);
+
+        for (Booking booking : vetBookings) {
+            LocalTime bookingStart = booking.getBookingTime();
+
+            // Calculate total duration from all booking services
+            int totalDuration = booking.getBookingServices().stream()
+                    .mapToInt(item -> item.getService().getDurationTime())
+                    .sum();
+            LocalTime bookingEnd = bookingStart.plusMinutes(totalDuration);
+
+            // Check for overlap
+            boolean overlaps = !bookingEnd.isBefore(startTime) && !bookingStart.isAfter(endTime);
+            if (overlaps) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

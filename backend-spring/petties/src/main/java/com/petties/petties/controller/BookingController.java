@@ -2,6 +2,7 @@ package com.petties.petties.controller;
 
 import com.petties.petties.dto.booking.AddServiceRequest;
 import com.petties.petties.dto.booking.AvailableVetResponse;
+import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
@@ -37,6 +38,26 @@ public class BookingController {
 
     private final BookingService bookingService;
     private final com.petties.petties.repository.UserRepository userRepository;
+
+    // ========== SMART AVAILABILITY ==========
+
+    /**
+     * Get available time slots for booking (Public endpoint for Pet Owners)
+     * Used in Mobile Booking Wizard - Step 2: Time Selection
+     * Returns list of valid start times based on Smart Availability algorithm
+     */
+    @GetMapping("/public/available-slots")
+    public ResponseEntity<AvailableSlotsResponse> getAvailableSlots(
+            @RequestParam UUID clinicId,
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date,
+            @RequestParam List<UUID> serviceIds) {
+
+        log.info("GET /bookings/public/available-slots - clinicId: {}, date: {}, serviceIds: {}",
+                clinicId, date, serviceIds);
+
+        AvailableSlotsResponse response = bookingService.getAvailableSlots(clinicId, date, serviceIds);
+        return ResponseEntity.ok(response);
+    }
 
     // ========== CREATE BOOKING ==========
 
