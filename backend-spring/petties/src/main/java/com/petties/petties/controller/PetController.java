@@ -55,6 +55,28 @@ public class PetController {
         return ResponseEntity.ok(petService.updatePet(id, request, image));
     }
 
+    /**
+     * VET can update only allergies field
+     */
+    @PatchMapping("/{id}/allergies")
+    public ResponseEntity<PetResponse> updateAllergies(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, String> body) {
+        String allergies = body.get("allergies");
+        return ResponseEntity.ok(petService.updateAllergies(id, allergies));
+    }
+
+    /**
+     * VET can update pet weight
+     */
+    @PatchMapping("/{id}/weight")
+    public ResponseEntity<PetResponse> updateWeight(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, Double> body) {
+        Double weight = body.get("weight");
+        return ResponseEntity.ok(petService.updateWeight(id, weight));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePet(@PathVariable UUID id) {
         petService.deletePet(id);

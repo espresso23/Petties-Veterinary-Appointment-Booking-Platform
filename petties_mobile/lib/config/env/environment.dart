@@ -17,10 +17,12 @@ class Environment {
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
     if (Platform.isAndroid) {
-      // For physical device with adb reverse: use localhost
-      // Run: adb reverse tcp:8080 tcp:8080
-      // For emulator: use 10.0.2.2
-      return 'http://localhost:8080/api';
+      // ====== CHỌN 1 TRONG 2 ======
+      // Emulator: dùng 10.0.2.2
+      // return 'http://10.0.2.2:8080/api';
+
+      // Physical Device: dùng IP LAN của máy tính (chạy ipconfig để xem)
+      return 'http://10.0.2.2:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -97,7 +99,7 @@ class Environment {
     'GOOGLE_SERVER_CLIENT_ID',
     // ⚠️ PHẢI dùng WEB Client ID, không phải iOS/Android Client ID
     defaultValue:
-        '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com',
+        '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification
