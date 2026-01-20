@@ -114,6 +114,8 @@ public class DataInitializer implements CommandLineRunner {
      */
     private void seedTestUsers() {
         User petOwner = initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+        User petOwner2 = initializeUser("petOwner2", "owner2", "owner2@petties.world", "Jane Pet Owner",
+                Role.PET_OWNER);
         User clinicOwner = initializeUser("clinicOwner", "123456", "owner@clinic.com", "Clinic Owner User",
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
@@ -163,6 +165,11 @@ public class DataInitializer implements CommandLineRunner {
         // liệu)
         if (petOwner != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner, clinicManager, clinic);
+        }
+
+        // Seed a second conversation from petOwner2
+        if (petOwner2 != null && clinicManager != null && clinic != null) {
+            seedConversationAndMessages(petOwner2, clinicManager, clinic);
         }
     }
 
@@ -436,9 +443,13 @@ public class DataInitializer implements CommandLineRunner {
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(password));
         user.setEmail(email);
+        user.setEmail(email);
         user.setPhone("0" + (long) (Math.random() * 1000000000L)); // Random valid-looking phone
         user.setFullName(fullName);
         user.setRole(role);
+
+        // Add dummy FCM token for testing push notifications logic
+        user.setFcmToken("dummy_token_" + username);
 
         try {
             User savedUser = userRepository.save(user);

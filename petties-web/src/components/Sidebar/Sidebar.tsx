@@ -137,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                                         {/* Notification Badge */}
                                         {link.unreadCount !== undefined && link.unreadCount > 0 && (
-                                            <span className={`absolute ${isCollapsed ? 'top-2 right-2' : 'right-4 top-1/2 -translate-y-1/2'} min-w-[18px] h-[18px] flex items-center justify-center bg-red-600 text-white text-[9px] font-black border-2 border-stone-900 rounded shadow-[2px_2px_0_0_#000]`}>
+                                            <span className={`absolute ${isCollapsed ? 'top-2 right-2' : 'right-4 top-1/2 -translate-y-1/2'} flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center`}>
                                                 {link.unreadCount > 99 ? '99+' : link.unreadCount}
                                             </span>
                                         )}

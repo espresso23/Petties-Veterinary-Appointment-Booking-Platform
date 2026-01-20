@@ -62,13 +62,22 @@ class ChatConversationItem extends StatelessWidget {
             color: AppColors.stone100,
           ),
           child: ClipOval(
-            child: conversation.clinicLogo != null && conversation.clinicLogo!.isNotEmpty
+            child: conversation.secureClinicLogo != null
                 ? Image.network(
-                    conversation.clinicLogo!,
+                    conversation.secureClinicLogo!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('DEBUG: ListItem Avatar Error: $error, URL: ${conversation.clinicLogo}');
+                      return Image.asset(
+                        'assets/images/logo/app_icon.png',
+                        fit: BoxFit.cover,
+                      );
+                    },
                   )
-                : _buildDefaultAvatar(),
+                : Image.asset(
+                    'assets/images/logo/app_icon.png',
+                    fit: BoxFit.cover,
+                  ),
           ),
         ),
         // Online indicator (use == true for null safety)
