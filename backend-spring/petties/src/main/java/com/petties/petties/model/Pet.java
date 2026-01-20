@@ -43,6 +43,12 @@ public class Pet {
     @Column(nullable = false)
     private String gender;
 
+    @Column(length = 100)
+    private String color;
+
+    @Column(columnDefinition = "TEXT")
+    private String allergies;
+
     @Column(name = "image_url")
     private String imageUrl;
 

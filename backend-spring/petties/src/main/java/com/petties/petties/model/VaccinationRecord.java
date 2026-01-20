@@ -41,6 +41,7 @@ public class VaccinationRecord {
     private String vetName;
 
     private String vaccineName;
+    private String batchNumber;
 
     private LocalDate vaccinationDate;
 

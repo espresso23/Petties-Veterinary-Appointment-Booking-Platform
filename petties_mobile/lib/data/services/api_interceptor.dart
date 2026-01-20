@@ -32,8 +32,6 @@ class ApiInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer $token';
     }
 
-    // NOTE: Logging removed for production/security
-
     super.onRequest(options, handler);
   }
 
