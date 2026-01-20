@@ -8,8 +8,8 @@ class VaccinationService {
   Future<List<VaccinationRecord>> getVaccinationsByPet(String petId) async {
     final response = await _apiClient.get('/vaccinations/pet/$petId');
     
-    // ApiClient returns dynamic, we need to cast to List
-    final List<dynamic> data = response as List<dynamic>;
+    // ApiClient returns Response, accessing .data specifically
+    final List<dynamic> data = response.data as List<dynamic>;
     
     return data.map((json) => VaccinationRecord.fromJson(json)).toList();
   }
@@ -21,6 +21,6 @@ class VaccinationService {
       data: request.toJson(),
     );
     
-    return VaccinationRecord.fromJson(response);
+    return VaccinationRecord.fromJson(response.data);
   }
 }
