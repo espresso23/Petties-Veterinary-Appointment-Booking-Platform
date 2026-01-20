@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/notification_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
 import 'utils/storage_service.dart';
@@ -26,6 +27,9 @@ void main() async {
 
   // Initialize local storage first (needed for auth)
   await StorageService().init();
+
+  // Set up Firebase background message handler BEFORE initializing Firebase
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Initialize Firebase (required before runApp for FCM background handler)
   try {

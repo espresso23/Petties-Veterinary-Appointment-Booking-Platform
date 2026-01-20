@@ -104,9 +104,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
         if (index != -1) {
           final conversation = _conversations[index];
           final msg = wsMessage.message!;
+          // Determine last message preview based on message type
+          String lastMessagePreview;
+          if (msg.messageType == MessageType.image) {
+            lastMessagePreview = '[Hình ảnh]';
+          } else {
+            lastMessagePreview = msg.content ?? '';
+          }
+
           // Update last message and increment unread count
           _conversations[index] = conversation.copyWith(
-            lastMessage: msg.content,
+            lastMessage: lastMessagePreview,
             lastMessageSender: msg.senderType.value,
             lastMessageAt: msg.createdAt,
             // Increment unread if message is from CLINIC (partner for PET_OWNER)
@@ -140,25 +148,31 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Future<void> _fetchConversations() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
 
     try {
       final conversations = await _chatService.getConversations();
-      setState(() {
-        _conversations = conversations;
-        _filteredConversations = conversations;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _conversations = conversations;
+          _filteredConversations = conversations;
+          _isLoading = false;
+        });
+      }
       // Subscribe to WebSocket after fetching conversations
       _subscribeToConversations();
     } catch (e) {
-      setState(() {
-        _error = 'Không thể tải danh sách tin nhắn';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Không thể tải danh sách tin nhắn';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -206,8 +220,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
           color: AppColors.stone100,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: AppColors.stone900, width: 2),
-          boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+          boxShadow: [
+            BoxShadow(color: AppColors.stone900, offset: const Offset(2, 2)),
           ],
         ),
         child: TextField(

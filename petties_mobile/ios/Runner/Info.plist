@@ -46,6 +46,10 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true />
 
+		<!-- Photo Library Permission -->
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Ứng dụng cần truy cập thư viện ảnh để cho phép bạn gửi hình ảnh trong cuộc trò chuyện</string>
+
 		<!-- Firebase Configuration -->
 		<key>FirebaseAppDelegateProxyEnabled</key>
 		<true />
