@@ -43,8 +43,9 @@ dependencies:
   cached_network_image: ^3.4.1
   
   # Location & Maps
-  google_maps_flutter: ^2.10.0
-  geolocator: ^13.0.2  # Downgrade for Dart 3.6.0 compatibility
+  google_maps_flutter: ^2.5.0
+  geolocator: ^14.0.2
+  latlong_to_place: ^0.0.7
   
   # Media
   image_picker: ^1.1.2

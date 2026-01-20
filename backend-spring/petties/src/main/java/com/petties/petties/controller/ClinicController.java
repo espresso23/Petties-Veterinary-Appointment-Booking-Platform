@@ -127,19 +127,32 @@ public class ClinicController {
         return ResponseEntity.ok(Map.of("message", "Clinic deleted successfully"));
     }
 
-    /**
-     * GET /api/clinics/search
-     * Search clinics by name
-     * Public access
-     */
     @GetMapping("/search")
     public ResponseEntity<Page<ClinicResponse>> searchClinics(
-            @RequestParam String name,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) BigDecimal latitude,
+            @RequestParam(required = false) BigDecimal longitude,
+            @RequestParam(required = false, name = "radiusKm") Double radiusKm,
+            @RequestParam(required = false) Boolean isOpenNow,
+            @RequestParam(required = false) String province,
+            @RequestParam(required = false) String district,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String service,
+            @RequestParam(required = false) Boolean sortByRating,
+            @RequestParam(required = false) Boolean sortByDistance,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<ClinicResponse> clinics = clinicService.searchClinics(name, pageable);
+        Page<ClinicResponse> clinics = clinicService.searchClinics(
+                latitude, longitude, radiusKm,
+                query, isOpenNow,
+                province, district,
+                minPrice, maxPrice,
+                service,
+                sortByRating, sortByDistance,
+                pageable);
         return ResponseEntity.ok(clinics);
     }
 
