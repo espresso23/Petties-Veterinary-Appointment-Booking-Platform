@@ -22,6 +22,10 @@ import '../ui/pet/pet_detail_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
+import '../ui/clinics/clinic_search_view.dart';
+import '../ui/clinics/clinic_detail_view.dart';
+import '../ui/clinics/clinic_map_view.dart';
+
 import 'app_routes.dart';
 
 /// GoRouter configuration for the application
@@ -227,6 +231,23 @@ class AppRouterConfig {
           builder: (context, state) {
             final emrId = state.pathParameters['emrId']!;
             return EditEmrScreen(emrId: emrId);
+          },
+        ),
+        // Clinic routes
+        GoRoute(
+          path: AppRoutes.clinicSearch,
+          builder: (context, state) => const ClinicSearchView(),
+        ),
+        // Map route must come BEFORE detail route (more specific first)
+        GoRoute(
+          path: AppRoutes.clinicMap,
+          builder: (context, state) => const ClinicMapView(),
+        ),
+        GoRoute(
+          path: AppRoutes.clinicDetail,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return ClinicDetailView(clinicId: id);
           },
         ),
 

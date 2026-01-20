@@ -31,6 +31,9 @@ class AppRoutes {
   static const String vetCreateEmr = '/vet/emr/create/:petId';
   static const String vetEmrDetail = '/vet/emr/:emrId';
   static const String vetEmrEdit = '/vet/emr/edit/:emrId';
+  static const String clinicSearch = '/clinics/search';
+  static const String clinicDetail = '/clinics/:id';
+  static const String clinicMap = '/clinics/map';
 
   // Booking Flow
   static const String clinicDetails = '/clinic/:id';
