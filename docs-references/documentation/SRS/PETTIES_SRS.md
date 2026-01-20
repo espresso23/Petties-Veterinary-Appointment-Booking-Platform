@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 1.3.1 (Role-based Screen Flows với Mermaid Diagrams)
-**Last Updated:** 2026-01-10
+**Version:** 1.3.2 (Booking Module - Manager Vet Assignment)
+**Last Updated:** 2026-01-18
 **Document Status:** In Progress
 
 ---
@@ -202,10 +202,11 @@ graph TB
 | UC-VT-03 | Vet | **View Assigned Bookings** | High |
 | UC-VT-04 | Vet | **Update Appointment Progress** | High |
 | UC-VT-05 | Vet | **Check-in Patient** | High |
-| UC-VT-09 | Vet | **Check-out Patient** | High |
+| UC-VT-09 | Vet | **Mark Treatment Finished** (Request payment) | High |
 | UC-CM-05 | Manager | **View New Bookings** | High |
 | UC-CM-06 | Manager | **Assign Vet to Booking** | High |
 | UC-CM-07 | Manager | **Handle Cancellations & Refunds** | Medium |
+| UC-CM-10 | Manager | **Receive Payment & Checkout** (Close booking) | High |
 
 #### 2.2.6 Staffing & Scheduling
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -283,14 +284,14 @@ graph TB
 
 ```mermaid
 flowchart LR
-    PO{Pet Owner} --> Splash
+    PO([Pet Owner]) --> Splash
 
-    subgraph Onboarding
-        Splash --> OnboardingScreen[Onboarding]
+    subgraph Landing_Page
+        Splash --> LandingPage[Landing Page]
     end
 
     subgraph Authentication
-        OnboardingScreen --> Login
+        LandingPage --> Login
         Login --> Register
         Login --> ForgotPassword[Forgot Password]
         ForgotPassword --> ResetPassword[Reset Password]
@@ -323,11 +324,6 @@ flowchart LR
         SOSRequest --> SOSTracking[SOS Tracking]
         SOSTracking --> SOSArrived[Vet Arrived]
     end
-
-    subgraph Home_Visit[Home Visit]
-        BookingDetail --> TrackVet[Track Vet Location]
-    end
-
     subgraph Review
         BookingDetail --> WriteReview[Write Review]
     end
@@ -355,44 +351,40 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    VET{Vet} --> Login
+    VET([Vet]) --> Login
 
     subgraph Authentication
-        Login --> Dashboard
+        Login --> VetHome[Vet Home]
     end
 
     subgraph Schedule
-        Dashboard --> MySchedule[My Schedule]
+        VetHome --> MySchedule[My Schedule]
     end
 
     subgraph Booking_Management[Booking Management]
-        Dashboard --> AssignedBookings[Assigned Bookings]
+        VetHome --> AssignedBookings[Assigned Bookings]
         AssignedBookings --> BookingDetail[Booking Detail]
-    end
-
-    subgraph Home_Visit[Home Visit]
-        BookingDetail --> CheckIn["Check-in - Auto Travel Status"]
-    end
-
-    subgraph Clinical_Workspace[Clinical Workspace]
-        BookingDetail --> CheckIn
-        CheckIn --> CreateEMR[Create EMR]
-        CreateEMR --> AddVaccination[Add Vaccination]
-        CreateEMR --> CheckOut[Check-out]
-        AddVaccination --> CheckOut
+        BookingDetail -- "Check-In" --> BookingDetail
+        BookingDetail -- "Add Service" --> BookingDetail
+        BookingDetail -- "Complete" --> BookingDetail
     end
 
     subgraph Patient_Management[Patient Management]
-        Dashboard --> PatientsList[Patients List]
-        PatientsList --> PetHistory[Pet History]
+        VetHome --> PatientsList[Patients List]
+        PatientsList --> PatientDetails[Patient Details]
+        BookingDetail -- "View Patient" --> PatientDetails
+        PatientDetails --> ViewHistory[View History]
+        PatientDetails --> CreateEMR[Create EMR]
+        PatientDetails --> AddVaccination[Add Vaccination]
+        PatientDetails --> BookingDetail
     end
 
     subgraph Notification
-        Dashboard --> Notifications
+        VetHome --> Notifications
     end
 
     subgraph Profile
-        Dashboard --> ProfileScreen[Profile]
+        VetHome --> ProfileScreen[Profile]
     end
 ```
 
@@ -402,32 +394,33 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    VET{Vet} --> Login
+    VET([Vet]) --> Login
 
     subgraph Authentication
-        Login --> Dashboard
-    end
-
-    subgraph Schedule
-        Dashboard --> MySchedule[My Schedule]
+        Login --> VetHome[Vet Home]
     end
 
     subgraph Booking_Management[Booking Management]
-        Dashboard --> BookingsList[Bookings List]
+        VetHome --> BookingsList[Bookings List]
         BookingsList --> BookingDetail[Booking Detail]
-    end
-
-    subgraph Clinical_Workspace[Clinical Workspace]
-        BookingDetail --> ExaminationHub[Examination Hub]
+        BookingDetail -- "Check-In" --> BookingDetail
+        BookingDetail -- "Add Service" --> BookingDetail
+        BookingDetail -- "Complete" --> BookingDetail
     end
 
     subgraph Patient_Management[Patient Management]
-        Dashboard --> PatientList[Patient List]
-        PatientList --> PatientHistory[Patient History]
+        VetHome --> PatientList[Patient List]
+        PatientList --> PatientDetails[Patient Details]
+        BookingDetail -- "View Patient" --> PatientDetails
+        PatientDetails --> ViewHistory[View History]
+        PatientDetails --> CreateEMR[Create EMR]
+        PatientDetails --> AddVaccination[Add Vaccination]
+        PatientDetails --> BookingDetail
     end
 
-    subgraph Profile
-        Dashboard --> ProfileScreen[Profile]
+    subgraph General
+        VetHome --> ProfileScreen[Profile]
+        VetHome --> MySchedule[My Schedule]
     end
 ```
 
@@ -437,16 +430,9 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    CO{Clinic Owner} --> Login
+    CO([Clinic Owner]) --> Login
+    Login --> DashboardHub[Dashboard Hub]
 
-    subgraph Authentication
-        Login --> Register
-        Register --> Login
-        Login --> ForgotPassword[Forgot Password]
-        ForgotPassword --> ResetPassword[Reset Password]
-        ResetPassword --> Login
-        Login --> DashboardHub[Dashboard Hub]
-    end
 
     subgraph Clinic_Management[Clinic Management]
         DashboardHub --> MyClinics[My Clinics]
@@ -483,7 +469,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    CM{Clinic Manager} --> Login
+    CM([Clinic Manager]) --> Login
 
     subgraph Authentication
         Login --> Dashboard
@@ -495,8 +481,11 @@ flowchart LR
 
     subgraph Booking_Management[Booking Management]
         Dashboard --> BookingsList[Bookings List]
-        BookingsList --> AssignVet[Assign Vet]
-        BookingsList --> Refunds
+        BookingsList --> BookingDetail[Booking Detail]
+        BookingDetail --> AssignVet[Assign Vet]
+        BookingDetail -- "Add Service" --> BookingDetail
+        BookingDetail --> PaymentCheckout[Receive Payment & Checkout]
+        BookingDetail --> Refunds
     end
 
     subgraph Staff_Management[Staff Management]
@@ -527,7 +516,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    ADMIN{Admin} --> Login
+    ADMIN([Admin]) --> Login
 
     subgraph Authentication
         Login --> Dashboard
@@ -575,7 +564,7 @@ flowchart LR
 | # | Module | Screen Name | Platform/Role | Description |
 |:---:|:---|:---|:---|:---|
 | 1 | Onboarding | Splash | Mobile/Pet Owner | Logo animation and auto-redirect to onboarding or home |
-| 2 | Onboarding | Onboarding | Mobile/Pet Owner | 3 slides (Booking, AI, Health records). Skip and Continue/Start buttons |
+| 2 | Onboarding | Landing Page | Mobile/Pet Owner | 3 slides (Booking, AI, Health records). Skip and Continue/Start buttons |
 | 3 | Auth | Login | Mobile/PO, Vet | Username + Password, Forgot Password link. Google Sign-in (TBI) |
 | 4 | Auth | Register | Mobile/PO | 2-step flow: Form (User, Email, Password, Full Name, Phone) → OTP verification |
 | 5 | Auth | Forgot Password | Mobile/PO | Enter email → Send OTP → Navigate to Reset Password |
@@ -584,15 +573,15 @@ flowchart LR
 | 8 | Auth | Register | Web/Clinic Owner | 2-step OTP registration for Clinic Owner accounts |
 | 9 | Auth | Forgot Password | Web | Enter email to receive OTP for password reset |
 | 10 | Auth | Reset Password | Web | Enter OTP + New Password to reset password |
-| 11 | Auth | Onboarding | Web/Landing | Landing page with feature showcase for visitors |
+| 11 | Auth | Landing Page | Web/Landing | Landing page with feature showcase for visitors |
 
 ##### 3.1.2.2 Home & Dashboard Module (#12-18)
 
 | # | Screen Name | Platform/Role | Description |
 |:---:|:---|:---|:---|
 | 12 | Home | Mobile/PO | Welcome card, Pet stats, Quick actions, Preview pets, Bottom nav |
-| 13 | Dashboard | Mobile/Vet | Welcome card, Today stats, Today schedule, Pending bookings |
-| 14 | Dashboard | Web/Vet | Shift overview, pending examinations (Placeholder) |
+| 13 | Vet Home | Mobile/Vet | Welcome card, Today stats, Today schedule, Pending bookings |
+| 14 | Vet Home | Web/Vet | Shift overview, pending examinations (Placeholder) |
 | 15 | Dashboard Hub | Web/Clinic Owner | Today stats (Revenue, Bookings), Clinic info, Monthly revenue |
 | 16 | Dashboard | Web/Manager | Today overview, Pending actions (Unassigned, Refunds), Recent table |
 | 17 | Dashboard | Web/Admin | Service Health check (AI, Spring), Platform stats, Quick links |
@@ -637,11 +626,11 @@ flowchart LR
 | 41 | Booking | Bookings List | Web/Manager | Oversight of branch appointments |
 | 42 | Booking | Assign Vet | Web/Manager | Assigning available doctors to requests |
 | 43 | Booking | Refunds | Web/Manager | Cancellation management, refund processing |
-| 44 | Clinical | Check-in | Mobile/Vet | Start examination confirmation and timestamp |
+| 44 | Clinical | Examination View | Mobile/Vet | Active examination screen (In-Progress) |
 | 45 | Clinical | Create EMR | Mobile/Vet | Clinical notes (SOAP format), prescription entry |
-| 46 | Clinical | Check-out | Mobile/Vet | Finish exam, payment summary (for Cash payments) |
+| 46 | Clinical | Checkout | Web/Manager | Receive payment & Close booking (COMPLETED) |
 | 47 | Clinical | Add Vaccination | Mobile/Vet | Record new immunization entries |
-| 48 | Clinical | Exam Hub | Web/Vet | Central workspace: Check-in, SOAP notes, Prescriptions |
+| 48 | Clinical | Examination Hub | Web/Vet | Main hub for managing active examinations |
 
 ##### 3.1.2.6 Patient & Schedule Management (#50-58)
 
@@ -766,9 +755,9 @@ flowchart LR
 |   → Fill SOAP form | | | X | | | |
 |   → Add prescription | | | X | | | |
 |   → Upload photos | | | X | | | |
-| Check-out | | | X | | | |
-|   → Complete booking | | | X | | | |
-|   → Collect cash payment | | | X | | | |
+| Check-out/Checkout | | | | | X | |
+|   → Complete booking | | | | | X | |
+|   → Collect cash payment/payment | | | | | X | |
 | Patient History | | | X | | X | |
 |   → View EMR records | | | X | | X | |
 |   → View vaccination | | | X | | X | |
@@ -856,7 +845,7 @@ flowchart LR
 | 12 | RAG Retrieval | RAGRetrievalService | Search Knowledge Base with vector similarity |
 | 13 | Document Indexing | DocumentIndexingBatch | Chunking and embedding documents on upload |
 | 14 | Vaccination Reminder | VaccinationReminderJob | Send vaccination reminders before due date (daily 8:00 AM) |
-| 15 | GPS Location Update | GPSLocationWebSocket | Real-time update of Vet location during Home Visit |
+| 15 | GPS Location Update | GPSLocationWebSocket | Real-time update of Vet location during SOS Booking (SOS only, not Home Visit) |
 | 16 | Slot Availability Check | SlotReservationService | Check and reserve slot when creating booking |
 | 17 | Payment Webhook | StripeWebhookHandler | Receive callback from Stripe after payment [Planned] |
 | 18 | Image Upload | CloudinaryUploadService | Upload and optimize images (avatar, pet, clinic) |
@@ -1753,29 +1742,142 @@ Figure 33. Screen Payment & Confirmation (Mobile)
 
  #### *3.8.3 Clinician Assignment (Vet Assignment)*
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Management → Unassigned Bookings.
+- **Navigation path:** Manager Dashboard → Management → Booking Dashboard → Click "Chi tiết" on PENDING booking.
 - **Timing frequency:** Daily or when a new booking arrives.
 
 **Function description**
 - **Actors/Roles:** Clinic Manager.
-- **Purpose:** Assign a specific veterinarian to an upcoming appointment.
+- **Purpose:** Assign a specific veterinarian to an upcoming appointment, either via auto-suggestion or manual selection.
 - **Interface:**
-    - Booking Info – summary
-    - Available Vet List – selection list with workload indicators
+    - Booking Info – summary card
+    - Service List – each service displays an **inline dropdown** for vet selection
+    - Available Vet Dropdown – shows vet name, avatar, specialty, workload
+    - Suggested Vet Badge – green "Gợi ý" tag on recommended vet
+    - Confirm Button – "Xác nhận & Gán Vet"
 
 **Data processing**
-1. Manager selects an unassigned booking.
-2. Manager selects an available Vet.
-3. System updates `vet_id` and notifies the Vet via FCM.
+1. **[BOK-3a] Check Vet Availability:**
+    - Manager opens booking detail modal.
+    - System calls `GET /bookings/{id}/available-vets-for-confirm` API.
+    - Returns list of vets matching service specialty with availability status.
+    - Each vet shows: avatar, name, specialty label, booking count today, hasAvailableSlots.
+
+2. **[BOK-3b] Inline Vet Selection (Per Service):**
+    - Each service in booking displays a dropdown.
+    - Dropdown pre-selects suggested vet (based on auto-assignment algorithm).
+    - Manager can click dropdown to change vet for specific service.
+    - **Matching Rule:** Service Category must match Vet Specialty:
+        - GROOMING_SPA → VET_GROOMING / GROOMER
+        - CHECK_UP / VACCINATION / INTERNAL_MEDICINE → VET_GENERAL / VET_VACCINATION
+        - SURGERY → VET_SURGERY
+        - DENTAL → VET_DENTAL
+        - DERMATOLOGY → VET_DERMATOLOGY
+        - EMERGENCY → VET_EMERGENCY
+
+3. **[BOK-3c] Confirm with Selected Vet:**
+    - Manager clicks "Xác nhận & Gán Vet".
+    - System calls `PATCH /bookings/{id}/confirm` with `selectedVetId`.
+    - Backend reserves vet's time slots for the booking duration.
+    - Booking status: PENDING → CONFIRMED → ASSIGNED.
+    - System sends FCM notification to assigned vet.
 
 **Screen layout**
-Figure 34. Screen Clinician Assignment (Web)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ CHI TIẾT ĐẶT LỊCH                              [X]              │
+│ BK-12345                                                        │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────┐  ┌──────────────────────┐             │
+│ │ THÔNG TIN THÚ CƯNG   │  │ THÔNG TIN CHỦ        │             │
+│ │ [Avatar] Bella       │  │ Nguyễn Văn A         │             │
+│ │ Chó - Golden         │  │ 0901234567           │             │
+│ └──────────────────────┘  └──────────────────────┘             │
+├─────────────────────────────────────────────────────────────────┤
+│ DỊCH VỤ ĐẶT                                                     │
+│ ┌───────────────────────────────────────────────────────────┐  │
+│ │ Khám da liễu  [Da liễu]                         250.000đ  │  │
+│ │ 30 phút - 1 slot(s)  ⏰ 16:00 - 16:30                      │  │
+│ │                                                            │  │
+│ │ ✓ Bác sĩ: [▼ Tân Phạm (Gợi ý) - BS da liễu thú y      ]   │  │◄── Inline Dropdown
+│ │           ├─ Tân Phạm (Gợi ý) ✓                           │  │
+│ │           ├─ Nguyễn Văn B - BS đa khoa                    │  │
+│ │           └─ Trần Thị C - BS da liễu                      │  │
+│ └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│ Tổng cộng: 250.000đ                                             │
+├─────────────────────────────────────────────────────────────────┤
+│                              [Đóng]  [Xác nhận & Gán Vet]       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Figure 34. Screen Clinician Assignment with Inline Vet Dropdown (Web)
 
 **Function details**
-- **Logic:** Some bookings may have already requested a specific Vet during discovery.
-- **Normal case:** Manager assigns Dr. Nam to the 3 PM appointment.
+- **Data:** BookingID, ServiceID, SelectedVetID.
+- **Validation:**
+    - Selected vet must have available slots for booking time.
+    - Vet specialty must match service category.
+- **Business rules:** BR-12 (Vet assignment), BR-13 (Slot reservation).
+- **Normal case:**
+    1. Manager opens PENDING booking detail.
+    2. System shows suggested vet "Tân Phạm" for each service.
+    3. Manager confirms with suggested vet or changes to different vet.
+    4. System assigns vet and notifies via FCM.
 - **Abnormal/Exception cases:**
-    - A1. Vet suddenly busy – Manual reassignment for overlapping internal work.
+    - A1. No available vet – System shows warning modal with options: "Xác nhận một phần" or "Hủy".
+    - A2. Vet suddenly busy – Manager can reassign via ReassignVetModal after confirmation.
+    - A3. Multiple services need different vets – Each service dropdown allows independent selection.
+
+ #### *3.8.3b Vet Reassignment (Post-Confirmation)*
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Booking Detail → Click "Đổi BS" button on a service.
+- **Timing frequency:** When vet is unavailable or needs to be changed.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Change assigned vet for a specific service after booking is confirmed.
+- **Interface:**
+    - ReassignVetModal – shows available vets for the service
+    - Vet List – with avatar, name, specialty, availability status
+    - Confirm Button – "Xác nhận đổi"
+
+**Data processing**
+1. System calls `GET /bookings/{id}/services/{serviceId}/available-vets`.
+2. Manager selects new vet from list.
+3. System calls `POST /bookings/{id}/services/{serviceId}/reassign` with `newVetId`.
+4. Backend releases old vet's slots and reserves new vet's slots.
+5. Notifications sent to both old and new vet.
+
+**Function details**
+- **Normal case:** Manager changes from Dr. A to Dr. B due to scheduling conflict.
+- **Abnormal cases:**
+    - A1. New vet also unavailable – Show "Không có slot trống".
+
+ #### *3.8.3c Add-on Service During Examination*
+**Function trigger**
+- **Navigation path:** Booking Detail (when status is IN_PROGRESS or ARRIVED) → "Thêm dịch vụ" button.
+- **Timing frequency:** During examination when additional services needed.
+
+**Function description**
+- **Actors/Roles:** Vet, Clinic Manager.
+- **Purpose:** Add extra services discovered during examination.
+- **Interface:**
+    - AddServiceModal – list of clinic services not already in booking
+    - Service Selection – click to select
+    - Confirm Button – "Xác nhận thêm"
+
+**Data processing**
+1. System calls `GET /services/clinic/{clinicId}` to get available services.
+2. Filters out services already in booking.
+3. Vet/Manager selects additional service.
+4. System calls `POST /bookings/{id}/add-service` with `serviceId`.
+5. Price calculated based on pet weight, added to booking total.
+6. **Note:** Distance fee is NOT recalculated for add-on services.
+
+**Function details**
+- **Visibility:** Button only shows when booking status is `IN_PROGRESS` or `ARRIVED` (SOS only for ARRIVED).
+- **Normal case:** Vet discovers ear infection during general checkup, adds "Ear Cleaning" service.
 
  #### *3.8.4 Patient Arrival & Departure (Check-in/Out)*
 **Function trigger**
@@ -2016,6 +2118,98 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
     - A1. Tool failure: System notifies "Máy chủ đang quá tải, vui lòng thử lại sau".
     - A2. Ambiguous query: Agent asks follow-up questions to narrow down the intent.
 - **Business rules:** BR-42, BR-43.
+
+#### *3.11.2 AI Vision Pet Health Analysis (Nhận diện bệnh qua hình ảnh)*
+
+**Function trigger**
+- **Navigation path:** Mobile Home → "AI Assistant" → Gửi hình ảnh thú cưng qua chat.
+- **Timing frequency:** On demand (24/7), đặc biệt khi phát hiện dấu hiệu bất thường trên thú cưng.
+
+**Function description**
+- **Actors/Roles:** Pet Owner.
+- **Purpose:** Cho phép AI phân tích hình ảnh thú cưng để nhận diện các vấn đề sức khỏe tiềm ẩn, đưa ra cảnh báo và tự động đề xuất đặt lịch khám với dịch vụ phù hợp.
+- **Interface:**
+    - **Image Upload Button:** Nút camera/gallery trong chat input để chọn hình ảnh.
+    - **Image Preview:** Hiển thị preview ảnh trước khi gửi.
+    - **Analysis Results:** AI response với:
+        - Danh sách vấn đề phát hiện được (detected issues)
+        - Mức độ nghiêm trọng (severity indicator)
+        - Cảnh báo khẩn cấp (nếu nghiêm trọng)
+    - **Booking Suggestion Card:** Card đề xuất booking với:
+        - Tên clinic gần nhất
+        - Dịch vụ được chọn sẵn
+        - Ngày/giờ gợi ý
+        - Nút "Đặt lịch ngay"
+    - **Pet Selection Dialog:** Popup cho user chọn pet khi có nhiều pet.
+
+**UC-PO-14d: Chi tiết Use Case AI Vision Pet Health Analysis**
+
+| Thành phần | Đặc tả chi tiết |
+|:---|:---|
+| **Mục tiêu** | Phân tích hình ảnh thú cưng để phát hiện bệnh/triệu chứng, cảnh báo người dùng và tự động đề xuất booking. |
+| **Tác nhân** | Pet Owner (Chủ thú cưng) |
+| **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động với Vision Model enabled.<br/>4. App đã có quyền truy cập Camera/Gallery.<br/>5. GPS permission đã được cấp để tìm clinic gần nhất. |
+| **Luồng chính** | 1. User mở AI Assistant chat.<br/>2. User nhấn nút camera/gallery để chọn hình ảnh thú cưng.<br/>3. Hình ảnh được upload lên Cloudinary, nhận về URL.<br/>4. App gửi message với `image_url` và `user_location` (GPS) qua WebSocket.<br/>5. AI Agent gọi tool `analyze_pet_image` để phân tích hình ảnh.<br/>6. Agent nhận kết quả phân tích với detected issues và severity.<br/>7. Nếu severity là "moderate" hoặc cao hơn:<br/>   - Agent gọi `search_nearby_clinics` với user GPS.<br/>   - Agent gọi `get_user_pets` để lấy danh sách pet của user.<br/>   - Agent hỏi user chọn pet nào (nếu có nhiều pet).<br/>   - Agent gọi `create_booking_suggestion` để tạo đề xuất.<br/>8. AI trả về response với:<br/>   - Cảnh báo về vấn đề phát hiện được<br/>   - Booking Suggestion Card với thông tin đã điền sẵn.<br/>9. User nhấn "Đặt lịch ngay" → Navigate đến Booking Screen với params. |
+| **Luồng thay thế** | A1. Hình ảnh không rõ ràng → AI yêu cầu gửi lại ảnh rõ hơn.<br/>A2. Không phát hiện vấn đề (severity: mild) → AI thông báo "Không phát hiện vấn đề nghiêm trọng" và khuyên theo dõi thêm.<br/>A3. User có nhiều pet → AI hiển thị Pet Selection Dialog để chọn.<br/>A4. Không tìm được clinic trong bán kính → AI mở rộng tìm kiếm hoặc thông báo. |
+| **Hậu điều kiện** | 1. Lịch sử chat được lưu trữ (bao gồm image URL).<br/>2. Nếu user confirm booking → Đơn đặt lịch được tạo trong hệ thống. |
+| **Quy tắc nghiệp vụ** | BR-42 (Cảnh báo ý kiến y tế); BR-43 (Không kê đơn thuốc); BR-44 (Disclaimer cho Vision Analysis). |
+
+**Use Case: AI Vision Interaction Scenarios**
+
+| Scenario | User Actions | AI Agent Logic (ReAct) | System Response |
+|----------|--------------|-------------------------|-----------------|
+| **Skin Disease Detection** | User uploads photo of dog with skin rash. | Agent calls `analyze_pet_image(image_url, pet_type="dog")`. Vision LLM analyzes image and detects "dermatitis, fungal infection suspected". | Agent responds: "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến bác sĩ thú y trong 24-48h." + Booking Suggestion Card. |
+| **Eye Infection** | User uploads photo of cat with red, watery eyes. | Agent analyzes and detects "conjunctivitis, eye infection". Severity: moderate. | Agent warns about eye infection and suggests ophthalmology service. |
+| **Wound Assessment** | User uploads photo of bleeding wound on pet. | Agent detects "open wound, bleeding". Severity: urgent. | Agent shows URGENT WARNING: "Vết thương hở, cần xử lý NGAY LẬP TỨC!" + SOS booking suggestion. |
+| **Normal Health Check** | User uploads photo of healthy-looking pet asking "Bé có khỏe không?". | Agent analyzes and finds no visible issues. Severity: mild. | Agent responds: "Nhìn bé có vẻ khỏe mạnh! Không phát hiện vấn đề đáng lo ngại. Nhớ tiêm phòng định kỳ nhé." |
+| **Multiple Pets Selection** | After analysis, AI needs to create booking but user has 3 pets. | Agent calls `get_user_pets` → returns 3 pets. | Agent asks: "Bạn muốn đặt lịch cho bé nào: 🐕 Lucky, 🐱 Mimi, hay 🐕 Bella?" User selects → Continue booking flow. |
+
+**Data processing**
+1. **Image Upload:** User selects image → Upload to Cloudinary → Receive public URL.
+2. **WebSocket Message:** App sends `{type: "image", image_url: "...", latitude: 10.xxx, longitude: 106.xxx}`.
+3. **Vision Analysis:** AI Agent calls `analyze_pet_image` tool which:
+   - Sends image URL to Vision LLM (Gemini 2.0 Flash via OpenRouter).
+   - Vision LLM analyzes and returns structured findings.
+4. **Severity Assessment:** Agent evaluates severity:
+   - `mild`: No action needed, just advice.
+   - `moderate`: Suggest booking within 24-48h.
+   - `severe`/`urgent`: Strong warning + immediate booking suggestion.
+5. **Clinic Discovery:** If booking needed, Agent calls `search_nearby_clinics(lat, lng)`.
+6. **Pet Selection:** Agent calls `get_user_pets` → If multiple pets, asks user to choose.
+7. **Booking Suggestion:** Agent calls `create_booking_suggestion` to prepare booking data.
+8. **Response Delivery:** AI streams response with warning message + BookingSuggestionCard component.
+9. **User Confirmation:** User taps "Đặt lịch ngay" → App navigates to BookingScreen with pre-filled params.
+
+**Screen layout**
+Figure 45. AI Vision Chat Flow - Image Upload and Analysis (Mobile)
+Figure 46. Booking Suggestion Card after Disease Detection (Mobile)
+Figure 47. Pet Selection Dialog (Mobile)
+
+**Function details**
+- **Data Objects:**
+    - `ImageMessage`: `{type: "image", image_url: string, latitude: float, longitude: float}`
+    - `VisionAnalysisResult`: `{detected_issues: [], severity: string, recommended_services: [], urgent_warning: string}`
+    - `BookingSuggestion`: `{clinic_id, clinic_name, services: [], suggested_date, suggested_time, estimated_price, urgency}`
+- **Validation:**
+    - Image format: JPEG, PNG (max 10MB).
+    - GPS coordinates: Valid latitude (-90 to 90) and longitude (-180 to 180).
+    - Image must contain visible pet content (reject non-pet images).
+- **Safety Constraints:**
+    - Disclaimer: "Phân tích hình ảnh chỉ mang tính tham khảo. Vui lòng đến phòng khám để được chẩn đoán chính xác."
+    - Do not provide definitive medical diagnosis.
+    - For `urgent` severity, always recommend immediate vet visit.
+- **Abnormal Cases:**
+    - A1. Image upload fails: Show "Không thể tải ảnh lên, vui lòng thử lại."
+    - A2. Vision LLM error: Fallback to text-based symptom_search if possible.
+    - A3. No clinics found nearby: Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
+    - A4. GPS unavailable: Ask user to enable location or enter address manually.
+- **Business rules:** BR-42, BR-43, BR-44, BR-45.
+
+**Related Business Rules**
+| Rule ID | Description |
+|---------|-------------|
+| BR-44 | Vision Analysis Disclaimer: Mọi kết quả phân tích hình ảnh phải kèm disclaimer rằng đây chỉ là tham khảo, không thay thế chẩn đoán của bác sĩ. |
+| BR-45 | Urgent Severity Handling: Khi phát hiện vấn đề nghiêm trọng (urgent), hệ thống phải hiển thị cảnh báo nổi bật và ưu tiên đề xuất SOS hoặc booking trong ngày. |
 
 ### 3.12 Governance & Reporting Flow
 

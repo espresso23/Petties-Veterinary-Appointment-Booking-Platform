@@ -27,4 +27,8 @@ public class SlotResponse {
     private String petName;
     private String petOwnerName;
     private String serviceName;
+
+    // Service details (populated from BookingServiceItem)
+    private UUID bookingServiceId;
+    private String serviceCategory;
 }

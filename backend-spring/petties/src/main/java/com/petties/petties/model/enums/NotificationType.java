@@ -31,7 +31,11 @@ public enum NotificationType {
     // Booking notifications
     BOOKING_CREATED,
     BOOKING_CONFIRMED,
+    BOOKING_ASSIGNED,
     BOOKING_CANCELLED,
+    BOOKING_CHECKIN, // Vet đã check-in và bắt đầu khám
+    BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành
+    VET_ON_WAY, // Bác sĩ đang trên đường đến (HOME_VISIT/SOS)
 
     // Additional Clinic notifications
     CLINIC_VERIFIED,

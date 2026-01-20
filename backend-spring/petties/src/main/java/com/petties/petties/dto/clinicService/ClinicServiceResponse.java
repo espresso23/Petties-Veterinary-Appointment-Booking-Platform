@@ -23,13 +23,14 @@ public class ClinicServiceResponse {
     private UUID masterServiceId; // NEW: ID của master service (null nếu custom)
     private Boolean isCustom; // NEW: true = custom, false = inherited
     private String name;
+    private String description;
     private BigDecimal basePrice;
     private Integer durationTime;
     private Integer slotsRequired;
     private Boolean isActive;
     private Boolean isHomeVisit;
     private BigDecimal pricePerKm;
-    private String serviceCategory;
+    private com.petties.petties.model.enums.ServiceCategory serviceCategory;
     private String petType;
     private List<WeightPriceDto> weightPrices;
     private LocalDateTime createdAt;

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../../store/authStore'
 import { vetShiftService } from '../../../services/api/vetShiftService'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
@@ -55,12 +56,62 @@ const formatWeekRange = (startDate: Date, endDate: Date) => {
 
 const DAYS_VN = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN']
 
+export interface MergedSlot {
+    id: string;
+    startTime: string;
+    endTime: string;
+    status: 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
+    petName?: string;
+    petOwnerName?: string;
+    bookingId?: string;
+    serviceName?: string;
+    span: number; // Number of original 30-min slots
+}
+
+const mergeSlots = (slots: SlotResponse[] | null): MergedSlot[] => {
+    if (!slots || slots.length === 0) return [];
+
+    const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const merged: MergedSlot[] = [];
+    let current: MergedSlot | null = null;
+
+    sorted.forEach((slot) => {
+        // Only merge BOOKED slots that belong to the same booking
+        // AVAILABLE and BLOCKED slots remain as individual 30-min slots
+        const shouldMerge = current &&
+            slot.status === 'BOOKED' &&
+            current.status === 'BOOKED' &&
+            current.bookingId === slot.bookingId;
+
+        if (shouldMerge && current) {
+            current.endTime = slot.endTime;
+            current.span += 1;
+        } else {
+            current = {
+                id: slot.slotId,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                status: slot.status as any,
+                petName: slot.petName,
+                petOwnerName: slot.petOwnerName,
+                bookingId: slot.bookingId,
+                serviceName: slot.serviceName,
+                span: 1
+            };
+            merged.push(current);
+        }
+    });
+
+    return merged;
+};
+
 /**
  * VetShift Management Page - Soft Neubrutalism (Consistent Clinic Manager Colors)
  * Colors: bg-stone-50, bg-amber-500, stone-900
  */
 export const VetShiftPage = () => {
     const { user } = useAuthStore()
+    const navigate = useNavigate()
     const clinicId = user?.workingClinicId
     const { showToast } = useToast()
 
@@ -927,40 +978,63 @@ export const VetShiftPage = () => {
 
                                             {vetShift ? (
                                                 <div className="grid grid-cols-4 gap-2">
-                                                    {vetShift.slots?.map(slot => {
-                                                        const isPast = new Date(vetShift.workDate) < new Date(new Date().setHours(0, 0, 0, 0))
-                                                        return (
-                                                            <div
-                                                                key={slot.slotId}
-                                                                className={`p-2 rounded-lg border text-xs font-bold ${slot.status === 'AVAILABLE'
-                                                                    ? (isPast ? 'bg-stone-100 border-stone-200 text-stone-400' : 'bg-green-50 border-green-200 text-green-700')
-                                                                    : slot.status === 'BLOCKED'
-                                                                        ? 'bg-red-50 border-red-200 text-red-700'
-                                                                        : 'bg-yellow-50 border-yellow-200 text-yellow-700'
-                                                                    }`}
-                                                            >
-                                                                <div className="text-center">{slot.startTime.substring(0, 5)}</div>
-                                                                <div className="text-[10px] opacity-70 text-center">
-                                                                    {slot.status === 'AVAILABLE'
-                                                                        ? (isPast ? 'Đã qua' : 'Trống')
-                                                                        : slot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
-                                                                </div>
-                                                                {/* Show booking info if booked */}
-                                                                {slot.status === 'BOOKED' && slot.petName && (
-                                                                    <div className="mt-1 pt-1 border-t border-yellow-300 text-[9px] text-yellow-800">
-                                                                        <div className="truncate" title={slot.petName}>{slot.petName}</div>
-                                                                        {slot.petOwnerName && (
-                                                                            <div className="truncate opacity-70" title={slot.petOwnerName}>{slot.petOwnerName}</div>
+                                                    {mergeSlots(vetShift.slots).map((mergedSlot, idx) => {
+                                                        const isPast = new Date(vetShift.workDate) < new Date(new Date().setHours(0, 0, 0, 0));
+                                                        const colSpan = Math.min(mergedSlot.span, 4);
+
+                                                        if (mergedSlot.status === 'BOOKED') {
+                                                            return (
+                                                                <div
+                                                                    key={`${mergedSlot.id}-${idx}`}
+                                                                    className={`relative group p-3 rounded-lg border-2 text-xs font-bold bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 text-yellow-800 cursor-pointer hover:border-yellow-500 hover:shadow-lg transition-all`}
+                                                                    style={{ gridColumn: `span ${colSpan}` }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        navigate(`/clinic-manager/bookings?bookingId=${mergedSlot.bookingId}`);
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div>
+                                                                            <div className="text-sm font-bold text-amber-700">
+                                                                                {mergedSlot.startTime.substring(0, 5)} - {mergedSlot.endTime.substring(0, 5)}
+                                                                            </div>
+                                                                            <div className="text-[10px] text-yellow-600 mt-0.5">
+                                                                                {mergedSlot.serviceName || `${mergedSlot.span} slot (${mergedSlot.span * 30} phút)`}
+                                                                            </div>
+                                                                        </div>
+                                                                        {mergedSlot.petName && (
+                                                                            <div className="text-right">
+                                                                                <div className="font-bold text-amber-800">{mergedSlot.petName}</div>
+                                                                                {mergedSlot.petOwnerName && (
+                                                                                    <div className="text-[9px] text-yellow-600">{mergedSlot.petOwnerName}</div>
+                                                                                )}
+                                                                            </div>
                                                                         )}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    }) || (
-                                                            <div className="col-span-4 text-center text-stone-400 text-sm py-2">
-                                                                Đang tải slots...
-                                                            </div>
-                                                        )}
+                                                                </div>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div
+                                                                    key={mergedSlot.id}
+                                                                    className={`p-2 rounded-lg border text-xs font-bold flex flex-col items-center justify-center ${mergedSlot.status === 'AVAILABLE'
+                                                                        ? (isPast ? 'bg-stone-100 border-stone-200 text-stone-400' : 'bg-green-50 border-green-200 text-green-700')
+                                                                        : 'bg-red-50 border-red-200 text-red-700'
+                                                                        }`}
+                                                                    style={{ gridColumn: `span ${colSpan}` }}
+                                                                >
+                                                                    <div className="text-center font-black tracking-tighter">
+                                                                        {mergedSlot.startTime.substring(0, 5)} - {mergedSlot.endTime.substring(0, 5)}
+                                                                    </div>
+                                                                    <div className="text-[9px] opacity-70 text-center uppercase">
+                                                                        {mergedSlot.status === 'AVAILABLE'
+                                                                            ? (isPast ? 'Đã qua' : `Trống (${mergedSlot.span * 30}')`)
+                                                                            : `Khóa (${mergedSlot.span * 30}')`}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })}
                                                 </div>
                                             ) : (
                                                 <div className="text-center text-stone-400 text-sm py-4">
@@ -1042,7 +1116,7 @@ export const VetShiftPage = () => {
                                                                     {s.vetAvatar ? (
                                                                         <img src={s.vetAvatar} alt="avt" className="w-full h-full object-cover" />
                                                                     ) : (
-                                                                        <span className="text-[8px] font-bold text-amber-600">{s.vetName.charAt(0)}</span>
+                                                                        <span className="text-[8px] font-bold text-amber-600">{s.vetName?.charAt(0) || '?'}</span>
                                                                     )}
                                                                 </div>
                                                             ))}
@@ -1119,7 +1193,7 @@ export const VetShiftPage = () => {
                                 <img src={selectedShift.vetAvatar} alt="avt" className="w-12 h-12 rounded-full border-2 border-amber-400 object-cover" />
                             ) : (
                                 <div className="w-12 h-12 bg-white rounded-full border-2 border-amber-400 flex items-center justify-center font-bold text-xl text-amber-600">
-                                    {selectedShift.vetName.charAt(0)}
+                                    {selectedShift.vetName?.charAt(0) || '?'}
                                 </div>
                             )}
                             <div>
@@ -1159,54 +1233,70 @@ export const VetShiftPage = () => {
                                 </div>
                             ) : shiftDetail?.slots && shiftDetail.slots.length > 0 ? (
                                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                    {shiftDetail.slots.map((slot: SlotResponse) => {
+                                    {shiftDetail?.slots && mergeSlots(shiftDetail.slots).map((mergedSlot: MergedSlot) => {
                                         const isPastShift = new Date(selectedShift.workDate) < new Date(new Date().setHours(0, 0, 0, 0))
                                         return (
                                             <div
-                                                key={slot.slotId}
-                                                className={`flex items-center justify-between p-2.5 rounded-lg border-2 ${slot.status === 'AVAILABLE'
+                                                key={mergedSlot.id}
+                                                className={`flex items-center justify-between p-2.5 rounded-lg border-2 ${mergedSlot.status === 'AVAILABLE'
                                                     ? (isPastShift ? 'border-stone-200 bg-stone-50 opacity-60' : 'border-green-200 bg-green-50')
-                                                    : slot.status === 'BLOCKED'
+                                                    : mergedSlot.status === 'BLOCKED'
                                                         ? 'border-red-200 bg-red-50'
-                                                        : 'border-yellow-200 bg-yellow-50'
+                                                        : 'border-yellow-200 bg-yellow-50 cursor-pointer hover:border-yellow-400 hover:shadow-md transition-all'
                                                     }`}
+                                                onClick={() => {
+                                                    if (mergedSlot.status === 'BOOKED' && mergedSlot.bookingId) {
+                                                        navigate(`/clinic-manager/bookings?bookingId=${mergedSlot.bookingId}`)
+                                                    }
+                                                }}
+                                                title={mergedSlot.status === 'BOOKED' ? 'Click để xem chi tiết lịch hẹn' : undefined}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <span className={`font-bold text-sm ${isPastShift && slot.status === 'AVAILABLE' ? 'text-stone-400' : 'text-stone-900'}`}>
-                                                        {slot.startTime.substring(0, 5)} - {slot.endTime.substring(0, 5)}
+                                                    <span className={`font-bold text-sm ${isPastShift && mergedSlot.status === 'AVAILABLE' ? 'text-stone-400' : 'text-stone-900'}`}>
+                                                        {mergedSlot.startTime.substring(0, 5)} - {mergedSlot.endTime.substring(0, 5)}
                                                     </span>
-                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${slot.status === 'AVAILABLE'
-                                                        ? (isPastShift ? 'bg-stone-200 text-stone-500' : 'bg-green-500 text-white')
-                                                        : slot.status === 'BLOCKED'
-                                                            ? 'bg-red-500 text-white'
-                                                            : 'bg-yellow-500 text-white'
-                                                        }`}>
-                                                        {slot.status === 'AVAILABLE'
-                                                            ? (isPastShift ? 'Đã qua' : 'Trống')
-                                                            : slot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
-                                                    </span>
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded w-fit ${mergedSlot.status === 'AVAILABLE'
+                                                            ? (isPastShift ? 'bg-stone-200 text-stone-500' : 'bg-green-500 text-white')
+                                                            : mergedSlot.status === 'BLOCKED'
+                                                                ? 'bg-red-500 text-white'
+                                                                : 'bg-yellow-500 text-white'
+                                                            }`}>
+                                                            {mergedSlot.status === 'AVAILABLE'
+                                                                ? (isPastShift ? 'Đã qua' : 'Trống')
+                                                                : mergedSlot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
+                                                        </span>
+                                                        {mergedSlot.span > 1 && (
+                                                            <span className="text-[9px] text-stone-400 italic">({mergedSlot.span} slots)</span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                {!isPastShift && slot.status === 'AVAILABLE' && (
-                                                    <button
-                                                        onClick={() => handleBlockSlot(slot.slotId)}
-                                                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                                                        title="Khóa slot này"
-                                                    >
-                                                        <LockClosedIcon className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                                {!isPastShift && slot.status === 'BLOCKED' && (
-                                                    <button
-                                                        onClick={() => handleUnblockSlot(slot.slotId)}
-                                                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                                                        title="Mở khóa slot này"
-                                                    >
-                                                        <LockOpenIcon className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                                {slot.status === 'BOOKED' && (
-                                                    <span className="text-[10px] text-yellow-700 font-bold">Có lịch hẹn</span>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {!isPastShift && mergedSlot.status === 'AVAILABLE' && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleBlockSlot(mergedSlot.id); }}
+                                                            className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                            title="Khóa slot này"
+                                                        >
+                                                            <LockClosedIcon className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {!isPastShift && mergedSlot.status === 'BLOCKED' && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleUnblockSlot(mergedSlot.id); }}
+                                                            className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                                            title="Mở khóa slot này"
+                                                        >
+                                                            <LockOpenIcon className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                    {mergedSlot.status === 'BOOKED' && (
+                                                        <div className="text-right">
+                                                            <div className="text-[10px] text-yellow-700 font-bold">{mergedSlot.petName || 'Có lịch hẹn'}</div>
+                                                            {mergedSlot.petOwnerName && <div className="text-[9px] text-yellow-600">{mergedSlot.petOwnerName}</div>}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         )
                                     })}

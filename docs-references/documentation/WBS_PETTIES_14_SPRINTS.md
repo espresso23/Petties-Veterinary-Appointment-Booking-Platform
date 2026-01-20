@@ -39,7 +39,7 @@
 | US-MED-01 | Xem lịch sử khám bệnh | 💡 |
 | US-MED-03 | Xem sổ tiêm chủng điện tử | 💡 |
 | US-APT-01 | Đặt lịch khám (manual) | 💡 |
-| US-APT-03 | Check-in tại phòng khám | 💡 |
+| US-APT-03 | Vet click Check-in bắt đầu khám | 💡 |
 | US-AI-02 | Chat với AI (hỏi triệu chứng) | 🔄 |
 | US-AI-03 | Đặt lịch tự động với AI (AI Booking) | 💡 |
 | US-AI-04 | Tìm dịch vụ phù hợp theo triệu chứng (AI Recommend) | 💡 |
@@ -69,7 +69,7 @@
 | US-MED-01 | Xem lịch sử khám bệnh của Pet | 💡 |
 | US-MED-02 | Ghi bệnh án SOAP | 💡 |
 | US-MED-03 | Ghi/Xem sổ tiêm chủng | 💡 |
-| US-APT-03 | Check-in Pet Owner đến khám | 💡 |
+| US-APT-03 | Vet click Check-in bắt đầu khám | 💡 |
 | US-APT-04 | Cập nhật dịch vụ phát sinh (nếu có) | 💡 |
 | US-APT-05 | Checkout (hoàn thành khám) | 💡 |
 | US-NTF-01 | Nhận thông báo đẩy (Push) | ✅ |
@@ -1116,19 +1116,21 @@
 
 ---
 
-### 🔹 US-APT-04: Cập nhật dịch vụ phát sinh (Vet) 💡 Planned
-> **Actor:** Vet  
-> **As a** Vet, **I want to** add additional services that were performed during the visit  
+### 🔹 US-APT-04: Cập nhật dịch vụ phát sinh (Vet/Manager) 💡 Planned
+> **Actor:** Vet, Clinic Manager
+> **As a** Vet or Clinic Manager, **I want to** add additional services to a booking
 > **So that** the final bill accurately reflects all services provided
 
 **Sprint:** S8 | **Missing:** Additional Services UI
 
 #### Acceptance Criteria:
 1. **Add Incurred Service:**
-   - Chỉ thêm được khi booking đang IN_PROGRESS
+   - Có thể thêm dịch vụ khi booking đang CONFIRMED, ASSIGNED, IN_PROGRESS (trước khi CHECKOUT)
    - Chọn từ danh sách dịch vụ của clinic
    - Nhập số lượng (quantity)
    - Ghi chú lý do (optional)
+   - **HOME_VISIT:** Vet chỉ thêm được dịch vụ trong chuyên môn của mình
+   - **IN_CLINIC:** Manager có thể thêm bất kỳ dịch vụ nào
 
 2. **View Added Services:**
    - Danh sách dịch vụ đã thêm vào booking

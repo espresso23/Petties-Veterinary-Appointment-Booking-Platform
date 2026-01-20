@@ -9,6 +9,7 @@ import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
 import '../ui/vet/vet_schedule_screen.dart';
+import '../ui/vet/vet_booking_detail_screen.dart';
 import '../ui/vet/patient/patient_screens.dart';
 import '../ui/vet/emr/create_emr_screen.dart';
 import '../ui/vet/emr/emr_detail_screen.dart';
@@ -198,14 +199,23 @@ class AppRouterConfig {
           path: AppRoutes.vetSchedule,
           builder: (context, state) => const VetScheduleScreen(),
         ),
-        
-        // VET Patient Routes
+
+        // VET Booking Detail Route (from HEAD)
+        GoRoute(
+          path: AppRoutes.vetBookingDetail,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId']!;
+            return VetBookingDetailScreen(bookingId: bookingId);
+          },
+        ),
+
+        // VET Patient Routes (from intergrationFeature)
         GoRoute(
           path: AppRoutes.vetPatients,
           builder: (context, state) => const PatientListScreen(),
         ),
-        
-        // VET EMR Routes
+
+        // VET EMR Routes (from intergrationFeature)
         GoRoute(
           path: AppRoutes.vetCreateEmr,
           builder: (context, state) {
@@ -233,7 +243,8 @@ class AppRouterConfig {
             return EditEmrScreen(emrId: emrId);
           },
         ),
-        // Clinic routes
+
+        // Clinic routes (from intergrationFeature)
         GoRoute(
           path: AppRoutes.clinicSearch,
           builder: (context, state) => const ClinicSearchView(),

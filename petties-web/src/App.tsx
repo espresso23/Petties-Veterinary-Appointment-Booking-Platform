@@ -28,8 +28,7 @@ import { PlaygroundPage } from './pages/admin/playground'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
-// Role-specific Pages
-import { VetDashboardPage, VetSchedulePage, CreateEmrPage, EmrDetailPage, VetPatientsPage, EditEmrPage } from './pages/vet'
+import { VetDashboardPage, VetSchedulePage, VetBookingsPage, CreateEmrPage, EmrDetailPage, VetPatientsPage, EditEmrPage } from './pages/vet'
 import VaccinationPage from './pages/vet/vaccine/VaccinationPage'
 import { NotificationsPage as VetNotificationsPage } from './pages/vet/NotificationsPage'
 import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
@@ -44,6 +43,8 @@ import {
 import { StaffManagementPage } from './pages/clinic-owner/staff'
 import { VetsManagementPage } from './pages/clinic-manager/vets'
 import { VetShiftPage } from './pages/clinic-manager/shifts/VetShiftPage'
+import { BookingDashboardPage } from './pages/clinic-manager/bookings/BookingDashboardPage'
+import { ServicesViewPage } from './pages/clinic-manager/services/ServicesViewPage'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -110,6 +111,7 @@ function App() {
           }>
             <Route index element={<VetDashboardPage />} />
             <Route path="schedule" element={<VetSchedulePage />} />
+            <Route path="bookings" element={<VetBookingsPage />} />
             <Route path="patients" element={<VetPatientsPage />} />
             <Route path="notifications" element={<VetNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
@@ -144,8 +146,10 @@ function App() {
           }>
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="bookings" element={<BookingDashboardPage />} />
             <Route path="vets" element={<VetsManagementPage />} />
             <Route path="shifts" element={<VetShiftPage />} />
+            <Route path="services" element={<ServicesViewPage />} />
             <Route path="chat" element={<ClinicManagerChatPage />} />
             <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
           </Route >

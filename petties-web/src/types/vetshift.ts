@@ -10,6 +10,9 @@ export interface SlotResponse {
     petName?: string;
     petOwnerName?: string;
     serviceName?: string;
+    // Service details (populated from BookingServiceItem)
+    bookingServiceId?: string;
+    serviceCategory?: string;
 }
 
 export interface VetShiftResponse {

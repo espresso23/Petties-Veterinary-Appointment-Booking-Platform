@@ -3,7 +3,7 @@
 -- Description: Creates bookings, booking_slots, booking_services, payments tables
 
 -- ========== BOOKINGS TABLE ==========
-CREATE TABLE bookings (
+CREATE TABLE IF NOT EXISTS bookings (
     booking_id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     booking_code VARCHAR(20) UNIQUE NOT NULL,
     pet_id UUID NOT NULL REFERENCES pets (pet_id),
@@ -46,20 +46,20 @@ CREATE TABLE bookings (
 );
 
 -- Indexes for bookings
-CREATE INDEX idx_bookings_pet_id ON bookings (pet_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_pet_id ON bookings (pet_id);
 
-CREATE INDEX idx_bookings_pet_owner_id ON bookings (pet_owner_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_pet_owner_id ON bookings (pet_owner_id);
 
-CREATE INDEX idx_bookings_clinic_id ON bookings (clinic_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_clinic_id ON bookings (clinic_id);
 
-CREATE INDEX idx_bookings_assigned_vet_id ON bookings (assigned_vet_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_assigned_vet_id ON bookings (assigned_vet_id);
 
-CREATE INDEX idx_bookings_date ON bookings (booking_date);
+CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings (booking_date);
 
-CREATE INDEX idx_bookings_status ON bookings (status);
+CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status);
 
 -- ========== BOOKING_SLOTS TABLE (Junction: Booking <-> Slot) ==========
-CREATE TABLE booking_slots (
+CREATE TABLE IF NOT EXISTS booking_slots (
     booking_slot_id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     booking_id UUID NOT NULL REFERENCES bookings (booking_id) ON DELETE CASCADE,
     slot_id UUID NOT NULL REFERENCES slots (slot_id),
@@ -67,12 +67,12 @@ CREATE TABLE booking_slots (
     UNIQUE (booking_id, slot_id)
 );
 
-CREATE INDEX idx_booking_slots_booking_id ON booking_slots (booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_slots_booking_id ON booking_slots (booking_id);
 
-CREATE INDEX idx_booking_slots_slot_id ON booking_slots (slot_id);
+CREATE INDEX IF NOT EXISTS idx_booking_slots_slot_id ON booking_slots (slot_id);
 
 -- ========== BOOKING_SERVICES TABLE (Junction: Booking <-> Service) ==========
-CREATE TABLE booking_services (
+CREATE TABLE IF NOT EXISTS booking_services (
     booking_service_id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     booking_id UUID NOT NULL REFERENCES bookings (booking_id) ON DELETE CASCADE,
     service_id UUID NOT NULL REFERENCES clinic_services (service_id),
@@ -81,12 +81,12 @@ CREATE TABLE booking_services (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_booking_services_booking_id ON booking_services (booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_services_booking_id ON booking_services (booking_id);
 
-CREATE INDEX idx_booking_services_service_id ON booking_services (service_id);
+CREATE INDEX IF NOT EXISTS idx_booking_services_service_id ON booking_services (service_id);
 
 -- ========== PAYMENTS TABLE ==========
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
     payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid (),
     booking_id UUID UNIQUE NOT NULL REFERENCES bookings (booking_id) ON DELETE CASCADE,
     amount DECIMAL(12, 2) NOT NULL,
@@ -106,6 +106,6 @@ CREATE TABLE payments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_payments_booking_id ON payments (booking_id);
+CREATE INDEX IF NOT EXISTS idx_payments_booking_id ON payments (booking_id);
 
-CREATE INDEX idx_payments_status ON payments (status);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (status);

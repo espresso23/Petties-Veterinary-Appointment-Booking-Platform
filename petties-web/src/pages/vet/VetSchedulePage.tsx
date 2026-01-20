@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { vetShiftService } from '../../services/api/vetShiftService'
 import type { VetShiftResponse, SlotResponse } from '../../types/vetshift'
 import { useToast } from '../../components/Toast'
 import { CalendarPicker } from '../../components/CalendarPicker'
 import { CalendarIcon, MoonIcon, ArrowRightIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { useSseNotification } from '../../hooks/useSseNotification'
 import '../../styles/brutalist.css'
 
 // Helper to get week dates
@@ -45,10 +47,60 @@ const formatWeekRange = (startDate: Date, endDate: Date) => {
 
 const DAYS_VN = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN']
 
+export interface MergedSlot {
+    id: string;
+    startTime: string;
+    endTime: string;
+    status: 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
+    petName?: string;
+    petOwnerName?: string;
+    bookingId?: string;
+    serviceName?: string;
+    span: number; // Number of original 30-min slots
+}
+
+const mergeSlots = (slots: SlotResponse[] | null): MergedSlot[] => {
+    if (!slots || slots.length === 0) return [];
+
+    const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const merged: MergedSlot[] = [];
+    let current: MergedSlot | null = null;
+
+    sorted.forEach((slot) => {
+        // Only merge BOOKED slots that belong to the same booking
+        // AVAILABLE and BLOCKED slots remain as individual 30-min slots
+        const shouldMerge = current &&
+            slot.status === 'BOOKED' &&
+            current.status === 'BOOKED' &&
+            current.bookingId === slot.bookingId;
+
+        if (shouldMerge && current) {
+            current.endTime = slot.endTime;
+            current.span += 1;
+        } else {
+            current = {
+                id: slot.slotId,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                status: slot.status as any,
+                petName: slot.petName,
+                petOwnerName: slot.petOwnerName,
+                bookingId: slot.bookingId,
+                serviceName: slot.serviceName,
+                span: 1
+            };
+            merged.push(current);
+        }
+    });
+
+    return merged;
+};
+
 /**
  * VetSchedulePage - Version for Vets to view their own schedule
  */
 export const VetSchedulePage = () => {
+    const navigate = useNavigate()
     const { user } = useAuthStore()
     const clinicId = user?.workingClinicId
     const vetId = user?.userId
@@ -85,7 +137,7 @@ export const VetSchedulePage = () => {
         if (weekDates.length > 0) fetchShifts()
     }, [weekDates])
 
-    const fetchShifts = async () => {
+    const fetchShifts = useCallback(async () => {
         if (!vetId || weekDates.length === 0) return
         setLoading(true)
         try {
@@ -100,7 +152,21 @@ export const VetSchedulePage = () => {
         } finally {
             setLoading(false)
         }
-    }
+    }, [vetId, weekDates, showToast])
+
+    // Subscribe to SSE for real-time booking updates
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[VetSchedulePage] Booking update received:', data)
+            showToast('info', `Có cập nhật booking: ${data.bookingCode}`)
+            // Refetch shifts to update slot data
+            fetchShifts()
+        },
+        onShiftUpdate: () => {
+            console.log('[VetSchedulePage] Shift update received')
+            fetchShifts()
+        }
+    })
 
     const handlePrevWeek = () => {
         const prev = new Date(currentWeek)
@@ -136,6 +202,17 @@ export const VetSchedulePage = () => {
 
     const [dayViewShifts, setDayViewShifts] = useState<VetShiftResponse[]>([])
 
+    // Sync selectedShift when selectedDay changes (for sidebar to show correct shift info)
+    useEffect(() => {
+        const dayStr = formatDate(selectedDay)
+        const shiftForDay = shifts.find(s => (s.displayDate || s.workDate) === dayStr && !s.isContinuation)
+        if (shiftForDay) {
+            setSelectedShift(shiftForDay)
+        } else {
+            setSelectedShift(null)
+        }
+    }, [selectedDay, shifts])
+
     useEffect(() => {
         if (viewMode !== 'day' || !clinicId) return
 
@@ -159,7 +236,7 @@ export const VetSchedulePage = () => {
     // Chỉ Manager mới có thể block/unblock
 
     return (
-        <div className="flex h-screen bg-stone-50 text-stone-900 font-sans select-none overflow-hidden">
+        <div className="flex min-h-screen bg-stone-50 text-stone-900 font-sans select-none overflow-hidden">
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-full overflow-hidden p-6 gap-6">
                 {/* Header */}
@@ -193,9 +270,9 @@ export const VetSchedulePage = () => {
                 <div className="flex-1 bg-white rounded-2xl border-2 border-stone-900 p-5 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)] flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex bg-stone-100 rounded-xl p-1 border-2 border-stone-200">
-                            <button onClick={() => setViewMode('week')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'week' ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`}>Tuần</button>
-                            <button onClick={() => setViewMode('day')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'day' ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`}>Ngày</button>
-                            <button onClick={() => setViewMode('month')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'month' ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`}>Tháng</button>
+                            <button onClick={() => setViewMode('week')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'week' ? 'shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`} style={viewMode === 'week' ? { backgroundColor: '#f59e0b', color: '#ffffff' } : {}}>Tuần</button>
+                            <button onClick={() => setViewMode('day')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'day' ? 'shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`} style={viewMode === 'day' ? { backgroundColor: '#f59e0b', color: '#ffffff' } : {}}>Ngày</button>
+                            <button onClick={() => setViewMode('month')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'month' ? 'shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]' : 'text-stone-500 hover:text-stone-700'}`} style={viewMode === 'month' ? { backgroundColor: '#f59e0b', color: '#ffffff' } : {}}>Tháng</button>
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -239,7 +316,13 @@ export const VetSchedulePage = () => {
                                         return (
                                             <div
                                                 key={i}
-                                                onClick={() => dayShift && !isContinuation && setSelectedShift(dayShift)}
+                                                onClick={() => {
+                                                    if (dayShift && !isContinuation) {
+                                                        setSelectedShift(dayShift)
+                                                        // Sync selectedDay with the shift's workDate
+                                                        setSelectedDay(new Date(dayShift.workDate))
+                                                    }
+                                                }}
                                                 className={`
                                                     rounded-xl border-2 transition-all h-40 p-3 flex flex-col justify-between overflow-hidden
                                                     ${isPast ? 'bg-stone-100 border-stone-200 opacity-50 cursor-not-allowed' : 'bg-white border-stone-200 hover:border-stone-900'}
@@ -321,27 +404,52 @@ export const VetSchedulePage = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                                                {shift.slots?.map(slot => (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {mergeSlots(shift.slots).map(slot => (
                                                     <div
-                                                        key={slot.slotId}
-                                                        className={`p-3 rounded-xl border-2 transition-all ${slot.status === 'AVAILABLE' ? 'bg-green-50 border-green-200' :
-                                                            slot.status === 'BLOCKED' ? 'bg-red-50 border-red-200' :
-                                                                'bg-amber-50 border-amber-300'
+                                                        key={slot.id}
+                                                        onClick={() => {
+                                                            if (slot.status === 'BOOKED' && slot.bookingId) {
+                                                                navigate('/vet/bookings', { state: { focusBookingId: slot.bookingId } })
+                                                            }
+                                                        }}
+                                                        className={`p-4 rounded-2xl border-2 transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] flex flex-col justify-between min-h-[100px] ${slot.status === 'AVAILABLE' ? 'bg-green-50 border-green-400' :
+                                                            slot.status === 'BLOCKED' ? 'bg-red-50 border-red-400' :
+                                                                'bg-amber-50 border-amber-400 cursor-pointer hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,0.2)]'
                                                             }`}
                                                     >
-                                                        <div className="flex justify-between items-start mb-1">
-                                                            <div className="font-bold text-base">{slot.startTime.substring(0, 5)}</div>
-                                                            {/* Loại bỏ nút block/unblock - Vet không có quyền */}
-                                                            {slot.status === 'BLOCKED' && <LockClosedIcon className="w-3.5 h-3.5 text-red-500" />}
+                                                        <div>
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <div className="bg-stone-900 text-white px-2 py-0.5 rounded text-sm font-black mono tracking-tighter">
+                                                                    {slot.startTime.substring(0, 5)} - {slot.endTime.substring(0, 5)}
+                                                                </div>
+                                                                {slot.status === 'BLOCKED' && <LockClosedIcon className="w-4 h-4 text-red-500" />}
+                                                            </div>
+                                                            <div className={`text-xs font-black uppercase mb-2 ${slot.status === 'AVAILABLE' ? 'text-green-600' :
+                                                                slot.status === 'BLOCKED' ? 'text-red-500' :
+                                                                    'text-amber-700'
+                                                                }`}>
+                                                                {slot.status === 'AVAILABLE' ? 'Trống' :
+                                                                    slot.status === 'BLOCKED' ? 'Đã khóa' :
+                                                                        'Đã đặt lịch'}
+                                                                {slot.span > 1 && <span className="ml-2 lowercase opacity-60">({slot.span * 30} phút)</span>}
+                                                            </div>
                                                         </div>
-                                                        <div className={`text-[10px] font-bold uppercase ${slot.status === 'AVAILABLE' ? 'text-green-600' : slot.status === 'BLOCKED' ? 'text-red-500' : 'text-amber-700'}`}>
-                                                            {slot.status === 'AVAILABLE' ? 'Trống' : slot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
-                                                        </div>
+
                                                         {slot.status === 'BOOKED' && slot.petName && (
-                                                            <div className="mt-2 pt-2 border-t border-amber-200 text-[10px] font-bold text-stone-900">
-                                                                <div className="truncate">Pet: {slot.petName}</div>
-                                                                <div className="truncate opacity-70">{slot.petOwnerName}</div>
+                                                            <div className="mt-2 pt-3 border-t-2 border-amber-200/50">
+                                                                <div className="text-sm font-black text-stone-900 flex items-center gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                                                                    Pet: {slot.petName}
+                                                                </div>
+                                                                <div className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mt-1 ml-3">
+                                                                    Chủ: {slot.petOwnerName}
+                                                                </div>
+                                                                {slot.serviceName && (
+                                                                    <div className="mt-2 px-2 py-1 bg-amber-100/50 rounded-lg text-[10px] font-bold text-amber-800 border border-amber-200 inline-block">
+                                                                        {slot.serviceName}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
@@ -431,7 +539,7 @@ export const VetSchedulePage = () => {
                             <div className="p-5 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_0_rgba(0,0,0,0.05)] mb-6 hover:shadow-none transition-all">
                                 <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-2">Thông tin ca trực</p>
                                 <div className="space-y-1">
-                                    <p className="text-lg font-black text-stone-900">{formatDisplayDateWithYear(new Date(selectedShift.workDate))}</p>
+                                    <p className="text-lg font-black text-stone-900">{formatDisplayDateWithYear(selectedDay)}</p>
                                     <div className="flex items-center gap-2">
                                         <p className="text-2xl font-black text-amber-600 tracking-tight">{selectedShift.startTime.substring(0, 5)} - {selectedShift.endTime.substring(0, 5)}</p>
                                         {selectedShift.isOvernight && <span className="bg-indigo-500 text-white text-[9px] font-black px-2 py-0.5 rounded-md">CA ĐÊM</span>}
@@ -458,9 +566,9 @@ export const VetSchedulePage = () => {
                             </div>
 
                             <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                                {shiftDetail?.slots?.map((slot: SlotResponse) => (
+                                {shiftDetail?.slots && mergeSlots(shiftDetail.slots).map((slot: MergedSlot) => (
                                     <div
-                                        key={slot.slotId}
+                                        key={slot.id}
                                         className={`flex items-center justify-between p-4 rounded-2xl border-2 shadow-[2px_2px_0_0_rgba(0,0,0,0.05)] transition-all ${slot.status === 'AVAILABLE' ? 'border-green-200 bg-white' :
                                             slot.status === 'BLOCKED' ? 'border-red-200 bg-red-50' :
                                                 'border-amber-200 bg-amber-50'
@@ -468,12 +576,17 @@ export const VetSchedulePage = () => {
                                     >
                                         <div className="flex flex-col gap-1">
                                             <span className="font-black text-base text-stone-900">{slot.startTime.substring(0, 5)} - {slot.endTime.substring(0, 5)}</span>
-                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full w-fit uppercase ${slot.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
-                                                slot.status === 'BLOCKED' ? 'bg-red-100 text-red-700' :
-                                                    'bg-amber-200 text-amber-700'
-                                                }`}>
-                                                {slot.status === 'AVAILABLE' ? 'Sẵn sàng' : slot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full w-fit uppercase ${slot.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' :
+                                                    slot.status === 'BLOCKED' ? 'bg-red-100 text-red-700' :
+                                                        'bg-amber-200 text-amber-700'
+                                                    }`}>
+                                                    {slot.status === 'AVAILABLE' ? 'Sẵn sàng' : slot.status === 'BLOCKED' ? 'Đã khóa' : 'Đã đặt'}
+                                                </span>
+                                                {slot.span > 1 && (
+                                                    <span className="text-[9px] font-bold text-stone-400 italic">({slot.span} slots)</span>
+                                                )}
+                                            </div>
                                         </div>
                                         {/* Loại bỏ nút block/unblock - Vet không có quyền, liên hệ Manager nếu cần */}
                                         {slot.status === 'BLOCKED' && <div className="p-3 bg-red-50 text-red-600 rounded-xl"><LockClosedIcon className="w-5 h-5" /></div>}

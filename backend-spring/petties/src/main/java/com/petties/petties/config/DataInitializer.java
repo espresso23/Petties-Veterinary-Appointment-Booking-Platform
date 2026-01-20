@@ -7,6 +7,7 @@ import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Prescription;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
@@ -120,7 +121,7 @@ public class DataInitializer implements CommandLineRunner {
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", Role.VET);
+        initializeVetUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", StaffSpecialty.VET_GENERAL);
 
         // Create more pet owners for testing
         User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
@@ -517,6 +518,52 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
         } catch (Exception e) {
             log.error("   x Failed to create clinic: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Helper method to initialize a VET user with specialty
+     */
+    private User initializeVetUser(String username, String password, String email, String fullName,
+            StaffSpecialty specialty) {
+        // Check by username
+        if (userRepository.existsByUsername(username)) {
+            // Update existing vet's specialty if null
+            User existingVet = userRepository.findByUsername(username).orElse(null);
+            if (existingVet != null && existingVet.getSpecialty() == null) {
+                existingVet.setSpecialty(specialty);
+                existingVet.setAvatar("https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+")
+                        + "&background=86EFAC&color=1c1917");
+                userRepository.save(existingVet);
+                log.info("   + Updated vet specialty: {} -> {}", username, specialty);
+            }
+            return existingVet;
+        }
+
+        // Check by email to prevent duplicate key error
+        if (userRepository.existsByEmail(email)) {
+            log.info("   - User with email '{}' (VET) already exists.", email);
+            return userRepository.findByEmail(email).orElse(null);
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setEmail(email);
+        user.setPhone("0" + (long) (Math.random() * 1000000000L));
+        user.setFullName(fullName);
+        user.setRole(Role.VET);
+        user.setSpecialty(specialty);
+        user.setAvatar(
+                "https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+") + "&background=86EFAC&color=1c1917");
+
+        try {
+            User savedUser = userRepository.save(user);
+            log.info("   + Created VET user: {} with specialty {}", username, specialty);
+            return savedUser;
+        } catch (Exception e) {
+            log.error("   x Failed to create vet user {}: {}", username, e.getMessage());
+            return null;
         }
     }
 

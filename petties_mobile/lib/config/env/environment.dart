@@ -18,10 +18,16 @@ class Environment {
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
     if (Platform.isAndroid) {
-      // For physical device with adb reverse: use localhost
-      // Run: adb reverse tcp:8080 tcp:8080
-      // For emulator: use 10.0.2.2
+      // ====== CHỌN 1 TRONG CÁC CÁCH ======
+      // 1. Physical Device (adb reverse): dùng localhost
+      // Chạy: adb reverse tcp:8080 tcp:8080
+      // return 'http://localhost:8080/api';
+
+      // 2. Emulator: dùng 10.0.2.2
       return 'http://10.0.2.2:8080/api';
+
+      // 3. Physical Device (WiFi): dùng IP LAN (ipconfig)
+      // return 'http://192.168.17.213:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -33,8 +39,10 @@ class Environment {
       'https://api-test.petties.world/ai';
 
   // Flavor from build arguments
-  static const String _flavor =
-      String.fromEnvironment('FLAVOR', defaultValue: 'dev');
+  static const String _flavor = String.fromEnvironment(
+    'FLAVOR',
+    defaultValue: 'dev',
+  );
   static const String _apiUrlOverride = String.fromEnvironment('API_URL');
 
   /// Get the base URL based on flavor
@@ -90,15 +98,15 @@ class Environment {
   // ============================================================
   // Google OAuth Configuration
   // ============================================================
-  // ⚠️ IMPORTANT: Replace these with your actual Client IDs from Google Cloud Console
+  // ⚠️ IMPORTANT: These values come from google-services.json
   //
-  // Server Client ID (Web type) - used for backend verification
-  // This is the same for all platforms
+  // Server Client ID (Web type - client_type: 3) - used for backend verification
+  // Backend uses this to verify the ID token sent from mobile app
   static const String _googleServerClientId = String.fromEnvironment(
     'GOOGLE_SERVER_CLIENT_ID',
-    // ⚠️ PHẢI dùng WEB Client ID, không phải iOS/Android Client ID
+    // Web Client ID (client_type: 3) from google-services.json
     defaultValue:
-        '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com',
+        '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification
@@ -125,11 +133,13 @@ class Environment {
   // ============================================================
   // Map & Location API Keys (loaded from .env or --dart-define)
   // ============================================================
-  
+
   // Compile-time dart-define values
-  static const String _mapApiKeyFromDartDefine = String.fromEnvironment('MAP_API_KEY');
-  static const String _goongApiKeyFromDartDefine = String.fromEnvironment('GOONG_API_KEY');
-  
+  static const String _mapApiKeyFromDartDefine =
+      String.fromEnvironment('MAP_API_KEY');
+  static const String _goongApiKeyFromDartDefine =
+      String.fromEnvironment('GOONG_API_KEY');
+
   /// Google Maps API Key
   /// Priority: --dart-define > .env file (via dotenv)
   static String get mapApiKey {

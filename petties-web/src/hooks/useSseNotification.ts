@@ -8,7 +8,7 @@ import { env } from '../config/env'
 /**
  * SSE Event types from backend
  */
-type SseEventType = 'NOTIFICATION' | 'HEARTBEAT' | 'SHIFT_UPDATE' | 'CLINIC_COUNTER_UPDATE'
+type SseEventType = 'NOTIFICATION' | 'HEARTBEAT' | 'SHIFT_UPDATE' | 'CLINIC_COUNTER_UPDATE' | 'BOOKING_UPDATE'
 
 /**
  * Notification type enum matching backend
@@ -20,13 +20,24 @@ type NotificationType =
   | 'VET_SHIFT_ASSIGNED'
   | 'VET_SHIFT_UPDATED'
   | 'VET_SHIFT_DELETED'
+  // Booking notifications
+  | 'BOOKING_CREATED'
+  | 'BOOKING_CONFIRMED'
+  | 'BOOKING_ASSIGNED'
+  | 'BOOKING_CANCELLED'
+  | 'BOOKING_CHECKIN'
+  | 'BOOKING_COMPLETED'
+  | 'VET_ON_WAY'
+  // Admin notifications
+  | 'CLINIC_PENDING_APPROVAL'
+  | 'CLINIC_VERIFIED'
 
 /**
  * SSE Event data structure from backend
  */
 interface SseEventData {
   type: SseEventType
-  data: NotificationData | null
+  data: NotificationData | BookingUpdateData | number | null
   timestamp: string
 }
 
@@ -59,6 +70,20 @@ interface UseSseNotificationOptions {
   onNotification?: (notification: NotificationData) => void
   /** Callback when shift update received */
   onShiftUpdate?: (data: unknown) => void
+  /** Callback when booking update received */
+  onBookingUpdate?: (data: BookingUpdateData) => void
+}
+
+/**
+ * Booking update data from SSE push
+ */
+interface BookingUpdateData {
+  bookingId: string
+  bookingCode: string
+  action: 'ASSIGNED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'VET_REASSIGNED' | 'SERVICE_ADDED'
+  status: string
+  oldVetId?: string  // For VET_REASSIGNED action - the vet being removed
+  newVetId?: string  // For VET_REASSIGNED action - the vet being assigned
 }
 
 interface UseSseNotificationReturn {
@@ -99,6 +124,7 @@ export function useSseNotification(
     maxReconnectAttempts = 10,
     onNotification,
     onShiftUpdate,
+    onBookingUpdate,
   } = options
 
   const { accessToken, isAuthenticated } = useAuthStore()
@@ -111,6 +137,7 @@ export function useSseNotification(
   // Use refs for callbacks to avoid re-creating handleSseEvent when they change
   const onNotificationRef = useRef(onNotification)
   const onShiftUpdateRef = useRef(onShiftUpdate)
+  const onBookingUpdateRef = useRef(onBookingUpdate)
 
   useEffect(() => {
     onNotificationRef.current = onNotification
@@ -119,6 +146,10 @@ export function useSseNotification(
   useEffect(() => {
     onShiftUpdateRef.current = onShiftUpdate
   }, [onShiftUpdate])
+
+  useEffect(() => {
+    onBookingUpdateRef.current = onBookingUpdate
+  }, [onBookingUpdate])
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectAttemptsRef = useRef(0)
@@ -152,6 +183,25 @@ export function useSseNotification(
           break
         case 'VET_SHIFT_DELETED':
           showToast('warning', message || 'Ca lam viec cua ban da bi xoa')
+          break
+        // Booking notifications
+        case 'BOOKING_CREATED':
+          showToast('info', message || 'Có lịch hẹn mới cần xác nhận')
+          break
+        case 'BOOKING_ASSIGNED':
+          showToast('success', message || 'Bạn được gán lịch hẹn mới')
+          break
+        case 'BOOKING_CONFIRMED':
+          showToast('success', message || 'Lịch hẹn đã được xác nhận')
+          break
+        case 'BOOKING_CANCELLED':
+          showToast('warning', message || 'Lịch hẹn đã bị hủy')
+          break
+        case 'BOOKING_CHECKIN':
+          showToast('info', message || 'Bác sĩ đã bắt đầu khám')
+          break
+        case 'BOOKING_COMPLETED':
+          showToast('success', message || 'Lịch hẹn đã hoàn thành')
           break
         default:
           showToast('info', message || 'Thong bao moi')
@@ -190,6 +240,12 @@ export function useSseNotification(
             if (typeof data.data === 'number') {
               setPendingCount(data.data)
             }
+            break
+
+          case 'BOOKING_UPDATE':
+            console.log('[SSE] Booking update received:', data.data)
+            // Trigger callback for booking updates (e.g., refresh booking list)
+            onBookingUpdateRef.current?.(data.data as BookingUpdateData)
             break
 
           case 'HEARTBEAT':
@@ -240,6 +296,7 @@ export function useSseNotification(
       eventSource.addEventListener('HEARTBEAT', handleSseEvent)
       eventSource.addEventListener('SHIFT_UPDATE', handleSseEvent)
       eventSource.addEventListener('CLINIC_COUNTER_UPDATE', handleSseEvent)
+      eventSource.addEventListener('BOOKING_UPDATE', handleSseEvent)
 
       // Also handle generic message events
       eventSource.onmessage = (event) => {

@@ -42,6 +42,19 @@ public class BookingServiceItem {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    // ========== PRICING BREAKDOWN FIELDS ==========
+    /**
+     * Base price of the service (before weight-based pricing)
+     */
+    @Column(name = "base_price", precision = 12, scale = 2)
+    private BigDecimal basePrice;
+
+    /**
+     * Weight-based price (may differ from basePrice based on pet weight tier)
+     */
+    @Column(name = "weight_price", precision = 12, scale = 2)
+    private BigDecimal weightPrice;
+
     @Column(name = "quantity", nullable = false)
     @Builder.Default
     private Integer quantity = 1;
@@ -49,6 +62,14 @@ public class BookingServiceItem {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Assigned veterinarian for this specific service
+     * Different services in the same booking can have different vets
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_vet_id")
+    private User assignedVet;
 
     // ========== HELPER METHODS ==========
 

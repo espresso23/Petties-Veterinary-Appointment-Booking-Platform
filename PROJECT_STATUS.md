@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-10  
-> **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)  
-> **Overall Progress:** 55%
+> **Last Updated:** 2026-01-18
+> **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)
+> **Overall Progress:** 65%
 
 ---
 
@@ -16,8 +16,8 @@
 | Vet Scheduling | ✅ Done | 100% |
 | Notifications | 🔄 Active | 60% |
 | AI Assistant | 🔄 Active | 40% |
+| Booking Flow | 🔄 Active | 70% |
 | EMR (Medical Records) | ⏳ Pending | 20% |
-| Booking Flow | ⏳ Pending | 10% |
 | SOS Emergency | 💡 Planned | 0% |
 
 ---
@@ -73,10 +73,25 @@
    - [x] SSE Web Integration
    - [ ] Scheduled Reminders (Cron)
 
-3. **Booking Foundation**
-   - [x] Distance-based Pricing
-   - [ ] Booking Wizard (Mobile)
-   - [ ] Slot Locking Logic
+3. **Booking Module (Clinic Manager & Vet)**
+   - [x] Backend API: 12 endpoints đầy đủ
+   - [x] Booking Dashboard (Manager) với filter tabs
+   - [x] Xem chi tiết booking với modal
+   - [x] Check Vet Availability trước khi confirm
+   - [x] **Inline Dropdown chọn vet thủ công** (thay thế auto-assign)
+   - [x] Preview suggested vet với avatar, specialty, workload
+   - [x] Confirm với manual/auto vet assignment
+   - [x] Đổi vet (ReassignVetModal) cho dịch vụ đã gán
+   - [x] Thêm dịch vụ phát sinh (khi IN_PROGRESS/ARRIVED)
+   - [x] Hủy booking với lý do
+   - [x] Vet Bookings List với filter, search, pagination
+   - [x] Vet Schedule Calendar View
+   - [x] Unit tests (BookingControllerUnitTest, VetAssignmentServiceUnitTest)
+   - [ ] Check-in endpoint (bắt đầu khám)
+   - [ ] Check-out endpoint (kết thúc khám)
+   - [ ] Complete endpoint (hoàn thành sau thanh toán)
+   - [ ] GPS tracking cho SOS (ON_THE_WAY → ARRIVED)
+   - [ ] Payment flow integration
 
 ---
 

@@ -19,4 +19,9 @@ public interface ClinicServiceRepository extends JpaRepository<ClinicService, UU
     List<ClinicService> findByClinicAndIsHomeVisit(Clinic clinic, Boolean isHomeVisit);
 
     boolean existsByClinicAndMasterService(Clinic clinic, MasterService masterService);
+
+    /**
+     * Find active services by clinic ID
+     */
+    List<ClinicService> findByClinicClinicIdAndIsActiveTrue(UUID clinicId);
 }

@@ -22,6 +22,7 @@ class AppRoutes {
   static const String petOwnerHome = '/pet-owner/home';
   static const String vetHome = '/vet/home';
   static const String vetSchedule = '/vet/schedule';
+  static const String vetBookingDetail = '/vet/booking/:bookingId';
 
   // VET Patient Routes
   static const String vetPatients = '/vet/patients';

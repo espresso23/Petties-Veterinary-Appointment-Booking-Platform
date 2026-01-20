@@ -63,6 +63,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findByRoleAndDeletedAtIsNull(Role role);
 
     /**
+     * Find staff by working clinic and role
+     * Used for booking notifications (managers) and vet assignment
+     */
+    @Query("SELECT u FROM User u WHERE u.workingClinic.clinicId = :clinicId AND u.role = :role AND u.deletedAt IS NULL")
+    List<User> findByWorkingClinicIdAndRole(@Param("clinicId") UUID clinicId, @Param("role") Role role);
+
+    /**
      * Find users by working clinic and role.
      * Used to find clinic managers for chat push notifications.
      */

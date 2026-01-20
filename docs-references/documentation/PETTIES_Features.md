@@ -37,7 +37,7 @@
 3. Xem lịch làm việc của tôi
 4. Xem booking được gán
 5. Check-in bệnh nhân
-6. Check-out bệnh nhân
+6. **Hoàn thành khám (Treatment Finished)**: Bác sĩ xác nhận đã khám xong, gửi yêu cầu thanh toán tới Manager.
 7. Xem hồ sơ y tế thú cưng
 8. Xem sổ tiêm chủng của pet
 9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
@@ -59,7 +59,8 @@
 7. Gán bác sĩ cho booking
 8. Gán lại booking (nếu bác sĩ từ chối)
 9. Gán dịch vụ nếu user chưa chọn được
-10. Quản lý hủy & hoàn tiền
+10. **Nhận tiền & Checkout (Payment & Completion)**: Nhận thanh toán từ khách và thực hiện thao tác Checkout để đóng đơn hàng.
+11. Quản lý hủy & hoàn tiền
 11. Xem dashboard hôm nay
 12. Quản lý ca làm việc nhân viên
 14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
@@ -315,7 +316,7 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
+✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
