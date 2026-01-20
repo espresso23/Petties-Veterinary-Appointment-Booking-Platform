@@ -148,6 +148,36 @@ public class DataInitializer implements CommandLineRunner {
                     userRepository.save(vet);
                     log.info("   + Assigned vet to clinic: {}", clinic.getName());
                 }
+
+                // Ensure specific user has access to Clinic Data
+                String targetEmail = "congnvde180639@fpt.edu.vn";
+                User targetUser = userRepository.findByEmail(targetEmail).orElse(null);
+
+                if (targetUser == null) {
+                    // Create if not exists
+                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.VET);
+                }
+
+                if (targetUser != null) {
+                    boolean changed = false;
+                    // Force Role VET
+                    if (targetUser.getRole() != Role.VET && targetUser.getRole() != Role.ADMIN) {
+                        targetUser.setRole(Role.VET);
+                        changed = true;
+                    }
+                    // Assign Clinic
+                    if (targetUser.getWorkingClinic() == null
+                            || !targetUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId())) {
+                        targetUser.setWorkingClinic(clinic);
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        userRepository.save(targetUser);
+                        log.info("   + Updated existing user '{}' to Role VET and assigned Clinic '{}'", targetEmail,
+                                clinic.getName());
+                    }
+                }
             }
         }
 
@@ -155,9 +185,13 @@ public class DataInitializer implements CommandLineRunner {
         seedTestPets(petOwner, petOwner2, petOwner3);
 
         // Seed EMR records for pets
-        User vet = userRepository.findByUsername("vet").orElse(null);
-        if (vet != null && clinic != null) {
-            seedTestEmrRecords(vet, clinic);
+        User vetForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
+        if (vetForEmr == null) {
+            vetForEmr = userRepository.findByUsername("vet").orElse(null);
+        }
+
+        if (vetForEmr != null && clinic != null) {
+            seedTestEmrRecords(vetForEmr, clinic);
         }
 
         // Seed conversation & messages between pet owner và clinic manager (nếu đủ dữ
