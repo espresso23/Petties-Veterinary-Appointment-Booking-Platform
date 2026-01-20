@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 buildscript {
     repositories {
         google()
@@ -24,13 +27,19 @@ plugins {
     id("com.google.gms.google-services")  // ✅ ADD THIS LINE - Must be last
 }
 
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+val mapApiKey = localProperties.getProperty("MAP_API_KEY") ?: ""
+
 android {
-    namespace = "world.petties.mobile"
+    namespace = "world.petties.mobile" // Ensure this matches your package name
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "28.2.13676358"  // Fixed version for plugin compatibility
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
-        // Enable core library desugaring for flutter_local_notifications
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -47,7 +56,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
-        manifestPlaceholders["MAP_API_KEY"] = project.findProperty("MAP_API_KEY") as String? ?: ""
+        manifestPlaceholders["MAP_API_KEY"] = mapApiKey
     }
 
     // Flavor configuration for dev/test/prod environments

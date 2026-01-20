@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Environment configuration for different build modes
 class Environment {
@@ -20,7 +21,7 @@ class Environment {
       // For physical device with adb reverse: use localhost
       // Run: adb reverse tcp:8080 tcp:8080
       // For emulator: use 10.0.2.2
-      return 'http://localhost:8080/api';
+      return 'http://10.0.2.2:8080/api';
     }
     // iOS Simulator uses localhost
     return 'http://localhost:8080/api';
@@ -97,7 +98,7 @@ class Environment {
     'GOOGLE_SERVER_CLIENT_ID',
     // ⚠️ PHẢI dùng WEB Client ID, không phải iOS/Android Client ID
     defaultValue:
-        '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com',
+        '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification
@@ -119,5 +120,43 @@ class Environment {
     print('AI Service URL: $aiServiceUrl');
     // ignore: avoid_print
     print('================================');
+  }
+
+  // ============================================================
+  // Map & Location API Keys (loaded from .env or --dart-define)
+  // ============================================================
+  
+  // Compile-time dart-define values
+  static const String _mapApiKeyFromDartDefine = String.fromEnvironment('MAP_API_KEY');
+  static const String _goongApiKeyFromDartDefine = String.fromEnvironment('GOONG_API_KEY');
+  
+  /// Google Maps API Key
+  /// Priority: --dart-define > .env file (via dotenv)
+  static String get mapApiKey {
+    if (_mapApiKeyFromDartDefine.isNotEmpty) {
+      return _mapApiKeyFromDartDefine;
+    }
+    // Fallback to dotenv (requires dotenv.load() in main.dart)
+    try {
+      final key = dotenv.env['MAP_API_KEY'] ?? '';
+      return key;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Goong.io API Key for geocoding/directions
+  /// Priority: --dart-define > .env file (via dotenv)
+  static String get goongApiKey {
+    if (_goongApiKeyFromDartDefine.isNotEmpty) {
+      return _goongApiKeyFromDartDefine;
+    }
+    // Fallback to dotenv (requires dotenv.load() in main.dart)
+    try {
+      final key = dotenv.env['GOONG_API_KEY'] ?? '';
+      return key;
+    } catch (_) {
+      return '';
+    }
   }
 }

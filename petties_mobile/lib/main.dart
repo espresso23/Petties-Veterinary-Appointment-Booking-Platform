@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
@@ -20,6 +21,14 @@ import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables from .env file
+  try {
+    await dotenv.load(fileName: '.env');
+    debugPrint('✅ Loaded .env file');
+  } catch (e) {
+    debugPrint('⚠️ Could not load .env file: $e');
+  }
 
   // Initialize date formatting for Vietnamese (fast, synchronous)
   await initializeDateFormatting('vi', null);

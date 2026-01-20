@@ -55,6 +55,7 @@ public class DataInitializer implements CommandLineRunner {
         if (shouldSeedTestData()) {
             log.info("📦 Seeding test data for development/testing...");
             seedTestUsers();
+            seedTestClinics();
         } else {
             log.info("🔒 Production mode - skipping test data seeding");
         }
@@ -254,6 +255,120 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
         } catch (Exception e) {
             log.error("   x Failed to create clinic: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Seed test clinics for HCM City and Da Nang
+     */
+    private void seedTestClinics() {
+        log.info("🏥 Seeding test clinics for HCM City and Da Nang...");
+
+        // Create clinic owners if not exist
+        User hcmOwner1 = initializeUser("clinic_hcm1", "123456", "hcm1@petclinic.vn", "Nguyễn Văn An",
+                Role.CLINIC_OWNER);
+        User hcmOwner2 = initializeUser("clinic_hcm2", "123456", "hcm2@petclinic.vn", "Trần Thị Bình",
+                Role.CLINIC_OWNER);
+        User dnOwner1 = initializeUser("clinic_dn1", "123456", "dn1@petclinic.vn", "Phạm Minh Đức", Role.CLINIC_OWNER);
+        User dnOwner2 = initializeUser("clinic_dn2", "123456", "dn2@petclinic.vn", "Võ Thị Hoa", Role.CLINIC_OWNER);
+
+        // HCM City Clinics
+        if (hcmOwner1 != null) {
+            createTestClinic(hcmOwner1, "Phòng Khám Thú Y Sài Gòn Pet Care",
+                    "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM", "02838123456",
+                    "Quận 1", "TP. Hồ Chí Minh", 10.7731, 106.6980, 4.8, 156);
+
+            createTestClinic(hcmOwner1, "Thú Y Thủ Đức 24h",
+                    "456 Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP.HCM", "02837456789",
+                    "TP. Thủ Đức", "TP. Hồ Chí Minh", 10.8510, 106.7590, 4.5, 98);
+        }
+
+        if (hcmOwner2 != null) {
+            createTestClinic(hcmOwner2, "Pet Hospital Quận 3",
+                    "45 Võ Văn Tần, Phường 6, Quận 3, TP.HCM", "02839234567",
+                    "Quận 3", "TP. Hồ Chí Minh", 10.7812, 106.6892, 4.9, 234);
+
+            createTestClinic(hcmOwner2, "Phú Mỹ Hưng Pet Clinic",
+                    "789 Nguyễn Đức Cảnh, Phường Tân Phong, Quận 7, TP.HCM", "02854345678",
+                    "Quận 7", "TP. Hồ Chí Minh", 10.7295, 106.7186, 4.7, 189);
+
+            createTestClinic(hcmOwner2, "Happy Pets Clinic Bình Thạnh",
+                    "234 Đinh Bộ Lĩnh, Phường 26, Quận Bình Thạnh, TP.HCM", "02835567890",
+                    "Quận Bình Thạnh", "TP. Hồ Chí Minh", 10.8015, 106.7120, 4.6, 112);
+        }
+
+        // Da Nang Clinics
+        if (dnOwner1 != null) {
+            createTestClinic(dnOwner1, "Phòng Khám Thú Y Đà Nẵng Pet",
+                    "56 Trần Phú, Phường Hải Châu 1, Quận Hải Châu, Đà Nẵng", "02363123456",
+                    "Quận Hải Châu", "Đà Nẵng", 16.0678, 108.2208, 4.7, 87);
+
+            createTestClinic(dnOwner1, "Thú Y Thanh Khê Care",
+                    "78 Điện Biên Phủ, Phường Thanh Khê Đông, Quận Thanh Khê, Đà Nẵng", "02363345678",
+                    "Quận Thanh Khê", "Đà Nẵng", 16.0712, 108.1892, 4.4, 56);
+
+            createTestClinic(dnOwner1, "Liên Chiểu Animal Hospital",
+                    "456 Nguyễn Lương Bằng, Phường Hòa Khánh Bắc, Quận Liên Chiểu, Đà Nẵng", "02363567890",
+                    "Quận Liên Chiểu", "Đà Nẵng", 16.0834, 108.1456, 4.5, 92);
+        }
+
+        if (dnOwner2 != null) {
+            createTestClinic(dnOwner2, "Biển Xanh Pet Hospital",
+                    "123 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng", "02363234567",
+                    "Quận Sơn Trà", "Đà Nẵng", 16.0544, 108.2456, 4.8, 134);
+
+            createTestClinic(dnOwner2, "Ngũ Hành Sơn Pet Clinic",
+                    "234 Lê Văn Hiến, Phường Khuê Mỹ, Quận Ngũ Hành Sơn, Đà Nẵng", "02363456789",
+                    "Quận Ngũ Hành Sơn", "Đà Nẵng", 16.0189, 108.2512, 4.6, 78);
+        }
+
+        log.info("✅ Test clinics seeded successfully!");
+    }
+
+    /**
+     * Helper to create a test clinic with full details
+     */
+    private void createTestClinic(User owner, String name, String address, String phone,
+            String district, String province, double lat, double lng,
+            double rating, int ratingCount) {
+        // Check if clinic with this name already exists
+        if (clinicRepository.findByName(name).isPresent()) {
+            log.info("   - Clinic '{}' already exists.", name);
+            return;
+        }
+
+        Clinic clinic = new Clinic();
+        clinic.setOwner(owner);
+        clinic.setName(name);
+        clinic.setAddress(address);
+        clinic.setPhone(phone);
+        clinic.setDistrict(district);
+        clinic.setProvince(province);
+        clinic.setLatitude(java.math.BigDecimal.valueOf(lat));
+        clinic.setLongitude(java.math.BigDecimal.valueOf(lng));
+        clinic.setRatingAvg(java.math.BigDecimal.valueOf(rating));
+        clinic.setRatingCount(ratingCount);
+        clinic.setStatus(ClinicStatus.APPROVED);
+        clinic.setDescription("Phòng khám thú y chuyên nghiệp với đội ngũ bác sĩ giàu kinh nghiệm.");
+        clinic.setLogo("https://picsum.photos/seed/" + name.hashCode() + "/400/400");
+
+        // Set operating hours using proper OperatingHours objects
+        java.util.Map<String, com.petties.petties.model.OperatingHours> operatingHours = new java.util.HashMap<>();
+        String[] days = { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
+        for (String day : days) {
+            com.petties.petties.model.OperatingHours hours = new com.petties.petties.model.OperatingHours();
+            hours.setOpenTime(java.time.LocalTime.of(8, 0));
+            hours.setCloseTime(day.equals("sunday") ? java.time.LocalTime.of(17, 0) : java.time.LocalTime.of(20, 0));
+            hours.setIsClosed(false);
+            operatingHours.put(day, hours);
+        }
+        clinic.setOperatingHours(operatingHours);
+
+        try {
+            clinicRepository.save(clinic);
+            log.info("   + Created clinic '{}' in {} - Rating: {}", name, district, rating);
+        } catch (Exception e) {
+            log.error("   x Failed to create clinic '{}': {}", name, e.getMessage());
         }
     }
 }

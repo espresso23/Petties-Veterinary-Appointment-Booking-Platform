@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
+import 'package:petties_mobile/config/env/environment.dart';
 import '../../data/services/location_service.dart';
 import '../../providers/clinic_provider.dart';
 import '../../routing/app_routes.dart';
@@ -158,7 +159,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
         return GestureDetector(
           onTap: () async {
             // Open location picker with Goong API
-            const apiKey = String.fromEnvironment('GOONG_API_KEY');
+            final apiKey = Environment.goongApiKey;
             if (apiKey.isEmpty) {
               // Fallback to retry GPS if no API key
               provider.getCurrentLocation();

@@ -74,7 +74,11 @@ class Clinic {
       logo: json['logo'],
       operatingHours: json['operatingHours'] != null
           ? (json['operatingHours'] as Map<String, dynamic>).map(
-              (key, value) => MapEntry(key, OperatingHours.fromJson(value)))
+              (key, value) => MapEntry(
+                  key,
+                  value != null
+                      ? OperatingHours.fromJson(value)
+                      : OperatingHours(isClosed: true)))
           : null,
       status: json['status'] ?? 'PENDING',
       rejectionReason: json['rejectionReason'],
@@ -86,6 +90,7 @@ class Clinic {
       images: json['images'] != null ? List<String>.from(json['images']) : null,
       imageDetails: json['imageDetails'] != null
           ? (json['imageDetails'] as List)
+              .where((e) => e != null)
               .map((e) => ClinicImageInfo.fromJson(e))
               .toList()
           : null,

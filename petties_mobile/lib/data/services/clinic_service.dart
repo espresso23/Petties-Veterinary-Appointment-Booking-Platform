@@ -47,12 +47,16 @@ class ClinicService {
       // Handle paginated response
       if (response.data is Map && response.data['content'] != null) {
         final List<dynamic> content = response.data['content'];
-        return content.map((json) => Clinic.fromJson(json)).toList();
+        return content
+            .where((json) => json != null)
+            .map((json) => Clinic.fromJson(json))
+            .toList();
       }
 
       // Handle list response
       if (response.data is List) {
         return (response.data as List)
+            .where((json) => json != null)
             .map((json) => Clinic.fromJson(json))
             .toList();
       }
