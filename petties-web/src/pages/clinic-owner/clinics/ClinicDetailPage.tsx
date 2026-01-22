@@ -351,6 +351,44 @@ export function ClinicDetailPage() {
             </div>
           </div>
 
+          {/* Bank Payment Info - VietQR */}
+          {currentClinic.bankName && currentClinic.accountNumber && (
+            <div className="card-brutal p-6 mb-6">
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THONG TIN CHUYEN KHOAN</h2>
+              <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                {/* QR Code */}
+                <div className="flex-shrink-0">
+                  <div className="w-48 h-48 border-4 border-stone-900 shadow-brutal overflow-hidden bg-white">
+                    <img
+                      src={`https://img.vietqr.io/image/${currentClinic.bankName}-${currentClinic.accountNumber}-compact2.jpg`}
+                      alt="VietQR Code"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+                {/* Bank Details */}
+                <div className="flex-1 text-center md:text-left">
+                  <div className="mb-3">
+                    <div className="text-sm font-bold uppercase text-stone-600 mb-1">NGAN HANG</div>
+                    <div className="text-lg font-bold text-stone-900">{currentClinic.bankName}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold uppercase text-stone-600 mb-1">SO TAI KHOAN</div>
+                    <div className="text-xl font-mono font-bold text-stone-900 tracking-wider">
+                      {currentClinic.accountNumber}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs text-stone-500 italic">
+                    Quet ma QR bang ung dung ngan hang de chuyen khoan nhanh
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Operating Hours */}
           {currentClinic.operatingHours && Object.keys(currentClinic.operatingHours).length > 0 && (
             <div className="card-brutal p-6 mb-6">

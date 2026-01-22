@@ -2,10 +2,24 @@ package com.petties.petties.config;
 
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.User;
+import com.petties.petties.model.Pet;
+import com.petties.petties.model.Booking;
+import com.petties.petties.model.Payment;
+import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.Gender;
+import com.petties.petties.model.enums.PetStatus;
+import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
+import com.petties.petties.repository.PetRepository;
+import com.petties.petties.repository.BookingRepository;
+import com.petties.petties.repository.PaymentRepository;
+import com.petties.petties.repository.ClinicServiceRepository;
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.model.ChatConversation;
@@ -32,6 +46,10 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
+    private final PetRepository petRepository;
+    private final BookingRepository bookingRepository;
+    private final PaymentRepository paymentRepository;
+    private final ClinicServiceRepository clinicServiceRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -144,6 +162,9 @@ public class DataInitializer implements CommandLineRunner {
         if (petOwner != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner, clinicManager, clinic);
         }
+        
+        // Seed transaction test data for TransactionService
+        seedTransactionTestData(petOwner, clinic, clinicManager);
     }
 
     /**
@@ -243,6 +264,67 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
         } catch (Exception e) {
             log.error("   x Failed to create clinic: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Seed test data cho Transaction Service
+     * Tạo Pet, ClinicService, Booking với QR payment method
+     */
+    private void seedTransactionTestData(User petOwner, Clinic clinic, User clinicManager) {
+        if (petOwner == null || clinic == null) {
+            log.info("   - Skipping transaction test data (missing petOwner or clinic)");
+            return;
+        }
+
+        try {
+            // 1. Tạo Pet đơn giản
+            Pet pet = Pet.builder()
+                    .name("Test Dog")
+                    .user(petOwner)
+                    .species("Chó")
+                    .breed("Corgi")
+                    .gender("MALE")
+                    .dateOfBirth(java.time.LocalDate.of(2022, 1, 15))
+                    .weight(10.5)
+                    .build();
+            pet = petRepository.save(pet);
+            log.info("   + Created test pet: {}", pet.getName());
+
+            // 2. Tạo Booking (tạo trước để có booking_id)
+            Booking booking = Booking.builder()
+                    .bookingCode("BK-TEST-001")
+                    .pet(pet)
+                    .petOwner(petOwner)
+                    .clinic(clinic)
+                    .assignedVet(clinicManager)
+                    .bookingDate(java.time.LocalDate.now().plusDays(1))
+                    .bookingTime(java.time.LocalTime.of(10, 0))
+                    .type(com.petties.petties.model.enums.BookingType.IN_CLINIC)
+                    .totalPrice(java.math.BigDecimal.valueOf(2000))
+                    .status(com.petties.petties.model.enums.BookingStatus.PENDING)
+                    .notes("Test booking cho Transaction Service")
+                    .build();
+
+            booking = bookingRepository.save(booking);
+            log.info("   + Created test booking: {} - Total: {} VND", 
+                    booking.getBookingCode(), booking.getTotalPrice());
+
+            // 3. Tạo Payment với QR method (Payment là owning side, booking_id NOT NULL)
+            Payment payment = Payment.builder()
+                    .booking(booking)
+                    .amount(java.math.BigDecimal.valueOf(2000))
+                    .method(com.petties.petties.model.enums.PaymentMethod.QR)
+                    .status(com.petties.petties.model.enums.PaymentStatus.PENDING)
+                    .build();
+            payment = paymentRepository.save(payment);
+            booking.setPayment(payment);
+            bookingRepository.save(booking);
+            log.info("   + Created test payment: {} VND - Method: {}", 
+                    payment.getAmount(), payment.getMethod());
+
+        } catch (Exception e) {
+            log.error("   x Failed to seed transaction test data: {}", e.getMessage());
         }
     }
 }

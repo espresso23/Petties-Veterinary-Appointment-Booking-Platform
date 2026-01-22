@@ -5,6 +5,8 @@ import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
 import { DocumentDuplicateIcon } from '@heroicons/react/24/solid'
 import { LocationSelector } from '../common'
+import { BankSelector } from '../common/BankSelector'
+import { VietQRPreview } from '../common/VietQRPreview'
 
 interface ClinicFormProps {
   initialData?: Partial<ClinicRequest>
@@ -45,6 +47,8 @@ export function ClinicForm({
     specificLocation: initialData?.specificLocation || '',
     phone: initialData?.phone || '',
     email: initialData?.email || '',
+    bankName: initialData?.bankName || '',
+    accountNumber: initialData?.accountNumber || '',
     operatingHours: initialData?.operatingHours || {},
     latitude: initialData?.latitude,
     longitude: initialData?.longitude,
@@ -251,6 +255,45 @@ export function ClinicForm({
                 <p className="text-red-600 text-sm mt-1 font-bold">{errors.email}</p>
               )}
             </div>
+          </div>
+
+          {/* Bank Information */}
+          <div className="pt-4 border-t-2 border-stone-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+                  Ngan Hang
+                </label>
+                <BankSelector
+                  value={formData.bankName || ''}
+                  onChange={(bankCode) => handleChange('bankName', bankCode)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+                  So Tai Khoan
+                </label>
+                <input
+                  type="text"
+                  value={formData.accountNumber || ''}
+                  onChange={(e) => handleChange('accountNumber', e.target.value)}
+                  className="input-brutal"
+                  placeholder="VD: 1234567890"
+                  maxLength={50}
+                />
+              </div>
+            </div>
+
+            {/* QR Preview */}
+            {formData.bankName && formData.accountNumber && (
+              <div className="mt-4">
+                <VietQRPreview
+                  bankCode={formData.bankName}
+                  accountNumber={formData.accountNumber}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../data/services/pet_service.dart';
+
 import '../../data/models/pet.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
@@ -17,14 +20,24 @@ class PetOwnerHomeScreen extends StatefulWidget {
 
 class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   final PetService _petService = PetService();
+  final PetService _petService = PetService();
   List<Pet> _pets = [];
   bool _isLoading = true;
+
+  // Removed test booking state variables
 
   @override
   void initState() {
     super.initState();
     _fetchPets();
   }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+
 
   Future<void> _fetchPets() async {
     setState(() => _isLoading = true);
@@ -51,7 +64,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         backgroundColor: AppColors.primary,
         elevation: 0,
         title: const Text(
-          '🐕 PETTIES',
+          'PETTIES',
           style: TextStyle(
             fontWeight: FontWeight.w800,
             letterSpacing: 2,
@@ -81,14 +94,15 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Welcome Header - Brutal Card
-              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Pet Owner'),
+              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Chủ thú cưng'),
               const SizedBox(height: 24),
 
               // Quick Actions
               _buildSectionTitle('HÀNH ĐỘNG NHANH'),
               const SizedBox(height: 12),
               _buildQuickActions(context),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
               // My Pets Section
               _buildSectionHeader(context, 'THÚ CƯNG CỦA TÔI', 'Xem tất cả'),
@@ -149,7 +163,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'CHÀO MỪNG, $username! 👋',
+            'CHÀO MỪNG, $username!',
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
@@ -187,26 +201,30 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
-            child: _buildActionCard(
-                Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
+          child: _buildActionCard(
+              Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary),
+        ),
         const SizedBox(width: 12),
         Expanded(
-            child: _buildActionCard(
-                Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
+          child: _buildActionCard(
+              Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark),
+        ),
         const SizedBox(width: 12),
         Expanded(
-            child: GestureDetector(
-          onTap: () async {
-            await context.push(AppRoutes.addPet);
-            _fetchPets(); // Refresh after returning
-          },
-          child:
-              _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
-        )),
+          child: GestureDetector(
+            onTap: () async {
+              await context.push(AppRoutes.addPet);
+              _fetchPets();
+            },
+            child: _buildActionCard(
+                Icons.pets, 'Thêm\nthú cưng', AppColors.primaryLight),
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(
-            child: _buildActionCard(
-                Icons.medical_services, 'Sổ\ntiêm', AppColors.stone600)),
+          child: _buildActionCard(
+              Icons.medical_services, 'Sổ\ntiêm', AppColors.stone600),
+        ),
       ],
     );
   }
@@ -227,8 +245,9 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
+              color: color.withOpacity(0.15),
               border: Border.all(color: AppColors.stone900, width: 2),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 24),
           ),
@@ -265,7 +284,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           onPressed: () async {
             if (title == 'THÚ CƯNG CỦA TÔI') {
               await context.push(AppRoutes.myPets);
-              _fetchPets(); // Refresh when back from list
+              _fetchPets();
             }
           },
           child: Text(
@@ -320,7 +339,6 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       );
     }
 
-    // Horizontal List for Pets
     return SizedBox(
       height: 180,
       child: ListView.separated(
@@ -429,6 +447,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
+
+
   Widget _buildBrutalNavBar() {
     return Container(
       decoration: const BoxDecoration(
@@ -449,13 +469,10 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           onTap: (index) {
             switch (index) {
               case 0:
-                // Already on home
                 break;
               case 1:
-                // TODO: Navigate to explore
                 break;
               case 2:
-                // TODO: Navigate to bookings
                 break;
               case 3:
                 context.push(AppRoutes.profile);
@@ -463,13 +480,13 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
             }
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.explore), label: 'KHAM PHA'),
+                icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
+                icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.person), label: 'TAI KHOAN'),
+                icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
           ],
         ),
       ),

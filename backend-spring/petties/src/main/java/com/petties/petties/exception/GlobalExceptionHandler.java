@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -246,6 +247,43 @@ public class GlobalExceptionHandler {
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ErrorResponse> handleIllegalArgument(
+                        IllegalArgumentException ex,
+                        HttpServletRequest request) {
+                String message = ex.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                        message = "Dữ liệu không hợp lệ";
+                }
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+
+                log.warn("IllegalArgument at {}: {}", request.getRequestURI(), message);
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(NoResourceFoundException.class) // Code: 404
+        public ResponseEntity<ErrorResponse> handleNoResourceFound(
+                        NoResourceFoundException ex,
+                        HttpServletRequest request) {
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.NOT_FOUND.value())
+                                .error("Not Found")
+                                .message("Không tìm thấy endpoint hoặc tài nguyên")
+                                .path(request.getRequestURI())
+                                .build();
+
+                log.warn("No resource found at {}: {}", request.getRequestURI(), ex.getMessage());
+                return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
         }
 
         @ExceptionHandler(Exception.class) // Code: 500

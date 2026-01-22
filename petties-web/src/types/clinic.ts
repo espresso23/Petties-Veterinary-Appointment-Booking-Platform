@@ -26,6 +26,8 @@ export interface Clinic {
   specificLocation?: string // Vị trí chính xác (khu phố, tầng lầu, số nhà, etc.)
   phone: string
   email?: string
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
@@ -74,6 +76,8 @@ export interface ClinicRequest {
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
 }
 
 export interface ClinicResponse {
@@ -94,6 +98,8 @@ export interface ClinicResponse {
   specificLocation?: string // Vị trí chính xác
   phone: string
   email?: string
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
