@@ -129,7 +129,7 @@ export function ClinicForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Basic Information */}
-      <div className="card-brutal p-6">
+      <div className="card-brutal p-6 relative z-20">
         <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">THÔNG TIN CƠ BẢN</h3>
 
         <div className="space-y-4">
@@ -300,7 +300,7 @@ export function ClinicForm({
 
       {/* Logo Upload - Only show if clinicId exists (edit mode or after creation) */}
       {clinicId && (
-        <div className="card-brutal p-6">
+        <div className="card-brutal p-6 relative z-10">
           <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">LOGO PHÒNG KHÁM</h3>
           <ClinicLogoUpload
             clinicId={clinicId}
@@ -317,7 +317,7 @@ export function ClinicForm({
 
       {/* Images Upload - Only show if clinicId exists (edit mode or after creation) */}
       {clinicId && (
-        <div className="card-brutal p-6">
+        <div className="card-brutal p-6 relative z-10">
           <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">ẢNH PHÒNG KHÁM</h3>
           <ClinicImageUpload
             clinicId={clinicId}
@@ -328,7 +328,7 @@ export function ClinicForm({
       )}
 
       {/* Operating Hours */}
-      <div className="card-brutal p-6">
+      <div className="card-brutal p-6 relative z-10">
         <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">GIỜ LÀM VIỆC</h3>
 
         {/* 24/7 Option */}
