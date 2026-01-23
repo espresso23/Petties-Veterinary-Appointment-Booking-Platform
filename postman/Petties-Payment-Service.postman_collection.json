@@ -1,26 +1,16 @@
 {
 	"info": {
-		"_postman_id": "petties-payments",
-		"name": "Petties - Payment Service API (Consolidated)",
-		"description": "API endpoints cho Payment Service - Gộp từ Transaction, SePay và Payment controllers",
+		"_postman_id": "petties-payments-consolidated",
+		"name": "Petties - Payment Service (Consolidated)",
+		"description": "API endpoints cho Payment Service - Consolidated từ Transaction, SePay và Payment controllers",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Payment Service - Consolidated",
-			"auth": {
-				"type": "bearer",
-				"bearer": [
-					{
-						"key": "token",
-						"value": "{{accessToken}}",
-						"type": "string"
-					}
-				]
-			},
+			"name": "Payment Service",
 			"item": [
 				{
-					"name": "0. Đăng nhập Admin",
+					"name": "0. Login Admin",
 					"auth": {
 						"type": "noauth"
 					},
@@ -30,28 +20,16 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('Đăng nhập thành công', function () {",
+									"pm.test('Login successful', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
 									"const jsonData = pm.response.json();",
-									"",
 									"if (jsonData && jsonData.accessToken) {",
 									"    pm.environment.set('accessToken', jsonData.accessToken);",
 									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
-									"}",
-									"",
-									"if (jsonData &&json Data.refreshToken) {",
-									"    pm.environment.set('refreshToken', jsonData.refreshToken);",
-									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
-									"}",
-									"",
-									"if (jsonData && jsonData.role) {",
-									"    pm.environment.set('role', jsonData.role);",
-									"    pm.collectionVariables.set('role', jsonData.role);",
-									"}",
-									"",
-									"console.log('Đã lưu accessToken vào biến môi trường/collection');"
+									"    console.log('Access token saved:', jsonData.accessToken);",
+									"}"
 								]
 							}
 						}
@@ -61,27 +39,25 @@
 						"header": [
 							{
 								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text"
+								"value": "application/json"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
+							"raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "login"]
-						},
-						"description": "Đăng nhập để lấy accessToken"
-					},
-					"response": []
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					}
 				},
 				{
 					"name": "1. Get Payment Method (NEW)",
@@ -89,6 +65,7 @@
 						{
 							"listen": "test",
 							"script": {
+								"type": "text/javascript",
 								"exec": [
 									"console.log('Payment Method Response:', pm.response.json());",
 									"",
@@ -96,16 +73,13 @@
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test('Response has payment method info', function () {",
+									"pm.test('Has payment method info', function () {",
 									"    const jsonData = pm.response.json();",
 									"    pm.expect(jsonData).to.have.property('paymentMethod');",
 									"    pm.expect(jsonData).to.have.property('isQrPayment');",
 									"    pm.expect(jsonData.paymentMethod).to.match(/^(QR|CASH|CARD)$/);",
-									"});",
-									"",
-									"console.log('Payment Method:', pm.response.json().paymentMethod);"
-								],
-								"type": "text/javascript"
+									"});"
+								]
 							}
 						}
 					],
@@ -113,13 +87,19 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/payments/{{qrBookingId}}/method",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "{{qrBookingId}}", "method"]
+							"raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/method",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"{{qrBookingId}}",
+								"method"
+							]
 						},
-						"description": "Lấy payment method thật từ DB (QR/CASH/CARD) - thay thế is-qr endpoint cũ"
-					},
-					"response": []
+						"description": "Get actual payment method from DB (QR/CASH/CARD) - replaces old is-qr endpoint"
+					}
 				},
 				{
 					"name": "2. Get Payment Description",
@@ -127,100 +107,19 @@
 						{
 							"listen": "test",
 							"script": {
+								"type": "text/javascript",
 								"exec": [
-									"console.log('Response:', pm.response.json());",
+									"console.log('Description Response:', pm.response.json());",
 									"",
 									"pm.test('Status code is 200', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test('Response has required fields', function () {",
+									"pm.test('Has payment description', function () {",
 									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('success');",
-									"    pm.expect(jsonData).to.have.property('bookingId');",
 									"    pm.expect(jsonData).to.have.property('paymentDescription');",
-									"});",
-									"",
-									"if (pm.response.json().success && pm.response.json().paymentDescription) {",
-									"    pm.globals.set('paymentDescription', pm.response.json().paymentDescription);",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/payments/{{qrBookingId}}/description",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "{{qrBookingId}}", "description"]
-						},
-						"description": "Generate payment description cho QR booking"
-					},
-					"response": []
-				},
-				{
-					"name": "3. Get Booking Total Price",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"console.log('Total Price Response:', pm.response.json());",
-									"",
-									"pm.test('Status code is 200', function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test('Response has total price', function () {",
-									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('totalPrice');",
-									"    pm.expect(jsonData.success).to.be.true;",
-									"});",
-									"",
-									"if (pm.response.json().success) {",
-									"    pm.globals.set('totalPrice', pm.response.json().totalPrice);",
-									"    console.log('Total Price:', pm.response.json().totalPrice);",
-									"}"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/payments/{{qrBookingId}}/total",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "{{qrBookingId}}", "total"]
-						},
-						"description": "Lấy total price của booking"
-					},
-					"response": []
-				},
-				{
-					"name": "4. Check Payment Status (QR)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"console.log('QR Status Response:', pm.response.json());",
-									"",
-									"pm.test('Status code is 200', function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test('Response has status info', function () {",
-									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('status');",
-									"    pm.expect(jsonData.status).to.match(/^(PAID|PENDING)$/);",
 									"});"
-								],
-								"type": "text/javascript"
+								]
 							}
 						}
 					],
@@ -238,31 +137,126 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/payments/{{qrBookingId}}/status",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "{{qrBookingId}}", "status"]
+							"raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/description",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"{{qrBookingId}}",
+								"description"
+							]
 						},
-						"description": "Check QR payment status (PET_OWNER role required)"
-					},
-					"response": []
+						"description": "Generate payment description for QR booking"
+					}
 				},
 				{
-					"name": "5. Get Payment History (By PetOwner)",
+					"name": "3. Get Booking Total",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"console.log('Payment History Response:', pm.response.json());",
+									"console.log('Total Response:', pm.response.json());",
 									"",
 									"pm.test('Status code is 200', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test('Response has payments array', function () {",
+									"pm.test('Has total price', function () {",
 									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('totalPrice');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/total",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"{{qrBookingId}}",
+								"total"
+							]
+						},
+						"description": "Get total price of booking"
+					}
+				},
+				{
+					"name": "4. Check Payment Status",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"console.log('Status Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Has status info', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('status');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"{{qrBookingId}}",
+								"status"
+							]
+						},
+						"description": "Check QR payment status (requires PET_OWNER role)"
+					}
+				},
+				{
+					"name": "5. Get Payment History",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"console.log('History Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Has payments array', function () {",
+									"    const jsonData = pm.response.json();",
 									"    pm.expect(jsonData).to.have.property('payments');",
 									"    pm.expect(jsonData.payments).to.be.an('array');",
 									"});"
@@ -271,18 +265,30 @@
 						}
 					],
 					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
+						},
 						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}",
-								"type": "text"
-							}
-						],
+						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/payments/history/petowner/{{petOwnerId}}?limit=50&status={{paymentStatus}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "history", "petowner", "{{petOwnerId}}"],
+							"raw": "{{baseUrl}}/api/payments/history/petowner/{{petOwnerId}}?limit=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"history",
+								"petowner",
+								"{{petOwnerId}}"
+							],
 							"query": [
 								{
 									"key": "limit",
@@ -290,13 +296,13 @@
 								},
 								{
 									"key": "status",
-									"value": "{{paymentStatus}}"
+									"value": "{{paymentStatus}}",
+									"disabled": true
 								}
 							]
 						},
-						"description": "Lấy lịch sử thanh toán theo petOwnerId (ADMIN role required)"
-					},
-					"response": []
+						"description": "Get payment history by petOwnerId (requires ADMIN role)"
+					}
 				},
 				{
 					"name": "6. List SePay Transactions",
@@ -304,21 +310,19 @@
 						{
 							"listen": "test",
 							"script": {
+								"type": "text/javascript",
 								"exec": [
-									"console.log('SePay Transactions Response:', pm.response.json());",
+									"console.log('SePay Response:', pm.response.json());",
 									"",
 									"pm.test('Status code is 200', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test('Response has transactions array', function () {",
+									"pm.test('Has transactions array', function () {",
 									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('success');",
 									"    pm.expect(jsonData).to.have.property('transactions');",
-									"    pm.expect(jsonData.transactions).to.be.an('array');",
 									"});"
-								],
-								"type": "text/javascript"
+								]
 							}
 						}
 					],
@@ -326,9 +330,16 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/payments/sepay/transactions?limit=200",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "sepay", "transactions"],
+							"raw": "{{baseUrl}}/api/payments/sepay/transactions?limit=200",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"sepay",
+								"transactions"
+							],
 							"query": [
 								{
 									"key": "limit",
@@ -336,9 +347,8 @@
 								}
 							]
 						},
-						"description": "Lấy danh sách giao dịch từ SePay"
-					},
-					"response": []
+						"description": "List SePay transactions"
+					}
 				},
 				{
 					"name": "7. Get All Bookings (Admin)",
@@ -346,6 +356,7 @@
 						{
 							"listen": "test",
 							"script": {
+								"type": "text/javascript",
 								"exec": [
 									"console.log('All Bookings Response:', pm.response.json());",
 									"",
@@ -353,79 +364,44 @@
 									"    pm.response.to.have.status(200);",
 									"});",
 									"",
-									"pm.test('Response has bookings array', function () {",
+									"pm.test('Has bookings array', function () {",
 									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('success');",
-									"    pm.expect(jsonData).to.have.property('count');",
 									"    pm.expect(jsonData).to.have.property('bookings');",
 									"    pm.expect(jsonData.bookings).to.be.an('array');",
-									"});",
-									"",
-									"pm.test('Bookings count matches array length', function () {",
-									"    const jsonData = pm.response.json();",
-									"    pm.expect(jsonData.count).to.equal(jsonData.bookings.length);",
 									"});"
-								],
-								"type": "text/javascript"
+								]
 							}
 						}
 					],
 					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/payments/admin/all-bookings",
-							"host": ["{{baseUrl}}"],
-							"path": ["payments", "admin", "all-bookings"]
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessToken}}",
+									"type": "string"
+								}
+							]
 						},
-						"description": "Lấy tất cả bookings (ADMIN role required)"
-					},
-					"response": []
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/admin/all-bookings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"payments",
+								"admin",
+								"all-bookings"
+							]
+						},
+						"description": "Get all bookings (requires ADMIN role)"
+					}
 				}
-			],
-			"description": "All payment-related endpoints consolidated under /api/payments"
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"if (!pm.globals.get('baseUrl')) {",
-					"    pm.globals.set('baseUrl', 'http://localhost:8080');",
-					"}",
-					"",
-					"if (!pm.globals.get('qrBookingId')) {",
-					"    pm.globals.set('qrBookingId', '123e4567-e89b-12d3-a456-426614174001');",
-					"}",
-					"",
-					"if (!pm.globals.get('petOwnerId')) {",
-					"    pm.globals.set('petOwnerId', '00000000-0000-0000-0000-000000000000');",
-					"}",
-					"",
-					"console.log('=== Payment Service API (Consolidated) ===');",
-					"console.log('Base URL:', pm.globals.get('baseUrl'));",
-					"console.log('Booking ID:', pm.globals.get('qrBookingId'));"
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"console.log('=== Test Completed ===');",
-					"console.log('Response Time:', pm.response.responseTime + 'ms');",
-					"console.log('Status Code:', pm.response.code);"
-				]
-			}
+			]
 		}
 	],
 	"variable": [
@@ -436,26 +412,16 @@
 		},
 		{
 			"key": "adminUsername",
-			"value": "",
+			"value": "admin",
 			"type": "string"
 		},
 		{
 			"key": "adminPassword",
-			"value": "",
+			"value": "admin123",
 			"type": "string"
 		},
 		{
 			"key": "accessToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "refreshToken",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "role",
 			"value": "",
 			"type": "string"
 		},
@@ -471,7 +437,7 @@
 		},
 		{
 			"key": "paymentStatus",
-			"value": "",
+			"value": "PAID",
 			"type": "string"
 		}
 	]

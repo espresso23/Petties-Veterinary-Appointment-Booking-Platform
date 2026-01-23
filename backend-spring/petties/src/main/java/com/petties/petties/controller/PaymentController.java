@@ -71,6 +71,7 @@ public class PaymentController {
      * FIX: Returns actual PaymentMethod enum instead of boolean
      */
     @GetMapping("/{bookingId}/method")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> getPaymentMethod(@PathVariable UUID bookingId) {
         log.info("Get payment method for bookingId: {}", bookingId);
 
@@ -95,6 +96,7 @@ public class PaymentController {
      * Previously: GET /api/transactions/total-price/{bookingId}
      */
     @GetMapping("/{bookingId}/total")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> getBookingTotal(@PathVariable UUID bookingId) {
         log.info("Get total price for bookingId: {}", bookingId);
 
@@ -121,6 +123,7 @@ public class PaymentController {
      * Previously: GET /api/transactions/payment-description/{bookingId}
      */
     @GetMapping("/{bookingId}/description")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> getPaymentDescription(@PathVariable UUID bookingId) {
         log.info("Get payment description for bookingId: {}", bookingId);
 
@@ -183,6 +186,7 @@ public class PaymentController {
      * Previously: GET /sepay/transactions
      */
     @GetMapping("/sepay/transactions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLINIC_OWNER')")
     public ResponseEntity<Map<String, Object>> listSePayTransactions(
             @RequestParam(defaultValue = "200") Integer limit,
             @RequestParam(required = false, name = "account_number") String accountNumber,
