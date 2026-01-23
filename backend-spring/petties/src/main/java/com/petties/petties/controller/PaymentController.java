@@ -1,10 +1,14 @@
 package com.petties.petties.controller;
 
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.integration.sepay.SePayClient;
 import com.petties.petties.integration.sepay.dto.SePayTransactionsListResponseDto;
 import com.petties.petties.model.Booking;
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Payment;
+import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.PaymentRepository;
+import com.petties.petties.service.AuthService;
 import com.petties.petties.service.PaymentHistoryService;
 import com.petties.petties.service.QrPaymentService;
 import com.petties.petties.service.TransactionService;
@@ -39,6 +43,17 @@ public class PaymentController {
     private final TransactionService transactionService;
     private final SePayClient sePayClient;
     private final PaymentRepository paymentRepository;
+    private final AuthService authService;
+    private final ClinicRepository clinicRepository;
+
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * Get current authenticated user's ID
+     */
+    private UUID getCurrentUserId() {
+        return authService.getCurrentUser().getUserId();
+    }
 
     // ==================== QR PAYMENT STATUS ====================
 
@@ -172,6 +187,103 @@ public class PaymentController {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("petOwnerId", petOwnerId);
+        response.put("count", payments.size());
+        response.put("payments", payments);
+        response.put("message", "Lấy lịch sử thanh toán thành công");
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * PetOwner: Get own payment history
+     * NEW: Self-service endpoint for pet owners
+     */
+    @GetMapping("/history/my-payments")
+    @PreAuthorize("hasRole('PET_OWNER')")
+    public ResponseEntity<Map<String, Object>> getMyPayments(
+            @RequestParam(defaultValue = "50") Integer limit,
+            @RequestParam(required = false) String status) {
+        UUID petOwnerId = getCurrentUserId();
+        log.info("PetOwner {} viewing own payment history", petOwnerId);
+
+        List<Map<String, Object>> payments = paymentHistoryService.getPaymentHistoryByPetOwnerId(
+                petOwnerId, limit, status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("count", payments.size());
+        response.put("payments", payments);
+        response.put("message", "Lấy lịch sử thanh toán thành công");
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * ClinicOwner/Manager: Get payment history for their clinic
+     * NEW: Clinic-based payment history with ownership verification
+     */
+    @GetMapping("/history/my-clinic")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getMyClinicPayments(
+            @RequestParam(defaultValue = "50") Integer limit,
+            @RequestParam(required = false) String status) {
+        UUID userId = getCurrentUserId();
+        log.info("User {} requesting clinic payment history", userId);
+
+        // Find user's clinic
+        Clinic clinic = clinicRepository.findFirstByOwnerUserId(userId)
+                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
+                        "Bạn chưa có phòng khám nào"));
+
+        List<Map<String, Object>> payments = paymentHistoryService.getPaymentHistoryByClinicId(
+                clinic.getClinicId(), limit, status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("clinicId", clinic.getClinicId());
+        response.put("clinicName", clinic.getName());
+        response.put("count", payments.size());
+        response.put("payments", payments);
+        response.put("message", "Lấy lịch sử thanh toán của phòng khám thành công");
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Admin: Get payment history for a specific clinic
+     * NEW: Admin can view any clinic, with optional ownership check for Clinic
+     * staff
+     */
+    @GetMapping("/history/clinic/{clinicId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CLINIC_OWNER', 'CLINIC_MANAGER')")
+    public ResponseEntity<Map<String, Object>> getClinicPayments(
+            @PathVariable UUID clinicId,
+            @RequestParam(defaultValue = "50") Integer limit,
+            @RequestParam(required = false) String status) {
+        UUID userId = getCurrentUserId();
+        log.info("User {} requesting payment history for clinic {}", userId, clinicId);
+
+        // Verify clinic exists
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException(
+                        "Không tìm thấy phòng khám"));
+
+        // Check ownership for non-admin users
+        boolean isAdmin = authService.getCurrentUser().getRole().name().equals("ADMIN");
+        if (!isAdmin) {
+            boolean ownsClinic = clinicRepository.existsByClinicIdAndOwnerUserId(clinicId, userId);
+            if (!ownsClinic) {
+                throw new ForbiddenException("Bạn không có quyền xem lịch sử thanh toán của phòng khám này");
+            }
+        }
+
+        List<Map<String, Object>> payments = paymentHistoryService.getPaymentHistoryByClinicId(
+                clinicId, limit, status);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("clinicId", clinicId);
+        response.put("clinicName", clinic.getName());
         response.put("count", payments.size());
         response.put("payments", payments);
         response.put("message", "Lấy lịch sử thanh toán thành công");

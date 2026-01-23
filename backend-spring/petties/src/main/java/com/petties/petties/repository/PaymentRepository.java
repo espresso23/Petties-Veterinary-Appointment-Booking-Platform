@@ -38,9 +38,22 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      */
     List<Payment> findByMethod(com.petties.petties.model.enums.PaymentMethod method);
 
-    @EntityGraph(attributePaths = {"booking", "booking.petOwner"})
+    @EntityGraph(attributePaths = { "booking", "booking.petOwner" })
     List<Payment> findByBookingPetOwnerUserIdOrderByCreatedAtDesc(UUID petOwnerId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"booking", "booking.petOwner"})
-    List<Payment> findByBookingPetOwnerUserIdAndStatusOrderByCreatedAtDesc(UUID petOwnerId, PaymentStatus status, Pageable pageable);
+    @EntityGraph(attributePaths = { "booking", "booking.petOwner" })
+    List<Payment> findByBookingPetOwnerUserIdAndStatusOrderByCreatedAtDesc(UUID petOwnerId, PaymentStatus status,
+            Pageable pageable);
+
+    // ========== CLINIC-BASED QUERIES ==========
+
+    /**
+     * Find payments by clinic ID
+     */
+    @EntityGraph(attributePaths = { "booking", "booking.clinic", "booking.petOwner" })
+    List<Payment> findByBookingClinicClinicIdOrderByCreatedAtDesc(UUID clinicId, Pageable pageable);
+
+    @EntityGraph(attributePaths = { "booking", "booking.clinic", "booking.petOwner" })
+    List<Payment> findByBookingClinicClinicIdAndStatusOrderByCreatedAtDesc(UUID clinicId, PaymentStatus status,
+            Pageable pageable);
 }
