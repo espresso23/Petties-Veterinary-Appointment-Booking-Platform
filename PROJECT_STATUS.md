@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-20
-> **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)
-> **Overall Progress:** 72%
+> **Last Updated:** 2026-01-22
+> **Current Sprint:** Sprint 9 (27/01 - 02/02/2026)
+> **Overall Progress:** 83.5%
 
 ---
 
@@ -14,11 +14,11 @@
 | Pet Management | ✅ Done | 100% |
 | Clinic System | ✅ Done | 100% |
 | Vet Scheduling | ✅ Done | 100% |
-| Notifications | 🔄 Active | 60% |
-| AI Assistant | 🔄 Active | 40% |
-| Booking Flow | 🔄 Active | 85% |
-| EMR (Medical Records) | 🔄 Active | 40% |
-| SOS Emergency | 💡 Planned | 0% |
+| Notifications | ✅ Done | 100% |
+| AI Assistant | 🔄 Active | 70% |
+| Booking Flow | 🔄 Active | 90% |
+| EMR (Medical Records) | ✅ Done | 100% |
+| SOS Emergency | 🔄 Active | 20% |
 
 ---
 
@@ -62,38 +62,23 @@
 
 ---
 
-## 🔄 In Progress (Sprint 10)
+## 🔄 In Progress (Sprint 9)
 
 ### Current Focus
-1. **VetShift Refinements**
-   - [x] Calendar Picker Component
-   - [x] Shift Conflict Detection
+1. **SOS Emergency System**
+   - [ ] Emergency Clinic Filter
+   - [ ] Live GPS Tracking (WebSocket)
+   - [ ] SOS Tracking Map UI
 
-2. **Notification System**
-   - [x] FCM Backend Integration
-   - [x] Mobile Push Handling
-   - [x] SSE Web Integration
-   - [ ] Scheduled Reminders (Cron)
+2. **Payment Integration**
+   - [ ] Backend Payment API (Stripe/QR)
+   - [ ] Online Payment Flow
+   - [ ] Revenue Split Logic (15% Platform, 85% Clinic)
 
-3. **Booking Module (Clinic Manager & Vet)**
-   - [x] Backend API: 12 endpoints đầy đủ
-   - [x] Booking Dashboard (Manager) với filter tabs
-   - [x] Xem chi tiết booking với modal
-   - [x] Check Vet Availability trước khi confirm
-   - [x] **Inline Dropdown chọn vet thủ công** (thay thế auto-assign)
-   - [x] Preview suggested vet với avatar, specialty, workload
-   - [x] Confirm với manual/auto vet assignment
-   - [x] Đổi vet (ReassignVetModal) cho dịch vụ đã gán
-   - [x] Thêm dịch vụ phát sinh (khi IN_PROGRESS/ARRIVED)
-   - [x] Hủy booking với lý do
-   - [x] Vet Bookings List với filter, search, pagination
-   - [x] Vet Schedule Calendar View
-   - [x] Unit tests (BookingControllerUnitTest, VetAssignmentServiceUnitTest)
-   - [ ] Check-in endpoint (bắt đầu khám)
-   - [ ] Check-out endpoint (kết thúc khám)
-   - [ ] Complete endpoint (hoàn thành sau thanh toán)
-   - [ ] GPS tracking cho SOS (ON_THE_WAY → ARRIVED)
-   - [ ] Payment flow integration
+3. **Booking & Appointment Finalization**
+   - [ ] Check-in flow implementation
+   - [ ] Check-out flow implementation
+   - [ ] Complete appointment status transition
 
 ---
 

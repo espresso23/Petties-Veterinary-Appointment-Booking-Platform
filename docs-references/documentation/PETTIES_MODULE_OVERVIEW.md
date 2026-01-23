@@ -2,7 +2,7 @@
 
 **Document Purpose:** Tổng hợp đầy đủ các module/feature của project Petties khi hoàn thành
 **For:** Stakeholder review, scope verification, team alignment
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-22  
 
 ---
 
@@ -28,7 +28,7 @@
 | 16 | **Notification** | In-app notifications, FCM push, SSE realtime | 8 | ✅ Done |
 | 17 | **Search & Discovery** | Nearby clinics, keyword search, geocoding | 3 | ⏳ Pending |
 | 18 | **Home Visit Tracking** | GPS realtime tracking for home visits | 3 | ❌ Phase 2 |
-| 19 | **SOS Emergency** | Emergency booking, find nearest clinic, priority queue | 5 | ❌ Phase 2 |
+| 19 | **SOS Emergency** | Emergency booking, find nearest clinic, priority queue | 5 | ✅ In Scope |
 
 **Total Backend Endpoints:** ~90+
 
@@ -46,6 +46,7 @@
 | 06 | **Knowledge Base** | Upload/delete documents, indexing status | ✅ Done |
 | 07 | **Agent Playground** | Interactive chat testing with ReAct trace | ✅ Done |
 | 08 | **WebSocket Chat** | Real-time streaming responses | ✅ Done |
+| 09 | **AI Vision Analysis** | Image-based pet health analysis & alerts | ✅ In Scope |
 
 ---
 
@@ -95,14 +96,14 @@
 | 11 | **EMR Viewer** | PET_OWNER | View pet medical records | ❌ Phase 2 |
 | 12 | **Vaccination Viewer** | PET_OWNER | View vaccination history | ❌ Phase 2 |
 | 13 | **Home Visit Tracking** | PET_OWNER | Realtime GPS tracking of vet | ❌ Phase 2 |
-| 14 | **SOS Emergency** | PET_OWNER | Emergency booking, track rescue vet, ETA | ❌ Phase 2 |
+| 14 | **SOS Emergency** | PET_OWNER | Emergency booking, track rescue vet, ETA | ✅ Confirmed |
 | 15 | **Vet Home** | VET | Today's appointments, quick stats | ✅ Done |
 | 16 | **Vet Schedule** | VET | Calendar view, shift info, view-only slots | ✅ Done |
 | 17 | **Vet Bookings** | VET | Assigned bookings, view details, check-in/out, add incurred services | ⏳ Pending |
 | 18 | **EMR Creation** | VET | Create/edit medical records | ❌ Phase 2 |
 | 19 | **Vaccination Entry** | VET | Add vaccination records | ❌ Phase 2 |
 | 20 | **Vet Chat** | VET | Chat with Pet Owner | ⏳ Pending |
-| 21 | **SOS Response** | VET | Start emergency travel, GPS broadcast, mark arrived | ❌ Phase 2 |
+| 21 | **SOS Response** | VET | Start emergency travel, GPS broadcast, mark arrived | ✅ Confirmed |
 | 22 | **Profile Screen** | All | View/edit profile, avatar, password | ✅ Done |
 | 23 | **Notifications** | All | Push notifications, in-app list | ⏳ Pending |
 
@@ -127,7 +128,9 @@
 | 13 | **Error Handling** | Centralized with Vietnamese messages | All | ✅ Done |
 | 14 | **Neobrutalism Design** | Consistent UI design system | Web + Mobile | ✅ Done |
 | 15 | **Incurred Services** | Vet can add extra services during examination | BE + Mobile | ⏳ Pending |
-| 16 | **SOS GPS Tracking** | Real-time GPS for emergency rescue only | All | ❌ Phase 2 |
+| 16 | **SOS GPS Tracking** | Real-time GPS for emergency rescue only | All | ✅ Confirmed |
+
+---
 
 ---
 
@@ -135,8 +138,6 @@
 
 | No | Feature | Reason | Priority |
 |----|---------|--------|:--------:|
-| 01 | SOS Emergency Booking | Logic phức tạp, GPS tracking, priority queue | High |
-| 02 | SOS Vet Response | GPS broadcast, route navigation phức tạp | High |
 | 03 | Video Consultation | WebRTC phức tạp | Low |
 | 04 | Multi-Agent Architecture | Simplified to Single Agent | Low |
 | 05 | Email/SMS Notifications | Push đủ cho MVP | Medium |
@@ -160,14 +161,14 @@
 
 | Category | Total | Done | In Progress | Pending | Phase 2 |
 |----------|:-----:|:----:|:-----------:|:-------:|:-------:|
-| Backend Modules | 19 | 9 | 0 | 3 | 7 |
-| AI Service Modules | 8 | 7 | 1 | 0 | 0 |
-| Web Frontend Modules | 22 | 17 | 0 | 4 | 1 |
-| Mobile Frontend Modules | 23 | 8 | 0 | 8 | 7 |
-| Cross-Cutting Features | 16 | 10 | 1 | 2 | 3 |
-| **TOTAL** | **88** | **51** | **2** | **17** | **18** |
+| Backend Modules | 19 | 12 | 1 | 0 | 6 |
+| AI Service Modules | 9 | 7 | 2 | 0 | 0 |
+| Web Frontend Modules | 22 | 19 | 1 | 1 | 1 |
+| Mobile Frontend Modules | 23 | 11 | 2 | 3 | 7 |
+| Cross-Cutting Features | 16 | 12 | 1 | 0 | 3 |
+| **TOTAL** | **89** | **61** | **7** | **4** | **17** |
 
-**Overall Progress:** ~58% Complete (MVP Sprint 1-6 focus)
+**Overall Progress:** ~83.5% Complete (Based on 91/109 Use Cases)
 
 ---
 
@@ -191,8 +192,8 @@
 
 ---
 
-**Document Version:** 1.1
-**Last Updated:** 2026-01-07
+**Document Version:** 1.5.0  
+**Last Updated:** 2026-01-22  
 **Prepared by:** Petties Development Team
 **References:**
 - `PETTIES_Features.md` - Feature specifications

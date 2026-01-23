@@ -1,6 +1,6 @@
 # 🎫 PETTIES WORK BREAKDOWN STRUCTURE (WBS)
 ## Project: Veterinary Appointment & SOS Platform
-**Version:** 7.1 | **Last Updated:** 20/01/2026 | **Audited from Codebase**  
+**Version:** 1.5.0 | **Last Updated:** 22/01/2026 | **Audited from Codebase**  
 **Team Size:** 5 members | **Sprint Duration:** 1 week | **Target Effort:** ~40h/person/week
 
 ---
@@ -53,6 +53,7 @@
 | US-PAY-02 | Thanh toán thẻ (Card) | 💡 |
 | US-PAY-03 | Thanh toán QR Code (SePay) | 💡 |
 | US-CHT-01 | Chat với Clinic Manager | 💡 |
+| US-AUTH-06 | Hủy yêu cầu thay đổi Email (Cancel Email Change) | ✅ |
 
 ---
 
@@ -74,6 +75,7 @@
 | US-APT-05 | Checkout (hoàn thành khám) | ✅ |
 | US-NTF-01 | Nhận thông báo đẩy (Push) | ✅ |
 | US-NTF-03 | Xem danh sách thông báo | ✅ |
+| US-APT-09 | Dashboard Tổng quan lịch hẹn (Vet Home Dashboard Summary) | ✅ |
 
 ---
 
@@ -92,6 +94,10 @@
 | US-NTF-02 | Nhận Real-time Notification (SSE) | ✅ |
 | US-NTF-03 | Xem Notification Center | ✅ |
 | US-CHT-01 | Chat với Pet Owner | 💡 |
+| US-SCH-04 | Block/Unblock Slot thủ công (Manual Slot Control) | ✅ |
+| US-SCH-05 | Xóa ca trực hàng loạt (Bulk Shift Delete) | ✅ |
+| US-APT-07 | Kiểm tra tính khả dụng của bác sĩ (Check Vet Availability) | ✅ |
+| US-APT-08 | Gán lại bác sĩ cho dịch vụ (Reassign Vet) | ✅ |
 
 ---
 
@@ -128,9 +134,9 @@
 
 | Actor | Total US | Done | In Progress | Planned |
 |-------|----------|------|-------------|---------|
-| **Pet Owner** | 16 | 9 | 4 | 3 |
-| **Vet** | 9 | 5 | 0 | 4 |
-| **Clinic Manager** | 9 | 7 | 0 | 2 |
+| **Pet Owner** | 17 | 10 | 4 | 3 |
+| **Vet** | 10 | 6 | 0 | 4 |
+| **Clinic Manager** | 13 | 11 | 0 | 2 |
 | **Clinic Owner** | 7 | 7 | 0 | 0 |
 | **Admin** | 6 | 6 | 0 | 0 |
 
@@ -305,6 +311,7 @@
 - `US-AI-03` Symptom checker with AI suggestions
 - `US-AI-04` AI-assisted booking via conversation
 - `US-AI-05` Web search for pet products (DuckDuckGo)
+- `US-AI-06` AI Vision Pet Health Analysis (Images)
 
 **Dependencies:** EPIC-DISCOVERY (for AI booking), external AI services
 
@@ -398,15 +405,17 @@
 
 | Sprint | Dates | Primary EPICs | Key Deliverables | Status |
 |--------|-------|---------------|------------------|--------|
+| Sprint | Dates | Primary EPICs | Key Deliverables | Status |
+|--------|-------|---------------|------------------|--------|
 | **S1** | 02/12 - 08/12/2025 | AUTH, USR | Register OTP, Login, Google OAuth, Profile | ✅ Done |
 | **S2** | 09/12 - 15/12/2025 | AUTH, PET, CLINIC | Session mgmt, Pet CRUD, Clinic registration | ✅ Done |
 | **S3** | 16/12 - 22/12/2025 | CLINIC | Staff management (Vet, Manager) | ✅ Done |
 | **S4** | 23/12 - 29/12/2025 | SCHED, NOTI | Shift creation, Push/SSE notifications | ✅ Done |
 | **S5** | 30/12 - 05/01/2026 | SCHED, AI | Block/Unblock slots, RAG knowledge base | ✅ Done |
-| **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | 🔄 Current |
-| **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | 💡 Planned |
-| **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | 💡 Planned |
-| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | 💡 Planned |
+| **S6** | 06/01 - 12/01/2026 | DISCOVERY, AI | Nearby search, Clinic detail, AI Chat | ✅ Done |
+| **S7** | 13/01 - 19/01/2026 | DISCOVERY, APPOINTMENT | Clinic filters, Booking wizard | ✅ Done |
+| **S8** | 20/01 - 26/01/2026 | APPOINTMENT, MEDICAL | Check-in/out, EMR SOAP, Vaccination | ✅ Done |
+| **S9** | 27/01 - 02/02/2026 | SOS, PAYMENT | SOS booking, GPS tracking, Payments | 🔄 Current |
 | **S10+** | 03/02 - 23/02/2026 | AI (Advanced) | AI booking, Review system, Bug fixes | 💡 Planned |
 
 ---

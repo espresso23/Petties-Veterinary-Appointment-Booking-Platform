@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 1.3.2 (Booking Module - Manager Vet Assignment)
-**Last Updated:** 2026-01-18
+**Version:** 1.6.1 (109 Use Cases + Updated ERD with 24 Entities + Section 3.9 EMR)
+**Last Updated:** 2026-01-23
 **Document Status:** In Progress
 
 ---
@@ -11,6 +11,7 @@
 
 1. [Product Overview](#1-product-overview)
 2. [User Requirements](#2-user-requirements)
+    - [2.3 Use Case Implementation Status Reference](#23-use-case-implementation-status-reference)
 3. [Functional Requirements (Screen Flow)](#3-functional-requirements)
     - [3.2 Authentication & Onboarding](#32-authentication--onboarding)
     - [3.3 User Profile & Account Setup](#33-user-profile--account-setup)
@@ -176,6 +177,7 @@ graph TB
 | UC-PO-03 | Pet Owner | **Manage Personal Profile** (Update Info, Avatar) | Medium |
 | UC-PO-03d| Pet Owner | **Change Password** | Medium |
 | UC-PO-03c| Pet Owner | **Change Email** | Low |
+| UC-PO-24 | Pet Owner | **Cancel Email Change Request** | Low |
 
 #### 2.2.3 Pet Records & Health Hub
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -184,6 +186,8 @@ graph TB
 | UC-PO-11 | Pet Owner | **View Pet EMR Records** | Medium |
 | UC-PO-12 | Pet Owner | **View Vaccination Records** | Medium |
 | UC-VT-13 | Vet | **View Patient History** (Mobile) | High |
+| UC-PO-21 | Pet Owner | **Update Pet Allergies** (Separate endpoint) | Low |
+| UC-PO-22 | Pet Owner | **Update Pet Weight** (Quick update) | Low |
 
 #### 2.2.4 Clinic Discovery & Search
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -203,10 +207,13 @@ graph TB
 | UC-VT-04 | Vet | **Update Appointment Progress** | High |
 | UC-VT-05 | Vet | **Check-in Patient** | High |
 | UC-VT-09 | Vet | **Mark Treatment Finished** (Request payment) | High |
+| UC-VT-14 | Vet | **Vet Home Dashboard Summary** (Today stats) | Medium |
 | UC-CM-05 | Manager | **View New Bookings** | High |
 | UC-CM-06 | Manager | **Assign Vet to Booking** | High |
 | UC-CM-07 | Manager | **Handle Cancellations & Refunds** | Medium |
 | UC-CM-10 | Manager | **Receive Payment & Checkout** (Close booking) | High |
+| UC-CM-14 | Manager | **Check Vet Availability** (Before confirm) | Medium |
+| UC-CM-15 | Manager | **Reassign Vet to Service** | Medium |
 
 #### 2.2.6 Staffing & Scheduling
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -214,9 +221,11 @@ graph TB
 | UC-VT-02 | Vet | **View Personal Schedule** | High |
 | UC-CM-02 | Manager | **View Staff List** | High |
 | UC-CM-04 | Manager | **Create Vet Shift** (Manual Scheduling) | High |
-| UC-CM-05 | Manager | **Manage Shifts** (Delete/Edit) | Medium |
-| UC-CO-06 | Clinic Owner | **Quick Add Staff** (Manager/Vet) | Medium |
+| UC-CM-16 | Manager | **Manage Shifts** (Delete/Edit) | Medium |
+| UC-CO-06 | Clinic Owner | **Quick Add Staff by Email** (Google OAuth sync) | Medium |
 | UC-CO-07 | Clinic Owner | **Manage Clinic Staff** | Medium |
+| UC-CM-11 | Manager | **Block/Unblock Slot** (Manual slot management) | Low |
+| UC-CM-12 | Manager | **Bulk Shift Delete** (Delete multiple shifts) | Low |
 
 #### 2.2.7 Clinical Operations & Service Setup
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -226,6 +235,11 @@ graph TB
 | UC-CO-04 | Clinic Owner | **Configure Pricing & Weights** | High |
 | UC-CO-08 | Clinic Owner | **Manage Master Services** | High |
 | UC-CO-05 | Clinic Owner | **View Revenue Reports** | Medium |
+| UC-CO-09 | Clinic Owner | **Clinic Geocode** (Convert address to GPS) | Medium |
+| UC-CO-10 | Clinic Owner | **Clinic Distance Calculation** (Calculate from user) | Medium |
+| UC-CO-11 | Clinic Owner | **Service Home Visit Toggle** (Enable/disable) | Low |
+| UC-CO-12 | Clinic Owner | **Service Price Per KM** (Distance pricing) | Low |
+| UC-CO-13 | Clinic Owner | **Bulk Price Per KM Update** | Low |
 
 #### 2.2.8 Patient Management (EMR & Care)
 | UC-ID | Actor | User Story / Requirement | Priority |
@@ -255,6 +269,8 @@ graph TB
 | UC-PO-14a| Pet Owner | **Ask Pet Care Advice** (RAG) | Medium |
 | UC-PO-14b| Pet Owner | **Symptom Check** | Medium |
 | UC-PO-14c| Pet Owner | **AI Booking Assistant** | Medium |
+| UC-PO-20 | Pet Owner | **Real-time Chat** (WebSocket) | Medium |
+| UC-PO-23 | Pet Owner | **Chat Images Gallery** (View all images) | Low |
 | UC-AD-05 | Admin | **Manage Agent Tools** | Low |
 | UC-AD-06 | Admin | **Manage Knowledge Base** | Low |
 | UC-AD-07 | Admin | **Test Agent Playground** | Low |
@@ -267,8 +283,186 @@ graph TB
 | UC-AD-04 | Admin | **View Platform Stats** | Medium |
 | UC-AD-08 | Admin | **View User Reports** | Medium |
 | UC-AD-09 | Admin | **Moderate Users** (Ban/Suspend) | Medium |
+| UC-AD-10 | Admin | **SSE Real-time Notifications** | Low |
 | UC-PO-13 | Pet Owner | **Rate & Review** | Low |
 | UC-PO-16 | Pet Owner | **Report Violation** | Low |
+
+### 2.3 Use Case Implementation Status Reference
+
+> **Legend:** ✅ Implemented | 🔄 In Progress | ❌ Not Started | 📋 Documented in SRS
+
+#### Authentication & Account Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 1 | Register Account | UC-PO-01 | 3.2.1 | ✅ AuthController | ✅ Mobile | ✅ Done |
+| 2 | Login | UC-PO-01a | 3.2.2 | ✅ AuthController | ✅ Mobile/Web | ✅ Done |
+| 3 | Login by Google | UC-PO-02 | 3.2.2 | ✅ AuthController | ✅ Mobile/Web | ✅ Done |
+| 4 | Forgot password | UC-PO-01b | 3.2.3 | ✅ AuthController | ✅ Mobile/Web | ✅ Done |
+| 5 | Logout | UC-PO-01c | 3.2.4 | ✅ AuthController | ✅ Mobile/Web | ✅ Done |
+| 6 | View profile | UC-PO-03 | 3.3.1 | ✅ UserController | ✅ Mobile/Web | ✅ Done |
+| 7 | Edit information | UC-PO-03 | 3.3.1 | ✅ UserController | ✅ Mobile/Web | ✅ Done |
+| 8 | Reset password | UC-PO-03d | 3.3.2 | ✅ UserController | ✅ Mobile/Web | ✅ Done |
+| 9 | View landing page | - | - | N/A | ✅ Web | ✅ Done |
+
+#### User & Notification Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 10 | View notification | - | - | ✅ NotificationController | ✅ Mobile/Web | ✅ Done |
+| 11 | Receive Notification | - | - | ✅ FCM/SSE | ✅ Mobile/Web | ✅ Done |
+| 12 | View user account | - | - | ✅ UserController | ✅ Web | ✅ Done |
+| 13 | Create notification | - | - | ✅ NotificationService | ❌ | 🔄 Backend Only |
+| 14 | Delete notification | - | - | ❌ | ❌ | ❌ Not Started |
+| 109 | Cancel Email Change Request | UC-PO-24 | 2.2.2 | ✅ UserController | ✅ Mobile | ✅ Done |
+
+#### Pet Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 15 | View Pet Profile | UC-PO-04 | 3.4.1 | ✅ PetController | ✅ Mobile | ✅ Done |
+| 16 | Create Pet Profile | UC-PO-04 | 3.4.1 | ✅ PetController | ✅ Mobile | ✅ Done |
+| 17 | Edit Pet Profile | UC-PO-04 | 3.4.2 | ✅ PetController | ✅ Mobile | ✅ Done |
+| 18 | Delete Pet Profile | UC-PO-04 | 3.4.2 | ✅ PetController | ✅ Mobile | ✅ Done |
+| 19 | View Pet vaccination records | UC-PO-12 | 3.4.3 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
+| 20 | View medical records | UC-PO-11 | 3.4.3 | ✅ EmrController | ✅ Mobile | ✅ Done |
+| 94 | Update Pet Allergies | UC-PO-21 | - | ✅ PetController | ✅ Mobile | ✅ Done |
+| 95 | Update Pet Weight | UC-PO-22 | - | ✅ PetController | ✅ Mobile | ✅ Done |
+
+#### Clinic Discovery & Booking
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 21 | View Clinic's List | UC-PO-05 | 3.5.1 | ✅ ClinicController | ✅ Mobile/Web | ✅ Done |
+| 22 | Search clinics | UC-PO-05 | 3.5.1 | ✅ ClinicController | ✅ Mobile | ✅ Done |
+| 23 | View Clinic Details | UC-PO-05b | 3.5.2 | ✅ ClinicController | ✅ Mobile | ✅ Done |
+| 24 | View Clinic On Map | - | - | ✅ ClinicController | ✅ Mobile | ✅ Done |
+| 25 | Book an appointment | UC-PO-06 | 3.8.1 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 26 | SOS Booking | UC-PO-15 | 3.10 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 27 | Cancel Booking | UC-PO-09 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 28 | Make payment | UC-PO-10 | 3.8.2 | 🔄 Stripe Integration | ❌ | 🔄 In Progress |
+| 29 | View invoice | - | - | ❌ | ❌ | ❌ Not Started |
+| 30 | Receive medication reminders | - | - | ❌ | ❌ | ❌ Not Started |
+| 31 | Track Vet location | UC-PO-17 | 3.10.1 | 🔄 | 🔄 Mobile | 🔄 In Progress |
+| 96 | Clinic Geocode | UC-CO-09 | - | ✅ ClinicController | ✅ Web | ✅ Done |
+| 97 | Clinic Distance Calculation | UC-CO-10 | - | ✅ ClinicController | ✅ Mobile | ✅ Done |
+
+#### AI Assistant
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 32 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 33 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 34 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
+| 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
+| 99 | Chat Images Gallery | UC-PO-23 | - | ✅ ChatController | ✅ Mobile | ✅ Done |
+
+#### Rating & Reporting
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 35 | Rate and review vet | UC-PO-13 | - | ❌ | ❌ | ❌ Not Started |
+| 36 | Report clinic, vet | UC-PO-16 | 3.12.1 | ❌ | ❌ | 📋 Documented |
+
+#### Admin Functions
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 37 | View list of pending clinics | UC-AD-02 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
+| 38 | Approve/ Reject clinic | UC-AD-03 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
+| 39 | View platform statistics | UC-AD-04 | - | ❌ | ❌ | ❌ Not Started |
+| 40 | View revenue | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
+| 41 | View policy | - | - | ❌ | ❌ | ❌ Not Started |
+| 42 | Update policy | - | - | ❌ | ❌ | ❌ Not Started |
+| 43 | Upload Document To Knowledge Base | UC-AD-06 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 44 | Accept/ Reject User Reports | UC-AD-09 | - | ❌ | ❌ | ❌ Not Started |
+| 45 | View User Report | UC-AD-08 | - | ❌ | ❌ | ❌ Not Started |
+| 46 | Turn On/Off Agent Tools | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 47 | Config Agent Parameter | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 48 | Test Agent Playground | UC-AD-07 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 100 | SSE Real-time Notifications | UC-AD-10 | - | ✅ SseController | ✅ Web | ✅ Done |
+
+#### Clinic Owner Functions
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 49 | Register Clinic | UC-CO-01 | 3.6.1 | ✅ ClinicController | ✅ Web | ✅ Done |
+| 50 | Edit Clinic | UC-CO-02 | - | ✅ ClinicController | ✅ Web | ✅ Done |
+| 51 | Create Clinic Service | UC-CO-03 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 52 | Update Clinic Service | UC-CO-03 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 53 | Delete Clinic Service | UC-CO-03 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 54 | Create Master Services | UC-CO-08 | 3.6.3 | ✅ MasterServiceController | ✅ Web | ✅ Done |
+| 55 | View Master Services | UC-CO-08 | - | ✅ MasterServiceController | ✅ Web | ✅ Done |
+| 56 | Update Master Services | UC-CO-08 | - | ✅ MasterServiceController | ✅ Web | ✅ Done |
+| 57 | Delete Master Services | UC-CO-08 | - | ✅ MasterServiceController | ✅ Web | ✅ Done |
+| 58 | Inherit From Master Service | - | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 59 | Handle Clinic (Active/Suspend) | - | - | ✅ ClinicController | ✅ Web | ✅ Done |
+| 60 | Configure Pricing And Weight Tiers | UC-CO-04 | 3.6.4 | ✅ ClinicPriceController | ✅ Web | ✅ Done |
+| 101 | Service Home Visit Toggle | UC-CO-11 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 102 | Service Price Per KM | UC-CO-12 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+| 103 | Bulk Price Per KM Update | UC-CO-13 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
+
+#### Staff & Vet Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 61 | Add Staff | UC-CM-03 | 3.7.1 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 62 | Delete Staff | UC-CO-07 | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 63 | View list of vets | UC-CM-02 | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 64 | Add vet | UC-CM-03 | 3.7.1 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 65 | Create Vet Shift | UC-CM-04 | 3.7.2 | ✅ VetShiftController | ✅ Web | ✅ Done |
+| 66 | View Vet Shift Detail | UC-VT-02 | - | ✅ VetShiftController | ✅ Web | ✅ Done |
+| 67 | Update Vet Shift | UC-CM-16 | - | ✅ VetShiftController | ✅ Web | ✅ Done |
+| 68 | Block/Unblock Slot | - | - | ✅ VetShiftController | ✅ Web | ✅ Done |
+| 69 | View work schedule | UC-VT-02 | - | ✅ VetShiftController | ✅ Mobile/Web | ✅ Done |
+| 70 | View vet's profile | UC-VT-02 | - | ✅ UserController | ✅ Mobile | ✅ Done |
+| 71 | Update Vet's Profile | UC-VT-02 | - | ✅ UserController | ✅ Mobile | ✅ Done |
+| 104 | Block/Unblock Slot (Manual) | UC-CM-11 | 2.2.6 | ✅ VetShiftController | ✅ Web | ✅ Done |
+| 105 | Bulk Shift Delete | UC-CM-12 | 2.2.6 | ✅ VetShiftController | ✅ Web | ✅ Done |
+
+#### Manager Booking Operations
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 72 | View New Bookings | UC-CM-05 | - | ✅ BookingController | ✅ Web | ✅ Done |
+| 73 | Assign Vet to Booking | UC-CM-06 | 3.8.3 | ✅ BookingController | ✅ Web | ✅ Done |
+| 74 | Reassign Vet | UC-CM-06 | 3.8.4 | ✅ BookingController | ✅ Web | ✅ Done |
+| 75 | View request cancel booking | UC-CM-07 | - | ✅ BookingController | ✅ Web | ✅ Done |
+| 76 | Approve/ Reject Request | UC-CM-07 | - | 🔄 | ❌ | 🔄 In Progress |
+| 77 | View Statistics | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
+| 78 | View Payment Transactions History | - | - | ❌ | ❌ | ❌ Not Started |
+| 79 | Process Refund | UC-CM-07 | - | ❌ | ❌ | ❌ Not Started |
+| 80 | View List Cancellation And Refund | - | - | ❌ | ❌ | ❌ Not Started |
+| 106 | Check Vet Availability | UC-CM-14 | 2.2.5 | ✅ BookingController | ✅ Web | ✅ Done |
+| 107 | Reassign Vet to Service | UC-CM-15 | 2.2.5 | ✅ BookingController | ✅ Web | ✅ Done |
+| 108 | Vet Home Dashboard Summary | UC-VT-14 | 2.2.5 | ✅ BookingController | ✅ Mobile | ✅ Done |
+
+#### Patient & EMR Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 81 | View patient list | UC-CM-08 | 3.9.6 | ✅ EmrController | ✅ Web | ✅ Done |
+| 82 | View patient record | UC-CM-09 | 3.9.7 | ✅ EmrController | ✅ Web | ✅ Done |
+| 83 | Search examined patients | UC-VT-12 | 3.9.5 | ✅ EmrController | ✅ Web | ✅ Done |
+| 84 | View patient details | UC-CM-09 | 3.9.7 | ✅ EmrController | ✅ Web | ✅ Done |
+| 85 | View patient history list | UC-VT-13 | - | ✅ EmrController | ✅ Mobile | ✅ Done |
+| 86 | View pet's medical record | UC-VT-06 | 3.9.1 | ✅ EmrController | ✅ Mobile/Web | ✅ Done |
+| 87 | Update pet's medical record | UC-VT-06 | 3.9.1 | ✅ EmrController | ✅ Mobile | ✅ Done |
+| 88 | Create prescription | UC-VT-07 | 3.9.2 | ✅ EmrController | ✅ Mobile | ✅ Done |
+| 89 | View pet's vaccination record | UC-VT-08 | 3.9.4 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
+| 90 | Update pet's vaccination record | UC-VT-08 | 3.9.4 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
+| 91 | Check in patient | UC-VT-05 | 3.8.6 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
+| 92 | Checkout patient | UC-CM-10 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
+| 93 | View assigned booking | UC-VT-03 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
+
+#### Implementation Summary
+
+| Status | Count | Percentage |
+|--------|-------|------------|
+| ✅ Done | 91 | 83.5% |
+| 🔄 In Progress | 5 | 4.6% |
+| ❌ Not Started | 13 | 11.9% |
+| **Total** | **109** | **100%** |
 
 ---
 
@@ -859,7 +1053,7 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    %% Auth & User
+    %% ==================== AUTH & USER ====================
     USER ||--o{ REFRESH_TOKEN : has
     USER ||--o{ BLACKLISTED_TOKEN : invalidates
     USER ||--o{ PET : owns
@@ -867,55 +1061,58 @@ erDiagram
     USER ||--o{ CLINIC : works_at
     USER ||--o{ VET_SHIFT : works
     USER ||--o{ BOOKING : books
-    USER ||--o{ REVIEW : writes
     USER ||--o{ NOTIFICATION : receives
-    USER ||--o{ USER_REPORT : submits
-    USER ||--o{ CHAT_MESSAGE : sends
-    USER ||--o{ AI_CHAT_SESSION : initiates
+    USER ||--o{ CHAT_CONVERSATION : participates
 
-    %% Clinic & Services
+    %% ==================== CLINIC & SERVICES ====================
+    CLINIC ||--o| CLINIC_PRICE_PER_KM : has_pricing
     CLINIC ||--o{ CLINIC_IMAGE : has_images
-    CLINIC ||--o{ SERVICE : offers
+    CLINIC ||--o{ CLINIC_SERVICE : offers
     CLINIC ||--o{ VET_SHIFT : schedules
     CLINIC ||--o{ BOOKING : receives
-    CLINIC ||--o{ USER_REPORT : is_reported
-    MASTER_SERVICE ||--o{ SERVICE : defines
-    SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_tiers
-    SERVICE ||--o{ BOOKING : used_in
+    CLINIC ||--o{ CHAT_CONVERSATION : receives_chat
+    MASTER_SERVICE ||--o{ CLINIC_SERVICE : defines
+    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_tiers
+    MASTER_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_default_tiers
 
-    %% Pet & Medical
+    %% ==================== BOOKING (M:N via Junction Tables) ====================
+    BOOKING ||--|{ BOOKING_SERVICE_ITEM : contains
+    BOOKING_SERVICE_ITEM }|--|| CLINIC_SERVICE : references
+    BOOKING_SERVICE_ITEM }o--o| USER : assigned_vet
+
+    %% ==================== PET & MEDICAL ====================
     PET ||--o{ BOOKING : has
-    PET ||--o{ EMR : has
-    PET ||--o{ VACCINATION : receives
-    EMR ||--o{ PRESCRIPTION : contains
-    EMR ||--o{ EMR_IMAGE : has_photos
-    BOOKING ||--o| EMR : generates
+    PET ||--o{ EMR_RECORD : has
+    PET ||--o{ VACCINATION_RECORD : receives
+    BOOKING ||--o| EMR_RECORD : generates
 
-    %% Scheduling & Multi-slot
+    %% ==================== SCHEDULING & MULTI-SLOT ====================
     VET_SHIFT ||--|{ SLOT : contains
     BOOKING ||--|{ BOOKING_SLOT : reserves
     BOOKING_SLOT }|--|| SLOT : links
+    BOOKING_SLOT }o--o| BOOKING_SERVICE_ITEM : for_service
 
-    %% Finance & Feedback
+    %% ==================== FINANCE ====================
     BOOKING ||--|| PAYMENT : has
-    BOOKING ||--o{ REVIEW : has
 
-    %% Communication
-    BOOKING ||--o{ CHAT_CONVERSATION : has
+    %% ==================== COMMUNICATION (MongoDB) ====================
     CHAT_CONVERSATION ||--o{ CHAT_MESSAGE : contains
-    USER ||--o{ CHAT_CONVERSATION : participates
 
-    %% AI Agent Module
-    AI_AGENT ||--o{ AI_PROMPT_VERSION : has
-    AI_AGENT ||--o{ AI_CHAT_SESSION : handles
-    AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : contains
-    AI_AGENT }o--o{ AI_TOOL : uses
-    AI_AGENT ||--o{ AI_KNOWLEDGE_DOC : references
-    AI_KNOWLEDGE_DOC }o--o| USER : uploaded_by
-    AI_SYSTEM_SETTING }o--|| AI_AGENT : configures
+    %% ==================== FUTURE ENTITIES (Not Implemented) ====================
+    %% USER ||--o{ REVIEW : writes
+    %% BOOKING ||--o{ REVIEW : has
+    %% USER ||--o{ USER_REPORT : submits
+    %% CLINIC ||--o{ USER_REPORT : is_reported
+
+    %% ==================== AI SERVICE (Separate petties-agent-service) ====================
+    %% AI_AGENT ||--o{ AI_PROMPT_VERSION : has
+    %% AI_AGENT ||--o{ AI_CHAT_SESSION : handles
+    %% AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : contains
+    %% AI_AGENT }o--o{ AI_TOOL : uses
+    %% AI_AGENT ||--o{ AI_KNOWLEDGE_DOC : references
 ```
 
-##### 📊 Relationship Matrix (Cardinality)
+##### Relationship Matrix (Cardinality)
 
 | From (Ent. A) | To (Ent. B) | Relationship | Cardinality | Business Logic |
 |:---|:---|:---|:---:|:---|
@@ -924,77 +1121,106 @@ erDiagram
 | **CLINIC** | **USER** | works_at | 1 : N | Một phòng khám có nhiều nhân viên (Vet, Manager). Mỗi nhân viên chỉ thuộc 1 phòng khám. |
 | **USER** | **VET_SHIFT** | works | 1 : N | Một bác sĩ có nhiều ca trực. Mỗi ca trực thuộc sở hữu của 1 bác sĩ. |
 | **VET_SHIFT** | **SLOT** | contains | 1 : N | Một ca trực được chia thành nhiều ô thời gian 30 phút. |
-| **BOOKING** | **SLOT** | reserves | 1 : N | Một lịch hẹn chiếm dùng một hoặc nhiều Slot (thông qua bảng BOOKING_SLOT). |
+| **BOOKING** | **BOOKING_SLOT** | reserves | 1 : N | Một lịch hẹn chiếm dùng một hoặc nhiều Slot (thông qua bảng BOOKING_SLOT). |
+| **BOOKING_SLOT** | **SLOT** | links | N : 1 | Mỗi booking_slot liên kết với một slot cụ thể. |
 | **USER** | **BOOKING** | books | 1 : N | Khách hàng tạo nhiều lịch hẹn theo thời gian. |
-| **PET** | **VACCINATION** | receives | 1 : N | Một thú cưng có lịch sử tiêm chủng nhiều lần (tương đương với sổ tiêm). |
+| **PET** | **VACCINATION_RECORD** | receives | 1 : N | Một thú cưng có lịch sử tiêm chủng nhiều lần (tương đương với sổ tiêm). |
 | **PET** | **BOOKING** | has | 1 : N | Một thú cưng có lịch sử khám nhiều lần. |
 | **BOOKING** | **PAYMENT** | has | 1 : 1 | Mỗi lịch hẹn có chính xác một bản ghi thanh toán (Cash/Stripe). |
-| **BOOKING** | **EMR** | generates | 1 : 0..1 | Một lịch hẹn chỉ phát sinh tối đa 01 bệnh án (nếu khám thành công). |
-| **EMR** | **PRESCRIPTION**| contains | 1 : N | Một bệnh án có thể có nhiều đơn thuốc đi kèm. |
-| **EMR** | **EMR_IMAGE** | has_photos | 1 : N | Một bệnh án có thể đính kèm nhiều ảnh y khoa (X-quang, triệu chứng). |
-| **BOOKING** | **REVIEW** | receives | 1 : N | Một lịch hẹn nhận được review cho bác sĩ và review cho phòng khám. |
-| **USER** | **USER_REPORT** | submits | 1 : N | Một người dùng có thể gửi nhiều báo cáo vi phạm. |
-| **USER** | **CHAT_CONV.** | participates | 1 : N | Một người dùng tham gia vào nhiều hội thoại 1-1. |
-| **CLINIC** | **SERVICE** | offers | 1 : N | Một phòng khám cung cấp nhiều loại dịch vụ. |
-| **CLINIC** | **CLINIC_IMAGE**| has_images | 1 : N | Một phòng khám có nhiều ảnh thực tế/không gian. |
-| **SERVICE** | **BOOKING** | used_in | 1 : N | Một loại dịch vụ được sử dụng trong nhiều lịch hẹn khác nhau. |
-| **MASTER_SERVICE**| **SERVICE** | defines | 1 : N | Template dịch vụ chung được áp dụng cho nhiều phòng khám. |
-| **AI_AGENT** | **AI_CHAT_SESSION** | handles | 1 : N | Một Agent xử lý nhiều phiên chat của nhiều người dùng khác nhau. |
-| **AI_AGENT** | **AI_KNOWLEDGE_DOC**| references | N : N | Agent sử dụng các tài liệu tri thức để trả lời câu hỏi (RAG). |
-| **AI_KNOWLEDGE_DOC** | **USER** | uploaded_by | N : 0..1 | Tài liệu tri thức được upload bởi admin. |
-| **AI_CHAT_MESSAGE** | **AI_CHAT_SESSION**| contains | N : 1 | Thông tin tin nhắn trong phiên chat AI. |
-| **AI_SYSTEM_SETTING** | **AI_AGENT** | configures | N : 1 | Cài đặt hệ thống áp dụng cho Agent. |
+| **BOOKING** | **EMR_RECORD** | generates | 1 : 0..1 | Một lịch hẹn chỉ phát sinh tối đa 01 bệnh án (nếu khám thành công). |
+| **BOOKING** | **BOOKING_SERVICE_ITEM** | contains | 1 : N | Một lịch hẹn có thể chứa nhiều dịch vụ khác nhau. |
+| **BOOKING_SERVICE_ITEM** | **CLINIC_SERVICE** | references | N : 1 | Mỗi item tham chiếu đến một dịch vụ cụ thể. |
+| **BOOKING_SERVICE_ITEM** | **USER** | assigned_vet | N : 0..1 | Mỗi dịch vụ trong booking có thể được gán cho một Vet riêng. |
+| **BOOKING_SLOT** | **BOOKING_SERVICE_ITEM** | for_service | N : 0..1 | Slot được dành cho service cụ thể trong booking. |
+| **USER** | **CHAT_CONVERSATION** | participates | 1 : N | Một người dùng tham gia vào nhiều hội thoại 1-1. |
+| **CLINIC** | **CHAT_CONVERSATION** | receives_chat | 1 : N | Một phòng khám nhận nhiều hội thoại từ khách hàng. |
+| **CHAT_CONVERSATION** | **CHAT_MESSAGE** | contains | 1 : N | Một cuộc hội thoại chứa nhiều tin nhắn. |
+| **CLINIC** | **CLINIC_SERVICE** | offers | 1 : N | Một phòng khám cung cấp nhiều loại dịch vụ. |
+| **CLINIC** | **CLINIC_IMAGE** | has_images | 1 : N | Một phòng khám có nhiều ảnh thực tế/không gian. |
+| **CLINIC** | **CLINIC_PRICE_PER_KM** | has_pricing | 1 : 0..1 | Một phòng khám có tối đa một cấu hình giá di chuyển. |
+| **CLINIC_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_tiers | 1 : N | Một dịch vụ có nhiều mức giá theo cân nặng. |
+| **MASTER_SERVICE** | **CLINIC_SERVICE** | defines | 1 : N | Template dịch vụ chung được áp dụng cho nhiều phòng khám. |
+| **MASTER_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_default_tiers | 1 : N | Template có các mức giá mặc định theo cân nặng. |
 | **BLACKLISTED_TOKEN** | **USER** | invalidates | N : 1 | Token bị vô hiệu hóa khi người dùng logout. |
+| **REFRESH_TOKEN** | **USER** | has | N : 1 | Một user có thể có nhiều refresh token (multi-device). |
+| **USER** | **NOTIFICATION** | receives | 1 : N | Một người dùng nhận nhiều thông báo. |
 
-#### 3.1.5 Entities Description
+#### 3.1.6 Entities Description
 
-Để đảm bảo tính nhất quán giữa tài liệu và mã nguồn, dưới đây là danh sách đầy đủ 30 thực thể được sử dụng trong hệ thống Petties:
+Dưới đây là danh sách đầy đủ **24 thực thể** đang được sử dụng trong hệ thống Petties (17 PostgreSQL + 4 MongoDB + 3 Embedded):
+
+##### PostgreSQL Entities (17 tables)
 
 | Nhóm | Thực thể | Mô tả | Các trường chính |
 |:---:|---|---|---|
-| **Auth & User** | **USER** | Tài khoản định danh (5 roles) | id, username, email, password, role, clinic_id, status |
-| | **REFRESH_TOKEN** | Token duy trì phiên đăng nhập | id, user_id, token, expires_at |
-| | **BLACKLISTED_TOKEN** | Token bị vô hiệu hóa sau logout | id, token, blacklisted_at, expires_at |
-| **Clinic** | **CLINIC** | Thông tin phòng khám thú y | id, owner_id, name, address, phone, status, rating_avg |
-| | **CLINIC_IMAGE** | Ảnh không gian phòng khám | id, clinic_id, image_url, is_primary |
-| | **MASTER_SERVICE** | Bản mẫu dịch vụ (Templates) | id, owner_id, name, service_type, default_base_price |
-| | **SERVICE** | Dịch vụ thực tế tại phòng khám | id, clinic_id, master_service_id, base_price, is_home_visit |
-| | **SERVICE_WEIGHT_PRICE**| Khung giá cộng thêm theo cân nặng | id, service_id, min_weight, max_weight, price |
-| **Pet** | **PET** | Hồ sơ thông tin thú cưng | id, owner_id, name, species, breed, birth_date, weight_kg |
-| **Scheduling** | **VET_SHIFT** | Ca trực của bác sĩ tại phòng khám | id, vet_id, clinic_id, work_date, start_time, end_time |
-| | **SLOT** | Đơn vị thời gian 30 phút | id, shift_id, start_time, end_time, status |
-| **Booking** | **BOOKING** | Lịch hẹn khám (Clinic/Home) | id, booking_code, pet_id, service_id, total_price, status |
-| | **BOOKING_SLOT** | Bảng trung gian gán booking vào slot | booking_id, slot_id |
-| | **PAYMENT** | Giao dịch thanh toán | id, booking_id, amount, method, status, stripe_payment_id |
-| **Medical** | **EMR** | Bệnh án điện tử (Tiêu chuẩn SOAP) | id, booking_id, subjective, objective, assessment, plan |
-| | **EMR_IMAGE** | Ảnh y khoa đính kèm bệnh án | id, emr_id, image_url, description |
-| | **PRESCRIPTION** | Đơn thuốc kê cho thú cưng | id, emr_id, drug_name, dosage, frequency, duration |
-| | **VACCINATION** | Ghi nhận sự kiện tiêm chủng | id, pet_id, vaccine_name, administered_date, next_due_date |
-| **Interaction**| **REVIEW** | Đánh giá bác sĩ/phòng khám | id, booking_id, reviewer_id, type, rating, comment |
-| | **NOTIFICATION** | Thông báo đẩy/in-app | id, user_id, type, title, content, is_read |
-| | **CHAT_CONVERSATION** | Phiên hội thoại 1-1 (Owner-Staff) | id, user1_id, user2_id, booking_id, last_message_at |
-| | **CHAT_MESSAGE** | Nội dung tin nhắn chat | id, conversation_id, sender_id, content, is_read |
-| | **USER_REPORT** | Báo cáo vi phạm nền tảng | id, reporter_id, reported_user_id, category, status |
-| **AI Service** | **AI_AGENT** | Cấu hình trí tuệ nhân tạo | id, name, model, system_prompt, temperature, top_p |
-| | **AI_TOOL** | Công cụ (Tools) Agent được dùng | id, name, tool_type, input_schema, enabled |
-| | **AI_PROMPT_VERSION**| Version control cho System Prompt | id, agent_id, version, prompt_text, is_active |
-| | **AI_CHAT_SESSION** | Phiên hội thoại với AI | id, agent_id, user_id, session_id, started_at |
-| | **AI_CHAT_MESSAGE** | Ghi chép tin nhắn AI | id, session_id, role, content, message_metadata |
-| | **AI_KNOWLEDGE_DOC** | Tài liệu nạp cho RAG | id, filename, file_path, processed, vector_count |
-| | **AI_SYSTEM_SETTING**| Cấu hình API Keys Dashboard | id, key, value, category, is_sensitive |
+| **Auth & User** | **USER** | Tài khoản định danh (5 roles) | user_id, username, email, password, role, working_clinic_id, specialty, fcm_token |
+| | **REFRESH_TOKEN** | Token duy trì phiên đăng nhập | token_id, user_id, token_hash, expires_at |
+| | **BLACKLISTED_TOKEN** | Token bị vô hiệu hóa sau logout | token_id, token_hash, user_id, expires_at |
+| **Pet** | **PET** | Hồ sơ thông tin thú cưng | pet_id, user_id, name, species, breed, weight, gender, allergies, image_url |
+| **Clinic** | **CLINIC** | Thông tin phòng khám thú y | clinic_id, owner_id, name, address, phone, status, latitude, longitude, operating_hours(JSON), rating_avg |
+| | **CLINIC_IMAGE** | Ảnh không gian phòng khám | image_id, clinic_id, image_url, is_primary, display_order |
+| | **CLINIC_PRICE_PER_KM** | Giá di chuyển theo km | clinic_id, price_per_km |
+| | **MASTER_SERVICE** | Bản mẫu dịch vụ (Templates) | master_service_id, name, default_price, duration_time, slots_required, is_home_visit |
+| | **CLINIC_SERVICE** | Dịch vụ thực tế tại phòng khám | service_id, clinic_id, master_service_id, name, base_price, is_home_visit, price_per_km, is_active |
+| | **SERVICE_WEIGHT_PRICE** | Khung giá theo cân nặng | weight_price_id, service_id, master_service_id, min_weight, max_weight, price |
+| **Scheduling** | **VET_SHIFT** | Ca trực của bác sĩ | shift_id, vet_id, clinic_id, work_date, start_time, end_time, break_start, break_end, is_overnight |
+| | **SLOT** | Đơn vị thời gian 30 phút | slot_id, shift_id, start_time, end_time, status (AVAILABLE/BOOKED/BLOCKED) |
+| **Booking** | **BOOKING** | Lịch hẹn khám | booking_id, booking_code, pet_id, pet_owner_id, clinic_id, assigned_vet_id, type, status, total_price, distance_fee, home_address |
+| | **BOOKING_SERVICE_ITEM** | M:N Booking ↔ Service | booking_service_id, booking_id, service_id, assigned_vet_id, unit_price, base_price, weight_price, quantity |
+| | **BOOKING_SLOT** | M:N Booking ↔ Slot | booking_slot_id, booking_id, slot_id, booking_service_id |
+| | **PAYMENT** | Giao dịch thanh toán | payment_id, booking_id, amount, method (CASH/STRIPE), status, stripe_payment_id, paid_at |
+| **Notification** | **NOTIFICATION** | Thông báo đẩy/in-app | notification_id, user_id, clinic_id, shift_id, type, message, read |
+
+##### MongoDB Documents (4 collections)
+
+| Nhóm | Thực thể | Collection | Mô tả | Các trường chính |
+|:---:|---|---|---|---|
+| **Medical** | **EMR_RECORD** | emr_records | Bệnh án điện tử (SOAP) | _id, pet_id, booking_id, vet_id, subjective, objective, assessment, plan, weight_kg, temperature_c, prescriptions[], images[] |
+| | **VACCINATION_RECORD** | vaccination_records | Sổ tiêm chủng | _id, pet_id, booking_id, vet_id, vaccine_name, batch_number, vaccination_date, next_due_date |
+| **Communication** | **CHAT_CONVERSATION** | chat_conversations | Phiên hội thoại 1-1 | _id, pet_owner_id, clinic_id, clinic_name, last_message, last_message_at, unread_count_pet_owner, unread_count_clinic |
+| | **CHAT_MESSAGE** | chat_messages | Nội dung tin nhắn | _id, chat_box_id, sender_id, sender_type, content, message_type (TEXT/IMAGE), status, is_read |
+
+##### Embedded Classes (không có table riêng)
+
+| Class | Embedded In | Mô tả | Các trường |
+|---|---|---|---|
+| **OperatingHours** | Clinic.operating_hours (JSON) | Giờ mở cửa theo ngày | open_time, close_time, break_start, break_end, is_closed |
+| **Prescription** | EmrRecord.prescriptions[] | Đơn thuốc | medicine_name, dosage, frequency, duration_days, instructions |
+| **EmrImage** | EmrRecord.images[] | Ảnh y khoa | url, description |
+
+##### Future Entities (chưa implement - dành cho các UC còn lại)
+
+| Thực thể | UC liên quan | Mô tả | Dự kiến các trường |
+|---|---|---|---|
+| **REVIEW** | UC-PO-13 | Đánh giá bác sĩ/phòng khám | id, booking_id, reviewer_id, type (VET/CLINIC), rating, comment |
+| **USER_REPORT** | UC-PO-16 | Báo cáo vi phạm | id, reporter_id, reported_user_id, clinic_id, category, status |
+
+##### AI Service Entities (trong petties-agent-service riêng)
+
+| Thực thể | Mô tả | Ghi chú |
+|---|---|---|
+| **AI_AGENT** | Cấu hình AI Agent | Managed trong petties-agent-service PostgreSQL |
+| **AI_TOOL** | Công cụ (Tools) Agent sử dụng | @mcp.tool decorator |
+| **AI_PROMPT_VERSION** | Version control cho System Prompt | Managed trong petties-agent-service |
+| **AI_CHAT_SESSION** | Phiên hội thoại với AI | Managed trong petties-agent-service |
+| **AI_CHAT_MESSAGE** | Tin nhắn trong phiên AI | Managed trong petties-agent-service |
+| **AI_KNOWLEDGE_DOC** | Tài liệu nạp cho RAG | Managed trong Qdrant Cloud |
 
 ---
 
 ### 3.2 Authentication & Onboarding
  
- #### *3.2.1 User Registration*
+ #### *3.2.1 Register New Account (UC-PO-01 / UC-CO-01)*
+**User Story:**
+> *As a Guest (Pet Owner or Clinic Owner), I want to create a new account using my email and OTP verification so that I can securely access the platform's features.*
+
 **Function trigger**
 - **Navigation Path (Mobile - Pet Owner):** Onboarding Screen → Login Screen → Registration Screen (Link "Đăng ký ngay").
 - **Navigation Path (Web - Clinic Owner):** Landing Page → Login Page → Registration Page (Link "Đăng ký tại đây").
 - **Timing frequency:** On demand (whenever a guest wants to join the platform).
 
 **Function description**
-- **Actors/Roles:** Pet Owner (Web/Mobile), Clinic Owner (Web).
+- **Actors/Roles:** Guest (Pet Owner, Clinic Owner).
 - **Purpose:** Allow a Guest to create a new identity on the platform. Web registration for Pet Owners is supported but requires mobile app for usage.
 - **Interface:**
     - Full Name – text input
@@ -1037,7 +1263,10 @@ Figure 4. Screen User Registration (Web) - OTP Verification
     - A5. Expired OTP – User enters code after 5 minutes.
     - E1. Email Service Down – System cannot send the verification code.
 
- #### *3.2.2 Universal Login*
+ #### *3.2.2 Login to System (UC-PO-01a / UC-VT-01 / UC-CM-01 / UC-AD-01)*
+**User Story:**
+> *As a user, I want to log in using my username/email or Google account so that I can access my personalized dashboard and features.*
+
 **Function trigger**
 - **Navigation Path (Mobile):** Onboarding Screen → Login Screen.
 - **Navigation Path (Web):** Landing Page → Login Page.
@@ -1076,9 +1305,13 @@ Figure 6. Screen Universal Login (Web)
     - A1. Invalid credentials – Show "Email or password incorrect".
     - A2. Banned account – User account is disabled by Admin.
     - A3. Google auth failed – OAuth provider returns an error.
+    - A4. Platform mismatch – Pet Owner attempts to access Web dashboard (Redirect to mobile app prompt).
     - E1. Connection Error – Database or Auth service is unreachable.
 
- #### *3.2.3 Forgot & Reset Password*
+ #### *3.2.3 Recover Password (UC-PO-01b)*
+**User Story:**
+> *As a user, I want to recover my account access via email verification if I forget my password so that I can regain entry to the system securely.*
+
 **Function trigger**
 - **Navigation Path (Mobile):** Login Screen → "Forgot Password?" Link.
 - **Navigation Path (Web):** Login Page → "Khôi phục ngay" Link.
@@ -1111,10 +1344,14 @@ Figure 10. Screen Reset Password (Web) - OTP & New Password
     1. User verifies email with OTP.
     2. User sets a new password successfully.
 - **Abnormal/Exception cases:**
-    - A1. Email not found – Show "Email does not exist".
+    - A1. Email not found – Show "Identity does not exist".
     - A2. Invalid/Expired OTP – Verification fails.
+    - E1. Email service timeout.
 
- #### *3.2.4 Session Termination (Sign out)*
+ #### *3.2.4 Sign Out (UC-PO-01c)*
+**User Story:**
+> *As a user, I want to sign out of my account so that my session is invalidated and my data remains secure after I finish using the platform.*
+
 **Function trigger**
 - **Navigation Path (Mobile):** Profile Screen → Logout Button.
 - **Navigation Path (Web):** Sidebar/Header → Logout Button.
@@ -1139,7 +1376,12 @@ Figure 12. Screen Session Termination (Web)
 - **Validation:** 
     - Authorization Header must be present.
     - Token must follow the "Bearer <token>" format.
-- **Normal case:** User logs out and is redirected to the login/landing screen. System blacklists the token.
+- **Normal case:**
+    1. User clicks the "Logout" button on their profile/settings.
+    2. Frontend clears local storage (tokens, user data).
+    3. System receives logout request with Bearer token.
+    4. Backend blacklists the access token in Redis.
+    5. User is redirected to the login/landing screen.
 - **Abnormal cases:**
     - A1. Network error – Offline logout clears local tokens but server-side blacklist fails until reconnected.
     - A2. Invalid Token – System returns 401 Unauthorized if the token is already invalid or missing.
@@ -1148,7 +1390,10 @@ Figure 12. Screen Session Termination (Web)
 
 ### 3.3 User Profile & Account Setup
  
- #### *3.3.1 View & Edit Profile*
+ #### *3.3.1 Update Personal Profile (UC-PO-03 / UC-VT-02 / UC-CM-02)*
+**User Story:**
+> *As a user, I want to view and update my personal information (Name, Avatar, Phone) so that my profile remains accurate and the clinic can contact me if needed.*
+
 **Function trigger**
 - **Navigation path:** Sidebar/Hub → Profile OR Profile Picture → Settings.
 - **Timing frequency:** On demand.
@@ -1197,34 +1442,39 @@ Figure 14. Screen View & Edit Profile (Web)
 - **Purpose:** Change critical credentials to maintain account security.
 - **Interface:**
     - Current Password – password input
-    - New Password, Confirm New Password – password inputs
+ #### *3.3.2 Manage Account Security (UC-PO-04 / UC-VT-03)*
+**User Story:**
+> *As a user, I want to manage my login credentials (Change Password, Change Email) so that I can maintain the security of my account over time.*
+
+**Function trigger**
+- **Navigation path:** Profile → Security tab.
+- **Timing frequency:** On demand (when user wants to change password/email).
+
+**Function description**
+- **Actors/Roles:** All Authenticated Users.
+- **Purpose:** Update sensitive account credentials.
+- **Interface:**
+    - Current Password – text input
+    - New Password – text input
+    - Confirm Password – text input
     - New Email – text input
-    - Verification OTP – 6-digit input
+    - OTP – 6-digit input
 
 **Data processing**
-1. User provides current password for identity verification (Optional, based on security level).
-2. For Password change: System checks current password match, then updates to new one.
-3. For Email change (Step 1 - Request): 
-    - User submits new email.
-    - System validates email uniqueness and cooldown (60s).
-    - System generates OTP, saves to Redis (TTL 5m), and sends to the *new* address.
-4. For Email change (Step 2 - Verify):
-    - User enters OTP.
-    - System validates OTP code and max attempts (5 times - BR-13).
-    - System updates user email in DB and clears OTP data.
-5. System invalidates old sessions/tokens if necessary.
+1. Password Change Case: System verifies current password before allowing change.
+2. Email Change Case: System requires OTP verification for the new email before updating.
+3. System invalidates old tokens upon successful credential change.
 
 **Screen layout**
-Figure 15. Screen Security Settings (Mobile) - Change Pass/Email
-Figure 16. Screen Security Settings (Mobile) - Email OTP Verification
-Figure 17. Screen Security Settings (Web) - Change Pass/Email
-Figure 18. Screen Security Settings (Web) - Email OTP Verification
+Figure 15. Screen Change Password (Mobile)
+Figure 16. Screen Change Email (Mobile)
+Figure 17. Screen Change Password (Web)
+Figure 18. Screen Change Email (Web)
 
 **Function details**
 - **Data:** CurrentPassword, NewPassword, NewEmail, OTP.
 - **Validation:** 
-    - Current Password must match the database.
-    - New Password must be at least 6 characters (BR-12).
+    - Password must be at least 6 characters.
     - OTP is required for email changes (BR-13).
 - **Business rules:** BR-12, BR-13, BR-51.
 - **Normal case:**
@@ -1241,7 +1491,10 @@ Figure 18. Screen Security Settings (Web) - Email OTP Verification
 
 ### 3.4 Pet Records & Health Hub
  
- #### *3.4.1 Create New Pet Profile*
+ #### *3.4.1 Manage Pet Profiles (UC-PO-04)*
+**User Story:**
+> *As a Pet Owner, I want to create a digital profile for my pet so that I can manage their medical history and book veterinary appointments easily.*
+
 **Function trigger**
 - **Navigation path:** Mobile Home → Hub → "Add Pet" OR Mobile Home → My Pets → (+) button.
 - **Timing frequency:** On demand (when the owner gets a new pet).
@@ -1283,7 +1536,10 @@ Figure 19. Screen Create New Pet Profile (Mobile)
     - A2. Upload failure – Issues with Cloudinary service.
     - E1. Database error – Unable to create pet record.
 
- #### *3.4.2 Manage Pet Profile (Update/Delete)*
+ #### *3.4.2 Update or Delete Pet Profile (UC-PO-04)*
+**User Story:**
+> *As a Pet Owner, I want to update my pet's information or remove their profile (soft-delete) so that the records remain up-to-date and clutter-free.*
+
 **Function trigger**
 - **Navigation path:** My Pets → Select Pet → "Edit Profile".
 - **Timing frequency:** On demand.
@@ -1310,7 +1566,10 @@ Figure 20. Screen Manage Pet Profile (Mobile)
 - **Abnormal/Exception cases:**
     - A1. Unauthorized Delete – User tries to delete a pet they do not own.
 
- #### *3.4.3 View Pet Health Hub*
+ #### *3.4.3 View Pet Health Records (UC-PO-11 / UC-PO-12)*
+**User Story:**
+> *As a Pet Owner, I want to see a unified view of my pet's medical events, weight trends, and vaccination status so that I can monitor their health and stay on top of medical needs.*
+
 **Function trigger**
 - **Navigation path:** My Pets → Select Pet → "Health Hub".
 - **Timing frequency:** On demand.
@@ -1343,85 +1602,89 @@ Figure 22. Screen View Pet Health Hub (Web)
 
 ### 3.5 Clinic Discovery Flow
  
- #### *3.5.1 Smart Search & Filter*
+ #### *3.5.1 Search & Filter Clinics (UC-PO-05)*
+**User Story:**
+> *As a Guest or Pet Owner, I want to find veterinary clinics based on my location, the services they offer, and their ratings so that I can choose the best medical care for my pet.*
+
 **Function trigger**
-- **Navigation path:** Mobile Home → Search Bar OR "Explore Clinics" button.
+- **Navigation path:** Home Screen → Search Bar.
 - **Timing frequency:** On demand.
 
 **Function description**
 - **Actors/Roles:** Guest, Pet Owner.
-- **Purpose:** Find the most suitable veterinary clinics based on location, service, and rating.
+- **Purpose:** Locate clinics matching specific criteria.
 - **Interface:**
-    - Search Keyword – text input
-    - Distance Filter – dropdown
-    - Rating Filter – dropdown
-    - Service Category – chips/multiselect
-    - Home Visit Option – checkbox
-    - View Mode – toggle (List / Map)
+    - Search Bar (Keywords) – text input
+    - Filter Button – modal trigger
+    - Sort Options – dropdown (Distance, Rating)
+    - Results View – list or map toggle
 
 **Data processing**
 1. User enters keywords or applies filters.
-2. System retrieves the user's current GPS location (if permitted).
-3. System calls Goong API to calculate driving distance or straight-line distance to candidate clinics.
-4. System queries the `CLINIC` table for records with `status = 'APPROVED'` matching the filter criteria.
-5. System sorts results by distance, rating, or relevance.
-6. System displays the localized list or map markers.
+2. System calls Goong API for geolocation/distance.
+3. System queries `CLINIC` and `SERVICE` tables for matches.
+4. System ranks results and displays them.
 
 **Screen layout**
-Figure 23. Screen Smart Search & Filter (Mobile)
+Figure 23. Screen Search & Filter (Mobile)
 
 **Function details**
-- **Data:** SearchKeyword, Latitude, Longitude, FilterCriteria.
+- **Data:** Keywords, Location (Lat/Long), CategoryID, MinRating.
 - **Validation:** 
-    - Search radius must be a positive number.
-    - Only `APPROVED` clinics are shown.
-- **Business rules:** BR-003-05.
+    - At least one search criteria or default "All Nearby" is used.
+    - Goong API Key must be valid.
+- **Business rules:** BR-003-05 (Only APPROVED clinics shown).
 - **Normal case:**
-    1. User searches for "District 1" with "Vaccination" service.
-    2. System returns a list of matching clinics within the specified radius.
+    1. User types "Vaccine" and selects "Near me".
+    2. System lists 3 clinics within 5km.
 - **Abnormal/Exception cases:**
-    - A1. No clinics found – Display "No clinics match your criteria in this area."
-    - A2. Location access denied – System defaults to the city center coordinates.
-    - E1. Maps API Error – Map view cannot display markers.
+    - A1. No results – Show friendly empty state.
+    - A2. GPS errors – Fallback to default city center.
+    - A3. API Limit – Goong fails, system falls back to text-based address search.
 
- #### *3.5.2 View Clinic Details*
+ #### *3.5.2 View Clinic Details (UC-PO-05b)*
+**User Story:**
+> *As a Guest or Pet Owner, I want to view detailed information, photos, and services of a clinic so that I can make an informed decision before booking.*
+
 **Function trigger**
 - **Navigation path:** Search Results → Select Clinic Card.
 - **Timing frequency:** On demand.
 
 **Function description**
 - **Actors/Roles:** Guest, Pet Owner.
-- **Purpose:** View full information, photos, and services of a specific clinic.
+- **Purpose:** Present full clinic profile to the user.
 - **Interface:**
-    - Image Carousel – swipeable gallery
-    - Address Link – opens map app
-    - Opening Hours – expandable section
-    - Service List – grouped list with pricing
-    - Staff Profiles – list of veterinarians
+    - Clinic Hero Image – visual
+    - Info Section (Address, Hours, Rating) – text
+    - Service Menu – list with prices
+    - Vet Team – horizontal scroll list
+    - Book Now Button – action trigger
 
 **Data processing**
-1. User selects a clinic.
-2. System retrieves data from `CLINIC`, `CLINIC_SERVICE`, `OPENING_HOURS`, and `USER` (staff) tables.
-3. System calculates if the clinic is currently "OPEN" or "CLOSED" based on real-time server clock.
-4. System renders the integrated profile view.
+1. User clicks a clinic.
+2. System retrieves Clinic details, Staff list, and Service catalog.
+3. System renders the details page.
 
 **Screen layout**
-Figure 24. Screen View Clinic Details (Mobile)
-Figure 25. Screen View Clinic Details (Web)
+Figure 24. Screen Clinic Details (Mobile)
 
 **Function details**
 - **Data:** ClinicID.
-- **Business rules:** N/A
+- **Validation:** Clinic must be `APPROVED` and `ACTIVE`.
 - **Normal case:**
-    1. User views "Sai Gon Pet Clinic" profile.
-    2. User sees services and photos to decide on booking.
+    1. User views "PetCare Center".
+    2. User sees they offer "Annual Checkup" for 200k.
+    3. User sees Dr. Minh is available.
 - **Abnormal/Exception cases:**
-    - A1. Clinic inactive – Record suspended after search results were cached.
-    - A2. Missing data – Clinic hasn't uploaded a service list yet.
+    - A1. Clinic not found/Inactive – Redirect to search with "Clinic is no longer available".
+    - A2. Missing Services – Show "No services listed".
 
 ### 3.6 Clinical Operations & Service Setup
  
- #### *3.6.1 Clinic Registration*
+ #### *3.6.1 Register New Clinic*
+**User Story:**
+> *As a Clinic Owner, I want to register a new veterinary branch on the platform with all necessary legal documents so that it can be approved for operation.*
+
 **Function trigger**
 - **Navigation path:** Web Portal → Clinic Owner Dashboard → Create Clinic.
 - **Timing frequency:** On demand.
@@ -1462,7 +1725,10 @@ Figure 26. Screen Clinic Registration (Web)
     - A1. Missing documents – Registration is blocked.
     - A2. Invalid coordinates – System cannot locate the address on the map.
 
- #### *3.6.2 Clinic Approval & Moderation*
+ #### *3.6.2 Approve or Reject Clinic*
+**User Story:**
+> *As a Platform Admin, I want to review and verify clinic registration requests so that only legitimate and qualified clinics are allowed on the platform.*
+
 **Function trigger**
 - **Navigation path:** Admin Dashboard → Pending Requests.
 - **Timing frequency:** On demand (Admin action).
@@ -1494,7 +1760,10 @@ Figure 27. Screen Clinic Approval & Moderation (Web)
     - A1. Rejection without reason – Blocked.
     - E1. Email notification failure – Owner does not receive the decision update.
 
- #### *3.6.3 Global Service Definition (Master Catalog)*
+ #### *3.6.3 Define Master Services (UC-CO-08)*
+**User Story:**
+> *As a Clinic Owner, I want to define a standardized catalog of services (templates) so that all my clinic branches offer consistent services.*
+
 **Function trigger**
 - **Navigation path:** Owner Dashboard → Services → Master Catalog.
 - **Timing frequency:** On demand.
@@ -1518,9 +1787,16 @@ Figure 28. Screen Global Service Definition (Web)
 **Function details**
 - **Data:** Name, Description, Category.
 - **Business rules:** N/A
-- **Normal case:** Owner defines "Rabies Vaccination" template for the entire system.
+- **Normal case:**
+    1. Clinic Owner navigates to Master Services catalog.
+    2. Owner clicks "Add Service" and enters "Rabies Vaccination".
+    3. Owner selects category "VET_VACCINATION" and adds description.
+    4. System saves the template, available for all branches to inherit.
 
- #### *3.6.4 Branch Pricing Configuration*
+ #### *3.6.4 Configure Branch Pricing (UC-CO-04)*
+**User Story:**
+> *As a Clinic Manager, I want to configure base prices and weight-based surcharges for services at my branch so that billing is accurate and adapted to local costs.*
+
 **Function trigger**
 - **Navigation path:** Manager Dashboard → My Clinic → Service Pricing.
 - **Timing frequency:** On demand.
@@ -1546,97 +1822,194 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 - **Validation:** Price cannot be negative.
 - **Logic:** Total price is calculated as `Base + Surcharge` during booking.
 - **Business rules:** N/A
+- **Normal case:**
+    1. Manager navigates to Service Pricing for their branch.
+    2. Manager selects "General Checkup" service.
+    3. Manager sets base price ₫200,000 and adds surcharge tiers:
+       - Small (0-5kg): +₫0
+       - Medium (5-15kg): +₫50,000
+       - Large (15-30kg): +₫100,000
+    4. System saves pricing configuration for the branch.
 - **Abnormal cases:**
     - A1. Tier overlap – User defines two prices for the same weight range.
 
-### 3.7 Staffing & Scheduling Flow
- 
- #### *3.7.1 Staff Invitation by Email*
+ #### *3.6.5 Edit Clinic Information (UC-CO-02)*
+**User Story:**
+> *As a Clinic Owner, I want to update my clinic's contact information, description, and photos so that customers have the most current information.*
+
 **Function trigger**
-- **Navigation path:** Owner Dashboard → Staff Management → "Add Staff".
-- **Timing frequency:** On demand (new hires).
+- **Navigation path:** Clinic Dashboard → Settings → Edit Info.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner.
+- **Purpose:** Modify non-identity clinic details.
+- **Interface:** Edit form with existing data pre-filled.
+
+**Data processing**
+1. User modifies fields (Description, Phone, Opening Hours).
+2. System validates data format.
+3. System saves updates to `CLINIC` table.
+
+**Function details**
+- **Data:** Description, Phone, Email, WorkingHours.
+- **Validation:** Phone must be 10 digits. Email must be valid.
+
+ #### *3.6.6 Create/Update/Delete Clinic Service (UC-CO-03)*
+**User Story:**
+> *As a Clinic Owner, I want to manage the specific services offered by my clinic branch so that I can control my service catalog.*
+
+**Function trigger**
+- **Navigation path:** Clinic Dashboard → Services → Manage Services.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner.
+- **Purpose:** Full CRUD for branch-specific services.
+- **Interface:** Service list with Add/Edit/Delete actions.
+
+**Data processing**
+1. Add: Owner creates a new service not from master.
+2. Update: Owner modifies service name, description, or status (Active/Inactive).
+3. Delete: System soft-deletes the service if it has no active bookings.
+
+**Function details**
+- **Business rules:** BR-012 (Deletion blocked if active bookings exist).
+
+ #### *3.6.7 Inherit From Master Service*
+**User Story:**
+> *As a Clinic Owner, I want to quickly add services to my branch by selecting them from the Master Catalog so that I don't have to re-enter service details.*
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Services → "Add from Master".
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner, Manager.
+- **Purpose:** Populate branch service catalog from global templates.
+- **Interface:** List of Master Services with "Inherit" buttons.
+
+**Data processing**
+1. User selects template from Master Catalog.
+2. System copies Name, Category, and Description to a new branch-service record.
+3. User is prompted to set local pricing immediately.
+
+**Function details**
+- **Normal case:**
+    1. Manager views Master Catalog.
+    2. Manager clicks "Inherit" on "Rabies Vaccination".
+    3. System creates local service record.
+    4. Manager redirected to Pricing page for that service.
+
+### 3.7 Staff Management & Scheduling
+ 
+ #### *3.7.1 Invite New Staff (UC-CM-03 / UC-CO-06)*
+**User Story:**
+> *As a Clinic Owner/Manager, I want to invite new staff members via email so that they can securely access their role-specific dashboard using their existing Google accounts.*
+
+**Function trigger**
+- **Navigation path:** Staff Management → "Invite New Member".
+- **Timing frequency:** On demand.
 
 **Function description**
 - **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Invite new staff by email. Staff will login with Google OAuth, and their profile info (name, avatar) will be auto-filled from Google account.
+- **Purpose:** Add Veterinarians or Managers to the clinic team.
 - **Interface:**
     - Email Address – text input
-    - Role – radio selection (Vet, Manager)
-    - Specialty – dropdown (for Vet role only)
+    - Role Selection – dropdown (Vet/Manager)
+    - Specialty – dropdown (Visible only if Role is Vet)
 
 **Data processing**
-1. System validates email format and uniqueness.
-2. If email already exists in system:
-   - If user is not assigned to another clinic: assign to current clinic.
-   - If user is already assigned to another clinic: reject with error.
-3. If email does not exist: System creates a `USER` record with random password (unusable), assigned to clinic.
-4. Staff logs in via Google OAuth on first access.
-5. System auto-fills `fullName` and `avatar` from Google profile on first login.
+1. Manager enters email and selects role/specialty.
+2. System validates email format and uniqueness within the context of active invitations.
+3. System creates a `USER` record with `PENDING_INVITE` status (or links existing user).
+4. System sends an email with an acceptance link.
 
 **Screen layout**
-Figure 30. Screen Staff Invitation by Email (Web)
+Figure 30. Screen Staff Invitation (Web)
 
 **Function details**
-- **Data:** Email, Role, Specialty (optional).
+- **Data:** Email, Role, Specialty.
 - **Validation:** 
-    - Email must be valid format.
-    - Email must not be assigned to another clinic.
-    - Role must be valid within clinic context.
+    - Email required.
+    - Specialty required if Role = Vet.
 - **Business rules:** BR-35, BR-45, BR-46, BR-47.
 - **Normal case:**
-    1. Manager invites "bacsi@gmail.com" as Vet with "General" specialty.
-    2. Dr. Nam logs in via Google OAuth and starts working.
+    1. Manager invites "dr.tung@gmail.com" as a Vet (Surgery).
+    2. Dr. Tung receives an email.
+    3. Dr. Tung logs in with Google and is automatically assigned to the clinic.
 - **Abnormal/Exception cases:**
-    - A1. Email already assigned to another clinic – "User is already assigned to another clinic."
+    - A1. User already in another clinic – Block invitation (BR-47).
+    - A2. User blocked/banned – Prevent invitation.
 
+ #### *3.7.2 View Staff List (UC-CM-02)*
+**User Story:**
+> *As a Clinic Owner/Manager, I want to view a list of all staff members currently associated with my branch so that I can manage my team.*
 
- #### *3.7.2 Clinician Roster Management (Vet Shift)*
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → "Assign Shift".
+- **Navigation path:** Dashboard → Staff Management.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner, Manager.
+- **Purpose:** Provide an overview of active and pending staff.
+- **Interface:** Searchable list with name, role, status, and specialty.
+
+ #### *3.7.3 Create Vet Shift (UC-CM-04)*
+**User Story:**
+> *As a Clinic Manager, I want to assign specific working hours for Vets across multiple dates and weeks so that I can ensure medical coverage for patient appointments and prevent double-booking.*
+
+**Function trigger**
+- **Navigation Path (Web - Clinic Owner):** Manager Dashboard → Schedules → "Assign Shift".
 - **Timing frequency:** Weekly or monthly planning.
 
 **Function description**
 - **Actors/Roles:** Clinic Manager.
 - **Purpose:** Allocate specific working hours (shifts) to Veterinarians on specific days.
 - **Interface:**
-    - Staff Selection – dropdown
-    - Flexible Date Selection – multi-select calendar/days (e.g., Mon-Wed-Fri)
-    - Time Slot – start/end time inputs
-    - **Overnight Toggle** – supports shifts crossing midnight (e.g., 22:00 - 06:00)
-    - **Recurring Option** – repeat the selected pattern for X weeks (default 1)
-    - Quick Presets – buttons for "Full Week", "2-4-6", "3-5-7"
+    - Staff: vetId (Selection).
+    - Work Dates: workDates[] (Multi-select via calendar or dragging).
+    - Start/End Time: startTime, endTime (Time inputs).
+    - Overnight Toggle: Boolean (Auto-detected if End < Start).
+    - Recurring Option: repeatWeeks (1 to 12 weeks).
 
 **Data processing**
 1. Manager selects a Vet, one or more dates, and a time range.
-2. System detects if the shift is **Overnight** (End Time < Start Time).
-3. **Conflict Check Logic (NEW):**
+2. System detects if the shift is Overnight (End Time < Start Time).
+3. **Conflict Check Logic:**
     - For each selected date:
         - System iterates through the Vet's existing shifts for that day (and the next day if overnight).
         - System uses the `timesOverlap()` helper to compare the new time range with existing shifts.
         - If an overlap is found, the system collects conflict details (Existing Shift vs New Shift).
-4. If conflicts are found:
-    - System opens a **Conflict Warning Modal** showing specific dates and times of overlap.
-    - User Action: **Cancel** (return to form) or **Confirm Override** (Force Create).
-5. If "Confirm Override" or no conflicts:
-    - System creates one or more `VET_SHIFT` records.
-    - If `forceUpdate = true`, the Backend performs an **Upsert** (replacing or merging with existing capacity).
-6. Automatic Trigger: System generates bookable `SLOT` entries for each shift.
+    - If conflicts are found:
+        - System opens a **Conflict Warning Modal** showing specific dates and times of overlap.
+        - User Action: Cancel (return to form) or Confirm Override (Force Create).
+    - If "Confirm Override" or no conflicts:
+        - System creates one or more `VET_SHIFT` records.
+        - If `forceUpdate = true`, the Backend performs an Upsert (replacing or merging with existing capacity).
+4. Automatic Trigger: System generates bookable `SLOT` entries for each shift.
 
 **Screen layout**
-Figure 31. Screen Clinician Roster Management (Web) - Now including Conflict Warning Modal.
+Figure 31. Screen Staff Shift Management
+Figure 32. Screen Warning overlap modal
 
 **Function details**
 - **Data:** VetID, WorkDates (List), StartTime, EndTime, forceUpdate (Boolean).
 - **Validation:** 
-    - **Start/End Time:** If `isOvernight` is true, End Time can be earlier than Start Time.
-    - **Max Duration:** Total shift duration must be within limits (e.g., 12h per shift).
-    - **Date Range:** Bulk creation up to 14 days at a time.
+    - Start/End Time: If `isOvernight` is true, End Time can be earlier than Start Time.
+    - Max Duration: Total shift duration must be within limits (e.g., 12h per shift).
+    - Date Range: Bulk creation up to 14 days at a time.
 - **Business rules:** BR-18, BR-19, BR-20, BR-49.
+- **Normal case:**
+    1. Manager selects Vet "Dr. Nam".
+    2. Manager selects "Mon-Wed-Fri" and "4 weeks" recurring.
+    3. Manager sets time "08:00 - 17:00".
+    4. System checks for conflicts, finds none, and creates shifts.
 - **Abnormal/Exception cases:**
     - A1. Shift overlap – System triggers specific Warning Modal (BR-Conflict).
-    - A2. Clinic closed – Shift falls outside of `OperatingHours`.
+    - A2. Clinic closed – Shift falls outside of OperatingHours.
 
- #### *3.7.3 Logic: Auto Slot Generation*
+ #### *3.7.3 Generate Booking Slots (System Logic)*
 **Function trigger**
 - **Timing frequency:** Executed concurrently with `UC-SM-02`.
 - **Navigation path:** Automated system logic from Backend.
@@ -1659,9 +2032,206 @@ Figure 31. Screen Clinician Roster Management (Web) - Now including Conflict War
 **Function details**
 - **Business rules:** N/A
 
+#### *3.7.4 Manage Shifts - Edit/Delete (UC-CM-16)*
+**User Story:**
+> As a Clinic Manager, I want to edit or delete existing vet shifts so that I can adjust schedules when plans change.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Schedules → Click on existing shift → "Chỉnh sửa" hoặc "Xóa".
+- **Timing frequency:** When schedule changes are needed.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Modify shift timing or delete shifts that are no longer needed.
+- **Interface:**
+    - Shift Detail Modal:
+        - Start Time – time input
+        - End Time – time input
+        - "Lưu thay đổi" – primary action
+        - "Xóa ca làm" – danger action
+
+**Data processing**
+1. **Edit Shift:**
+    - Manager modifies start/end time.
+    - System validates conflict with existing bookings.
+    - If bookings exist in affected slots → Warning: "Có {n} booking trong khoảng thời gian này".
+    - Manager confirm → System:
+        - Update `VET_SHIFT` record.
+        - Regenerate affected `SLOT` entities.
+        - Notify affected pet owners if bookings impacted.
+
+2. **Delete Shift:**
+    - Manager click "Xóa ca làm" → Confirmation modal.
+    - System checks for existing bookings.
+    - If bookings exist → Error: "Không thể xóa ca làm có booking".
+    - If no bookings → Delete shift and all related `AVAILABLE` slots.
+
+**Screen layout**
+Figure 33. Screen Edit Shift Modal (Web)
+
+**Function details**
+- **Data:**
+    - Request (Edit): `PUT /api/vet-shifts/{id}` + `{ startTime, endTime }`
+    - Request (Delete): `DELETE /api/vet-shifts/{id}`
+    - Response: `{ success: true, message: "..." }`
+- **Validation:**
+    - Cannot delete shift with existing bookings (status != AVAILABLE).
+    - Edit must not create conflicts with other shifts.
+- **Business rules:** BR-SM-16 tại (5.1 Business Rules)
+- **Normal case:** Shift updated/deleted, slots regenerated, no booking affected.
+- **Abnormal/Exception cases:**
+    - A1. Shift has bookings → Toast "Không thể xóa ca làm có lịch hẹn".
+    - A2. Time conflict with another shift → Warning modal.
+
+#### *3.7.5 Manage Clinic Staff (UC-CO-07)*
+**User Story:**
+> As a Clinic Owner, I want to manage all staff in my clinic including viewing details, updating roles, and removing staff so that I can maintain proper team management.
+
+**Function trigger**
+- **Navigation path:** Clinic Owner Dashboard → Staff Management → Click staff → Actions menu.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner
+- **Purpose:** Full staff lifecycle management - view, update, deactivate.
+- **Interface:**
+    - Staff List Table
+    - Staff Detail Modal:
+        - Full Name, Email (readonly)
+        - Role – dropdown (Vet, Manager)
+        - Specialty – dropdown (if Vet)
+        - Status – Active/Inactive toggle
+        - "Cập nhật" / "Xóa khỏi clinic" buttons
+
+**Data processing**
+1. **View Staff:**
+    - System displays all `CLINIC_STAFF` where `clinic_id = current_clinic`.
+    - Includes: Name, Role, Specialty, Join Date, Status.
+
+2. **Update Staff:**
+    - Owner modifies role/specialty/status.
+    - System validates:
+        - Cannot change own role.
+        - Cannot have 0 managers (at least 1 required).
+    - Update `CLINIC_STAFF` record.
+
+3. **Remove Staff:**
+    - Owner click "Xóa khỏi clinic".
+    - System checks pending shifts/bookings.
+    - If none → Set `CLINIC_STAFF.status = INACTIVE`.
+    - Staff loses access to clinic dashboard.
+
+**Screen layout**
+Figure 34. Screen Manage Staff (Web)
+
+**Function details**
+- **Data:**
+    - Request (Update): `PUT /api/clinic-staff/{id}` + `{ role, specialty, status }`
+    - Request (Remove): `DELETE /api/clinic-staff/{id}`
+- **Validation:**
+    - At least 1 Manager must remain.
+    - Cannot remove self.
+- **Business rules:** BR-CO-07 tại (5.1 Business Rules)
+- **Normal case:** Staff updated/removed, access revoked immediately.
+- **Abnormal/Exception cases:**
+    - A1. Staff has upcoming shifts → Warning "Staff có ca làm trong tuần tới".
+    - A2. Last manager → Error "Phải có ít nhất 1 quản lý".
+
+#### *3.7.6 Block/Unblock Slot (UC-CM-11)*
+**User Story:**
+> As a Clinic Manager, I want to manually block or unblock specific time slots so that I can handle exceptional situations like equipment maintenance or vet breaks.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Schedules → Click on slot → "Khóa slot" hoặc "Mở khóa".
+- **Timing frequency:** On demand for exceptional situations.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Manually control slot availability for non-standard situations.
+- **Interface:**
+    - Calendar/Grid View with slots
+    - Right-click context menu: "Khóa slot" / "Mở khóa"
+    - Block Reason – dropdown (Bảo trì, Nghỉ đột xuất, Khác)
+
+**Data processing**
+1. **Block Slot:**
+    - Manager selects slot(s) and chooses "Khóa slot".
+    - System validates slot status = `AVAILABLE`.
+    - Update `SLOT.status = BLOCKED`.
+    - Slot becomes invisible to Pet Owners in booking flow.
+
+2. **Unblock Slot:**
+    - Manager selects blocked slot(s) and chooses "Mở khóa".
+    - Update `SLOT.status = AVAILABLE`.
+    - Slot becomes bookable again.
+
+**Screen layout**
+Figure 35. Screen Slot Blocking (Web) - Context menu on calendar.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/slots/block` + `{ slotIds: [...], reason: "..." }`
+    - Request: `PUT /api/slots/unblock` + `{ slotIds: [...] }`
+- **Validation:**
+    - Cannot block slot with existing booking.
+    - Can only block `AVAILABLE` slots.
+- **Business rules:** BR-CM-11 tại (5.1 Business Rules)
+- **Normal case:** Slot status toggled, calendar updated.
+- **Abnormal/Exception cases:**
+    - A1. Slot đã có booking → Toast "Không thể khóa slot đã có lịch hẹn".
+    - A2. Slot đã blocked → Toast "Slot này đã bị khóa".
+
+#### *3.7.7 Bulk Shift Delete (UC-CM-12)*
+**User Story:**
+> As a Clinic Manager, I want to delete multiple shifts at once so that I can quickly clear schedules when a vet is on extended leave.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Schedules → Select multiple shifts → "Xóa hàng loạt".
+- **Timing frequency:** When vet takes leave or scheduling overhaul.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Efficiently remove multiple shifts in one operation.
+- **Interface:**
+    - Calendar with multi-select mode
+    - Checkbox on each shift
+    - "Xóa {n} ca làm đã chọn" – bulk action button
+    - Confirmation Modal with affected shifts list
+
+**Data processing**
+1. Manager enables multi-select mode.
+2. Manager selects multiple shifts (same vet or different vets).
+3. Manager clicks "Xóa hàng loạt".
+4. System validates each shift:
+    - No existing bookings (status != AVAILABLE).
+    - Group by: Can delete, Cannot delete.
+5. Confirmation modal shows:
+    - "Có thể xóa: {n} ca làm"
+    - "Không thể xóa: {m} ca làm (có booking)"
+6. Manager confirm → System deletes eligible shifts and slots.
+7. Summary toast: "Đã xóa {n}/{total} ca làm".
+
+**Screen layout**
+Figure 36. Screen Bulk Shift Delete (Web) - Multi-select calendar.
+
+**Function details**
+- **Data:**
+    - Request: `DELETE /api/vet-shifts/bulk` + `{ shiftIds: [...] }`
+    - Response: `{ deleted: n, failed: m, failedReasons: [...] }`
+- **Validation:**
+    - Each shift must have no bookings.
+- **Business rules:** BR-CM-12 tại (5.1 Business Rules)
+- **Normal case:** All selected shifts deleted, slots cleaned up.
+- **Abnormal/Exception cases:**
+    - A1. Some shifts have bookings → Partial success, list failures.
+    - A2. All shifts have bookings → Toast "Không có ca làm nào có thể xóa".
+
 ### 3.8 Booking & Appointment Lifecycle Flow
 
- #### *3.8.1 Create New Appointment*
+ #### *3.8.1 Book Appointment (UC-PO-06 / UC-PO-07)*
+**User Story:**
+> *As a Pet Owner, I want to search and book a veterinary service for my pet at a specific time so that I can ensure they get the care they need.*
+
 **Function trigger**
 - **Navigation path:** Clinic Details → "Book Now" OR Mobile Home → "Quick Booking".
 - **Timing frequency:** On demand.
@@ -1677,247 +2247,571 @@ Figure 31. Screen Clinician Roster Management (Web) - Now including Conflict War
     - "Proceed to Payment" – primary action button
 
 **Data processing**
-1. **[BOK-1] Mobile Booking Wizard (3-step Flow with Smart Availability):**
-    - **Step 1: Service Choice**: 
-        - Pet Owner selects one or more services from the clinic's service catalog.
-        - Each service displays: Name, Category, Base Price, Duration.
-        - Services are publicly viewable (no authentication required for browsing).
-    - **Step 2: Time Slot Selection (Smart Availability)**: 
-        - **Smart Availability Algorithm**:
-            - Input: Selected services (with required specialties), Clinic ID, Date.
-            - System automatically finds time slots where **at least one vet** with the required specialty is available.
-            - For multi-service bookings: System ensures consecutive slots can be fulfilled by checking vet availability for each service in sequence.
-            - Returns: List of valid start times (30-minute intervals).
-        - Interactive calendar showing days with available slots.
-        - Slot grid showing available 30-minute intervals.
-        - **No Vet Selection**: Vet assignment is handled by Manager post-booking.
-    - **Step 3: Review & Summary**: 
-        - Final price calculation: `Base Price` + `Weight Surcharge` (based on pet's last weight) + `Distance Fee` (if Home Visit, based on distance).
-        - User confirms booking details.
-        - Slot locking (TTL 15 minutes for payment).
-2. System creates a `BOOKING` record with `PENDING` status (awaiting payment).
-3. **Post-Booking Flow**: Manager assigns vet via Dashboard (UC-CM-06, Section 3.8.3).
+1. **[BOK-1] Mobile Booking Wizard (3-step Flow):**
+    - **Step 1: Service Selection**: Owner selects one or more services.
+    - **Step 2: Time Selection (Smart Availability)**: System finds slots where a vet with required specialty is free.
+    - **Step 3: Review & Summary**: Calculation of `Base Price` + `Surcharge` + `Distance Fee` (for UC-PO-07).
+2. System creates a `BOOKING` record with `PENDING` status.
+3. System locks the selected slots for 15 minutes.
 
-**Screen layout**
-Figure 32. Screen Mobile Booking Wizard (BOK-1) - 3 Steps: Service Selection, Time Selection, Summary.
-
-**Function details**
-- **Data:** PetID, ServiceID(s), SlotID(s), BookingDate, Address (for Home Visit).
-- **Validation:** 
-    - Appointment must be booked at least 2 hours in advance (BR-001-01).
-    - User cannot book for a pet they do not own.
-    - Selected slots must be available (not already booked).
-- **Business rules:** BR-01, BR-02, BR-05, **BR-14 (Smart Availability Matching)**.
-- **Normal case:**
-    1. Pet Owner selects "Vaccination" service for their pet "Bella".
-    2. System shows available time slots on Friday where a vet with VET_VACCINATION specialty is free.
-    3. User selects 9:00 AM slot and proceeds to payment.
-- **Abnormal/Exception cases:**
-    - A1. Slot taken – Another user completed payment for this slot during the 15-minute TTL.
-    - A2. Past date – User attempts to select a time that has already passed.
-    - A3. Address out of range – Home visit distance exceeds clinic service range.
-    - A4. No available slots – No vet with required specialty is available on selected date.
-
- #### *3.8.2 Payment & Confirmation*
-**Function trigger**
-- **Navigation path:** Redirected from `UC-BK-01` OR My Bookings → "Pay Now".
-- **Timing frequency:** Within 15 minutes of slot selection.
-
-**Function description**
-- **Actors/Roles:** Pet Owner.
-- **Purpose:** Securely pay for the booked service to confirm the appointment.
-- **Interface:**
-    - Payment Summary – fee breakdown
-    - E-Wallet (MoMo/VNPAY) – radio buttons
-    - Credit Card – Stripe element
-    - "Confirm Payment" – action button
+ #### *3.8.2 Process Payment (UC-PO-10)*
+**User Story:**
+> *As a Pet Owner, I want to securely pay for my booking online so that my appointment is confirmed.*
 
 **Data processing**
-1. User selects a payment method.
-2. For Electronic Payment: System calls Third-party Payment Gateway (Stripe/VNPAY).
-3. Upon Success: System updates `BOOKING` status to `CONFIRMED` and `SLOT` status to `BOOKED`.
-4. System sends booking confirmation notification to the user.
+1. User enters card info (Stripe).
+2. Upon success:
+    - Booking status: `PENDING` → `CONFIRMED`.
+    - Payment status: `UNPAID` → `PAID`.
+3. System notifies Clinic Manager via Web Dashboard.
 
-**Screen layout**
-Figure 33. Screen Payment & Confirmation (Mobile)
+ #### *3.8.3 Lifecycle Stages & Workflow Statuses*
+The system tracks the full physical and logistical flow of each appointment using 10 distinct statuses:
 
-**Function details**
-- **Data:** PaymentID, TransactionToken.
-- **Normal case:** User pays via Stripe; appointment is confirmed immediately.
-- **Abnormal/Exception cases:**
-    - A1. Payment declined – Show "Insufficient balance or card error".
-    - A2. Session expired – User took >15 minutes; slot is released.
-    - E1. Gateway delay – Payment status becomes `UNKNOWN`, requiring manual reconciliation.
+| Status | Trigger | Description |
+| :--- | :--- | :--- |
+| **PENDING** | Booking Created | Waiting for payment completion (15-min TTL). |
+| **CONFIRMED** | Payment Success | Appointment is locked. Visible to Manager for assignment. |
+| **ASSIGNED** | Manager Action | Vet has been assigned to the booking. (UC-CM-06) |
+| **ON_THE_WAY** | Vet Action | For Home Visit/SOS: Vet starts traveling. GPS tracking active. |
+| **ARRIVED** | Vet Action / Geofence | Vet confirms arrival at location (or auto-detected). |
+| **CHECK_IN** | Vet Action | Physical handover/exam start. Creates EMR shell. (UC-VT-05) |
+| **IN_PROGRESS** | System | Medical record being updated by Vet. |
+| **PAID** | Manager/Vet Action| Final incurred costs settled (if cash or add-ons). |
+| **CHECK_OUT** | Vet Action | Exam finished, EMR locked. (UC-CM-10) |
+| **COMPLETED** | System | Final archival status. Review popup triggered for Owner. |
 
- #### *3.8.3 Clinician Assignment (Vet Assignment)*
+ #### *3.8.4 Assign Vet to Booking (UC-CM-06)*
+**User Story:**
+> *As a Clinic Manager, I want to assign a qualified veterinarian to each pending appointment so that the service is delivered by the right professional.*
+
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Management → Booking Dashboard → Click "Chi tiết" on PENDING booking.
-- **Timing frequency:** Daily or when a new booking arrives.
+- **Navigation path:** Manager Dashboard → Management → Booking Dashboard → Click "Chi tiết" on PENDING/CONFIRMED booking.
+
+**Data processing:**
+1. Manager selects vet per service based on specialty matching.
+2. System verifies vet availability and assigns.
+3. Booking status → `ASSIGNED`.
+
+ #### *3.8.5 Handle Patient Check-in/Out (UC-VT-05 / UC-CM-10)*
+**Data processing:**
+1. Check-in: Status → `CHECK_IN`. Start EMR.
+2. Check-out: Status → `CHECK_OUT` → `COMPLETED`. Lock EMR.
+
+ #### *3.8.6 Add Incurred Service / Final Settlement (UC-VT-09)*
+1. Vet adds additional services during exam.
+2. System updates `total_price`.
+3. Payment method check (CASH vs Online) for final settlement.
+
+#### *3.8.7 View My Bookings (UC-PO-08)*
+**User Story:**
+> As a Pet Owner, I want to view all my bookings in one place so that I can track appointments, past visits, and their statuses.
+
+**Function trigger**
+- **Navigation path:** Mobile Home → Tab "Lịch hẹn" hoặc Profile → "Lịch sử đặt lịch".
+- **Timing frequency:** On demand.
 
 **Function description**
-- **Actors/Roles:** Clinic Manager.
-- **Purpose:** Assign a specific veterinarian to an upcoming appointment, either via auto-suggestion or manual selection.
+- **Actors/Roles:** Pet Owner
+- **Purpose:** Xem danh sách tất cả các booking đã tạo, bao gồm cả lịch sử và upcoming appointments.
 - **Interface:**
-    - Booking Info – summary card
-    - Service List – each service displays an **inline dropdown** for vet selection
-    - Available Vet Dropdown – shows vet name, avatar, specialty, workload
-    - Suggested Vet Badge – green "Gợi ý" tag on recommended vet
-    - Confirm Button – "Xác nhận & Gán Vet"
+    - Tabs: "Sắp tới" / "Đã hoàn thành" / "Đã hủy"
+    - Booking Card – hiển thị: Pet, Clinic, Service, Date/Time, Status badge
+    - Filter – lọc theo trạng thái, ngày tháng
 
 **Data processing**
-1. **[BOK-3a] Check Vet Availability:**
-    - Manager opens booking detail modal.
-    - System calls `GET /bookings/{id}/available-vets-for-confirm` API.
-    - Returns list of vets matching service specialty with availability status.
-    - Each vet shows: avatar, name, specialty label, booking count today, hasAvailableSlots.
-
-2. **[BOK-3b] Inline Vet Selection (Per Service):**
-    - Each service in booking displays a dropdown.
-    - Dropdown pre-selects suggested vet (based on auto-assignment algorithm).
-    - Manager can click dropdown to change vet for specific service.
-    - **Matching Rule:** Service Category must match Vet Specialty:
-        - GROOMING_SPA → VET_GROOMING / GROOMER
-        - CHECK_UP / VACCINATION / INTERNAL_MEDICINE → VET_GENERAL / VET_VACCINATION
-        - SURGERY → VET_SURGERY
-        - DENTAL → VET_DENTAL
-        - DERMATOLOGY → VET_DERMATOLOGY
-        - EMERGENCY → VET_EMERGENCY
-
-3. **[BOK-3c] Confirm with Selected Vet:**
-    - Manager clicks "Xác nhận & Gán Vet".
-    - System calls `PATCH /bookings/{id}/confirm` with `selectedVetId`.
-    - Backend reserves vet's time slots for the booking duration.
-    - Booking status: PENDING → CONFIRMED → ASSIGNED.
-    - System sends FCM notification to assigned vet.
+1. System query tất cả bookings có `pet_owner_id = current_user`.
+2. Nhóm theo status:
+    - **Sắp tới:** `PENDING`, `CONFIRMED`, `ASSIGNED`, `ON_THE_WAY`, `CHECK_IN`, `IN_PROGRESS`
+    - **Đã hoàn thành:** `COMPLETED`
+    - **Đã hủy:** `CANCELLED`, `NO_SHOW`
+3. Hiển thị danh sách với sorting theo `booking_date DESC`.
+4. User click vào booking → Xem chi tiết (UC-PO-09 detail view).
 
 **Screen layout**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ CHI TIẾT ĐẶT LỊCH                              [X]              │
-│ BK-12345                                                        │
-├─────────────────────────────────────────────────────────────────┤
-│ ┌──────────────────────┐  ┌──────────────────────┐             │
-│ │ THÔNG TIN THÚ CƯNG   │  │ THÔNG TIN CHỦ        │             │
-│ │ [Avatar] Bella       │  │ Nguyễn Văn A         │             │
-│ │ Chó - Golden         │  │ 0901234567           │             │
-│ └──────────────────────┘  └──────────────────────┘             │
-├─────────────────────────────────────────────────────────────────┤
-│ DỊCH VỤ ĐẶT                                                     │
-│ ┌───────────────────────────────────────────────────────────┐  │
-│ │ Khám da liễu  [Da liễu]                         250.000đ  │  │
-│ │ 30 phút - 1 slot(s)  ⏰ 16:00 - 16:30                      │  │
-│ │                                                            │  │
-│ │ ✓ Bác sĩ: [▼ Tân Phạm (Gợi ý) - BS da liễu thú y      ]   │  │◄── Inline Dropdown
-│ │           ├─ Tân Phạm (Gợi ý) ✓                           │  │
-│ │           ├─ Nguyễn Văn B - BS đa khoa                    │  │
-│ │           └─ Trần Thị C - BS da liễu                      │  │
-│ └───────────────────────────────────────────────────────────┘  │
-│                                                                  │
-│ Tổng cộng: 250.000đ                                             │
-├─────────────────────────────────────────────────────────────────┤
-│                              [Đóng]  [Xác nhận & Gán Vet]       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-Figure 34. Screen Clinician Assignment with Inline Vet Dropdown (Web)
+Figure 38. Screen My Bookings List (Mobile) - Tab-based view.
 
 **Function details**
-- **Data:** BookingID, ServiceID, SelectedVetID.
+- **Data:**
+    - Request: `GET /api/bookings/my?status={status}&page={page}`
+    - Response: `List<BookingDTO>` (id, petName, clinicName, serviceName, bookingDate, bookingTime, status, totalPrice)
+- **Validation:** User phải đăng nhập.
+- **Business rules:** BR-BOK-08 tại (5.1 Business Rules)
+- **Normal case:** Danh sách hiển thị đầy đủ thông tin, status badge màu sắc rõ ràng.
+- **Abnormal/Exception cases:**
+    - A1. Chưa có booking nào → Hiển thị empty state "Bạn chưa có lịch hẹn nào".
+    - A2. Network error → Toast "Không thể tải danh sách lịch hẹn".
+
+#### *3.8.8 Cancel Booking (UC-PO-09)*
+**User Story:**
+> As a Pet Owner, I want to cancel my booking if I can no longer attend so that the slot becomes available for others.
+
+**Function trigger**
+- **Navigation path:** My Bookings → Chọn booking → Nút "Hủy lịch".
+- **Timing frequency:** Before check-in.
+
+**Function description**
+- **Actors/Roles:** Pet Owner
+- **Purpose:** Hủy booking khi chưa đến giờ hẹn hoặc chưa check-in.
+- **Interface:**
+    - Booking Detail Screen
+    - "Hủy lịch hẹn" – danger button
+    - Confirmation Modal – yêu cầu xác nhận + nhập lý do (optional)
+
+**Data processing**
+1. User click "Hủy lịch hẹn" → Modal xác nhận hiển thị.
+2. User confirm → System kiểm tra:
+    - Status phải là `PENDING`, `CONFIRMED`, hoặc `ASSIGNED` (chưa `CHECK_IN`).
+    - Nếu status ≥ `CHECK_IN` → Không cho phép hủy.
+3. System thực hiện:
+    - Update `booking.status = CANCELLED`.
+    - Restore slots về `AVAILABLE`.
+    - Tạo notification cho Vet (nếu đã ASSIGNED) và Clinic Manager.
+    - Nếu thanh toán online → Tạo refund request (UC-CM-07).
+4. Toast: "Đã hủy lịch hẹn thành công".
+
+**Screen layout**
+Figure 39. Screen Cancel Booking Confirmation (Mobile) - Modal dialog.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/bookings/{id}/cancel` + `{ reason: "..." }`
+    - Response: `{ success: true, message: "Đã hủy lịch hẹn" }`
 - **Validation:**
-    - Selected vet must have available slots for booking time.
-    - Vet specialty must match service category.
-- **Business rules:** BR-12 (Vet assignment), BR-13 (Slot reservation).
-- **Normal case:**
-    1. Manager opens PENDING booking detail.
-    2. System shows suggested vet "Tân Phạm" for each service.
-    3. Manager confirms with suggested vet or changes to different vet.
-    4. System assigns vet and notifies via FCM.
+    - Booking phải thuộc về user hiện tại.
+    - Status phải < `CHECK_IN`.
+- **Business rules:** BR-BOK-09 tại (5.1 Business Rules)
+- **Normal case:** Booking status → `CANCELLED`, slots restored, notifications sent.
 - **Abnormal/Exception cases:**
-    - A1. No available vet – System shows warning modal with options: "Xác nhận một phần" or "Hủy".
-    - A2. Vet suddenly busy – Manager can reassign via ReassignVetModal after confirmation.
-    - A3. Multiple services need different vets – Each service dropdown allows independent selection.
+    - A1. Status ≥ `CHECK_IN` → Toast "Không thể hủy lịch đã bắt đầu khám".
+    - A2. Booking không tồn tại → Toast "Lịch hẹn không hợp lệ".
+    - A3. Network error → Toast "Không thể hủy lịch hẹn. Vui lòng thử lại".
 
- #### *3.8.3b Vet Reassignment (Post-Confirmation)*
+#### *3.8.9 View Assigned Bookings (UC-VT-03)*
+**User Story:**
+> As a Vet, I want to see all bookings assigned to me so that I know my schedule and can prepare for appointments.
+
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Booking Detail → Click "Đổi BS" button on a service.
-- **Timing frequency:** When vet is unavailable or needs to be changed.
+- **Navigation path:** Vet Mobile Home → Tab "Lịch hẹn" OR Vet Web Dashboard → Menu "Lịch của tôi".
+- **Timing frequency:** On demand.
 
 **Function description**
-- **Actors/Roles:** Clinic Manager.
-- **Purpose:** Change assigned vet for a specific service after booking is confirmed.
+- **Actors/Roles:** Vet
+- **Purpose:** Xem danh sách tất cả booking đã được gán cho bác sĩ.
 - **Interface:**
-    - ReassignVetModal – shows available vets for the service
-    - Vet List – with avatar, name, specialty, availability status
-    - Confirm Button – "Xác nhận đổi"
+    - Calendar View – tháng/tuần/ngày
+    - List View – danh sách theo ngày
+    - Booking Card – hiển thị: Pet, Owner, Service, Time, Status
+    - Filter – lọc theo ngày, status
 
 **Data processing**
-1. System calls `GET /bookings/{id}/services/{serviceId}/available-vets`.
-2. Manager selects new vet from list.
-3. System calls `POST /bookings/{id}/services/{serviceId}/reassign` with `newVetId`.
-4. Backend releases old vet's slots and reserves new vet's slots.
-5. Notifications sent to both old and new vet.
-
-**Function details**
-- **Normal case:** Manager changes from Dr. A to Dr. B due to scheduling conflict.
-- **Abnormal cases:**
-    - A1. New vet also unavailable – Show "Không có slot trống".
-
- #### *3.8.3c Add-on Service During Examination*
-**Function trigger**
-- **Navigation path:** Booking Detail (when status is IN_PROGRESS or ARRIVED) → "Thêm dịch vụ" button.
-- **Timing frequency:** During examination when additional services needed.
-
-**Function description**
-- **Actors/Roles:** Vet, Clinic Manager.
-- **Purpose:** Add extra services discovered during examination.
-- **Interface:**
-    - AddServiceModal – list of clinic services not already in booking
-    - Service Selection – click to select
-    - Confirm Button – "Xác nhận thêm"
-
-**Data processing**
-1. System calls `GET /services/clinic/{clinicId}` to get available services.
-2. Filters out services already in booking.
-3. Vet/Manager selects additional service.
-4. System calls `POST /bookings/{id}/add-service` with `serviceId`.
-5. Price calculated based on pet weight, added to booking total.
-6. **Note:** Distance fee is NOT recalculated for add-on services.
-
-**Function details**
-- **Visibility:** Button only shows when booking status is `IN_PROGRESS` or `ARRIVED` (SOS only for ARRIVED).
-- **Normal case:** Vet discovers ear infection during general checkup, adds "Ear Cleaning" service.
-
- #### *3.8.4 Patient Arrival & Departure (Check-in/Out)*
-**Function trigger**
-- **Navigation path:** Clinic Reception Dashboard OR Vet App → Active Bookings.
-- **Timing frequency:** When the customer arrives at/leaves the clinic.
-
-**Function description**
-- **Actors/Roles:** Vet, Staff, Manager.
-- **Purpose:** Record the physical flow of the appointment.
-- **Interface:**
-    - Check-in Button – "Mark as Arrived"
-    - Check-out Button – "Complete Visit"
-
-**Data processing**
-1. Check-in: Status → `IN_PROGRESS`, records start time.
-2. Check-out: System verifies EMR is complete, status → `COMPLETED`, records end time.
-3. System sends a "Thank You" notification to the owner.
+1. System query tất cả bookings có `assigned_vet_id = current_vet`.
+2. Hiển thị theo 2 chế độ:
+    - **Calendar Mode:** Đánh dấu ngày có booking, click vào ngày → List view.
+    - **List Mode:** Danh sách chi tiết từng booking, sorted by `booking_date`, `booking_time`.
+3. Color-coded badges theo status:
+    - `ASSIGNED`: Vàng (Đã gán, chờ khám)
+    - `CONFIRMED`: Xanh lá (Đã xác nhận)
+    - `CHECK_IN`: Xanh dương (Đang check-in)
+    - `IN_PROGRESS`: Tím (Đang khám)
+4. User click vào booking → Xem chi tiết pet + owner + EMR cũ.
 
 **Screen layout**
-Figure 35. Screen Patient Arrival & Departure (Mobile)
-Figure 36. Screen Patient Arrival & Departure (Web)
+Figure 40. Screen Assigned Bookings (Mobile/Web) - Calendar + List hybrid.
 
 **Function details**
-- **Logic:** Check-out is blocked if the medical record (EMR) has not been drafted.
-- **Business rules:** BR-50.
-- **Abnormal cases:**
-    - A1. No-show – Status → `CANCELLED_BY_CLINIC`.
+- **Data:**
+    - Request: `GET /api/bookings/assigned-to-me?date={date}&status={status}`
+    - Response: `List<BookingDetailDTO>` (id, petName, petSpecies, ownerName, ownerPhone, serviceName, bookingDate, bookingTime, status, previousEMR)
+- **Validation:** User phải có role `VET`.
+- **Business rules:** BR-VT-03 tại (5.1 Business Rules)
+- **Normal case:** Danh sách hiển thị đầy đủ, có thể filter và sort.
+- **Abnormal/Exception cases:**
+    - A1. Chưa có booking nào → Hiển thị empty state "Bạn chưa có lịch hẹn nào".
+    - A2. Network error → Toast "Không thể tải danh sách lịch hẹn".
+
+#### *3.8.10 Update Appointment Progress (UC-VT-04)*
+**User Story:**
+> As a Vet, I want to update the appointment status as I progress through check-in, examination, and check-out so that the system reflects real-time appointment state.
+
+**Function trigger**
+- **Navigation path:** Assigned Bookings → Chọn booking → Các nút action theo status.
+- **Timing frequency:** During appointment lifecycle.
+
+**Function description**
+- **Actors/Roles:** Vet
+- **Purpose:** Cập nhật trạng thái booking qua các giai đoạn: Check-in → In Progress → Check-out.
+- **Interface:**
+    - Booking Detail Screen với action buttons tùy status:
+        - Status `ASSIGNED` → Nút "Check-in"
+        - Status `CHECK_IN` → Nút "Bắt đầu khám"
+        - Status `IN_PROGRESS` → Nút "Hoàn thành khám"
+        - Status `CHECK_OUT` → (Manager xử lý payment → COMPLETED)
+
+**Data processing**
+1. **Check-in Flow (UC-VT-05):**
+    - Vet click "Check-in" → Status `ASSIGNED` → `CHECK_IN`.
+    - System tạo EMR shell rỗng với `booking_id`, `pet_id`, `vet_id`.
+    - Notification → Pet Owner: "Đang được khám".
+
+2. **Start Examination:**
+    - Vet click "Bắt đầu khám" → Status `CHECK_IN` → `IN_PROGRESS`.
+    - Vet có thể nhập EMR (UC-VT-06).
+
+3. **Mark Treatment Finished (UC-VT-09):**
+    - Vet click "Hoàn thành khám" → Modal xác nhận.
+    - System kiểm tra: EMR phải có Assessment và Plan (mandatory).
+    - Nếu hợp lệ → Status `IN_PROGRESS` → `CHECK_OUT`.
+    - Notification → Clinic Manager: "Cần thanh toán & checkout".
+
+**Screen layout**
+Figure 41. Screen Appointment Progress Actions (Mobile) - Context-aware buttons.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/bookings/{id}/status` + `{ newStatus: "CHECK_IN" | "IN_PROGRESS" | "CHECK_OUT" }`
+    - Response: `{ success: true, newStatus: "..." }`
+- **Validation:**
+    - Status transitions phải tuân thủ state machine (BOOKING_WORKFLOW.md).
+    - Khi chuyển sang `CHECK_OUT`, EMR phải đầy đủ Assessment + Plan.
+- **Business rules:** BR-VT-04 tại (5.1 Business Rules)
+- **Normal case:** Status update smooth, notifications sent đúng actor.
+- **Abnormal/Exception cases:**
+    - A1. EMR chưa đầy đủ khi muốn CHECK_OUT → Toast "Vui lòng hoàn thành EMR trước khi kết thúc".
+    - A2. Invalid status transition → Toast "Không thể chuyển trạng thái này".
+
+#### *3.8.11 Check-in Patient (UC-VT-05)*
+**User Story:**
+> As a Vet, I want to check in a patient when they arrive so that the examination process can begin.
+
+**Function trigger**
+- **Navigation path:** Assigned Bookings → Chọn booking với status `ASSIGNED` → Nút "Check-in".
+- **Timing frequency:** When patient arrives.
+
+**Function description**
+- **Actors/Roles:** Vet
+- **Purpose:** Xác nhận pet owner và thú cưng đã có mặt, bắt đầu quy trình khám.
+- **Interface:**
+    - Booking Detail Screen
+    - "Check-in" – primary action button
+    - Confirmation: "Xác nhận pet owner và thú cưng đã có mặt?"
+
+**Data processing**
+1. Vet click "Check-in" → Modal xác nhận hiển thị.
+2. Vet confirm → System:
+    - Update `booking.status = CHECK_IN`.
+    - Tạo EMR shell rỗng (MongoDB).
+    - Notification → Pet Owner: "Thú cưng của bạn đang được khám".
+3. System tự động chuyển status `CHECK_IN` → `IN_PROGRESS` sau 2 phút (hoặc Vet click "Bắt đầu khám").
+
+**Screen layout**
+Figure 42. Screen Check-in Confirmation (Mobile) - Simple modal.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/bookings/{id}/check-in`
+    - Response: `{ success: true, emrId: "...", message: "Đã check-in" }`
+- **Validation:**
+    - Booking phải có status `ASSIGNED`.
+    - Vet phải là assigned vet của booking.
+- **Business rules:** BR-VT-05 tại (5.1 Business Rules)
+- **Normal case:** Status → `CHECK_IN`, EMR shell tạo, notification gửi.
+- **Abnormal/Exception cases:**
+    - A1. Pet owner chưa đến → Vet có thể đánh dấu `NO_SHOW` (sau 15 phút).
+    - A2. Booking đã check-in rồi → Toast "Booking đã được check-in trước đó".
+
+#### *3.8.12 Mark Treatment Finished (UC-VT-09)*
+**User Story:**
+> As a Vet, I want to mark the treatment as finished after completing the examination and EMR documentation so that the booking can proceed to payment and checkout.
+
+**Function trigger**
+- **Navigation path:** Booking Detail (status `IN_PROGRESS`) → Nút "Hoàn thành khám".
+- **Timing frequency:** After EMR is complete.
+
+**Function description**
+- **Actors/Roles:** Vet
+- **Purpose:** Kết thúc quá trình khám, đánh dấu booking sẵn sàng thanh toán.
+- **Interface:**
+    - Booking Detail Screen với EMR summary
+    - "Hoàn thành khám" – success button
+    - Final Check Modal – hiển thị summary của EMR, yêu cầu xác nhận
+
+**Data processing**
+1. Vet click "Hoàn thành khám" → System validate:
+    - EMR phải có `assessment` (mandatory).
+    - EMR phải có `plan` (mandatory).
+    - Nếu thiếu → Show error toast.
+2. Nếu hợp lệ → Modal xác nhận hiển thị:
+    - EMR summary (Subjective, Objective, Assessment, Plan).
+    - Prescription summary (nếu có).
+    - "Xác nhận hoàn thành khám?"
+3. Vet confirm → System:
+    - Update `booking.status = CHECK_OUT`.
+    - Lock EMR (status `FINALIZED`, không thể chỉnh sửa nữa).
+    - Notification → Clinic Manager: "Booking cần thanh toán & checkout".
+    - Notification → Pet Owner: "Khám xong. Vui lòng thanh toán".
+
+**Screen layout**
+Figure 43. Screen Mark Treatment Finished (Mobile) - EMR summary modal.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/bookings/{id}/finish-treatment`
+    - Response: `{ success: true, message: "Đã hoàn thành khám" }`
+- **Validation:**
+    - Booking status phải là `IN_PROGRESS`.
+    - EMR phải có `assessment` và `plan`.
+- **Business rules:** BR-VT-09 tại (5.1 Business Rules)
+- **Normal case:** Status → `CHECK_OUT`, EMR locked, Manager nhận notification.
+- **Abnormal/Exception cases:**
+    - A1. EMR chưa đầy đủ → Toast "Vui lòng hoàn thành Assessment và Plan trước".
+    - A2. Network error → Toast "Không thể hoàn thành khám. Vui lòng thử lại".
+
+#### *3.8.13 Vet Home Dashboard Summary (UC-VT-14)*
+**User Story:**
+> As a Vet, I want to see a summary of my daily schedule, upcoming appointments, and pending tasks on my home dashboard so that I can quickly understand my workload.
+
+**Function trigger**
+- **Navigation path:** Vet Mobile App Launch → Home Screen OR Vet Web Login → Dashboard.
+- **Timing frequency:** On login, on refresh.
+
+**Function description**
+- **Actors/Roles:** Vet
+- **Purpose:** Hiển thị tổng quan nhanh về lịch làm việc hôm nay và các task cần xử lý.
+- **Interface:**
+    - Dashboard Cards:
+        - "Lịch hôm nay" – số ca làm, giờ làm việc
+        - "Lịch hẹn hôm nay" – số booking (tổng / đã khám / còn lại)
+        - "Cần xử lý" – số booking đang `CHECK_IN` hoặc `IN_PROGRESS`
+        - "Upcoming" – booking sắp tới (trong 2 giờ)
+
+**Data processing**
+1. System query:
+    - **Today's Shifts:** `SELECT * FROM vet_shifts WHERE vet_id = {id} AND work_date = TODAY`.
+    - **Today's Bookings:** `SELECT * FROM bookings WHERE assigned_vet_id = {id} AND booking_date = TODAY`.
+2. Tính toán:
+    - Total bookings hôm nay.
+    - Completed bookings (status `COMPLETED`).
+    - Pending bookings (status `ASSIGNED`, `CHECK_IN`, `IN_PROGRESS`).
+    - Upcoming bookings (booking_time trong 2 giờ tới).
+3. Hiển thị cards với số liệu và quick actions:
+    - "Xem lịch chi tiết" → Navigate to Calendar.
+    - "Xem booking cần xử lý" → Navigate to Assigned Bookings (filter `IN_PROGRESS`).
+
+**Screen layout**
+Figure 44. Screen Vet Dashboard Summary (Mobile) - Card-based layout.
+
+**Function details**
+- **Data:**
+    - Request: `GET /api/vets/dashboard/summary?date=today`
+    - Response: `{ totalShifts, shiftHours, totalBookings, completedBookings, pendingBookings, upcomingBookings[] }`
+- **Validation:** User phải có role `VET`.
+- **Business rules:** BR-VT-14 tại (5.1 Business Rules)
+- **Normal case:** Dashboard hiển thị đầy đủ thông tin realtime.
+- **Abnormal/Exception cases:**
+    - A1. Không có ca làm hôm nay → Hiển thị "Bạn không có ca làm hôm nay".
+    - A2. Network error → Toast "Không thể tải dashboard".
+
+#### *3.8.14 Handle Cancellations & Refunds (UC-CM-07)*
+**User Story:**
+> As a Clinic Manager, I want to handle booking cancellations and process refunds so that customers are fairly compensated when appointments are cancelled.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → "Booking đã hủy" section OR Notification "Booking bị hủy".
+- **Timing frequency:** When Pet Owner cancels booking.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Xử lý booking bị hủy, quyết định refund policy.
+- **Interface:**
+    - Cancelled Bookings List
+    - Booking Detail Screen với info: Who cancelled, Reason, Payment status
+    - Refund Actions:
+        - "Hoàn tiền toàn bộ" – full refund
+        - "Hoàn tiền một phần" – partial refund (input percentage)
+        - "Không hoàn tiền" – no refund (theo policy)
+
+**Data processing**
+1. Pet Owner hủy booking (UC-PO-09) → System:
+    - Update `booking.status = CANCELLED`.
+    - Tạo notification → Manager.
+2. Manager xem cancelled booking → Kiểm tra:
+    - Payment method: `ONLINE` (cần refund) hoặc `CASH` (không cần refund).
+    - Cancellation timing: Bao lâu trước giờ hẹn?
+3. Manager chọn refund action:
+    - **Full Refund (100%):** Nếu hủy trước 24h.
+    - **Partial Refund (50%):** Nếu hủy trong vòng 24h.
+    - **No Refund (0%):** Nếu hủy trong vòng 2h (theo policy BR-CM-07).
+4. System thực hiện:
+    - Tạo refund request tới Stripe (nếu online payment).
+    - Update `payment.status = REFUNDED` hoặc `PARTIALLY_REFUNDED`.
+    - Notification → Pet Owner: "Đã hoàn tiền {amount}".
+
+**Screen layout**
+Figure 45. Screen Handle Cancellations (Web) - Refund action modal.
+
+**Function details**
+- **Data:**
+    - Request: `POST /api/bookings/{id}/refund` + `{ refundType: "FULL" | "PARTIAL", percentage: 50 }`
+    - Response: `{ success: true, refundAmount: 200000, message: "Đã hoàn tiền" }`
+- **Validation:**
+    - Booking status phải là `CANCELLED`.
+    - Payment status phải là `PAID`.
+- **Business rules:** BR-CM-07 tại (5.1 Business Rules)
+- **Normal case:** Refund processed, notification sent, payment status updated.
+- **Abnormal/Exception cases:**
+    - A1. Stripe refund failed → Toast "Hoàn tiền thất bại. Vui lòng thử lại".
+    - A2. Payment đã refund rồi → Toast "Booking này đã được hoàn tiền".
+
+#### *3.8.15 Receive Payment & Checkout (UC-CM-10)*
+**User Story:**
+> As a Clinic Manager, I want to receive payment from the customer and finalize the booking checkout so that the appointment lifecycle is completed.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Booking với status `CHECK_OUT` → Nút "Nhận thanh toán & Checkout".
+- **Timing frequency:** After Vet marks treatment finished.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Nhận thanh toán từ khách (nếu cash) và đóng booking.
+- **Interface:**
+    - Booking Detail Screen với payment summary:
+        - Total amount (base + add-ons).
+        - Payment method (CASH / ONLINE).
+    - Action buttons:
+        - Nếu `CASH` → "Xác nhận đã nhận tiền" (input amount).
+        - Nếu `ONLINE` (đã paid trước) → "Hoàn tất checkout" (direct confirm).
+
+**Data processing**
+1. Manager kiểm tra booking status = `CHECK_OUT`.
+2. **Case 1: Online Payment (đã thanh toán trước):**
+    - Manager click "Hoàn tất checkout" → Status `CHECK_OUT` → `COMPLETED`.
+    - Không cần nhập amount.
+
+3. **Case 2: Cash Payment (chưa thanh toán):**
+    - Manager click "Xác nhận đã nhận tiền".
+    - Modal hiển thị: Total amount, Input field "Số tiền nhận".
+    - Manager nhập amount → Click "Xác nhận".
+    - System validate: Amount phải ≥ total price.
+    - Update `payment.status = PAID`, `booking.status = COMPLETED`.
+
+4. System hoàn tất:
+    - Notification → Pet Owner: "Đã hoàn thành khám. Cảm ơn bạn!".
+    - Trigger review popup sau 1 phút (UC-PO-13).
+
+**Screen layout**
+Figure 46. Screen Receive Payment & Checkout (Web) - Payment confirmation modal.
+
+**Function details**
+- **Data:**
+    - Request: `POST /api/bookings/{id}/checkout` + `{ amountReceived: 250000 }` (nếu cash).
+    - Response: `{ success: true, message: "Đã hoàn thành checkout" }`
+- **Validation:**
+    - Booking status phải là `CHECK_OUT`.
+    - Nếu cash payment: `amountReceived` ≥ `totalPrice`.
+- **Business rules:** BR-CM-10 tại (5.1 Business Rules)
+- **Normal case:** Payment confirmed, booking completed, review triggered.
+- **Abnormal/Exception cases:**
+    - A1. Amount nhận < total price → Toast "Số tiền nhận không đủ".
+    - A2. Booking chưa CHECK_OUT → Toast "Chưa thể checkout".
+
+#### *3.8.16 Check Vet Availability (UC-CM-14)*
+**User Story:**
+> As a Clinic Manager, I want to check a vet's availability before assigning them to a booking so that I don't create scheduling conflicts.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Booking Detail (PENDING/CONFIRMED) → Click "Gán bác sĩ" → Modal hiển thị danh sách Vet.
+- **Timing frequency:** Before assigning vet.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Kiểm tra bác sĩ nào có slot trống phù hợp với booking time.
+- **Interface:**
+    - Assign Vet Modal:
+        - Dropdown "Chọn bác sĩ" với availability indicators
+        - "Xem lịch chi tiết" – link to Vet Calendar
+
+**Data processing**
+1. Manager chọn booking cần gán vet (booking_date, booking_time, slots_required).
+2. System query danh sách vet available tại thời điểm đó.
+3. Hiển thị danh sách Vet với:
+    - Tên bác sĩ.
+    - Số slots trống hôm đó.
+    - Rating (nếu có).
+4. Manager chọn vet → Proceed to UC-CM-06 (Assign Vet).
+
+**Screen layout**
+Figure 47. Screen Check Vet Availability (Web) - Modal with vet list.
+
+**Function details**
+- **Data:**
+    - Request: `GET /api/vets/available?clinicId={id}&date={date}&time={time}&slotsRequired={n}`
+    - Response: `[ { vetId, vetName, availableSlots, rating } ]`
+- **Validation:** User phải có role `CLINIC_MANAGER`.
+- **Business rules:** BR-CM-14 tại (5.1 Business Rules)
+- **Normal case:** Danh sách Vet available hiển thị, Manager chọn được.
+- **Abnormal/Exception cases:**
+    - A1. Không có Vet nào available → Toast "Không có bác sĩ khả dụng. Vui lòng chọn giờ khác".
+    - A2. Service yêu cầu specialty không có → Toast "Không có bác sĩ phù hợp với chuyên môn".
+
+#### *3.8.17 Reassign Vet to Service (UC-CM-15)*
+**User Story:**
+> As a Clinic Manager, I want to reassign a booking to a different vet if the originally assigned vet is unavailable so that the appointment can still proceed.
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Booking với status `ASSIGNED` → Nút "Gán lại bác sĩ".
+- **Timing frequency:** When vet calls in sick, emergency, or overloaded.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager
+- **Purpose:** Chuyển booking từ Vet A sang Vet B khi có thay đổi nhân sự.
+- **Interface:**
+    - Booking Detail Screen
+    - "Gán lại bác sĩ" – action button
+    - Reassign Modal:
+        - Current Vet: Dr. Minh
+        - Reason for reassignment – dropdown (Vet nghỉ, Vet quá tải, Cấp cứu)
+        - New Vet – dropdown (danh sách available vets từ UC-CM-14)
+
+**Data processing**
+1. Manager click "Gán lại bác sĩ" → Modal hiển thị.
+2. Manager chọn lý do reassign và vet mới → Click "Xác nhận".
+3. System thực hiện:
+    - Unlock slots của Vet cũ (nếu chưa check-in).
+    - Lock slots mới cho Vet mới.
+    - Update `booking.assigned_vet_id = new_vet_id`.
+    - Notification → Vet cũ: "Booking đã được gán cho bác sĩ khác".
+    - Notification → Vet mới: "Bạn được gán booking mới".
+    - Notification → Pet Owner: "Bác sĩ khám thay đổi thành Dr. {new_vet_name}".
+4. Toast: "Đã gán lại bác sĩ thành công".
+
+**Screen layout**
+Figure 48. Screen Reassign Vet (Web) - Modal with reason and vet selector.
+
+**Function details**
+- **Data:**
+    - Request: `PUT /api/bookings/{id}/reassign-vet` + `{ newVetId: "...", reason: "..." }`
+    - Response: `{ success: true, newVetName: "Dr. Hùng", message: "Đã gán lại bác sĩ" }`
+- **Validation:**
+    - Booking status phải là `ASSIGNED` (chưa check-in).
+    - New Vet phải có slot available tại thời điểm booking.
+- **Business rules:** BR-CM-15 tại (5.1 Business Rules)
+- **Normal case:** Vet reassigned, notifications sent, slots updated.
+- **Abnormal/Exception cases:**
+    - A1. Booking đã `CHECK_IN` → Toast "Không thể gán lại bác sĩ khi đã bắt đầu khám".
+    - A2. New Vet không available → Toast "Bác sĩ mới không có slot trống".
+    - A3. Network error → Toast "Không thể gán lại bác sĩ. Vui lòng thử lại".
+
+---
 
 ### 3.9 Electronic Medical Records (EMR) Flow
 
- #### *3.9.1 Clinical Examination (SOAP Notes)*
+> This section covers all EMR-related functionalities including clinical examination, prescription management, vaccination records, and patient lookup. EMR data is stored in MongoDB for flexible document structure while maintaining references to PostgreSQL entities.
+
+#### *3.9.1 Record Clinical Exam (UC-VT-06)*
+**User Story:**
+> *As a Vet, I want to document clinical findings using the SOAP method so that the pet's medical history is accurately recorded.*
+
 **Function trigger**
 - **Navigation path:** Active Appointment → "Write EMR" OR Examination Hub.
 - **Timing frequency:** During the examination.
@@ -1958,7 +2852,10 @@ Figure 38. Screen Clinical Examination (Web) - Tabbed view for history + entry.
     - A1. Booking not started – "Please check-in the patient before writing EMR."
     - A2. Photo upload failure – System allows saving text and retrying photo upload later.
 
- #### *3.9.2 Digital Prescription*
+ #### *3.9.2 Prescribe Medication (UC-VT-07)*
+**User Story:**
+> *As a Vet, I want to issue digital prescriptions so that the pet owner has a clear record of the required medication and dosage.*
+
 **Function trigger**
 - **Navigation path:** EMR Interface → "Add Prescription".
 - **Timing frequency:** At the end of the visit.
@@ -1985,7 +2882,10 @@ Figure 40. Screen Digital Prescription (Web)
 - **Data:** Drug Name, Dosage, Frequency, Duration.
 - **Normal case:** Vet prescribes antibiotics for 7 days.
 
- #### *3.9.3 Additional Service Recording (Incurred Services)*
+ #### *3.9.3 Add Incurred Services*
+**User Story:**
+> *As a Vet, I want to record additional services performed during the exam so that the final invoice accurately reflects all costs.*
+
 **Function trigger**
 - **Navigation path:** EMR Interface → "Add Additional Service".
 - **Timing frequency:** During or at the end of the examination.
@@ -2014,11 +2914,166 @@ Figure 41. Screen Additional Service Recording (Web)
 - **Business rules:** BR-53, BR-54.
 - **Normal case:** During a basic physical exam, the Vet identifies the need for an ear cleaning service and adds it to the record.
 
+ #### *3.9.4 Add Vaccination Record (UC-VT-08)*
+**User Story:**
+> *As a Vet, I want to record vaccination details for a pet so that their immunization history is complete and the owner receives reminders for boosters.*
+
+**Function trigger**
+- **Navigation path:** EMR Interface → "Add Vaccination" OR Pet Health Hub → "Record Vaccine".
+- **Timing frequency:** During or after vaccination service.
+
+**Function description**
+- **Actors/Roles:** Vet.
+- **Purpose:** Document vaccination administered to a pet, including vaccine type, batch number, and next due date.
+- **Interface:**
+    - Vaccine Name – dropdown/search
+    - Batch Number – text input
+    - Administration Date – date picker (default: today)
+    - Next Due Date – date picker
+    - Notes – text area
+
+**Data processing**
+1. Vet selects or enters the vaccine details.
+2. System creates a `VACCINATION_RECORD` in MongoDB linked to the Pet ID.
+3. System calculates and schedules a reminder notification for the next due date.
+4. System updates the Pet's Health Hub vaccination status badge.
+
+**Screen layout**
+Figure 42. Screen Add Vaccination Record (Mobile)
+Figure 43. Screen Add Vaccination Record (Web)
+
+**Function details**
+- **Data:** VaccineName, BatchNumber, AdministrationDate, NextDueDate, Notes, PetID, VetID.
+- **Validation:** 
+    - Vaccine Name is required.
+    - Next Due Date must be after Administration Date.
+- **Business rules:** BR-55, BR-56.
+- **Normal case:** Vet records Rabies vaccine for a dog, sets booster reminder for 1 year.
+- **Abnormal/Exception cases:**
+    - A1. Duplicate vaccine on same date – System warns but allows override.
+
+ #### *3.9.5 Lookup Patient (UC-VT-12)*
+**User Story:**
+> *As a Vet, I want to search for a patient (pet) by name, owner name, or booking ID so that I can quickly access their medical records before or during an appointment.*
+
+**Function trigger**
+- **Navigation path:** Vet Dashboard → "Patient Search" OR Quick Search Bar.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Vet.
+- **Purpose:** Quickly find a specific pet's profile and medical history.
+- **Interface:**
+    - Search Input – text field (Name, Owner, Booking ID)
+    - Filter by Clinic – dropdown (for multi-clinic vets)
+    - Results List – cards showing pet avatar, name, species, owner name
+
+**Data processing**
+1. Vet enters search query.
+2. System queries `PET` and `USER` tables with LIKE matching.
+3. System filters results to pets that have visited the vet's current clinic.
+4. System returns paginated results.
+
+**Screen layout**
+Figure 44. Screen Patient Lookup (Mobile)
+Figure 45. Screen Patient Lookup (Web)
+
+**Function details**
+- **Data:** SearchQuery, ClinicID.
+- **Validation:** Search query must be at least 2 characters.
+- **Business rules:** BR-57 (Privacy - only show patients from vet's clinic).
+- **Normal case:** Vet searches "Bella" and finds 2 matching pets.
+- **Abnormal/Exception cases:**
+    - A1. No results – Show "Không tìm thấy kết quả".
+
+ #### *3.9.6 View Patient List (UC-CM-08)*
+**User Story:**
+> *As a Clinic Manager, I want to view a list of all patients (pets) that have visited my clinic so that I can monitor patient volume and access records.*
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → "Patients" Tab.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Access a comprehensive list of all pets registered or treated at the clinic.
+- **Interface:**
+    - Patient List Table – columns: Pet Name, Species, Owner, Last Visit, Total Visits
+    - Search/Filter Bar – by name, species, date range
+    - Pagination – 20 items per page
+    - Export Button – CSV download
+
+**Data processing**
+1. System queries all `PET` records linked to `BOOKING` records for the manager's clinic.
+2. System aggregates visit count and last visit date.
+3. System returns paginated list with sorting options.
+
+**Screen layout**
+Figure 46. Screen Patient List (Web)
+
+**Function details**
+- **Data:** ClinicID, Filters (species, dateRange), SortBy, Page.
+- **Business rules:** BR-58 (Data scope limited to clinic).
+- **Normal case:** Manager views 150 patients with filter by "Dog" species.
+- **Abnormal/Exception cases:**
+    - A1. No patients – Show empty state with onboarding message.
+
+ #### *3.9.7 View Patient Records (UC-CM-09)*
+**User Story:**
+> *As a Clinic Manager, I want to view the complete medical history of a patient so that I can review treatment quality and handle customer inquiries.*
+
+**Function trigger**
+- **Navigation path:** Patient List → Click Patient Row → "View Records".
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Access detailed medical records including EMR, prescriptions, and vaccinations for review.
+- **Interface:**
+    - Patient Header – Pet info, owner contact
+    - Medical Timeline – chronological list of EMR entries
+    - Vaccination Tab – immunization history
+    - Prescription Tab – medication history
+    - Print/Export Button – PDF generation
+
+**Data processing**
+1. System retrieves pet profile from PostgreSQL.
+2. System queries `EMR_RECORD` and `VACCINATION_RECORD` from MongoDB.
+3. System aggregates and sorts records by date.
+4. System renders timeline with expandable details.
+
+**Screen layout**
+Figure 47. Screen Patient Records Detail (Web)
+
+**Function details**
+- **Data:** PetID, ClinicID.
+- **Validation:** Manager can only view records from their own clinic.
+- **Business rules:** BR-59 (Cross-clinic records hidden for privacy).
+- **Normal case:** Manager reviews 5 EMR entries for a returning patient.
+- **Abnormal/Exception cases:**
+    - A1. No records – Show "Chưa có hồ sơ khám bệnh".
+
 ---
 
 ### 3.10 Specialized Services (SOS Emergency Flow)
 
- #### *3.10.1 Proactive Vet Tracking*
+ #### *3.10.1 SOS Emergency Booking (UC-PO-15)*
+**User Story:**
+> *As a Pet Owner, I want to trigger an emergency SOS alert so that the nearest available clinic and vet can be dispatched to my location immediately.*
+
+**Function trigger**
+- **Navigation path:** Mobile Home → "SOS Emergency" (Red Button) OR AI Assistant → "Cấp cứu!".
+
+**Data processing**
+1. System identifies user GPS location.
+2. System searches for nearest clinic offering `EMERGENCY` service.
+3. System creates a `BOOKING` with `SOS` type and `PENDING_ASSIGNMENT` status.
+4. Alerts are broadcasted to all Vets in the selected clinic.
+
+ #### *3.10.2 Track Vet Location (UC-PO-17 / UC-PO-18 / UC-PO-19)*
+**User Story:**
+> *As a Pet Owner requesting SOS, I want to track the vet's real-time location so that I can estimate their arrival time.*
+
 **Function trigger**
 - **Navigation path:** SOS Booking Detail → "Track Vet".
 - **Timing frequency:** From when the Vet starts travel until they arrive.
@@ -2043,8 +3098,17 @@ Figure 41. Screen Proactive Vet Tracking (SOS Emergency - Mobile)
 - **Data:** Vet Lat/Lng, Owner Lat/Lng.
 - **Logic:** Tracking is disabled once the Vet marks arrival.
 - **Business rules:** BR-03, BR-04, BR-52.
+- **Normal case:**
+    1. Pet Owner opens SOS booking detail after vet is assigned.
+    2. Owner taps "Track Vet" button.
+    3. Live map displays vet's moving marker and ETA.
+    4. ETA updates every 5 seconds as vet approaches.
+    5. When vet arrives (within 100m), owner receives arrival notification.
 
- #### *3.10.2 Travel Logistics (Vet Side)*
+ #### *3.10.3 Manage Emergency Travel (UC-VT-11 / UC-VT-11b)*
+**User Story:**
+> *As a Vet, I want to broadcast my location and navigate to the emergency site so that I can reach the patient quickly and keep the owner informed.*
+
 **Function trigger**
 - **Navigation path:** Assigned Booking → "Start Travel".
 - **Timing frequency:** Before arrival.
@@ -2053,9 +3117,8 @@ Figure 41. Screen Proactive Vet Tracking (SOS Emergency - Mobile)
 - **Actors/Roles:** Vet.
 - **Purpose:** Enables emergency travel mode and GPS broadcast for SOS.
 - **Interface:**
-- **Interface:**
     - Navigation button (Open External Maps)
-    - **Status Indicator** (En Route / Arriving)
+    - Status Indicator (En Route / Arriving)
 
 **Data processing**
 1. Sets booking travel status to `EN_ROUTE`.
@@ -2068,11 +3131,21 @@ Figure 42. Screen SOS Travel Logistics (Vet Side - Mobile)
 
 **Function details**
 - **Data:** Vet Lat/Lng.
-- **Normal case:** Vet starts travel, system auto-completes arrival upon reaching destination.
+- **Normal case:**
+    1. Vet receives SOS assignment notification.
+    2. Vet clicks "Start Travel" to begin emergency response.
+    3. System opens external navigation (Google Maps) to owner's location.
+    4. App continuously broadcasts vet's GPS coordinates every 3 seconds.
+    5. System detects vet within 100m of destination.
+    6. Status automatically updates to ARRIVED.
+    7. Owner receives arrival notification.
 
 ### 3.11 AI Assistance Flow
 
- #### *3.11.1 Trợ lý AI Thông minh (Hỏi đáp chăm sóc & Đặt lịch tự động)*
+ #### *3.11.1 Consult AI Assistant (UC-PO-14a / UC-PO-14b / UC-PO-14c)*
+**User Story:**
+> *As a Pet Owner, I want to consult an intelligent AI assistant for pet care advice and booking support so that I can get immediate answers 24/7.*
+
 **Function trigger**
 - **Navigation path:** Mobile Home → "AI Assistant" (Floating Action Button or Tab).
 - **Timing frequency:** On demand (24/7).
@@ -2128,7 +3201,9 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
     - A2. Ambiguous query: Agent asks follow-up questions to narrow down the intent.
 - **Business rules:** BR-42, BR-43.
 
-#### *3.11.2 AI Vision Pet Health Analysis (Nhận diện bệnh qua hình ảnh)*
+ #### *3.11.2 Analyze Pet Health via Vision (UC-PO-14d)*
+**User Story:**
+> *As a Pet Owner, I want to upload photos of my pet for AI analysis so that I can identify potential health issues and get booking recommendations.*
 
 **Function trigger**
 - **Navigation path:** Mobile Home → "AI Assistant" → Gửi hình ảnh thú cưng qua chat.
@@ -2207,22 +3282,66 @@ Figure 47. Pet Selection Dialog (Mobile)
     - Disclaimer: "Phân tích hình ảnh chỉ mang tính tham khảo. Vui lòng đến phòng khám để được chẩn đoán chính xác."
     - Do not provide definitive medical diagnosis.
     - For `urgent` severity, always recommend immediate vet visit.
-- **Abnormal Cases:**
-    - A1. Image upload fails: Show "Không thể tải ảnh lên, vui lòng thử lại."
-    - A2. Vision LLM error: Fallback to text-based symptom_search if possible.
-    - A3. No clinics found nearby: Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
+- **Normal case:**
+    1. Pet Owner uploads photo of pet with skin rash via chat.
+    2. AI Agent calls `analyze_pet_image` tool with image URL.
+    3. Vision LLM analyzes and detects "dermatitis, fungal infection".
+    4. Agent evaluates severity as "moderate".
+    5. Agent calls `search_nearby_clinics` with owner's GPS.
+    6. Agent responds with warning + BookingSuggestionCard.
+    7. Owner taps "Đặt lịch ngay" → App navigates to booking screen.
+- **Abnormal/Exception Cases:**
+    - A1. Blurry/unclear image – Show "Hình ảnh không rõ ràng, vui lòng chụp lại."
+    - A2. Non-pet image – Show "Không phát hiện thú cưng trong hình ảnh."
+    - A3. User declines booking suggestion – Agent offers alternative care advice.
+    - E1. Image upload fails – Show "Không thể tải ảnh lên, vui lòng thử lại."
+    - E2. Vision LLM error – Fallback to text-based symptom_search if possible.
+    - E3. No clinics found nearby – Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
     - A4. GPS unavailable: Ask user to enable location or enter address manually.
 - **Business rules:** BR-42, BR-43, BR-44, BR-45.
 
-**Related Business Rules**
-| Rule ID | Description |
-|---------|-------------|
-| BR-44 | Vision Analysis Disclaimer: Mọi kết quả phân tích hình ảnh phải kèm disclaimer rằng đây chỉ là tham khảo, không thay thế chẩn đoán của bác sĩ. |
 | BR-45 | Urgent Severity Handling: Khi phát hiện vấn đề nghiêm trọng (urgent), hệ thống phải hiển thị cảnh báo nổi bật và ưu tiên đề xuất SOS hoặc booking trong ngày. |
+
+ #### *3.11.3 Manage AI Agent & Knowledge Base (UC-AD-05/06)*
+**User Story:**
+> *As a Platform Admin, I want to manage AI tools, system prompts, and the knowledge documents so that the AI remains accurate and helpful.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → AI Management.
+- **Timing frequency:** Periodic updates.
+
+**Function description**
+- **Actors/Roles:** Platform Admin.
+- **Purpose:** Control the behavior and knowledge of the Pet Care AI.
+- **Interface:** 
+    - Knowledge Base (Upload PDF/Markdown)
+    - Prompt Editor (Update system instructions)
+    - Tool Toggle (Enable/Disable specific functions like "Appointment Booking Tool")
+
+**Data processing**
+1. Admin uploads a document.
+2. System processes text, generates vectors, and saves to MongoDB `AI_KNOWLEDGE_DOC`.
+3. Admin updates Prompt. System creates a new `AI_PROMPT_VERSION`.
+
+ #### *3.11.4 Test Agent Playground (UC-AD-07)*
+**User Story:**
+> *As a Platform Admin, I want to test the AI's behavior and tool-calling capabilities in a safe environment before deploying updates.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → AI Management → Playground.
+- **Timing frequency:** During development/configuration.
+
+**Function description**
+- **Actors/Roles:** Platform Admin.
+- **Purpose:** Sandbox for AI interaction testing.
+- **Interface:** Chat interface with developer logs showing raw JSON tool calls.
 
 ### 3.12 Governance & Reporting Flow
 
- #### *3.12.1 Platform Violation Reporting*
+ #### *3.12.1 Report Platform Violation (UC-PO-16)*
+**User Story:**
+> *As a User, I want to report policy violations or malpractice so that the platform admin can investigate and take action.*
+
 **Function trigger**
 - **Navigation path:** Booking Detail → "Report Issue".
 - **Timing frequency:** After a visit or encounter.
@@ -2245,6 +3364,45 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
 
 **Function details**
 - **Business rules:** BR-31, BR-32.
+
+ #### *3.12.2 View Platform Statistics & Revenue (UC-AD-04 / UC-CO-05)*
+**User Story:**
+> *As an Admin or Clinic Owner, I want to see visual charts of growth, revenue, and usage so that I can monitor the health of my business/platform.*
+
+**Function trigger**
+- **Navigation path:** Dashboard → Reports.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Admin (Platform-wide), Clinic Owner (Own Branch).
+- **Purpose:** High-level dashboard for business metrics.
+- **Interface:** Charts (Line, Bar, Pie) for Booking count, Revenue, and User growth.
+
+ #### *3.12.3 Moderate Users & Content (UC-AD-09)*
+**User Story:**
+> *As a Platform Admin, I want to ban or suspend users who violate platform policies so that the community remains safe and professional.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → User Management → Select User.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Platform Admin.
+- **Purpose:** Enforce governance on platform participants.
+- **Interface:** User status toggle (Active/Suspended/Banned) and Reason field.
+
+ #### *3.12.4 Manage Platform Policy*
+**User Story:**
+> *As a Platform Admin, I want to update terms of service and refund policies so that legal requirements are met.*
+
+**Function trigger**
+- **Navigation path:** Admin Dashboard → Governance → Policies.
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Platform Admin.
+- **Purpose:** Content management for site-wide legal text.
+- **Interface:** Rich text editor.
 
 ---
 
@@ -2579,7 +3737,7 @@ Sentry Integration: Enabled with issue alerts
 
 ---
 
-**Document Status:** In Progress  
-**Version:** 1.0.0  
-**Last Updated:** 2025-12-19  
+**Document Status:** In Progress
+**Version:** 1.6.0
+**Last Updated:** 2026-01-22
 **Author:** Petties Development Team

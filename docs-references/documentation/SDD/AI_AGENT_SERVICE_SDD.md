@@ -1,8 +1,8 @@
 # SOFTWARE DESIGN DOCUMENT (SDD)
 # PETTIES AI AGENT SERVICE
 
-**Document Version:** 1.0.0
-**Last Updated:** 2025-12-27
+**Document Version:** 1.5.0
+**Last Updated:** 2026-01-22
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Component:** AI Agent Service (FastAPI + LangGraph + ReAct Pattern)
 
@@ -218,6 +218,7 @@ stateDiagram-v2
         - search_clinics
         - check_slots
         - create_booking
+        - analyze_pet_image (Vision)
     end note
 
     note right of Observe
@@ -261,6 +262,7 @@ class AgentConfig:
     - search_clinics: Tìm phòng khám gần đây
     - check_slots: Kiểm tra slot trống
     - create_booking: Đặt lịch khám
+    - analyze_pet_image: Phân tích hình ảnh sức khỏe thú cưng (Vision)
 
     Luôn:
     - Trích dẫn nguồn khi dùng RAG
@@ -1980,4 +1982,5 @@ JWT_SECRET=${JWT_SECRET}
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2025-12-27 | AI Documentation Team | Initial SDD for AI Agent Service |
+| 1.4.0 | 2026-01-22 | Petties Development Team | Bổ sung thiết kế cho AI Vision Analysis và đồng bộ Version |
 

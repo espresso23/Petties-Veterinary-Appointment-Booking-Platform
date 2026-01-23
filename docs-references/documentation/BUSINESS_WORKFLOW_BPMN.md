@@ -355,7 +355,7 @@ flowchart LR
 
 ---
 
-**Document Version:** 3.0  
-**Last Updated:** 2025-12-25  
+**Document Version:** 1.5.0  
+**Last Updated:** 2026-01-22  
 **Author:** Petties Team  
 **Standard:** BPMN 2.0 Compliant (Mermaid Visualization)
