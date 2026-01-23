@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.config.JwtAuthenticationFilter;
 import com.petties.petties.config.JwtTokenProvider;
 import com.petties.petties.config.UserDetailsServiceImpl;
+import com.petties.petties.exception.BadRequestException;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.PaymentHistoryService;
@@ -32,6 +34,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Tests cover:
  * - Check QR status endpoint (checkQrStatus)
  * - Get payment history endpoint (getPaymentHistoryByPetOwnerId)
+ *
+ * Scenarios:
+ * - Happy Path (200 OK)
+ * - Bad Request (400)
+ * - Forbidden (403)
+ * - Not Found (404)
+ * - Internal Server Error (500)
  */
 @WebMvcTest(PaymentController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -117,11 +126,56 @@ class PaymentControllerUnitTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @WithMockUser(roles = "PET_OWNER")
+    @DisplayName("TC-UNIT-PAYMENT-004: checkQrStatus_forbidden_returns403")
+    void checkQrStatus_forbidden_returns403() throws Exception {
+        // Arrange
+        UUID bookingId = UUID.randomUUID();
+
+        when(qrPaymentService.checkQrStatus(bookingId))
+                .thenThrow(new ForbiddenException("Bạn không có quyền kiểm tra thanh toán của booking này"));
+
+        // Act & Assert
+        mockMvc.perform(get("/payments/{bookingId}/qr-status", bookingId))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "PET_OWNER")
+    @DisplayName("TC-UNIT-PAYMENT-005: checkQrStatus_badRequest_returns400")
+    void checkQrStatus_badRequest_returns400() throws Exception {
+        // Arrange
+        UUID bookingId = UUID.randomUUID();
+
+        when(qrPaymentService.checkQrStatus(bookingId))
+                .thenThrow(new BadRequestException("Booking không sử dụng phương thức thanh toán QR"));
+
+        // Act & Assert
+        mockMvc.perform(get("/payments/{bookingId}/qr-status", bookingId))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "PET_OWNER")
+    @DisplayName("TC-UNIT-PAYMENT-006: checkQrStatus_unknownError_returns500")
+    void checkQrStatus_unknownError_returns500() throws Exception {
+        // Arrange
+        UUID bookingId = UUID.randomUUID();
+
+        when(qrPaymentService.checkQrStatus(bookingId))
+                .thenThrow(new RuntimeException("Unexpected db error"));
+
+        // Act & Assert
+        mockMvc.perform(get("/payments/{bookingId}/qr-status", bookingId))
+                .andExpect(status().isInternalServerError());
+    }
+
     // ==================== GET PAYMENT HISTORY TESTS ====================
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("TC-UNIT-PAYMENT-004: getPaymentHistoryByPetOwnerId_validId_returns200")
+    @DisplayName("TC-UNIT-PAYMENT-007: getPaymentHistoryByPetOwnerId_validId_returns200")
     void getPaymentHistoryByPetOwnerId_validId_returns200() throws Exception {
         // Arrange
         UUID petOwnerId = UUID.randomUUID();
@@ -148,7 +202,7 @@ class PaymentControllerUnitTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("TC-UNIT-PAYMENT-005: getPaymentHistoryByPetOwnerId_withFilter_returns200")
+    @DisplayName("TC-UNIT-PAYMENT-008: getPaymentHistoryByPetOwnerId_withFilter_returns200")
     void getPaymentHistoryByPetOwnerId_withFilter_returns200() throws Exception {
         // Arrange
         UUID petOwnerId = UUID.randomUUID();
@@ -171,7 +225,7 @@ class PaymentControllerUnitTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("TC-UNIT-PAYMENT-006: getPaymentHistoryByPetOwnerId_empty_returns200")
+    @DisplayName("TC-UNIT-PAYMENT-009: getPaymentHistoryByPetOwnerId_empty_returns200")
     void getPaymentHistoryByPetOwnerId_empty_returns200() throws Exception {
         // Arrange
         UUID petOwnerId = UUID.randomUUID();
@@ -185,5 +239,20 @@ class PaymentControllerUnitTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(0))
                 .andExpect(jsonPath("$.payments").isEmpty());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("TC-UNIT-PAYMENT-010: getPaymentHistory_internalError_returns500")
+    void getPaymentHistory_internalError_returns500() throws Exception {
+        // Arrange
+        UUID petOwnerId = UUID.randomUUID();
+
+        when(paymentHistoryService.getPaymentHistoryByPetOwnerId(any(), any(), any()))
+                .thenThrow(new RuntimeException("Database timeout"));
+
+        // Act & Assert
+        mockMvc.perform(get("/payments/petowner/{petOwnerId}/history", petOwnerId))
+                .andExpect(status().isInternalServerError());
     }
 }
