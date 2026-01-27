@@ -44,13 +44,30 @@ class ClinicService {
         },
       );
 
+      // Debug: log response
+      print('=== CLINIC SEARCH RESPONSE ===');
+      print('Response type: ${response.data.runtimeType}');
+      if (response.data is Map) {
+        print('Total elements: ${response.data['totalElements']}');
+        print('Content length: ${(response.data['content'] as List?)?.length}');
+      }
+
       // Handle paginated response
       if (response.data is Map && response.data['content'] != null) {
         final List<dynamic> content = response.data['content'];
-        return content
-            .where((json) => json != null)
-            .map((json) => Clinic.fromJson(json))
-            .toList();
+        final clinics = <Clinic>[];
+        for (final json in content) {
+          if (json != null) {
+            try {
+              clinics.add(Clinic.fromJson(json));
+            } catch (e) {
+              print('Error parsing clinic: $e');
+              print('JSON: $json');
+            }
+          }
+        }
+        print('Parsed ${clinics.length} clinics successfully');
+        return clinics;
       }
 
       // Handle list response

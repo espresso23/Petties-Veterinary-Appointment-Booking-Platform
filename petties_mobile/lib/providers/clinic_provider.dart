@@ -18,7 +18,7 @@ class ClinicProvider extends ChangeNotifier {
   bool _hasMore = true;
   String? _error;
   int _currentPage = 0;
-  static const int _pageSize = 5;
+  static const int _pageSize = 20;
 
   // Location state
   Position? _currentPosition;
@@ -27,7 +27,7 @@ class ClinicProvider extends ChangeNotifier {
   String? _locationError;
 
   // Filters
-  bool _filterNearby = true;
+  bool _filterNearby = false; // "Gần đây" = filter 10km radius
   bool _filterOpenNow = false;
   bool _filterTopRated = false;
   String _searchQuery = '';
@@ -37,6 +37,7 @@ class ClinicProvider extends ChangeNotifier {
   String? _filterDistrict;
   double? _filterMinPrice;
   double? _filterMaxPrice;
+  Set<String> _filterServiceCategories = {};
 
   ClinicProvider(
       {ClinicService? clinicService, GeocodingService? geocodingService})
@@ -59,11 +60,13 @@ class ClinicProvider extends ChangeNotifier {
   String? get filterDistrict => _filterDistrict;
   double? get filterMinPrice => _filterMinPrice;
   double? get filterMaxPrice => _filterMaxPrice;
+  Set<String> get filterServiceCategories => _filterServiceCategories;
   bool get hasAdvancedFilters =>
       _filterProvince != null ||
       _filterDistrict != null ||
       _filterMinPrice != null ||
-      _filterMaxPrice != null;
+      _filterMaxPrice != null ||
+      _filterServiceCategories.isNotEmpty;
 
   // Location getters
   Position? get currentPosition => _currentPosition;
@@ -71,6 +74,15 @@ class ClinicProvider extends ChangeNotifier {
   bool get isLoadingLocation => _isLoadingLocation;
   String? get locationError => _locationError;
   bool get hasLocation => _currentPosition != null;
+
+  /// Get cached clinic by ID (returns null if not found)
+  Clinic? getCachedClinic(String clinicId) {
+    try {
+      return _clinics.firstWhere((c) => c.clinicId == clinicId);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Get current location of user
   Future<void> getCurrentLocation() async {
@@ -116,7 +128,7 @@ class ClinicProvider extends ChangeNotifier {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: Duration(seconds: 5), // Reduced from 10s to 5s for better UX
         ),
       );
 
@@ -124,6 +136,15 @@ class ClinicProvider extends ChangeNotifier {
 
       // Get address from coordinates using latlong_to_place
       _locationAddress = await _formatLocationFromPosition(position);
+      
+      // ✅ FIX: Auto-fetch clinics after getting location successfully
+      // This ensures clinics appear immediately without needing to click any filter
+      _isLoadingLocation = false;
+      notifyListeners();
+      
+      // Fetch clinics with the new location
+      await fetchClinics();
+      return; // Early return since we already handled cleanup
     } catch (e) {
       debugPrint('Error getting location: $e');
       _locationError = 'Không thể lấy vị trí';
@@ -142,20 +163,43 @@ class ClinicProvider extends ChangeNotifier {
         position.longitude,
       );
 
-      // Try to format a shorter address using available properties
+      // Log all available fields for debugging
+      log('Place info - formattedAddress: ${place.formattedAddress}');
+      log('Place info - street: ${place.street}, locality: ${place.locality}');
+      log('Place info - city: ${place.city}, state: ${place.state}');
+
+      // Priority: Use formattedAddress if detailed enough
+      if (place.formattedAddress.isNotEmpty && 
+          place.formattedAddress.split(',').length >= 2) {
+        // Shorten very long addresses - take first 2-3 parts
+        final parts = place.formattedAddress.split(',');
+        if (parts.length > 3) {
+          return parts.take(3).join(',').trim();
+        }
+        return place.formattedAddress;
+      }
+
+      // Build address from components - more specific first
       final parts = <String>[];
+      
+      // Add street if available
+      if (place.street.isNotEmpty) parts.add(place.street);
+      
+      // Add locality (quận/huyện/phường)
       if (place.locality.isNotEmpty) parts.add(place.locality);
-      if (place.city.isNotEmpty) parts.add(place.city);
-      if (place.state.isNotEmpty && parts.length < 2) parts.add(place.state);
+      
+      // Add city only if we don't have enough detail
+      if (parts.isEmpty && place.city.isNotEmpty) {
+        parts.add(place.city);
+      }
 
       if (parts.isNotEmpty) {
         return parts.join(', ');
       }
-
-      // Use full formatted address if available
-      if (place.formattedAddress.isNotEmpty) {
-        return place.formattedAddress;
-      }
+      
+      // Last resort: city or state
+      if (place.city.isNotEmpty) return place.city;
+      if (place.state.isNotEmpty) return place.state;
     } catch (e) {
       debugPrint('Error getting place from coordinates: $e');
     }
@@ -191,9 +235,16 @@ class ClinicProvider extends ChangeNotifier {
   }
 
   /// Toggle Nearby filter
-  void toggleNearby() {
+  /// If enabling nearby filter and no location, try to get location first
+  Future<void> toggleNearby() async {
     _filterNearby = !_filterNearby;
     notifyListeners();
+    
+    // If enabling nearby filter and no location, try to get location first
+    if (_filterNearby && _currentPosition == null) {
+      await getCurrentLocation();
+    }
+    
     refreshClinics();
   }
 
@@ -218,17 +269,19 @@ class ClinicProvider extends ChangeNotifier {
     refreshClinics();
   }
 
-  /// Set advanced filters (province, district, price range)
+  /// Set advanced filters (province, district, price range, service categories)
   void setAdvancedFilters({
     String? province,
     String? district,
     double? minPrice,
     double? maxPrice,
+    Set<String>? serviceCategories,
   }) {
     _filterProvince = province;
     _filterDistrict = district;
     _filterMinPrice = minPrice;
     _filterMaxPrice = maxPrice;
+    _filterServiceCategories = serviceCategories ?? {};
     notifyListeners();
     refreshClinics();
   }
@@ -239,6 +292,7 @@ class ClinicProvider extends ChangeNotifier {
     _filterDistrict = null;
     _filterMinPrice = null;
     _filterMaxPrice = null;
+    _filterServiceCategories = {};
     notifyListeners();
     refreshClinics();
   }
@@ -260,14 +314,26 @@ class ClinicProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Logic:
+      // - Default (no filter): show ALL clinics sorted by distance (near → far)
+      // - "GẦN ĐÂY" filter: show only clinics within 10km radius
+      // - "ĐÁNH GIÁ CAO": sort by rating instead of distance
+      final hasPosition = _currentPosition != null;
+      
+      // Only apply 10km radius filter when "Gần đây" is selected
+      final radiusFilter = (_filterNearby && hasPosition) ? 10.0 : null;
+      
+      // Sort by distance by default (when have position), unless sorting by rating
+      final shouldSortByDistance = hasPosition && !_filterTopRated;
+      
       final result = await _clinicService.searchClinics(
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
-        radiusKm: _filterNearby ? 10.0 : null, // 10km default radius for nearby
+        radiusKm: radiusFilter,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
         isOpenNow: _filterOpenNow ? true : null,
         sortByRating: _filterTopRated ? true : null,
-        sortByDistance: _filterNearby ? true : null,
+        sortByDistance: shouldSortByDistance ? true : null,
         province: _filterProvince,
         district: _filterDistrict,
         minPrice: _filterMinPrice,
@@ -276,12 +342,21 @@ class ClinicProvider extends ChangeNotifier {
         size: _pageSize,
       );
 
+      debugPrint('=== FETCH CLINICS RESULT ===');
+      debugPrint('Received ${result.length} clinics');
+      for (var c in result) {
+        debugPrint('  - ${c.name} (${c.province})');
+      }
+
       _clinics = result;
-      _hasMore = false; // No pagination for mock data
+      // Enable pagination - check if we got full page (meaning there might be more)
+      _hasMore = result.length >= _pageSize;
       _currentPage = 1;
-    } catch (e) {
+      debugPrint('hasMore: $_hasMore, currentPage: $_currentPage');
+    } catch (e, stackTrace) {
       _error = 'Không thể tải danh sách phòng khám';
       debugPrint('Error fetching clinics: $e');
+      debugPrint('Stack trace: $stackTrace');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -296,14 +371,19 @@ class ClinicProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Same logic as fetchClinics
+      final hasPosition = _currentPosition != null;
+      final radiusFilter = (_filterNearby && hasPosition) ? 10.0 : null;
+      final shouldSortByDistance = hasPosition && !_filterTopRated;
+      
       final result = await _clinicService.searchClinics(
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
-        radiusKm: _filterNearby ? 10.0 : null,
+        radiusKm: radiusFilter,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
         isOpenNow: _filterOpenNow ? true : null,
         sortByRating: _filterTopRated ? true : null,
-        sortByDistance: _filterNearby ? true : null,
+        sortByDistance: shouldSortByDistance ? true : null,
         province: _filterProvince,
         district: _filterDistrict,
         minPrice: _filterMinPrice,

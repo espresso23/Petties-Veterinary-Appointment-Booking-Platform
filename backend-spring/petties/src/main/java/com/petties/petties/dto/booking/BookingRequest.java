@@ -1,5 +1,6 @@
 package com.petties.petties.dto.booking;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petties.petties.model.enums.BookingType;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -29,9 +30,11 @@ public class BookingRequest {
     private UUID clinicId;
 
     @NotNull(message = "Booking date is required")
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate bookingDate;
 
     @NotNull(message = "Booking time is required")
+    @JsonFormat(pattern = "HH:mm")
     private LocalTime bookingTime;
 
     @NotNull(message = "Booking type is required")

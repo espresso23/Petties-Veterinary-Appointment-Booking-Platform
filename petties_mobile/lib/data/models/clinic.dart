@@ -73,8 +73,8 @@ class Clinic {
       longitude: (json['longitude'] as num?)?.toDouble(),
       logo: json['logo'],
       operatingHours: json['operatingHours'] != null
-          ? (json['operatingHours'] as Map<String, dynamic>).map(
-              (key, value) => MapEntry(
+          ? (json['operatingHours'] as Map<String, dynamic>).map((key, value) =>
+              MapEntry(
                   key,
                   value != null
                       ? OperatingHours.fromJson(value)
@@ -124,23 +124,55 @@ class Clinic {
     return logo;
   }
 
-  /// Check if clinic is currently open (simplified logic)
+  /// Check if clinic is currently open based on Vietnam timezone (GMT+7)
   bool get isOpen {
-    final now = DateTime.now();
-    final dayName = _getDayName(now.weekday);
-    final hours = operatingHours?[dayName];
+    // Get current time in Vietnam timezone (UTC+7)
+    final nowUtc = DateTime.now().toUtc();
+    final vietnamOffset = const Duration(hours: 7);
+    final nowVietnam = nowUtc.add(vietnamOffset);
+
+    final hours = _getOperatingHoursForDay(nowVietnam.weekday);
+
     if (hours == null || hours.isClosed) return false;
-    // Simplified: just check if has operating hours for today
-    return true;
+    if (hours.openTime == null || hours.closeTime == null) return false;
+
+    // Parse open and close times
+    final openParts = hours.openTime!.split(':');
+    final closeParts = hours.closeTime!.split(':');
+
+    if (openParts.length < 2 || closeParts.length < 2) return false;
+
+    final openHour = int.tryParse(openParts[0]) ?? 0;
+    final openMinute = int.tryParse(openParts[1]) ?? 0;
+    final closeHour = int.tryParse(closeParts[0]) ?? 0;
+    final closeMinute = int.tryParse(closeParts[1]) ?? 0;
+
+    final currentMinutes = nowVietnam.hour * 60 + nowVietnam.minute;
+    final openMinutes = openHour * 60 + openMinute;
+    final closeMinutes = closeHour * 60 + closeMinute;
+
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
   }
 
-  /// Get closing time string
+  /// Get closing time string (using Vietnam timezone GMT+7)
   String? get closingTimeString {
-    final now = DateTime.now();
-    final dayName = _getDayName(now.weekday);
-    final hours = operatingHours?[dayName];
+    // Get current time in Vietnam timezone (UTC+7)
+    final nowUtc = DateTime.now().toUtc();
+    final vietnamOffset = const Duration(hours: 7);
+    final nowVietnam = nowUtc.add(vietnamOffset);
+
+    final hours = _getOperatingHoursForDay(nowVietnam.weekday);
     if (hours == null || hours.isClosed) return null;
     return hours.closeTime;
+  }
+
+  /// Get day name for lookup - tries both uppercase and lowercase keys
+  OperatingHours? _getOperatingHoursForDay(int weekday) {
+    final dayNameUpper = _getDayName(weekday);
+    final dayNameLower = dayNameUpper.toLowerCase();
+    
+    // Try uppercase first, then lowercase (backend uses lowercase)
+    return operatingHours?[dayNameUpper] ?? operatingHours?[dayNameLower];
   }
 
   String _getDayName(int weekday) {

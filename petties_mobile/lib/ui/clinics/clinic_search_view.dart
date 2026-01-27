@@ -8,12 +8,17 @@ import 'package:petties_mobile/config/env/environment.dart';
 import '../../data/services/location_service.dart';
 import '../../providers/clinic_provider.dart';
 import '../../routing/app_routes.dart';
-import '../widgets/location_picker.dart';
+import '../widgets/profile/location_picker.dart';
 import 'widgets/clinic_list_item.dart';
 
 /// Clinic Search View - Neobrutalism Style with Provider
 class ClinicSearchView extends StatefulWidget {
-  const ClinicSearchView({super.key});
+  final bool embedMode;
+
+  const ClinicSearchView({
+    super.key,
+    this.embedMode = false,
+  });
 
   @override
   State<ClinicSearchView> createState() => _ClinicSearchViewState();
@@ -28,6 +33,17 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
   final TextEditingController _provinceController = TextEditingController();
   String? _selectedDistrict;
   RangeValues _priceRange = const RangeValues(0, 5000000);
+  Set<String> _selectedServiceCategories = {};
+
+  // Service categories data
+  static const List<Map<String, dynamic>> _serviceCategories = [
+    {'key': 'GROOMING_SPA', 'name': 'Làm đẹp & Spa', 'icon': Icons.cut},
+    {'key': 'VACCINATION', 'name': 'Tiêm phòng', 'icon': Icons.vaccines},
+    {'key': 'CHECK_UP', 'name': 'Khám tổng quát', 'icon': Icons.health_and_safety},
+    {'key': 'SURGERY', 'name': 'Phẫu thuật', 'icon': Icons.medical_services},
+    {'key': 'DENTAL', 'name': 'Nha khoa', 'icon': Icons.mood},
+    {'key': 'DERMATOLOGY', 'name': 'Da liễu', 'icon': Icons.healing},
+  ];
 
   // Location service and data
   final LocationService _locationService = LocationService();
@@ -81,27 +97,36 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
 
   @override
   Widget build(BuildContext context) {
+    final content = SafeArea(
+      child: Column(
+        children: [
+          // Location Header
+          _buildLocationHeader(),
+
+          // Search Bar
+          _buildSearchBar(),
+
+          // Filter Chips
+          _buildFilterChips(),
+
+          // Content
+          Expanded(
+            child: _buildContent(),
+          ),
+        ],
+      ),
+    );
+
+    if (widget.embedMode) {
+      return Container(
+        color: AppColors.stone50,
+        child: content,
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Location Header
-            _buildLocationHeader(),
-
-            // Search Bar
-            _buildSearchBar(),
-
-            // Filter Chips
-            _buildFilterChips(),
-
-            // Content
-            Expanded(
-              child: _buildContent(),
-            ),
-          ],
-        ),
-      ),
+      body: content,
       bottomNavigationBar: _buildBrutalNavBar(),
     );
   }
@@ -807,6 +832,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
       provider.filterMinPrice ?? 0,
       provider.filterMaxPrice ?? 5000000,
     );
+    _selectedServiceCategories = Set.from(provider.filterServiceCategories);
 
     _districts = [];
     _selectedProvince = null;
@@ -1199,6 +1225,66 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 20),
+
+                  // Service Categories
+                  const Text(
+                    'Danh mục dịch vụ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.stone700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _serviceCategories.map((category) {
+                      final isSelected = _selectedServiceCategories.contains(category['key']);
+                      return GestureDetector(
+                        onTap: () {
+                          setSheetState(() {
+                            if (isSelected) {
+                              _selectedServiceCategories.remove(category['key']);
+                            } else {
+                              _selectedServiceCategories.add(category['key'] as String);
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : AppColors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primary : AppColors.stone300,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                category['icon'] as IconData,
+                                size: 16,
+                                color: isSelected ? AppColors.white : AppColors.stone600,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                category['name'] as String,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected ? AppColors.white : AppColors.stone700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                   const SizedBox(height: 28),
 
                   // Action Buttons
@@ -1214,6 +1300,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                               _selectedProvince = null;
                               _districts = [];
                               _priceRange = const RangeValues(0, 5000000);
+                              _selectedServiceCategories = {};
                             });
                             provider.clearAdvancedFilters();
                             Navigator.pop(context);
@@ -1256,6 +1343,9 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                                   : null,
                               maxPrice: _priceRange.end < 5000000
                                   ? _priceRange.end
+                                  : null,
+                              serviceCategories: _selectedServiceCategories.isNotEmpty
+                                  ? _selectedServiceCategories
                                   : null,
                             );
                             Navigator.pop(context);

@@ -227,9 +227,15 @@ public class ClinicService {
 
                 // 3. Filter by open status if requested
                 if (Boolean.TRUE.equals(isOpenNow)) {
+                        log.info("Filtering by isOpenNow. Before filter: {} clinics", responses.size());
                         responses = responses.stream()
-                                        .filter(resp -> isClinicOpen(resp.getOperatingHours()))
+                                        .filter(resp -> {
+                                                boolean isOpen = isClinicOpen(resp.getOperatingHours());
+                                                log.debug("Clinic '{}' isOpen: {}", resp.getName(), isOpen);
+                                                return isOpen;
+                                        })
                                         .collect(Collectors.toList());
+                        log.info("After isOpenNow filter: {} clinics", responses.size());
                 }
 
                 // 4. Sort
@@ -258,11 +264,17 @@ public class ClinicService {
         }
 
         private boolean isClinicOpen(Map<String, OperatingHours> hoursMap) {
-                if (hoursMap == null || hoursMap.isEmpty())
+                if (hoursMap == null || hoursMap.isEmpty()) {
+                        log.debug("hoursMap is null or empty");
                         return false;
+                }
 
-                LocalDateTime now = LocalDateTime.now();
+                // Use Vietnam timezone (GMT+7) for accurate open/close status
+                java.time.ZoneId vietnamZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+                java.time.ZonedDateTime nowVietnam = java.time.ZonedDateTime.now(vietnamZone);
+                LocalDateTime now = nowVietnam.toLocalDateTime();
                 String day = now.getDayOfWeek().name().toLowerCase(); // e.g., monday
+                log.debug("Checking isOpen for day: {}, currentTime: {}", day, now.toLocalTime());
 
                 OperatingHours hours = hoursMap.entrySet().stream()
                                 .filter(e -> e.getKey().equalsIgnoreCase(day))
@@ -271,10 +283,12 @@ public class ClinicService {
                                 .orElse(null);
 
                 if (hours == null || Boolean.TRUE.equals(hours.getIsClosed())) {
+                        log.debug("No hours found for day {} or clinic is closed", day);
                         return false;
                 }
 
                 LocalTime currentTime = now.toLocalTime();
+                log.debug("Operating hours: {} - {}, current: {}", hours.getOpenTime(), hours.getCloseTime(), currentTime);
 
                 if (hours.getOpenTime() != null && hours.getCloseTime() != null) {
                         if (currentTime.isBefore(hours.getOpenTime()) || currentTime.isAfter(hours.getCloseTime())) {

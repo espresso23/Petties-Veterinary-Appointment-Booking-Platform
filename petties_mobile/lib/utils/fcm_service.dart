@@ -114,8 +114,8 @@ class FcmService {
     // Initialize local notifications
     await _initLocalNotifications();
 
-    // Set up background handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    // Background handler is now set up in main.dart before initialize() is called
+    // No need to set it here again
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -213,7 +213,14 @@ class FcmService {
     await _registerTokenWithBackend(token);
   }
 
+  // Fire-and-forget pattern: Start token registration without blocking
   Future<void> _registerTokenWithBackend(String fcmToken) async {
+    // Don't await - let it run in background without blocking UI
+    _sendTokenToBackend(fcmToken);
+  }
+
+  // Async worker method that actually sends token to backend
+  void _sendTokenToBackend(String fcmToken) async {
     try {
       final accessToken = await _storage.getString(AppConstants.accessTokenKey);
       if (accessToken == null) {
@@ -221,6 +228,7 @@ class FcmService {
         return;
       }
 
+      // Add timeout to prevent hanging if backend is slow
       final response = await http.post(
         Uri.parse('${Environment.baseUrl}/fcm/token'),
         headers: {
@@ -228,6 +236,12 @@ class FcmService {
           'Authorization': 'Bearer $accessToken',
         },
         body: jsonEncode({'fcmToken': fcmToken}),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('FCM token registration timeout');
+          throw TimeoutException('FCM registration took too long');
+        },
       );
 
       if (response.statusCode == 200) {

@@ -156,7 +156,7 @@ class Environment {
   }
 
   /// Goong.io API Key for geocoding/directions
-  /// Priority: --dart-define > .env file (via dotenv)
+  /// Priority: .env file (via dotenv) > --dart-define
   static String get goongApiKey {
     if (_goongApiKeyFromDartDefine.isNotEmpty) {
       return _goongApiKeyFromDartDefine;

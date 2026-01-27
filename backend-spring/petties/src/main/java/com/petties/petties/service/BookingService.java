@@ -66,118 +66,139 @@ public class BookingService {
         public BookingResponse createBooking(BookingRequest request, UUID petOwnerId) {
                 log.info("Creating booking for pet {} at clinic {}", request.getPetId(), request.getClinicId());
 
-                // Validate and fetch entities
-                Pet pet = petRepository.findById(request.getPetId())
-                                .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
-
-                User petOwner = userRepository.findById(petOwnerId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Pet owner not found"));
-
-                Clinic clinic = clinicRepository.findById(request.getClinicId())
-                                .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
-
                 // Fetch services
-                List<com.petties.petties.model.ClinicService> services = clinicServiceRepository
-                                .findAllById(request.getServiceIds());
-                if (services.isEmpty()) {
-                        throw new IllegalArgumentException("At least one valid service is required");
-                }
+                try {
+                        log.info("Starting createBooking for clinic: {}, pet: {}", request.getClinicId(),
+                                        request.getPetId());
 
-                // Home Visit Validation: All services must support home visits and share the
-                // same specialty
-                if (request.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                || request.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+                        // Validate and fetch entities
+                        Pet pet = petRepository.findById(request.getPetId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
+                        log.debug("Pet found: {}", pet.getId());
 
-                        // 1. Check isHomeVisit flag
-                        List<String> ineligibleServices = services.stream()
-                                        .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
-                                        .map(com.petties.petties.model.ClinicService::getName)
-                                        .collect(Collectors.toList());
+                        User petOwner = userRepository.findById(petOwnerId)
+                                        .orElseThrow(() -> new ResourceNotFoundException("Pet owner not found"));
+                        log.debug("Pet owner found: {}", petOwner.getUserId());
 
-                        if (!ineligibleServices.isEmpty()) {
-                                throw new IllegalArgumentException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
-                                                + String.join(", ", ineligibleServices));
+                        Clinic clinic = clinicRepository.findById(request.getClinicId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                        log.debug("Clinic found: {}", clinic.getClinicId());
+                        List<com.petties.petties.model.ClinicService> services = clinicServiceRepository
+                                        .findAllById(request.getServiceIds());
+                        if (services.isEmpty()) {
+                                throw new IllegalArgumentException("At least one valid service is required");
+                        }
+                        if (services.size() != request.getServiceIds().size()) {
+                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                        }
+                        log.debug("Found {} services", services.size());
+
+                        // Home Visit Validation: All services must support home visits and share the
+                        // same specialty
+                        if (request.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
+                                        || request.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+                                log.debug("Booking type is HOME_VISIT or SOS, performing home visit validations.");
+
+                                // 1. Check isHomeVisit flag
+                                List<String> ineligibleServices = services.stream()
+                                                .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
+                                                .map(com.petties.petties.model.ClinicService::getName)
+                                                .collect(Collectors.toList());
+
+                                if (!ineligibleServices.isEmpty()) {
+                                        throw new IllegalArgumentException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                                        + String.join(", ", ineligibleServices));
+                                }
+                                log.debug("All services support home visits.");
+
+                                // 2. Check specialty consistency
+                                // REMOVED: Allow multi-specialty for Home Visit as requested.
+                                // VetAssignmentService will handle assigning multiple vets if needed.
+                                log.debug("Multi-specialty check skipped for Home Visit to support multi-vet assignment.");
                         }
 
-                        // 2. Check specialty consistency
-                        java.util.Set<com.petties.petties.model.enums.StaffSpecialty> specialties = services.stream()
-                                        .map(s -> s.getServiceCategory() != null
-                                                        ? s.getServiceCategory().getRequiredSpecialty()
-                                                        : com.petties.petties.model.enums.StaffSpecialty.VET_GENERAL)
-                                        .collect(Collectors.toSet());
+                        // Generate booking code
+                        long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(),
+                                        request.getBookingDate())
+                                        + 1;
+                        String bookingCode = Booking.generateBookingCode(request.getBookingDate(), (int) sequence);
+                        log.debug("Generated booking code: {}", bookingCode);
 
-                        if (specialties.size() > 1) {
-                                throw new IllegalArgumentException(
-                                                "Khám tại nhà yêu cầu các dịch vụ đặt cùng lúc phải có cùng chuyên môn (ví dụ: Tất cả đều là Thú y hoặc tất cả đều là Grooming).");
+                        // Calculate total price using PricingService
+                        // 1. Sum weight-based prices for all services
+                        BigDecimal servicesTotal = BigDecimal.ZERO;
+                        for (com.petties.petties.model.ClinicService service : services) {
+                                BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
+                                servicesTotal = servicesTotal.add(servicePrice);
                         }
-                }
+                        log.debug("Services total price: {}", servicesTotal);
 
-                // Generate booking code
-                long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), request.getBookingDate())
-                                + 1;
-                String bookingCode = Booking.generateBookingCode(request.getBookingDate(), (int) sequence);
+                        // 2. Calculate single distance fee for the whole booking
+                        BigDecimal distanceKm = request.getDistanceKm();
+                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
+                                        request.getType());
+                        log.debug("Distance fee calculated: {}", distanceFee);
 
-                // Calculate total price using PricingService
-                // 1. Sum weight-based prices for all services
-                BigDecimal servicesTotal = BigDecimal.ZERO;
-                for (com.petties.petties.model.ClinicService service : services) {
-                        BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
-                        servicesTotal = servicesTotal.add(servicePrice);
-                }
+                        // 3. Final total
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
+                        log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
+                                        distanceFee);
 
-                // 2. Calculate single distance fee for the whole booking
-                BigDecimal distanceKm = request.getDistanceKm();
-                BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
-                                request.getType());
-
-                // 3. Final total
-                BigDecimal totalPrice = servicesTotal.add(distanceFee);
-                log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
-                                distanceFee);
-
-                // Build booking entity
-                Booking booking = Booking.builder()
-                                .bookingCode(bookingCode)
-                                .pet(pet)
-                                .petOwner(petOwner)
-                                .clinic(clinic)
-                                .bookingDate(request.getBookingDate())
-                                .bookingTime(request.getBookingTime())
-                                .type(request.getType())
-                                .totalPrice(totalPrice)
-                                .distanceFee(distanceFee)
-                                .status(BookingStatus.PENDING)
-                                .notes(request.getNotes())
-                                .homeAddress(request.getHomeAddress())
-                                .homeLat(request.getHomeLat())
-                                .homeLong(request.getHomeLong())
-                                .distanceKm(distanceKm)
-                                .build();
-
-                // Add service items with calculated prices (including pricing breakdown)
-                for (com.petties.petties.model.ClinicService service : services) {
-                        BigDecimal basePrice = service.getBasePrice();
-                        BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
-
-                        BookingServiceItem item = BookingServiceItem.builder()
-                                        .booking(booking)
-                                        .service(service)
-                                        .unitPrice(weightPrice) // Use weight-based price as unit price
-                                        .basePrice(basePrice) // Store original base price for display
-                                        .weightPrice(weightPrice) // Store calculated weight-based price
-                                        .quantity(1)
+                        // Build booking entity
+                        Booking booking = Booking.builder()
+                                        .bookingCode(bookingCode)
+                                        .pet(pet)
+                                        .petOwner(petOwner)
+                                        .clinic(clinic)
+                                        .bookingDate(request.getBookingDate())
+                                        .bookingTime(request.getBookingTime())
+                                        .type(request.getType())
+                                        .totalPrice(totalPrice)
+                                        .distanceFee(distanceFee)
+                                        .status(BookingStatus.PENDING)
+                                        .notes(request.getNotes())
+                                        .homeAddress(request.getHomeAddress())
+                                        .homeLat(request.getHomeLat())
+                                        .homeLong(request.getHomeLong())
+                                        .distanceKm(distanceKm)
                                         .build();
-                        booking.getBookingServices().add(item);
+                        log.debug("Booking entity built.");
+
+                        // Add service items with calculated prices (including pricing breakdown)
+                        for (com.petties.petties.model.ClinicService service : services) {
+                                BigDecimal basePrice = service.getBasePrice();
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
+
+                                BookingServiceItem item = BookingServiceItem.builder()
+                                                .booking(booking)
+                                                .service(service)
+                                                .unitPrice(weightPrice) // Use weight-based price as unit price
+                                                .basePrice(basePrice) // Store original base price for display
+                                                .weightPrice(weightPrice) // Store calculated weight-based price
+                                                .quantity(1)
+                                                .build();
+                                booking.getBookingServices().add(item);
+                        }
+                        log.debug("Services added to booking object");
+
+                        // Save booking
+                        Booking savedBooking = bookingRepository.save(booking);
+                        log.info("Booking created: {}", savedBooking.getBookingCode());
+
+                        // Send notification to clinic manager
+                        try {
+                                notificationService.sendBookingNotificationToClinic(savedBooking);
+                                log.debug("Notification sent to clinic");
+                        } catch (Exception e) {
+                                log.error("Failed to send notification (non-blocking): {}", e.getMessage());
+                                // Don't fail booking if notification fails
+                        }
+
+                        return mapToResponse(savedBooking);
+                } catch (Exception e) {
+                        log.error("Error creating booking: ", e);
+                        throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
                 }
-
-                // Save booking
-                Booking savedBooking = bookingRepository.save(booking);
-                log.info("Booking created: {}", savedBooking.getBookingCode());
-
-                // Send notification to clinic manager
-                notificationService.sendBookingNotificationToClinic(savedBooking);
-
-                return mapToResponse(savedBooking);
         }
 
         // ========== CONFIRM BOOKING ==========
@@ -499,6 +520,7 @@ public class BookingService {
                                 .clinicId(clinic.getClinicId())
                                 .clinicName(clinic.getName())
                                 .clinicAddress(clinic.getAddress())
+                                .clinicPhone(clinic.getPhone())
                                 // Vet info
                                 .assignedVetId(vet != null ? vet.getUserId() : null)
                                 .assignedVetName(vet != null ? vet.getFullName() : null)
@@ -1232,5 +1254,15 @@ public class BookingService {
                                 .servicesCount(servicesCount)
                                 .homeAddress(booking.getHomeAddress())
                                 .build();
+        }
+
+        /**
+         * Get bookings by pet owner
+         */
+        @Transactional(readOnly = true)
+        public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
+                log.info("Fetching bookings for user: {}", petOwnerId);
+                Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
+                return bookings.map(this::mapToResponse);
         }
 }

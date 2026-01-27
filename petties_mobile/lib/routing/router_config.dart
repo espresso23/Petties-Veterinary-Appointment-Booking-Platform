@@ -26,6 +26,13 @@ import '../ui/chat/chat_detail_screen.dart';
 import '../ui/clinics/clinic_search_view.dart';
 import '../ui/clinics/clinic_detail_view.dart';
 import '../ui/clinics/clinic_map_view.dart';
+import '../ui/clinics/clinic_all_services_screen.dart';
+import '../ui/booking/booking_select_pet_screen.dart';
+import '../ui/booking/booking_select_services_screen.dart';
+import '../ui/booking/booking_select_datetime_screen.dart';
+import '../ui/booking/booking_confirm_screen.dart';
+import '../ui/booking/booking_success_screen.dart';
+import '../ui/booking/booking_detail_screen.dart';
 
 import 'app_routes.dart';
 
@@ -188,7 +195,11 @@ class AppRouterConfig {
         // PET_OWNER: Mobile only
         GoRoute(
           path: AppRoutes.petOwnerHome,
-          builder: (context, state) => const PetOwnerHomeScreen(),
+          builder: (context, state) {
+            final tabStr = state.uri.queryParameters['tab'];
+            final initialTabIndex = tabStr != null ? int.tryParse(tabStr) ?? 0 : 0;
+            return PetOwnerHomeScreen(initialTabIndex: initialTabIndex);
+          },
         ),
         // VET: Web + Mobile
         GoRoute(
@@ -254,12 +265,45 @@ class AppRouterConfig {
           path: AppRoutes.clinicMap,
           builder: (context, state) => const ClinicMapView(),
         ),
+        // Clinic All Services Route - MUST come before clinicDetail
+        GoRoute(
+          path: AppRoutes.clinicAllServices,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            return ClinicAllServicesScreen(clinicId: id);
+          },
+        ),
         GoRoute(
           path: AppRoutes.clinicDetail,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             return ClinicDetailView(clinicId: id);
           },
+        ),
+
+        // Booking Flow Routes (Pet Owner)
+        GoRoute(
+          path: AppRoutes.bookingSelectPet,
+          builder: (context, state) {
+            final clinicId = state.pathParameters['clinicId']!;
+            return BookingSelectPetScreen(clinicId: clinicId);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSelectServices,
+          builder: (context, state) => const BookingSelectServicesScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSelectDateTime,
+          builder: (context, state) => const BookingSelectDateTimeScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingConfirm,
+          builder: (context, state) => const BookingConfirmScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.bookingSuccess,
+          builder: (context, state) => const BookingSuccessScreen(),
         ),
 
         // Note: CLINIC_OWNER, CLINIC_MANAGER and ADMIN routes are intentionally not included
@@ -271,6 +315,14 @@ class AppRouterConfig {
           redirect: (context, state) {
             final userRole = authProvider.user?.role;
             return _getHomeRouteForRole(userRole);
+          },
+        ),
+        
+        GoRoute(
+          path: '/bookings/detail',
+          builder: (context, state) {
+            final booking = state.extra as dynamic;
+            return AppointmentDetailScreen(booking: booking);
           },
         ),
 

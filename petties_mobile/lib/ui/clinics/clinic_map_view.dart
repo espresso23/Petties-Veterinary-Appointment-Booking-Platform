@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
@@ -18,6 +21,11 @@ class _ClinicMapViewState extends State<ClinicMapView> {
   Clinic? _selectedClinic;
   Set<Marker> _markers = {};
 
+  // Custom marker icons
+  BitmapDescriptor? _clinicOpenIcon;
+  BitmapDescriptor? _clinicClosedIcon;
+  BitmapDescriptor? _userLocationIcon;
+
   // Track clinics hash to detect changes
   int _lastClinicsHash = 0;
 
@@ -30,10 +38,92 @@ class _ClinicMapViewState extends State<ClinicMapView> {
   @override
   void initState() {
     super.initState();
+    // Create custom marker icons
+    _createCustomMarkerIcons();
     // Listen to provider changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateMarkersIfNeeded();
     });
+  }
+
+  /// Create custom marker icons for clinics
+  Future<void> _createCustomMarkerIcons() async {
+    _clinicOpenIcon = await _createMarkerIcon(
+      Icons.local_hospital,
+      AppColors.success,
+      AppColors.white,
+    );
+    _clinicClosedIcon = await _createMarkerIcon(
+      Icons.local_hospital,
+      AppColors.error,
+      AppColors.white,
+    );
+    _userLocationIcon = await _createMarkerIcon(
+      Icons.person_pin_circle,
+      AppColors.primary,
+      AppColors.white,
+    );
+    if (mounted) {
+      _buildMarkersSync();
+    }
+  }
+
+  /// Create a custom marker icon from an IconData
+  Future<BitmapDescriptor> _createMarkerIcon(
+    IconData iconData,
+    Color backgroundColor,
+    Color iconColor,
+  ) async {
+    const double size = 80;
+    const double iconSize = 40;
+
+    final pictureRecorder = ui.PictureRecorder();
+    final canvas = Canvas(pictureRecorder);
+
+    // Draw background circle
+    final bgPaint = Paint()..color = backgroundColor;
+    canvas.drawCircle(
+      const Offset(size / 2, size / 2),
+      size / 2.5,
+      bgPaint,
+    );
+
+    // Draw border
+    final borderPaint = Paint()
+      ..color = AppColors.stone900
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(
+      const Offset(size / 2, size / 2),
+      size / 2.5,
+      borderPaint,
+    );
+
+    // Draw icon
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(iconData.codePoint),
+      style: TextStyle(
+        fontSize: iconSize,
+        fontFamily: iconData.fontFamily,
+        package: iconData.fontPackage,
+        color: iconColor,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    final picture = pictureRecorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
   @override
@@ -76,14 +166,10 @@ class _ClinicMapViewState extends State<ClinicMapView> {
         Marker(
           markerId: MarkerId(clinic.clinicId),
           position: LatLng(clinic.latitude!, clinic.longitude!),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            clinic.isOpen ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
-          ),
+          icon: clinic.isOpen
+              ? (_clinicOpenIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen))
+              : (_clinicClosedIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed)),
           onTap: () => _onMarkerTapped(clinic),
-          infoWindow: InfoWindow(
-            title: clinic.name,
-            snippet: clinic.shortAddress,
-          ),
         ),
       );
     }
@@ -97,10 +183,7 @@ class _ClinicMapViewState extends State<ClinicMapView> {
             provider.currentPosition!.latitude,
             provider.currentPosition!.longitude,
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueAzure,
-          ),
-          infoWindow: const InfoWindow(title: 'Vị trí của bạn'),
+          icon: _userLocationIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
         ),
       );
     }
@@ -317,7 +400,7 @@ class _ClinicMapViewState extends State<ClinicMapView> {
       right: 16,
       child: GestureDetector(
         onTap: () {
-          Navigator.of(context).pushNamed('/clinics/${clinic.clinicId}');
+          context.push('/clinics/${clinic.clinicId}');
         },
         child: Container(
           padding: const EdgeInsets.all(16),

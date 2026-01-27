@@ -392,23 +392,43 @@ export const BookingDashboardPage = () => {
                                     </td>
                                     <td className="p-4 text-center">
                                         {getStatusBadge(booking.status)}
-                                        {/* Show all unique assigned vets from services */}
+                                        {/* Show all unique assigned vets from services with avatar */}
                                         {(() => {
-                                            const vets = new Map<string, string>();
+                                            const vets = new Map<string, { name: string; avatar?: string }>();
 
                                             // 1. Add vets from individual services
                                             booking.services.forEach(service => {
                                                 if (service.assignedVetId && service.assignedVetName) {
-                                                    vets.set(service.assignedVetId, service.assignedVetName);
+                                                    vets.set(service.assignedVetId, {
+                                                        name: service.assignedVetName,
+                                                        avatar: service.assignedVetAvatarUrl
+                                                    });
                                                 }
                                             });
 
                                             if (vets.size === 0) return null;
 
                                             return (
-                                                <div className="text-xs text-stone-500 mt-1">
-                                                    {Array.from(vets.values()).map((name, idx) => (
-                                                        <div key={idx}>BS: {name}</div>
+                                                <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                                                    {Array.from(vets.values()).map((vet, idx) => (
+                                                        <div key={idx} className="flex items-center gap-1.5 bg-mint-100 px-2 py-1 rounded-full border border-stone-300">
+                                                            {/* Vet Avatar */}
+                                                            <div className="w-5 h-5 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
+                                                                {vet.avatar ? (
+                                                                    <img
+                                                                        src={vet.avatar}
+                                                                        alt={vet.name}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-mint-200 text-stone-600">
+                                                                        {vet.name.charAt(0)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Vet Name */}
+                                                            <span className="text-xs font-medium text-stone-700">{vet.name}</span>
+                                                        </div>
                                                     ))}
                                                 </div>
                                             );

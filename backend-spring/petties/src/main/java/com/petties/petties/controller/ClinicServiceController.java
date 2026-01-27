@@ -150,14 +150,14 @@ public class ClinicServiceController {
     }
 
     /**
-     * NEW: Get all services for a specific clinic
+     * PUBLIC: Get all active services for a specific clinic
      * GET /api/services/by-clinic/{clinicId}
-     * Allows both CLINIC_OWNER and CLINIC_MANAGER to view services
+     * Pet Owner uses this to view services when booking
      */
     @GetMapping("/by-clinic/{clinicId}")
     @PreAuthorize("permitAll()")
     public ResponseEntity<List<ClinicServiceResponse>> getServicesByClinicId(@PathVariable UUID clinicId) {
-        List<ClinicServiceResponse> services = serviceService.getServicesByClinicId(clinicId);
+        List<ClinicServiceResponse> services = serviceService.getPublicServicesByClinicId(clinicId);
         return ResponseEntity.ok(services);
     }
 }

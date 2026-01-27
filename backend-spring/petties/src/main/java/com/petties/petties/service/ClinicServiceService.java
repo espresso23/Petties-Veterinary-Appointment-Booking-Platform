@@ -422,8 +422,27 @@ public class ClinicServiceService {
     }
 
     /**
-     * NEW: Get all services for a specific clinic
-     * Admin hoặc Clinic Owner có thể xem services của bất kỳ clinic nào
+     * PUBLIC: Get all ACTIVE services for a specific clinic
+     * Pet Owner cần xem services để đặt lịch
+     * Chỉ trả về services đang active
+     */
+    @Transactional(readOnly = true)
+    public List<ClinicServiceResponse> getPublicServicesByClinicId(UUID clinicId) {
+        // Verify clinic exists
+        if (!clinicRepository.existsById(clinicId)) {
+            throw new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId);
+        }
+
+        // Only return active services for public view
+        List<ClinicService> services = clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId);
+        return services.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * INTERNAL: Get all services for a specific clinic (including inactive)
+     * Admin hoặc Clinic Owner/Manager có thể xem tất cả services
      */
     @Transactional(readOnly = true)
     public List<ClinicServiceResponse> getServicesByClinicId(UUID clinicId) {

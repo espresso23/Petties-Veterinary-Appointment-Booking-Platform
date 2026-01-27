@@ -29,4 +29,34 @@ class BookingService {
     final response = await _apiClient.get('/bookings/vet/home-summary');
     return VetHomeSummaryResponse.fromJson(response.data);
   }
+
+  /// Get my bookings (Pet Owner)
+  Future<List<BookingResponse>> getMyBookings({
+    String? status,
+    int page = 0,
+    int size = 10,
+  }) async {
+    final queryParams = {
+      if (status != null) 'status': status,
+      'page': page,
+      'size': size,
+    };
+    
+    final response = await _apiClient.get('/bookings/my', queryParameters: queryParams);
+    
+    if (response.data['content'] != null) {
+      return (response.data['content'] as List)
+          .map((json) => BookingResponse.fromJson(json))
+          .toList();
+    }
+    return [];
+  }
+  /// Cancel booking (Pet Owner)
+  Future<BookingResponse> cancelBooking(String bookingId, String reason) async {
+    final response = await _apiClient.patch(
+      '/bookings/$bookingId/cancel',
+      queryParameters: {'reason': reason},
+    );
+    return BookingResponse.fromJson(response.data);
+  }
 }

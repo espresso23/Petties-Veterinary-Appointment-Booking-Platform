@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
@@ -21,6 +22,8 @@ class ClinicDetailView extends StatefulWidget {
 class _ClinicDetailViewState extends State<ClinicDetailView> {
   GoogleMapController? _mapController;
   final ScrollController _scrollController = ScrollController();
+  final PageController _imagePageController = PageController();
+  int _currentImageIndex = 0;
 
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   void dispose() {
     _mapController?.dispose();
     _scrollController.dispose();
+    _imagePageController.dispose();
     super.dispose();
   }
 
@@ -140,26 +144,93 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   }
 
   Widget _buildHeader(Clinic clinic) {
+    // Get all images or use primary image as fallback
+    final List<String> allImages = [];
+    if (clinic.images != null && clinic.images!.isNotEmpty) {
+      allImages.addAll(clinic.images!);
+    } else if (clinic.primaryImageUrl != null) {
+      allImages.add(clinic.primaryImageUrl!);
+    }
+
     return Stack(
       children: [
-        // Clinic Image
+        // Image Carousel
         Container(
           height: 220,
           width: double.infinity,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.stone200,
-            border: const Border(
+            border: Border(
               bottom: BorderSide(color: AppColors.stone900, width: 2),
             ),
           ),
-          child: clinic.primaryImageUrl != null
-              ? Image.network(
-                  clinic.primaryImageUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
-                )
-              : _buildPlaceholderImage(),
+          child: allImages.isEmpty
+              ? _buildPlaceholderImage()
+              : PageView.builder(
+                  controller: _imagePageController,
+                  itemCount: allImages.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentImageIndex = index;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    return Image.network(
+                      allImages[index],
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+                    );
+                  },
+                ),
         ),
+
+        // Image indicators (dots)
+        if (allImages.length > 1)
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                allImages.length,
+                (index) => Container(
+                  width: _currentImageIndex == index ? 24 : 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: _currentImageIndex == index
+                        ? AppColors.primary
+                        : AppColors.white.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.stone900, width: 1),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // Image counter badge
+        if (allImages.length > 1)
+          Positioned(
+            bottom: 12,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.stone900.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_currentImageIndex + 1}/${allImages.length}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.white,
+                ),
+              ),
+            ),
+          ),
 
         // Top Bar with Back & Share buttons
         Positioned(
@@ -615,7 +686,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    // TODO: View all services
+                    context.push('/clinics/${clinic.clinicId}/services');
                   },
                   child: Text(
                     'Xem tất cả',
@@ -1002,7 +1073,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
         top: false,
         child: GestureDetector(
           onTap: () {
-            // TODO: Navigate to booking
+            context.push('/booking/${widget.clinicId}/pet');
           },
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
