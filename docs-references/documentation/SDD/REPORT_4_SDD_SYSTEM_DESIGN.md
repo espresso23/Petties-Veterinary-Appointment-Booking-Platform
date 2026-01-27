@@ -3,21 +3,28 @@
 ## TABLE OF CONTENTS
 - [1. System Design](#1-system-design)
     - [1.1 System Architecture](#11-system-architecture)
+    - [1.2 Package Diagram](#12-package-diagram)
+    - [1.3 UML Diagram Standards](#13-uml-diagram-standards)
 - [2. Database Design](#2-database-design)
-- [3. Detailed Design](#3-detailed-design)
-    - [3.1 Authentication & Onboarding](#31-authentication--onboarding)
-    - [3.2 User Profile & Account Setup](#32-user-profile--account-setup)
-    - [3.3 Pet Records & Health Hub](#33-pet-records--health-hub)
-    - [3.4 Clinic Discovery Flow](#34-clinic-discovery-flow)
-    - [3.5 Clinical Operations & Service Setup](#35-clinical-operations--service-setup)
-    - [3.6 Staffing & Scheduling](#36-staffing--scheduling)
-    - [3.7 Booking & Appointment Lifecycle](#3.7-booking--appointment-lifecycle)
-    - [3.8 Electronic Medical Records (EMR)](#3.8-electronic-medical-records-emr)
-    - [3.9 Specialized Services (SOS Emergency)](#3.9-specialized-services-sos-emergency)
-    - [3.10 AI Assistance Flow](#3.10-ai-assistance-flow)
-    - [3.11 Governance & Reporting Flow](#3.11-governance--reporting-flow)
-    - [3.12 AI Vision Pet Health Analysis](#312-ai-vision-pet-health-analysis)
-- [4. Technology Stack Summary](#4-technology-stack-summary)
+    - [2.1 Relational Database Design (PostgreSQL)](#21-relational-database-design-postgresql)
+    - [2.2 NoSQL Database Design (MongoDB)](#22-nosql-database-design-mongodb)
+- [3. API Design Specifications](#3-api-design-specifications)
+    - [3.1 Implemented Modules (Backend - Spring Boot)](#31-implemented-modules-backend---spring-boot)
+    - [3.2 Implemented Modules (AI Service - Python)](#32-implemented-modules-ai-service---python)
+    - [3.3 Planned Modules (Backend)](#33-planned-modules-backend)
+- [4. Detailed Design](#4-detailed-design)
+    - [4.1 Authentication & Onboarding](#41-authentication--onboarding)
+    - [4.2 User Profile & Account Setup](#42-user-profile--account-setup)
+    - [4.3 Pet Records & Health Hub](#43-pet-records--health-hub)
+    - [4.4 Clinic Discovery Flow](#44-clinic-discovery-flow)
+    - [4.5 Clinical Operations & Service Setup](#45-clinical-operations--service-setup)
+    - [4.6 Staffing & Scheduling](#46-staffing--scheduling)
+    - [4.7 Booking & Appointment Lifecycle](#47-booking--appointment-lifecycle)
+    - [4.8 Electronic Medical Records (EMR)](#48-electronic-medical-records-emr)
+    - [4.9 SOS Emergency Flow](#49-sos-emergency-flow)
+    - [4.10 AI Assistance Flow](#410-ai-assistance-flow)
+    - [4.11 Governance & Reporting Flow](#411-governance--reporting-flow)
+- [5. Technology Stack Summary](#5-technology-stack-summary)
 
 ## 1. System Design
 
@@ -38,8 +45,8 @@ flowchart TD
         User["User<br/>Web & Mobile"]
         User --> Flutter
         User --> React
-        Flutter["Flutter 3.5<br/>(Mobile App)<br/>Pet Owner, Vet"]
-        React["React 19<br/>(Web Dashboard)<br/>Admin, Clinic Staff, Vet"]
+        Flutter["Flutter 3.5<br/>(Mobile App)<br/>Pet Owner, Staff"]
+        React["React 19<br/>(Web Dashboard)<br/>Admin, Clinic Staff, Staff"]
     end
 
     subgraph BACKEND["BACKEND"]
@@ -111,7 +118,7 @@ flowchart TD
 **1. User Role:**
 - **Guest** - Can view clinic listings, search clinics, and view basic information
 - **Pet Owner** - Can register pets, book appointments, chat with AI assistant, view EMR history, and manage profile (Mobile only)
-- **Vet** - Can view appointments, manage schedule, create EMR records, and access patient history (Web + Mobile)
+- **Staff** - Can view appointments, manage schedule, create EMR records, and access patient history (Web + Mobile)
 - **Clinic Manager** - Manages clinic operations, staff scheduling, booking management, and patient records (Web only)
 - **Clinic Owner** - Manages clinic profile, services, pricing, staff, and views analytics (Web only)
 - **Admin** - Manages the system, user accounts, clinic approvals, AI agent configuration, and oversees system operations (Web only)
@@ -521,12 +528,12 @@ flowchart TB
 | No | Package | Layer Responsibility |
 |----|---------|---------------------|
 | **Pages Layer** |
-| 01 | pages | **Route Page Layer** - Top-level page components mapping to routes. Each page represents a complete view for a specific role (Admin, Clinic Owner, Clinic Manager, Vet). Organized by role and feature domain. |
+| 01 | pages | **Route Page Layer** - Top-level page components mapping to routes. Each page represents a complete view for a specific role (Admin, Clinic Owner, Clinic Manager, Staff). Organized by role and feature domain. |
 | 02 | pages/auth | **Authentication Pages** - Login, registration, and password recovery flows with OTP verification. Handles unauthenticated user journeys. |
 | 03 | pages/admin | **Admin Dashboard Pages** - System administration views including clinic approvals, AI agent configuration, tool management, knowledge base, and system settings. |
 | 04 | pages/clinic-owner | **Clinic Owner Pages** - Clinic management views for owners including profile editing, service configuration, pricing, and staff management. |
 | 05 | pages/clinic-manager | **Clinic Manager Pages** - Operational views for daily clinic management including bookings, schedules, and patient records. |
-| 06 | pages/vet | **Veterinarian Pages** - Vet-specific views for appointments, patient records, and schedule management. |
+| 06 | pages/vet | **Veterinarian Pages** - Staff-specific views for appointments, patient records, and schedule management. |
 | 07 | pages/shared | **Shared Pages** - Cross-role pages like profile management accessible by all authenticated users. |
 | **Components Layer** |
 | 08 | components | **Reusable UI Components** - Modular, composable UI building blocks organized by domain (auth, clinic, profile, dashboard). Follows atomic design principles with consistent Neobrutalism styling. |
@@ -559,7 +566,7 @@ flowchart TB
 | 01 | ui/screens | **Screen Layer** - Full-page widget compositions representing complete views. Each screen corresponds to a route and composes widgets for specific user flows. Organized by user role (pet_owner, vet) and feature domain (auth, pet, profile). |
 | 02 | ui/auth | **Authentication Screens** - Login, registration, password recovery flows with OTP verification. Handles unauthenticated user journeys with form validation. |
 | 03 | ui/pet_owner | **Pet Owner Screens** - Home and feature screens exclusive to pet owners including booking, AI chat, and pet management. |
-| 04 | ui/vet | **Veterinarian Screens** - Vet-specific screens for appointments, patient records, and schedule management. |
+| 04 | ui/vet | **Veterinarian Screens** - Staff-specific screens for appointments, patient records, and schedule management. |
 | **UI Layer - Widgets** |
 | 05 | ui/core/widgets | **Core Widgets** - Foundational reusable widgets (buttons, text fields, loaders). Implements Neobrutalism design system with consistent styling across the app. |
 | 06 | ui/widgets | **Feature Widgets** - Domain-specific widgets organized by feature (profile, pet, booking). Composable building blocks for screens. |
@@ -664,7 +671,7 @@ classDiagram
 
 **1. Participants bắt buộc:**
 ```
-actor User as [Tên Role]           %% Pet Owner, Vet, Clinic Manager
+actor User as [Tên Role]           %% Pet Owner, Staff, Clinic Manager
 participant UI as [Tên Screen]     %% Mobile/Web
 participant [Abbrev] as [ControllerName]
 participant [Abbrev] as [ServiceName]
@@ -677,13 +684,13 @@ participant DB as Database          %% BẮT BUỘC có
 - Số bắt đầu từ 1, liên tục đến hết sequence
 - **KHÔNG dùng `autonumber`**
 
-**3. SQL Operations:**
-Khi Repository gọi Database, phải ghi rõ câu SQL:
-```sql
-SELECT COUNT(*) FROM users WHERE email = ?
-INSERT INTO users (username, email, password, ...)
-UPDATE ... SET ... WHERE id = ?
-DELETE FROM ... WHERE ...
+**3. Database Actions:**
+Khi Repository gọi Database, ghi rõ hành động thực hiện (thay vì câu SQL cụ thể):
+```
+Check if user exists by email
+Save new user record
+Update user profile status
+Soft delete user record
 ```
 
 **4. Activation Boxes:**
@@ -720,7 +727,7 @@ User → UI → Controller → Service → Repository → Database
 | Abbrev | Role |
 |--------|------|
 | PO | Pet Owner |
-| V | Vet |
+| V | Staff |
 | CM | Clinic Manager |
 | CO | Clinic Owner |
 | A | Admin |
@@ -745,9 +752,9 @@ sequenceDiagram
     activate S
     S->>R: 4. findById(id)
     activate R
-    R->>DB: 5. SELECT * FROM vet_shifts WHERE id = ?
-
-    alt [Vet Shift does not exist]
+    R->>DB: 5. Find vet shift record by ID
+    
+    alt [Staff Shift does not exist]
         DB-->>R: 6. Return null
         deactivate R
         R-->>S: 7. Optional.empty()
@@ -755,14 +762,14 @@ sequenceDiagram
         deactivate S
         C-->>UI: 9. HTTP 404 Not Found
         deactivate C
-        UI-->>CM: 10. Display error "Vet shift not found"
-    else [Vet Shift exists]
+        UI-->>CM: 10. Display error "Staff shift not found"
+    else [Staff Shift exists]
         DB-->>R: 6. Return vet shift record
         deactivate R
         R-->>S: 7. VetShift Entity
         S->>R: 8. softDelete(vetShift)
         activate R
-        R->>DB: 9. UPDATE vet_shifts SET deleted = true
+        R->>DB: 9. Update deleted status to true
         DB-->>R: 10. Return success
         deactivate R
         R-->>S: 11. Success
@@ -776,16 +783,836 @@ sequenceDiagram
 
 ---
 
-## 2. API DESIGN SPECIFICATIONS
+## 2. DATABASE DESIGN
+
+Petties uses a **Polyglot Persistence** architecture with multiple database types serving different purposes:
+
+| Database | Type | Use Case | Tables/Collections |
+|----------|------|----------|-------------------|
+| **PostgreSQL 16** (Backend) | Relational (RDBMS) | Structured data with strict relationships | 17 tables |
+| **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, chat history, RAG | 7 tables |
+| **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data | 4 collections |
+
+---
+
+### 2.1 Relational Database Design (PostgreSQL)
+
+PostgreSQL is used as the primary relational database for both Spring Boot Backend and AI Agent Service, providing foreign keys, ACID transactions, and complex queries.
+
+> **Database Architecture:**
+> - **Shared PostgreSQL Instance**: Both services connect to the same PostgreSQL server
+> - **Separate Schemas (optional)**: AI Service tables can use `ai_` prefix for logical separation
+> - **Total Tables**: 24 tables (17 Backend + 7 AI Service)
+
+#### 2.1.1 Entity Relationship Diagram
+
+> **Note:** ERD is generated from [dbdiagram.io](https://dbdiagram.io/).
+> DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
+
+**Instructions to generate ERD:**
+1. Visit https://dbdiagram.io/
+2. Copy content from `PETTIES_DBML.dbml`
+3. Paste into editor
+4. Export PNG/PDF
+
+```
+[ERD Diagram - Paste screenshot from dbdiagram.io here]
+```
+
+#### 2.1.2 Table Groups
+
+##### Spring Boot Backend Tables (17 tables)
+
+| Group | Tables | Description |
+|-------|--------|-------------|
+| **Auth & User** | users, refresh_tokens, blacklisted_tokens | User management and authentication |
+| **Pet** | pets | Pet profiles |
+| **Clinic** | clinics, clinic_images, clinic_price_per_km | Clinic management |
+| **Services** | master_services, clinic_services, service_weight_prices | Services and pricing |
+| **Scheduling** | vet_shifts, slots | Staff work schedules |
+| **Booking** | bookings, booking_service_items, booking_slots, payments | Appointments and payments |
+| **Notification** | notifications | System notifications |
+
+##### AI Agent Service Tables (7 tables)
+
+| Group | Tables | Description |
+|-------|--------|-------------|
+| **Agent Config** | agents, tools, prompt_versions | Single Agent and Tools configuration |
+| **Chat History** | chat_sessions, chat_messages | AI chat history |
+| **Knowledge Base** | knowledge_documents | RAG documents |
+| **Settings** | system_settings | API keys, LLM configs |
+
+#### 2.1.3 Table Descriptions
+
+##### 2.1.3.1 Spring Boot Backend Tables
+
+###### Auth & User Tables
+
+**Table: users**
+
+**Description:** Stores all user accounts with different roles (Pet Owner, Staff, Clinic Manager, Clinic Owner, Admin). Supports soft delete for data retention.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PK | Primary Key |
+| username | VARCHAR(50) | UNIQUE, NOT NULL | Login username |
+| password | VARCHAR(255) | NOT NULL | Password (hashed) |
+| phone | VARCHAR(20) | UNIQUE | Phone number |
+| email | VARCHAR(100) | UNIQUE, NOT NULL | Email address |
+| full_name | VARCHAR(100) | | Full name |
+| avatar | VARCHAR(500) | | Avatar URL (Cloudinary) |
+| avatar_public_id | VARCHAR(100) | | Cloudinary public ID |
+| role | ENUM | NOT NULL | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
+| specialty | ENUM | | VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER |
+| rating_avg | DECIMAL(2,1) | DEFAULT 0.0 | Average rating |
+| rating_count | INT | DEFAULT 0 | Number of ratings |
+| fcm_token | VARCHAR(500) | | Firebase Cloud Messaging token |
+| address | VARCHAR(500) | | Default address (Pet Owner) |
+| working_clinic_id | UUID | FK→clinics | Working clinic |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+| deleted_at | TIMESTAMP | | Soft delete timestamp |
+
+**Table: refresh_tokens**
+
+**Description:** JWT refresh tokens for multi-device authentication. Allows users to stay logged in across sessions without re-entering credentials.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| token_id | UUID | PK | Primary Key |
+| user_id | UUID | FK→users, NOT NULL | Token owner |
+| token_hash | VARCHAR(255) | UNIQUE, NOT NULL | Refresh token hash |
+| expires_at | TIMESTAMP | NOT NULL | Expiration time |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Table: blacklisted_tokens**
+
+**Description:** Invalidated tokens after logout to prevent reuse until expiration. Ensures security when users explicitly log out.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| token_id | UUID | PK | Primary Key |
+| token_hash | VARCHAR(255) | UNIQUE, NOT NULL | Blacklisted token hash |
+| user_id | UUID | NOT NULL | Token owner |
+| expires_at | TIMESTAMP | NOT NULL | Expiration time |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+###### Pet Table
+
+**Table: pets**
+
+**Description:** Pet profiles belonging to Pet Owners. Contains medical information like allergies, weight, and species for veterinary services.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | Primary Key |
+| user_id | UUID | FK→users, NOT NULL | Owner (Pet Owner) |
+| name | VARCHAR(100) | NOT NULL | Pet name |
+| species | VARCHAR(50) | | Species (Dog, Cat, Other) |
+| breed | VARCHAR(100) | | Breed |
+| date_of_birth | DATE | | Birth date |
+| weight | DECIMAL(5,2) | | Weight (kg) |
+| gender | VARCHAR(10) | | Gender |
+| color | VARCHAR(100) | | Fur color |
+| allergies | TEXT | | Allergies (if any) |
+| image_url | VARCHAR(500) | | Pet image |
+| image_public_id | VARCHAR(100) | | Cloudinary public ID |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+###### Clinic Tables
+
+**Table: clinics**
+
+**Description:** Veterinary clinic profiles registered by Clinic Owners. Requires admin approval before becoming visible to users. Supports soft delete for data retention.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| clinic_id | UUID | PK | Primary Key |
+| owner_id | UUID | FK→users, NOT NULL | Clinic owner |
+| name | VARCHAR(200) | NOT NULL | Clinic name |
+| description | TEXT | | Description |
+| address | VARCHAR(500) | NOT NULL | Full address |
+| ward | VARCHAR(100) | | Ward |
+| district | VARCHAR(100) | | District |
+| province | VARCHAR(100) | | Province/City |
+| specific_location | VARCHAR(200) | | Specific location |
+| phone | VARCHAR(20) | | Phone number |
+| email | VARCHAR(100) | | Contact email |
+| latitude | DECIMAL(10,8) | | Latitude |
+| longitude | DECIMAL(11,8) | | Longitude |
+| logo | VARCHAR(500) | | Logo URL |
+| operating_hours | JSONB | | Operating hours (JSON) |
+| status | ENUM | NOT NULL, DEFAULT 'PENDING' | PENDING, APPROVED, REJECTED, SUSPENDED |
+| rejection_reason | TEXT | | Rejection reason |
+| rating_avg | DECIMAL(2,1) | DEFAULT 0.0 | Rating score |
+| rating_count | INT | DEFAULT 0 | Number of ratings |
+| approved_at | TIMESTAMP | | Approval date |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+| deleted_at | TIMESTAMP | | Soft delete |
+
+**operating_hours JSONB Structure:**
+```json
+{
+  "monday": {"open_time": "08:00", "close_time": "18:00", "break_start": "12:00", "break_end": "13:00", "is_closed": false},
+  "tuesday": {...},
+  "sunday": {"is_closed": true}
+}
+```
+
+**Table: clinic_images**
+
+**Description:** Gallery images for clinic profiles with ordering support. Clinics can upload multiple images to showcase their facilities.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| image_id | UUID | PK | Primary Key |
+| clinic_id | UUID | FK→clinics, NOT NULL | Clinic |
+| image_url | VARCHAR(500) | NOT NULL | Image URL |
+| caption | VARCHAR(200) | | Image caption |
+| display_order | INT | DEFAULT 0 | Display order |
+| is_primary | BOOLEAN | DEFAULT false | Primary image |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Table: clinic_price_per_km**
+
+**Description:** Travel pricing for Home Visit services. One-to-one relationship with clinics. Used to calculate distance-based fees.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| clinic_id | UUID | PK, FK→clinics | 1:1 with clinics |
+| price_per_km | DECIMAL(12,2) | NOT NULL | Travel price per km |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+###### Service Tables
+
+**Table: master_services**
+
+**Description:** Service templates created by Clinic Owner, inherited by individual clinic services. Defines default pricing, duration, and categories.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| master_service_id | UUID | PK | Primary Key |
+| name | VARCHAR(200) | NOT NULL | Service name |
+| description | TEXT | | Description |
+| default_price | DECIMAL(19,2) | | Default price |
+| duration_time | INT | | Duration (minutes) |
+| slots_required | INT | DEFAULT 1 | Required slots |
+| is_home_visit | BOOLEAN | DEFAULT false | Supports Home Visit |
+| default_price_per_km | DECIMAL(19,2) | | Default price/km |
+| service_category | VARCHAR(100) | | Category |
+| pet_type | VARCHAR(100) | | Pet type (Dog, Cat, All) |
+| icon | VARCHAR(100) | | Icon identifier |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+**Table: clinic_services**
+
+**Description:** Actual services offered by clinics, either inherited from master_services or custom created. Clinics can customize pricing and availability.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| service_id | UUID | PK | Primary Key |
+| clinic_id | UUID | FK→clinics, NOT NULL | Clinic |
+| master_service_id | UUID | FK→master_services | Template (nullable) |
+| is_custom | BOOLEAN | DEFAULT false | true=Custom, false=Inherited |
+| name | VARCHAR(200) | NOT NULL | Service name |
+| description | TEXT | | Description |
+| base_price | DECIMAL(19,2) | | Base price |
+| duration_time | INT | | Duration (minutes) |
+| slots_required | INT | DEFAULT 1 | Required slots |
+| is_active | BOOLEAN | DEFAULT true | Is active |
+| is_home_visit | BOOLEAN | DEFAULT false | Supports Home Visit |
+| price_per_km | DECIMAL(19,2) | | Travel price |
+| service_category | ENUM | | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
+| pet_type | VARCHAR(100) | | Pet type |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+**Table: service_weight_prices**
+
+**Description:** Weight-based pricing tiers for services (e.g., grooming costs more for larger pets). Links to either clinic services or master services.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| weight_price_id | UUID | PK | Primary Key |
+| service_id | UUID | FK→clinic_services | Clinic service (nullable) |
+| master_service_id | UUID | FK→master_services | Master template (nullable) |
+| min_weight | DECIMAL(10,2) | NOT NULL | Minimum weight (kg) |
+| max_weight | DECIMAL(10,2) | NOT NULL | Maximum weight (kg) |
+| price | DECIMAL(19,2) | NOT NULL | Price for weight range |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+###### Scheduling Tables
+
+**Table: vet_shifts**
+
+**Description:** Work schedules for veterinarians at specific clinics. Auto-generates 30-minute slots for booking. Supports overnight shifts and break times.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| shift_id | UUID | PK | Primary Key |
+| vet_id | UUID | FK→users, NOT NULL | Veterinarian |
+| clinic_id | UUID | FK→clinics, NOT NULL | Clinic |
+| work_date | DATE | NOT NULL | Work date |
+| start_time | TIME | NOT NULL | Shift start time |
+| end_time | TIME | NOT NULL | Shift end time |
+| break_start | TIME | | Lunch break start |
+| break_end | TIME | | Lunch break end |
+| is_overnight | BOOLEAN | DEFAULT false | Overnight shift flag |
+| notes | VARCHAR(500) | | Notes |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+**Table: slots**
+
+**Description:** 30-minute time blocks auto-generated from vet_shifts. Used for booking appointments. Status tracks availability.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| slot_id | UUID | PK | Primary Key |
+| shift_id | UUID | FK→vet_shifts, NOT NULL | Parent shift |
+| start_time | TIME | NOT NULL | Slot start time |
+| end_time | TIME | NOT NULL | Slot end time |
+| status | ENUM | NOT NULL, DEFAULT 'AVAILABLE' | AVAILABLE, BOOKED, BLOCKED |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+###### Booking Tables
+
+**Table: bookings**
+
+**Description:** Appointment records connecting pets, pet owners, clinics, and optional vets. Core booking entity supporting IN_CLINIC, HOME_VISIT, and SOS types.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| booking_id | UUID | PK | Primary Key |
+| booking_code | VARCHAR(20) | UNIQUE, NOT NULL | Booking code (BK-YYYYMMDD-XXXX) |
+| pet_id | UUID | FK→pets, NOT NULL | Pet being treated |
+| pet_owner_id | UUID | FK→users, NOT NULL | Pet owner |
+| clinic_id | UUID | FK→clinics, NOT NULL | Target clinic |
+| assigned_vet_id | UUID | FK→users | Assigned veterinarian |
+| booking_date | DATE | NOT NULL | Appointment date |
+| booking_time | TIME | NOT NULL | Appointment time |
+| type | ENUM | NOT NULL, DEFAULT 'IN_CLINIC' | IN_CLINIC, HOME_VISIT, SOS |
+| home_address | VARCHAR(500) | | Address (Home Visit/SOS only) |
+| home_lat | DECIMAL(10,7) | | Home latitude |
+| home_long | DECIMAL(10,7) | | Home longitude |
+| distance_km | DECIMAL(5,2) | | Distance in km |
+| distance_fee | DECIMAL(12,2) | | Travel fee |
+| total_price | DECIMAL(12,2) | | Total price |
+| status | ENUM | NOT NULL, DEFAULT 'PENDING' | (See State Machine below) |
+| cancellation_reason | TEXT | | Cancellation reason |
+| cancelled_by | UUID | | Cancelled by user |
+| notes | TEXT | | Notes |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Booking Status State Machine:**
+```
+PENDING → CONFIRMED → ASSIGNED → [ON_THE_WAY → ARRIVED] → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+                                        ↑ Only for HOME_VISIT/SOS
+Alternative paths: CANCELLED, NO_SHOW
+```
+
+**Table: booking_service_items**
+
+**Description:** Junction table linking bookings to specific clinic services (Many-to-Many). Captures price snapshot at booking time for historical accuracy.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| booking_service_id | UUID | PK | Primary Key |
+| booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
+| service_id | UUID | FK→clinic_services, NOT NULL | Clinic service |
+| assigned_vet_id | UUID | FK→users | Staff assigned to this service |
+| unit_price | DECIMAL(12,2) | | Price snapshot at booking time |
+| base_price | DECIMAL(12,2) | | Base price |
+| weight_price | DECIMAL(12,2) | | Weight-based price |
+| quantity | INT | DEFAULT 1 | Quantity |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Table: booking_slots**
+
+**Description:** Junction table linking bookings to specific time slots (Many-to-Many). Allows services to occupy multiple consecutive slots.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| booking_slot_id | UUID | PK | Primary Key |
+| booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
+| slot_id | UUID | FK→slots, NOT NULL | Reserved slot |
+| booking_service_id | UUID | FK→booking_service_items | Associated service item |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Table: payments**
+
+**Description:** Payment records with 1:1 relationship to bookings. Supports multiple payment methods (CASH, QR, CARD) with Stripe integration.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| payment_id | UUID | PK | Primary Key |
+| booking_id | UUID | FK→bookings, UNIQUE, NOT NULL | 1:1 with Booking |
+| amount | DECIMAL(12,2) | NOT NULL | Payment amount |
+| method | ENUM | NOT NULL, DEFAULT 'CASH' | CASH, QR, CARD |
+| status | ENUM | NOT NULL, DEFAULT 'PENDING' | PENDING, PAID, REFUNDED, FAILED |
+| stripe_payment_id | VARCHAR(255) | | Stripe transaction ID |
+| paid_at | TIMESTAMP | | Payment timestamp |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+###### Notification Table
+
+**Table: notifications**
+
+**Description:** In-app notifications for users about clinic approvals, shift assignments, booking updates, and medical reminders. Supports read/unread status.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| notification_id | UUID | PK | Primary Key |
+| user_id | UUID | FK→users, NOT NULL | Notification recipient |
+| clinic_id | UUID | FK→clinics | Related clinic (optional) |
+| shift_id | UUID | FK→vet_shifts | Related shift (optional) |
+| type | ENUM | NOT NULL | (See Notification Types) |
+| emr_id | VARCHAR(50) | | MongoDB ObjectId |
+| message | TEXT | NOT NULL | Notification content |
+| reason | TEXT | | Reason (for rejection) |
+| read | BOOLEAN | DEFAULT false | Read status |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+
+**Notification Types:**
+- Clinic: APPROVED, REJECTED, PENDING, CLINIC_PENDING_APPROVAL, CLINIC_VERIFIED
+- VetShift: VET_SHIFT_ASSIGNED, VET_SHIFT_UPDATED, VET_SHIFT_DELETED
+- Booking: BOOKING_CREATED, BOOKING_CONFIRMED, BOOKING_ASSIGNED, BOOKING_CANCELLED, BOOKING_CHECKIN, BOOKING_COMPLETED, VET_ON_WAY
+- Medical: RE_EXAMINATION_REMINDER
+
+##### 2.1.3.2 AI Agent Service Tables
+
+###### Table: agents
+
+**Purpose:** Stores Single Agent configuration for the Petties AI Assistant using ReAct pattern (Reasoning + Acting). This table enables dynamic agent behavior modification through Admin Dashboard without code deployment.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key for internal references |
+| name | VARCHAR(100) | UNIQUE, NOT NULL | Unique agent identifier (e.g., "petties_agent"). Used for tool assignment and logging |
+| description | TEXT | | Human-readable description of agent's capabilities for Admin Dashboard display |
+| temperature | FLOAT | DEFAULT 0.7 | Controls LLM response randomness (0.0=deterministic, 1.0=creative). Lower values for factual Q&A, higher for creative suggestions |
+| max_tokens | INT | DEFAULT 2000 | Maximum response length limit. Prevents excessive token usage and controls cost |
+| top_p | FLOAT | DEFAULT 0.9 | Nucleus sampling parameter (0.0-1.0). Works with temperature to control output diversity |
+| model | VARCHAR(100) | DEFAULT 'google/gemini-2.0-flash-exp:free' | OpenRouter model ID. Enables model switching without code changes |
+| system_prompt | TEXT | | Defines agent personality, capabilities, and behavior rules. Core of ReAct pattern implementation |
+| enabled | BOOLEAN | DEFAULT true | Master switch to enable/disable agent. Useful for maintenance or A/B testing |
+| created_at | TIMESTAMPTZ | DEFAULT now() | Record creation timestamp for audit trail |
+| updated_at | TIMESTAMPTZ | DEFAULT now() | Last modification timestamp for change tracking |
+
+###### Table: tools
+
+**Purpose:** Stores metadata for code-based tools decorated with `@mcp.tool`. Admin can enable/disable individual tools and assign them to specific agents. Tools provide the "Acting" capability in ReAct pattern.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| name | VARCHAR(100) | UNIQUE, NOT NULL | Unique tool identifier matching the Python function name (e.g., "check_slot", "create_booking") |
+| description | TEXT | | Semantic description used by LLM to decide when to invoke this tool. Critical for accurate tool selection |
+| tool_type | VARCHAR(20) | DEFAULT 'code_based' | Distinguishes `code_based` (FastMCP @mcp.tool) from `api_based` (direct Spring Boot API calls) |
+| input_schema | JSON | | JSON Schema defining expected input parameters. Used for validation and LLM function calling format |
+| output_schema | JSON | | JSON Schema defining output structure. Helps LLM interpret tool results correctly |
+| enabled | BOOLEAN | DEFAULT false | Admin toggle to enable/disable tool. Default false - admin must explicitly enable after deployment |
+| assigned_agents | JSON | | Array of agent names allowed to use this tool (e.g., ["petties_agent"]). Enables tool governance |
+| created_at | TIMESTAMPTZ | DEFAULT now() | Record creation timestamp |
+| updated_at | TIMESTAMPTZ | DEFAULT now() | Last modification timestamp |
+
+**Tool Types:**
+- `code_based`: FastMCP @mcp.tool decorators (default)
+- `api_based`: Spring Boot API calls
+
+###### Table: prompt_versions
+
+**Purpose:** Version control for system prompts enabling rollback, A/B testing, and audit trail. Only one version can be active per agent at a time.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| agent_id | INT | FK→agents, NOT NULL | Foreign key to agents table. Links version to specific agent |
+| version | INT | NOT NULL | Sequential version number (1, 2, 3...). Higher number = newer version |
+| prompt_text | TEXT | NOT NULL | Full system prompt content. May include ReAct instructions, persona, constraints |
+| is_active | BOOLEAN | DEFAULT false | Indicates currently active version. Only one active version per agent |
+| created_by | VARCHAR(100) | | Admin username who created this version. For accountability |
+| notes | TEXT | | Change notes describing what was modified. Helps with version comparison |
+| created_at | TIMESTAMPTZ | DEFAULT now() | Version creation timestamp |
+
+###### Table: chat_sessions
+
+**Purpose:** Tracks conversation boundaries between users and AI agent. Groups related messages together and enables conversation history retrieval.
+
+**Cross-Service Reference:** `user_id` references `users.user_id` from Spring Boot Backend (logical reference, not enforced FK due to separate service).
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| agent_id | INT | FK→agents (SET NULL) | Foreign key to agents table. Records which agent handled this session. SET NULL on agent deletion |
+| user_id | VARCHAR(100) | NOT NULL | User UUID from Spring Boot backend. Links AI conversations to pet owners |
+| session_id | VARCHAR(100) | UNIQUE, NOT NULL | Unique session identifier (UUID). Used by frontend to maintain conversation context |
+| started_at | TIMESTAMPTZ | DEFAULT now() | Session start timestamp. For analytics and timeout management |
+| ended_at | TIMESTAMPTZ | | Session end timestamp. NULL if session still active. Used for session cleanup |
+
+###### Table: chat_messages
+
+**Purpose:** Stores individual messages within chat sessions including user queries, AI responses, and tool execution results. Preserves complete conversation history for context and debugging.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| session_id | INT | FK→chat_sessions, NOT NULL | Foreign key to chat_sessions. Groups messages into conversations |
+| role | VARCHAR(20) | NOT NULL | Message sender type: `user` (pet owner), `assistant` (AI), `system` (instructions), `tool` (tool results) |
+| content | TEXT | NOT NULL | Actual message content. For tool role, contains serialized tool output |
+| message_metadata | JSON | | Additional data: tool calls made, ReAct reasoning steps, token counts, latency metrics |
+| timestamp | TIMESTAMPTZ | DEFAULT now() | Message timestamp for ordering and analytics |
+
+**Message Roles:**
+- `user`: Messages from Pet Owner
+- `assistant`: Responses from AI Agent
+- `system`: System instructions
+- `tool`: Results from tool execution
+
+###### Table: knowledge_documents
+
+**Purpose:** Tracks documents uploaded for RAG (Retrieval-Augmented Generation) knowledge base. Enables pet care Q&A by indexing veterinary information.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| filename | VARCHAR(255) | NOT NULL | Original uploaded filename. Displayed in Admin Dashboard |
+| file_path | VARCHAR(500) | NOT NULL | Storage path (local or cloud). Used for reprocessing if needed |
+| file_type | VARCHAR(10) | | File extension (pdf, docx, txt, md). Determines parsing strategy |
+| file_size | INT | | File size in bytes. For storage management and upload limits |
+| processed | BOOLEAN | DEFAULT false | Whether document has been chunked and embedded. False until processing completes |
+| vector_count | INT | DEFAULT 0 | Number of vector embeddings created. Indicates document coverage in knowledge base |
+| uploaded_by | VARCHAR(100) | | Admin username who uploaded. For audit trail |
+| notes | TEXT | | Optional notes about document content or source |
+| uploaded_at | TIMESTAMPTZ | DEFAULT now() | Upload timestamp |
+| processed_at | TIMESTAMPTZ | | Processing completion timestamp. NULL if not yet processed |
+
+###### Table: system_settings
+
+**Purpose:** Runtime-configurable settings for AI service (API keys, model configs) editable via Admin Dashboard. Eliminates need for .env file changes and redeployment.
+
+| Column | Type | Constraints | Purpose & Business Context |
+|--------|------|-------------|---------------------------|
+| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
+| key | VARCHAR(100) | UNIQUE, NOT NULL | Unique setting identifier (e.g., "OPENROUTER_API_KEY", "COHERE_EMBEDDING_MODEL") |
+| value | TEXT | NOT NULL | Setting value. Encrypted in database if is_sensitive=true |
+| category | VARCHAR(50) | DEFAULT 'general' | Groups settings: `llm` (OpenRouter), `rag` (Cohere), `embeddings`, `vector_db` (Qdrant), `general` |
+| is_sensitive | BOOLEAN | DEFAULT false | If true, value is encrypted and masked in UI. Used for API keys and secrets |
+| description | TEXT | | Human-readable description for Admin Dashboard tooltip |
+| created_at | TIMESTAMPTZ | DEFAULT now() | Record creation timestamp |
+| updated_at | TIMESTAMPTZ | DEFAULT now() | Last modification timestamp |
+
+**Setting Categories:**
+- `llm`: OpenRouter API settings
+- `rag`: RAG pipeline settings
+- `embeddings`: Cohere embedding settings
+- `vector_db`: Qdrant Cloud settings
+- `general`: General settings (JWT, etc.)
+
+**Default Settings (seeded on init):**
+```
+OPENROUTER_API_KEY, OPENROUTER_DEFAULT_MODEL, OPENROUTER_FALLBACK_MODEL
+DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL
+COHERE_API_KEY, COHERE_EMBEDDING_MODEL
+OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL
+QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME
+JWT_SECRET
+```
+
+#### 2.1.4 Enum Types Summary
+
+##### Spring Boot Backend Enums
+
+| Enum | Values |
+|------|--------|
+| **role** | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
+| **staff_specialty** | VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER |
+| **clinic_status** | PENDING, APPROVED, REJECTED, SUSPENDED |
+| **booking_type** | IN_CLINIC, HOME_VISIT, SOS |
+| **booking_status** | PENDING, CONFIRMED, ASSIGNED, ON_THE_WAY, ARRIVED, CHECK_IN, IN_PROGRESS, CHECK_OUT, COMPLETED, CANCELLED, NO_SHOW |
+| **slot_status** | AVAILABLE, BOOKED, BLOCKED |
+| **service_category** | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
+| **payment_method** | CASH, QR, CARD |
+| **payment_status** | PENDING, PAID, REFUNDED, FAILED |
+| **notification_type** | (See full list above) |
+
+##### AI Agent Service Enums
+
+| Enum | Values |
+|------|--------|
+| **tool_type** | code_based, api_based |
+| **setting_category** | llm, rag, embeddings, vector_db, general |
+| **message_role** | user, assistant, system, tool |
+| **file_type** | pdf, docx, txt, md |
+
+#### 2.1.5 Index Strategy
+
+##### Spring Boot Backend Indexes
+
+| Table | Index Name | Columns | Type | Purpose |
+|-------|------------|---------|------|---------|
+| users | idx_users_email | email | UNIQUE | Email lookup |
+| users | idx_users_phone | phone | UNIQUE | Phone lookup |
+| users | idx_users_role | role | B-TREE | Role filtering |
+| clinics | idx_clinics_status | status | B-TREE | Status filtering |
+| clinics | idx_clinics_location | (latitude, longitude) | B-TREE | Geo queries |
+| bookings | idx_bookings_code | booking_code | UNIQUE | Code lookup |
+| bookings | idx_bookings_status | status | B-TREE | Status filtering |
+| bookings | idx_bookings_date | booking_date | B-TREE | Date range queries |
+| vet_shifts | idx_shift_vet_date | (vet_id, work_date) | COMPOSITE | Staff schedule lookup |
+| vet_shifts | idx_shift_clinic_date | (clinic_id, work_date) | COMPOSITE | Clinic schedule |
+| slots | idx_slot_shift | shift_id | B-TREE | Shift lookup |
+| slots | idx_slot_status | status | B-TREE | Available slots |
+
+##### AI Agent Service Indexes
+
+| Table | Index Name | Columns | Type | Purpose |
+|-------|------------|---------|------|---------|
+| agents | idx_agents_name | name | UNIQUE | Agent lookup by name |
+| tools | idx_tools_name | name | UNIQUE | Tool lookup by name |
+| tools | idx_tools_enabled | enabled | B-TREE | Filter enabled tools |
+| chat_sessions | idx_chat_sessions_user_id | user_id | B-TREE | User's sessions |
+| chat_sessions | idx_chat_sessions_session_id | session_id | UNIQUE | Session lookup |
+| system_settings | idx_system_settings_key | key | UNIQUE | Setting lookup |
+
+##### Cross-Service References
+
+> **Note:** AI Agent Service và Spring Boot Backend share the same PostgreSQL server nhưng có thể dùng schemas riêng biệt. Các references giữa 2 services là **logical references** (không có FK constraint).
+
+| AI Service Table | Column | References Backend Table | Notes |
+|-----------------|--------|-------------------------|-------|
+| chat_sessions | user_id | users.user_id | User UUID stored as VARCHAR(100) |
+
+#### 2.1.6 Entity Relationship Diagram
+
+> **Note:** ERD is generated from [dbdiagram.io](https://dbdiagram.io/).
+> DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
+> Contains all 24 tables (17 Backend + 7 AI Service)
+
+**Instructions to generate ERD:**
+1. Visit https://dbdiagram.io/
+2. Copy content from `PETTIES_DBML.dbml`
+3. Paste into editor
+4. Export PNG/PDF
+
+```
+[ERD Diagram - Paste screenshot from dbdiagram.io here]
+```
+
+---
+
+### 2.2 NoSQL Database Design (MongoDB)
+
+MongoDB is used for flexible data with nested documents, no strict schema required.
+
+#### 2.2.1 Collections Overview
+
+```mermaid
+flowchart LR
+    subgraph MongoDB["MongoDB 7 (Document Store)"]
+        direction TB
+        EMR["emr_records<br/>Electronic Medical Records"]
+        VAX["vaccination_records<br/>Vaccination History"]
+        CONV["chat_conversations<br/>Chat Sessions"]
+        MSG["chat_messages<br/>Messages"]
+    end
+
+    style EMR fill:#90EE90
+    style VAX fill:#87CEEB
+    style CONV fill:#FFB6C1
+    style MSG fill:#DDA0DD
+```
+
+| Collection | Description | Avg Doc Size | Reference to PostgreSQL |
+|------------|-------------|--------------|------------------------|
+| emr_records | Electronic Medical Records (SOAP format) | ~2KB | pet_id, booking_id, vet_id, clinic_id |
+| vaccination_records | Vaccination history | ~500B | pet_id, booking_id, vet_id |
+| chat_conversations | 1-1 chat sessions | ~300B | pet_owner_id, clinic_id |
+| chat_messages | Messages | ~200B | sender_id, chat_box_id (MongoDB _id) |
+
+#### 2.2.2 Collection Descriptions
+
+##### Collection: emr_records
+
+**Description:** Electronic Medical Records in SOAP format (Subjective, Objective, Assessment, Plan) with embedded prescriptions and images.
+
+**Sample Document:**
+```json
+{
+  "_id": ObjectId("507f1f77bcf86cd799439011"),
+  "pet_id": "550e8400-e29b-41d4-a716-446655440000",
+  "booking_id": "550e8400-e29b-41d4-a716-446655440001",
+  "vet_id": "550e8400-e29b-41d4-a716-446655440002",
+  "clinic_id": "550e8400-e29b-41d4-a716-446655440003",
+
+  "subjective": "Owner reports pet stopped eating for 2 days, lethargic, vomited once this morning.",
+
+  "objective": "Temperature: 39.5°C (mild fever). Heart: normal. Breathing: normal. Abdomen: slightly distended, tender in epigastric region. Mucous membranes: slightly pale.",
+
+  "assessment": "Acute gastritis. Suspected ingestion of inappropriate food.",
+
+  "plan": "Medical treatment for 5 days. Rest, feed soft and digestible food. Follow-up in 5 days if no improvement.",
+
+  "weight_kg": 4.5,
+  "temperature_c": 39.5,
+
+  "prescriptions": [
+    {
+      "medicine_name": "Amoxicillin 250mg",
+      "dosage": "1 tablet",
+      "frequency": "Twice daily",
+      "duration_days": 5,
+      "instructions": "Take after meals"
+    },
+    {
+      "medicine_name": "Omeprazole 20mg",
+      "dosage": "1/2 tablet",
+      "frequency": "Once daily (morning)",
+      "duration_days": 5,
+      "instructions": "Take 30 minutes before meals"
+    },
+    {
+      "medicine_name": "Metoclopramide 10mg",
+      "dosage": "1/4 tablet",
+      "frequency": "Three times daily",
+      "duration_days": 3,
+      "instructions": "Take 15 minutes before meals, stop when vomiting ceases"
+    }
+  ],
+
+  "images": [
+    {
+      "url": "https://res.cloudinary.com/petties/emr/xray-abdomen-001.jpg",
+      "description": "Abdominal X-ray - No foreign body detected"
+    }
+  ],
+
+  "re_examination_date": ISODate("2025-01-31T00:00:00Z"),
+  "created_at": ISODate("2025-01-26T10:30:00Z"),
+  "updated_at": ISODate("2025-01-26T10:30:00Z")
+}
+```
+
+**Indexes:**
+- `{ pet_id: 1 }` - Find EMR by pet
+- `{ booking_id: 1 }` - Find by booking
+- `{ vet_id: 1, created_at: -1 }` - Staff's EMR records by time
+- `{ clinic_id: 1, created_at: -1 }` - Clinic's EMR records
+
+##### Collection: vaccination_records
+
+**Description:** Pet vaccination history, tracking administered vaccines and booster schedules.
+
+**Sample Document:**
+```json
+{
+  "_id": ObjectId("507f1f77bcf86cd799439012"),
+  "pet_id": "550e8400-e29b-41d4-a716-446655440000",
+  "booking_id": "550e8400-e29b-41d4-a716-446655440001",
+  "vet_id": "550e8400-e29b-41d4-a716-446655440002",
+
+  "vaccine_name": "5-in-1 Vaccine (DHPP+Lepto)",
+  "batch_number": "VN2025-001234",
+  "manufacturer": "MSD Animal Health",
+
+  "vaccination_date": ISODate("2025-01-26T10:00:00Z"),
+  "next_due_date": ISODate("2026-01-26T00:00:00Z"),
+
+  "dose_number": 2,
+  "total_doses": 3,
+
+  "notes": "Booster dose 2. Pet is healthy, no adverse reactions. Schedule dose 3 in 1 year.",
+
+  "created_at": ISODate("2025-01-26T10:15:00Z")
+}
+```
+
+**Indexes:**
+- `{ pet_id: 1, vaccination_date: -1 }` - Pet's vaccination history
+- `{ next_due_date: 1 }` - Find upcoming vaccinations
+
+##### Collection: chat_conversations
+
+**Description:** 1-1 chat sessions between Pet Owner and Clinic.
+
+**Sample Document:**
+```json
+{
+  "_id": ObjectId("507f1f77bcf86cd799439013"),
+  "pet_owner_id": "550e8400-e29b-41d4-a716-446655440000",
+  "clinic_id": "550e8400-e29b-41d4-a716-446655440001",
+
+  "clinic_name": "ABC Veterinary Clinic",
+  "pet_owner_name": "John Smith",
+  "pet_owner_avatar": "https://res.cloudinary.com/petties/avatars/user-001.jpg",
+  "clinic_logo": "https://res.cloudinary.com/petties/clinics/clinic-001-logo.jpg",
+
+  "last_message": "Thank you doctor, I'll bring my pet tomorrow!",
+  "last_message_at": ISODate("2025-01-26T15:30:00Z"),
+  "last_sender_type": "PET_OWNER",
+
+  "unread_count_pet_owner": 0,
+  "unread_count_clinic": 1,
+
+  "status": "ACTIVE",
+  "created_at": ISODate("2025-01-20T08:00:00Z")
+}
+```
+
+**Indexes:**
+- `{ pet_owner_id: 1, last_message_at: -1 }` - Pet owner's chat list
+- `{ clinic_id: 1, last_message_at: -1 }` - Clinic's chat list
+
+##### Collection: chat_messages
+
+**Description:** Messages within a conversation.
+
+**Sample Document:**
+```json
+{
+  "_id": ObjectId("507f1f77bcf86cd799439014"),
+  "chat_box_id": ObjectId("507f1f77bcf86cd799439013"),
+
+  "sender_id": "550e8400-e29b-41d4-a716-446655440000",
+  "sender_type": "PET_OWNER",
+
+  "content": "Hello, I'd like to ask about the vaccination schedule for my pet?",
+  "message_type": "TEXT",
+
+  "status": "DELIVERED",
+  "is_read": true,
+  "read_at": ISODate("2025-01-26T14:35:00Z"),
+
+  "created_at": ISODate("2025-01-26T14:30:00Z")
+}
+```
+
+**Message Types:** TEXT, IMAGE, SYSTEM
+
+**Message Status:** SENT, DELIVERED, READ
+
+**Indexes:**
+- `{ chat_box_id: 1, created_at: -1 }` - Messages in conversation
+- `{ sender_id: 1, created_at: -1 }` - User's messages
+
+---
+
+## 3. API DESIGN SPECIFICATIONS
 
 > **Note:** API version prefix `/api/v1` (Backend) has been simplified to `/api`. AI Service is accessed via `/ai` prefix through NGINX.
 
-### 2.1 Implemented Modules (Backend - Spring Boot)
+### 3.1 Implemented Modules (Backend - Spring Boot)
 
 > **Base Path:** `/api`
 > **Access:** Requires JWT, Public for Auth/Search
 
-#### 2.1.1 Authentication (`/auth`)
+#### 3.1.1 Authentication (`/auth`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/api/auth/login` | Username/Password login | Public |
@@ -797,7 +1624,7 @@ sequenceDiagram
 | POST | `/api/auth/forgot-password` | Request password reset OTP | Public |
 | POST | `/api/auth/logout` | Revoke token | Auth |
 
-#### 2.1.2 User Profile (`/users`)
+#### 3.1.2 User Profile (`/users`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/users/profile` | Get detailed profile | Auth |
@@ -808,7 +1635,7 @@ sequenceDiagram
 | POST | `/api/users/profile/email/request-change` | Request email change (Step 1) | Auth |
 | POST | `/api/users/profile/email/verify-change` | Verify email change (Step 2) | Auth |
 
-#### 2.1.3 Clinic Management (`/clinics`)
+#### 3.1.3 Clinic Management (`/clinics`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/clinics` | List all clinics (Filter/Page) | Public |
@@ -822,7 +1649,7 @@ sequenceDiagram
 | GET | `/api/clinics/search` | Name search | Public |
 | GET | `/api/clinics/owner/my-clinics` | Get my clinics | Clinic Owner |
 
-#### 2.1.4 Clinic Staff Management (`/clinics/{id}/staff`)
+#### 3.1.4 Clinic Staff Management (`/clinics/{id}/staff`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/clinics/{id}/staff` | List all staff | CM, CO, Admin |
@@ -831,19 +1658,19 @@ sequenceDiagram
 | PATCH | `/api/clinics/{id}/staff/{userId}/specialty` | Update staff specialty | CM, CO |
 | DELETE | `/api/clinics/{id}/staff/{userId}` | Remove staff | CM, CO |
 
-#### 2.1.5 Shift & Slot Management (`/shifts`, `/slots`)
+#### 3.1.5 Shift & Slot Management (`/shifts`, `/slots`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/clinics/{id}/shifts` | Get shifts in date range (Week/Month) | CM, CO, VET |
+| GET | `/api/clinics/{id}/shifts` | Get shifts in date range (Week/Month) | CM, CO, STAFF |
 | POST | `/api/clinics/{id}/shifts` | Create shifts (Auto-gen slots, Break sync, Repeat weeks, Overnight) | CM, CO |
-| GET | `/api/shifts/me` | Get shifts of logged-in vet | VET |
-| GET | `/api/shifts/{id}` | Get shift detail with Slots & Bookings | CM, CO, VET |
+| GET | `/api/shifts/me` | Get shifts of logged-in vet | STAFF |
+| GET | `/api/shifts/{id}` | Get shift detail with Slots & Bookings | CM, CO, STAFF |
 | DELETE | `/api/shifts/{id}` | Delete individual shift (blocked if has bookings) | CM, CO |
 | DELETE | `/api/shifts/bulk` | Delete multiple shifts (Bulk) | CM, CO |
 | PATCH | `/api/slots/{id}/block` | Manually block slot | CM, CO |
 | PATCH | `/api/slots/{id}/unblock` | Unblock slot | CM, CO |
 
-#### 2.1.6 Clinic Services (`/services`)
+#### 3.1.6 Clinic Services (`/services`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/services` | List own services | Clinic Owner |
@@ -853,17 +1680,17 @@ sequenceDiagram
 | PATCH | `/api/services/{id}/status` | Toggle active | Clinic Owner |
 | PATCH | `/api/services/{id}/home-visit` | Toggle Home Visit | Clinic Owner |
 
-#### 2.1.6 File Management (`/files`)
+#### 3.1.7 File Management (`/files`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/api/files/upload` | Upload generic file | Auth |
 | POST | `/api/files/upload/avatar` | Upload avatar (resize) | Auth |
 
-### 2.2 Implemented Modules (AI Service - Python)
+### 3.2 Implemented Modules (AI Service - Python)
 
 > **Base Path:** `/ai` (Mapped via NGINX to Internal Port 8000)
 
-#### 2.2.1 Chat & Sessions (`/ai/chat`)
+#### 3.2.1 Chat & Sessions (`/ai/chat`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/ai/chat/sessions` | Create new chat session | Auth |
@@ -871,7 +1698,7 @@ sequenceDiagram
 | GET | `/ai/chat/sessions/{id}` | Get session details | Auth |
 | WS | `/ws/chat/{session_id}` | WebSocket Real-time Chat | Auth |
 
-#### 2.2.2 Agent Management (`/ai/agents`)
+#### 3.2.2 Agent Management (`/ai/agents`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/ai/agents` | List agents (Single/Multi) | Auth |
@@ -881,7 +1708,7 @@ sequenceDiagram
 | GET | `/ai/agents/{id}/prompt-history` | View Prompt History | Admin |
 | POST | `/ai/agents/{id}/test` | Test Agent (ReAct Trace) | Admin |
 
-#### 2.2.3 Tool Registry (`/ai/tools`)
+#### 3.2.3 Tool Registry (`/ai/tools`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/ai/tools/scan` | Scan & Sync Code-based Tools (FastMCP) | Admin |
@@ -889,7 +1716,7 @@ sequenceDiagram
 | PUT | `/ai/tools/{id}/enable` | Enable/Disable Tool | Admin |
 | POST | `/ai/tools/{id}/assign` | Assign tool to Agent | Admin |
 
-#### 2.2.4 Knowledge Base RAG (`/ai/knowledge`)
+#### 3.2.4 Knowledge Base RAG (`/ai/knowledge`)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/ai/knowledge/upload` | Upload PDF/Docx | Admin |
@@ -898,55 +1725,55 @@ sequenceDiagram
 | POST | `/ai/knowledge/query` | Test RAG Retrieval | Admin |
 | GET | `/ai/knowledge/status` | KB Status & Stats | Admin |
 
-### 2.3 Planned Modules (Backend)
+### 3.3 Planned Modules (Backend)
 
-#### 2.3.1 Patient Management Module
+#### 3.3.1 Patient Management Module
 
 > **Status:** Design Approved. Endpoint paths finalized.
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/clinics/{id}/patients` | List patients of clinic | CM, VET |
-| GET | `/api/patients/{id}` | Get Patient & Owner details | CM, VET |
-| PUT | `/api/pets/{id}` | Update Patient Info | CM, VET |
-| GET | `/api/patients/{id}/emrs` | Get EMR History (Shared) | CM, VET |
-| POST | `/api/bookings/{id}/emr` | Create EMR for Booking | VET |
-| PUT | `/api/emrs/{id}` | Update EMR Content | VET |
-| GET | `/api/patients/{id}/vaccinations` | Get Vaccination History | CM, VET |
-| POST | `/api/patients/{id}/vaccinations` | Add Vaccination Record | VET |
-| PUT | `/api/vaccinations/{id}` | Edit Vaccination Record | VET |
-| DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | VET |
+| GET | `/api/clinics/{id}/patients` | List patients of clinic | CM, STAFF |
+| GET | `/api/patients/{id}` | Get Patient & Owner details | CM, STAFF |
+| PUT | `/api/pets/{id}` | Update Patient Info | CM, STAFF |
+| GET | `/api/patients/{id}/emrs` | Get EMR History (Shared) | CM, STAFF |
+| POST | `/api/bookings/{id}/emr` | Create EMR for Booking | STAFF |
+| PUT | `/api/emrs/{id}` | Update EMR Content | STAFF |
+| GET | `/api/patients/{id}/vaccinations` | Get Vaccination History | CM, STAFF |
+| POST | `/api/patients/{id}/vaccinations` | Add Vaccination Record | STAFF |
+| PUT | `/api/vaccinations/{id}` | Edit Vaccination Record | STAFF |
+| DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | STAFF |
 
-#### 2.3.2 Booking Management Module
+#### 3.3.2 Booking Management Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/api/bookings` | Create new booking (Select slot) | Pet Owner |
 | GET | `/api/bookings/my-bookings` | List own bookings | Pet Owner |
-| GET | `/api/clinics/{id}/bookings` | List clinic bookings | CM, VET |
-| PATCH | `/api/bookings/{id}/status` | Update booking status | CM, VET |
+| GET | `/api/clinics/{id}/bookings` | List clinic bookings | CM, STAFF |
+| PATCH | `/api/bookings/{id}/status` | Update booking status | CM, STAFF |
 
-#### 2.3.3 Discovery & Search Module
+#### 3.3.3 Discovery & Search Module
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/discovery/nearby` | Find clinics by coordinates (lat, lng, radius) | Public |
 | GET | `/api/discovery/search` | Search by keyword, service, area | Public |
 | GET | `/api/discovery/geocoding` | Convert address to coordinates (Map API proxy) | Public |
 
-#### 2.3.4 Vaccination History Module (Merged)
+#### 3.3.4 Vaccination History Module (Merged)
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/pets/{petId}/vaccinations` | Get full vaccination history | Auth |
-| POST | `/api/bookings/{bookingId}/vaccinations` | Add new vaccination record (Must link to Booking) | VET |
-| PUT | `/api/vaccinations/{id}` | Edit record | VET |
-| DELETE | `/api/vaccinations/{id}` | Delete record | VET |
+| POST | `/api/bookings/{bookingId}/vaccinations` | Add new vaccination record (Must link to Booking) | STAFF |
+| PUT | `/api/vaccinations/{id}` | Edit record | STAFF |
+| DELETE | `/api/vaccinations/{id}` | Delete record | STAFF |
 
 ---
 
-## 3. DETAILED DESIGN
+## 4. DETAILED DESIGN
 
-### 3.2 Authentication & Onboarding (UC-PO-01, UC-VT-01, UC-CM-01, UC-CO-01)
+### 4.1 Authentication & Onboarding (UC-PO-01, UC-VT-01, UC-CM-01, UC-CO-01)
 
-#### 3.2.1 Class Diagram - Authentication
+#### 4.1.1 Class Diagram - Authentication
 
 ```mermaid
 classDiagram
@@ -1111,7 +1938,7 @@ classDiagram
     class Role {
         <<enumeration>>
         PET_OWNER
-        VET
+        STAFF
         CLINIC_MANAGER
         CLINIC_OWNER
         ADMIN
@@ -1154,7 +1981,7 @@ classDiagram
     User --> Role
 ```
 
-#### 3.2.2 User Registration with OTP (UC-PO-01)
+#### 4.1.2 User Registration with OTP (UC-PO-01)
 
 **Sequence Diagram:**
 
@@ -1244,7 +2071,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.3 Login with Username/Password
+#### 4.1.3 Login with Username/Password
 
 **Sequence Diagram:**
 
@@ -1325,7 +2152,7 @@ sequenceDiagram
     end
 ```
 
-#### 3.2.4 Sign in with Google Account
+#### 4.1.4 Sign in with Google Account
 
 **Sequence Diagram:**
 
@@ -1413,7 +2240,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.5 Forgot & Reset Password
+#### 4.1.5 Forgot & Reset Password
 
 **Sequence Diagram:**
 
@@ -1498,7 +2325,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.2.6 Logout & Session Management
+#### 4.1.6 Logout & Session Management
 
 **Sequence Diagram:**
 
@@ -1553,9 +2380,9 @@ sequenceDiagram
     deactivate UI
 ```
 
-### 3.3 User Profile & Account Setup (UC-PO-03, UC-VT-03, UC-CM-02, UC-CO-02, UC-PO-23)
+### 4.2 User Profile & Account Setup (UC-PO-03, UC-VT-03, UC-CM-02, UC-CO-02, UC-PO-23)
 
-#### 3.3.1 Class Diagram - User Profile
+#### 4.2.1 Class Diagram - User Profile
 
 ```mermaid
 classDiagram
@@ -1638,7 +2465,7 @@ classDiagram
     EmailChangeService --> OtpService
 ```
 
-#### 3.3.2 Update Profile & Avatar (UC-PO-03, UC-VT-03, UC-CM-02)
+#### 4.2.2 Update Profile & Avatar (UC-PO-03, UC-VT-03, UC-CM-02)
 
 ```mermaid
 sequenceDiagram
@@ -1670,7 +2497,7 @@ sequenceDiagram
     UI-->>U: 12. Update UI state
 ```
 
-#### 3.3.3 Change Email with OTP (UC-PO-23)
+#### 4.2.3 Change Email with OTP (UC-PO-23)
 
 ```mermaid
 sequenceDiagram
@@ -1709,7 +2536,7 @@ sequenceDiagram
     deactivate UC
 ```
 
-#### 3.3.4 Change Password Flow
+#### 4.2.4 Change Password Flow
 
 ```mermaid
 sequenceDiagram
@@ -1756,9 +2583,9 @@ sequenceDiagram
     end
 ```
 
-### 3.4 Pet Records & Health Hub (UC-PO-04, UC-PO-11, UC-PO-26)
+### 4.3 Pet Records & Health Hub (UC-PO-04, UC-PO-11, UC-PO-26)
 
-#### 3.4.1 Class Diagram - Pet Records
+#### 4.3.1 Class Diagram - Pet Records
 
 ```mermaid
 classDiagram
@@ -1814,7 +2641,7 @@ classDiagram
     PetService --> CloudinaryService
 ```
 
-#### 3.4.2 Add New Pet Record (UC-PO-04)
+#### 4.3.2 Add New Pet Record (UC-PO-04)
 
 ```mermaid
 sequenceDiagram
@@ -1854,7 +2681,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.4.3 Update Pet Info (UC-PO-11)
+#### 4.3.3 Update Pet Info (UC-PO-11)
 
 ```mermaid
 sequenceDiagram
@@ -1896,7 +2723,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.4.4 Delete Pet (UC-PO-26)
+#### 4.3.4 Delete Pet (UC-PO-26)
 
 ```mermaid
 sequenceDiagram
@@ -1937,12 +2764,12 @@ sequenceDiagram
 ```
 
 
-### 3.5 Clinic Discovery Flow (UC-PO-05)
+### 4.4 Clinic Discovery Flow (UC-PO-05)
 
-#### 3.5.1 Class Diagram - Clinic Discovery
+#### 4.4.1 Class Diagram - Clinic Discovery
 *(Logic maps to Clinic Service `findNearbyClinics`)*
 
-#### 3.5.2 Search Nearby Clinics (UC-PO-05)
+#### 4.4.2 Search Nearby Clinics (UC-PO-05)
 
 ```mermaid
 sequenceDiagram
@@ -1971,9 +2798,9 @@ sequenceDiagram
     deactivate UI
 ```
 
-### 3.6 Clinical Operations & Service Setup (UC-CO-03, UC-CO-04, UC-CO-05)
+### 4.5 Clinical Operations & Service Setup (UC-CO-03, UC-CO-04, UC-CO-05)
 
-#### 3.6.1 Class Diagram - Clinic & Services
+#### 4.5.1 Class Diagram - Clinic & Services
 
 ```mermaid
 classDiagram
@@ -2056,7 +2883,7 @@ classDiagram
     ClinicImageRepository ..> ClinicImage
 ```
 
-#### 3.6.2 Create Clinic (UC-CO-03)
+#### 4.5.2 Create Clinic (UC-CO-03)
 
 ```mermaid
 sequenceDiagram
@@ -2089,7 +2916,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.6.3 Approve/Reject Clinic (Admin Approval Flow)
+#### 4.5.3 Approve/Reject Clinic (Admin Approval Flow)
 
 ```mermaid
 sequenceDiagram
@@ -2122,7 +2949,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.6.4 Upload Clinic Image
+#### 4.5.4 Upload Clinic Image
 
 ```mermaid
 sequenceDiagram
@@ -2155,11 +2982,11 @@ sequenceDiagram
     deactivate UI
 ```
 
-### 3.7 Staffing & Scheduling Flow (UC-CM-03, UC-CO-06, UC-CM-04)
+### 4.6 Staffing & Scheduling Flow (UC-CM-03, UC-CO-06, UC-CM-04)
 
-Tương tác quan trọng nhất là việc mời nhân viên (Vet/Manager) vào phòng khám và quản lý ca trực của họ.
+Tương tác quan trọng nhất là việc mời nhân viên (Staff/Manager) vào phòng khám và quản lý ca trực của họ.
 
-#### 3.7.1 Class Diagram - Staffing & Scheduling
+#### 4.6.1 Class Diagram - Staffing & Scheduling
 
 ```mermaid
 classDiagram
@@ -2207,7 +3034,7 @@ classDiagram
     ClinicStaffService --> UserRepository
 ```
 
-#### 3.7.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
+#### 4.6.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
 
 ```mermaid
 sequenceDiagram
@@ -2259,7 +3086,7 @@ sequenceDiagram
     UI-->>O: 19. "Staff invited successfully" notification
 ```
 
-#### 3.7.3 Create Vet Shift (UC-CM-04, UC-CO-07)
+#### 4.6.3 Create Staff Shift (UC-CM-04, UC-CO-07)
 
 ```mermaid
 sequenceDiagram
@@ -2270,7 +3097,7 @@ sequenceDiagram
     participant R as VetShiftRepository
     participant DB as Database
 
-    M->>UI: 1. Choose Vet, Dates, Time Range
+    M->>UI: 1. Choose Staff, Dates, Time Range
     UI->>C: 2. createShift(clinicId, request)
     activate C
     C->>S: 3. createShifts(clinicId, request)
@@ -2297,7 +3124,7 @@ sequenceDiagram
     UI-->>M: 13. Refresh Calendar
 ```
 
-#### 3.7.4 Delete Shift & Slot Operations
+#### 4.6.4 Delete Shift & Slot Operations
 
 ```mermaid
 sequenceDiagram
@@ -2353,11 +3180,11 @@ sequenceDiagram
         deactivate UI
     end
 ```
-#### 3.7.4 Business Rules
+#### 4.6.5 Business Rules
 
 1. **Staff Roles Control:** 
-    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và VET.
-    - CLINIC_MANAGER chỉ có quyền thêm Bác sĩ (VET).
+    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
+    - CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
 2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
 3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
 4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
@@ -2369,15 +3196,15 @@ sequenceDiagram
 10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
 11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
 12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
-13. **SSE Notifications:** Gửi batch notification cho Vet khi được assign shifts mới.
+13. **SSE Notifications:** Gửi batch notification cho Staff khi được assign shifts mới.
 
-### 3.8 Booking & Appointment Lifecycle (UC-PO-06, UC-PO-07, UC-CM-06, BOK-1)
+### 4.7 Booking & Appointment Lifecycle (UC-PO-06, UC-PO-07, UC-CM-06, BOK-1)
 
 Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobile App cho đến khi hoàn tất thanh toán tại phòng khám.
 
 **Last Updated:** 2026-01-23 (Added Sequence Diagrams: UC-PO-08, UC-PO-09, UC-VT-03, UC-VT-04, UC-VT-05, UC-VT-09, UC-CM-07, UC-CM-14, UC-CM-15, UC-CM-16)
 
-#### 3.8.0 API Specification Table
+#### 4.7.0 API Specification Table
 
 | # | Method | Endpoint | Role | Description | Status |
 |---|--------|----------|------|-------------|--------|
@@ -2385,7 +3212,7 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 | 1 | POST | `/bookings` | PET_OWNER | Tạo booking mới | ✅ Done |
 | 2 | GET | `/services/by-clinic/{clinicId}` | Public | Lấy danh sách dịch vụ của phòng khám | ✅ Done |
 | 3 | GET | `/bookings/clinic/{clinicId}` | MANAGER, ADMIN | Lấy danh sách booking của clinic | ✅ Done |
-| 3 | GET | `/bookings/vet/{vetId}` | VET, MANAGER, ADMIN | Lấy booking được gán cho vet | ✅ Done |
+| 3 | GET | `/bookings/vet/{vetId}` | STAFF, MANAGER, ADMIN | Lấy booking được gán cho vet | ✅ Done |
 | 4 | GET | `/bookings/{bookingId}` | All | Lấy chi tiết booking | ✅ Done |
 | 5 | GET | `/bookings/code/{bookingCode}` | All | Lấy booking theo mã | ✅ Done |
 | 6 | GET | `/bookings/{id}/check-vet-availability` | MANAGER, ADMIN | Kiểm tra vet availability trước confirm | ✅ Done |
@@ -2394,9 +3221,9 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 | 9 | PATCH | `/bookings/{id}/cancel` | All | Hủy booking với lý do | ✅ Done |
 | 10 | GET | `/bookings/{id}/services/{serviceId}/available-vets` | MANAGER, ADMIN | Lấy danh sách vet có thể reassign | ✅ Done |
 | 11 | POST | `/bookings/{id}/services/{serviceId}/reassign` | MANAGER, ADMIN | Đổi vet cho dịch vụ | ✅ Done |
-| 12 | POST | `/bookings/{id}/add-service` | VET, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
-| 13 | PATCH | `/bookings/{id}/check-in` | VET, MANAGER | Check-in bắt đầu khám | ⏳ Pending |
-| 14 | PATCH | `/bookings/{id}/check-out` | VET, MANAGER | Check-out kết thúc khám | ⏳ Pending |
+| 12 | POST | `/bookings/{id}/add-service` | STAFF, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
+| 13 | PATCH | `/bookings/{id}/check-in` | STAFF, MANAGER | Check-in bắt đầu khám | ⏳ Pending |
+| 14 | PATCH | `/bookings/{id}/check-out` | STAFF, MANAGER | Check-out kết thúc khám | ⏳ Pending |
 | 15 | PATCH | `/bookings/{id}/complete` | MANAGER | Hoàn thành sau thanh toán | ⏳ Pending |
 
 **Booking Status Flow:**
@@ -2410,7 +3237,7 @@ PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT �
 - IN_CLINIC & HOME_VISIT: Bỏ qua ON_THE_WAY, ARRIVED (đi thẳng từ ASSIGNED → CHECK_IN)
 - SOS: Sử dụng ON_THE_WAY → ARRIVED với GPS tracking tự động
 
-#### 3.8.1 Class Diagram - Booking & Appointment
+#### 4.7.1 Class Diagram - Booking & Appointment
 
 ```mermaid
 classDiagram
@@ -2506,12 +3333,12 @@ classDiagram
     Booking "1" *-- "many" BookingServiceItem
 ```
 
-#### 3.8.2 Create Appointment (BOK-1 Mobile Booking Wizard)
+#### 4.7.2 Create Appointment (BOK-1 Mobile Booking Wizard)
 
 **Smart Availability Algorithm**:
 The system implements a "Smart Availability" feature that automatically filters available time slots based on:
 1. Selected service(s) and their required vet specialties
-2. Vet working shifts for the selected date
+2. Staff working shifts for the selected date
 3. Existing bookings (to avoid double-booking)
 
 For multi-service bookings, the algorithm ensures **consecutive slots** can be fulfilled by checking each service in sequence.
@@ -2564,10 +3391,10 @@ sequenceDiagram
 
 **Key Technical Details**:
 - **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
-- **Vet Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
+- **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
 - **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
 
-#### 3.8.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
+#### 4.7.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
 
 ```mermaid
 sequenceDiagram
@@ -2596,7 +3423,7 @@ sequenceDiagram
     deactivate BC
 ```
 
-#### 3.8.4 Clinician Assignment with Manual Vet Selection (UC-CM-06)
+#### 4.7.4 Clinician Assignment with Manual Staff Selection (UC-CM-06)
 
 Manager có thể chọn vet thủ công qua inline dropdown hoặc để hệ thống auto-assign.
 
@@ -2623,7 +3450,7 @@ sequenceDiagram
     UI-->>M: 8. Show inline dropdown per service (pre-select suggested)
 
     M->>UI: 9. (Optional) Change vet via dropdown
-    M->>UI: 10. Click "Xác nhận & Gán Vet"
+    M->>UI: 10. Click "Xác nhận & Gán Staff"
     UI->>BC: 11. PATCH /bookings/{id}/confirm with selectedVetId
     activate BC
     BC->>BS: 12. confirmBooking(id, request with selectedVetId)
@@ -2650,8 +3477,8 @@ sequenceDiagram
     deactivate UI
 ```
 
-**Matching Rules (Service Category → Vet Specialty):**
-| Service Category | Required Vet Specialty |
+**Matching Rules (Service Category → Staff Specialty):**
+| Service Category | Required Staff Specialty |
 |-----------------|------------------------|
 | GROOMING_SPA | VET_GROOMING, GROOMER |
 | CHECK_UP, VACCINATION, INTERNAL_MEDICINE | VET_GENERAL, VET_VACCINATION |
@@ -2660,7 +3487,7 @@ sequenceDiagram
 | DERMATOLOGY | VET_DERMATOLOGY |
 | EMERGENCY | VET_EMERGENCY |
 
-#### 3.8.5 Check Vet Availability
+#### 4.7.5 Check Staff Availability
 
 ```mermaid
 sequenceDiagram
@@ -2686,7 +3513,7 @@ sequenceDiagram
     UI-->>M: 8. Show availability status for each service
 ```
 
-#### 3.8.6 Reassign Vet
+#### 4.7.6 Reassign Staff
 
 ```mermaid
 sequenceDiagram
@@ -2715,13 +3542,13 @@ sequenceDiagram
     deactivate BC
 ```
 
-#### 3.8.7 Add-on Service During Examination
+#### 4.7.7 Add-on Service During Examination
 
 Thêm dịch vụ phát sinh trong lúc khám (chỉ hiện khi status = IN_PROGRESS hoặc ARRIVED cho SOS).
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet/Manager
+    actor V as Staff/Manager
     participant UI as Dashboard
     participant BC as BookingController
     participant BS as BookingService
@@ -2755,7 +3582,7 @@ sequenceDiagram
 - Price is calculated based on pet's current weight
 - Only services from the same clinic can be added
 
-#### 3.8.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
+#### 4.7.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
 
 ```mermaid
 sequenceDiagram
@@ -2794,7 +3621,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.8.9 View My Bookings (UC-PO-08)
+#### 4.7.9 View My Bookings (UC-PO-08)
 
 ```mermaid
 sequenceDiagram
@@ -2829,7 +3656,7 @@ sequenceDiagram
 - Empty state shown if no bookings exist
 - Pet Owner can click on any booking to view details
 
-#### 3.8.10 Cancel Booking (UC-PO-09)
+#### 4.7.10 Cancel Booking (UC-PO-09)
 
 ```mermaid
 sequenceDiagram
@@ -2876,7 +3703,7 @@ sequenceDiagram
         DB-->>SR: 18. OK
         deactivate DB
         deactivate SR
-        SVC->>NR: 19. Create notifications (Manager, Vet if assigned)
+        SVC->>NR: 19. Create notifications (Manager, Staff if assigned)
         activate NR
         NR->>DB: 20. INSERT INTO notifications
         activate DB
@@ -2908,15 +3735,15 @@ sequenceDiagram
 **Notes:**
 - Only bookings with status < CHECK_IN can be cancelled
 - Slots are restored to AVAILABLE status
-- Notifications sent to Clinic Manager and assigned Vet (if any)
+- Notifications sent to Clinic Manager and assigned Staff (if any)
 - If payment method is ONLINE, refund request is created (handled by UC-CM-07)
 
-#### 3.8.11 View Assigned Bookings (UC-VT-03)
+#### 4.7.11 View Assigned Bookings (UC-VT-03)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
-    participant UI as Vet Schedule Screen (Mobile/Web)
+    actor V as Staff
+    participant UI as Staff Schedule Screen (Mobile/Web)
     participant API as BookingController
     participant SVC as BookingService
     participant DB as PostgreSQL
@@ -2945,13 +3772,13 @@ sequenceDiagram
 - Filters available: Today, Upcoming, Completed, All
 - Status badges: ASSIGNED (yellow), CHECK_IN (blue), IN_PROGRESS (green), CHECK_OUT (purple)
 - Empty state shown if no assigned bookings
-- Vet can click on booking to view details and take actions
+- Staff can click on booking to view details and take actions
 
-#### 3.8.12 Update Appointment Progress (UC-VT-04)
+#### 4.7.12 Update Appointment Progress (UC-VT-04)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as Booking Detail Screen (Mobile/Web)
     participant API as BookingController
     participant SVC as BookingService
@@ -3032,11 +3859,11 @@ sequenceDiagram
 - EMR must have Assessment and Plan before CHECK_OUT is allowed
 - Notifications sent to Pet Owner and Clinic Manager on status changes
 
-#### 3.8.13 Check-in Patient (UC-VT-05)
+#### 4.7.13 Check-in Patient (UC-VT-05)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as Booking Detail Screen (Mobile/Web)
     participant API as BookingController
     participant SVC as BookingService
@@ -3104,13 +3931,13 @@ sequenceDiagram
 - Only bookings with status ASSIGNED can be checked in
 - EMR shell is created with booking_id, pet_id, vet_id, created_at
 - Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
-- After check-in, Vet can start filling EMR (UC-VT-06)
+- After check-in, Staff can start filling EMR (UC-VT-06)
 
-#### 3.8.14 Mark Treatment Finished (UC-VT-09)
+#### 4.7.14 Mark Treatment Finished (UC-VT-09)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as Booking Detail Screen (Mobile/Web)
     participant API as BookingController
     participant SVC as BookingService
@@ -3181,7 +4008,7 @@ sequenceDiagram
 - Notification sent to Clinic Manager: "Cần thanh toán & checkout"
 - Notification sent to Pet Owner: "Khám xong, vui lòng thanh toán"
 
-#### 3.8.15 Handle Cancellations & Refunds (UC-CM-07)
+#### 4.7.15 Handle Cancellations & Refunds (UC-CM-07)
 
 ```mermaid
 sequenceDiagram
@@ -3265,7 +4092,7 @@ sequenceDiagram
 - CASH bookings are marked as cancelled without refund
 - Notification sent to Pet Owner with refund details
 
-#### 3.8.16 Check Vet Availability (UC-CM-14)
+#### 4.7.16 Check Staff Availability (UC-CM-14)
 
 ```mermaid
 sequenceDiagram
@@ -3277,7 +4104,7 @@ sequenceDiagram
     participant SR as SlotRepository
     participant DB as PostgreSQL
 
-    CM->>UI: 1. Click "Gán bác sĩ" button
+    CM->>UI: 1. Click "Gán nhân viên" button
     activate UI
     UI->>API: 2. GET /api/bookings/{id}/available-vets
     activate API
@@ -3289,11 +4116,11 @@ sequenceDiagram
     deactivate DB
     SVC->>VR: 6. findByClinic(clinicId)
     activate VR
-    VR->>DB: 7. SELECT * FROM clinic_staff WHERE clinic_id = ? AND role = 'VET'
+    VR->>DB: 7. SELECT * FROM clinic_staff WHERE clinic_id = ? AND role = 'STAFF'
     activate DB
-    DB-->>VR: 8. List<Vet>
+    DB-->>VR: 8. List<Staff>
     deactivate DB
-    VR-->>SVC: 9. List<Vet>
+    VR-->>SVC: 9. List<Staff>
     deactivate VR
     SVC->>SVC: 10. Filter vets by service specialty
     loop For each vet
@@ -3316,15 +4143,15 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Vet availability is checked based on:
+- Staff availability is checked based on:
   - Shift schedule (vet must have shift on booking date)
   - Slot availability (slots not already BOOKED)
   - Service specialty matching
   - Current workload (number of bookings assigned for the day)
-- Vets are sorted by availability and workload (least busy first)
+- Staff are sorted by availability and workload (least busy first)
 - Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
 
-#### 3.8.17 Reassign Vet to Service (UC-CM-15)
+#### 4.7.17 Reassign Staff to Service (UC-CM-15)
 
 ```mermaid
 sequenceDiagram
@@ -3337,7 +4164,7 @@ sequenceDiagram
     participant NR as NotificationRepository
     participant DB as PostgreSQL
 
-    CM->>UI: 1. Click "Gán lại bác sĩ" button
+    CM->>UI: 1. Click "Gán lại nhân viên" button
     activate UI
     UI->>UI: 2. Show reassignment modal
     CM->>UI: 3. Select reassignment reason
@@ -3401,15 +4228,15 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Reassignment reasons: Vet unavailable, Vet overloaded, Emergency, Other
+- Reassignment reasons: Staff unavailable, Staff overloaded, Emergency, Other
 - Old vet's slots are released back to AVAILABLE
 - New vet's corresponding slots are marked as BOOKED
 - Notifications sent to:
-  - Old Vet: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
-  - New Vet: "Bạn được phân công lịch hẹn mới [Booking ID]"
-  - Pet Owner: "Bác sĩ của bạn đã được thay đổi thành Dr. [Name]"
+  - Old Staff: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
+  - New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
+  - Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
 
-#### 3.8.18 Manage Shifts - Delete Shift (UC-CM-16)
+#### 4.7.18 Manage Shifts - Delete Shift (UC-CM-16)
 
 ```mermaid
 sequenceDiagram
@@ -3491,9 +4318,9 @@ sequenceDiagram
 - Manager must reassign or cancel bookings before deleting shift
 - All AVAILABLE and BLOCKED slots are deleted along with the shift
 
-### 3.9 Electronic Medical Records (EMR) Flow (UC-VT-02, UC-VT-06, EMR-2)
+### 4.8 Electronic Medical Records (EMR) Flow (UC-VT-02, UC-VT-06, EMR-2)
 
-#### 3.9.1 Class Diagram - EMR
+#### 4.8.1 Class Diagram - EMR
 
 ```mermaid
 classDiagram
@@ -3564,12 +4391,12 @@ classDiagram
     VaccinationRepository ..> Vaccination
 ```
 
-#### 3.9.2 View Pet Medical History (Cross-Clinic) (UC-VT-02)
+#### 4.8.2 View Pet Medical History (Cross-Clinic) (UC-VT-02)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
-    participant UI as Vet Dashboard
+    actor V as Staff
+    participant UI as Staff Dashboard
     participant PC as PatientController
     participant PS as PatientService
     participant BR as BookingRepository
@@ -3615,11 +4442,11 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
+#### 4.8.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as EMR Form (Mobile/Web)
     participant PC as PatientController
     participant PS as PatientService
@@ -3643,7 +4470,7 @@ sequenceDiagram
     BR-->>PS: 7. Booking
     deactivate BR
     PS->>PS: 8. Validate status == IN_PROGRESS
-    PS->>PS: 9. Validate Vet is assigned
+    PS->>PS: 9. Validate Staff is assigned
     PS->>EMRR: 10. save(EMR: subjective, objective, assessment, plan)
     activate EMRR
     EMRR->>DB: 11. Insert new EMR record
@@ -3668,11 +4495,11 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.4 Add Vaccination Record (UC-VT-08)
+#### 4.8.4 Add Vaccination Record (UC-VT-08)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as Vaccination Form
     participant PC as PatientController
     participant PS as PatientService
@@ -3711,11 +4538,11 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.5 Additional Service & Incurred Costs (UC-VT-10)
+#### 4.8.5 Additional Service & Incurred Costs (UC-VT-10)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as EMR Interface
     participant PC as PatientController
     participant PS as PatientService
@@ -3768,11 +4595,11 @@ sequenceDiagram
     UI-->>V: 19. Update UI with new Total
 ```
 
-#### 3.9.6 Add Vaccination Record (UC-VT-08)
+#### 4.8.6 Add Vaccination Record (UC-VT-08)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as EMR/Health Hub
     participant PC as PatientController
     participant PS as PatientService
@@ -3808,11 +4635,11 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.7 Lookup Patient (UC-VT-12)
+#### 4.8.7 Lookup Patient (UC-VT-12)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
+    actor V as Staff
     participant UI as Search Interface
     participant PC as PatientController
     participant PS as PatientService
@@ -3851,7 +4678,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.8 View Patient List (UC-CM-08)
+#### 4.8.8 View Patient List (UC-CM-08)
 
 ```mermaid
 sequenceDiagram
@@ -3894,7 +4721,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.9.9 View Patient Records (UC-CM-09)
+#### 4.8.9 View Patient Records (UC-CM-09)
 
 ```mermaid
 sequenceDiagram
@@ -3949,9 +4776,9 @@ sequenceDiagram
 
 ---
 
-### 3.10 SOS Emergency Flow (UC-PO-15, UC-PO-17, UC-VT-11)
+### 4.9 SOS Emergency Flow (UC-PO-15, UC-PO-17, UC-VT-11)
 
-#### 3.10.1 Class Diagram - SOS Emergency
+#### 4.9.1 Class Diagram - SOS Emergency
 
 ```mermaid
 classDiagram
@@ -4000,7 +4827,7 @@ classDiagram
     SOSService ..> SOSBooking
 ```
 
-#### 3.10.2 Request SOS & Vet Assignment (UC-PO-15)
+#### 4.9.2 Request SOS & Staff Assignment (UC-PO-15)
 
 ```mermaid
 sequenceDiagram
@@ -4027,9 +4854,9 @@ sequenceDiagram
     activate UR
     UR->>DB: 7. Query available vets
     activate DB
-    DB-->>UR: 8. List<Vet>
+    DB-->>UR: 8. List<Staff>
     deactivate DB
-    UR-->>LS: 9. Vets
+    UR-->>LS: 9. Staff
     deactivate UR
     LS->>LS: 10. Calculate distances & sort
     LS-->>SS: 11. Sorted vets by proximity
@@ -4051,7 +4878,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.10.3 Track Vet Location (UC-PO-17)
+#### 4.9.3 Track Staff Location (UC-PO-17)
 
 ```mermaid
 sequenceDiagram
@@ -4083,12 +4910,12 @@ sequenceDiagram
     end
 ```
 
-#### 3.10.4 Vet Travel & Auto-Arrival (UC-VT-11)
+#### 4.9.4 Staff Travel & Auto-Arrival (UC-VT-11)
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet
-    participant UI as Vet Mobile App
+    actor V as Staff
+    participant UI as Staff Mobile App
     participant SC as SOSController
     participant SS as SOSService
     participant LS as LocationService
@@ -4137,9 +4964,9 @@ sequenceDiagram
 
 ---
 
-### 3.11 AI Assistance Flow (UC-PO-14, UC-PO-14d)
+### 4.10 AI Assistance Flow (UC-PO-14, UC-PO-14d)
 
-#### 3.11.1 Class Diagram - AI Service
+#### 4.10.1 Class Diagram - AI Service
 
 ```mermaid
 classDiagram
@@ -4178,7 +5005,7 @@ classDiagram
     AgentService --> RAGEngine
 ```
 
-#### 3.11.2 Sequence Diagram: AI ReAct Loop
+#### 4.10.2 Sequence Diagram: AI ReAct Loop
 
 ```mermaid
 sequenceDiagram
@@ -4190,7 +5017,7 @@ sequenceDiagram
     participant TR as ToolRegistry
     participant RE as RAGEngine
 
-    PO->>UI: 1. Send "Book Vet for Bella tomorrow"
+    PO->>UI: 1. Send "Book Staff for Bella tomorrow"
     activate UI
     UI->>AC: 2. chatRequest(query)
     activate AC
@@ -4220,7 +5047,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.11.3 AI Vision Pet Health Analysis (UC-PO-14d)
+#### 4.10.3 AI Vision Pet Health Analysis (UC-PO-14d)
 
 ```mermaid
 classDiagram
@@ -4349,7 +5176,7 @@ classDiagram
     ChatWebSocket --> BookingSuggestionMessage : sends
 ```
 
-#### 3.11.4 Class Specifications
+#### 4.10.4 Class Specifications
 
 **1. OpenRouterClient (Extended)**
 - **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
@@ -4377,7 +5204,7 @@ classDiagram
 - **Fields:**
     - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
 
-#### 3.11.5 Sequence Diagram: AI Vision Analysis to Booking
+#### 4.10.5 Sequence Diagram: AI Vision Analysis to Booking
 
 ```mermaid
 sequenceDiagram
@@ -4470,7 +5297,7 @@ sequenceDiagram
     UI->>UI: 33. Navigate to BookingScreen with params
 ```
 
-#### 3.12.4 WebSocket Message Schemas
+#### 4.10.6 WebSocket Message Schemas
 
 **1. Image Message (Client → Server)**
 ```json
@@ -4487,7 +5314,7 @@ sequenceDiagram
 ```json
 {
   "type": "booking_suggestion",
-  "warning_message": "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến bác sĩ thú y trong 24-48h.",
+  "warning_message": "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến nhân viên thú y trong 24-48h.",
   "suggestion": {
     "pet_id": "uuid-pet",
     "pet_name": "Lucky",
@@ -4527,7 +5354,7 @@ sequenceDiagram
 }
 ```
 
-#### 3.12.5 Severity Mapping to Actions
+#### 4.10.7 Severity Mapping to Actions
 
 | Severity | Description | AI Action |
 |----------|-------------|-----------|
@@ -4538,9 +5365,9 @@ sequenceDiagram
 
 ---
 
-### 3.12 Governance & Reporting Flow (UC-PO-16)
+### 4.11 Governance & Reporting Flow (UC-PO-16)
 
-#### 3.12.1 Class Diagram - Reporting
+#### 4.11.1 Class Diagram - Reporting
 
 ```mermaid
 classDiagram
@@ -4591,7 +5418,7 @@ classDiagram
     ReportRepository ..> Report
 ```
 
-#### 3.12.2 Submit Platform Violation Report (UC-PO-16)
+#### 4.11.2 Submit Platform Violation Report (UC-PO-16)
 
 ```mermaid
 sequenceDiagram
@@ -4637,7 +5464,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.12.3 Admin Process Report
+#### 4.11.3 Admin Process Report
 
 ```mermaid
 sequenceDiagram
@@ -4702,7 +5529,7 @@ sequenceDiagram
 
 ---
 
-## 4. TECHNOLOGY STACK SUMMARY
+## 5. TECHNOLOGY STACK SUMMARY
 
 ### Frontend (petties-web)
 - **Framework:** React 19 + Vite (rolldown-vite)

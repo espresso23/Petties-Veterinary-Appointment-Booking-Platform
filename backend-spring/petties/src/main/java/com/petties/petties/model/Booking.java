@@ -16,9 +16,9 @@ import java.util.UUID;
 
 /**
  * Booking entity - Lịch hẹn khám bệnh
- * 
+ *
  * Relationships:
- * - ManyToOne: Pet, User (petOwner), Clinic, User (assignedVet)
+ * - ManyToOne: Pet, User (petOwner), Clinic, User (assignedStaff)
  * - OneToMany: BookingSlot (slots used), BookingService (services)
  * - OneToOne: Payment
  */
@@ -54,8 +54,8 @@ public class Booking {
     private Clinic clinic;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_vet_id")
-    private User assignedVet;
+    @JoinColumn(name = "assigned_staff_id")
+    private User assignedStaff;
 
     // ========== BOOKING INFO ==========
 

@@ -21,7 +21,7 @@ export function QuickAddStaffModal({
     isOpen,
     onClose,
     onSubmit,
-    allowedRoles = ['VET', 'CLINIC_MANAGER'],
+    allowedRoles = ['STAFF', 'CLINIC_MANAGER'],
     disabledRoles = [],
     title = 'THÊM NHÂN VIÊN MỚI',
 }: AddStaffModalProps) {
@@ -51,7 +51,7 @@ export function QuickAddStaffModal({
             await onSubmit({
                 email: email.trim(),
                 role,
-                specialty: role === 'VET' ? specialty : undefined
+                specialty: role === 'STAFF' ? specialty : undefined
             })
             // Reset form
             resetForm()
@@ -138,21 +138,21 @@ export function QuickAddStaffModal({
                             VAI TRÒ
                         </label>
                         <div className="flex gap-3">
-                            {allowedRoles.includes('VET') && (
+                            {allowedRoles.includes('STAFF') && (
                                 <label
-                                    className={`flex-1 min-h-[64px] flex items-center justify-center p-2 border-4 border-stone-900 cursor-pointer transition-all text-center font-bold uppercase text-[10px] sm:text-xs ${role === 'VET'
+                                    className={`flex-1 min-h-[64px] flex items-center justify-center p-2 border-4 border-stone-900 cursor-pointer transition-all text-center font-bold uppercase text-[10px] sm:text-xs ${role === 'STAFF'
                                         ? 'bg-green-200 text-green-900 shadow-[6px_6px_0_#000] -translate-x-1 -translate-y-1'
                                         : 'bg-green-50 text-green-700 shadow-none opacity-70 hover:opacity-100 hover:bg-green-100'
-                                        } ${disabledRoles.includes('VET') ? 'opacity-20 cursor-not-allowed grayscale' : ''}`}
+                                        } ${disabledRoles.includes('STAFF') ? 'opacity-20 cursor-not-allowed grayscale' : ''}`}
                                 >
                                     <input
                                         type="radio"
                                         name="role"
-                                        value="VET"
-                                        checked={role === 'VET'}
-                                        onChange={() => setRole('VET')}
+                                        value="STAFF"
+                                        checked={role === 'STAFF'}
+                                        onChange={() => setRole('STAFF')}
                                         className="sr-only"
-                                        disabled={isSubmitting || disabledRoles.includes('VET')}
+                                        disabled={isSubmitting || disabledRoles.includes('STAFF')}
                                     />
                                     BÁC SĨ THÚ Y
                                 </label>
@@ -179,8 +179,8 @@ export function QuickAddStaffModal({
                         </div>
                     </div>
 
-                    {/* Specialty - Only show when role is VET */}
-                    {role === 'VET' && (
+                    {/* Specialty - Only show when role is STAFF */}
+                    {role === 'STAFF' && (
                         <div>
                             <label className="block text-sm font-bold uppercase text-stone-700 mb-2">
                                 CHUYÊN MÔN

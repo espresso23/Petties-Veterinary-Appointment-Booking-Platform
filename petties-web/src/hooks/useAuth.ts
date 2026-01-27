@@ -28,7 +28,7 @@ export interface UseAuthReturn {
 
   // Role checks
   isAdmin: boolean
-  isVet: boolean
+  isStaff: boolean
   isClinicManager: boolean
   isClinicOwner: boolean
   isPetOwner: boolean
@@ -60,7 +60,7 @@ export function useAuth(): UseAuthReturn {
   // Role checks
   const hasRole = useCallback((role: string) => user?.role === role, [user])
   const isAdmin = hasRole('ADMIN')
-  const isVet = hasRole('VET')
+  const isStaff = hasRole('STAFF')
   const isClinicManager = hasRole('CLINIC_MANAGER')
   const isClinicOwner = hasRole('CLINIC_OWNER')
   const isPetOwner = hasRole('PET_OWNER')
@@ -125,7 +125,7 @@ export function useAuth(): UseAuthReturn {
     logout,
     refreshUser,
     isAdmin,
-    isVet,
+    isStaff,
     isClinicManager,
     isClinicOwner,
     isPetOwner,

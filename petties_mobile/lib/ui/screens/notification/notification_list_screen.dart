@@ -228,13 +228,13 @@ class _NotificationItem extends StatelessWidget {
         iconColor = Colors.red;
         bgColor = Colors.red.withOpacity(0.1);
         break;
-      case NotificationType.VET_SHIFT_ASSIGNED:
-      case NotificationType.VET_SHIFT_UPDATED:
+      case NotificationType.STAFF_SHIFT_ASSIGNED:
+      case NotificationType.STAFF_SHIFT_UPDATED:
         iconData = Icons.calendar_today_outlined;
         iconColor = AppColors.primary;
         bgColor = AppColors.primaryBackground;
         break;
-      case NotificationType.VET_SHIFT_DELETED:
+      case NotificationType.STAFF_SHIFT_DELETED:
         iconData = Icons.event_busy_outlined;
         iconColor = Colors.orange;
         bgColor = Colors.orange.withOpacity(0.1);
@@ -269,10 +269,10 @@ class _NotificationItem extends StatelessWidget {
 
   void _handleTap(BuildContext context) {
     switch (notification.type) {
-      case NotificationType.VET_SHIFT_ASSIGNED:
-      case NotificationType.VET_SHIFT_UPDATED:
-      case NotificationType.VET_SHIFT_DELETED:
-        context.push(AppRoutes.vetSchedule);
+      case NotificationType.STAFF_SHIFT_ASSIGNED:
+      case NotificationType.STAFF_SHIFT_UPDATED:
+      case NotificationType.STAFF_SHIFT_DELETED:
+        context.push(AppRoutes.staffSchedule);
         break;
       case NotificationType.BOOKING_CREATED:
       case NotificationType.BOOKING_CONFIRMED:

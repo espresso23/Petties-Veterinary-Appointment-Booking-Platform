@@ -13,7 +13,7 @@ import '../../styles/brutalist.css'
 function getRoleDashboard(role: string): string {
     const dashboards: Record<string, string> = {
         'ADMIN': '/admin',
-        'VET': '/vet',
+        'STAFF': '/staff',
         'CLINIC_MANAGER': '/clinic-manager',
         'CLINIC_OWNER': '/clinic-owner',
     }

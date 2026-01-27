@@ -266,7 +266,7 @@ class AgentConfig:
 
     Luôn:
     - Trích dẫn nguồn khi dùng RAG
-    - Khuyên người dùng đến bác sĩ thú y nếu triệu chứng nghiêm trọng
+    - Khuyên người dùng đến nhân viên thú y nếu triệu chứng nghiêm trọng
     - Sử dụng tool khi cần (không tự bịa thông tin)
     """
 
@@ -973,7 +973,7 @@ ws://localhost:8000/ws/chat/abc-123?token=eyJhbGciOiJIUzI1NiIs...
 ```json
 {
   "type": "done",
-  "content": "Dựa trên triệu chứng nôn, chó nhà bạn có thể bị viêm dạ dày. Nên đặt lịch khám trong 24-48 giờ để bác sĩ thú y chẩn đoán chính xác.",
+  "content": "Dựa trên triệu chứng nôn, chó nhà bạn có thể bị viêm dạ dày. Nên đặt lịch khám trong 24-48 giờ để nhân viên thú y chẩn đoán chính xác.",
   "sources": [
     {
       "type": "knowledge_base",

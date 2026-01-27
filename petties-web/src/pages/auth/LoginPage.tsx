@@ -15,7 +15,7 @@ const GOOGLE_CLIENT_ID = '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.goo
 function getRoleDashboard(role: string): string {
   const dashboards: Record<string, string> = {
     'ADMIN': '/admin',
-    'VET': '/vet',
+    'STAFF': '/staff',
     'CLINIC_MANAGER': '/clinic-manager',
     'CLINIC_OWNER': '/clinic-owner',
     // PET_OWNER blocked from web - mobile only

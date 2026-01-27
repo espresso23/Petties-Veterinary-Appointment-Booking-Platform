@@ -7,10 +7,10 @@ enum NotificationType {
   CLINIC_REJECTED,
   CLINIC_PENDING,
 
-  // VetShift notifications
-  VET_SHIFT_ASSIGNED,
-  VET_SHIFT_UPDATED,
-  VET_SHIFT_DELETED,
+  // StaffShift notifications
+  STAFF_SHIFT_ASSIGNED,
+  STAFF_SHIFT_UPDATED,
+  STAFF_SHIFT_DELETED,
 
   // Booking notifications
   BOOKING_CREATED,
@@ -19,7 +19,7 @@ enum NotificationType {
   BOOKING_CANCELLED,
   BOOKING_CHECKIN,
   BOOKING_COMPLETED,
-  VET_ON_WAY,
+  STAFF_ON_WAY,
 
   // Others
   SYSTEM_NOTIFICATION
@@ -37,7 +37,7 @@ class NotificationModel {
   final String? clinicId;
   final String? clinicName;
 
-  // VetShift-related (optional)
+  // StaffShift-related (optional)
   final String? shiftId;
   final DateTime? shiftDate;
   final String? shiftStartTime;

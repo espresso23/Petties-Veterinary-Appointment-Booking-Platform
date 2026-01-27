@@ -43,7 +43,7 @@ class BookingServiceUnitTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private VetAssignmentService vetAssignmentService;
+    private StaffAssignmentService staffAssignmentService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -126,51 +126,51 @@ class BookingServiceUnitTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-02: Vet Home Visit - Matching specialty success")
-        void addServiceToBooking_VetHomeVisitMatch_Success() {
-            User vet = new User();
-            vet.setRole(Role.VET);
-            vet.setSpecialty(StaffSpecialty.VET_SURGERY);
+        @DisplayName("TC-UNIT-BS-02: Staff Home Visit - Matching specialty success")
+        void addServiceToBooking_StaffHomeVisitMatch_Success() {
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setSpecialty(StaffSpecialty.VET_SURGERY);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(BigDecimal.valueOf(100000));
 
-            BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, vet);
+            BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, staff);
 
             assertNotNull(response);
             verify(bookingRepository, times(1)).save(any());
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-03: Vet Home Visit - Mismatching specialty fails")
-        void addServiceToBooking_VetHomeVisitMismatch_Fail() {
-            User vet = new User();
-            vet.setRole(Role.VET);
-            vet.setSpecialty(StaffSpecialty.VET_DENTAL); // Service is SURGERY
+        @DisplayName("TC-UNIT-BS-03: Staff Home Visit - Mismatching specialty fails")
+        void addServiceToBooking_StaffHomeVisitMismatch_Fail() {
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setSpecialty(StaffSpecialty.VET_DENTAL); // Service is SURGERY
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
 
             Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-                bookingService.addServiceToBooking(bookingId, serviceId, vet);
+                bookingService.addServiceToBooking(bookingId, serviceId, staff);
             });
 
             assertTrue(exception.getMessage().contains("nằm ngoài chuyên môn"));
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-04: Vet General Home Visit - Success for any service")
-        void addServiceToBooking_VetGeneral_Success() {
-            User vet = new User();
-            vet.setRole(Role.VET);
-            vet.setSpecialty(StaffSpecialty.VET_GENERAL);
+        @DisplayName("TC-UNIT-BS-04: Staff General Home Visit - Success for any service")
+        void addServiceToBooking_StaffGeneral_Success() {
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setSpecialty(StaffSpecialty.VET_GENERAL);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(BigDecimal.valueOf(100000));
 
-            BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, vet);
+            BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, staff);
 
             assertNotNull(response);
             verify(bookingRepository, times(1)).save(any());
@@ -182,11 +182,11 @@ class BookingServiceUnitTest {
     class GetAvailableServicesTests {
 
         @Test
-        @DisplayName("TC-UNIT-BS-05: Filter available services by specialty for Vets")
+        @DisplayName("TC-UNIT-BS-05: Filter available services by specialty for Staff")
         void getAvailableServicesForAddOn_FilterBySpecialty() {
-            User vet = new User();
-            vet.setRole(Role.VET);
-            vet.setSpecialty(StaffSpecialty.VET_SURGERY);
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setSpecialty(StaffSpecialty.VET_SURGERY);
 
             com.petties.petties.model.ClinicService surgeryService = new com.petties.petties.model.ClinicService();
             surgeryService.setServiceId(UUID.randomUUID());
@@ -202,7 +202,7 @@ class BookingServiceUnitTest {
             when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
                     .thenReturn(Arrays.asList(surgeryService, dentalService));
 
-            List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, vet);
+            List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, staff);
 
             assertEquals(1, result.size());
             assertEquals("Surgery", result.get(0).getName());

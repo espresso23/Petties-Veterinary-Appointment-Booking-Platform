@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /**
  * DTO for alternative time slot suggestion
- * When a service doesn't have an available vet, suggest other dates/times
+ * When a service doesn't have an available staff, suggest other dates/times
  */
 @Data
 @Builder
@@ -36,12 +36,12 @@ public class AlternativeTimeSlot {
     private List<String> availableTimes;
 
     /**
-     * Vet name available on this date
+     * Staff name available on this date
      */
-    private String vetName;
+    private String staffName;
 
     /**
-     * Vet ID available on this date
+     * Staff ID available on this date
      */
-    private UUID vetId;
+    private UUID staffId;
 }

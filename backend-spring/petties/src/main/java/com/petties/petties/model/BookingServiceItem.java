@@ -64,12 +64,12 @@ public class BookingServiceItem {
     private LocalDateTime createdAt;
 
     /**
-     * Assigned veterinarian for this specific service
-     * Different services in the same booking can have different vets
+     * Assigned staff for this specific service
+     * Different services in the same booking can have different staff members
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_vet_id")
-    private User assignedVet;
+    @JoinColumn(name = "assigned_staff_id")
+    private User assignedStaff;
 
     // ========== HELPER METHODS ==========
 

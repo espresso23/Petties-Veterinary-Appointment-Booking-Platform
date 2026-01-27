@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * Event Types:
  * - NOTIFICATION: New notification arrived
  * - HEARTBEAT: Keep-alive ping
- * - SHIFT_UPDATE: VetShift changed (for auto-refresh)
+ * - SHIFT_UPDATE: StaffShift changed (for auto-refresh)
  * - BOOKING_UPDATE: Booking changed (for Vet/Manager sync)
  */
 @Data

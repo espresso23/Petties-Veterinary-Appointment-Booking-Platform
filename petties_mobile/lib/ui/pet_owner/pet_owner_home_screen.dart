@@ -432,9 +432,13 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                 context.push(AppRoutes.clinicSearch);
                 break;
               case 2:
-                // TODO: Navigate to bookings
+                // LỊCH HẸN - TODO: Navigate to bookings
                 break;
               case 3:
+                // CHAT - Navigate to chat list
+                context.push(AppRoutes.chatList);
+                break;
+              case 4:
                 context.push(AppRoutes.profile);
                 break;
             }
@@ -445,6 +449,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                 icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
           ],

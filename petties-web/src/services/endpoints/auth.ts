@@ -13,7 +13,7 @@ export interface RegisterRequest {
   email: string
   phone?: string
   avatar?: string
-  role: 'PET_OWNER' | 'VET' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'ADMIN'
+  role: 'PET_OWNER' | 'STAFF' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'ADMIN'
 }
 
 export interface SendOtpRequest {

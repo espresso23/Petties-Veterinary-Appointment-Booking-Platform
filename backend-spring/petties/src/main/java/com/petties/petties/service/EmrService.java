@@ -119,8 +119,8 @@ public class EmrService {
                 EmrRecord emr = emrRecordRepository.findById(emrId)
                                 .orElseThrow(() -> new ResourceNotFoundException("EMR not found"));
 
-                // Rule 1: Only the creating Vet can edit
-                if (!emr.getVetId().equals(currentVetId)) {
+                // Rule 1: Only the creating Staff can edit
+                if (!emr.getStaffId().equals(currentVetId)) {
                         throw new ForbiddenException(
                                         "Bạn không có quyền chỉnh sửa bệnh án này (Chỉ người tạo mới được sửa)");
                 }
@@ -251,10 +251,10 @@ public class EmrService {
                                 .id(emr.getId())
                                 .petId(emr.getPetId())
                                 .bookingId(emr.getBookingId())
-                                .vetId(emr.getVetId())
+                                .staffId(emr.getStaffId())
                                 .clinicId(emr.getClinicId())
                                 .clinicName(emr.getClinicName())
-                                .vetName(emr.getVetName())
+                                .staffName(emr.getStaffName())
                                 .petName(petName)
                                 .petSpecies(petSpecies)
                                 .petBreed(petBreed)

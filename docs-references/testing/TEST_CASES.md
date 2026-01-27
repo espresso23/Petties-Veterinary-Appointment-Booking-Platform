@@ -112,7 +112,7 @@
 | TC-UNIT-BOOK-005 | POST /api/bookings | Slot not available | 400 Bad Request | ⏳ Pending |
 | TC-UNIT-BOOK-006 | PUT /api/bookings/{id}/assign | Valid vetId | 200 OK, booking assigned | ⏳ Pending |
 | TC-UNIT-BOOK-007 | PUT /api/bookings/{id}/assign | Not clinic manager | 403 Forbidden | ⏳ Pending |
-| TC-UNIT-BOOK-008 | PUT /api/bookings/{id}/confirm | Vet confirms | 200 OK, status CONFIRMED | ⏳ Pending |
+| TC-UNIT-BOOK-008 | PUT /api/bookings/{id}/confirm | Staff confirms | 200 OK, status CONFIRMED | ⏳ Pending |
 | TC-UNIT-BOOK-009 | PUT /api/bookings/{id}/confirm | Not assigned vet | 403 Forbidden | ⏳ Pending |
 | TC-UNIT-BOOK-010 | PUT /api/bookings/{id}/cancel | Pet owner cancels | 200 OK, status CANCELLED | ⏳ Pending |
 | TC-UNIT-BOOK-011 | PUT /api/bookings/{id}/cancel | Already confirmed | 400 Bad Request | ⏳ Pending |

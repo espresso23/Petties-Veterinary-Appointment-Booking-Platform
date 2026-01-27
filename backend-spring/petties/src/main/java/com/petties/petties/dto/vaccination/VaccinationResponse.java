@@ -18,12 +18,12 @@ public class VaccinationResponse {
     private String id;
     private UUID petId;
     private UUID bookingId;
-    private UUID vetId;
+    private UUID staffId;
     private UUID clinicId;
 
     // Display info
     private String clinicName;
-    private String vetName;
+    private String staffName;
 
     private String vaccineName;
     private String batchNumber;

@@ -17,7 +17,7 @@
 | **Process ID** | BP-002 |
 | **Process Name** | Booking Management Process |
 | **Process Type** | Executable |
-| **Pools** | 4 (Pet Owner, System, Clinic Manager, Vet) |
+| **Pools** | 4 (Pet Owner, System, Clinic Manager, Staff) |
 | **Start Event** | Pet Owner mở app và chọn "Đặt lịch" |
 | **End Events** | 3 (Booking Confirmed, Booking Cancelled, Booking Rejected) |
 
@@ -28,7 +28,7 @@
 | **Pet Owner** | Chủ thú cưng - khách hàng | Mobile App |
 | **System** | Petties Platform - xử lý tự động | Backend |
 | **Clinic Manager** | Quản lý phòng khám | Web Dashboard |
-| **Vet** | Bác sĩ thú y | Mobile App / Web |
+| **Staff** | Nhân viên thú y | Mobile App / Web |
 
 ### 1.3 Process Flow - Chi tiết từng bước
 
@@ -41,7 +41,7 @@
 | 3 | **User Task** | Xem thông tin phòng khám | Xem địa chỉ, dịch vụ, giá, đánh giá, giờ làm việc | → Task 4 |
 | 4 | **User Task** | Chọn loại dịch vụ | Chọn CLINIC_VISIT hoặc HOME_VISIT | → Gateway 5 |
 | 5 | **Exclusive Gateway** | Loại dịch vụ? | Kiểm tra loại dịch vụ đã chọn | → Task 6 (HOME_VISIT) hoặc → Task 7 (CLINIC_VISIT) |
-| 6 | **User Task** | Nhập địa chỉ nhà | Chỉ khi HOME_VISIT: nhập địa chỉ để bác sĩ đến | → Task 7 |
+| 6 | **User Task** | Nhập địa chỉ nhà | Chỉ khi HOME_VISIT: nhập địa chỉ để nhân viên đến | → Task 7 |
 | 7 | **User Task** | Chọn dịch vụ cụ thể | Chọn từ danh sách dịch vụ của phòng khám | → Task 8 |
 | 8 | **User Task** | Chọn ngày và giờ | Chọn ngày → Xem slots trống → Chọn slot | → Task 9 |
 | 9 | **User Task** | Chọn thú cưng | Chọn pet cần khám từ danh sách pet đã đăng ký | → Task 10 |
@@ -66,32 +66,32 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 21 | **Receive Task** | Nhận booking mới | Message Flow từ System: "Có booking mới cần gán bác sĩ" | → User Task 22 |
+| 21 | **Receive Task** | Nhận booking mới | Message Flow từ System: "Có booking mới cần gán nhân viên" | → User Task 22 |
 | 22 | **User Task** | Xem chi tiết booking | Xem: Pet, Owner, Service, Time, Notes | → User Task 23 |
-| 23 | **User Task** | Gán bác sĩ | Chọn bác sĩ available trong ca làm việc | → Service Task (System) |
+| 23 | **User Task** | Gán nhân viên | Chọn nhân viên available trong ca làm việc | → Service Task (System) |
 
 #### POOL: System (tiếp)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 24 | **Service Task** | Cập nhật Booking | Status: PENDING → ASSIGNED, vet_id = selected_vet | → Send Task 25 |
-| 25 | **Send Task** | Thông báo Bác sĩ | Push notification → Vet: "Bạn có lịch hẹn mới" | → Receive Task 26 |
+| 25 | **Send Task** | Thông báo Nhân viên | Push notification → Staff: "Bạn có lịch hẹn mới" | → Receive Task 26 |
 
-#### POOL: Vet (Mobile App / Web)
+#### POOL: Staff (Mobile App / Web)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 26 | **Receive Task** | Nhận thông báo booking | Message Flow từ System | → User Task 27 |
 | 27 | **User Task** | Xem chi tiết booking | Xem: Pet, Owner, Service, Time, Location, Notes | → Chuẩn bị thực hiện |
 
-> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Khi Manager gán Vet, booking tự động → CONFIRMED.
+> 💡 **Lưu ý:** Staff KHÔNG có quyền Accept/Reject. Khi Manager gán Staff, booking tự động → CONFIRMED.
 
-#### POOL: System (xử lý response từ Vet)
+#### POOL: System (xử lý response từ Staff)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 24 | **Service Task** | Cập nhật Booking | Status: PENDING → CONFIRMED, vet_id = selected_vet | → Send Task 25 |
-| 25 | **Send Task** | Thông báo Pet Owner + Vet | Push: "Lịch hẹn đã xác nhận" + "Bạn có lịch hẹn mới" | → End Event 26 |
+| 25 | **Send Task** | Thông báo Pet Owner + Staff | Push: "Lịch hẹn đã xác nhận" + "Bạn có lịch hẹn mới" | → End Event 26 |
 | 26 | **End Event** | Booking Confirmed | Kết thúc thành công | - |
 
 ### 1.4 Exception Flows
@@ -124,7 +124,7 @@
 | Pet Owner | System | BookingRequest | Pet Owner submit đặt lịch |
 | System | Clinic Manager | NewBookingNotification | Có booking mới cần xử lý |
 | Clinic Manager | System | VetAssignment | Clinic Manager gán vet |
-| System | Vet | AssignmentNotification | Vet được gán booking |
+| System | Staff | AssignmentNotification | Staff được gán booking |
 | System | Pet Owner | ConfirmationNotification | Booking được confirm |
 | System | Pet Owner | CancellationNotification | Booking bị hủy |
 
@@ -148,17 +148,17 @@
 | **Process ID** | BP-003-005 |
 | **Process Name** | Medical Service and Review Process |
 | **Process Type** | Executable |
-| **Pools** | 3 (Pet Owner, Vet, System) |
+| **Pools** | 3 (Pet Owner, Staff, System) |
 | **Start Event** | Booking ở trạng thái CONFIRMED, đến ngày hẹn |
 | **End Events** | 2 (Service Completed, Review Submitted) |
-| **Subprocess** | Vet Review (Immediate), Clinic Review (Delayed) |
+| **Subprocess** | Staff Review (Immediate), Clinic Review (Delayed) |
 
 ### 2.2 Pools và Lanes
 
 | Pool | Description | Platform |
 |------|-------------|----------|
 | **Pet Owner** | Chủ thú cưng | Mobile App |
-| **Vet** | Bác sĩ thú y | Mobile App / Web |
+| **Staff** | Nhân viên thú y | Mobile App / Web |
 | **System** | Petties Platform | Backend |
 
 ### 2.3 Process Flow - Medical Service
@@ -168,9 +168,9 @@
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 1 | **Start Event** | Đến ngày hẹn | Booking status = CONFIRMED, đúng ngày appointment | → Task 2 |
-| 2 | **User Task** | Đến phòng khám / Chờ bác sĩ | CLINIC_VISIT: Pet Owner đến phòng khám. HOME_VISIT: Chờ bác sĩ đến nhà | → Message → Vet |
+| 2 | **User Task** | Đến phòng khám / Chờ nhân viên | CLINIC_VISIT: Pet Owner đến phòng khám. HOME_VISIT: Chờ nhân viên đến nhà | → Message → Staff |
 
-#### POOL: Vet (Mobile App / Web)
+#### POOL: Staff (Mobile App / Web)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
@@ -181,9 +181,9 @@
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 4 | **Service Task** | Cập nhật status CHECK_IN | Status: CONFIRMED → CHECK_IN, checkin_time = now() | → Send Task 5 |
-| 5 | **Send Task** | Thông báo Pet Owner | "Bác sĩ đã check-in, phiên khám bắt đầu" | → Task 6 (Vet) |
+| 5 | **Send Task** | Thông báo Pet Owner | "Nhân viên đã check-in, phiên khám bắt đầu" | → Task 6 (Staff) |
 
-#### POOL: Vet (tiếp tục khám)
+#### POOL: Staff (tiếp tục khám)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
@@ -194,9 +194,9 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 8 | **Service Task** | Cập nhật status IN_PROGRESS | Status: CHECK_IN → IN_PROGRESS, start_time = now() | → Task 9 (Vet) |
+| 8 | **Service Task** | Cập nhật status IN_PROGRESS | Status: CHECK_IN → IN_PROGRESS, start_time = now() | → Task 9 (Staff) |
 
-#### POOL: Vet (ghi EMR)
+#### POOL: Staff (ghi EMR)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
@@ -204,9 +204,9 @@
 | 10 | **User Task** | Ghi triệu chứng | Nhập symptoms vào EMR form | → Task 11 |
 | 11 | **User Task** | Ghi chẩn đoán | Nhập diagnosis vào EMR form | → Task 12 |
 | 12 | **User Task** | Tạo kế hoạch điều trị | Nhập treatment plan vào EMR form | → Gateway 13 |
-| 13 | **Exclusive Gateway** | Cần đơn thuốc? | Bác sĩ quyết định có cần kê đơn không | → Task 14 (Yes) hoặc → Gateway 15 (No) |
+| 13 | **Exclusive Gateway** | Cần đơn thuốc? | Nhân viên quyết định có cần kê đơn không | → Task 14 (Yes) hoặc → Gateway 15 (No) |
 | 14 | **User Task** | Ghi đơn thuốc | Nhập prescription: tên thuốc, liều lượng, hướng dẫn | → Gateway 15 |
-| 15 | **Exclusive Gateway** | Cần tiêm chủng? | Bác sĩ quyết định có cập nhật sổ tiêm không | → Task 16 (Yes) hoặc → Task 17 (No) |
+| 15 | **Exclusive Gateway** | Cần tiêm chủng? | Nhân viên quyết định có cập nhật sổ tiêm không | → Task 16 (Yes) hoặc → Task 17 (No) |
 | 16 | **User Task** | Cập nhật tiêm chủng | Thêm record vaccination mới vào sổ tiêm | → Task 17 |
 | 17 | **User Task** | Lưu EMR | Submit EMR form, lưu toàn bộ dữ liệu | → Service Task (System) |
 
@@ -214,9 +214,9 @@
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
-| 18 | **Service Task** | Lưu EMR vào DB | Insert EMR record: symptoms, diagnosis, treatment, prescription, vet_notes | → Task 19 (Vet) |
+| 18 | **Service Task** | Lưu EMR vào DB | Insert EMR record: symptoms, diagnosis, treatment, prescription, vet_notes | → Task 19 (Staff) |
 
-#### POOL: Vet (Checkout)
+#### POOL: Staff (Checkout)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
@@ -228,7 +228,7 @@
 |---|--------------|--------------|-------------|----------|
 | 20 | **Service Task** | Cập nhật status CHECK_OUT | Status: IN_PROGRESS → CHECK_OUT, checkout_time = now() | → Gateway 21 |
 | 21 | **Exclusive Gateway** | Payment status? | Kiểm tra payment_status của booking | → Task 22 (UNPAID) hoặc → Task 24 (PAID) |
-| 22 | **User Task** | Thu tiền mặt | Vet thu tiền từ Pet Owner | → Service Task 23 |
+| 22 | **User Task** | Thu tiền mặt | Staff thu tiền từ Pet Owner | → Service Task 23 |
 | 23 | **Service Task** | Cập nhật payment | payment_status: UNPAID → PAID, payment_method = CASH | → Task 24 |
 | 24 | **Service Task** | Tạo hóa đơn | Generate digital receipt: services, price, payment info | → Service Task 25 |
 | 25 | **Service Task** | Hoàn thành booking | Status: CHECK_OUT → COMPLETED | → Parallel Gateway 26 |
@@ -244,18 +244,18 @@
 
 ### 2.4 Process Flow - Review (Subprocess)
 
-#### 2.4.1 Vet Review (Immediate - như Grab)
+#### 2.4.1 Staff Review (Immediate - như Grab)
 
 | # | Element Type | Element Name | Description | Outgoing |
 |---|--------------|--------------|-------------|----------|
 | 30 | **Start Event** (Subprocess) | Sau COMPLETED | Ngay sau khi booking COMPLETED | → Service Task 31 |
 | 31 | **Service Task** | Hiển thị popup đánh giá | Show rating popup trên mobile app | → Gateway 32 |
 | 32 | **Exclusive Gateway** | Pet Owner đánh giá? | Chờ 30 giây hoặc user action | → Task 33 (Rating) hoặc → Task 34 (Skip) |
-| 33 | **User Task** | Chọn số sao cho Vet | Select 1-5 stars | → Service Task 35 |
+| 33 | **User Task** | Chọn số sao cho Staff | Select 1-5 stars | → Service Task 35 |
 | 34 | **User Task** | Bỏ qua đánh giá | Click Skip hoặc timeout | → Service Task 36 |
-| 35 | **Service Task** | Lưu Vet Rating | Save: vet_rating = stars, vet_rated = true, tính lại vet average | → End Event 37 |
+| 35 | **Service Task** | Lưu Staff Rating | Save: vet_rating = stars, vet_rated = true, tính lại vet average | → End Event 37 |
 | 36 | **Service Task** | Đánh dấu không đánh giá | vet_rated = false | → End Event 37 |
-| 37 | **End Event** | Vet Review Done | Kết thúc subprocess Vet Review | → Timer 38 |
+| 37 | **End Event** | Staff Review Done | Kết thúc subprocess Staff Review | → Timer 38 |
 
 #### 2.4.2 Clinic Review (Delayed - sau 24h)
 
@@ -275,10 +275,10 @@
 
 | From | To | Message Name | Khi nào |
 |------|-----|--------------|---------|
-| Vet | System | CheckInRequest | Vet báo pet đã đến |
-| Vet | System | StartExamRequest | Vet bắt đầu khám |
-| Vet | System | EMRData | Vet submit EMR |
-| Vet | System | CheckoutRequest | Vet kết thúc khám |
+| Staff | System | CheckInRequest | Staff báo pet đã đến |
+| Staff | System | StartExamRequest | Staff bắt đầu khám |
+| Staff | System | EMRData | Staff submit EMR |
+| Staff | System | CheckoutRequest | Staff kết thúc khám |
 | System | Pet Owner | ServiceCompletedNotification | Booking COMPLETED |
 | System | Pet Owner | VetRatingPopup | Yêu cầu đánh giá vet |
 | Pet Owner | System | VetRatingSubmit | Submit rating vet |
@@ -299,9 +299,9 @@
 
 | Timer ID | Event Type | Duration/Date | Attached To |
 |----------|------------|---------------|-------------|
-| T1 | Duration | PT24H (24 hours) | After Vet Review completed |
+| T1 | Duration | PT24H (24 hours) | After Staff Review completed |
 | T2 | Duration | PT72H (72 hours) | If no clinic review after T1 |
-| T3 | Duration | PT30S (30 seconds) | Vet rating popup timeout |
+| T3 | Duration | PT30S (30 seconds) | Staff rating popup timeout |
 
 ---
 
@@ -330,7 +330,7 @@ Events đại diện cho một điều xảy ra trong quá trình. Tất cả ev
 
 | Event Type | Shape | Marker | Mô tả | Ví dụ trong Petties |
 |------------|-------|--------|-------|---------------------|
-| **Message Catch** | Circle, double border | ✉️ envelope (outline) | Chờ nhận message | "Chờ Vet phản hồi" |
+| **Message Catch** | Circle, double border | ✉️ envelope (outline) | Chờ nhận message | "Chờ Staff phản hồi" |
 | **Message Throw** | Circle, double border | ✉️ envelope (filled) | Gửi message đi | "Gửi notification" |
 | **Timer Catch** | Circle, double border | ⏱ clock | Chờ một khoảng thời gian | "Chờ 24h trước khi nhắc review" |
 | **Signal Catch** | Circle, double border | △ triangle (outline) | Bắt signal | "Khi payment thành công" |
@@ -355,7 +355,7 @@ Attached vào Task, xử lý exception hoặc trigger trong quá trình task đa
 
 | Event Type | Interrupting? | Border Style | Mô tả | Ví dụ |
 |------------|---------------|--------------|-------|-------|
-| **Timer Boundary** | Yes | Solid double | Interrupt task khi timeout | "Hủy nếu Vet không respond 2h" |
+| **Timer Boundary** | Yes | Solid double | Interrupt task khi timeout | "Hủy nếu Staff không respond 2h" |
 | **Timer Boundary** | No | Dashed double | Không interrupt, chạy song song | "Gửi reminder sau 1h" |
 | **Message Boundary** | Yes | Solid double + ✉️ | Interrupt khi nhận message | "Hủy khi Pet Owner cancel" |
 | **Error Boundary** | Always Yes | Solid double + ⚡ | Bắt lỗi từ task | "Catch payment error" |
@@ -436,7 +436,7 @@ Phân chia trách nhiệm giữa các participants.
 | **Content** | Chứa toàn bộ process flow của participant đó |
 | **Communication** | Pools khác nhau giao tiếp bằng Message Flow |
 
-**Ví dụ Pools trong Petties:** Pet Owner, System, Clinic Manager, Vet
+**Ví dụ Pools trong Petties:** Pet Owner, System, Clinic Manager, Staff
 
 #### 3.4.2 Lane
 
@@ -446,7 +446,7 @@ Phân chia trách nhiệm giữa các participants.
 | **Purpose** | Chia Pool thành các roles/departments |
 | **Header** | Lane name (role) ở bên trái |
 
-**Ví dụ:** Pool "Clinic" có thể chia thành Lane "Manager" và Lane "Vet"
+**Ví dụ:** Pool "Clinic" có thể chia thành Lane "Manager" và Lane "Staff"
 
 #### 3.4.3 Petties Pools Configuration
 
@@ -455,7 +455,7 @@ Phân chia trách nhiệm giữa các participants.
 | Pet Owner | Chủ thú cưng - khách hàng | Mobile App | Blue (#4285F4) |
 | System | Petties Platform - xử lý tự động | Backend | Gray (#E0E0E0) |
 | Clinic Manager | Quản lý phòng khám | Web Dashboard | Green (#34A853) |
-| Vet | Bác sĩ thú y | Mobile App / Web | Orange (#FBBC05) |
+| Staff | Nhân viên thú y | Mobile App / Web | Orange (#FBBC05) |
 | Admin | Quản trị viên nền tảng | Web Dashboard | Red (#EA4335) |
 
 ---
@@ -496,7 +496,7 @@ Phân chia trách nhiệm giữa các participants.
 | Pet Owner | Light Blue | #E3F2FD |
 | System | Light Gray | #F5F5F5 |
 | Clinic Manager | Light Green | #E8F5E9 |
-| Vet | Light Orange | #FFF3E0 |
+| Staff | Light Orange | #FFF3E0 |
 | Admin | Light Red | #FFEBEE |
 
 #### Element Colors

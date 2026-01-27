@@ -41,7 +41,7 @@ public class EmrController {
      * Create a new EMR record (Vet only)
      */
     @PostMapping
-    @PreAuthorize("hasRole('VET')")
+    @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<EmrResponse> createEmr(@Valid @RequestBody CreateEmrRequest request) {
         User currentUser = authService.getCurrentUser();
         log.info("Vet {} creating EMR for pet {}", currentUser.getUserId(), request.getPetId());
@@ -53,7 +53,7 @@ public class EmrController {
      * Update EMR record (Vet only)
      */
     @PutMapping("/{emrId}")
-    @PreAuthorize("hasRole('VET')")
+    @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<EmrResponse> updateEmr(
             @PathVariable String emrId,
             @Valid @RequestBody CreateEmrRequest request) {
@@ -68,7 +68,7 @@ public class EmrController {
      * Trả về URL ảnh để frontend thêm vào danh sách images khi tạo EMR
      */
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('VET')")
+    @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<UploadResponse> uploadEmrImage(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "description", required = false) String description) {
@@ -81,7 +81,7 @@ public class EmrController {
      * Get EMR by ID
      */
     @GetMapping("/{emrId}")
-    @PreAuthorize("hasAnyRole('VET', 'PET_OWNER', 'CLINIC_MANAGER')")
+    @PreAuthorize("hasAnyRole('STAFF', 'PET_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<EmrResponse> getEmrById(@PathVariable String emrId) {
         EmrResponse response = emrService.getEmrById(emrId);
         return ResponseEntity.ok(response);
@@ -91,7 +91,7 @@ public class EmrController {
      * Get all EMR records for a pet (medical history)
      */
     @GetMapping("/pet/{petId}")
-    @PreAuthorize("hasAnyRole('VET', 'PET_OWNER', 'CLINIC_MANAGER')")
+    @PreAuthorize("hasAnyRole('STAFF', 'PET_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<List<EmrResponse>> getEmrsByPetId(@PathVariable UUID petId) {
         List<EmrResponse> responses = emrService.getEmrsByPetId(petId);
         return ResponseEntity.ok(responses);
@@ -101,7 +101,7 @@ public class EmrController {
      * Get EMR by booking ID
      */
     @GetMapping("/booking/{bookingId}")
-    @PreAuthorize("hasAnyRole('VET', 'PET_OWNER', 'CLINIC_MANAGER')")
+    @PreAuthorize("hasAnyRole('STAFF', 'PET_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<EmrResponse> getEmrByBookingId(@PathVariable UUID bookingId) {
         EmrResponse response = emrService.getEmrByBookingId(bookingId);
         return ResponseEntity.ok(response);

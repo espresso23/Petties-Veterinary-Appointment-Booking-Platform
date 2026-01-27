@@ -47,10 +47,10 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
     }
 
     const getRoleBadge = (role: string) => {
-        if (role === 'VET') {
+        if (role === 'STAFF') {
             return (
                 <span className="px-3 py-1 bg-green-100 text-green-800 border-2 border-stone-900 font-bold text-xs uppercase shadow-[2px_2px_0_#1c1917]">
-                    BÁC SĨ THÚ Y
+                    NHÂN VIÊN PHÒNG KHÁM
                 </span>
             )
         }
@@ -178,13 +178,13 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                                     <td className="p-4">{getRoleBadge(member.role)}</td>
                                     <td className="p-4">
                                         <span className="text-stone-700 font-medium text-sm">
-                                            {member.role === 'VET' ? getSpecialtyBadge(member.specialty) : '-'}
+                                            {member.role === 'STAFF' ? getSpecialtyBadge(member.specialty) : '-'}
                                         </span>
                                     </td>
                                     {(canRemove || canEdit) && (
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                                {canEdit && member.role === 'STAFF' && onEditSpecialty && (
                                                     <button
                                                         onClick={() => onEditSpecialty(member)}
                                                         className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-transparent hover:border-amber-600 transition-all"
@@ -247,7 +247,7 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                                     </div>
                                 </div>
                                 <div className="flex gap-1">
-                                    {canEdit && member.role === 'VET' && onEditSpecialty && (
+                                    {canEdit && member.role === 'STAFF' && onEditSpecialty && (
                                         <button
                                             onClick={() => onEditSpecialty(member)}
                                             className="p-2 text-amber-600 hover:bg-amber-100 border-2 border-amber-600"
@@ -268,7 +268,7 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
                             </div>
                             <div className="mt-3 text-sm text-stone-600 space-y-1">
                                 {member.phone && <p>SĐT: {member.phone}</p>}
-                                {member.role === 'VET' && (
+                                {member.role === 'STAFF' && (
                                     <p>Chuyên môn: {getSpecialtyBadge(member.specialty)}</p>
                                 )}
                             </div>

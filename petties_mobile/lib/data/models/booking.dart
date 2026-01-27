@@ -83,8 +83,8 @@ class BookingServiceItem {
   final String? serviceId;
   final String? serviceName;
   final double? price;
-  final String? assignedVetId;
-  final String? assignedVetName;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
@@ -94,8 +94,8 @@ class BookingServiceItem {
     this.serviceId,
     this.serviceName,
     this.price,
-    this.assignedVetId,
-    this.assignedVetName,
+    this.assignedStaffId,
+    this.assignedStaffName,
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
@@ -107,8 +107,8 @@ class BookingServiceItem {
       serviceId: json['serviceId'],
       serviceName: json['serviceName'],
       price: (json['price'] as num?)?.toDouble(),
-      assignedVetId: json['assignedVetId'],
-      assignedVetName: json['assignedVetName'],
+      assignedStaffId: json['assignedStaffId'],
+      assignedStaffName: json['assignedStaffName'],
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],
@@ -117,25 +117,25 @@ class BookingServiceItem {
 }
 
 /// ============================================================
-/// VET HOME SUMMARY MODELS
-/// Matches backend VetHomeSummaryResponse
+/// STAFF HOME SUMMARY MODELS
+/// Matches backend StaffHomeSummaryResponse
 /// ============================================================
 
-class VetHomeSummaryResponse {
+class StaffHomeSummaryResponse {
   final int todayBookingsCount;
   final int pendingCount;
   final int inProgressCount;
   final List<UpcomingBookingDTO> upcomingBookings;
 
-  VetHomeSummaryResponse({
+  StaffHomeSummaryResponse({
     required this.todayBookingsCount,
     required this.pendingCount,
     required this.inProgressCount,
     required this.upcomingBookings,
   });
 
-  factory VetHomeSummaryResponse.fromJson(Map<String, dynamic> json) {
-    return VetHomeSummaryResponse(
+  factory StaffHomeSummaryResponse.fromJson(Map<String, dynamic> json) {
+    return StaffHomeSummaryResponse(
       todayBookingsCount: json['todayBookingsCount'] ?? 0,
       pendingCount: json['pendingCount'] ?? 0,
       inProgressCount: json['inProgressCount'] ?? 0,

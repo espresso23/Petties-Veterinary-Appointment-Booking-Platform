@@ -22,11 +22,11 @@ export interface BookingServiceItem {
     basePrice?: number;      // Original service base price
     weightPrice?: number;    // Price tier based on pet weight
 
-    // Assigned vet for this specific service
-    assignedVetId?: string;
-    assignedVetName?: string;
-    assignedVetAvatarUrl?: string;
-    assignedVetSpecialty?: string;
+    // Assigned staff for this specific service
+    assignedStaffId?: string;
+    assignedStaffName?: string;
+    assignedStaffAvatarUrl?: string;
+    assignedStaffSpecialty?: string;
 
     // Scheduled time for this service
     scheduledStartTime?: string; // HH:mm:ss format
@@ -60,11 +60,11 @@ export interface Booking {
     clinicName: string;
     clinicAddress?: string;
 
-    // Vet info
-    assignedVetId?: string;
-    assignedVetName?: string;
-    assignedVetSpecialty?: string;
-    assignedVetAvatarUrl?: string;
+    // Staff info
+    assignedStaffId?: string;
+    assignedStaffName?: string;
+    assignedStaffSpecialty?: string;
+    assignedStaffAvatarUrl?: string;
 
     // Payment info
     paymentStatus?: string; // PENDING, PAID, REFUNDED, FAILED
@@ -106,8 +106,8 @@ export interface CreateBookingRequest {
 
 // Confirm booking request
 export interface ConfirmBookingRequest {
-    assignedVetId?: string;
-    selectedVetId?: string; // For manual vet selection dropdown
+    assignedStaffId?: string;
+    selectedStaffId?: string; // For manual staff selection dropdown
     managerNotes?: string;
 }
 
@@ -178,10 +178,10 @@ export const STAFF_SPECIALTY_LABELS: Record<string, string> = {
     GROOMER: 'Nhân viên Grooming',
 };
 
-// Available vet response for reassignment
-export interface AvailableVetResponse {
-    vetId: string;
-    vetName: string;
+// Available staff response for reassignment
+export interface AvailableStaffResponse {
+    staffId: string;
+    staffName: string;
     avatarUrl?: string;
     specialty?: string;
     available: boolean;
@@ -190,12 +190,12 @@ export interface AvailableVetResponse {
     unavailableReason?: string; // If not available, reason why
 }
 
-// Reassign vet request
-export interface ReassignVetRequest {
-    newVetId: string;
+// Reassign staff request
+export interface ReassignStaffRequest {
+    newStaffId: string;
 }
 
-// ========== VET AVAILABILITY CHECK ==========
+// ========== STAFF AVAILABILITY CHECK ==========
 
 // Service availability in a booking
 export interface ServiceAvailability {
@@ -205,11 +205,11 @@ export interface ServiceAvailability {
     requiredSpecialty: string;
     requiredSpecialtyLabel: string;
     price: number;
-    hasAvailableVet: boolean;
-    suggestedVetId?: string;
-    suggestedVetName?: string;
-    suggestedVetAvatarUrl?: string;
-    suggestedVetSpecialty?: string;
+    hasAvailableStaff: boolean;
+    suggestedStaffId?: string;
+    suggestedStaffName?: string;
+    suggestedStaffAvatarUrl?: string;
+    suggestedStaffSpecialty?: string;
     unavailableReason?: string;
 }
 
@@ -219,13 +219,13 @@ export interface AlternativeTimeSlot {
     specialtyLabel: string;
     date: string; // ISO date format
     availableTimes: string[]; // HH:mm format
-    vetName: string;
-    vetId: string;
+    staffName: string;
+    staffId: string;
 }
 
-// Vet availability check response
-export interface VetAvailabilityCheckResponse {
-    allServicesHaveVets: boolean;
+// Staff availability check response
+export interface StaffAvailabilityCheckResponse {
+    allServicesHaveStaff: boolean;
     services: ServiceAvailability[];
     alternativeTimeSlots: AlternativeTimeSlot[];
     priceReductionIfRemoved: number;
@@ -233,7 +233,7 @@ export interface VetAvailabilityCheckResponse {
 
 // Confirm booking request with options
 export interface ConfirmBookingWithOptionsRequest {
-    assignedVetId?: string;
+    assignedStaffId?: string;
     managerNotes?: string;
     allowPartial?: boolean;
     removeUnavailableServices?: boolean;

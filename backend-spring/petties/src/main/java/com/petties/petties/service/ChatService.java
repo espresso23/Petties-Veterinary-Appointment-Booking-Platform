@@ -125,7 +125,7 @@ public class ChatService {
 
         if (role == Role.PET_OWNER) {
             conversations = conversationRepository.findByPetOwnerIdOrderByLastMessageAtDesc(userId, pageable);
-        } else if (role == Role.CLINIC_OWNER || role == Role.CLINIC_MANAGER || role == Role.VET) {
+        } else if (role == Role.CLINIC_OWNER || role == Role.CLINIC_MANAGER || role == Role.STAFF) {
             // Get clinic ID from user
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));

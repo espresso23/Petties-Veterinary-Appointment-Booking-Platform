@@ -29,7 +29,7 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
             "WHERE vs.clinic.clinicId = :clinicId " +
             "AND vs.workDate = :workDate " +
             "AND s.status = 'AVAILABLE' " +
-            "ORDER BY vs.vet.fullName, s.startTime")
+            "ORDER BY vs.staff.fullName, s.startTime")
     List<Slot> findAvailableSlotsByClinicAndDate(
             @Param("clinicId") UUID clinicId,
             @Param("workDate") LocalDate workDate);
@@ -37,10 +37,10 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
     // Find all slots (any status) for a clinic on a date range
     @Query("SELECT s FROM Slot s " +
             "JOIN FETCH s.shift vs " +
-            "JOIN FETCH vs.vet " +
+            "JOIN FETCH vs.staff " +
             "WHERE vs.clinic.clinicId = :clinicId " +
             "AND vs.workDate BETWEEN :startDate AND :endDate " +
-            "ORDER BY vs.workDate, vs.vet.fullName, s.startTime")
+            "ORDER BY vs.workDate, vs.staff.fullName, s.startTime")
     List<Slot> findAllSlotsByClinicAndDateRange(
             @Param("clinicId") UUID clinicId,
             @Param("startDate") LocalDate startDate,

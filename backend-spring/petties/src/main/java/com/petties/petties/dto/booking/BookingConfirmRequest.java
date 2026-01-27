@@ -17,9 +17,9 @@ import java.util.UUID;
 public class BookingConfirmRequest {
 
     /**
-     * Optional: Manual vet assignment (if provided, skip auto-assign)
+     * Optional: Manual staff assignment (if provided, skip auto-assign)
      */
-    private UUID assignedVetId;
+    private UUID assignedStaffId;
 
     /**
      * Optional: Manager notes
@@ -27,21 +27,39 @@ public class BookingConfirmRequest {
     private String managerNotes;
 
     /**
-     * Allow partial confirmation: Confirm booking even if some services don't have available vets
-     * Manager can manually assign vets later
+     * Allow partial confirmation: Confirm booking even if some services don't have available staff
+     * Manager can manually assign staff later
      */
     private Boolean allowPartial;
 
     /**
-     * Remove unavailable services: Confirm booking but remove services without available vets
+     * Remove unavailable services: Confirm booking but remove services without available staff
      * Price will be recalculated accordingly
      */
     private Boolean removeUnavailableServices;
 
     /**
-     * Optional: Selected vet ID from the dropdown (manual selection by manager)
-     * If provided, this vet will be assigned to ALL services instead of auto-assign
-     * Takes precedence over assignedVetId (same behavior, but named for UI clarity)
+     * Optional: Selected staff ID from the dropdown (manual selection by manager)
+     * If provided, this staff will be assigned to ALL services instead of auto-assign
+     * Takes precedence over assignedStaffId (same behavior, but named for UI clarity)
      */
-    private UUID selectedVetId;
+    private UUID selectedStaffId;
+
+    // ========== DEPRECATED - keeping for backward compatibility ==========
+
+    /**
+     * @deprecated Use assignedStaffId instead. Kept for backward compatibility.
+     */
+    @Deprecated
+    public UUID getAssignedStaffIdLegacy() {
+        return assignedStaffId;
+    }
+
+    /**
+     * @deprecated Use selectedStaffId instead. Kept for backward compatibility.
+     */
+    @Deprecated
+    public UUID getSelectedStaffIdLegacy() {
+        return selectedStaffId;
+    }
 }

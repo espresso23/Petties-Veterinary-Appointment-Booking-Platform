@@ -3,10 +3,10 @@ class EmrRecord {
   final String id;
   final String petId;
   final String? bookingId;
-  final String vetId;
+  final String staffId;
   final String? clinicId;
   final String? clinicName;
-  final String? vetName;
+  final String? staffName;
   final String? petName;
   final String? petSpecies;
   final String? petBreed;
@@ -31,10 +31,10 @@ class EmrRecord {
     required this.id,
     required this.petId,
     this.bookingId,
-    required this.vetId,
+    required this.staffId,
     this.clinicId,
     this.clinicName,
-    this.vetName,
+    this.staffName,
     this.petName,
     this.petSpecies,
     this.petBreed,
@@ -61,10 +61,10 @@ class EmrRecord {
       id: json['id'] ?? '',
       petId: json['petId'] ?? '',
       bookingId: json['bookingId'],
-      vetId: json['vetId'] ?? '',
+      staffId: json['staffId'] ?? '',
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
-      vetName: json['vetName'],
+      staffName: json['staffName'],
       petName: json['petName'],
       petSpecies: json['petSpecies'],
       petBreed: json['petBreed'],

@@ -80,9 +80,9 @@ export const NotificationsPage = () => {
   // Get navigation route based on notification type
   const getNavigationRoute = (notification: ClinicNotification): string | null => {
     switch (notification.type) {
-      case 'VET_SHIFT_ASSIGNED':
-      case 'VET_SHIFT_UPDATED':
-      case 'VET_SHIFT_DELETED':
+      case 'STAFF_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_DELETED':
         return '/clinic-manager/shifts'
       case 'APPROVED':
       case 'REJECTED':
@@ -119,11 +119,11 @@ export const NotificationsPage = () => {
         return 'bg-green-100 border-green-600'
       case 'REJECTED':
         return 'bg-red-100 border-red-600'
-      case 'VET_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_ASSIGNED':
         return 'bg-amber-100 border-amber-600'
-      case 'VET_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_UPDATED':
         return 'bg-blue-100 border-blue-600'
-      case 'VET_SHIFT_DELETED':
+      case 'STAFF_SHIFT_DELETED':
         return 'bg-orange-100 border-orange-600'
       default:
         return 'bg-stone-100 border-stone-600'
@@ -136,11 +136,11 @@ export const NotificationsPage = () => {
         return 'PHÒNG KHÁM ĐÃ ĐƯỢC DUYỆT'
       case 'REJECTED':
         return 'PHÒNG KHÁM KHÔNG ĐƯỢC DUYỆT'
-      case 'VET_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_ASSIGNED':
         return 'CA LÀM VIỆC MỚI'
-      case 'VET_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_UPDATED':
         return 'CA LÀM VIỆC ĐÃ CẬP NHẬT'
-      case 'VET_SHIFT_DELETED':
+      case 'STAFF_SHIFT_DELETED':
         return 'CA LÀM VIỆC ĐÃ XÓA'
       default:
         return 'THÔNG BÁO'
@@ -149,8 +149,8 @@ export const NotificationsPage = () => {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'VET_SHIFT_ASSIGNED':
-      case 'VET_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_UPDATED':
         return (
           <div className="w-10 h-10 bg-amber-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@ export const NotificationsPage = () => {
             </svg>
           </div>
         )
-      case 'VET_SHIFT_DELETED':
+      case 'STAFF_SHIFT_DELETED':
         return (
           <div className="w-10 h-10 bg-orange-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

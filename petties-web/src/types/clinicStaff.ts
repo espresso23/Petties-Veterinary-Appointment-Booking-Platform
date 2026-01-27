@@ -1,9 +1,9 @@
 /**
  * ClinicStaff Types
- * For managing clinic staff (VET, CLINIC_MANAGER)
+ * For managing clinic staff (STAFF, CLINIC_MANAGER)
  */
 
-export type StaffRole = 'VET' | 'CLINIC_MANAGER'
+export type StaffRole = 'STAFF' | 'CLINIC_MANAGER'
 
 // Chuyên môn của nhân viên
 export type StaffSpecialty =

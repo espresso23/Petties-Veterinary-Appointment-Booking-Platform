@@ -157,14 +157,14 @@ public class DataInitializer implements CommandLineRunner {
 
                 if (targetUser == null) {
                     // Create if not exists
-                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.VET);
+                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.STAFF);
                 }
 
                 if (targetUser != null) {
                     boolean changed = false;
                     // Force Role VET
-                    if (targetUser.getRole() != Role.VET && targetUser.getRole() != Role.ADMIN) {
-                        targetUser.setRole(Role.VET);
+                    if (targetUser.getRole() != Role.STAFF && targetUser.getRole() != Role.ADMIN) {
+                        targetUser.setRole(Role.STAFF);
                         changed = true;
                     }
                     // Assign Clinic
@@ -552,7 +552,7 @@ public class DataInitializer implements CommandLineRunner {
         user.setEmail(email);
         user.setPhone("0" + (long) (Math.random() * 1000000000L));
         user.setFullName(fullName);
-        user.setRole(Role.VET);
+        user.setRole(Role.STAFF);
         user.setSpecialty(specialty);
         user.setAvatar(
                 "https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+") + "&background=86EFAC&color=1c1917");

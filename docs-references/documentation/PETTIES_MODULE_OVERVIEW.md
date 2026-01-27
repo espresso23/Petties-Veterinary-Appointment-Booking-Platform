@@ -11,13 +11,13 @@
 | No | Module | Description | APIs | Status |
 |----|--------|-------------|:----:|:------:|
 | 01 | **Authentication** | Đăng ký, đăng nhập, OAuth, OTP, JWT refresh | 8 | ✅ Done |
-| 02 | **User Management** | Profile, avatar, change password/email | 7 | ✅ Done |
+| 02 | **User Management** | Profile, avatar, change password/email (STAFF role replaces STAFF) | 7 | ✅ Done |
 | 03 | **Pet Management** | CRUD pets, upload photo | 6 | ✅ Done |
 | 04 | **Clinic Management** | CRUD clinics, approval workflow, images, search | 12 | ✅ Done |
 | 05 | **Service Management** | Master services (Admin), Clinic services (Owner) | 8 | ✅ Done |
 | 06 | **Pricing** | Dynamic pricing rules, price calculation | 3 | ✅ Done |
 | 07 | **Staff Management** | Quick add staff, deactivate, list | 4 | ✅ Done |
-| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock | 8 | ✅ Done |
+| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock (STAFF shifts) | 8 | ✅ Done |
 | 09 | **Booking** | Create, assign, approve/reject, check-in/out, cancel, incurred services | 12 | ⏳ Pending |
 | 10 | **Chat (1-1)** | Conversations, messages, WebSocket realtime | 7+WS | ⏳ Pending |
 | 11 | **EMR** | Create/view medical records linked to booking | 4 | ❌ Phase 2 |
@@ -70,10 +70,10 @@
 | 14 | **Manager Dashboard** | CLINIC_MANAGER | Today's bookings, pending tasks | ✅ Done |
 | 15 | **Calendar View** | CLINIC_MANAGER | Weekly/daily calendar, shift creation, block/unblock slots | ✅ Done |
 | 16 | **Booking Management** | CLINIC_MANAGER | Booking list, assign vet, status tracking | ⏳ Pending |
-| 17 | **Chat System** | CM, VET | Conversations list, chat room | ⏳ Pending |
-| 18 | **Vet Dashboard** | VET | Schedule, assigned bookings, quick actions | ✅ Done |
-| 19 | **Vet Booking Actions** | VET | View assigned, check-in/out | ⏳ Pending |
-| 20 | **Patient Management** | CM, VET | Patient lookup, EMR history (read-only for CM) | ❌ Phase 2 |
+| 17 | **Chat System** | CM, STAFF | Conversations list, chat room | ⏳ Pending |
+| 18 | **Staff Dashboard** | STAFF | Schedule, assigned bookings, quick actions | ✅ Done |
+| 19 | **Staff Booking Actions** | STAFF | View assigned, check-in/out | ⏳ Pending |
+| 20 | **Patient Management** | CM, STAFF | Patient lookup, EMR history (read-only for CM) | ❌ Phase 2 |
 | 21 | **Profile Page** | All | View/edit profile, avatar, password | ✅ Done |
 | 22 | **Notifications** | All | Notification list, mark read | ✅ Done |
 
@@ -92,18 +92,18 @@
 | 07 | **Booking Flow** | PET_OWNER | Service selection → Slot picker → Confirm → Success | ⏳ Pending |
 | 08 | **My Bookings** | PET_OWNER | Bookings list, detail, cancel, additional services view | ⏳ Pending |
 | 09 | **AI Chat** | PET_OWNER | Chat with AI assistant, tool calls, citations | ⏳ Pending |
-| 10 | **Chat (1-1)** | PET_OWNER | Chat with Manager/Vet | ⏳ Pending |
+| 10 | **Chat (1-1)** | PET_OWNER | Chat with Manager/Staff | ⏳ Pending |
 | 11 | **EMR Viewer** | PET_OWNER | View pet medical records | ❌ Phase 2 |
 | 12 | **Vaccination Viewer** | PET_OWNER | View vaccination history | ❌ Phase 2 |
 | 13 | **Home Visit Tracking** | PET_OWNER | Realtime GPS tracking of vet | ❌ Phase 2 |
 | 14 | **SOS Emergency** | PET_OWNER | Emergency booking, track rescue vet, ETA | ✅ Confirmed |
-| 15 | **Vet Home** | VET | Today's appointments, quick stats | ✅ Done |
-| 16 | **Vet Schedule** | VET | Calendar view, shift info, view-only slots | ✅ Done |
-| 17 | **Vet Bookings** | VET | Assigned bookings, view details, check-in/out, add incurred services | ⏳ Pending |
-| 18 | **EMR Creation** | VET | Create/edit medical records | ❌ Phase 2 |
-| 19 | **Vaccination Entry** | VET | Add vaccination records | ❌ Phase 2 |
-| 20 | **Vet Chat** | VET | Chat with Pet Owner | ⏳ Pending |
-| 21 | **SOS Response** | VET | Start emergency travel, GPS broadcast, mark arrived | ✅ Confirmed |
+| 15 | **Staff Home** | STAFF | Today's appointments, quick stats | ✅ Done |
+| 16 | **Staff Schedule** | STAFF | Calendar view, shift info, view-only slots | ✅ Done |
+| 17 | **Staff Bookings** | STAFF | Assigned bookings, view details, check-in/out, add incurred services | ⏳ Pending |
+| 18 | **EMR Creation** | STAFF | Create/edit medical records | ❌ Phase 2 |
+| 19 | **Vaccination Entry** | STAFF | Add vaccination records | ❌ Phase 2 |
+| 20 | **Staff Chat** | STAFF | Chat with Pet Owner | ⏳ Pending |
+| 21 | **SOS Response** | STAFF | Start emergency travel, GPS broadcast, mark arrived | ✅ Confirmed |
 | 22 | **Profile Screen** | All | View/edit profile, avatar, password | ✅ Done |
 | 23 | **Notifications** | All | Push notifications, in-app list | ⏳ Pending |
 
@@ -114,7 +114,7 @@
 | No | Feature | Description | Platforms | Status |
 |----|---------|-------------|-----------|:------:|
 | 01 | **JWT Authentication** | Stateless auth with access/refresh tokens | All | ✅ Done |
-| 02 | **Role-Based Access Control** | 5 roles: PET_OWNER, VET, CLINIC_MANAGER, CLINIC_OWNER, ADMIN | All | ✅ Done |
+| 02 | **Role-Based Access Control** | 5 roles: PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN | All | ✅ Done |
 | 03 | **OTP Verification** | Email OTP for registration, password reset, email change | All | ✅ Done |
 | 04 | **File Upload** | Cloudinary for images (avatars, pets, clinics) | All | ✅ Done |
 | 05 | **Push Notifications** | Firebase FCM for booking updates, reminders | Mobile | ⏳ Pending |
@@ -127,7 +127,7 @@
 | 12 | **Booking State Machine** | PENDING → ASSIGNED → CONFIRMED → IN_PROGRESS → COMPLETED | All | ⏳ Pending |
 | 13 | **Error Handling** | Centralized with Vietnamese messages | All | ✅ Done |
 | 14 | **Neobrutalism Design** | Consistent UI design system | Web + Mobile | ✅ Done |
-| 15 | **Incurred Services** | Vet can add extra services during examination | BE + Mobile | ⏳ Pending |
+| 15 | **Incurred Services** | Staff can add extra services during examination | BE + Mobile | ⏳ Pending |
 | 16 | **SOS GPS Tracking** | Real-time GPS for emergency rescue only | All | ✅ Confirmed |
 
 ---
@@ -150,8 +150,8 @@
 | Role | Web | Mobile | Primary Use Cases |
 |------|:---:|:------:|-------------------|
 | **PET_OWNER** | - | ✅ | Book appointments, manage pets, chat with AI, view EMR, SOS emergency |
-| **VET** | ✅ | ✅ | Manage schedule, view assigned bookings, create EMR, add incurred services, chat, SOS response |
-| **CLINIC_MANAGER** | ✅ | - | Assign vets, manage bookings, view calendar, chat |
+| **STAFF** | ✅ | ✅ | Manage schedule, view assigned bookings, create EMR, add incurred services, chat, SOS response |
+| **CLINIC_MANAGER** | ✅ | - | Assign staff, manage bookings, view calendar, chat |
 | **CLINIC_OWNER** | ✅ | - | Manage clinics, services, pricing, staff, view revenue |
 | **ADMIN** | ✅ | - | Approve clinics, configure AI agent, manage system |
 
@@ -192,8 +192,9 @@
 
 ---
 
-**Document Version:** 1.5.0  
-**Last Updated:** 2026-01-22  
+**Document Version:** 1.6.0
+**Last Updated:** 2026-01-27
+**Change Note:** Updated Role.STAFF → Role.STAFF throughout documentation
 **Prepared by:** Petties Development Team
 **References:**
 - `PETTIES_Features.md` - Feature specifications

@@ -329,10 +329,10 @@ class FcmService {
     }
 
     switch (type) {
-      case 'VET_SHIFT_ASSIGNED':
-      case 'VET_SHIFT_UPDATED':
-      case 'VET_SHIFT_DELETED':
-        context.push(AppRoutes.vetSchedule);
+      case 'STAFF_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_DELETED':
+        context.push(AppRoutes.staffSchedule);
         break;
       case 'BOOKING_CREATED':
       case 'BOOKING_CONFIRMED':
