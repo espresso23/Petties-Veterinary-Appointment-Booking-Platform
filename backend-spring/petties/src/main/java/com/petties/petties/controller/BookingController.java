@@ -195,9 +195,9 @@ public class BookingController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
 
-        // Note: This will need UserRepository to get bookings by pet owner
-        // For now, return empty - will be implemented with proper auth context
-        return ResponseEntity.ok(Page.empty());
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        Page<BookingResponse> bookings = bookingService.getMyBookings(userPrincipal.getUserId(), pageable);
+        return ResponseEntity.ok(bookings);
     }
 
     // ========== VET REASSIGNMENT ==========

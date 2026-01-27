@@ -74,6 +74,27 @@ class AppColors {
   static const Color greyLight = stone200;
   static const Color greyDark = stone600;
   static const Color brutalBorder = stone900;
+
+  // ===== NEOBRUTALISM COLORS =====
+  static const Color coral = Color(0xFFFF6B6B);
+  
+  // Teal
+  static const Color teal100 = Color(0xFFCCFBF1);
+  static const Color teal600 = Color(0xFF0D9488);
+  static const Color teal700 = Color(0xFF0F766E);
+  
+  // Blue  
+  static const Color blue100 = Color(0xFFDBEAFE);
+  static const Color blue600 = Color(0xFF2563EB);
+  
+  // Pink
+  static const Color pink500 = Color(0xFFEC4899);
+  
+  // Purple
+  static const Color purple500 = Color(0xFF8B5CF6);
+  
+  // Yellow
+  static const Color yellow600 = Color(0xFFCA8A04);
 }
 
 /// Design Spacing - 4px base unit system

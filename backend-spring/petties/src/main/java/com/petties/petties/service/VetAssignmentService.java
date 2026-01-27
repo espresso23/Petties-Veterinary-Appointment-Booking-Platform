@@ -1215,8 +1215,9 @@ public class VetAssignmentService {
                         continue;
                     }
 
-                    // Check if vet is free (no bookings in this time range)
-                    boolean isVetFree = !hasBookingInTimeRange(vet.getUserId(), date, currentTime, endTime);
+                    // Check if vet is free (no booked slots in this time range)
+                    boolean isVetFree = !slotRepository.isVetBookedInTimeRange(
+                            vet.getUserId(), date, currentTime, endTime);
 
                     if (isVetFree) {
                         hasAvailableVet = true;
@@ -1240,30 +1241,5 @@ public class VetAssignmentService {
 
         log.info("Found {} available slots for services {}", availableSlots.size(), serviceIds);
         return availableSlots;
-    }
-
-    /**
-     * Helper: Check if vet has any booking in the specified time range
-     */
-    private boolean hasBookingInTimeRange(UUID vetId, LocalDate date, LocalTime startTime, LocalTime endTime) {
-        List<Booking> vetBookings = bookingRepository.findByVetIdAndDate(vetId, date);
-
-        for (Booking booking : vetBookings) {
-            LocalTime bookingStart = booking.getBookingTime();
-
-            // Calculate total duration from all booking services
-            int totalDuration = booking.getBookingServices().stream()
-                    .mapToInt(item -> item.getService().getDurationTime())
-                    .sum();
-            LocalTime bookingEnd = bookingStart.plusMinutes(totalDuration);
-
-            // Check for overlap
-            boolean overlaps = !bookingEnd.isBefore(startTime) && !bookingStart.isAfter(endTime);
-            if (overlaps) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

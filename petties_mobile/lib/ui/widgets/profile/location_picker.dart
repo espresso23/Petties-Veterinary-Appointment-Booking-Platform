@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../../config/constants/app_colors.dart';
+import '../../../config/constants/app_colors.dart';
 
 /// Place prediction from Goong Autocomplete API
 class PlacePrediction {
@@ -61,7 +61,7 @@ class PlaceDetails {
 /// Service for Goong Places API
 class GoongPlacesService {
   final String apiKey;
-  static const String _baseUrl = 'https://rsapi.goong.io';
+  // static const String _baseUrl = 'https://rsapi.goong.io'; // Using Uri.https instead
 
   GoongPlacesService({required this.apiKey});
 
@@ -75,19 +75,23 @@ class GoongPlacesService {
   }) async {
     if (query.isEmpty) return [];
 
-    String url = '$_baseUrl/place/autocomplete'
-        '?input=${Uri.encodeComponent(query)}'
-        '&api_key=$apiKey'
-        '&limit=$limit'
-        '&radius=$radius';
-
-    // Add location context if available
-    if (latitude != null && longitude != null) {
-      url += '&location=$latitude,$longitude';
-    }
-
     try {
-      final response = await http.get(Uri.parse(url));
+      final queryParams = {
+        'input': query,
+        'api_key': apiKey,
+        'limit': limit.toString(),
+        'radius': radius.toString(),
+      };
+
+      // Add location context if available
+      if (latitude != null && longitude != null) {
+        queryParams['location'] = '$latitude,$longitude';
+      }
+
+      // Robust URI construction to handle special characters and spaces correctly
+      final uri = Uri.https('rsapi.goong.io', '/place/autocomplete', queryParams);
+      
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'OK' && data['predictions'] != null) {
@@ -105,12 +109,15 @@ class GoongPlacesService {
 
   /// Get place details by place ID
   Future<PlaceDetails?> getPlaceDetails(String placeId) async {
-    final url = '$_baseUrl/place/detail'
-        '?place_id=$placeId'
-        '&api_key=$apiKey';
-
     try {
-      final response = await http.get(Uri.parse(url));
+      final queryParams = {
+        'place_id': placeId,
+        'api_key': apiKey,
+      };
+      
+      final uri = Uri.https('rsapi.goong.io', '/place/detail', queryParams);
+
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['status'] == 'OK' && data['result'] != null) {

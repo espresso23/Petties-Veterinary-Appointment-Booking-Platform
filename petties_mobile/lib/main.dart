@@ -9,13 +9,13 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/booking_wizard_provider.dart';
+import 'providers/clinic_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
 import 'utils/storage_service.dart';
 import 'core/services/sentry_service.dart';
 import 'utils/fcm_service.dart';
-import 'providers/notification_provider.dart';
-import 'providers/clinic_provider.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -37,10 +37,8 @@ void main() async {
   // Initialize local storage first (needed for auth)
   await StorageService().init();
 
-  // Set up Firebase background message handler BEFORE initializing Firebase
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-  // Initialize Firebase (required before runApp for FCM background handler)
+  // Initialize Firebase WITHOUT background handler first
+  // Background handler will be set up after first frame to avoid 20s freeze
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -54,9 +52,10 @@ void main() async {
   final userProvider = UserProvider();
   final notificationProvider = NotificationProvider();
   final clinicProvider = ClinicProvider();
+  final bookingWizardProvider = BookingWizardProvider();
 
   // Initialize Sentry and run app immediately
-  // FCM will be initialized AFTER first frame renders
+  // FCM and background handler will be initialized AFTER first frame renders
   await SentryService.init(() {
     runApp(
       MultiProvider(
@@ -65,14 +64,19 @@ void main() async {
           ChangeNotifierProvider.value(value: userProvider),
           ChangeNotifierProvider.value(value: notificationProvider),
           ChangeNotifierProvider.value(value: clinicProvider),
+          ChangeNotifierProvider.value(value: bookingWizardProvider),
         ],
         child: PettiesApp(authProvider: authProvider),
       ),
     );
 
-    // Defer FCM initialization to after first frame
+    // Defer FCM initialization AND background handler setup to after first frame
     // This prevents blocking the main thread during startup
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Set up Firebase background message handler AFTER UI renders
+      // This avoids creating background Flutter Engine during startup (saves 20s)
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      
       try {
         await FcmService().initialize();
       } catch (e) {

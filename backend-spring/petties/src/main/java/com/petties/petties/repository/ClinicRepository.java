@@ -149,10 +149,15 @@ public interface ClinicRepository extends JpaRepository<Clinic, UUID> {
                               )
                           ))
                           AND (
-                               :lat IS NULL OR :lng IS NULL OR :radius IS NULL
-                               OR (6371 * acos(greatest(-1.0, least(1.0, cos(radians(:lat)) * cos(radians(c.latitude)) *
-                                   cos(radians(c.longitude) - radians(:lng)) +
-                                   sin(radians(:lat)) * sin(radians(c.latitude)))))) <= :radius
+                               -- If no radius filter, allow all clinics
+                               (:lat IS NULL OR :lng IS NULL OR :radius IS NULL)
+                               -- If radius filter is set, clinic MUST have coordinates AND be within radius
+                               OR (
+                                   c.latitude IS NOT NULL AND c.longitude IS NOT NULL
+                                   AND (6371 * acos(greatest(-1.0, least(1.0, cos(radians(:lat)) * cos(radians(c.latitude)) *
+                                       cos(radians(c.longitude) - radians(:lng)) +
+                                       sin(radians(:lat)) * sin(radians(c.latitude)))))) <= :radius
+                               )
                           )
                           AND (:province IS NULL OR :province = '' OR LOWER(c.province) = LOWER(:province))
                           AND (:district IS NULL OR :district = '' OR LOWER(c.district) = LOWER(:district))

@@ -35,12 +35,14 @@ class AppRoutes {
   static const String clinicSearch = '/clinics/search';
   static const String clinicDetail = '/clinics/:id';
   static const String clinicMap = '/clinics/map';
+  static const String clinicAllServices = '/clinics/:id/services';
 
-  // Booking Flow
-  static const String clinicDetails = '/clinic/:id';
-  static const String selectService = '/booking/select-service';
-  static const String selectDateTime = '/booking/select-datetime';
-  static const String bookingConfirmation = '/booking/confirmation';
+  // Booking Flow (Pet Owner)
+  static const String bookingSelectPet = '/booking/:clinicId/pet';
+  static const String bookingSelectServices = '/booking/services';
+  static const String bookingSelectDateTime = '/booking/datetime';
+  static const String bookingConfirm = '/booking/confirm';
+  static const String bookingSuccess = '/booking/success';
   static const String bookingDetails = '/booking/:id';
 
   // Profile & Settings

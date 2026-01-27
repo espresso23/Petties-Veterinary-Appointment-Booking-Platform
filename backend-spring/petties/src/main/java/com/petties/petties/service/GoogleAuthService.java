@@ -28,12 +28,11 @@ public class GoogleAuthService {
     public void init() {
         verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
-                GsonFactory.getDefaultInstance()
-        )
-        .setAudience(Collections.singletonList(googleClientId))
-        .build();
-        
-        log.info("GoogleAuthService initialized with client ID: {}...", 
+                GsonFactory.getDefaultInstance())
+                .setAudience(Collections.singletonList(googleClientId))
+                .build();
+
+        log.info("GoogleAuthService initialized with client ID: {}...",
                 googleClientId.substring(0, Math.min(20, googleClientId.length())));
     }
 
@@ -47,14 +46,14 @@ public class GoogleAuthService {
     public GoogleUserInfo verifyIdToken(String idToken) {
         try {
             GoogleIdToken googleIdToken = verifier.verify(idToken);
-            
+
             if (googleIdToken == null) {
                 log.error("Invalid Google ID token - verification returned null");
                 throw new UnauthorizedException("Token Google không hợp lệ");
             }
 
             GoogleIdToken.Payload payload = googleIdToken.getPayload();
-            
+
             // Verify email is verified
             Boolean emailVerified = payload.getEmailVerified();
             if (emailVerified == null || !emailVerified) {
@@ -68,9 +67,9 @@ public class GoogleAuthService {
             String googleId = payload.getSubject();
 
             log.info("Successfully verified Google ID token for email: {}", email);
-            
+
             return new GoogleUserInfo(googleId, email, name, picture);
-            
+
         } catch (UnauthorizedException e) {
             throw e;
         } catch (Exception e) {
@@ -86,7 +85,6 @@ public class GoogleAuthService {
             String googleId,
             String email,
             String name,
-            String picture
-    ) {}
+            String picture) {
+    }
 }
-

@@ -17,7 +17,7 @@ import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { vi } from 'date-fns/locale'
-import 'react-datepicker/dist/react-datepicker.css'
+// Note: react-datepicker CSS is loaded via index.css or alternative method
 
 // Register Vietnamese locale
 registerLocale('vi', vi)

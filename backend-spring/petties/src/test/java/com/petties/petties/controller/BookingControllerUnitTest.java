@@ -772,10 +772,20 @@ class BookingControllerUnitTest {
         @DisplayName("TC-BOOKING-OWNER-001: Get my bookings as pet owner - Returns 200")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void getMyBookings_petOwner_returns200() throws Exception {
+                // Arrange
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                Page<BookingResponse> emptyPage = new PageImpl<>(Collections.emptyList());
+                when(bookingService.getMyBookings(eq(userId), any(Pageable.class)))
+                                .thenReturn(emptyPage);
+
                 // Act & Assert
                 mockMvc.perform(get("/bookings/my"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.content").isEmpty()); // Currently returns empty
+                                .andExpect(jsonPath("$.content").isEmpty());
+
+                verify(bookingService).getMyBookings(eq(userId), any(Pageable.class));
         }
 
         // ==================== GET AVAILABLE VETS FOR REASSIGN TESTS
@@ -938,5 +948,65 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.message")
                                                 .value("Không có đủ slot liên tiếp tại thời gian yêu cầu"));
+        }
+        // ==================== GET AVAILABLE SLOTS TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-SLOTS-001: Get available slots - Valid request - Returns 200")
+        @WithMockUser(roles = "PET_OWNER")
+        void getAvailableSlots_validRequest_returns200() throws Exception {
+                // Arrange
+                UUID clinicId = UUID.randomUUID();
+                LocalDate date = LocalDate.of(2025, 1, 20);
+                List<UUID> serviceIds = List.of(UUID.randomUUID());
+
+                AvailableSlotsResponse response = AvailableSlotsResponse.builder()
+                                .availableSlots(List.of(
+                                                LocalTime.of(9, 0),
+                                                LocalTime.of(10, 0)))
+                                .totalSlots(2)
+                                .build();
+
+                when(bookingService.getAvailableSlots(eq(clinicId), eq(date), eq(serviceIds)))
+                                .thenReturn(response);
+
+                // Act & Assert
+                mockMvc.perform(get("/bookings/public/available-slots")
+                                .param("clinicId", clinicId.toString())
+                                .param("date", date.toString())
+                                .param("serviceIds", serviceIds.get(0).toString()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.availableSlots[0]").value("09:00:00"))
+                                .andExpect(jsonPath("$.totalSlots").value(2));
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-SLOTS-002: Get available slots - Missing params - Returns 400")
+        @WithMockUser(roles = "PET_OWNER")
+        void getAvailableSlots_missingParams_returns400() throws Exception {
+                // Act & Assert
+                mockMvc.perform(get("/bookings/public/available-slots"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-SLOTS-003: Get available slots - Resource not found - Returns 404")
+        @WithMockUser(roles = "PET_OWNER")
+        void getAvailableSlots_resourceNotFound_returns404() throws Exception {
+                // Arrange
+                UUID clinicId = UUID.randomUUID();
+                LocalDate date = LocalDate.of(2025, 1, 20);
+                List<UUID> serviceIds = List.of(UUID.randomUUID());
+
+                when(bookingService.getAvailableSlots(eq(clinicId), eq(date), eq(serviceIds)))
+                                .thenThrow(new ResourceNotFoundException("Clinic not found"));
+
+                // Act & Assert
+                mockMvc.perform(get("/bookings/public/available-slots")
+                                .param("clinicId", clinicId.toString())
+                                .param("date", date.toString())
+                                .param("serviceIds", serviceIds.get(0).toString()))
+                                .andExpect(status().isNotFound())
+                                .andExpect(jsonPath("$.message").value("Clinic not found"));
         }
 }

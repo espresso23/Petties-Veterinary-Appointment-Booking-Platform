@@ -69,6 +69,8 @@ dependencies:
   sentry_flutter: ^9.9.0
   flutter_localizations:
     sdk: flutter
+  table_calendar: ^3.2.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

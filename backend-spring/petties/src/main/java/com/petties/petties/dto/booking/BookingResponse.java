@@ -47,6 +47,7 @@ public class BookingResponse {
     private UUID clinicId;
     private String clinicName;
     private String clinicAddress;
+    private String clinicPhone;
 
     // ========== VET INFO ==========
     private UUID assignedVetId;

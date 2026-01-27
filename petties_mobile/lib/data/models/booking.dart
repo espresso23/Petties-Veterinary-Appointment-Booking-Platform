@@ -6,6 +6,7 @@ class BookingResponse {
   final String? bookingCode;
   final String? clinicId;
   final String? clinicName;
+  final String? clinicPhone;
   final String? petId;
   final String? petName;
   final String? petPhotoUrl;
@@ -23,12 +24,16 @@ class BookingResponse {
   final double? totalPrice;
   final String? notes;
   final List<BookingServiceItem> services;
+  // Vet info
+  final String? assignedVetName;
+  final String? assignedVetAvatarUrl;
 
   BookingResponse({
     this.bookingId,
     this.bookingCode,
     this.clinicId,
     this.clinicName,
+    this.clinicPhone,
     this.petId,
     this.petName,
     this.petPhotoUrl,
@@ -46,6 +51,8 @@ class BookingResponse {
     this.totalPrice,
     this.notes,
     this.services = const [],
+    this.assignedVetName,
+    this.assignedVetAvatarUrl,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -54,6 +61,7 @@ class BookingResponse {
       bookingCode: json['bookingCode'],
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
+      clinicPhone: json['clinicPhone'],
       petId: json['petId'],
       petName: json['petName'],
       petPhotoUrl: json['petPhotoUrl'],
@@ -74,6 +82,8 @@ class BookingResponse {
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??
           [],
+      assignedVetName: json['assignedVetName'],
+      assignedVetAvatarUrl: json['assignedVetAvatarUrl'],
     );
   }
 }
@@ -85,6 +95,7 @@ class BookingServiceItem {
   final double? price;
   final String? assignedVetId;
   final String? assignedVetName;
+  final String? assignedVetAvatarUrl;
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
@@ -96,6 +107,7 @@ class BookingServiceItem {
     this.price,
     this.assignedVetId,
     this.assignedVetName,
+    this.assignedVetAvatarUrl,
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
@@ -109,6 +121,7 @@ class BookingServiceItem {
       price: (json['price'] as num?)?.toDouble(),
       assignedVetId: json['assignedVetId'],
       assignedVetName: json['assignedVetName'],
+      assignedVetAvatarUrl: json['assignedVetAvatarUrl'],
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],
