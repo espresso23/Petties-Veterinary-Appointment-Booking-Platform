@@ -9,6 +9,7 @@ import {
   TrashIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
@@ -416,6 +417,50 @@ export function ClinicDetailPage() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Business License */}
+          {currentClinic.businessLicenseUrl && (
+            <div className="card-brutal p-6 mb-6">
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4 flex items-center gap-2">
+                <DocumentTextIcon className="w-6 h-6" />
+                GIẤY CHỨNG NHẬN HÀNH NGHỀ
+              </h2>
+              <div className="border-2 border-stone-900 p-4 bg-amber-50">
+                {currentClinic.businessLicenseUrl.toLowerCase().endsWith('.pdf') ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <DocumentTextIcon className="w-16 h-16 text-stone-600" />
+                    <div className="text-center">
+                      <p className="font-bold text-stone-900 mb-2">Giấy phép kinh doanh (PDF)</p>
+                      <a
+                        href={currentClinic.businessLicenseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-brutal inline-flex items-center gap-2"
+                      >
+                        XEM TÀI LIỆU
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <img
+                      src={currentClinic.businessLicenseUrl}
+                      alt="Giấy chứng nhận hành nghề"
+                      className="max-w-full max-h-96 object-contain border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917]"
+                    />
+                    <a
+                      href={currentClinic.businessLicenseUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-brutal-outline text-sm"
+                    >
+                      XEM ẢNH GỐC
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -90,4 +90,33 @@ public class FileController {
                 "message", deleted ? "File đã được xóa thành công" : "Không tìm thấy file để xóa"
         ));
     }
+
+    /**
+     * Upload business license document (PDF, JPG, PNG - max 5MB)
+     *
+     * @param file File giấy phép kinh doanh
+     * @return UploadResponse với url file đã upload
+     */
+    @PostMapping(value = "/upload/business-license", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UploadResponse> uploadBusinessLicense(
+            @RequestParam("file") MultipartFile file
+    ) {
+        // Validate file type
+        String contentType = file.getContentType();
+        if (contentType == null || 
+            !(contentType.equals("application/pdf") || 
+              contentType.equals("image/jpeg") || 
+              contentType.equals("image/jpg") || 
+              contentType.equals("image/png"))) {
+            throw new IllegalArgumentException("Chỉ chấp nhận file PDF, JPG hoặc PNG");
+        }
+        
+        // Validate file size (max 5MB)
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new IllegalArgumentException("Kích thước file không được vượt quá 5MB");
+        }
+        
+        UploadResponse response = cloudinaryService.uploadFile(file, "business-licenses");
+        return ResponseEntity.ok(response);
+    }
 }
