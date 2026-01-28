@@ -74,6 +74,7 @@ export interface ClinicRequest {
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
+  businessLicenseUrl?: string // URL to business license/veterinary practice certificate
 }
 
 export interface ClinicResponse {
@@ -97,6 +98,7 @@ export interface ClinicResponse {
   latitude?: number
   longitude?: number
   logo?: string // URL to clinic logo
+  businessLicenseUrl?: string // URL to business license/veterinary practice certificate
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string

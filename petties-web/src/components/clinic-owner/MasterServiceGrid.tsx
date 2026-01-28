@@ -261,9 +261,10 @@ export function MasterServiceGrid() {
               <>
                 <button
                   onClick={() => setIsApplyMode(true)}
-                  className="group flex items-center gap-2 bg-green-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                  style={{ backgroundColor: '#16a34a' }}
+                  className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                 >
-                  <span className="font-black text-lg uppercase tracking-wide">Chọn & Áp dụng</span>
+                  <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>Chọn & Áp dụng</span>
                 </button>
                 <button
                   onClick={handleAddService}
@@ -282,16 +283,18 @@ export function MasterServiceGrid() {
                     setIsApplyMode(false)
                     setSelectedServiceIds(new Set())
                   }}
-                  className="group flex items-center gap-2 bg-gray-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                  style={{ backgroundColor: '#4b5563' }}
+                  className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                 >
-                  <span className="font-black text-lg uppercase tracking-wide">Hủy</span>
+                  <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>Hủy</span>
                 </button>
                 {selectedServiceIds.size > 0 && (
                   <button
                     onClick={() => setIsClinicModalOpen(true)}
-                    className="group flex items-center gap-2 bg-green-600 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
+                    style={{ backgroundColor: '#16a34a' }}
+                    className="group flex items-center gap-2 text-white px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all"
                   >
-                    <span className="font-black text-lg uppercase tracking-wide">
+                    <span className="font-black text-lg uppercase tracking-wide" style={{ color: '#ffffff' }}>
                       Áp dụng ({selectedServiceIds.size})
                     </span>
                   </button>

@@ -85,6 +85,9 @@ public class Clinic {
     @Column(name = "logo", length = 500)
     private String logo; // URL to clinic logo (nullable, single file like images but only one)
 
+    @Column(name = "business_license_url", length = 500)
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
+
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "operating_hours", columnDefinition = "jsonb")

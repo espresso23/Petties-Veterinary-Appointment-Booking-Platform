@@ -83,6 +83,9 @@ public class Booking {
     @Column(name = "distance_km", precision = 5, scale = 2)
     private BigDecimal distanceKm;
 
+    @Column(name = "distance_fee", precision = 12, scale = 2)
+    private BigDecimal distanceFee;
+
     // ========== PRICING ==========
 
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)

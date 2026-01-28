@@ -3,8 +3,10 @@ import type { ClinicRequest, OperatingHours, ClinicImage } from '../../types/cli
 import { AddressAutocompleteOSM } from './AddressAutocompleteOSM'
 import { ClinicImageUpload } from './ClinicImageUpload'
 import { ClinicLogoUpload } from './ClinicLogoUpload'
-import { DocumentDuplicateIcon } from '@heroicons/react/24/solid'
+import { DocumentDuplicateIcon, DocumentTextIcon, ArrowUpTrayIcon } from '@heroicons/react/24/solid'
 import { LocationSelector } from '../common'
+import { uploadBusinessLicense } from '../../services/endpoints/file'
+import { useToast } from '../Toast'
 
 interface ClinicFormProps {
   initialData?: Partial<ClinicRequest>
@@ -35,6 +37,7 @@ export function ClinicForm({
   isLoading = false,
   onImageUploaded,
 }: ClinicFormProps) {
+  const { showToast } = useToast()
   const [formData, setFormData] = useState<ClinicRequest>({
     name: initialData?.name || '',
     description: initialData?.description || '',
@@ -49,8 +52,12 @@ export function ClinicForm({
     latitude: initialData?.latitude,
     longitude: initialData?.longitude,
     logo: initialData?.logo,
+    businessLicenseUrl: initialData?.businessLicenseUrl || '',
   })
 
+  const [businessLicenseFile, setBusinessLicenseFile] = useState<File | null>(null)
+  const [businessLicensePreview, setBusinessLicensePreview] = useState<string>(initialData?.businessLicenseUrl || '')
+  const [isUploadingLicense, setIsUploadingLicense] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const handleChange = (field: keyof ClinicRequest, value: string) => {
@@ -88,17 +95,60 @@ export function ClinicForm({
     });
   };
 
+  const handleBusinessLicenseChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+      if (!validTypes.includes(file.type)) {
+        setErrors(prev => ({...prev, businessLicense: 'Chỉ chấp nhận file PDF, JPG, hoặc PNG'}))
+        return
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors(prev => ({...prev, businessLicense: 'Kích thước file không được vượt quá 5MB'}))
+        return
+      }
+
+      setBusinessLicenseFile(file)
+      setBusinessLicensePreview(file.name)
+      
+      // Clear error if any
+      if (errors.businessLicense) {
+        setErrors(prev => {
+          const newErrors = {...prev}
+          delete newErrors.businessLicense
+          return newErrors
+        })
+      }
+    }
+  }
+
+  const handleRemoveBusinessLicense = () => {
+    setBusinessLicenseFile(null)
+    setBusinessLicensePreview('')
+  }
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
+    const missingFields: string[] = []
 
     if (!formData.name.trim()) {
       newErrors.name = 'Tên phòng khám không được để trống'
+      missingFields.push('Tên phòng khám')
     }
     if (!formData.address.trim()) {
       newErrors.address = 'Địa chỉ không được để trống'
+      missingFields.push('Địa chỉ')
     }
     if (!formData.phone.trim()) {
       newErrors.phone = 'Số điện thoại không được để trống'
+      missingFields.push('Số điện thoại')
+    }
+    if (!businessLicenseFile && !initialData?.businessLicenseUrl) {
+      newErrors.businessLicense = 'Giấy chứng nhận hành nghề/kinh doanh thú y là bắt buộc'
+      missingFields.push('Giấy chứng nhận hành nghề')
     }
     if (formData.phone && !/^0\d{9,10}$/.test(formData.phone)) {
       newErrors.phone = 'Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)'
@@ -108,6 +158,12 @@ export function ClinicForm({
     }
 
     setErrors(newErrors)
+    
+    // Show toast if there are missing required fields
+    if (missingFields.length > 0) {
+      showToast('error', `Vui lòng điền đầy đủ các trường bắt buộc: ${missingFields.join(', ')}`)
+    }
+    
     return Object.keys(newErrors).length === 0
   }
 
@@ -116,7 +172,26 @@ export function ClinicForm({
     if (!validate()) return
 
     try {
-      await onSubmit(formData)
+      let finalFormData = { ...formData }
+
+      // Upload business license file if selected
+      if (businessLicenseFile) {
+        setIsUploadingLicense(true)
+        try {
+          const uploadResult = await uploadBusinessLicense(businessLicenseFile)
+          finalFormData.businessLicenseUrl = uploadResult.url
+        } catch (uploadError) {
+          setErrors(prev => ({
+            ...prev,
+            businessLicense: 'Không thể tải lên giấy phép. Vui lòng thử lại.'
+          }))
+          setIsUploadingLicense(false)
+          return
+        }
+        setIsUploadingLicense(false)
+      }
+
+      await onSubmit(finalFormData)
     } catch (error) {
       // Error handled by parent
     }
@@ -251,6 +326,56 @@ export function ClinicForm({
                 <p className="text-red-600 text-sm mt-1 font-bold">{errors.email}</p>
               )}
             </div>
+          </div>
+
+          {/* Business License Upload */}
+          <div>
+            <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+              <DocumentTextIcon className="inline-block w-5 h-5 mr-2 text-stone-900" />
+              Giấy chứng nhận hành nghề/kinh doanh thú y *
+            </label>
+            
+            {!businessLicenseFile ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={handleBusinessLicenseChange}
+                  className="hidden"
+                  id="business-license-upload"
+                />
+                <label
+                  htmlFor="business-license-upload"
+                  className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-amber-50 border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#1c1917] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all cursor-pointer"
+                >
+                  <ArrowUpTrayIcon className="w-6 h-6 text-stone-900" />
+                  <span className="text-sm font-bold text-stone-900">
+                    CHỌN FILE (PDF, JPG, PNG - Max 5MB)
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border-2 border-green-600 shadow-[3px_3px_0px_#16a34a]">
+                <DocumentTextIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
+                <span className="text-sm font-bold text-green-800 flex-1 truncate">
+                  {businessLicensePreview}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveBusinessLicense}
+                  className="px-3 py-1 bg-red-600 text-white text-xs font-bold uppercase border-2 border-red-800 shadow-[2px_2px_0px_#991b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#991b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
+                >
+                  XÓA
+                </button>
+              </div>
+            )}
+
+            {errors.businessLicense && (
+              <p className="text-red-600 text-sm mt-1 font-bold">{errors.businessLicense}</p>
+            )}
+            <p className="text-xs text-stone-500 mt-1">
+              Giấy chứng nhận hành nghề hoặc giấy phép kinh doanh thú y là bắt buộc để phòng khám được duyệt
+            </p>
           </div>
         </div>
       </div>
@@ -445,19 +570,19 @@ export function ClinicForm({
       <div className="flex gap-4">
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || isUploadingLicense}
           className="btn-brutal flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'SAVING...' : 'SAVE'}
+          {isUploadingLicense ? 'ĐANG TẢI GIẤY PHÉP...' : isLoading ? 'ĐANG LƯU...' : 'LƯU'}
         </button>
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            disabled={isLoading}
+            disabled={isLoading || isUploadingLicense}
             className="btn-brutal-outline flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            CANCEL
+            HỦY
           </button>
         )}
       </div>

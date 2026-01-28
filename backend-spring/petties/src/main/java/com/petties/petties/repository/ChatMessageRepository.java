@@ -58,4 +58,12 @@ public interface ChatMessageRepository extends MongoRepository<ChatMessage, Stri
      * Count messages in a chat box
      */
     long countByChatBoxId(String chatBoxId);
+
+    /**
+     * Find image messages in a chat box, sorted by creation time (newest first)
+     */
+    List<ChatMessage> findByChatBoxIdAndMessageTypeOrderByCreatedAtDesc(
+            String chatBoxId,
+            ChatMessage.MessageType messageType
+    );
 }

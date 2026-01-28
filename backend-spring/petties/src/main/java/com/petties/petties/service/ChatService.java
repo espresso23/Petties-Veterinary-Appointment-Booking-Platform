@@ -33,6 +33,7 @@ import java.util.UUID;
  * - Creating chat conversations between Pet Owner and Clinic
  * - Sending and receiving messages
  * - Real-time message delivery via WebSocket
+ * - Push notifications via FCM for offline users
  * - Read receipts and unread counts
  */
 @Service
@@ -45,6 +46,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final FcmService fcmService;
 
     // ======================== CONVERSATION MANAGEMENT ========================
 
@@ -77,10 +79,13 @@ public class ChatService {
             // If initial message provided, send it
             if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
                 sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
-                        new SendMessageRequest(request.getInitialMessage()));
+                        new SendMessageRequest(request.getInitialMessage(), null));
                 // Refresh conversation
                 conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
             }
+
+            // Sync data
+            syncConversationData(conversation);
 
             return mapToConversationResponse(conversation, petOwnerId);
         }
@@ -103,7 +108,7 @@ public class ChatService {
         // If initial message provided, send it
         if (request.getInitialMessage() != null && !request.getInitialMessage().isBlank()) {
             sendMessage(conversation.getId(), petOwnerId, ChatMessage.SenderType.PET_OWNER,
-                    new SendMessageRequest(request.getInitialMessage()));
+                    new SendMessageRequest(request.getInitialMessage(), null));
             // Refresh conversation
             conversation = conversationRepository.findById(conversation.getId()).orElse(conversation);
         }
@@ -114,6 +119,7 @@ public class ChatService {
     /**
      * Get all conversations for a user (Pet Owner or Clinic staff).
      */
+    @Transactional
     public Page<ConversationResponse> getConversations(UUID userId, Role role, Pageable pageable) {
         Page<ChatConversation> conversations;
 
@@ -134,12 +140,16 @@ public class ChatService {
             throw new ForbiddenException("Role khong duoc phep truy cap chat");
         }
 
+        // Sync denormalized data to ensure avatars and names are up to date
+        conversations.forEach(this::syncConversationData);
+
         return conversations.map(conversation -> mapToConversationResponse(conversation, userId));
     }
 
     /**
      * Get a specific conversation by ID.
      */
+    @Transactional
     public ConversationResponse getConversation(String conversationId, UUID userId) {
         ChatConversation conversation = conversationRepository.findById(conversationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
@@ -147,7 +157,63 @@ public class ChatService {
         // Validate access
         validateConversationAccess(conversation, userId);
 
+        // Sync data before returning
+        syncConversationData(conversation);
+
         return mapToConversationResponse(conversation, userId);
+    }
+
+    /**
+     * Sync denormalized data (avatars, names) from source entities.
+     */
+    private void syncConversationData(ChatConversation conv) {
+        boolean needsSave = false;
+
+        // Sync Pet Owner data
+        if (conv.getPetOwnerId() != null) {
+            Optional<User> userOpt = userRepository.findById(conv.getPetOwnerId());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                // Check avatar
+                if (!java.util.Objects.equals(conv.getPetOwnerAvatar(), user.getAvatar())) {
+                    conv.setPetOwnerAvatar(user.getAvatar());
+                    needsSave = true;
+                }
+                // Check name (only if missing or if forced sync logic is desired, but let's
+                // prioritize avatar)
+                if (conv.getPetOwnerName() == null || !conv.getPetOwnerName().equals(user.getFullName())) {
+                    conv.setPetOwnerName(user.getFullName());
+                    needsSave = true;
+                }
+            }
+        }
+
+        // Sync Clinic data
+        if (conv.getClinicId() != null) {
+            Optional<Clinic> clinicOpt = clinicRepository.findById(conv.getClinicId());
+            if (clinicOpt.isPresent()) {
+                Clinic clinic = clinicOpt.get();
+                // Check logo
+                if (!java.util.Objects.equals(conv.getClinicLogo(), clinic.getLogo())) {
+                    log.info("Syncing Clinic Logo for convo {}: old='{}', new='{}'",
+                            conv.getId(), conv.getClinicLogo(), clinic.getLogo());
+                    conv.setClinicLogo(clinic.getLogo());
+                    needsSave = true;
+                }
+                // Check name
+                if (conv.getClinicName() == null || !conv.getClinicName().equals(clinic.getName())) {
+                    conv.setClinicName(clinic.getName());
+                    needsSave = true;
+                }
+            } else {
+                log.warn("Clinic not found for sync: {}", conv.getClinicId());
+            }
+        }
+
+        if (needsSave) {
+            conversationRepository.save(conv);
+            log.info("Saved synced conversation: {}", conv.getId());
+        }
     }
 
     // ======================== MESSAGE MANAGEMENT ========================
@@ -176,8 +242,12 @@ public class ChatService {
                 .senderId(senderId)
                 .senderType(senderType)
                 .senderName(sender.getFullName())
-                .senderAvatar(sender.getAvatar())
+                .senderAvatar(senderType == ChatMessage.SenderType.CLINIC
+                        ? clinicRepository.findById(conversation.getClinicId()).map(Clinic::getLogo).orElse(null)
+                        : sender.getAvatar())
                 .content(request.getContent())
+                .messageType(determineMessageType(request.getContent(), request.getImageUrl()))
+                .imageUrl(request.getImageUrl())
                 .status(ChatMessage.MessageStatus.SENT)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -185,8 +255,17 @@ public class ChatService {
         message = messageRepository.save(message);
         log.debug("Message saved: {} in conversation: {}", message.getId(), conversationId);
 
-        // Update conversation
-        conversation.setLastMessage(truncateMessage(request.getContent(), 100));
+        // Update conversation with appropriate last message preview
+        String lastMessagePreview;
+        if (message.getMessageType() == ChatMessage.MessageType.IMAGE) {
+            lastMessagePreview = "[Hình ảnh]";
+        } else if (message.getMessageType() == ChatMessage.MessageType.IMAGE_TEXT) {
+            lastMessagePreview = truncateMessage(request.getContent(), 100);
+        } else {
+            lastMessagePreview = truncateMessage(request.getContent(), 100);
+        }
+
+        conversation.setLastMessage(lastMessagePreview);
         conversation.setLastMessageSender(senderType.name());
         conversation.setLastMessageAt(LocalDateTime.now());
 
@@ -205,6 +284,46 @@ public class ChatService {
         // Send via WebSocket
         sendWebSocketMessage(conversationId, ChatWebSocketMessage.MessageType.MESSAGE, response, senderId,
                 senderType.name());
+
+        // Send push notification to recipient via FCM
+        try {
+            final UUID recipientId = senderType == ChatMessage.SenderType.PET_OWNER
+                    ? getClinicManagerId(conversation)
+                    : conversation.getPetOwnerId();
+
+            // Capture values before lambda to ensure they are effectively final
+            final ChatMessage.MessageType msgType = message.getMessageType();
+            final String msgContent = message.getContent();
+            final String convId = conversationId;
+
+            if (recipientId != null) {
+                userRepository.findById(recipientId).ifPresent(recipient -> {
+                    String notificationBody = msgType == ChatMessage.MessageType.IMAGE
+                            ? "[Hình ảnh]"
+                            : truncateMessage(msgContent, 100);
+
+                    String notificationTitle = senderType == ChatMessage.SenderType.CLINIC
+                            ? conversation.getClinicName()
+                            : conversation.getPetOwnerName();
+
+                    if (notificationTitle == null || notificationTitle.isEmpty()) {
+                        notificationTitle = "Tin nhắn mới";
+                    }
+
+                    fcmService.sendToUser(
+                            recipient,
+                            notificationTitle,
+                            notificationBody,
+                            java.util.Map.of(
+                                    "type", "chat_message",
+                                    "conversationId", convId));
+                    log.debug("FCM push sent to recipient: {}", recipientId);
+                });
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send FCM push notification for chat message: {}", e.getMessage());
+            // Don't fail the message sending if FCM fails
+        }
 
         return response;
     }
@@ -336,7 +455,7 @@ public class ChatService {
 
     // ======================== HELPER METHODS ========================
 
-    private void validateConversationAccess(ChatConversation conversation, UUID userId) {
+    public void validateConversationAccess(ChatConversation conversation, UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung"));
 
@@ -379,7 +498,7 @@ public class ChatService {
                 .petOwnerAvatar(conversation.getPetOwnerAvatar())
                 .clinicId(conversation.getClinicId())
                 .clinicName(conversation.getClinicName())
-                .clinicLogo(conversation.getClinicLogo())
+                .clinicLogo(resolveClinicLogo(conversation))
                 .lastMessage(conversation.getLastMessage())
                 .lastMessageSender(conversation.getLastMessageSender())
                 .lastMessageAt(conversation.getLastMessageAt())
@@ -389,7 +508,25 @@ public class ChatService {
                 .build();
     }
 
-    private MessageResponse mapToMessageResponse(ChatMessage msg, UUID currentUserId) {
+    private String resolveClinicLogo(ChatConversation conversation) {
+        // FORCE FETCH: Always get latest logo from Clinic table to avoid stale MongoDB
+        // data
+        String logo = clinicRepository.findById(conversation.getClinicId())
+                .map(c -> {
+                    log.info("DEBUG: FORCE_RESOLVE found logo for clinic {}: {}", c.getClinicId(), c.getLogo());
+                    return c.getLogo();
+                })
+                .orElse(null);
+
+        log.info("DEBUG: Final Clinic Logo for conv " + conversation.getId() + ": " + logo);
+        return logo;
+    }
+
+    public ChatMessage saveMessage(ChatMessage message) {
+        return messageRepository.save(message);
+    }
+
+    public MessageResponse mapToMessageResponse(ChatMessage msg, UUID currentUserId) {
         return MessageResponse.builder()
                 .id(msg.getId())
                 .chatBoxId(msg.getChatBoxId())
@@ -398,6 +535,8 @@ public class ChatService {
                 .senderName(msg.getSenderName())
                 .senderAvatar(msg.getSenderAvatar())
                 .content(msg.getContent())
+                .messageType(msg.getMessageType().name())
+                .imageUrl(msg.getImageUrl())
                 .status(msg.getStatus().name())
                 .isRead(msg.isRead())
                 .readAt(msg.getReadAt())
@@ -406,7 +545,7 @@ public class ChatService {
                 .build();
     }
 
-    private void sendWebSocketMessage(String conversationId, ChatWebSocketMessage.MessageType type,
+    public void sendWebSocketMessage(String conversationId, ChatWebSocketMessage.MessageType type,
             MessageResponse message, UUID senderId, String senderType) {
 
         ChatWebSocketMessage wsMessage = ChatWebSocketMessage.builder()
@@ -429,5 +568,87 @@ public class ChatService {
         if (message.length() <= maxLength)
             return message;
         return message.substring(0, maxLength - 3) + "...";
+    }
+
+    private ChatMessage.MessageType determineMessageType(String content, String imageUrl) {
+        if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+            if (content != null && !content.trim().isEmpty()) {
+                return ChatMessage.MessageType.IMAGE_TEXT; // Combined text + image
+            }
+            return ChatMessage.MessageType.IMAGE; // Image only
+        }
+        return ChatMessage.MessageType.TEXT; // Text only
+    }
+
+    /**
+     * Get all images in a conversation.
+     * Returns list of MessageResponse containing only image messages.
+     */
+    public List<MessageResponse> getConversationImages(String conversationId, UUID currentUserId) {
+        // Validate conversation access
+        ChatConversation conversation = conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay cuoc hoi thoai"));
+        validateConversationAccess(conversation, currentUserId);
+
+        // Get all image messages in conversation, ordered by creation time (newest
+        // first)
+        List<ChatMessage> imageMessages = messageRepository
+                .findByChatBoxIdAndMessageTypeOrderByCreatedAtDesc(
+                        conversationId, ChatMessage.MessageType.IMAGE);
+
+        // Convert to MessageResponse
+        List<MessageResponse> result = new java.util.ArrayList<>();
+        for (ChatMessage msg : imageMessages) {
+            result.add(MessageResponse.builder()
+                    .id(msg.getId())
+                    .chatBoxId(msg.getChatBoxId())
+                    .senderId(msg.getSenderId())
+                    .senderType(msg.getSenderType().name())
+                    .senderName(msg.getSenderName())
+                    .senderAvatar(msg.getSenderAvatar())
+                    .content(msg.getContent())
+                    .messageType(msg.getMessageType().name())
+                    .imageUrl(msg.getImageUrl())
+                    .status(msg.getStatus().name())
+                    .isRead(msg.isRead())
+                    .readAt(msg.getReadAt())
+                    .createdAt(msg.getCreatedAt())
+                    .isMe(msg.getSenderId().equals(currentUserId))
+                    .build());
+        }
+        return result;
+    }
+
+    /**
+     * Get the clinic manager or owner ID for a conversation.
+     * Used to send push notifications to the clinic side.
+     */
+    private UUID getClinicManagerId(ChatConversation conversation) {
+        try {
+            // Try to find clinic manager first
+            Optional<Clinic> clinicOpt = clinicRepository.findById(conversation.getClinicId());
+            if (clinicOpt.isEmpty()) {
+                return null;
+            }
+
+            Clinic clinic = clinicOpt.get();
+
+            // Try to find a clinic manager working at this clinic
+            List<User> managers = userRepository.findByWorkingClinicAndRole(clinic, Role.CLINIC_MANAGER);
+            if (!managers.isEmpty()) {
+                return managers.get(0).getUserId();
+            }
+
+            // Fallback to clinic owner
+            if (clinic.getOwner() != null) {
+                return clinic.getOwner().getUserId();
+            }
+
+            return null;
+        } catch (Exception e) {
+            log.warn("Failed to get clinic manager ID for conversation {}: {}",
+                    conversation.getId(), e.getMessage());
+            return null;
+        }
     }
 }

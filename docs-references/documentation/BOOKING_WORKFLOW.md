@@ -1,7 +1,7 @@
 # Booking Workflow - Petties
 
-**Version:** 1.0  
-**Last Updated:** 2026-01-11
+**Version:** 1.5.0  
+**Last Updated:** 2026-01-22  
 
 ---
 
@@ -16,6 +16,8 @@ stateDiagram-v2
     
     CONFIRMED --> ASSIGNED: Clinic assign Vet
     CONFIRMED --> CANCELLED: Hủy
+    
+    ASSIGNED --> ASSIGNED: Manager Reassign Vet (v1.5.0)
     
     ASSIGNED --> CHECK_IN: Vet check-in (IN_CLINIC)
     ASSIGNED --> ON_THE_WAY: Vet bắt đầu di chuyển (HOME_VISIT/SOS)
@@ -248,5 +250,13 @@ TTL:   60 seconds
 ```
 
 ---
+
+---
+
+## 9. Reassign Vet & Availability Check (v1.5.0) ✅
+
+- **UC-CM-14:** Kiểm tra tính khả dụng của Vet trước khi gán (Check Vet Availability).
+- **UC-CM-15:** Gán lại bác sĩ (Reassign Vet) khi có thay đổi nhân sự hoặc cấp cứu.
+- **UC-VT-14:** Bác sĩ xem tổng quan Dashboard lịch của mình (Vet Home Dashboard Summary).
 
 *Document này mô tả toàn bộ booking workflow cho project Petties.*

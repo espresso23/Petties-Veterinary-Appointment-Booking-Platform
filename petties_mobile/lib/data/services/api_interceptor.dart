@@ -17,8 +17,8 @@ class ApiInterceptor extends Interceptor {
     final baseUrl = Environment.baseUrl;
 
     _dio.options.baseUrl = baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 30);
-    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    _dio.options.connectTimeout = const Duration(seconds: 60);
+    _dio.options.receiveTimeout = const Duration(seconds: 60);
   }
 
   @override
@@ -31,8 +31,6 @@ class ApiInterceptor extends Interceptor {
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';
     }
-
-    // NOTE: Logging removed for production/security
 
     super.onRequest(options, handler);
   }

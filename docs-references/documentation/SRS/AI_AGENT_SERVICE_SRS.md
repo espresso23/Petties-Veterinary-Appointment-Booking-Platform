@@ -4,8 +4,8 @@
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Module:** AI Agent Service (FastAPI + LangGraph + RAG)
 **Document Type:** Report 3 - Software Requirements Specification
-**Version:** 1.0.0
-**Last Updated:** 2025-12-27
+**Version:** 1.5.0
+**Last Updated:** 2026-01-22
 
 ---
 
@@ -176,6 +176,7 @@ flowchart TB
             UC002["UC-002: Hỏi đáp chăm sóc pet"]
             UC003["UC-003: Tìm bệnh theo triệu chứng"]
             UC004["UC-004: Đặt lịch qua chat"]
+            UC019["UC-019: Phân tích hình ảnh (Vision)"]
         end
 
         subgraph AgentMgmt["Agent Management"]
@@ -212,6 +213,7 @@ flowchart TB
     PetOwner --> UC002
     PetOwner --> UC003
     PetOwner --> UC004
+    PetOwner --> UC019
 
     Admin --> UC005
     Admin --> UC006
@@ -358,7 +360,26 @@ flowchart TB
   - BR-008: Phải confirm lại trước khi create booking
   - BR-009: Nếu user không phản hồi trong 5 phút → Hủy flow và hỏi lại
 
+#### **UC-019: Phân tích hình ảnh (Vision Health Analysis)**
+
+- **Actor:** PET_OWNER
+- **Precondition:**
+  - App được cấp quyền Camera/Gallery
+  - Vision-capable model (Gemini 2.0 Flash) enabled
+- **Main Flow:**
+  1. User gửi hình ảnh triệu chứng của pet qua chat interface.
+  2. System upload ảnh lên Cloudinary, trả về `image_url`.
+  3. AI Agent gọi tool `analyze_pet_image(image_url)`.
+  4. Tool phân tích:
+     - Nhận diện pet và triệu chứng (ví dụ: viêm da, sưng mắt).
+     - Đánh giá mức độ nghiêm trọng (Severity: Mild/Moderate/Urgent).
+  5. Agent phản hồi cảnh báo và đề xuất hành động (Ví dụ: Suggest booking nếu severity cao).
+- **Business Rules:**
+  - BR-031: Phải kèm disclaimer: "Chẩn đoán hình ảnh chỉ mang tính tham khảo".
+  - BR-032: Không chẩn đoán xác định bệnh, chỉ nêu dấu hiệu nghi vấn.
+
 ---
+
 
 ### 4.2 Agent Management
 
@@ -2255,6 +2276,7 @@ def test_pet_care_qa_tool():
 - [ ] Agent trả lời dựa trên ReAct pattern (Think-Act-Observe)
 - [ ] Agent cite sources khi dùng RAG
 - [ ] Chat history được lưu và load lại
+- [ ] [Vision] Agent phân tích được hình ảnh và đưa ra cảnh báo health
 
 **System Settings:**
 - [ ] Admin cấu hình được API keys qua Dashboard
@@ -2333,3 +2355,4 @@ def test_pet_care_qa_tool():
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2025-12-27 | Technical Documentation Specialist | Initial SRS document cho AI Agent Service |
+| 1.4.0 | 2026-01-22 | Petties Development Team | Bổ sung UC-019 (AI Vision Health Analysis) và đồng bộ Version với Petties SRS |

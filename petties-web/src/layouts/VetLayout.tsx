@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
+import { useBookingStore } from '../store/bookingStore'
 import { Sidebar } from '../components/Sidebar/Sidebar'
 import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
@@ -23,17 +24,45 @@ export const VetLayout = () => {
     const user = useAuthStore((state) => state.user)
     const unreadCount = useNotificationStore((state) => state.unreadCount)
     const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
+    const assignedBookingCount = useBookingStore((state) => state.assignedBookingCount)
+    const refreshAssignedBookingCount = useBookingStore((state) => state.refreshAssignedBookingCount)
     const { state, toggleSidebar, isMobile } = useSidebar()
 
-    // Initialize SSE
-    useSseNotification()
+    // Initialize SSE with booking update handler
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[VetLayout] Booking update received:', data)
+            // Refresh booking count when booking is assigned to this vet
+            if (data.action === 'ASSIGNED') {
+                // For ASSIGNED action, just refresh the count (the vet received this because they were assigned)
+                if (user?.userId) {
+                    refreshAssignedBookingCount(user.userId)
+                }
+            } else if (data.action === 'VET_REASSIGNED') {
+                if (user?.userId) {
+                    // If this vet is the new vet or old vet, refresh count
+                    if (data.newVetId === user.userId || data.oldVetId === user.userId) {
+                        refreshAssignedBookingCount(user.userId)
+                    }
+                }
+            } else if (data.action === 'COMPLETED' || data.action === 'CANCELLED') {
+                // Refresh on completion/cancellation
+                if (user?.userId) {
+                    refreshAssignedBookingCount(user.userId)
+                }
+            }
+        }
+    })
 
     // Auto-sync profile (avatar, fullName) to authStore for Sidebar
     useSyncProfile()
 
     useEffect(() => {
         refreshUnreadCount()
-    }, [refreshUnreadCount])
+        if (user?.userId) {
+            refreshAssignedBookingCount(user.userId)
+        }
+    }, [refreshUnreadCount, refreshAssignedBookingCount, user?.userId])
 
     const navGroups: NavGroup[] = [
         {
@@ -46,7 +75,7 @@ export const VetLayout = () => {
             title: 'CÔNG VIỆC',
             items: [
                 { path: '/vet/schedule', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
-                { path: '/vet/bookings', label: 'BOOKINGS', icon: ClipboardDocumentListIcon },
+                { path: '/vet/bookings', label: 'BOOKINGS', icon: ClipboardDocumentListIcon, unreadCount: assignedBookingCount },
                 { path: '/vet/patients', label: 'BỆNH NHÂN', icon: UserGroupIcon },
             ]
         },

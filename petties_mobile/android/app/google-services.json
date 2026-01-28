@@ -13,7 +13,28 @@
           "package_name": "world.petties.mobile"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "620454234596-1gao8jp311ge6ot9vofukqda4hhgtvnl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "world.petties.mobile",
+            "certificate_hash": "0b449e4160b78130ba93bf15ee6171c6bbc5c941"
+          }
+        },
+        {
+          "client_id": "620454234596-s2indlngiho9a744miviqn8h96raueok.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "world.petties.mobile",
+            "certificate_hash": "501bcf4b16c2bc8b87c215c50761e07e23f047c5"
+          }
+        },
+        {
+          "client_id": "620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB_DXF6wrTuwMiP_AXo69CyamyZZl--JkM"
@@ -21,7 +42,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "620454234596-kmif3sgnls4688e5p4kssf8a87cs7l9a.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "world.petties.mobile"
+              }
+            }
+          ]
         }
       }
     }

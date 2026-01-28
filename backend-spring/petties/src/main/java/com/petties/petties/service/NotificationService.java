@@ -371,6 +371,258 @@ public class NotificationService {
                 return notification;
         }
 
+        // ======================== BOOKING NOTIFICATIONS ========================
+
+        /**
+         * Notify clinic managers when a new booking is created
+         */
+        @Transactional
+        public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
+                // Find all managers of this clinic
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+
+                if (managers.isEmpty()) {
+                        log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String ownerName = booking.getPetOwner().getFullName();
+                String message = String.format(
+                                "Đơn đặt lịch mới #%s từ %s cho thú cưng %s cần xác nhận",
+                                booking.getBookingCode(),
+                                ownerName,
+                                petName);
+
+                for (User manager : managers) {
+                        Notification notification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Booking notification created: {} for manager: {}",
+                                        notification.getNotificationId(), manager.getUserId());
+
+                        pushNotificationToUser(manager.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify vet when they are assigned to a booking
+         */
+        @Transactional
+        public void sendBookingAssignedNotificationToVet(com.petties.petties.model.Booking booking) {
+                User vet = booking.getAssignedVet();
+                if (vet == null) {
+                        log.warn("No vet assigned for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String serviceName = booking.getBookingServices().isEmpty()
+                                ? "Dịch vụ"
+                                : booking.getBookingServices().get(0).getService().getName();
+                String message = String.format(
+                                "Bạn được gán cho booking #%s - %s cho %s vào lúc %s ngày %s",
+                                booking.getBookingCode(),
+                                serviceName,
+                                petName,
+                                booking.getBookingTime().format(TIME_FORMATTER),
+                                booking.getBookingDate().format(DATE_FORMATTER));
+
+                Notification notification = Notification.builder()
+                                .user(vet)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_ASSIGNED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Booking assigned notification created: {} for vet: {}",
+                                notification.getNotificationId(), vet.getUserId());
+
+                pushNotificationToUser(vet.getUserId(), notification);
+        }
+
+        /**
+         * Notify new vet when reassigned to a booking service
+         * Also optionally notify old vet that they were removed
+         *
+         * @param booking   The booking
+         * @param newVet    The newly assigned vet
+         * @param oldVet    The previously assigned vet (can be null)
+         * @param serviceName The service being reassigned
+         */
+        @Transactional
+        public void sendVetReassignedNotification(
+                        com.petties.petties.model.Booking booking,
+                        User newVet,
+                        User oldVet,
+                        String serviceName) {
+
+                String petName = booking.getPet().getName();
+
+                // 1. Notify NEW vet - they are now assigned
+                if (newVet != null) {
+                        String newVetMessage = String.format(
+                                        "Bạn được gán thực hiện dịch vụ \"%s\" cho booking #%s - %s vào lúc %s ngày %s",
+                                        serviceName,
+                                        booking.getBookingCode(),
+                                        petName,
+                                        booking.getBookingTime().format(TIME_FORMATTER),
+                                        booking.getBookingDate().format(DATE_FORMATTER));
+
+                        Notification newVetNotification = Notification.builder()
+                                        .user(newVet)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_ASSIGNED)
+                                        .message(newVetMessage)
+                                        .read(false)
+                                        .build();
+
+                        newVetNotification = notificationRepository.save(newVetNotification);
+                        log.info("Vet reassigned notification created: {} for new vet: {}",
+                                        newVetNotification.getNotificationId(), newVet.getUserId());
+
+                        pushNotificationToUser(newVet.getUserId(), newVetNotification);
+                }
+
+                // 2. Notify OLD vet - they were removed from this service
+                if (oldVet != null && !oldVet.getUserId().equals(newVet != null ? newVet.getUserId() : null)) {
+                        String oldVetMessage = String.format(
+                                        "Bạn đã được gỡ khỏi dịch vụ \"%s\" trong booking #%s. Dịch vụ này đã được gán cho bác sĩ khác.",
+                                        serviceName,
+                                        booking.getBookingCode());
+
+                        Notification oldVetNotification = Notification.builder()
+                                        .user(oldVet)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CANCELLED) // Use CANCELLED to indicate removal
+                                        .message(oldVetMessage)
+                                        .read(false)
+                                        .build();
+
+                        oldVetNotification = notificationRepository.save(oldVetNotification);
+                        log.info("Vet removed notification created: {} for old vet: {}",
+                                        oldVetNotification.getNotificationId(), oldVet.getUserId());
+
+                        pushNotificationToUser(oldVet.getUserId(), oldVetNotification);
+                }
+        }
+
+        /**
+         * Notify pet owner when vet checks in (starts the service)
+         */
+        @Transactional
+        public void sendCheckinNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String vetName = booking.getAssignedVet() != null
+                                ? booking.getAssignedVet().getFullName()
+                                : "Bác sĩ";
+                String message = String.format(
+                                "Bác sĩ %s đã bắt đầu khám cho %s (Booking #%s)",
+                                vetName,
+                                booking.getPet().getName(),
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CHECKIN)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Check-in notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify pet owner when booking is completed
+         */
+        @Transactional
+        public void sendCompletedNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String message = String.format(
+                                "Lịch hẹn #%s cho %s đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ!",
+                                booking.getBookingCode(),
+                                booking.getPet().getName());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_COMPLETED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Completed notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify pet owner that vet is on the way (for SOS only)
+         * HOME_VISIT does not support VET_ON_WAY notification
+         */
+        @Transactional
+        public void sendVetOnWayNotification(com.petties.petties.model.Booking booking) {
+                // Only send for SOS bookings
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS) {
+                        log.debug("VET_ON_WAY notification skipped - only applicable for SOS bookings");
+                        return;
+                }
+
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String vetName = booking.getAssignedVet() != null
+                                ? booking.getAssignedVet().getFullName()
+                                : "Bác sĩ";
+                String message = String.format(
+                                "Bác sĩ %s đang trên đường đến địa chỉ của bạn (Booking #%s)",
+                                vetName,
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.VET_ON_WAY)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Vet on way notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
         // ======================== COMMON OPERATIONS ========================
 
         /**
@@ -420,6 +672,7 @@ public class NotificationService {
                         case VET_SHIFT_DELETED -> "Lịch trực đã bị xóa";
                         case BOOKING_CREATED -> "Lịch hẹn mới";
                         case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
+                        case BOOKING_ASSIGNED -> "Bạn được gán lịch hẹn mới";
                         case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
                         case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
                         case REJECTED -> "Phòng khám bị từ chối";

@@ -16,6 +16,7 @@
     - [3.9 Specialized Services (SOS Emergency)](#3.9-specialized-services-sos-emergency)
     - [3.10 AI Assistance Flow](#3.10-ai-assistance-flow)
     - [3.11 Governance & Reporting Flow](#3.11-governance--reporting-flow)
+    - [3.12 AI Vision Pet Health Analysis](#312-ai-vision-pet-health-analysis)
 - [4. Technology Stack Summary](#4-technology-stack-summary)
 
 ## 1. System Design
@@ -587,6 +588,194 @@ flowchart TB
 
 ---
 
+### 1.3 UML Diagram Standards
+
+Tài liệu này định nghĩa các quy tắc chuẩn hóa khi viết Class Diagram và Sequence Diagram cho Petties SDD.
+
+#### 1.3.1 Class Diagram Rules
+
+**1. Class Structure:**
+```mermaid
+classDiagram
+    class ClassName {
+        -privateField type
+        +publicMethod(param) returnType
+    }
+```
+- `-` : private field
+- `+` : public method
+- Không cần ghi getter/setter
+
+**2. Class Types:**
+| Type | Content |
+|------|---------|
+| Controller | Methods là các API endpoints |
+| Service | Methods là business logic |
+| Repository | Interface với `<<interface>>`, methods là query |
+| Entity | Fields đầy đủ, không có methods (trừ isExpired, etc.) |
+| Enum | Dùng `<<enumeration>>` stereotype |
+
+**3. Stereotypes:**
+- `<<interface>>` : cho Repository interfaces
+- `<<enumeration>>` : cho Enum types
+- `<<abstract>>` : cho abstract classes
+
+**4. Relationships:**
+| Symbol | Meaning |
+|--------|---------|
+| `-->` | Dependency (Controller --> Service, Service --> Repository) |
+| `--o` | Aggregation |
+| `--*` | Composition |
+| `--|>` | Inheritance |
+| `..|>` | Implementation |
+
+**5. Field Naming:**
+- Fields viết camelCase
+- Type viết sau field: `+UUID userId`
+- Generic types dùng `~`: `Optional~User~`, `List~Pet~`
+
+**6. Method Signatures:**
+- Format: `+methodName(paramType) ReturnType`
+- Nhiều params: `+method(String, UUID) ResponseEntity`
+- Không có return: `+method(param) void`
+
+**7. Dependency Grouping:**
+- Nhóm dependencies theo comment: `%% Controller Dependencies`
+- Thứ tự: Controller → Service → Repository → Entity
+
+**8. Classes bắt buộc cho mỗi module:**
+- 1 Controller
+- 1+ Services
+- 1+ Repositories
+- 1+ Entities
+- 1+ Enums (nếu có)
+
+**9. Naming Convention:**
+| Type | Pattern |
+|------|---------|
+| Controller | `[Feature]Controller` |
+| Service | `[Feature]Service` |
+| Repository | `[Entity]Repository` |
+| Entity | `[EntityName]` (singular) |
+
+---
+
+#### 1.3.2 Sequence Diagram Rules
+
+**1. Participants bắt buộc:**
+```
+actor User as [Tên Role]           %% Pet Owner, Vet, Clinic Manager
+participant UI as [Tên Screen]     %% Mobile/Web
+participant [Abbrev] as [ControllerName]
+participant [Abbrev] as [ServiceName]
+participant [Abbrev] as [RepositoryName]
+participant DB as Database          %% BẮT BUỘC có
+```
+
+**2. Message Numbering:**
+- Đánh số thứ tự liên tục trước mỗi message: `1.`, `2.`, `3....`
+- Số bắt đầu từ 1, liên tục đến hết sequence
+- **KHÔNG dùng `autonumber`**
+
+**3. SQL Operations:**
+Khi Repository gọi Database, phải ghi rõ câu SQL:
+```sql
+SELECT COUNT(*) FROM users WHERE email = ?
+INSERT INTO users (username, email, password, ...)
+UPDATE ... SET ... WHERE id = ?
+DELETE FROM ... WHERE ...
+```
+
+**4. Activation Boxes:**
+- Mỗi `activate` phải có `deactivate` tương ứng
+- Activate khi bắt đầu xử lý, deactivate khi trả về
+
+**5. Arrow Types:**
+| Arrow | Meaning |
+|-------|---------|
+| `->>` | Synchronous request (gọi method) |
+| `-->>` | Response (trả về kết quả) |
+| `->` | Async message (không đợi response) |
+
+**6. Flow Pattern chuẩn:**
+```
+User → UI → Controller → Service → Repository → Database
+(Response ngược lại cùng thứ tự)
+```
+
+**7. Error Handling:** Dùng `alt`/`else` block cho success/error cases
+
+**8. Naming Convention viết tắt:**
+| Abbreviation | Full Name |
+|--------------|-----------|
+| AC | AuthController |
+| AS | AuthService |
+| UR | UserRepository |
+| CR | ClinicRepository |
+| DB | Database |
+| ES | EmailService |
+| JTP | JwtTokenProvider |
+
+**9. Role Abbreviations:**
+| Abbrev | Role |
+|--------|------|
+| PO | Pet Owner |
+| V | Vet |
+| CM | Clinic Manager |
+| CO | Clinic Owner |
+| A | Admin |
+
+---
+
+**Complete Example - Delete Flow with alt/else + activate/deactivate:**
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant R as VetShiftRepository
+    participant DB as Database
+
+    CM->>UI: 1. Select the vet shift to delete
+    UI->>C: 2. DELETE /api/v1/vet-shifts/{id}
+    activate C
+    C->>S: 3. deleteVetShift(id)
+    activate S
+    S->>R: 4. findById(id)
+    activate R
+    R->>DB: 5. SELECT * FROM vet_shifts WHERE id = ?
+
+    alt [Vet Shift does not exist]
+        DB-->>R: 6. Return null
+        deactivate R
+        R-->>S: 7. Optional.empty()
+        S-->>C: 8. Throw NotFoundException
+        deactivate S
+        C-->>UI: 9. HTTP 404 Not Found
+        deactivate C
+        UI-->>CM: 10. Display error "Vet shift not found"
+    else [Vet Shift exists]
+        DB-->>R: 6. Return vet shift record
+        deactivate R
+        R-->>S: 7. VetShift Entity
+        S->>R: 8. softDelete(vetShift)
+        activate R
+        R->>DB: 9. UPDATE vet_shifts SET deleted = true
+        DB-->>R: 10. Return success
+        deactivate R
+        R-->>S: 11. Success
+        deactivate S
+        S-->>C: 12. void
+        C-->>UI: 13. HTTP 200 OK
+        deactivate C
+        UI-->>CM: 14. Display success "Delete vet shift success"
+    end
+```
+
+---
+
 ## 2. API DESIGN SPECIFICATIONS
 
 > **Note:** API version prefix `/api/v1` (Backend) has been simplified to `/api`. AI Service is accessed via `/ai` prefix through NGINX.
@@ -755,11 +944,9 @@ flowchart TB
 
 ## 3. DETAILED DESIGN
 
-### 3.1 Authentication & Onboarding
+### 3.2 Authentication & Onboarding (UC-PO-01, UC-VT-01, UC-CM-01, UC-CO-01)
 
-
-
-#### 3.1.1 Class Diagram
+#### 3.2.1 Class Diagram - Authentication
 
 ```mermaid
 classDiagram
@@ -967,7 +1154,7 @@ classDiagram
     User --> Role
 ```
 
-#### 3.1.2 User Registration with OTP
+#### 3.2.2 User Registration with OTP (UC-PO-01)
 
 **Sequence Diagram:**
 
@@ -1057,7 +1244,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.1.3 Login with Username/Password
+#### 3.2.3 Login with Username/Password
 
 **Sequence Diagram:**
 
@@ -1138,7 +1325,7 @@ sequenceDiagram
     end
 ```
 
-#### 3.1.4 Sign in with Google Account
+#### 3.2.4 Sign in with Google Account
 
 **Sequence Diagram:**
 
@@ -1226,7 +1413,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.1.5 Forgot & Reset Password
+#### 3.2.5 Forgot & Reset Password
 
 **Sequence Diagram:**
 
@@ -1311,7 +1498,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.1.6 Logout & Session Management
+#### 3.2.6 Logout & Session Management
 
 **Sequence Diagram:**
 
@@ -1366,13 +1553,9 @@ sequenceDiagram
     deactivate UI
 ```
 
+### 3.3 User Profile & Account Setup (UC-PO-03, UC-VT-03, UC-CM-02, UC-CO-02, UC-PO-23)
 
-
----
-
-### 3.2 User Profile & Account Setup
-
-#### 3.2.1 Class Diagram
+#### 3.3.1 Class Diagram - User Profile
 
 ```mermaid
 classDiagram
@@ -1455,7 +1638,7 @@ classDiagram
     EmailChangeService --> OtpService
 ```
 
-#### 3.2.2 Update Profile & Avatar
+#### 3.3.2 Update Profile & Avatar (UC-PO-03, UC-VT-03, UC-CM-02)
 
 ```mermaid
 sequenceDiagram
@@ -1487,7 +1670,7 @@ sequenceDiagram
     UI-->>U: 12. Update UI state
 ```
 
-#### 3.2.3 Change Email with OTP
+#### 3.3.3 Change Email with OTP (UC-PO-23)
 
 ```mermaid
 sequenceDiagram
@@ -1526,7 +1709,7 @@ sequenceDiagram
     deactivate UC
 ```
 
-#### 3.2.4 Change Password Flow
+#### 3.3.4 Change Password Flow
 
 ```mermaid
 sequenceDiagram
@@ -1573,9 +1756,9 @@ sequenceDiagram
     end
 ```
 
-### 3.3 Pet Records & Health Hub
+### 3.4 Pet Records & Health Hub (UC-PO-04, UC-PO-11, UC-PO-26)
 
-#### 3.3.1 Class Diagram
+#### 3.4.1 Class Diagram - Pet Records
 
 ```mermaid
 classDiagram
@@ -1631,7 +1814,7 @@ classDiagram
     PetService --> CloudinaryService
 ```
 
-#### 3.3.2 Create Pet
+#### 3.4.2 Add New Pet Record (UC-PO-04)
 
 ```mermaid
 sequenceDiagram
@@ -1671,7 +1854,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.3.3 Update Pet
+#### 3.4.3 Update Pet Info (UC-PO-11)
 
 ```mermaid
 sequenceDiagram
@@ -1713,7 +1896,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.3.4 Delete Pet
+#### 3.4.4 Delete Pet (UC-PO-26)
 
 ```mermaid
 sequenceDiagram
@@ -1753,14 +1936,13 @@ sequenceDiagram
     deactivate UI
 ```
 
----
 
-### 3.4 Clinic Discovery Flow
+### 3.5 Clinic Discovery Flow (UC-PO-05)
 
-#### 3.4.1 Class Diagram (Search logic)
+#### 3.5.1 Class Diagram - Clinic Discovery
 *(Logic maps to Clinic Service `findNearbyClinics`)*
 
-#### 3.4.2 Search Nearby Clinics
+#### 3.5.2 Search Nearby Clinics (UC-PO-05)
 
 ```mermaid
 sequenceDiagram
@@ -1789,11 +1971,9 @@ sequenceDiagram
     deactivate UI
 ```
 
----
+### 3.6 Clinical Operations & Service Setup (UC-CO-03, UC-CO-04, UC-CO-05)
 
-### 3.5 Clinical Operations & Service Setup
-
-#### 3.5.1 Class Diagram
+#### 3.6.1 Class Diagram - Clinic & Services
 
 ```mermaid
 classDiagram
@@ -1876,7 +2056,7 @@ classDiagram
     ClinicImageRepository ..> ClinicImage
 ```
 
-#### 3.5.2 Create Clinic
+#### 3.6.2 Create Clinic (UC-CO-03)
 
 ```mermaid
 sequenceDiagram
@@ -1909,7 +2089,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.5.3 Approve/Reject Clinic (Admin)
+#### 3.6.3 Approve/Reject Clinic (Admin Approval Flow)
 
 ```mermaid
 sequenceDiagram
@@ -1942,7 +2122,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.5.4 Upload Clinic Image
+#### 3.6.4 Upload Clinic Image
 
 ```mermaid
 sequenceDiagram
@@ -1975,181 +2155,59 @@ sequenceDiagram
     deactivate UI
 ```
 
----
+### 3.7 Staffing & Scheduling Flow (UC-CM-03, UC-CO-06, UC-CM-04)
 
-### 3.6 Vet Shift & Slot Management
+Tương tác quan trọng nhất là việc mời nhân viên (Vet/Manager) vào phòng khám và quản lý ca trực của họ.
 
-#### 3.6.1 Class Diagram (Vet Shift)
-
-```mermaid
-classDiagram
-    class VetShiftController {
-        -VetShiftService vetShiftService
-        +createShifts(UUID, VetShiftRequest) ResponseEntity
-        +getClinicShifts(UUID, LocalDate, LocalDate) ResponseEntity
-        +getMyShifts(LocalDate, LocalDate) ResponseEntity
-        +deleteShift(UUID) ResponseEntity
-        +blockSlot(UUID) ResponseEntity
-        +unblockSlot(UUID) ResponseEntity
-    }
-
-    class VetShiftService {
-        -VetShiftRepository vetShiftRepository
-        -SlotRepository slotRepository
-        -ClinicRepository clinicRepository
-        -NotificationService notificationService
-        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
-        +deleteShift(UUID) void
-        +blockSlot(UUID) SlotResponse
-        +generateSlots(VetShift) void
-    }
-
-    class VetShiftRepository {
-        <<interface>>
-        +findByVetAndWorkDate(User, LocalDate) List~VetShift~
-        +save(VetShift) VetShift
-        +delete(VetShift) void
-    }
-
-    class SlotRepository {
-        <<interface>>
-        +saveAll(Iterable) List
-        +deleteByShift(VetShift) void
-    }
-
-    class VetShift {
-        +UUID shiftId
-        +User vet
-        +Clinic clinic
-        +LocalDate workDate
-        +LocalTime startTime
-        +LocalTime endTime
-        +Boolean isOvernight
-    }
-
-    class Slot {
-        +UUID slotId
-        +VetShift shift
-        +LocalTime startTime
-        +SlotStatus status
-    }
-
-    VetShiftController --> VetShiftService
-    VetShiftService --> VetShiftRepository
-    VetShiftService --> SlotRepository
-    VetShiftRepository ..> VetShift
-    SlotRepository ..> Slot
-    VetShift "1" *-- "many" Slot
-```
-
-#### 3.6.2 Clinician Roster Management (Create Shift & Auto-Slots)
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant CR as ClinicRepository
-    participant VSR as VetShiftRepository
-    participant SR as SlotRepository
-    participant DB as Database
-
-    M->>UI: 1. Select Vet, times and multiple Dates
-    activate UI
-    UI->>C: 2. createShift(clinicId, shiftRequest)
-    activate C
-    C->>S: 3. createShifts(clinicId, request)
-    activate S
-    loop For each WorkDate
-        S->>CR: 4. findById(clinicId)
-        activate CR
-        CR->>DB: 5. Query clinic by ID
-        activate DB
-        DB-->>CR: 6. Clinic Entity
-        deactivate DB
-        CR-->>S: 7. Clinic (Get Operating Hours)
-        deactivate CR
-        S->>S: 8. Determine breakStart/End (Clinic Sync)
-        S->>VSR: 9. findOverlappingShifts(vetId, workDate, times)
-        activate VSR
-        VSR->>DB: 10. Query existing shifts for vet on date
-        activate DB
-        DB-->>VSR: 11. Empty List (no conflicts)
-        deactivate DB
-        VSR-->>S: 12. []
-        deactivate VSR
-        S->>S: 13. generateSlots (30-min intervals)
-        S->>VSR: 14. save(VetShift)
-        activate VSR
-        VSR->>DB: 15. Insert new vet shift
-        activate DB
-        DB-->>VSR: 16. Inserted
-        deactivate DB
-        VSR-->>S: 17. Saved VetShift
-        deactivate VSR
-        S->>SR: 18. saveAll(Slots)
-        activate SR
-        SR->>DB: 19. Batch insert slots
-        activate DB
-        DB-->>SR: 20. Inserted
-        deactivate DB
-        SR-->>S: 21. OK
-        deactivate SR
-    end
-    S-->>C: 22. List<VetShiftResponse>
-    deactivate S
-    C-->>UI: 23. 201 Created
-    deactivate C
-    UI-->>M: 24. Display shifts on Calendar
-    deactivate UI
-```
-
----
-
-### 3.7 Staffing & Scheduling Flow
-
-#### 3.7.1 Class Diagram (Staffing)
+#### 3.7.1 Class Diagram - Staffing & Scheduling
 
 ```mermaid
 classDiagram
     class ClinicStaffController {
         -ClinicStaffService staffService
         +getStaff(UUID) ResponseEntity
-        +hasManager(UUID) ResponseEntity
-        +quickAddStaff(UUID, QuickAddStaffRequest) ResponseEntity
-        +assignManager(UUID, String) ResponseEntity
-        +assignVet(UUID, String) ResponseEntity
+        +inviteByEmail(UUID, InviteByEmailRequest) ResponseEntity
         +removeStaff(UUID, UUID) ResponseEntity
     }
 
     class ClinicStaffService {
-        -ClinicRepository clinicRepository
         -UserRepository userRepository
-        -AuthService authService
-        -PasswordEncoder passwordEncoder
         +getClinicStaff(UUID) List~StaffResponse~
-        +hasManager(UUID) boolean
-        +quickAddStaff(UUID, QuickAddStaffRequest) void
-        +assignManager(UUID, String) void
-        +assignVet(UUID, String) void
+        +inviteByEmail(UUID, InviteByEmailRequest) void
         +removeStaff(UUID, UUID) void
     }
 
-    class UserRepository {
+    class VetShiftController {
+        -VetShiftService vetShiftService
+        +createShift(UUID, VetShiftRequest) ResponseEntity
+        +getShiftsByClinic(UUID, LocalDate, LocalDate) ResponseEntity
+        +deleteShift(UUID) ResponseEntity
+        +blockSlot(UUID) ResponseEntity
+    }
+
+    class VetShiftService {
+        -VetShiftRepository vetShiftRepository
+        -SlotRepository slotRepository
+        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
+        +generateSlots(VetShift, LocalTime, LocalTime) void
+        +validateOperatingHours(...) void
+        +blockSlot(UUID) SlotResponse
+    }
+
+    class VetShiftRepository {
         <<interface>>
-        +findById(UUID) Optional~User~
-        +findByUsernameOrEmailOrPhone(String, String, String) Optional~User~
-        +existsByPhone(String) boolean
-        +existsByEmail(String) boolean
-        +save(User) User
+        +findByClinicAndDateRange(...) List
+        +existsByVet_UserIdAndWorkDateAndTimeRange(...) boolean
+        +save(VetShift) VetShift
     }
 
     ClinicStaffController --> ClinicStaffService
+    VetShiftController --> VetShiftService
+    VetShiftService --> VetShiftRepository
     ClinicStaffService --> UserRepository
 ```
 
-#### 3.7.2 Quick Staff Addition
+#### 3.7.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
 
 ```mermaid
 sequenceDiagram
@@ -2161,42 +2219,83 @@ sequenceDiagram
     participant UR as UserRepository
     participant DB as Database
 
-    O->>UI: 1. Fill staff info (Name, Phone, Role)
-    UI->>SC: 2. quickAddStaff(clinicId, request)
+    O->>UI: 1. Input Email, Role, Specialty (No Name/Phone required)
+    UI->>SC: 2. inviteByEmail(clinicId, request)
     activate SC
-    SC->>SS: 3. quickAddStaff(clinicId, request)
+    SC->>SS: 3. inviteByEmail(clinicId, request)
     activate SS
-    SS->>UR: 4. existsByPhone(phone)
-    activate UR
-    UR->>DB: 5. Check phone exists
-    activate DB
-    DB-->>UR: 6. Not exists
-    deactivate DB
-    UR-->>SS: 7. false
-    deactivate UR
-    SS->>AS: 8. getCurrentUser()
+    SS->>AS: 4. getCurrentUser()
     activate AS
-    AS-->>SS: 9. currentUser
+    AS-->>SS: 5. currentUser
     deactivate AS
-    SS->>SS: 10. Validate Permissions & Business Rules
-    Note over SS: Check Ownership, Manager Role, Max 1 Manager
-    SS->>SS: 11. Create User & set workingClinic
-    SS->>UR: 12. save(New Staff)
+    SS->>SS: 6. Validate Permissions (Owner vs Manager)
+    SS->>UR: 7. findByEmail(email)
     activate UR
-    UR->>DB: 13. Insert new user
+    UR->>DB: 8. Query user
     activate DB
-    DB-->>UR: 14. Inserted
+    DB-->>UR: 9. User Entity (or null)
     deactivate DB
-    UR-->>SS: 15. Saved User Entity
+    UR-->>SS: 10. User / null
     deactivate UR
-    SS-->>SC: 16. StaffResponse
+    alt User Already Exists
+        SS->>SS: 11a. Check if assigned to another clinic
+        SS->>SS: 12a. Update Role & WorkingClinic
+    else New User
+        SS->>SS: 11b. Create User Entity (waiting for Google Login)
+        SS->>SS: 12b. Set Random Password & WorkingClinic
+    end
+    SS->>UR: 13. save(User)
+    activate UR
+    UR->>DB: 14. Save to DB
+    activate DB
+    DB-->>UR: 15. OK
+    deactivate DB
+    UR-->>SS: 16. OK
+    deactivate UR
+    SS-->>SC: 17. void
     deactivate SS
-    SC-->>UI: 17. 201 Created
+    SC-->>UI: 18. 200 OK (Success Message)
     deactivate SC
-    UI-->>O: 18. New staff appears in list
+    UI-->>O: 19. "Staff invited successfully" notification
 ```
 
+#### 3.7.3 Create Vet Shift (UC-CM-04, UC-CO-07)
 
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as VetShift Dashboard (Web)
+    participant C as VetShiftController
+    participant S as VetShiftService
+    participant R as VetShiftRepository
+    participant DB as Database
+
+    M->>UI: 1. Choose Vet, Dates, Time Range
+    UI->>C: 2. createShift(clinicId, request)
+    activate C
+    C->>S: 3. createShifts(clinicId, request)
+    activate S
+    loop For each WorkDate
+        S->>R: 4. Check for overlaps (existsBy...)
+        R-->>S: 5. Conflict found (Boolean/Entity)
+        alt forceUpdate = false AND Conflicts exist
+            S-->>C: 6a. throw ConflictException
+            C-->>UI: 7a. 409 Conflict (Return conflict details)
+            UI-->>M: 8a. Show Conflict Warning Modal
+        else No Conflicts OR forceUpdate = true
+            S->>S: 6b. Create VetShift Entity
+            S->>S: 7b. Generate 30-min Slots
+            S->>R: 8b. Save Shift & Slots
+            R->>DB: 9b. Persist
+            DB-->>R: 10b. OK
+        end
+    end
+    S-->>C: 11. List~VetShiftResponse~
+    deactivate S
+    C-->>UI: 12. 201 Created
+    deactivate C
+    UI-->>M: 13. Refresh Calendar
+```
 
 #### 3.7.4 Delete Shift & Slot Operations
 
@@ -2254,110 +2353,252 @@ sequenceDiagram
         deactivate UI
     end
 ```
-#### 3.7.5 Business Rules
+#### 3.7.4 Business Rules
 
-1. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift
-2. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó
-3. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true
-4. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ
-5. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED
-6. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots
-7. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp
-8. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ
-9. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa
-10. **SSE Notifications:** Gửi batch notification cho Vet khi được assign shifts mới
+1. **Staff Roles Control:** 
+    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và VET.
+    - CLINIC_MANAGER chỉ có quyền thêm Bác sĩ (VET).
+2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
+3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
+4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
+5. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
+6. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
+7. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
+8. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
+9. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
+10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
+11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
+12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
+13. **SSE Notifications:** Gửi batch notification cho Vet khi được assign shifts mới.
 
+### 3.8 Booking & Appointment Lifecycle (UC-PO-06, UC-PO-07, UC-CM-06, BOK-1)
 
+Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobile App cho đến khi hoàn tất thanh toán tại phòng khám.
 
-### 3.8 Booking & Appointment Lifecycle
+**Last Updated:** 2026-01-23 (Added Sequence Diagrams: UC-PO-08, UC-PO-09, UC-VT-03, UC-VT-04, UC-VT-05, UC-VT-09, UC-CM-07, UC-CM-14, UC-CM-15, UC-CM-16)
 
-#### 3.8.1 Class Diagram (Backend)
+#### 3.8.0 API Specification Table
+
+| # | Method | Endpoint | Role | Description | Status |
+|---|--------|----------|------|-------------|--------|
+| 0 | GET | `/bookings/public/available-slots` | Public | Lấy danh sách slot trống (Smart Availability) | 🔨 To Implement |
+| 1 | POST | `/bookings` | PET_OWNER | Tạo booking mới | ✅ Done |
+| 2 | GET | `/services/by-clinic/{clinicId}` | Public | Lấy danh sách dịch vụ của phòng khám | ✅ Done |
+| 3 | GET | `/bookings/clinic/{clinicId}` | MANAGER, ADMIN | Lấy danh sách booking của clinic | ✅ Done |
+| 3 | GET | `/bookings/vet/{vetId}` | VET, MANAGER, ADMIN | Lấy booking được gán cho vet | ✅ Done |
+| 4 | GET | `/bookings/{bookingId}` | All | Lấy chi tiết booking | ✅ Done |
+| 5 | GET | `/bookings/code/{bookingCode}` | All | Lấy booking theo mã | ✅ Done |
+| 6 | GET | `/bookings/{id}/check-vet-availability` | MANAGER, ADMIN | Kiểm tra vet availability trước confirm | ✅ Done |
+| 7 | GET | `/bookings/{id}/available-vets-for-confirm` | MANAGER, ADMIN | Lấy danh sách vet cho dropdown chọn thủ công | ✅ Done |
+| 8 | PATCH | `/bookings/{id}/confirm` | MANAGER, ADMIN | Xác nhận booking + auto/manual assign vet | ✅ Done |
+| 9 | PATCH | `/bookings/{id}/cancel` | All | Hủy booking với lý do | ✅ Done |
+| 10 | GET | `/bookings/{id}/services/{serviceId}/available-vets` | MANAGER, ADMIN | Lấy danh sách vet có thể reassign | ✅ Done |
+| 11 | POST | `/bookings/{id}/services/{serviceId}/reassign` | MANAGER, ADMIN | Đổi vet cho dịch vụ | ✅ Done |
+| 12 | POST | `/bookings/{id}/add-service` | VET, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
+| 13 | PATCH | `/bookings/{id}/check-in` | VET, MANAGER | Check-in bắt đầu khám | ⏳ Pending |
+| 14 | PATCH | `/bookings/{id}/check-out` | VET, MANAGER | Check-out kết thúc khám | ⏳ Pending |
+| 15 | PATCH | `/bookings/{id}/complete` | MANAGER | Hoàn thành sau thanh toán | ⏳ Pending |
+
+**Booking Status Flow:**
+```
+PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+                                                           ↓
+                                                       CANCELLED / NO_SHOW
+```
+
+**Notes:**
+- IN_CLINIC & HOME_VISIT: Bỏ qua ON_THE_WAY, ARRIVED (đi thẳng từ ASSIGNED → CHECK_IN)
+- SOS: Sử dụng ON_THE_WAY → ARRIVED với GPS tracking tự động
+
+#### 3.8.1 Class Diagram - Booking & Appointment
 
 ```mermaid
 classDiagram
     class BookingController {
         -BookingService bookingService
-        +createBooking(BookingRequest) ResponseEntity
-        +getClinicBookings(UUID, LocalDate) ResponseEntity
-        +updateBookingStatus(UUID, BookingStatus) ResponseEntity
+        +createBooking(BookingRequest, UserDetails) ResponseEntity
+        +getBookingsByClinic(UUID, BookingStatus, BookingType, Pageable) ResponseEntity
+        +getBookingsByVet(UUID, BookingStatus, Pageable) ResponseEntity
+        +getBookingById(UUID) ResponseEntity
+        +checkVetAvailability(UUID) ResponseEntity
+        +getAvailableVetsForConfirm(UUID) ResponseEntity
+        +confirmBooking(UUID, BookingConfirmRequest) ResponseEntity
+        +cancelBooking(UUID, String, UserDetails) ResponseEntity
+        +getAvailableVetsForReassign(UUID, UUID) ResponseEntity
+        +reassignVet(UUID, UUID, ReassignVetRequest) ResponseEntity
+        +addServiceToBooking(UUID, AddServiceRequest) ResponseEntity
+        +checkIn(UUID) ResponseEntity
+        +checkOut(UUID) ResponseEntity
+        +complete(UUID) ResponseEntity
     }
 
     class BookingService {
         -BookingRepository bookingRepository
-        -SlotRepository slotRepository
-        -PetRepository petRepository
-        +createBooking(BookingRequest) BookingResponse
-        +updateBookingStatus(UUID, BookingStatus) void
-        +cancelBooking(UUID, String) void
+        -VetAssignmentService vetAssignmentService
+        -PricingService pricingService
+        -NotificationService notificationService
+        +createBooking(BookingRequest, UUID) BookingResponse
+        +confirmBooking(UUID, BookingConfirmRequest) BookingResponse
+        +cancelBooking(UUID, String, UUID) BookingResponse
+        +checkVetAvailability(UUID) VetAvailabilityCheckResponse
+        +getAvailableVetsForConfirm(UUID) List~VetOptionDTO~
+        +getAvailableVetsForReassign(UUID, UUID) List~AvailableVetResponse~
+        +reassignVetForService(UUID, UUID, UUID) BookingResponse
+        +addServiceToBooking(UUID, UUID) BookingResponse
+        +checkIn(UUID) BookingResponse
+        +checkOut(UUID) BookingResponse
+        +complete(UUID) BookingResponse
     }
 
-    class BookingRepository {
-        <<interface>>
-        +findById(UUID) Optional~Booking~
-        +findByClinicAndAppointmentDate(Clinic, LocalDate) List~Booking~
-        +save(Booking) Booking
+    class VetAssignmentService {
+        +checkVetAvailabilityForBooking(Booking) VetAvailabilityCheckResponse
+        +getAvailableVetsForConfirm(Booking) List~VetOptionDTO~
+        +assignVetsToAllServices(Booking) Map
+        +assignSpecificVet(Booking, UUID) void
+        +reserveSlotsForBooking(Booking) void
+        +releaseSlotsForBooking(Booking) void
+        +reassignVetForService(...) void
+    }
+
+    class VetOptionDTO {
+        +UUID vetId
+        +String fullName
+        +String avatarUrl
+        +String specialty
+        +String specialtyLabel
+        +boolean isSuggested
+        +int bookingCount
+        +boolean hasAvailableSlots
+        +String unavailableReason
     }
 
     class Booking {
         +UUID bookingId
+        +String bookingCode
         +Pet pet
+        +User petOwner
         +Clinic clinic
+        +User assignedVet
         +BookingStatus status
-        +LocalDate appointmentDate
+        +BookingType type
+        +LocalDate bookingDate
+        +LocalTime bookingTime
         +BigDecimal totalPrice
-        +BigDecimal surcharge
+        +BigDecimal distanceFee
+        +List~BookingServiceItem~ bookingServices
     }
 
-    class BookingStatus {
-        <<enumeration>>
-        PENDING
-        CONFIRMED
-        CHECKED_IN
-        COMPLETED
-        CANCELLED
-        NO_SHOW
+    class BookingServiceItem {
+        +UUID bookingServiceId
+        +Booking booking
+        +ClinicService service
+        +User assignedVet
+        +BigDecimal unitPrice
+        +Integer quantity
+        +LocalTime scheduledStartTime
+        +LocalTime scheduledEndTime
     }
 
     BookingController --> BookingService
+    BookingService --> VetAssignmentService
     BookingService --> BookingRepository
-    BookingRepository ..> Booking
-    Booking --> BookingStatus
+    VetAssignmentService --> VetOptionDTO
+    Booking "1" *-- "many" BookingServiceItem
 ```
 
 #### 3.8.2 Create Appointment (BOK-1 Mobile Booking Wizard)
 
+**Smart Availability Algorithm**:
+The system implements a "Smart Availability" feature that automatically filters available time slots based on:
+1. Selected service(s) and their required vet specialties
+2. Vet working shifts for the selected date
+3. Existing bookings (to avoid double-booking)
+
+For multi-service bookings, the algorithm ensures **consecutive slots** can be fulfilled by checking each service in sequence.
+
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI as Mobile Wizard (5-Steps)
+    participant UI as Mobile Booking Screen
     participant BC as BookingController
     participant BS as BookingService
+    participant VAS as VetAssignmentService
     participant SR as SlotRepository
     participant DB as Database
 
-    PO->>UI: 1. Step 1-3: Choose Pet, Service, Vet
-    UI->>BC: 2. GET /api/clinics/{id}/available-slots (filtered)
-    BC-->>UI: 3. Available Slots List
-    PO->>UI: 4. Step 4: Select Slot & Date
-    PO->>UI: 5. Step 5: Review & Enter Address (if Home)
+    PO->>UI: 1. Step 1: Select Service(s)
+    PO->>UI: 2. Step 2: Select Date
     activate UI
-    UI->>BC: 6. createBooking(BookingRequest)
+    UI->>BC: 3. GET /api/bookings/public/available-slots?clinicId&date&serviceIds[]
     activate BC
-    BC->>BS: 7. createBooking(request)
+    BC->>BS: 4. getAvailableSlots(clinicId, date, serviceIds)
     activate BS
-    BS->>BS: 8. Validate slots (availability & distance)
-    BS->>BS: 9. Calculate total price (Base + Weight + Distance)
-    BS->>DB: 10. saveAll (Booking + link to Slots)
-    BS->>SR: 11. Lock Slots (status=BOOKED, TTL=15m for payment)
-    BS-->>BC: 12. BookingResponse
+    BS->>VAS: 5. findAvailableTimeSlotsWithSmartMatching(...)
+    activate VAS
+    Note over VAS: Smart Availability Logic:<br/>1. Fetch all services with required specialties<br/>2. Query vets with matching specialties<br/>3. Check vet shifts for date<br/>4. Filter out booked slots<br/>5. Validate consecutive slots for multi-service
+    VAS-->>BS: 6. List of valid start times
+    deactivate VAS
+    BS-->>BC: 7. Available slot times
     deactivate BS
-    BC-->>UI: 13. 201 Created
+    BC-->>UI: 8. JSON Array of available times
     deactivate BC
-    UI-->>PO: 14. Show "Proceed to Payment" (Step 6)
+    UI-->>PO: 9. Display time grid (available slots)
+    
+    PO->>UI: 10. Select time slot
+    PO->>UI: 11. Step 3: Review & Confirm
+    UI->>BC: 12. POST /api/bookings (with serviceIds, slotIds, NO vetId)
+    activate BC
+    BC->>BS: 13. createBooking(request)
+    activate BS
+    BS->>BS: 14. Validate slots still available
+    BS->>BS: 15. Calculate total price (Base + Weight + Distance)
+    BS->>DB: 16. Save Booking (status=PENDING)
+    BS->>SR: 17. Lock Slots (TTL=15m for payment)
+    BS-->>BC: 18. BookingResponse
+    deactivate BS
+    BC-->>UI: 19. 201 Created
+    deactivate BC
+    UI-->>PO: 20. Show "Proceed to Payment"
     deactivate UI
 ```
 
-#### 3.8.3 Confirm / Update Booking (Clinic Manager)
+**Key Technical Details**:
+- **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
+- **Vet Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
+- **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
+
+#### 3.8.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile App
+    participant BC as BookingController
+    participant BS as BookingService
+    participant PS as PaymentService/Stripe
+    participant DB as Database
+
+    PO->>UI: 1. Click "Pay Now"
+    UI->>BC: 2. GET /bookings/{id}/payment-intent
+    BC->>PS: 3. Create Stripe Payment Intent
+    PS-->>BC: 4. Client Secret
+    BC-->>UI: 5. Client Secret
+    UI->>PS: 6. Confirm Payment (Stripe SDK)
+    PS-->>UI: 7. Payment Success
+    UI->>BC: 8. POST /bookings/{id}/confirm-payment
+    activate BC
+    BC->>BS: 9. confirmPayment(id)
+    activate BS
+    BS->>DB: 10. Update status to CONFIRMED
+    BS-->>BC: 11. BookingResponse
+    deactivate BS
+    BC-->>UI: 12. 200 OK
+    deactivate BC
+```
+
+#### 3.8.4 Clinician Assignment with Manual Vet Selection (UC-CM-06)
+
+Manager có thể chọn vet thủ công qua inline dropdown hoặc để hệ thống auto-assign.
 
 ```mermaid
 sequenceDiagram
@@ -2365,97 +2606,894 @@ sequenceDiagram
     participant UI as Manager Web Dashboard
     participant BC as BookingController
     participant BS as BookingService
-    participant BR as BookingRepository
+    participant VAS as VetAssignmentService
+    participant NS as NotificationService
     participant DB as Database
 
-    M->>UI: 1. View Pending Bookings
-    M->>UI: 2. Click "Verify & Confirm"
+    M->>UI: 1. Click "Chi tiết" on PENDING booking
     activate UI
-    UI->>BC: 3. updateBookingStatus(id, status=CONFIRMED)
+    UI->>BC: 2. GET /bookings/{id}/available-vets-for-confirm
     activate BC
-    BC->>BS: 4. updateBookingStatus(id, status)
-    activate BS
-    BS->>BR: 5. findById(id)
-    activate BR
-    BR->>DB: 6. Query booking by ID
-    activate DB
-    DB-->>BR: 7. Booking Entity
-    deactivate DB
-    BR-->>BS: 8. Booking
-    deactivate BR
-    BS->>BS: 8b. Auto-Assign Vet (if available)
-    BS->>BR: 9. save(Updated Booking)
-    activate BR
-    BR->>DB: 10. Update booking status to CONFIRMED
-    activate DB
-    DB-->>BR: 11. Updated
-    deactivate DB
-    BR-->>BS: 12. OK
-    deactivate BR
-    BS-->>BC: 13. Updated Booking
-    deactivate BS
-    BC-->>UI: 14. 200 OK
+    BC->>BS: 3. getAvailableVetsForConfirm(id)
+    BS->>VAS: 4. getAvailableVetsForConfirm(booking)
+    VAS-->>BS: 5. List<VetOptionDTO> with isSuggested flags
+    BS-->>BC: 6. VetOptionDTO list
+    BC-->>UI: 7. JSON Array of vets
     deactivate BC
-    UI-->>M: 15. Refresh booking list
+    UI-->>M: 8. Show inline dropdown per service (pre-select suggested)
+
+    M->>UI: 9. (Optional) Change vet via dropdown
+    M->>UI: 10. Click "Xác nhận & Gán Vet"
+    UI->>BC: 11. PATCH /bookings/{id}/confirm with selectedVetId
+    activate BC
+    BC->>BS: 12. confirmBooking(id, request with selectedVetId)
+    activate BS
+    BS->>DB: 13. findById(id)
+    DB-->>BS: 14. Booking Entity
+
+    alt selectedVetId provided (Manual Selection)
+        BS->>VAS: 15a. assignSpecificVet(booking, selectedVetId)
+        VAS->>VAS: 16a. Validate specialty match
+        VAS->>VAS: 17a. Reserve slots for selected vet
+    else No selectedVetId (Auto-Assign)
+        BS->>VAS: 15b. assignVetsToAllServices(booking)
+        VAS-->>BS: 16b. Assignment Result
+    end
+
+    BS->>NS: 18. sendBookingAssignedNotification(booking)
+    BS->>DB: 19. save(Updated Booking)
+    BS-->>BC: 20. BookingResponse
+    deactivate BS
+    BC-->>UI: 21. 200 OK
+    deactivate BC
+    UI-->>M: 22. Close modal, refresh list
     deactivate UI
 ```
 
-### 3.9 Real-time Location Tracking (SOS Emergency)
+**Matching Rules (Service Category → Vet Specialty):**
+| Service Category | Required Vet Specialty |
+|-----------------|------------------------|
+| GROOMING_SPA | VET_GROOMING, GROOMER |
+| CHECK_UP, VACCINATION, INTERNAL_MEDICINE | VET_GENERAL, VET_VACCINATION |
+| SURGERY | VET_SURGERY |
+| DENTAL | VET_DENTAL |
+| DERMATOLOGY | VET_DERMATOLOGY |
+| EMERGENCY | VET_EMERGENCY |
 
-#### 3.9.1 Class Diagram
-
-```mermaid
-classDiagram
-    class TrackingController {
-        -TrackingService trackingService
-        +updateLocation(LocationDto) void
-    }
-
-    class TrackingService {
-        -BookingRepository bookingRepository
-        -RedisTemplate redisTemplate
-        -MapsService mapsService
-        -SimpMessagingTemplate messagingTemplate
-        +processLocationUpdate(LocationDto) void
-        +getETA(BookingId) String
-    }
-
-    class MapsService {
-        +getDistanceMatrix(origin, destination) DistanceMatrixResponse
-    }
-
-    TrackingController --> TrackingService
-    TrackingService --> MapsService
-    TrackingService --> BookingRepository
-```
-
-#### 3.9.2 Sequence Diagram
+#### 3.8.5 Check Vet Availability
 
 ```mermaid
 sequenceDiagram
-    actor V as Vet (Mobile)
-    participant TS as TrackingService
-    participant RD as Redis
-    participant MS as MapsService (Goong)
-    participant O as Pet Owner (Mobile)
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard
+    participant BC as BookingController
+    participant BS as BookingService
+    participant VAS as VetAssignmentService
 
-    loop Every 10 seconds (Status: EN_ROUTE, BookingType: SOS)
-        V->>TS: 1. updateLocation(LocationDto)
-        activate TS
-        TS->>RD: 2. Cache current location
-        TS->>MS: 3. requestETA(origin: Vet, dest: Owner)
-        activate MS
-        MS-->>TS: 4. ETA: 15 mins (5.2 km)
-        deactivate MS
-        TS->>O: 5. Broadcast {lat, lng, eta} via WebSocket
-        Note right of O: UI updates Marker position & ETA toast
-        deactivate TS
-    end
+    M->>UI: 1. View Booking Details
+    UI->>BC: 2. GET /bookings/{id}/check-vet-availability
+    activate BC
+    BC->>BS: 3. checkVetAvailability(id)
+    activate BS
+    BS->>VAS: 4. checkVetAvailabilityForBooking(booking)
+    activate VAS
+    VAS-->>BS: 5. VetAvailabilityCheckResponse
+    deactivate VAS
+    BS-->>BC: 6. Response
+    deactivate BS
+    BC-->>UI: 7. JSON Data
+    deactivate BC
+    UI-->>M: 8. Show availability status for each service
 ```
 
-### 3.10 Electronic Medical Records (EMR)
+#### 3.8.6 Reassign Vet
 
-#### 3.10.1 Class Diagram
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard
+    participant BC as BookingController
+    participant BS as BookingService
+    participant VAS as VetAssignmentService
+
+    M->>UI: 1. Select specific service in booking
+    UI->>BC: 2. GET /.../available-vets
+    BC->>BS: 3. getAvailableVetsForReassign(bookingId, serviceId)
+    BS-->>BC: 4. List of available vets
+    BC-->>UI: 5. Show vet list
+    M->>UI: 6. Select new vet & Confirm
+    UI->>BC: 7. POST /.../reassign
+    activate BC
+    BC->>BS: 8. reassignVetForService(bookingId, serviceId, newVetId)
+    activate BS
+    BS->>VAS: 9. reassignVetForService(...)
+    Note over VAS: Release old slots & Reserve new slots
+    VAS-->>BS: 10. OK
+    BS-->>BC: 11. Updated Booking
+    deactivate BS
+    BC-->>UI: 12. Success
+    deactivate BC
+```
+
+#### 3.8.7 Add-on Service During Examination
+
+Thêm dịch vụ phát sinh trong lúc khám (chỉ hiện khi status = IN_PROGRESS hoặc ARRIVED cho SOS).
+
+```mermaid
+sequenceDiagram
+    actor V as Vet/Manager
+    participant UI as Dashboard
+    participant BC as BookingController
+    participant BS as BookingService
+    participant PS as PricingService
+    participant DB as Database
+
+    V->>UI: 1. Click "Thêm dịch vụ" (only visible when IN_PROGRESS/ARRIVED)
+    UI->>UI: 2. Show AddServiceModal with available services
+    V->>UI: 3. Select service to add
+    UI->>BC: 4. POST /bookings/{id}/add-service with serviceId
+    activate BC
+    BC->>BS: 5. addServiceToBooking(bookingId, serviceId)
+    activate BS
+    BS->>DB: 6. findById(bookingId)
+    DB-->>BS: 7. Booking Entity
+    BS->>BS: 8. Validate status is IN_PROGRESS or ARRIVED
+    BS->>PS: 9. calculateServicePrice(service, petWeight)
+    PS-->>BS: 10. Calculated price
+    BS->>BS: 11. Create BookingServiceItem
+    BS->>BS: 12. Update booking totalPrice (NOT recalculate distance fee)
+    BS->>DB: 13. save(Booking with new service)
+    BS-->>BC: 14. Updated BookingResponse
+    deactivate BS
+    BC-->>UI: 15. 200 OK
+    deactivate BC
+    UI-->>V: 16. Close modal, refresh booking detail
+```
+
+**Notes:**
+- Distance fee is NOT recalculated when adding services
+- Price is calculated based on pet's current weight
+- Only services from the same clinic can be added
+
+#### 3.8.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
+
+```mermaid
+sequenceDiagram
+    actor M as Clinic Manager
+    participant UI as Manager Dashboard
+    participant BC as BookingController
+    participant BS as BookingService
+    participant PR as PaymentRepository
+    participant DB as Database
+
+    M->>UI: 1. Click "Receive Payment & Checkout"
+    activate UI
+    UI->>BC: 2. POST /bookings/{id}/checkout
+    activate BC
+    BC->>BS: 3. processCheckout(id)
+    activate BS
+    BS->>DB: 4. findById(id)
+    activate DB
+    DB-->>BS: 5. Booking Entity (Status: CHECK_OUT)
+    deactivate DB
+    BS->>PR: 6. findByBooking(booking)
+    activate PR
+    PR-->>BS: 7. Payment Entity
+    deactivate PR
+    BS->>BS: 8. Mark payment as PAID & update paidAt
+    BS->>BS: 9. Set booking status to COMPLETED
+    BS->>DB: 10. saveAll (Booking, Payment)
+    activate DB
+    DB-->>BS: 11. OK
+    deactivate DB
+    BS-->>BC: 12. BookingResponse
+    deactivate BS
+    BC-->>UI: 13. 200 OK (Completed)
+    deactivate BC
+    UI-->>M: 14. Update UI (Move booking to COMPLETED tab)
+    deactivate UI
+```
+
+#### 3.8.9 View My Bookings (UC-PO-08)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as My Bookings Screen (Mobile)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant DB as PostgreSQL
+
+    PO->>UI: 1. Navigate to "Lịch hẹn" tab
+    activate UI
+    UI->>API: 2. GET /api/bookings/my
+    activate API
+    API->>SVC: 3. getMyBookings(userId)
+    activate SVC
+    SVC->>DB: 4. SELECT * FROM bookings WHERE pet_owner_id = ?
+    activate DB
+    DB-->>SVC: 5. List<Booking>
+    deactivate DB
+    SVC->>SVC: 6. Group by status (Upcoming, Completed, Cancelled)
+    SVC->>SVC: 7. Sort by booking_date DESC
+    SVC-->>API: 8. BookingListDTO
+    deactivate SVC
+    API-->>UI: 9. 200 OK + booking list
+    deactivate API
+    UI-->>PO: 10. Display bookings in tabs
+    deactivate UI
+```
+
+**Notes:**
+- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, ASSIGNED, CHECK_IN, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
+- Empty state shown if no bookings exist
+- Pet Owner can click on any booking to view details
+
+#### 3.8.10 Cancel Booking (UC-PO-09)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Booking Detail Screen (Mobile)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant BR as BookingRepository
+    participant SR as SlotRepository
+    participant NR as NotificationRepository
+    participant DB as PostgreSQL
+
+    PO->>UI: 1. Click "Hủy lịch" button
+    activate UI
+    UI->>UI: 2. Show confirmation modal
+    PO->>UI: 3. Confirm cancellation
+    UI->>API: 4. POST /api/bookings/{id}/cancel
+    activate API
+    API->>SVC: 5. cancelBooking(bookingId, userId)
+    activate SVC
+    SVC->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity
+    deactivate DB
+    BR-->>SVC: 9. Booking
+    deactivate BR
+    SVC->>SVC: 10. Validate: status < CHECK_IN
+    alt Status < CHECK_IN
+        SVC->>SVC: 11. Update booking.status = CANCELLED
+        SVC->>SR: 12. findByBooking(booking)
+        activate SR
+        SR->>DB: 13. SELECT * FROM slots WHERE booking_id = ?
+        activate DB
+        DB-->>SR: 14. List<Slot>
+        deactivate DB
+        SR-->>SVC: 15. Slots
+        deactivate SR
+        SVC->>SR: 16. Update slots to AVAILABLE
+        activate SR
+        SR->>DB: 17. UPDATE slots SET status = 'AVAILABLE'
+        activate DB
+        DB-->>SR: 18. OK
+        deactivate DB
+        deactivate SR
+        SVC->>NR: 19. Create notifications (Manager, Vet if assigned)
+        activate NR
+        NR->>DB: 20. INSERT INTO notifications
+        activate DB
+        DB-->>NR: 21. OK
+        deactivate DB
+        deactivate NR
+        SVC->>BR: 22. save(booking)
+        activate BR
+        BR->>DB: 23. UPDATE bookings SET status = 'CANCELLED'
+        activate DB
+        DB-->>BR: 24. OK
+        deactivate DB
+        deactivate BR
+        SVC-->>API: 25. BookingResponse (CANCELLED)
+        deactivate SVC
+        API-->>UI: 26. 200 OK
+        deactivate API
+        UI-->>PO: 27. Show success toast + update UI
+    else Status >= CHECK_IN
+        SVC-->>API: 11. Throw BadRequestException
+        deactivate SVC
+        API-->>UI: 12. 400 Bad Request
+        deactivate API
+        UI-->>PO: 13. Show error toast
+    end
+    deactivate UI
+```
+
+**Notes:**
+- Only bookings with status < CHECK_IN can be cancelled
+- Slots are restored to AVAILABLE status
+- Notifications sent to Clinic Manager and assigned Vet (if any)
+- If payment method is ONLINE, refund request is created (handled by UC-CM-07)
+
+#### 3.8.11 View Assigned Bookings (UC-VT-03)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Vet Schedule Screen (Mobile/Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant DB as PostgreSQL
+
+    V->>UI: 1. Navigate to "Lịch hẹn" screen
+    activate UI
+    UI->>API: 2. GET /api/bookings/assigned
+    activate API
+    API->>SVC: 3. getAssignedBookings(vetId, filters)
+    activate SVC
+    SVC->>DB: 4. SELECT * FROM bookings WHERE vet_id = ? AND status IN (...)
+    activate DB
+    DB-->>SVC: 5. List<Booking>
+    deactivate DB
+    SVC->>SVC: 6. Apply filters (date range, status, service type)
+    SVC->>SVC: 7. Sort by booking_date ASC
+    SVC-->>API: 8. List<BookingResponse>
+    deactivate SVC
+    API-->>UI: 9. 200 OK + booking list
+    deactivate API
+    UI-->>V: 10. Display bookings with status badges
+    deactivate UI
+```
+
+**Notes:**
+- Filters available: Today, Upcoming, Completed, All
+- Status badges: ASSIGNED (yellow), CHECK_IN (blue), IN_PROGRESS (green), CHECK_OUT (purple)
+- Empty state shown if no assigned bookings
+- Vet can click on booking to view details and take actions
+
+#### 3.8.12 Update Appointment Progress (UC-VT-04)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Booking Detail Screen (Mobile/Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant ER as EMRRepository
+    participant BR as BookingRepository
+    participant DB as PostgreSQL
+
+    V->>UI: 1. View booking detail
+    activate UI
+    UI->>UI: 2. Show action button based on status
+    V->>UI: 3. Click action button (Check-in, Start Exam, Finish)
+    UI->>API: 4. POST /api/bookings/{id}/update-status
+    activate API
+    API->>SVC: 5. updateBookingStatus(bookingId, newStatus)
+    activate SVC
+    SVC->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity
+    deactivate DB
+    BR-->>SVC: 9. Booking
+    deactivate BR
+    SVC->>SVC: 10. Validate status transition
+    alt Status transition valid
+        alt New Status = CHECK_IN
+            SVC->>ER: 11. createEMRShell(bookingId, petId, vetId)
+            activate ER
+            ER->>DB: 12. INSERT INTO emr (booking_id, pet_id, vet_id)
+            activate DB
+            DB-->>ER: 13. EMR created
+            deactivate DB
+            deactivate ER
+        else New Status = CHECK_OUT
+            SVC->>ER: 14. findByBooking(bookingId)
+            activate ER
+            ER->>DB: 15. SELECT * FROM emr WHERE booking_id = ?
+            activate DB
+            DB-->>ER: 16. EMR entity
+            deactivate DB
+            deactivate ER
+            SVC->>SVC: 17. Validate EMR has Assessment and Plan
+            alt EMR incomplete
+                SVC-->>API: 18. Throw BadRequestException
+                deactivate SVC
+                API-->>UI: 19. 400 Bad Request
+                deactivate API
+                UI-->>V: 20. Show error toast
+                deactivate UI
+            end
+        end
+        SVC->>SVC: 21. Update booking status
+        SVC->>BR: 22. save(booking)
+        activate BR
+        BR->>DB: 23. UPDATE bookings SET status = ?
+        activate DB
+        DB-->>BR: 24. OK
+        deactivate DB
+        deactivate BR
+        SVC-->>API: 25. BookingResponse (updated status)
+        deactivate SVC
+        API-->>UI: 26. 200 OK
+        deactivate API
+        UI-->>V: 27. Update UI with new status
+    else Invalid transition
+        SVC-->>API: 11. Throw BadRequestException
+        deactivate SVC
+        API-->>UI: 12. 400 Bad Request
+        deactivate API
+        UI-->>V: 13. Show error toast
+    end
+    deactivate UI
+```
+
+**Notes:**
+- Valid status transitions: ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT
+- EMR shell is created when status changes to CHECK_IN
+- EMR must have Assessment and Plan before CHECK_OUT is allowed
+- Notifications sent to Pet Owner and Clinic Manager on status changes
+
+#### 3.8.13 Check-in Patient (UC-VT-05)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Booking Detail Screen (Mobile/Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant ER as EMRRepository
+    participant BR as BookingRepository
+    participant NR as NotificationRepository
+    participant DB as PostgreSQL
+
+    V->>UI: 1. Click "Check-in" button
+    activate UI
+    UI->>UI: 2. Show confirmation modal
+    V->>UI: 3. Confirm check-in
+    UI->>API: 4. POST /api/bookings/{id}/check-in
+    activate API
+    API->>SVC: 5. checkInPatient(bookingId)
+    activate SVC
+    SVC->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity (Status: ASSIGNED)
+    deactivate DB
+    BR-->>SVC: 9. Booking
+    deactivate BR
+    SVC->>SVC: 10. Validate: status = ASSIGNED
+    alt Status = ASSIGNED
+        SVC->>SVC: 11. Update booking.status = CHECK_IN
+        SVC->>BR: 12. save(booking)
+        activate BR
+        BR->>DB: 13. UPDATE bookings SET status = 'CHECK_IN'
+        activate DB
+        DB-->>BR: 14. OK
+        deactivate DB
+        deactivate BR
+        SVC->>ER: 15. createEMRShell(booking)
+        activate ER
+        ER->>DB: 16. INSERT INTO emr (booking_id, pet_id, vet_id, created_at)
+        activate DB
+        DB-->>ER: 17. EMR created
+        deactivate DB
+        deactivate ER
+        SVC->>NR: 18. Create notification for Pet Owner
+        activate NR
+        NR->>DB: 19. INSERT INTO notifications
+        activate DB
+        DB-->>NR: 20. OK
+        deactivate DB
+        deactivate NR
+        SVC-->>API: 21. BookingResponse (CHECK_IN)
+        deactivate SVC
+        API-->>UI: 22. 200 OK
+        deactivate API
+        UI-->>V: 23. Show success toast + update UI
+    else Invalid status
+        SVC-->>API: 11. Throw BadRequestException
+        deactivate SVC
+        API-->>UI: 12. 400 Bad Request
+        deactivate API
+        UI-->>V: 13. Show error toast
+    end
+    deactivate UI
+```
+
+**Notes:**
+- Only bookings with status ASSIGNED can be checked in
+- EMR shell is created with booking_id, pet_id, vet_id, created_at
+- Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
+- After check-in, Vet can start filling EMR (UC-VT-06)
+
+#### 3.8.14 Mark Treatment Finished (UC-VT-09)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Booking Detail Screen (Mobile/Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant ER as EMRRepository
+    participant BR as BookingRepository
+    participant NR as NotificationRepository
+    participant DB as PostgreSQL
+
+    V->>UI: 1. Click "Hoàn thành khám" button
+    activate UI
+    UI->>UI: 2. Show confirmation modal
+    V->>UI: 3. Confirm finish treatment
+    UI->>API: 4. POST /api/bookings/{id}/finish
+    activate API
+    API->>SVC: 5. finishTreatment(bookingId)
+    activate SVC
+    SVC->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity (Status: IN_PROGRESS)
+    deactivate DB
+    BR-->>SVC: 9. Booking
+    deactivate BR
+    SVC->>ER: 10. findByBooking(bookingId)
+    activate ER
+    ER->>DB: 11. SELECT * FROM emr WHERE booking_id = ?
+    activate DB
+    DB-->>ER: 12. EMR entity
+    deactivate DB
+    ER-->>SVC: 13. EMR
+    deactivate ER
+    SVC->>SVC: 14. Validate EMR completeness
+    alt EMR has Assessment AND Plan
+        SVC->>SVC: 15. Update booking.status = CHECK_OUT
+        SVC->>BR: 16. save(booking)
+        activate BR
+        BR->>DB: 17. UPDATE bookings SET status = 'CHECK_OUT'
+        activate DB
+        DB-->>BR: 18. OK
+        deactivate DB
+        deactivate BR
+        SVC->>NR: 19. Create notifications (Pet Owner, Manager)
+        activate NR
+        NR->>DB: 20. INSERT INTO notifications
+        activate DB
+        DB-->>NR: 21. OK
+        deactivate DB
+        deactivate NR
+        SVC-->>API: 22. BookingResponse (CHECK_OUT)
+        deactivate SVC
+        API-->>UI: 23. 200 OK
+        deactivate API
+        UI-->>V: 24. Show success toast + update UI
+    else EMR incomplete
+        SVC-->>API: 15. Throw BadRequestException
+        deactivate SVC
+        API-->>UI: 16. 400 Bad Request
+        deactivate API
+        UI-->>V: 17. Show error toast "Vui lòng hoàn thành EMR"
+    end
+    deactivate UI
+```
+
+**Notes:**
+- EMR must have Assessment and Plan fields filled before treatment can be marked finished
+- Booking status changes from IN_PROGRESS to CHECK_OUT
+- Notification sent to Clinic Manager: "Cần thanh toán & checkout"
+- Notification sent to Pet Owner: "Khám xong, vui lòng thanh toán"
+
+#### 3.8.15 Handle Cancellations & Refunds (UC-CM-07)
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant PR as PaymentRepository
+    participant BR as BookingRepository
+    participant NR as NotificationRepository
+    participant DB as PostgreSQL
+
+    CM->>UI: 1. View cancelled bookings section
+    activate UI
+    UI->>API: 2. GET /api/bookings/cancelled
+    activate API
+    API->>SVC: 3. getCancelledBookings(clinicId)
+    activate SVC
+    SVC->>DB: 4. SELECT * FROM bookings WHERE status = 'CANCELLED'
+    activate DB
+    DB-->>SVC: 5. List<Booking>
+    deactivate DB
+    SVC-->>API: 6. List<BookingResponse>
+    deactivate SVC
+    API-->>UI: 7. 200 OK + cancelled bookings
+    deactivate API
+    UI-->>CM: 8. Display list with refund status
+    CM->>UI: 9. Click on booking to process refund
+    UI->>UI: 10. Show refund modal
+    CM->>UI: 11. Select refund option (Full, Partial, None)
+    CM->>UI: 12. Enter refund amount (if partial)
+    UI->>API: 13. POST /api/bookings/{id}/refund
+    activate API
+    API->>SVC: 14. processRefund(bookingId, refundData)
+    activate SVC
+    SVC->>BR: 15. findById(bookingId)
+    activate BR
+    BR->>DB: 16. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 17. Booking entity
+    deactivate DB
+    BR-->>SVC: 18. Booking
+    deactivate BR
+    SVC->>PR: 19. findByBooking(booking)
+    activate PR
+    PR->>DB: 20. SELECT * FROM payments WHERE booking_id = ?
+    activate DB
+    DB-->>PR: 21. Payment entity
+    deactivate DB
+    PR-->>SVC: 22. Payment
+    deactivate PR
+    SVC->>SVC: 23. Calculate refund based on policy
+    alt Payment method = ONLINE
+        SVC->>SVC: 24. Create refund transaction
+        SVC->>PR: 25. Update payment.refund_amount
+        activate PR
+        PR->>DB: 26. UPDATE payments SET refund_amount = ?
+        activate DB
+        DB-->>PR: 27. OK
+        deactivate DB
+        deactivate PR
+    end
+    SVC->>NR: 28. Create notification for Pet Owner
+    activate NR
+    NR->>DB: 29. INSERT INTO notifications
+    activate DB
+    DB-->>NR: 30. OK
+    deactivate DB
+    deactivate NR
+    SVC-->>API: 31. RefundResponse
+    deactivate SVC
+    API-->>UI: 32. 200 OK
+    deactivate API
+    UI-->>CM: 33. Show success toast + update UI
+    deactivate UI
+```
+
+**Notes:**
+- Refund policy: Cancel >24h before appointment = 100% refund, <24h = 50% refund, <6h = no refund
+- Only ONLINE payment bookings require refund processing
+- CASH bookings are marked as cancelled without refund
+- Notification sent to Pet Owner with refund details
+
+#### 3.8.16 Check Vet Availability (UC-CM-14)
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Booking Detail Screen (Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant VR as VetRepository
+    participant SR as SlotRepository
+    participant DB as PostgreSQL
+
+    CM->>UI: 1. Click "Gán bác sĩ" button
+    activate UI
+    UI->>API: 2. GET /api/bookings/{id}/available-vets
+    activate API
+    API->>SVC: 3. getAvailableVets(bookingId)
+    activate SVC
+    SVC->>DB: 4. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>SVC: 5. Booking (date, time, services)
+    deactivate DB
+    SVC->>VR: 6. findByClinic(clinicId)
+    activate VR
+    VR->>DB: 7. SELECT * FROM clinic_staff WHERE clinic_id = ? AND role = 'VET'
+    activate DB
+    DB-->>VR: 8. List<Vet>
+    deactivate DB
+    VR-->>SVC: 9. List<Vet>
+    deactivate VR
+    SVC->>SVC: 10. Filter vets by service specialty
+    loop For each vet
+        SVC->>SR: 11. checkAvailability(vetId, bookingSlots)
+        activate SR
+        SR->>DB: 12. SELECT * FROM slots WHERE vet_id = ? AND slot_time IN (...)
+        activate DB
+        DB-->>SR: 13. List<Slot>
+        deactivate DB
+        SR-->>SVC: 14. Availability status
+        deactivate SR
+        SVC->>SVC: 15. Calculate workload (bookings count for day)
+    end
+    SVC-->>API: 16. List<VetAvailabilityDTO>
+    deactivate SVC
+    API-->>UI: 17. 200 OK + available vets
+    deactivate API
+    UI-->>CM: 18. Display vet list with badges (Available, Busy)
+    deactivate UI
+```
+
+**Notes:**
+- Vet availability is checked based on:
+  - Shift schedule (vet must have shift on booking date)
+  - Slot availability (slots not already BOOKED)
+  - Service specialty matching
+  - Current workload (number of bookings assigned for the day)
+- Vets are sorted by availability and workload (least busy first)
+- Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
+
+#### 3.8.17 Reassign Vet to Service (UC-CM-15)
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Booking Detail Screen (Web)
+    participant API as BookingController
+    participant SVC as BookingService
+    participant BR as BookingRepository
+    participant SR as SlotRepository
+    participant NR as NotificationRepository
+    participant DB as PostgreSQL
+
+    CM->>UI: 1. Click "Gán lại bác sĩ" button
+    activate UI
+    UI->>UI: 2. Show reassignment modal
+    CM->>UI: 3. Select reassignment reason
+    CM->>UI: 4. Select new vet from dropdown
+    UI->>API: 5. POST /api/bookings/{id}/reassign-vet
+    activate API
+    API->>SVC: 6. reassignVet(bookingId, newVetId, reason)
+    activate SVC
+    SVC->>BR: 7. findById(bookingId)
+    activate BR
+    BR->>DB: 8. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 9. Booking with current vet
+    deactivate DB
+    BR-->>SVC: 10. Booking
+    deactivate BR
+    SVC->>SVC: 11. Store old vet ID
+    SVC->>SVC: 12. Validate new vet availability
+    alt New vet is available
+        SVC->>SR: 13. Update old vet's slots to AVAILABLE
+        activate SR
+        SR->>DB: 14. UPDATE slots SET status = 'AVAILABLE' WHERE vet_id = ? AND booking_id = ?
+        activate DB
+        DB-->>SR: 15. OK
+        deactivate DB
+        deactivate SR
+        SVC->>SR: 16. Update new vet's slots to BOOKED
+        activate SR
+        SR->>DB: 17. UPDATE slots SET status = 'BOOKED', booking_id = ? WHERE vet_id = ? AND slot_time IN (...)
+        activate DB
+        DB-->>SR: 18. OK
+        deactivate DB
+        deactivate SR
+        SVC->>BR: 19. Update booking.vet_id = newVetId
+        activate BR
+        BR->>DB: 20. UPDATE bookings SET vet_id = ?
+        activate DB
+        DB-->>BR: 21. OK
+        deactivate DB
+        deactivate BR
+        SVC->>NR: 22. Create notifications (old vet, new vet, pet owner)
+        activate NR
+        NR->>DB: 23. INSERT INTO notifications (x3)
+        activate DB
+        DB-->>NR: 24. OK
+        deactivate DB
+        deactivate NR
+        SVC-->>API: 25. BookingResponse (updated)
+        deactivate SVC
+        API-->>UI: 26. 200 OK
+        deactivate API
+        UI-->>CM: 27. Show success toast + update UI
+    else New vet not available
+        SVC-->>API: 13. Throw BadRequestException
+        deactivate SVC
+        API-->>UI: 14. 400 Bad Request
+        deactivate API
+        UI-->>CM: 15. Show error toast
+    end
+    deactivate UI
+```
+
+**Notes:**
+- Reassignment reasons: Vet unavailable, Vet overloaded, Emergency, Other
+- Old vet's slots are released back to AVAILABLE
+- New vet's corresponding slots are marked as BOOKED
+- Notifications sent to:
+  - Old Vet: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
+  - New Vet: "Bạn được phân công lịch hẹn mới [Booking ID]"
+  - Pet Owner: "Bác sĩ của bạn đã được thay đổi thành Dr. [Name]"
+
+#### 3.8.18 Manage Shifts - Delete Shift (UC-CM-16)
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Shift Management Screen (Web)
+    participant API as VetShiftController
+    participant SVC as VetShiftService
+    participant SR as SlotRepository
+    participant VSR as VetShiftRepository
+    participant BR as BookingRepository
+    participant DB as PostgreSQL
+
+    CM->>UI: 1. Click "Xóa ca làm" button on shift
+    activate UI
+    UI->>UI: 2. Show confirmation modal
+    CM->>UI: 3. Confirm deletion
+    UI->>API: 4. DELETE /api/vet-shifts/{shiftId}
+    activate API
+    API->>SVC: 5. deleteShift(shiftId, clinicId)
+    activate SVC
+    SVC->>VSR: 6. findById(shiftId)
+    activate VSR
+    VSR->>DB: 7. SELECT * FROM vet_shifts WHERE shift_id = ?
+    activate DB
+    DB-->>VSR: 8. VetShift entity
+    deactivate DB
+    VSR-->>SVC: 9. VetShift
+    deactivate VSR
+    SVC->>SR: 10. findByShift(shiftId)
+    activate SR
+    SR->>DB: 11. SELECT * FROM slots WHERE shift_id = ?
+    activate DB
+    DB-->>SR: 12. List<Slot>
+    deactivate DB
+    SR-->>SVC: 13. List<Slot>
+    deactivate SR
+    SVC->>SVC: 14. Check if any slot has status = BOOKED
+    alt No BOOKED slots
+        SVC->>SR: 15. Delete all slots for this shift
+        activate SR
+        SR->>DB: 16. DELETE FROM slots WHERE shift_id = ?
+        activate DB
+        DB-->>SR: 17. OK
+        deactivate DB
+        deactivate SR
+        SVC->>VSR: 18. Delete shift
+        activate VSR
+        VSR->>DB: 19. DELETE FROM vet_shifts WHERE shift_id = ?
+        activate DB
+        DB-->>VSR: 20. OK
+        deactivate DB
+        deactivate VSR
+        SVC-->>API: 21. Success message
+        deactivate SVC
+        API-->>UI: 22. 200 OK
+        deactivate API
+        UI-->>CM: 23. Show success toast + update UI
+    else Has BOOKED slots
+        SVC->>BR: 15. findBySlots(bookedSlots)
+        activate BR
+        BR->>DB: 16. SELECT * FROM bookings WHERE slot_id IN (...)
+        activate DB
+        DB-->>BR: 17. List<Booking>
+        deactivate DB
+        BR-->>SVC: 18. Affected bookings
+        deactivate BR
+        SVC-->>API: 19. Throw ConflictException with booking details
+        deactivate SVC
+        API-->>UI: 20. 409 Conflict + affected bookings
+        deactivate API
+        UI-->>CM: 21. Show error modal with booking list
+    end
+    deactivate UI
+```
+
+**Notes:**
+- Shift can only be deleted if no slots are BOOKED
+- If shift has booked slots, system shows list of affected bookings and prevents deletion
+- Manager must reassign or cancel bookings before deleting shift
+- All AVAILABLE and BLOCKED slots are deleted along with the shift
+
+### 3.9 Electronic Medical Records (EMR) Flow (UC-VT-02, UC-VT-06, EMR-2)
+
+#### 3.9.1 Class Diagram - EMR
 
 ```mermaid
 classDiagram
@@ -2526,7 +3564,7 @@ classDiagram
     VaccinationRepository ..> Vaccination
 ```
 
-#### 3.10.2 View Pet Medical History (Cross-Clinic)
+#### 3.9.2 View Pet Medical History (Cross-Clinic) (UC-VT-02)
 
 ```mermaid
 sequenceDiagram
@@ -2577,7 +3615,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.10.3 Create EMR (EMR-2 Electronic Medical Record)
+#### 3.9.3 Create EMR (SOAP Notes) (EMR-2, UC-VT-06)
 
 ```mermaid
 sequenceDiagram
@@ -2630,7 +3668,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.10.4 Add Vaccination Record
+#### 3.9.4 Add Vaccination Record (UC-VT-08)
 
 ```mermaid
 sequenceDiagram
@@ -2673,7 +3711,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 3.10.5 Ghi nhận Dịch vụ & Chi phí phát sinh (Incurred Items)
+#### 3.9.5 Additional Service & Incurred Costs (UC-VT-10)
 
 ```mermaid
 sequenceDiagram
@@ -2730,10 +3768,378 @@ sequenceDiagram
     UI-->>V: 19. Update UI with new Total
 ```
 
+#### 3.9.6 Add Vaccination Record (UC-VT-08)
 
-### 3.11 AI Agent Assistance (Lớp thông minh)
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as EMR/Health Hub
+    participant PC as PatientController
+    participant PS as PatientService
+    participant VR as VaccinationRepository
+    participant PR as PetRepository
+    participant DB as MongoDB
 
-#### 3.11.1 Class Diagram (Python AI Service)
+    V->>UI: 1. Click "Add Vaccination"
+    activate UI
+    V->>UI: 2. Enter: VaccineName, BatchNo, Date, NextDue
+    UI->>PC: 3. POST /vaccinations (VaccinationRequest)
+    activate PC
+    PC->>PS: 4. addVaccinationRecord(petId, request)
+    activate PS
+    PS->>PR: 5. findById(petId)
+    activate PR
+    PR-->>PS: 6. Pet Entity
+    deactivate PR
+    PS->>VR: 7. save(VaccinationRecord)
+    activate VR
+    VR->>DB: 8. Insert vaccination document
+    activate DB
+    DB-->>VR: 9. Saved
+    deactivate DB
+    VR-->>PS: 10. VaccinationRecord
+    deactivate VR
+    PS->>PS: 11. Schedule reminder notification
+    PS-->>PC: 12. VaccinationResponse
+    deactivate PS
+    PC-->>UI: 13. 201 Created
+    deactivate PC
+    UI-->>V: 14. Show success & update Health Badge
+    deactivate UI
+```
+
+#### 3.9.7 Lookup Patient (UC-VT-12)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Search Interface
+    participant PC as PatientController
+    participant PS as PatientService
+    participant PR as PetRepository
+    participant UR as UserRepository
+    participant DB as PostgreSQL
+
+    V->>UI: 1. Enter search query (name/owner/bookingId)
+    activate UI
+    UI->>PC: 2. GET /patients/search?q=query&clinicId=xxx
+    activate PC
+    PC->>PS: 3. searchPatients(clinicId, query)
+    activate PS
+    PS->>PR: 4. findByNameContainingAndClinicId(query, clinicId)
+    activate PR
+    PR->>DB: 5. SELECT pets WHERE name LIKE %query%
+    activate DB
+    DB-->>PR: 6. List<Pet>
+    deactivate DB
+    PR-->>PS: 7. Pets matching name
+    deactivate PR
+    PS->>UR: 8. findByNameContaining(query)
+    activate UR
+    UR->>DB: 9. SELECT users WHERE fullName LIKE %query%
+    activate DB
+    DB-->>UR: 10. List<User> (Owners)
+    deactivate DB
+    UR-->>PS: 11. Users matching
+    deactivate UR
+    PS->>PS: 12. Merge & filter by clinic visits
+    PS-->>PC: 13. List<PatientSearchResponse>
+    deactivate PS
+    PC-->>UI: 14. 200 OK (paginated results)
+    deactivate PC
+    UI-->>V: 15. Display patient cards
+    deactivate UI
+```
+
+#### 3.9.8 View Patient List (UC-CM-08)
+
+```mermaid
+sequenceDiagram
+    actor M as Manager
+    participant UI as Patient List Page
+    participant PC as PatientController
+    participant PS as PatientService
+    participant BR as BookingRepository
+    participant PR as PetRepository
+    participant DB as PostgreSQL
+
+    M->>UI: 1. Navigate to Patients Tab
+    activate UI
+    UI->>PC: 2. GET /patients?clinicId=xxx&page=0&size=20
+    activate PC
+    PC->>PS: 3. getPatientList(clinicId, filters, pageable)
+    activate PS
+    PS->>BR: 4. findDistinctPetsByClinicId(clinicId)
+    activate BR
+    BR->>DB: 5. SELECT DISTINCT pet_id FROM bookings WHERE clinic_id=xxx
+    activate DB
+    DB-->>BR: 6. List<UUID> petIds
+    deactivate DB
+    BR-->>PS: 7. Pet IDs
+    deactivate BR
+    PS->>PR: 8. findAllById(petIds)
+    activate PR
+    PR->>DB: 9. SELECT * FROM pets WHERE id IN (...)
+    activate DB
+    DB-->>PR: 10. List<Pet>
+    deactivate DB
+    PR-->>PS: 11. Pets with owner info
+    deactivate PR
+    PS->>PS: 12. Aggregate visit counts & last visit dates
+    PS-->>PC: 13. Page<PatientListResponse>
+    deactivate PS
+    PC-->>UI: 14. 200 OK (paginated list)
+    deactivate PC
+    UI-->>M: 15. Render patient table with filters
+    deactivate UI
+```
+
+#### 3.9.9 View Patient Records (UC-CM-09)
+
+```mermaid
+sequenceDiagram
+    actor M as Manager
+    participant UI as Patient Detail Page
+    participant PC as PatientController
+    participant PS as PatientService
+    participant PR as PetRepository
+    participant ER as EMRRepository
+    participant VR as VaccinationRepository
+    participant PG as PostgreSQL
+    participant MG as MongoDB
+
+    M->>UI: 1. Click patient row -> View Records
+    activate UI
+    UI->>PC: 2. GET /patients/{petId}/records?clinicId=xxx
+    activate PC
+    PC->>PS: 3. getPatientRecords(petId, clinicId)
+    activate PS
+    PS->>PR: 4. findById(petId)
+    activate PR
+    PR->>PG: 5. Query pet profile
+    activate PG
+    PG-->>PR: 6. Pet Entity
+    deactivate PG
+    PR-->>PS: 7. Pet with owner
+    deactivate PR
+    PS->>ER: 8. findByPetIdAndClinicId(petId, clinicId)
+    activate ER
+    ER->>MG: 9. Query EMR documents
+    activate MG
+    MG-->>ER: 10. List<EMRRecord>
+    deactivate MG
+    ER-->>PS: 11. EMR history
+    deactivate ER
+    PS->>VR: 12. findByPetId(petId)
+    activate VR
+    VR->>MG: 13. Query vaccination documents
+    activate MG
+    MG-->>VR: 14. List<VaccinationRecord>
+    deactivate MG
+    VR-->>PS: 15. Vaccination history
+    deactivate VR
+    PS->>PS: 16. Build timeline & aggregate
+    PS-->>PC: 17. PatientRecordsResponse
+    deactivate PS
+    PC-->>UI: 18. 200 OK (full history)
+    deactivate PC
+    UI-->>M: 19. Render timeline, tabs, export button
+    deactivate UI
+```
+
+---
+
+### 3.10 SOS Emergency Flow (UC-PO-15, UC-PO-17, UC-VT-11)
+
+#### 3.10.1 Class Diagram - SOS Emergency
+
+```mermaid
+classDiagram
+    class SOSController {
+        -SOSService sosService
+        +requestSOS(SOSRequest) ResponseEntity
+        +trackVetLocation(UUID) ResponseEntity
+        +updateVetLocation(LocationUpdate) ResponseEntity
+        +confirmArrival(UUID) ResponseEntity
+    }
+
+    class SOSService {
+        -BookingRepository bookingRepository
+        -UserRepository userRepository
+        -NotificationService notificationService
+        -LocationService locationService
+        +createSOSBooking(SOSRequest) SOSResponse
+        +findNearbyAvailableVets(Location) List~VetResponse~
+        +updateVetLocation(UUID, Location) void
+        +confirmArrival(UUID) void
+        +getTrackingInfo(UUID) TrackingResponse
+    }
+
+    class LocationService {
+        -GoongApiClient goongClient
+        +calculateDistance(Location, Location) DistanceInfo
+        +calculateETA(Location, Location) Duration
+        +isWithinRadius(Location, Location, meters) boolean
+    }
+
+    class SOSBooking {
+        +UUID sosId
+        +Booking booking
+        +User vet
+        +Location ownerLocation
+        +Location vetCurrentLocation
+        +SOSStatus status
+        +LocalDateTime requestTime
+        +LocalDateTime arrivalTime
+    }
+
+    SOSController --> SOSService
+    SOSService --> LocationService
+    SOSService --> BookingRepository
+    SOSService --> NotificationService
+    SOSService ..> SOSBooking
+```
+
+#### 3.10.2 Request SOS & Vet Assignment (UC-PO-15)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile App
+    participant SC as SOSController
+    participant SS as SOSService
+    participant LS as LocationService
+    participant UR as UserRepository
+    participant BR as BookingRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    PO->>UI: 1. Click "SOS Emergency"
+    activate UI
+    UI->>UI: 2. Get current GPS location
+    UI->>SC: 3. POST /sos (SOSRequest: location, petId, symptoms)
+    activate SC
+    SC->>SS: 4. createSOSBooking(request)
+    activate SS
+    SS->>LS: 5. findNearbyVets(ownerLocation, 10km)
+    activate LS
+    LS->>UR: 6. findActiveVetsBySpecialty(EMERGENCY)
+    activate UR
+    UR->>DB: 7. Query available vets
+    activate DB
+    DB-->>UR: 8. List<Vet>
+    deactivate DB
+    UR-->>LS: 9. Vets
+    deactivate UR
+    LS->>LS: 10. Calculate distances & sort
+    LS-->>SS: 11. Sorted vets by proximity
+    deactivate LS
+    SS->>SS: 12. Auto-assign nearest vet
+    SS->>BR: 13. save(SOSBooking)
+    activate BR
+    BR-->>SS: 14. Saved
+    deactivate BR
+    SS->>NS: 15. sendPushNotification(vetId, SOS_ALERT)
+    activate NS
+    NS-->>SS: 16. Sent
+    deactivate NS
+    SS-->>SC: 17. SOSResponse (vetInfo, ETA)
+    deactivate SS
+    SC-->>UI: 18. 201 Created
+    deactivate SC
+    UI-->>PO: 19. Show vet info & tracking map
+    deactivate UI
+```
+
+#### 3.10.3 Track Vet Location (UC-PO-17)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Tracking Screen
+    participant SC as SOSController
+    participant SS as SOSService
+    participant LS as LocationService
+    participant Cache as Redis
+
+    loop Every 5 seconds
+        UI->>SC: 1. GET /sos/{sosId}/track
+        activate SC
+        SC->>SS: 2. getTrackingInfo(sosId)
+        activate SS
+        SS->>Cache: 3. get("vet_location:" + vetId)
+        activate Cache
+        Cache-->>SS: 4. Current vet location
+        deactivate Cache
+        SS->>LS: 5. calculateETA(vetLocation, ownerLocation)
+        activate LS
+        LS-->>SS: 6. ETA (minutes, meters)
+        deactivate LS
+        SS-->>SC: 7. TrackingResponse
+        deactivate SS
+        SC-->>UI: 8. 200 OK (location, ETA)
+        deactivate SC
+        UI-->>PO: 9. Update map marker & ETA display
+    end
+```
+
+#### 3.10.4 Vet Travel & Auto-Arrival (UC-VT-11)
+
+```mermaid
+sequenceDiagram
+    actor V as Vet
+    participant UI as Vet Mobile App
+    participant SC as SOSController
+    participant SS as SOSService
+    participant LS as LocationService
+    participant NS as NotificationService
+    participant Cache as Redis
+    participant DB as Database
+
+    V->>UI: 1. Accept SOS & Click "Start Travel"
+    activate UI
+    UI->>SC: 2. POST /sos/{sosId}/start-travel
+    activate SC
+    SC->>SS: 3. startTravel(sosId)
+    activate SS
+    SS->>DB: 4. Update status = EN_ROUTE
+    SS-->>SC: 5. OK
+    deactivate SS
+    SC-->>UI: 6. 200 OK
+    deactivate SC
+    UI->>UI: 7. Open external navigation (Google Maps)
+    
+    loop GPS Broadcast (every 3s)
+        UI->>SC: 8. PUT /sos/{sosId}/location
+        activate SC
+        SC->>SS: 9. updateVetLocation(sosId, location)
+        activate SS
+        SS->>Cache: 10. set("vet_location:" + vetId, location, TTL=30s)
+        SS->>LS: 11. isWithinRadius(vetLoc, ownerLoc, 100m)
+        activate LS
+        LS-->>SS: 12. true/false
+        deactivate LS
+        alt Within 100m (Auto-Arrival)
+            SS->>DB: 13. Update status = ARRIVED
+            SS->>NS: 14. notifyOwner(ARRIVAL_ALERT)
+            SS-->>SC: 15. AutoArrivalTriggered
+            SC-->>UI: 16. 200 OK (arrived: true)
+            UI-->>V: 17. Show "Arrived" confirmation
+        else Not yet arrived
+            SS-->>SC: 15b. OK
+            deactivate SS
+            SC-->>UI: 16b. 200 OK
+            deactivate SC
+        end
+    end
+    deactivate UI
+```
+
+---
+
+### 3.11 AI Assistance Flow (UC-PO-14, UC-PO-14d)
+
+#### 3.11.1 Class Diagram - AI Service
 
 ```mermaid
 classDiagram
@@ -2814,6 +4220,486 @@ sequenceDiagram
     deactivate UI
 ```
 
+#### 3.11.3 AI Vision Pet Health Analysis (UC-PO-14d)
+
+```mermaid
+classDiagram
+    %% === AI SERVICE LAYER ===
+    class ChatWebSocket {
+        <<FastAPI WebSocket>>
+        +connect(websocket, user_id)
+        +receive_message(message)
+        +send_stream_response(chunks)
+    }
+
+    class SingleAgent {
+        -llm_client: OpenRouterClient
+        -enabled_tools: List~str~
+        -system_prompt: str
+        +invoke(message: str, context: dict) str
+        +stream(message: str) AsyncIterator
+        -_think_node(state) dict
+        -_act_node(state) dict
+        -_observe_node(state) dict
+    }
+
+    class OpenRouterClient {
+        -api_key: str
+        -model: str
+        +generate(prompt: str) LLMResponse
+        +generate_with_image(prompt: str, image_url: str) LLMResponse
+        +stream(prompt: str) AsyncIterator
+    }
+
+    %% === VISION TOOLS ===
+    class VisionTools {
+        <<@mcp.tool>>
+        +analyze_pet_image(image_url, pet_type, symptoms) VisionAnalysisResult
+    }
+
+    class VisionAnalysisResult {
+        +detected_issues: List~DetectedIssue~
+        +severity: SeverityLevel
+        +recommended_services: List~UUID~
+        +urgent_warning: str
+        +next_steps: str
+    }
+
+    class DetectedIssue {
+        +name: str
+        +description: str
+        +confidence: float
+        +affected_area: str
+    }
+
+    class SeverityLevel {
+        <<enumeration>>
+        MILD
+        MODERATE
+        SEVERE
+        URGENT
+    }
+
+    %% === BOOKING TOOLS ===
+    class BookingTools {
+        <<@mcp.tool>>
+        +search_nearby_clinics(lat, lng, radius_km) List~ClinicResult~
+        +get_user_pets(user_id) List~PetSummary~
+        +create_booking_suggestion(pet_id, clinic_id, service_ids, urgency) BookingSuggestion
+    }
+
+    class ClinicResult {
+        +clinic_id: UUID
+        +name: str
+        +address: str
+        +distance_km: float
+        +rating: float
+        +available_services: List~str~
+    }
+
+    class PetSummary {
+        +pet_id: UUID
+        +name: str
+        +species: str
+        +breed: str
+        +image_url: str
+    }
+
+    class BookingSuggestion {
+        +pet_id: UUID
+        +clinic_id: UUID
+        +clinic_name: str
+        +clinic_address: str
+        +services: List~ServiceInfo~
+        +suggested_date: date
+        +suggested_time: time
+        +estimated_price: int
+        +urgency: str
+        +warning_message: str
+        +confirmation_action: dict
+    }
+
+    %% === WEBSOCKET SCHEMAS ===
+    class ImageMessage {
+        +type: str = "image"
+        +image_url: str
+        +latitude: float
+        +longitude: float
+        +text: str
+    }
+
+    class BookingSuggestionMessage {
+        +type: str = "booking_suggestion"
+        +suggestion: BookingSuggestion
+    }
+
+    %% === RELATIONSHIPS ===
+    ChatWebSocket --> SingleAgent : uses
+    SingleAgent --> OpenRouterClient : uses
+    SingleAgent --> VisionTools : calls
+    SingleAgent --> BookingTools : calls
+    VisionTools --> VisionAnalysisResult : returns
+    VisionTools --> OpenRouterClient : calls generate_with_image
+    BookingTools --> ClinicResult : returns
+    BookingTools --> PetSummary : returns
+    BookingTools --> BookingSuggestion : returns
+    VisionAnalysisResult --> DetectedIssue : contains
+    VisionAnalysisResult --> SeverityLevel : has
+    ChatWebSocket --> ImageMessage : receives
+    ChatWebSocket --> BookingSuggestionMessage : sends
+```
+
+#### 3.11.4 Class Specifications
+
+**1. OpenRouterClient (Extended)**
+- **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
+- **Key Methods:**
+    - `generate_with_image(prompt, image_url)`: Gửi prompt kèm hình ảnh đến Vision LLM (Gemini 2.0 Flash).
+    - Trả về structured response với detected issues.
+
+**2. VisionTools (@mcp.tool)**
+- **Responsibility:** Phân tích hình ảnh thú cưng để nhận diện vấn đề sức khỏe.
+- **Key Methods:**
+    - `analyze_pet_image(image_url, pet_type, symptoms_description)`:
+        - Gọi Vision LLM với prompt chuyên biệt cho pet health analysis.
+        - Parse response để trích xuất detected issues, severity.
+        - Map issues sang recommended service categories.
+
+**3. BookingTools (@mcp.tool)**
+- **Responsibility:** Hỗ trợ tìm clinic và tạo booking suggestion.
+- **Key Methods:**
+    - `search_nearby_clinics(lat, lng, radius_km)`: Gọi Spring Boot API `/clinics/nearby` với Haversine distance.
+    - `get_user_pets(user_id)`: Gọi API `/pets/my` để lấy danh sách pet của user.
+    - `create_booking_suggestion(...)`: Tạo booking suggestion object với thông tin đã điền sẵn.
+
+**4. BookingSuggestion**
+- **Responsibility:** Data object chứa thông tin booking được AI đề xuất.
+- **Fields:**
+    - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
+
+#### 3.11.5 Sequence Diagram: AI Vision Analysis to Booking
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Chat UI (Mobile)
+    participant CD as Cloudinary
+    participant WS as ChatWebSocket (FastAPI)
+    participant SA as SingleAgent
+    participant VT as VisionTools
+    participant LLM as OpenRouter (Gemini 2.0)
+    participant BT as BookingTools
+    participant API as Spring Boot API
+
+    Note over PO, UI: Step 1: Upload Image
+    PO->>UI: 1. Tap camera icon, select pet photo
+    activate UI
+    UI->>CD: 2. Upload image
+    activate CD
+    CD-->>UI: 3. Return image_url
+    deactivate CD
+
+    Note over UI, WS: Step 2: Send Image Message
+    UI->>WS: 4. WebSocket: {type: "image", image_url, lat, lng}
+    activate WS
+    WS->>SA: 5. invoke(message, context)
+    activate SA
+
+    Note over SA: Step 3: ReAct - Thought
+    SA->>SA: 6. Detect image in message
+    SA->>SA: 7. Decide to call analyze_pet_image tool
+
+    Note over SA, LLM: Step 4: Vision Analysis
+    SA->>VT: 8. analyze_pet_image(image_url, pet_type)
+    activate VT
+    VT->>LLM: 9. generate_with_image(prompt, image_url)
+    activate LLM
+    Note right of LLM: Vision LLM analyzes image
+    LLM-->>VT: 10. Analysis result (JSON)
+    deactivate LLM
+    VT-->>SA: 11. VisionAnalysisResult {issues, severity: "moderate", services}
+    deactivate VT
+
+    Note over SA: Step 5: ReAct - Observe & Think
+    SA->>SA: 12. Severity >= moderate → Need booking
+
+    Note over SA, API: Step 6: Find Nearby Clinics
+    SA->>BT: 13. search_nearby_clinics(lat, lng)
+    activate BT
+    BT->>API: 14. GET /clinics/nearby?lat=...&lng=...
+    activate API
+    API-->>BT: 15. List of clinics
+    deactivate API
+    BT-->>SA: 16. [Clinic A, Clinic B, ...]
+    deactivate BT
+
+    Note over SA, API: Step 7: Get User Pets
+    SA->>BT: 17. get_user_pets(user_id)
+    activate BT
+    BT->>API: 18. GET /pets/my
+    activate API
+    API-->>BT: 19. [Lucky, Mimi, Bella]
+    deactivate API
+    BT-->>SA: 20. List of pets
+    deactivate BT
+
+    Note over SA, UI: Step 8: Ask Pet Selection (if multiple)
+    SA-->>WS: 21. Stream: "Bạn muốn đặt lịch cho bé nào?"
+    WS-->>UI: 22. Display pet selection
+    UI-->>PO: 23. Show pet options
+    PO->>UI: 24. Select "Lucky"
+    UI->>WS: 25. {type: "text", content: "Lucky"}
+    WS->>SA: 26. Continue with pet selection
+
+    Note over SA, BT: Step 9: Create Booking Suggestion
+    SA->>BT: 27. create_booking_suggestion(pet_id, clinic_id, services, urgency)
+    activate BT
+    BT-->>SA: 28. BookingSuggestion object
+    deactivate BT
+
+    Note over SA, UI: Step 10: Return Final Response
+    SA-->>WS: 29. Stream: Warning + BookingSuggestion
+    deactivate SA
+    WS-->>UI: 30. {type: "booking_suggestion", suggestion: {...}}
+    deactivate WS
+    UI-->>PO: 31. Display warning + "Đặt lịch ngay" button
+    deactivate UI
+
+    Note over PO, UI: Step 11: Confirm Booking
+    PO->>UI: 32. Tap "Đặt lịch ngay"
+    UI->>UI: 33. Navigate to BookingScreen with params
+```
+
+#### 3.12.4 WebSocket Message Schemas
+
+**1. Image Message (Client → Server)**
+```json
+{
+  "type": "image",
+  "image_url": "https://res.cloudinary.com/petties/image/upload/v123/pet_photo.jpg",
+  "text": "Bé nhà mình bị như này có sao không?",
+  "latitude": 10.7769,
+  "longitude": 106.7009
+}
+```
+
+**2. Booking Suggestion Message (Server → Client)**
+```json
+{
+  "type": "booking_suggestion",
+  "warning_message": "⚠️ CẢNH BÁO: Phát hiện dấu hiệu viêm da, nghi ngờ nhiễm nấm. Nên đưa đến bác sĩ thú y trong 24-48h.",
+  "suggestion": {
+    "pet_id": "uuid-pet",
+    "pet_name": "Lucky",
+    "clinic_id": "uuid-clinic",
+    "clinic_name": "Phòng khám ABC",
+    "clinic_address": "123 Nguyễn Văn A, Quận 7",
+    "services": [
+      {"id": "uuid-service", "name": "Khám da liễu", "price": 200000}
+    ],
+    "suggested_date": "2026-01-16",
+    "suggested_time": "09:00",
+    "estimated_price": 200000,
+    "urgency": "moderate",
+    "confirmation_action": {
+      "action": "open_booking",
+      "params": {
+        "pet_id": "uuid-pet",
+        "clinic_id": "uuid-clinic",
+        "service_ids": ["uuid-service"],
+        "date": "2026-01-16",
+        "time": "09:00"
+      }
+    }
+  }
+}
+```
+
+**3. Pet Selection Message (Server → Client)**
+```json
+{
+  "type": "pet_selection",
+  "message": "Bạn muốn đặt lịch cho bé nào?",
+  "pets": [
+    {"pet_id": "uuid-1", "name": "Lucky", "species": "Chó", "image_url": "..."},
+    {"pet_id": "uuid-2", "name": "Mimi", "species": "Mèo", "image_url": "..."}
+  ]
+}
+```
+
+#### 3.12.5 Severity Mapping to Actions
+
+| Severity | Description | AI Action |
+|----------|-------------|-----------|
+| `MILD` | Không phát hiện vấn đề nghiêm trọng | Chỉ đưa lời khuyên, không đề xuất booking |
+| `MODERATE` | Vấn đề cần theo dõi | Đề xuất booking trong 24-48h |
+| `SEVERE` | Vấn đề nghiêm trọng | Đề xuất booking trong ngày |
+| `URGENT` | Cấp cứu | Cảnh báo mạnh + đề xuất SOS hoặc booking ngay |
+
+---
+
+### 3.12 Governance & Reporting Flow (UC-PO-16)
+
+#### 3.12.1 Class Diagram - Reporting
+
+```mermaid
+classDiagram
+    class ReportController {
+        -ReportService reportService
+        +submitReport(ReportRequest) ResponseEntity
+        +getMyReports(UUID, Pageable) ResponseEntity
+        +getPendingReports(Pageable) ResponseEntity
+        +processReport(UUID, ProcessRequest) ResponseEntity
+    }
+
+    class ReportService {
+        -ReportRepository reportRepository
+        -UserRepository userRepository
+        -NotificationService notificationService
+        +createReport(ReportRequest) ReportResponse
+        +getUserReports(UUID, Pageable) Page~ReportResponse~
+        +getPendingReports(Pageable) Page~ReportResponse~
+        +processReport(UUID, ProcessRequest) void
+    }
+
+    class Report {
+        +UUID reportId
+        +User reporter
+        +User reportedUser
+        +Clinic reportedClinic
+        +Booking relatedBooking
+        +ReportCategory category
+        +String description
+        +List~String~ evidenceUrls
+        +ReportStatus status
+        +String adminNotes
+        +LocalDateTime createdAt
+        +LocalDateTime processedAt
+    }
+
+    class ReportRepository {
+        <<interface>>
+        +findById(UUID) Optional~Report~
+        +findByReporter(User, Pageable) Page~Report~
+        +findByStatus(ReportStatus, Pageable) Page~Report~
+        +save(Report) Report
+    }
+
+    ReportController --> ReportService
+    ReportService --> ReportRepository
+    ReportService --> NotificationService
+    ReportRepository ..> Report
+```
+
+#### 3.12.2 Submit Platform Violation Report (UC-PO-16)
+
+```mermaid
+sequenceDiagram
+    actor U as User (Pet Owner/Manager)
+    participant UI as Report Form
+    participant RC as ReportController
+    participant RS as ReportService
+    participant CS as CloudinaryService
+    participant RR as ReportRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    U->>UI: 1. Click "Report Issue" on Booking Detail
+    activate UI
+    U->>UI: 2. Select category (Abuse, Hygiene, No-show...)
+    U->>UI: 3. Enter description & upload evidence photos
+    UI->>CS: 4. Upload photos
+    activate CS
+    CS-->>UI: 5. Evidence URLs
+    deactivate CS
+    UI->>RC: 6. POST /reports (ReportRequest)
+    activate RC
+    RC->>RS: 7. createReport(request)
+    activate RS
+    RS->>RS: 8. Validate & enrich with user context
+    RS->>RR: 9. save(Report)
+    activate RR
+    RR->>DB: 10. INSERT report
+    activate DB
+    DB-->>RR: 11. Saved
+    deactivate DB
+    RR-->>RS: 12. Report Entity
+    deactivate RR
+    RS->>NS: 13. notifyAdmins(NEW_REPORT_ALERT)
+    activate NS
+    NS-->>RS: 14. Sent
+    deactivate NS
+    RS-->>RC: 15. ReportResponse
+    deactivate RS
+    RC-->>UI: 16. 201 Created
+    deactivate RC
+    UI-->>U: 17. Show success message
+    deactivate UI
+```
+
+#### 3.12.3 Admin Process Report
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant UI as Admin Dashboard
+    participant RC as ReportController
+    participant RS as ReportService
+    participant RR as ReportRepository
+    participant UR as UserRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    A->>UI: 1. Navigate to Pending Reports
+    activate UI
+    UI->>RC: 2. GET /admin/reports?status=PENDING
+    activate RC
+    RC->>RS: 3. getPendingReports(pageable)
+    activate RS
+    RS->>RR: 4. findByStatus(PENDING, pageable)
+    activate RR
+    RR-->>RS: 5. Page<Report>
+    deactivate RR
+    RS-->>RC: 6. Page<ReportResponse>
+    deactivate RS
+    RC-->>UI: 7. 200 OK (list)
+    deactivate RC
+    UI-->>A: 8. Display reports table
+    
+    A->>UI: 9. Click report -> Review details
+    A->>UI: 10. Enter admin notes & select action
+    UI->>RC: 11. PATCH /admin/reports/{id}/process
+    activate RC
+    RC->>RS: 12. processReport(id, ProcessRequest)
+    activate RS
+    RS->>RR: 13. findById(id)
+    activate RR
+    RR-->>RS: 14. Report
+    deactivate RR
+    
+    alt Action: WARN_USER
+        RS->>UR: 15a. Update user warning count
+        RS->>NS: 16a. Notify reported user (WARNING)
+    else Action: BAN_USER
+        RS->>UR: 15b. Update user status = BANNED
+        RS->>NS: 16b. Notify user (ACCOUNT_BANNED)
+    else Action: SUSPEND_CLINIC
+        RS->>DB: 15c. Update clinic status = SUSPENDED
+        RS->>NS: 16c. Notify clinic owner
+    else Action: DISMISS
+        Note over RS: No action on reported entity
+    end
+    
+    RS->>RR: 17. save(updatedReport with status=PROCESSED)
+    RS->>NS: 18. Notify reporter (REPORT_PROCESSED)
+    RS-->>RC: 19. OK
+    deactivate RS
+    RC-->>UI: 20. 200 OK
+    deactivate RC
+    UI-->>A: 21. Refresh list
+    deactivate UI
+```
+
 ---
 
 ## 4. TECHNOLOGY STACK SUMMARY
@@ -2874,5 +4760,5 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 1.2.0
-**Last Updated:** 2026-01-07
+**Document Version:** 1.4.0
+**Last Updated:** 2026-01-22

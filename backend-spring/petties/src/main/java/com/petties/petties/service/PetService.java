@@ -5,8 +5,10 @@ import com.petties.petties.dto.pet.PetRequest;
 import com.petties.petties.dto.pet.PetResponse;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
+import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.PetRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -26,6 +29,7 @@ public class PetService {
     private final PetRepository petRepository;
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
+    private final EmrRecordRepository emrRecordRepository;
 
     @Transactional
     public PetResponse createPet(PetRequest request, MultipartFile image) {
@@ -38,6 +42,8 @@ public class PetService {
         pet.setDateOfBirth(request.getDateOfBirth());
         pet.setWeight(request.getWeight());
         pet.setGender(request.getGender());
+        pet.setColor(request.getColor());
+        pet.setAllergies(request.getAllergies());
         pet.setUser(currentUser);
 
         if (image != null && !image.isEmpty()) {
@@ -70,12 +76,10 @@ public class PetService {
         User currentUser = authService.getCurrentUser();
         // If not owner and not Vet (logic to be added later if needed), throw error.
         // For now, let's strictly enforce ownership for safety.
-        if (!pet.getUser().getUserId().equals(currentUser.getUserId())) {
-            // throw new ForbiddenException("Bạn không có quyền truy cập thông tin thú cưng
-            // này");
-            // Relaxing this: Vets might need to see it.
-            // But 'getMyPets' implies CRUD is for owner.
-            // For strict CRUD:
+        // If not owner and not Vet (logic to be added later if needed), throw error.
+        // For now, let's strictly enforce ownership for safety.
+        if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER &&
+                !pet.getUser().getUserId().equals(currentUser.getUserId())) {
             validateOwnership(pet, currentUser);
         }
 
@@ -93,8 +97,61 @@ public class PetService {
         org.springframework.data.jpa.domain.Specification<Pet> spec = (root, query, cb) -> {
             java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
 
-            // Filter by Owner
-            predicates.add(cb.equal(root.get("user").get("userId"), currentUser.getUserId()));
+            // Filter logic based on Role
+            if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER) {
+                // Owner: Only see their own pets
+                predicates.add(cb.equal(root.get("user").get("userId"), currentUser.getUserId()));
+            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.VET ||
+                    currentUser.getRole() == com.petties.petties.model.enums.Role.CLINIC_MANAGER) {
+                // Vet/Manager: Only see pets that have at least one EMR at their clinic
+                if (currentUser.getWorkingClinic() != null) {
+                    // Query MongoDB for pet IDs with EMRs at this clinic
+                    List<EmrRecord> clinicEmrs = emrRecordRepository.findByClinicIdOrderByExaminationDateDesc(
+                            currentUser.getWorkingClinic().getClinicId());
+
+                    // Extract unique pet IDs from EMRs
+                    Set<UUID> petIdsWithEmr = clinicEmrs.stream()
+                            .map(EmrRecord::getPetId)
+                            .collect(Collectors.toSet());
+
+                    if (!petIdsWithEmr.isEmpty()) {
+                        // Filter: WHERE pet.id IN (petIds from EMRs)
+                        predicates.add(root.get("id").in(petIdsWithEmr));
+                    } else {
+                        // No EMRs at this clinic -> empty list
+                        predicates.add(cb.disjunction());
+                    }
+                } else {
+                    // If Vet/Manager has no clinic assigned, return empty list for safety
+                    predicates.add(cb.disjunction());
+                }
+            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.CLINIC_OWNER) {
+                // Clinic Owner: See pets that have bookings at ANY of their owned clinics
+                // TODO: Implement for multiple clinics if needed. For now treating similar to
+                // Manager if they switch context,
+                // but roughly checking all owned clinics.
+                // Detailed implementation depends on if Owner has "workingClinic" context or
+                // "ownedClinics" list.
+                // Assuming Owner might need to see all pets across all their clinics.
+
+                List<com.petties.petties.model.Clinic> ownedClinics = currentUser.getOwnedClinics();
+                if (ownedClinics != null && !ownedClinics.isEmpty()) {
+                    List<UUID> ownedClinicIds = ownedClinics.stream().map(com.petties.petties.model.Clinic::getClinicId)
+                            .collect(Collectors.toList());
+
+                    jakarta.persistence.criteria.Subquery<UUID> subquery = query.subquery(UUID.class);
+                    jakarta.persistence.criteria.Root<com.petties.petties.model.Booking> subBooking = subquery
+                            .from(com.petties.petties.model.Booking.class);
+
+                    subquery.select(subBooking.get("pet").get("id"));
+                    subquery.where(subBooking.get("clinic").get("clinicId").in(ownedClinicIds));
+
+                    predicates.add(root.get("id").in(subquery));
+                } else {
+                    predicates.add(cb.disjunction());
+                }
+            }
+            // ADMIN: no filter, sees all
 
             if (species != null && !species.isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("species")), "%" + species.toLowerCase() + "%"));
@@ -123,6 +180,8 @@ public class PetService {
         pet.setDateOfBirth(request.getDateOfBirth());
         pet.setWeight(request.getWeight());
         pet.setGender(request.getGender());
+        pet.setColor(request.getColor());
+        pet.setAllergies(request.getAllergies());
 
         if (image != null && !image.isEmpty()) {
             // Delete old image if exists
@@ -136,6 +195,56 @@ public class PetService {
 
         Pet updatedPet = petRepository.save(pet);
         log.info("Updated pet {} for user {}", updatedPet.getId(), currentUser.getUsername());
+        return mapToResponse(updatedPet);
+    }
+
+    /**
+     * VET can update only the allergies field of a pet
+     * No ownership check - VET has access to update medical info
+     */
+    @Transactional
+    public PetResponse updateAllergies(UUID petId, String allergies) {
+        User currentUser = authService.getCurrentUser();
+
+        // Only VET, CLINIC_MANAGER, or ADMIN can update allergies
+        if (currentUser.getRole() != com.petties.petties.model.enums.Role.VET &&
+                currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
+                currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
+            throw new ForbiddenException("Chỉ bác sĩ thú y mới có thể cập nhật thông tin dị ứng");
+        }
+
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng với ID: " + petId));
+
+        pet.setAllergies(allergies);
+        Pet updatedPet = petRepository.save(pet);
+
+        log.info("VET {} updated allergies for pet {}", currentUser.getUsername(), petId);
+        return mapToResponse(updatedPet);
+    }
+
+    /**
+     * VET can update pet weight
+     * No ownership check - VET has access to update medical info
+     */
+    @Transactional
+    public PetResponse updateWeight(UUID petId, Double weight) {
+        User currentUser = authService.getCurrentUser();
+
+        // Only VET, CLINIC_MANAGER, or ADMIN can update weight
+        if (currentUser.getRole() != com.petties.petties.model.enums.Role.VET &&
+                currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
+                currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
+            throw new ForbiddenException("Chỉ bác sĩ thú y mới có thể cập nhật cân nặng");
+        }
+
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng với ID: " + petId));
+
+        pet.setWeight(weight);
+        Pet updatedPet = petRepository.save(pet);
+
+        log.info("VET {} updated weight for pet {} to {} kg", currentUser.getUsername(), petId, weight);
         return mapToResponse(updatedPet);
     }
 
@@ -170,7 +279,13 @@ public class PetService {
         response.setDateOfBirth(pet.getDateOfBirth());
         response.setWeight(pet.getWeight());
         response.setGender(pet.getGender());
+        response.setColor(pet.getColor());
+        response.setAllergies(pet.getAllergies());
         response.setImageUrl(pet.getImageUrl());
+        if (pet.getUser() != null) {
+            response.setOwnerName(pet.getUser().getFullName());
+            response.setOwnerPhone(pet.getUser().getPhone());
+        }
         return response;
     }
 }

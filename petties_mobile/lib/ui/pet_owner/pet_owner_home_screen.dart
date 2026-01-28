@@ -6,10 +6,17 @@ import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
 import '../../data/services/pet_service.dart';
 import '../../data/models/pet.dart';
+import '../clinics/clinic_search_view.dart';
+import '../booking/my_bookings_tab.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
 class PetOwnerHomeScreen extends StatefulWidget {
-  const PetOwnerHomeScreen({super.key});
+  final int initialTabIndex;
+
+  const PetOwnerHomeScreen({
+    super.key,
+    this.initialTabIndex = 0,
+  });
 
   @override
   State<PetOwnerHomeScreen> createState() => _PetOwnerHomeScreenState();
@@ -19,10 +26,12 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   final PetService _petService = PetService();
   List<Pet> _pets = [];
   bool _isLoading = true;
+  int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTabIndex;
     _fetchPets();
   }
 
@@ -30,38 +39,92 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     setState(() => _isLoading = true);
     try {
       final pets = await _petService.getMyPets();
-      setState(() {
-        _pets = pets;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _pets = pets;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      // Handle error gently
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _onTabTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        // Home Tab
+        break;
+      case 1:
+        // Explore Tab (switched via body)
+        break;
+      case 2:
+        // Appointments Tab (switched via body)
+        break;
+      case 3:
+        // For Profile, you might keep pushing route if it's a separate screen
+        // Or if you want it embedded, implement MyProfileTab
+        context.push(AppRoutes.profile);
+        break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Determine title based on tab
+    String title = '🐕 PETTIES';
+    bool showActions = true;
+    
+    if (_currentIndex == 1) {
+      title = 'KHÁM PHÁ';
+      showActions = false;
+    } else if (_currentIndex == 2) {
+      title = 'LỊCH HẸN';
+      showActions = false;
+    }
+
     final authProvider = Provider.of<AuthProvider>(context);
-    final user = authProvider.user;
+    
+    // Choose body widget
+    Widget bodyContent;
+    switch (_currentIndex) {
+      case 1:
+        bodyContent = const ClinicSearchView(embedMode: true);
+        break;
+      case 2:
+        bodyContent = const MyBookingsTab();
+        break;
+      case 0:
+      default:
+        bodyContent = _buildHomeTab(context, authProvider);
+        break;
+    }
 
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      appBar: AppBar(
+      appBar: _currentIndex == 1 ? null : AppBar( // Hide AppBar for Search Tab (it has its own header)
         backgroundColor: AppColors.primary,
         elevation: 0,
-        title: const Text(
-          '🐕 PETTIES',
-          style: TextStyle(
+        title: Text(
+          title,
+          style: const TextStyle(
             fontWeight: FontWeight.w800,
             letterSpacing: 2,
             color: AppColors.white,
           ),
         ),
-        actions: [
-          IconButton(
+        actions: showActions ? [
+           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            onPressed: () {
+               context.push(AppRoutes.notifications);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -70,65 +133,46 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
               context.go(AppRoutes.login);
             },
           ),
-        ],
+        ] : [],
       ),
-      body: RefreshIndicator(
-        onRefresh: _fetchPets,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome Header - Brutal Card
-              _buildWelcomeCard(context, user?.fullName ?? user?.username ?? 'Pet Owner'),
-              const SizedBox(height: 24),
-
-              // Quick Actions
-              _buildSectionTitle('HÀNH ĐỘNG NHANH'),
-              const SizedBox(height: 12),
-              _buildQuickActions(context),
-              const SizedBox(height: 24),
-
-              // My Pets Section
-              _buildSectionHeader(context, 'THÚ CƯNG CỦA TÔI', 'Xem tất cả'),
-              const SizedBox(height: 12),
-              _buildMyPetsCard(context),
-              const SizedBox(height: 24),
-
-              // Upcoming Bookings
-              _buildSectionHeader(context, 'LỊCH HẸN SẮP TỚI', 'Xem tất cả'),
-              const SizedBox(height: 12),
-              _buildBookingsCard(context),
-            ],
-          ),
-        ),
-      ),
-      floatingActionButton: _buildChatFab(context),
-      bottomNavigationBar: _buildBrutalNavBar(),
+      body: bodyContent,
+      bottomNavigationBar: _buildBrutalNavBar(context),
     );
   }
 
-  /// Floating Action Button cho Chat - Neobrutalism Style
-  Widget _buildChatFab(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
-        ],
-      ),
-      child: FloatingActionButton(
-        onPressed: () => context.push(AppRoutes.chatList),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+  Widget _buildHomeTab(BuildContext context, AuthProvider authProvider) {
+    final user = authProvider.user;
+    return RefreshIndicator(
+      onRefresh: _fetchPets,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome Header - Brutal Card
+            _buildWelcomeCard(
+                context, user?.fullName ?? user?.username ?? 'Pet Owner'),
+            const SizedBox(height: 24),
+
+            // Quick Actions
+            _buildSectionTitle('HÀNH ĐỘNG NHANH'),
+            const SizedBox(height: 12),
+            _buildQuickActions(context),
+            const SizedBox(height: 24),
+
+            // My Pets Section
+            _buildSectionHeader(context, 'THÚ CƯNG CỦA TÔI', 'Xem tất cả'),
+            const SizedBox(height: 12),
+            _buildMyPetsCard(context),
+            const SizedBox(height: 24),
+
+            // Upcoming Bookings
+            _buildSectionHeader(context, 'LỊCH HẸN SẮP TỚI', 'Xem tất cả'),
+            const SizedBox(height: 12),
+            _buildBookingsCard(context),
+          ],
         ),
-        child: const Icon(Icons.chat_bubble_rounded, size: 26),
       ),
     );
   }
@@ -429,7 +473,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
-  Widget _buildBrutalNavBar() {
+  Widget _buildBrutalNavBar(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
@@ -437,41 +481,24 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
           top: BorderSide(color: AppColors.stone900, width: 2),
         ),
       ),
-      child: Builder(
-        builder: (context) => BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.stone400,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-          currentIndex: 0,
-          elevation: 0,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                // Already on home
-                break;
-              case 1:
-                // TODO: Navigate to explore
-                break;
-              case 2:
-                // TODO: Navigate to bookings
-                break;
-              case 3:
-                context.push(AppRoutes.profile);
-                break;
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHU'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.explore), label: 'KHAM PHA'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today), label: 'LICH HEN'),
-            BottomNavigationBarItem(
-                icon: Icon(Icons.person), label: 'TAI KHOAN'),
-          ],
-        ),
+      child: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: AppColors.white,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.stone400,
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        currentIndex: _currentIndex,
+        elevation: 0,
+        onTap: _onTabTapped,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
+        ],
       ),
     );
   }

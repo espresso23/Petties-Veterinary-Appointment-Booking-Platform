@@ -52,6 +52,9 @@ class PetService {
     }
   }
 
+  /// Alias for getPet
+  Future<Pet> getPetById(String id) => getPet(id);
+
   /// Create new pet
   Future<Pet> createPet({
     required String name,
@@ -60,6 +63,8 @@ class PetService {
     required DateTime dateOfBirth,
     required double weight,
     required String gender,
+    String? color,
+    String? allergies,
     XFile? image,
   }) async {
     try {
@@ -70,6 +75,8 @@ class PetService {
         'dateOfBirth': dateOfBirth.toIso8601String().split('T')[0],
         'weight': weight.toString(),
         'gender': gender,
+        if (color != null && color.isNotEmpty) 'color': color,
+        if (allergies != null && allergies.isNotEmpty) 'allergies': allergies,
       });
 
       if (image != null) {
@@ -99,6 +106,8 @@ class PetService {
     required DateTime dateOfBirth,
     required double weight,
     required String gender,
+    String? color,
+    String? allergies,
     XFile? image,
   }) async {
     try {
@@ -109,6 +118,8 @@ class PetService {
         'dateOfBirth': dateOfBirth.toIso8601String().split('T')[0],
         'weight': weight.toString(),
         'gender': gender,
+        if (color != null && color.isNotEmpty) 'color': color,
+        if (allergies != null && allergies.isNotEmpty) 'allergies': allergies,
       });
 
       if (image != null) {
@@ -133,6 +144,19 @@ class PetService {
   Future<void> deletePet(String id) async {
     try {
       await _apiClient.delete('/pets/$id');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// VET: Update only pet allergies
+  Future<Pet> updateAllergies(String petId, String? allergies) async {
+    try {
+      final response = await _apiClient.patch(
+        '/pets/$petId/allergies',
+        data: {'allergies': allergies ?? ''},
+      );
+      return Pet.fromJson(response.data);
     } catch (e) {
       rethrow;
     }

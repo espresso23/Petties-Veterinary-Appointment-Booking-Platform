@@ -21,13 +21,15 @@
 14. Đánh giá & review bác sĩ
 15. Chat với AI Chatbot (Pet Care Assistant)
 16. SOS - Cấp cứu khẩn cấp
-17. Video Consultation (Tư vấn video từ xa)
-18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
-19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
-20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
-21. **[SOS] Xem bản đồ realtime vị trí bác sĩ**
-22. **[SOS] Tracking đường di chuyển của bác sĩ** (định tuyến cứu hộ)
-23. **[SOS] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
+17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng** ✅
+18. **Hủy yêu cầu thay đổi Email** ✅
+19. Video Consultation (Tư vấn video từ xa)
+20. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
+21. Nhận thông báo & nhắc nhở (Push/Email/SMS)
+22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
+23. **[SOS] Xem bản đồ realtime vị trí bác sĩ**
+24. **[SOS] Tracking đường di chuyển của bác sĩ** (định tuyến cứu hộ)
+25. **[SOS] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
 
 ---
 
@@ -37,7 +39,7 @@
 3. Xem lịch làm việc của tôi
 4. Xem booking được gán
 5. Check-in bệnh nhân
-6. Check-out bệnh nhân
+6. **Hoàn thành khám (Treatment Finished)**: Bác sĩ xác nhận đã khám xong, gửi yêu cầu thanh toán tới Manager.
 7. Xem hồ sơ y tế thú cưng
 8. Xem sổ tiêm chủng của pet
 9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
@@ -46,6 +48,7 @@
 12. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
 13. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
 14. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
+15. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
 
 ---
 
@@ -59,12 +62,17 @@
 7. Gán bác sĩ cho booking
 8. Gán lại booking (nếu bác sĩ từ chối)
 9. Gán dịch vụ nếu user chưa chọn được
-10. Quản lý hủy & hoàn tiền
+10. **Nhận tiền & Checkout (Payment & Completion)**: Nhận thanh toán từ khách và thực hiện thao tác Checkout để đóng đơn hàng.
+11. Quản lý hủy & hoàn tiền
 11. Xem dashboard hôm nay
 12. Quản lý ca làm việc nhân viên
 14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
+15. **Block/Unblock Slot thủ công (Manual Slot Control)** ✅
+16. **Xóa ca trực hàng loạt (Bulk Shift Delete)** ✅
+17. **Kiểm tra tính khả dụng của bác sĩ (Check Vet Availability)** ✅
+18. **Gán lại bác sĩ cho dịch vụ (Reassign Vet)** ✅
 
 ---
 
@@ -140,6 +148,7 @@
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
 - 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
 - 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
 - 🤖 Citation & Attribution - Trích dẫn nguồn
@@ -168,6 +177,7 @@
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
 │  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
 │  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
+│  ├── @mcp.tool: analyze_pet_image → Phân tích hình ảnh (Vision)     │
 │  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
 │  ├── @mcp.tool: check_slots       → Check available slots          │
 │  └── @mcp.tool: create_booking    → Create booking via chat        │
@@ -198,6 +208,7 @@
 ### AI Tools (FastMCP Protocol)
 - 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
 - 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
+- 🔧 `analyze_pet_image` - Phân tích hình ảnh sức khỏe pet (Vision)
 - 🔧 `search_clinics` - Tìm phòng khám gần đây
 - 🔧 `check_slots` - Kiểm tra slot trống
 - 🔧 `create_booking` - Tạo lịch hẹn qua chat
@@ -256,29 +267,30 @@
 - Hỗ trợ đa ngôn ngữ
 - Timezone support - Múi giờ
 
-### 👨‍⚕️ Vet/Manager Account Creation Flow (Quick Add) ✅ (Backend Done)
-**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh và cấp tài khoản cho nhân sự (thông qua SĐT).
+### 👨‍⚕️ Vet/Manager Account Creation Flow (Quick Add) ✅ (Updated - Use Google OAuth)
+**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh nhân sự vào hệ thống thông qua Email. Nhân viên sẽ đăng nhập bằng tài khoản Google, thông tin cá nhân sẽ tự động đồng bộ.
 
 #### Screen Flows:
 1. Owner/Manager truy cập màn hình "Quản lý nhân sự" (Staff Management).
 2. Chọn "Thêm nhân viên" (Quick Add).
 3. Nhập các thông tin tối giản:
-    - Họ và tên
-    - Số điện thoại (Bắt buộc, dùng làm Username)
+    - Email (Bắt buộc, dùng để liên kết tài khoản Google)
     - Vai trò (Clinic Manager hoặc Vet)
+    - Chuyên môn (Chỉ áp dụng cho Vet)
 4. Hệ thống:
-    - Kiểm tra SĐT đã tồn tại chưa.
-    - Tạo tài khoản với `username = phone`.
-    - Tạo mật khẩu mặc định = **6 số cuối SĐT**.
-    - Gán `workingClinic` trỏ về chi nhánh hiện tại.
-5. Nhân viên sử dụng SĐT và mật khẩu mặc định để đăng nhập vào Web/Mobile ngay lập tức.
+    - Kiểm tra Email đã thuộc phòng khám khác chưa.
+    - Tạo bản ghi nhân sự tạm thời gắn với Email.
+5. Nhân viên sử dụng tài khoản Google tương ứng với Email đã mời để đăng nhập.
+6. Hệ thống:
+    - Tự động lấy `fullName` và `avatar` từ Google profile trong lần đăng nhập đầu tiên.
+    - Hoàn tất kích hoạt tài khoản nhân sự.
 
 #### Form thêm nhanh (Quick Add Form):
 | Field | Required | Description |
 |-------|----------|-------------|
-| Họ và tên | ✅ | Tên đầy đủ |
-| Số điện thoại | ✅ | Định danh đăng nhập, mã xác thực sau này |
+| Email | ✅ | Email dùng để đăng nhập Google OAuth |
 | Vai trò | ✅ | Chọn Clinic Manager hoặc Vet |
+| Chuyên môn | 🔄 | Áp dụng cho Vet để gán booking phù hợp |
 
 #### Account States:
 | Status | Mô tả | Đăng nhập? |
@@ -315,7 +327,7 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
+✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
@@ -349,7 +361,7 @@
 
 ---
 
-**Version: 8.0 - PETTIES MVP SCOPE (1-MONTH)**  
+**Version: 1.5.0 - PETTIES MVP SCOPE (SYNCED)**  
 **Status: ✅ READY FOR DEV**  
-**Total Features: ~48 (MVP Scope)**  
-**Last Updated: December 26, 2025**
+**Total Features: 109 Use Cases (Full Coverage)**  
+**Last Updated: January 22, 2026**

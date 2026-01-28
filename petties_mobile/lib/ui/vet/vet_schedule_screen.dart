@@ -96,6 +96,10 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
     setState(() => _isLoadingDetail = true);
     try {
       final detail = await _shiftService.getShiftDetail(shiftId);
+      // Sort slots by startTime to ensure chronological order
+      if (detail.slots != null && detail.slots!.isNotEmpty) {
+        detail.slots!.sort((a, b) => a.startTime.compareTo(b.startTime));
+      }
       setState(() {
         _selectedShift = detail;
         _isLoadingDetail = false;
@@ -649,71 +653,80 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
           if (isBlocked) statusColor = Colors.red;
           if (isBooked) statusColor = AppColors.primary;
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.stone50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone100),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  slot.startTime.substring(0, 5),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.stone900,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  width: 4,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isBooked
-                            ? (slot.petName ?? 'Đã được đặt')
-                            : (isBlocked ? 'Đã khóa' : 'Trống'),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight:
-                              isBooked ? FontWeight.w600 : FontWeight.normal,
-                          color: isBooked
-                              ? AppColors.stone900
-                              : (isBlocked ? Colors.red : AppColors.stone500),
-                        ),
-                      ),
-                      if (isBooked && slot.petOwnerName != null)
-                        Text(
-                          slot.petOwnerName!,
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.stone500),
-                        ),
-                    ],
-                  ),
-                ),
-                // Chỉ hiển thị icon trạng thái, không có button block/unblock
-                Icon(
-                  isBooked
-                      ? Icons.info_outline
-                      : (isBlocked ? Icons.lock : Icons.check_circle_outline),
-                  size: 18,
+          return GestureDetector(
+            onTap: (isBooked && slot.bookingId != null)
+                ? () => context.push('/vet/booking/${slot.bookingId}')
+                : null,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isBooked ? AppColors.primarySurface : AppColors.stone50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
                   color: isBooked
-                      ? AppColors.stone400
-                      : (isBlocked ? Colors.red : Colors.green),
+                      ? AppColors.primary.withOpacity(0.3)
+                      : AppColors.stone100,
                 ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '${slot.startTime.substring(0, 5)} - ${slot.endTime.substring(0, 5)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 4,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isBooked
+                              ? (slot.petName ?? 'Đã được đặt')
+                              : (isBlocked ? 'Đã khóa' : 'Trống'),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                isBooked ? FontWeight.w600 : FontWeight.normal,
+                            color: isBooked
+                                ? AppColors.stone900
+                                : (isBlocked ? Colors.red : AppColors.stone500),
+                          ),
+                        ),
+                        if (isBooked && slot.petOwnerName != null)
+                          Text(
+                            slot.petOwnerName!,
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.stone500),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Icon for booked slots indicates it's clickable
+                  Icon(
+                    isBooked
+                        ? Icons.arrow_forward_ios
+                        : (isBlocked ? Icons.lock : Icons.check_circle_outline),
+                    size: 18,
+                    color: isBooked
+                        ? AppColors.primary
+                        : (isBlocked ? Colors.red : Colors.green),
+                  ),
+                ],
+              ),
             ),
           );
         }).toList(),
@@ -761,21 +774,43 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
     final breakStart = _selectedShift?.breakStart;
     final breakEnd = _selectedShift?.breakEnd;
 
-    for (int i = 0; i < slots.length; i++) {
-      final slot = slots[i];
-      final slotStartTime = slot.startTime.substring(0, 5); // "HH:mm"
+    // Grouping slots by bookingId
+    List<List<SlotResponse>> groupedSlots = [];
+    if (slots.isNotEmpty) {
+      List<SlotResponse> currentGroup = [slots[0]];
+      for (int i = 1; i < slots.length; i++) {
+        final currentSlot = slots[i];
+        final previousSlot = slots[i - 1];
 
-      // Check if lunch break should be inserted before this slot
+        // Merge if they have the same bookingId and are both booked
+        if (currentSlot.status == SlotStatus.BOOKED &&
+            previousSlot.status == SlotStatus.BOOKED &&
+            currentSlot.bookingId != null &&
+            currentSlot.bookingId == previousSlot.bookingId) {
+          currentGroup.add(currentSlot);
+        } else {
+          groupedSlots.add(currentGroup);
+          currentGroup = [currentSlot];
+        }
+      }
+      groupedSlots.add(currentGroup);
+    }
+
+    for (var group in groupedSlots) {
+      final firstSlot = group.first;
+      final lastSlot = group.last;
+      final slotStartTime = firstSlot.startTime.substring(0, 5);
+
+      // Check if lunch break should be inserted before this group
       if (!lunchBreakAdded && breakStart != null && breakEnd != null) {
         final breakStartTime = breakStart.substring(0, 5);
         if (slotStartTime.compareTo(breakStartTime) >= 0) {
-          // Insert lunch break here
           timelineItems.add(_buildLunchBreakCard());
           lunchBreakAdded = true;
         }
       }
 
-      timelineItems.add(_buildTimelineSlotCard(slot));
+      timelineItems.add(_buildTimelineSlotGroupCard(group));
     }
 
     // If lunch break was not added (break is after all slots), add at end
@@ -791,10 +826,11 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
     );
   }
 
-  Widget _buildTimelineSlotCard(SlotResponse slot) {
-    final bool isAvailable = slot.status == SlotStatus.AVAILABLE;
-    final bool isBlocked = slot.status == SlotStatus.BLOCKED;
-    final bool isBooked = slot.status == SlotStatus.BOOKED;
+  Widget _buildTimelineSlotGroupCard(List<SlotResponse> group) {
+    final firstSlot = group.first;
+    final lastSlot = group.last;
+    final bool isBooked = firstSlot.status == SlotStatus.BOOKED;
+    final bool isBlocked = firstSlot.status == SlotStatus.BLOCKED;
 
     Color statusColor = Colors.green;
     String statusText = 'Trống';
@@ -806,6 +842,10 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
       statusText = 'Đã đặt';
     }
 
+    final timeLabel = group.length > 1
+        ? '${firstSlot.startTime.substring(0, 5)} - ${lastSlot.endTime.substring(0, 5)}'
+        : '${firstSlot.startTime.substring(0, 5)} - ${firstSlot.endTime.substring(0, 5)}';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -813,9 +853,9 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
         children: [
           // Time Column
           SizedBox(
-            width: 50,
+            width: 85,
             child: Text(
-              slot.startTime.substring(0, 5),
+              timeLabel,
               style: TextStyle(
                 fontSize: 12,
                 color: AppColors.stone400,
@@ -837,7 +877,8 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
               ),
               Container(
                 width: 2,
-                height: 80,
+                height:
+                    group.length > 1 ? 80.0 + (group.length - 1) * 40.0 : 80,
                 color: AppColors.stone200,
               ),
             ],
@@ -845,109 +886,130 @@ class _VetScheduleScreenState extends State<VetScheduleScreen> {
           const SizedBox(width: 12),
           // Card
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.stone100),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+            child: GestureDetector(
+              onTap: (isBooked && firstSlot.bookingId != null)
+                  ? () => context.push('/vet/booking/${firstSlot.bookingId}')
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isBooked
+                        ? AppColors.primary.withOpacity(0.3)
+                        : AppColors.stone100,
+                    width: isBooked ? 2 : 1,
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // Pet Avatar placeholder
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: isBooked
-                              ? AppColors.primarySurface
-                              : AppColors.stone100,
-                          borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        // Pet Avatar placeholder
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isBooked
+                                ? AppColors.primarySurface
+                                : AppColors.stone100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Icon(
+                            isBooked ? Icons.pets : Icons.access_time,
+                            color: isBooked
+                                ? AppColors.primary
+                                : AppColors.stone400,
+                            size: 20,
+                          ),
                         ),
-                        child: Icon(
-                          isBooked ? Icons.pets : Icons.access_time,
-                          color:
-                              isBooked ? AppColors.primary : AppColors.stone400,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isBooked
-                                  ? (slot.petName ?? 'Thú cưng')
-                                  : 'Slot ${slot.startTime.substring(0, 5)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                                color: AppColors.stone900,
-                              ),
-                            ),
-                            if (isBooked && slot.petOwnerName != null)
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                slot.petOwnerName!,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.stone500,
+                                isBooked
+                                    ? (firstSlot.petName ?? 'Thú cưng')
+                                    : 'Slot $timeLabel',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: AppColors.stone900,
                                 ),
                               ),
-                          ],
+                              if (isBooked && firstSlot.petOwnerName != null)
+                                Text(
+                                  firstSlot.petOwnerName!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.stone500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isBooked && group.length > 1) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Chiếm ${group.length} slot liên tiếp',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontStyle: FontStyle.italic,
+                          color: AppColors.primary.withOpacity(0.7),
                         ),
                       ),
+                    ],
+                    if (isBooked && firstSlot.bookingId != null) ...[
+                      const SizedBox(height: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          statusText,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor,
+                        child: const Center(
+                          child: Text(
+                            'Xem chi tiết',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),
                     ],
-                  ),
-                  // Loại bỏ nút block/unblock - chỉ giữ lại Check In cho booked slots
-                  if (isBooked) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'Check In',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
-                ],
+                ),
               ),
             ),
           ),

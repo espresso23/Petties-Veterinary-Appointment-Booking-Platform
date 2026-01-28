@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-10  
-> **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)  
-> **Overall Progress:** 55%
+> **Last Updated:** 2026-01-22
+> **Current Sprint:** Sprint 9 (27/01 - 02/02/2026)
+> **Overall Progress:** 83.5%
 
 ---
 
@@ -14,11 +14,11 @@
 | Pet Management | ✅ Done | 100% |
 | Clinic System | ✅ Done | 100% |
 | Vet Scheduling | ✅ Done | 100% |
-| Notifications | 🔄 Active | 60% |
-| AI Assistant | 🔄 Active | 40% |
-| EMR (Medical Records) | ⏳ Pending | 20% |
-| Booking Flow | ⏳ Pending | 10% |
-| SOS Emergency | 💡 Planned | 0% |
+| Notifications | ✅ Done | 100% |
+| AI Assistant | 🔄 Active | 70% |
+| Booking Flow | 🔄 Active | 90% |
+| EMR (Medical Records) | ✅ Done | 100% |
+| SOS Emergency | 🔄 Active | 20% |
 
 ---
 
@@ -39,6 +39,8 @@
 - Overnight Shift Support
 - SSE Real-time Events
 - FCM Push Notifications
+- Smart Availability API (Optimal Slot Finding)
+- Standardized Controller Unit Tests (Auth, Booking, EMR)
 
 ### Web (Next.js)
 - Admin Dashboard
@@ -60,33 +62,33 @@
 
 ---
 
-## 🔄 In Progress (Sprint 10)
+## 🔄 In Progress (Sprint 9)
 
 ### Current Focus
-1. **VetShift Refinements**
-   - [x] Calendar Picker Component
-   - [x] Shift Conflict Detection
+1. **SOS Emergency System**
+   - [ ] Emergency Clinic Filter
+   - [ ] Live GPS Tracking (WebSocket)
+   - [ ] SOS Tracking Map UI
 
-2. **Notification System**
-   - [x] FCM Backend Integration
-   - [x] Mobile Push Handling
-   - [x] SSE Web Integration
-   - [ ] Scheduled Reminders (Cron)
+2. **Payment Integration**
+   - [ ] Backend Payment API (Stripe/QR)
+   - [ ] Online Payment Flow
+   - [ ] Revenue Split Logic (15% Platform, 85% Clinic)
 
-3. **Booking Foundation**
-   - [x] Distance-based Pricing
-   - [ ] Booking Wizard (Mobile)
-   - [ ] Slot Locking Logic
+3. **Booking & Appointment Finalization**
+   - [ ] Check-in flow implementation
+   - [ ] Check-out flow implementation
+   - [ ] Complete appointment status transition
 
 ---
 
 ## ⏳ Upcoming (Sprint 11-12)
 
 ### EMR & Medical Records
-- [ ] Cross-clinic EMR History API
-- [ ] SOAP Note Entry (Vet)
-- [ ] Vaccination Card
-- [ ] Electronic Prescription (Rx)
+- [x] SOAP Note Entry (Vet) - Backend Done
+- [x] Vaccination Card - Backend Done
+- [x] Electronic Prescription (Rx) - Backend Done
+- [ ] Cross-clinic EMR History API (Verification pending)
 
 ### Booking Workflow
 - [ ] Multi-step Booking Wizard

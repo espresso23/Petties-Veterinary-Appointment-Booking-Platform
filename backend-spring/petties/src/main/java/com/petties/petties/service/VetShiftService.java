@@ -11,6 +11,7 @@ import com.petties.petties.model.Slot;
 import com.petties.petties.model.User;
 import com.petties.petties.model.VetShift;
 import com.petties.petties.model.enums.SlotStatus;
+import com.petties.petties.repository.BookingSlotRepository;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.SlotRepository;
 import com.petties.petties.repository.UserRepository;
@@ -49,6 +50,7 @@ public class VetShiftService {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final NotificationService notificationService;
+    private final BookingSlotRepository bookingSlotRepository;
 
     private static final int SLOT_DURATION_MINUTES = 30;
 
@@ -566,13 +568,45 @@ public class VetShiftService {
 
     /**
      * Map Slot entity to response DTO
+     * Includes booking info (petName, ownerName) when slot is booked
      */
     private SlotResponse mapSlotToResponse(Slot slot) {
-        return SlotResponse.builder()
+        SlotResponse.SlotResponseBuilder builder = SlotResponse.builder()
                 .slotId(slot.getSlotId())
                 .startTime(slot.getStartTime())
                 .endTime(slot.getEndTime())
-                .status(slot.getStatus())
-                .build();
+                .status(slot.getStatus());
+
+        // If slot is booked, fetch booking info
+        if (slot.getStatus() == SlotStatus.BOOKED) {
+            bookingSlotRepository.findBySlot_SlotId(slot.getSlotId())
+                    .ifPresent(bookingSlot -> {
+                        var booking = bookingSlot.getBooking();
+                        if (booking != null) {
+                            builder.bookingId(booking.getBookingId());
+                            if (booking.getPet() != null) {
+                                builder.petName(booking.getPet().getName());
+                            }
+                            if (booking.getPetOwner() != null) {
+                                builder.petOwnerName(booking.getPetOwner().getFullName());
+                            }
+                        }
+
+                        // Service details from BookingServiceItem
+                        var serviceItem = bookingSlot.getBookingServiceItem();
+                        if (serviceItem != null) {
+                            builder.bookingServiceId(serviceItem.getBookingServiceId());
+                            if (serviceItem.getService() != null) {
+                                builder.serviceName(serviceItem.getService().getName());
+                                if (serviceItem.getService().getServiceCategory() != null) {
+                                    builder.serviceCategory(
+                                            serviceItem.getService().getServiceCategory().name());
+                                }
+                            }
+                        }
+                    });
+        }
+
+        return builder.build();
     }
 }

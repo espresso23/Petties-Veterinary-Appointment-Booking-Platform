@@ -1,21 +1,27 @@
-# Nginx WebSocket Configuration Guide
+# Nginx WebSocket & SSE Configuration Guide
 
 ## ⚠️ QUAN TRỌNG
 
-**Cấu hình này dành cho EC2 (Production/UAT), KHÔNG phải máy local!**
+**Cấu hình này dành cho EC2 (Production/Test), KHÔNG phải máy local!**
 
 - **Development (Local)**: Không cần Nginx, chạy services trực tiếp
-- **Production/UAT (EC2)**: Cần Nginx reverse proxy + SSL
+- **Production/Test (EC2)**: Cần Nginx reverse proxy + SSL
 
 ## Tổng quan
 
-Hệ thống Petties sử dụng WebSocket cho:
-1. **Backend API** (`api.petties.world`, `uat-api.petties.world`): WebSocket endpoints (nếu có)
-2. **AI Service** (`ai.petties.world`, `uat-ai.petties.world`): WebSocket chat endpoint tại `/ws/chat/{session_id}`
+Hệ thống Petties sử dụng các real-time connections:
 
-## Cấu hình Nginx cho WebSocket
+### WebSocket
+1. **Backend API** (`api.petties.world`): STOMP WebSocket tại `/api/ws/`
+2. **AI Service** (`ai.petties.world`): WebSocket chat endpoint tại `/ws/chat/{session_id}`
 
-### 1. Cấu hình cho API Backend (`api.petties.world`)
+### SSE (Server-Sent Events)
+1. **Backend API** (`api.petties.world`): Notifications tại `/api/sse/subscribe`
+2. **AI Service** (`ai.petties.world`): AI Reasoning/Thinking Stream (nếu có)
+
+---
+
+## Cấu hình Nginx cho Production (`api.petties.world`)
 
 File: `/etc/nginx/sites-available/api.petties.world`
 
@@ -43,26 +49,40 @@ server {
 
     client_max_body_size 15M;
 
-    # HTTP API endpoints
-    location / {
+    # ============================================
+    # SSE (Server-Sent Events) - Notifications & AI Streaming
+    # PHẢI ĐẶT TRƯỚC location / vì Nginx match location theo thứ tự
+    # ============================================
+    location /api/sse/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         
-        # Standard proxy headers
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
+        # SSE specific headers - QUAN TRỌNG
+        proxy_set_header Connection '';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cache-Control 'no-cache';
+        proxy_set_header X-Accel-Buffering 'no';
         
-        # Timeouts
-        proxy_read_timeout 300s;
+        # SSE timeout dài (24 giờ) - connection cần giữ mở lâu
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
         proxy_connect_timeout 75s;
+        
+        # QUAN TRỌNG: Disable buffering cho streaming
+        proxy_buffering off;
+        proxy_cache off;
+        
+        # Chunked encoding cho SSE
+        chunked_transfer_encoding on;
     }
 
-    # WebSocket endpoint (if backend has WebSocket)
-    location /ws/ {
+    # ============================================
+    # WebSocket endpoint (STOMP)
+    # ============================================
+    location /api/ws/ {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         
@@ -83,9 +103,119 @@ server {
         proxy_buffering off;
     }
 
+    # ============================================
+    # HTTP API endpoints (REST)
+    # ============================================
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        
+        # Standard proxy headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
     # Health check endpoint
     location /api/actuator/health {
         proxy_pass http://127.0.0.1:8080;
+        access_log off;
+    }
+}
+```
+
+---
+
+## Cấu hình Nginx cho Test (`api-test.petties.world`)
+
+File: `/etc/nginx/sites-available/api-test.petties.world`
+
+```nginx
+server {
+    listen 80;
+    server_name api-test.petties.world;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name api-test.petties.world;
+
+    ssl_certificate /etc/letsencrypt/live/api-test.petties.world/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api-test.petties.world/privkey.pem;
+    
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    client_max_body_size 15M;
+
+    # SSE endpoint - Notifications & AI Streaming (TEST uses port 8081)
+    location /api/sse/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        
+        proxy_set_header Connection '';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cache-Control 'no-cache';
+        proxy_set_header X-Accel-Buffering 'no';
+        
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_connect_timeout 75s;
+        
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding on;
+    }
+
+    # WebSocket endpoint (TEST uses port 8081)
+    location /api/ws/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_connect_timeout 75s;
+        
+        proxy_buffering off;
+    }
+
+    # HTTP API endpoints (TEST uses port 8081)
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+    }
+
+    location /api/actuator/health {
+        proxy_pass http://127.0.0.1:8081;
         access_log off;
     }
 }

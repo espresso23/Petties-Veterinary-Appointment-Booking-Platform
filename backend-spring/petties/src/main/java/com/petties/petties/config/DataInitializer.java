@@ -1,11 +1,17 @@
 package com.petties.petties.config;
 
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
+import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.Prescription;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.ClinicRepository;
+import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
+import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.model.ChatConversation;
@@ -32,6 +38,8 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
+    private final PetRepository petRepository;
+    private final EmrRecordRepository emrRecordRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -55,6 +63,7 @@ public class DataInitializer implements CommandLineRunner {
         if (shouldSeedTestData()) {
             log.info("📦 Seeding test data for development/testing...");
             seedTestUsers();
+            seedTestClinics();
         } else {
             log.info("🔒 Production mode - skipping test data seeding");
         }
@@ -107,11 +116,16 @@ public class DataInitializer implements CommandLineRunner {
      */
     private void seedTestUsers() {
         User petOwner = initializeUser("petOwner", "owner", "owner@petties.world", "John Pet Owner", Role.PET_OWNER);
+
         User clinicOwner = initializeUser("clinicOwner", "123456", "owner@clinic.com", "Clinic Owner User",
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", Role.VET);
+        initializeVetUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", StaffSpecialty.VET_GENERAL);
+
+        // Create more pet owners for testing
+        User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
+        User petOwner3 = initializeUser("petOwner3", "owner", "tran.binh@gmail.com", "Trần Thị Bình", Role.PET_OWNER);
 
         // Initialize a clinic for the clinic owner
         Clinic clinic = null;
@@ -136,13 +150,270 @@ public class DataInitializer implements CommandLineRunner {
                     userRepository.save(vet);
                     log.info("   + Assigned vet to clinic: {}", clinic.getName());
                 }
+
+                // Ensure specific user has access to Clinic Data
+                String targetEmail = "congnvde180639@fpt.edu.vn";
+                User targetUser = userRepository.findByEmail(targetEmail).orElse(null);
+
+                if (targetUser == null) {
+                    // Create if not exists
+                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.VET);
+                }
+
+                if (targetUser != null) {
+                    boolean changed = false;
+                    // Force Role VET
+                    if (targetUser.getRole() != Role.VET && targetUser.getRole() != Role.ADMIN) {
+                        targetUser.setRole(Role.VET);
+                        changed = true;
+                    }
+                    // Assign Clinic
+                    if (targetUser.getWorkingClinic() == null
+                            || !targetUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId())) {
+                        targetUser.setWorkingClinic(clinic);
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        userRepository.save(targetUser);
+                        log.info("   + Updated existing user '{}' to Role VET and assigned Clinic '{}'", targetEmail,
+                                clinic.getName());
+                    }
+                }
             }
+        }
+
+        // Seed pets for pet owners
+        seedTestPets(petOwner, petOwner2, petOwner3);
+
+        // Seed EMR records for pets
+        User vetForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
+        if (vetForEmr == null) {
+            vetForEmr = userRepository.findByUsername("vet").orElse(null);
+        }
+
+        if (vetForEmr != null && clinic != null) {
+            seedTestEmrRecords(vetForEmr, clinic);
         }
 
         // Seed conversation & messages between pet owner và clinic manager (nếu đủ dữ
         // liệu)
         if (petOwner != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner, clinicManager, clinic);
+        }
+
+        // Seed a second conversation from petOwner2
+        if (petOwner2 != null && clinicManager != null && clinic != null) {
+            seedConversationAndMessages(petOwner2, clinicManager, clinic);
+        }
+    }
+
+    /**
+     * Seed test pets for development/testing
+     */
+    private void seedTestPets(User petOwner1, User petOwner2, User petOwner3) {
+        log.info("🐾 Seeding test pets...");
+
+        // Pets for petOwner1 (John Pet Owner)
+        if (petOwner1 != null && !petRepository.existsByUserUserId(petOwner1.getUserId())) {
+            createPet(petOwner1, "Bella", "Chó", "Golden Retriever", "2022-03-15", 15.5, "Cái", "Vàng kem",
+                    "Dị ứng Penicillin");
+            createPet(petOwner1, "Mimi", "Mèo", "Mèo Anh lông ngắn", "2023-06-20", 4.2, "Cái", "Xám", null);
+        }
+
+        // Pets for petOwner2 (Nguyễn Văn An)
+        if (petOwner2 != null && !petRepository.existsByUserUserId(petOwner2.getUserId())) {
+            createPet(petOwner2, "Rocky", "Chó", "French Bulldog", "2021-11-10", 12.0, "Đực", "Trắng đen", null);
+            createPet(petOwner2, "Lucky", "Chó", "Corgi", "2023-01-05", 10.5, "Đực", "Vàng trắng",
+                    "Dị ứng thức ăn biển");
+        }
+
+        // Pets for petOwner3 (Trần Thị Bình)
+        if (petOwner3 != null && !petRepository.existsByUserUserId(petOwner3.getUserId())) {
+            createPet(petOwner3, "Bunny", "Thỏ", "Holland Lop", "2024-02-14", 2.5, "Cái", "Trắng nâu", null);
+        }
+    }
+
+    /**
+     * Helper to create a pet
+     */
+    private void createPet(User owner, String name, String species, String breed, String dob, double weight,
+            String gender, String color, String allergies) {
+        try {
+            Pet pet = new Pet();
+            pet.setUser(owner);
+            pet.setName(name);
+            pet.setSpecies(species);
+            pet.setBreed(breed);
+            pet.setDateOfBirth(java.time.LocalDate.parse(dob));
+            pet.setWeight(weight);
+            pet.setGender(gender);
+            pet.setColor(color);
+            pet.setAllergies(allergies);
+            petRepository.save(pet);
+            log.info("   + Created pet '{}' ({}) for owner '{}'", name, species, owner.getFullName());
+        } catch (Exception e) {
+            log.error("   x Failed to create pet '{}': {}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Seed test EMR records for development/testing
+     */
+    private void seedTestEmrRecords(User vet, Clinic clinic) {
+        log.info("📋 Seeding test EMR records...");
+
+        // Get all pets to create EMR records for
+        java.util.List<Pet> allPets = petRepository.findAll();
+        if (allPets.isEmpty()) {
+            log.info("   - No pets found, skipping EMR seeding");
+            return;
+        }
+
+        // Check if EMR records already exist
+        if (emrRecordRepository.count() > 0) {
+            log.info("   - EMR records already exist, skipping");
+            return;
+        }
+
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+
+        for (Pet pet : allPets) {
+            if (pet.getName().equals("Bella")) {
+                // EMR 1 for Bella - Viêm tai ngoài
+                EmrRecord emr1 = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Chủ nuôi báo cáo: Bé gãi tai nhiều trong 3 ngày qua, có mùi hôi từ tai, lắc đầu thường xuyên.")
+                        .objective(
+                                "Kiểm tra lâm sàng: Tai trái đỏ, có dịch màu nâu đen, mùi hôi. Nhiệt độ 39.2°C. Phản xạ đau khi sờ tai. Cân nặng: 15.2kg.")
+                        .assessment(
+                                "Chẩn đoán: Viêm tai ngoài (Otitis Externa) do nhiễm nấm Malassezia. Khuyến nghị xét nghiệm tế bào học để xác nhận.")
+                        .plan("1. Vệ sinh tai bằng dung dịch chuyên dụng 2 lần/ngày\n2. Thuốc nhỏ tai Otomax 5-7 giọt/tai x 2 lần/ngày x 7 ngày\n3. Tái khám sau 7 ngày\n4. Tránh để nước vào tai khi tắm")
+                        .notes("Lưu ý: Bé có tiền sử dị ứng Penicillin, đã tránh kê thuốc kháng sinh nhóm này.")
+                        .weightKg(new java.math.BigDecimal("15.2"))
+                        .temperatureC(new java.math.BigDecimal("39.2"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Otomax")
+                                        .dosage("5-7 giọt/tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(7)
+                                        .instructions("Nhỏ vào tai sau khi vệ sinh, massage nhẹ chân tai")
+                                        .build(),
+                                Prescription.builder()
+                                        .medicineName("Dung dịch vệ sinh tai EpiOtic")
+                                        .dosage("Đủ để đầy ống tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(14)
+                                        .instructions("Đổ vào tai, massage 30 giây, lau sạch bằng bông")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(7))
+                        .createdAt(now.minusDays(7))
+                        .build();
+                emrRecordRepository.save(emr1);
+                log.info("   + Created EMR for pet 'Bella' - Viêm tai ngoài");
+
+                // EMR 2 for Bella - Tái khám
+                EmrRecord emr2 = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Tái khám sau 7 ngày điều trị viêm tai. Chủ nuôi cho biết bé đã bớt gãi, không còn lắc đầu nhiều.")
+                        .objective(
+                                "Tai đã giảm viêm đáng kể, dịch tiết giảm. Không còn mùi hôi. Nhiệt độ 38.5°C bình thường. Cân nặng: 15.5kg.")
+                        .assessment("Viêm tai ngoài đang hồi phục tốt. Tiếp tục điều trị thêm 5 ngày.")
+                        .plan("1. Tiếp tục thuốc nhỏ tai thêm 5 ngày\n2. Giảm vệ sinh tai xuống 1 lần/ngày\n3. Tái khám sau 1 tuần nếu còn triệu chứng")
+                        .notes("Đáp ứng điều trị tốt.")
+                        .weightKg(new java.math.BigDecimal("15.5"))
+                        .temperatureC(new java.math.BigDecimal("38.5"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Otomax")
+                                        .dosage("5-7 giọt/tai")
+                                        .frequency("2 lần/ngày")
+                                        .durationDays(5)
+                                        .instructions("Tiếp tục như trước")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now)
+                        .createdAt(now)
+                        .build();
+                emrRecordRepository.save(emr2);
+                log.info("   + Created EMR for pet 'Bella' - Tái khám");
+
+            } else if (pet.getName().equals("Rocky")) {
+                // EMR for Rocky - Tiêu chảy
+                EmrRecord emr = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Bé tiêu chảy 2 ngày nay, phân lỏng có nhầy. Ăn ít, uống nước bình thường. Không nôn.")
+                        .objective(
+                                "Bụng hơi chướng, có tiếng óc ách khi ấn. Niêm mạc hồng nhạt. Nhiệt độ 39.0°C. Không có dấu hiệu mất nước nghiêm trọng. Cân nặng 11.8kg.")
+                        .assessment(
+                                "Viêm ruột cấp tính, nghi do thay đổi thức ăn hoặc ăn phải thức ăn không phù hợp. Theo dõi thêm triệu chứng.")
+                        .plan("1. Nhịn ăn 12 giờ, chỉ cho uống nước\n2. Sau đó cho ăn thức ăn dễ tiêu (cháo gà, cơm nát)\n3. Thuốc trị tiêu chảy và probiotics\n4. Tái khám nếu không cải thiện sau 48h hoặc có nôn")
+                        .weightKg(new java.math.BigDecimal("11.8"))
+                        .temperatureC(new java.math.BigDecimal("39.0"))
+                        .prescriptions(java.util.List.of(
+                                Prescription.builder()
+                                        .medicineName("Smecta")
+                                        .dosage("1/2 gói")
+                                        .frequency("3 lần/ngày")
+                                        .durationDays(3)
+                                        .instructions("Pha với 10ml nước, cho uống trước ăn 30 phút")
+                                        .build(),
+                                Prescription.builder()
+                                        .medicineName("FortiFlora Probiotic")
+                                        .dosage("1 gói")
+                                        .frequency("1 lần/ngày")
+                                        .durationDays(7)
+                                        .instructions("Rắc lên thức ăn")
+                                        .build()))
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(3))
+                        .createdAt(now.minusDays(3))
+                        .build();
+                emrRecordRepository.save(emr);
+                log.info("   + Created EMR for pet 'Rocky' - Tiêu chảy");
+
+            } else if (pet.getName().equals("Mimi")) {
+                // EMR for Mimi - Khám sức khỏe định kỳ
+                EmrRecord emr = EmrRecord.builder()
+                        .petId(pet.getId())
+                        .vetId(vet.getUserId())
+                        .clinicId(clinic.getClinicId())
+                        .clinicName(clinic.getName())
+                        .vetName(vet.getFullName())
+                        .subjective(
+                                "Khám sức khỏe định kỳ. Chủ nuôi không có than phiền gì đặc biệt. Bé ăn uống bình thường, chơi đùa vui vẻ.")
+                        .objective(
+                                "Toàn trạng khỏe mạnh. Lông mượt, mắt sáng. Niêm mạc hồng. Răng sạch, không có cao răng. Tim phổi bình thường. Cân nặng 4.3kg, tăng 0.1kg so với lần khám trước.")
+                        .assessment("Sức khỏe tổng quát tốt. Khuyến nghị tiêm phòng vaccine dại theo lịch.")
+                        .plan("1. Tiêm vaccine dại (đã thực hiện)\n2. Tái khám định kỳ sau 6 tháng\n3. Tẩy giun định kỳ 3 tháng/lần")
+                        .notes("Đã tiêm vaccine dại Nobivac. Bé phản ứng tốt sau tiêm, không có dấu hiệu bất thường.")
+                        .weightKg(new java.math.BigDecimal("4.3"))
+                        .temperatureC(new java.math.BigDecimal("38.8"))
+                        .prescriptions(java.util.List.of())
+                        .images(java.util.List.of())
+                        .examinationDate(now.minusDays(14))
+                        .createdAt(now.minusDays(14))
+                        .build();
+                emrRecordRepository.save(emr);
+                log.info("   + Created EMR for pet 'Mimi' - Khám định kỳ");
+            }
         }
     }
 
@@ -207,9 +478,13 @@ public class DataInitializer implements CommandLineRunner {
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(password));
         user.setEmail(email);
+        user.setEmail(email);
         user.setPhone("0" + (long) (Math.random() * 1000000000L)); // Random valid-looking phone
         user.setFullName(fullName);
         user.setRole(role);
+
+        // Add dummy FCM token for testing push notifications logic
+        user.setFcmToken("dummy_token_" + username);
 
         try {
             User savedUser = userRepository.save(user);
@@ -243,6 +518,166 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created clinic '{}' for user '{}'", name, owner.getUsername());
         } catch (Exception e) {
             log.error("   x Failed to create clinic: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Helper method to initialize a VET user with specialty
+     */
+    private User initializeVetUser(String username, String password, String email, String fullName,
+            StaffSpecialty specialty) {
+        // Check by username
+        if (userRepository.existsByUsername(username)) {
+            // Update existing vet's specialty if null
+            User existingVet = userRepository.findByUsername(username).orElse(null);
+            if (existingVet != null && existingVet.getSpecialty() == null) {
+                existingVet.setSpecialty(specialty);
+                existingVet.setAvatar("https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+")
+                        + "&background=86EFAC&color=1c1917");
+                userRepository.save(existingVet);
+                log.info("   + Updated vet specialty: {} -> {}", username, specialty);
+            }
+            return existingVet;
+        }
+
+        // Check by email to prevent duplicate key error
+        if (userRepository.existsByEmail(email)) {
+            log.info("   - User with email '{}' (VET) already exists.", email);
+            return userRepository.findByEmail(email).orElse(null);
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setEmail(email);
+        user.setPhone("0" + (long) (Math.random() * 1000000000L));
+        user.setFullName(fullName);
+        user.setRole(Role.VET);
+        user.setSpecialty(specialty);
+        user.setAvatar(
+                "https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+") + "&background=86EFAC&color=1c1917");
+
+        try {
+            User savedUser = userRepository.save(user);
+            log.info("   + Created VET user: {} with specialty {}", username, specialty);
+            return savedUser;
+        } catch (Exception e) {
+            log.error("   x Failed to create vet user {}: {}", username, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Seed test clinics for HCM City and Da Nang
+     */
+    private void seedTestClinics() {
+        log.info("🏥 Seeding test clinics for HCM City and Da Nang...");
+
+        // Create clinic owners if not exist
+        User hcmOwner1 = initializeUser("clinic_hcm1", "123456", "hcm1@petclinic.vn", "Nguyễn Văn An",
+                Role.CLINIC_OWNER);
+        User hcmOwner2 = initializeUser("clinic_hcm2", "123456", "hcm2@petclinic.vn", "Trần Thị Bình",
+                Role.CLINIC_OWNER);
+        User dnOwner1 = initializeUser("clinic_dn1", "123456", "dn1@petclinic.vn", "Phạm Minh Đức", Role.CLINIC_OWNER);
+        User dnOwner2 = initializeUser("clinic_dn2", "123456", "dn2@petclinic.vn", "Võ Thị Hoa", Role.CLINIC_OWNER);
+
+        // HCM City Clinics
+        if (hcmOwner1 != null) {
+            createTestClinic(hcmOwner1, "Phòng Khám Thú Y Sài Gòn Pet Care",
+                    "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM", "02838123456",
+                    "Quận 1", "TP. Hồ Chí Minh", 10.7731, 106.6980, 4.8, 156);
+
+            createTestClinic(hcmOwner1, "Thú Y Thủ Đức 24h",
+                    "456 Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP.HCM", "02837456789",
+                    "TP. Thủ Đức", "TP. Hồ Chí Minh", 10.8510, 106.7590, 4.5, 98);
+        }
+
+        if (hcmOwner2 != null) {
+            createTestClinic(hcmOwner2, "Pet Hospital Quận 3",
+                    "45 Võ Văn Tần, Phường 6, Quận 3, TP.HCM", "02839234567",
+                    "Quận 3", "TP. Hồ Chí Minh", 10.7812, 106.6892, 4.9, 234);
+
+            createTestClinic(hcmOwner2, "Phú Mỹ Hưng Pet Clinic",
+                    "789 Nguyễn Đức Cảnh, Phường Tân Phong, Quận 7, TP.HCM", "02854345678",
+                    "Quận 7", "TP. Hồ Chí Minh", 10.7295, 106.7186, 4.7, 189);
+
+            createTestClinic(hcmOwner2, "Happy Pets Clinic Bình Thạnh",
+                    "234 Đinh Bộ Lĩnh, Phường 26, Quận Bình Thạnh, TP.HCM", "02835567890",
+                    "Quận Bình Thạnh", "TP. Hồ Chí Minh", 10.8015, 106.7120, 4.6, 112);
+        }
+
+        // Da Nang Clinics
+        if (dnOwner1 != null) {
+            createTestClinic(dnOwner1, "Phòng Khám Thú Y Đà Nẵng Pet",
+                    "56 Trần Phú, Phường Hải Châu 1, Quận Hải Châu, Đà Nẵng", "02363123456",
+                    "Quận Hải Châu", "Đà Nẵng", 16.0678, 108.2208, 4.7, 87);
+
+            createTestClinic(dnOwner1, "Thú Y Thanh Khê Care",
+                    "78 Điện Biên Phủ, Phường Thanh Khê Đông, Quận Thanh Khê, Đà Nẵng", "02363345678",
+                    "Quận Thanh Khê", "Đà Nẵng", 16.0712, 108.1892, 4.4, 56);
+
+            createTestClinic(dnOwner1, "Liên Chiểu Animal Hospital",
+                    "456 Nguyễn Lương Bằng, Phường Hòa Khánh Bắc, Quận Liên Chiểu, Đà Nẵng", "02363567890",
+                    "Quận Liên Chiểu", "Đà Nẵng", 16.0834, 108.1456, 4.5, 92);
+        }
+
+        if (dnOwner2 != null) {
+            createTestClinic(dnOwner2, "Biển Xanh Pet Hospital",
+                    "123 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, Đà Nẵng", "02363234567",
+                    "Quận Sơn Trà", "Đà Nẵng", 16.0544, 108.2456, 4.8, 134);
+
+            createTestClinic(dnOwner2, "Ngũ Hành Sơn Pet Clinic",
+                    "234 Lê Văn Hiến, Phường Khuê Mỹ, Quận Ngũ Hành Sơn, Đà Nẵng", "02363456789",
+                    "Quận Ngũ Hành Sơn", "Đà Nẵng", 16.0189, 108.2512, 4.6, 78);
+        }
+
+        log.info("✅ Test clinics seeded successfully!");
+    }
+
+    /**
+     * Helper to create a test clinic with full details
+     */
+    private void createTestClinic(User owner, String name, String address, String phone,
+            String district, String province, double lat, double lng,
+            double rating, int ratingCount) {
+        // Check if clinic with this name already exists
+        if (clinicRepository.findByName(name).isPresent()) {
+            log.info("   - Clinic '{}' already exists.", name);
+            return;
+        }
+
+        Clinic clinic = new Clinic();
+        clinic.setOwner(owner);
+        clinic.setName(name);
+        clinic.setAddress(address);
+        clinic.setPhone(phone);
+        clinic.setDistrict(district);
+        clinic.setProvince(province);
+        clinic.setLatitude(java.math.BigDecimal.valueOf(lat));
+        clinic.setLongitude(java.math.BigDecimal.valueOf(lng));
+        clinic.setRatingAvg(java.math.BigDecimal.valueOf(rating));
+        clinic.setRatingCount(ratingCount);
+        clinic.setStatus(ClinicStatus.APPROVED);
+        clinic.setDescription("Phòng khám thú y chuyên nghiệp với đội ngũ bác sĩ giàu kinh nghiệm.");
+        clinic.setLogo("https://picsum.photos/seed/" + name.hashCode() + "/400/400");
+
+        // Set operating hours using proper OperatingHours objects
+        java.util.Map<String, com.petties.petties.model.OperatingHours> operatingHours = new java.util.HashMap<>();
+        String[] days = { "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" };
+        for (String day : days) {
+            com.petties.petties.model.OperatingHours hours = new com.petties.petties.model.OperatingHours();
+            hours.setOpenTime(java.time.LocalTime.of(8, 0));
+            hours.setCloseTime(day.equals("sunday") ? java.time.LocalTime.of(17, 0) : java.time.LocalTime.of(20, 0));
+            hours.setIsClosed(false);
+            operatingHours.put(day, hours);
+        }
+        clinic.setOperatingHours(operatingHours);
+
+        try {
+            clinicRepository.save(clinic);
+            log.info("   + Created clinic '{}' in {} - Rating: {}", name, district, rating);
+        } catch (Exception e) {
+            log.error("   x Failed to create clinic '{}': {}", name, e.getMessage());
         }
     }
 }

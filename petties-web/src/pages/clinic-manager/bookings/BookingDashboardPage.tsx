@@ -1,0 +1,1217 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAuthStore } from '../../../store/authStore';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkVetAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableVetsForConfirm, completeBooking } from '../../../services/bookingService';
+import type { VetOption } from '../../../services/bookingService';
+import type { Booking, BookingStatus, BookingServiceItem, VetAvailabilityCheckResponse } from '../../../types/booking';
+import type { ClinicServiceResponse } from '../../../types/service';
+import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
+import { ReassignVetModal } from '../../../components/booking/ReassignVetModal';
+import { VetAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/VetAvailabilityWarningModal';
+import { useToast } from '../../../components/Toast';
+import { TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import '../../../styles/brutalist.css';
+
+type TabFilter = 'PENDING' | 'CONFIRMED' | 'HISTORY' | 'ALL';
+
+const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
+    { key: 'PENDING', label: 'Chờ xác nhận' },
+    { key: 'CONFIRMED', label: 'Đã xác nhận' },
+    { key: 'HISTORY', label: 'Lịch sử' },
+    { key: 'ALL', label: 'Tất cả' },
+];
+
+const TYPE_FILTER_OPTIONS = [
+    { key: 'ALL', label: 'Tất cả loại' },
+    { key: 'IN_CLINIC', label: 'Tại phòng khám' },
+    { key: 'HOME_VISIT', label: 'Khám tại nhà' },
+    { key: 'SOS', label: 'Cấp cứu' },
+];
+
+/**
+ * Booking Dashboard Page - Manager view
+ * Shows list of bookings with filter tabs and confirm action
+ */
+export const BookingDashboardPage = () => {
+    const { user } = useAuthStore();
+    const { showToast } = useToast();
+    const [searchParams] = useSearchParams();
+    const [bookings, setBookings] = useState<Booking[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<TabFilter>('PENDING');
+    const [typeFilter, setTypeFilter] = useState<string>('ALL');
+    const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [confirming, setConfirming] = useState<string | null>(null);
+
+    // Vet availability warning modal state
+    const [availabilityWarningOpen, setAvailabilityWarningOpen] = useState(false);
+    const [availabilityCheckResult, setAvailabilityCheckResult] = useState<VetAvailabilityCheckResponse | null>(null);
+    const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+
+    // Add-on Service state
+    const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
+    const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
+    const [selectedServiceToAdd, setSelectedServiceToAdd] = useState<string>('');
+    const [addingService, setAddingService] = useState(false);
+
+    // Handle bookingId from URL query params (e.g., from schedule page click)
+    useEffect(() => {
+        const bookingIdFromUrl = searchParams.get('bookingId');
+        if (bookingIdFromUrl && user?.workingClinicId) {
+            // Fetch and select the specific booking
+            getBookingById(bookingIdFromUrl)
+                .then(booking => {
+                    setSelectedBooking(booking);
+                    // Switch to appropriate tab
+                    if (booking.status === 'PENDING') {
+                        setActiveTab('PENDING');
+                    } else if (booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW') {
+                        setActiveTab('CONFIRMED');
+                    } else {
+                        setActiveTab('ALL');
+                    }
+                })
+                .catch(err => console.error('Failed to fetch booking from URL:', err));
+        }
+    }, [searchParams, user?.workingClinicId]);
+
+    // Fetch bookings
+    const fetchBookings = useCallback(async () => {
+        if (!user?.workingClinicId) return;
+
+        setLoading(true);
+        try {
+            // Pass type filter to API if not 'ALL'
+            const apiType = typeFilter === 'ALL' ? undefined : typeFilter;
+            const response = await getBookingsByClinic(user.workingClinicId, undefined, apiType);
+            let filtered = response.content || [];
+
+            if (activeTab === 'PENDING') {
+                // Only show PENDING bookings
+                filtered = filtered.filter(b => b.status === 'PENDING');
+            } else if (activeTab === 'CONFIRMED') {
+                // Show active bookings (not PENDING and not finished/cancelled)
+                filtered = filtered.filter(b =>
+                    b.status !== 'PENDING' &&
+                    b.status !== 'COMPLETED' &&
+                    b.status !== 'CANCELLED' &&
+                    b.status !== 'NO_SHOW'
+                );
+            } else if (activeTab === 'HISTORY') {
+                // Show completed/cancelled bookings
+                filtered = filtered.filter(b =>
+                    b.status === 'COMPLETED' ||
+                    b.status === 'CANCELLED' ||
+                    b.status === 'NO_SHOW'
+                );
+            }
+            // 'ALL' shows everything
+
+            setBookings(filtered);
+        } catch (error) {
+            console.error('Failed to fetch bookings:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.workingClinicId, activeTab, typeFilter]);
+
+    useEffect(() => {
+        fetchBookings();
+    }, [fetchBookings]);
+
+    // Handle confirm booking - checks availability first
+    const handleConfirm = async (bookingId: string, selectedVetId?: string) => {
+        setConfirming(bookingId);
+        try {
+            // If vet is manually selected, skip availability check and confirm directly
+            if (selectedVetId) {
+                await confirmBooking(bookingId, { selectedVetId });
+                showToast('success', 'Đã xác nhận và gán bác sĩ thành công');
+                await fetchBookings();
+                setSelectedBooking(null);
+                return;
+            }
+
+            // Step 1: Check vet availability (auto-assign mode)
+            const availability = await checkVetAvailability(bookingId);
+
+            if (availability.allServicesHaveVets) {
+                // All vets available, proceed with normal confirmation
+                await confirmBooking(bookingId);
+                showToast('success', 'Đã xác nhận và gán bác sĩ thành công');
+                await fetchBookings();
+                setSelectedBooking(null);
+            } else {
+                // Some services don't have available vets, show warning modal
+                setAvailabilityCheckResult(availability);
+                setPendingBookingId(bookingId);
+                setAvailabilityWarningOpen(true);
+            }
+        } catch (error) {
+            console.error('Failed to confirm booking:', error);
+            showToast('error', 'Không thể xác nhận booking. Vui lòng thử lại.');
+        } finally {
+            setConfirming(null);
+        }
+    };
+
+    // Handle confirm option from warning modal
+    const handleConfirmOption = async (option: ConfirmOption) => {
+        if (!pendingBookingId) return;
+
+        setConfirming(pendingBookingId);
+        try {
+            if (option === 'cancel') {
+                // User wants to cancel and add vet schedule first
+                setAvailabilityWarningOpen(false);
+                setPendingBookingId(null);
+                setAvailabilityCheckResult(null);
+                showToast('info', 'Vui lòng thêm lịch làm việc cho bác sĩ và quay lại xác nhận');
+                return;
+            }
+
+            if (option === 'partial') {
+                // Confirm with partial assignment
+                await confirmBookingWithOptions(pendingBookingId, {
+                    allowPartial: true,
+                });
+                showToast('success', 'Đã xác nhận một phần. Vui lòng gán bác sĩ thủ công cho các dịch vụ còn lại.');
+            } else if (option === 'remove') {
+                // Confirm and remove unavailable services
+                await confirmBookingWithOptions(pendingBookingId, {
+                    removeUnavailableServices: true,
+                });
+                showToast('success', 'Đã xác nhận và loại bỏ dịch vụ thiếu bác sĩ');
+            }
+
+            await fetchBookings();
+            setAvailabilityWarningOpen(false);
+            setPendingBookingId(null);
+            setAvailabilityCheckResult(null);
+            setSelectedBooking(null);
+        } catch (error) {
+            console.error('Failed to confirm booking with option:', error);
+            showToast('error', 'Không thể xác nhận booking. Vui lòng thử lại.');
+        } finally {
+            setConfirming(null);
+        }
+    };
+    const handleOpenAddServiceModal = async () => {
+        if (!selectedBooking) return;
+
+        try {
+            // Fetch available services for this booking (filters by specialty for Vets/Home Visit)
+            const services = await getAvailableServicesForAddOn(selectedBooking.bookingId);
+
+            setAvailableServices(services);
+            setAddServiceModalOpen(true);
+        } catch (error) {
+            console.error('Failed to fetch available services:', error);
+            showToast('error', 'Không thể tải danh sách dịch vụ');
+        }
+    };
+
+    // Handle Add Service
+    const handleAddService = async (serviceId: string) => {
+        if (!selectedBooking) return;
+
+        setAddingService(true);
+        try {
+            const updatedBooking = await addServiceToBooking(selectedBooking.bookingId, serviceId);
+            setSelectedBooking(updatedBooking);
+            await fetchBookings();
+            setAddServiceModalOpen(false);
+            setSelectedServiceToAdd('');
+            showToast('success', 'Đã thêm dịch vụ thành công');
+        } catch (error: any) {
+            console.error('Failed to add service:', error);
+            showToast('error', error?.response?.data?.message || 'Không thể thêm dịch vụ');
+        } finally {
+            setAddingService(false);
+        }
+    };
+
+    // Format date
+    const formatDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    };
+
+    // Get status badge
+    const getStatusBadge = (status: BookingStatus) => {
+        const config = BOOKING_STATUS_CONFIG[status];
+        return (
+            <span
+                className="px-3 py-1 text-xs font-bold uppercase border-2 border-stone-900 whitespace-nowrap"
+                style={{ backgroundColor: config.bgColor, color: config.textColor }}
+            >
+                {config.label}
+            </span>
+        );
+    };
+
+    // Get pending count
+    const pendingCount = bookings.filter(b => b.status === 'PENDING').length;
+
+    return (
+        <div className="p-6 bg-stone-50 min-h-screen">
+            {/* Header */}
+            <header className="mb-6">
+                <h1 className="text-2xl font-bold text-stone-900 uppercase tracking-wide">
+                    QUẢN LÝ ĐẶT LỊCH
+                </h1>
+                <p className="text-stone-600 mt-1">
+                    Xem và xác nhận các đơn đặt lịch khám
+                </p>
+            </header>
+
+            {/* Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="flex gap-2">
+                    {TAB_OPTIONS.map((tab) => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`px-4 py-2 font-bold text-sm uppercase border-2 border-stone-900 transition-all ${activeTab === tab.key
+                                ? 'bg-amber-400 shadow-[4px_4px_0_#1c1917]'
+                                : 'bg-white hover:bg-stone-100'
+                                }`}
+                        >
+                            {tab.label}
+                            {tab.key === 'PENDING' && pendingCount > 0 && (
+                                <span className="ml-2 px-2 py-0.5 bg-coral-500 text-white text-xs rounded">
+                                    {pendingCount}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold uppercase text-stone-500">Lọc loại:</span>
+                    <select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value)}
+                        className="px-4 py-2 bg-white border-2 border-stone-900 font-bold text-sm uppercase focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    >
+                        {TYPE_FILTER_OPTIONS.map(opt => (
+                            <option key={opt.key} value={opt.key}>{opt.label}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {/* Booking Table */}
+            <div className="bg-white border-4 border-stone-900 shadow-brutal">
+                <table className="w-full">
+                    <thead className="border-b-4 border-stone-900 bg-stone-100">
+                        <tr className="text-left">
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide">Mã đơn</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide">Thú cưng</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide">Chủ</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide">Dịch vụ</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide text-center">Loại</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide text-center">Ngày giờ</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide text-center">Trạng thái</th>
+                            <th className="p-4 text-xs font-bold uppercase tracking-wide text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {loading ? (
+                            <tr>
+                                <td colSpan={8} className="p-8 text-center text-stone-600">
+                                    Đang tải...
+                                </td>
+                            </tr>
+                        ) : bookings.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="p-8 text-center text-stone-600">
+                                    Không có đơn đặt lịch nào
+                                </td>
+                            </tr>
+                        ) : (
+                            bookings.map((booking) => (
+                                <tr
+                                    key={booking.bookingId}
+                                    className="border-b-2 border-stone-200 hover:bg-amber-50 transition-colors"
+                                >
+                                    <td className="p-4">
+                                        <span className="font-mono font-bold text-sm">
+                                            {booking.bookingCode}
+                                        </span>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-10 h-10 rounded-lg border-2 border-stone-300 overflow-hidden bg-stone-100 flex-shrink-0">
+                                                {booking.petPhotoUrl ? (
+                                                    <img
+                                                        src={booking.petPhotoUrl}
+                                                        alt={booking.petName}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center font-bold text-stone-500 text-sm">
+                                                        {booking.petName?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold">{booking.petName}</div>
+                                                <div className="text-xs text-stone-500">{booking.petBreed}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="font-medium">{booking.ownerName}</div>
+                                        <div className="text-xs text-stone-500">{booking.ownerPhone}</div>
+                                    </td>
+                                    <td className="p-4">
+                                        {booking.services.map((s, idx) => (
+                                            <div key={idx} className="text-sm">
+                                                {s.serviceName}
+                                                <span className="ml-1 text-xs text-stone-500">
+                                                    [{SERVICE_CATEGORY_LABELS[s.serviceCategory] || s.serviceCategory}]
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div
+                                            className="text-xs font-bold uppercase px-3 py-1.5 border-2 border-stone-900 inline-block whitespace-nowrap shadow-[2px_2px_0_#1c1917]"
+                                            style={{
+                                                backgroundColor: BOOKING_TYPE_CONFIG[booking.type]?.bgColor || '#f5f5f4',
+                                                color: BOOKING_TYPE_CONFIG[booking.type]?.textColor || '#1c1917',
+                                            }}
+                                        >
+                                            {BOOKING_TYPE_CONFIG[booking.type]?.label || booking.type}
+                                        </div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div className="font-bold">{formatDate(booking.bookingDate)}</div>
+                                        <div className="text-sm text-stone-600">{booking.bookingTime}</div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        {getStatusBadge(booking.status)}
+                                        {/* Show all unique assigned vets from services with avatar */}
+                                        {(() => {
+                                            const vets = new Map<string, { name: string; avatar?: string }>();
+
+                                            // 1. Add vets from individual services
+                                            booking.services.forEach(service => {
+                                                if (service.assignedVetId && service.assignedVetName) {
+                                                    vets.set(service.assignedVetId, {
+                                                        name: service.assignedVetName,
+                                                        avatar: service.assignedVetAvatarUrl
+                                                    });
+                                                }
+                                            });
+
+                                            if (vets.size === 0) return null;
+
+                                            return (
+                                                <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                                                    {Array.from(vets.values()).map((vet, idx) => (
+                                                        <div key={idx} className="flex items-center gap-1.5 bg-mint-100 px-2 py-1 rounded-full border border-stone-300">
+                                                            {/* Vet Avatar */}
+                                                            <div className="w-5 h-5 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
+                                                                {vet.avatar ? (
+                                                                    <img
+                                                                        src={vet.avatar}
+                                                                        alt={vet.name}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-mint-200 text-stone-600">
+                                                                        {vet.name.charAt(0)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {/* Vet Name */}
+                                                            <span className="text-xs font-medium text-stone-700">{vet.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex gap-2 justify-center">
+                                            {booking.status === 'PENDING' && (
+                                                <button
+                                                    onClick={() => handleConfirm(booking.bookingId)}
+                                                    disabled={confirming === booking.bookingId}
+                                                    className="px-3 py-1 text-xs font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] transition-all disabled:opacity-50"
+                                                >
+                                                    {confirming === booking.bookingId ? '...' : 'Xác nhận'}
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setSelectedBooking(booking)}
+                                                className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] transition-all"
+                                            >
+                                                Chi tiết
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Booking Detail Modal */}
+            {selectedBooking && (
+                <BookingDetailModal
+                    booking={selectedBooking}
+                    onClose={() => setSelectedBooking(null)}
+                    onConfirm={handleConfirm}
+                    onBookingUpdated={fetchBookings}
+                    onAddService={handleOpenAddServiceModal}
+                />
+            )}
+
+            {/* Vet Availability Warning Modal */}
+            {availabilityCheckResult && (
+                <VetAvailabilityWarningModal
+                    isOpen={availabilityWarningOpen}
+                    availability={availabilityCheckResult}
+                    onClose={() => {
+                        setAvailabilityWarningOpen(false);
+                        setPendingBookingId(null);
+                        setAvailabilityCheckResult(null);
+                    }}
+                    onConfirm={handleConfirmOption}
+                    isConfirming={confirming !== null}
+                />
+            )}
+            {/* Add-on Service Modal */}
+            {addServiceModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm">
+                    <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] w-full max-w-md overflow-hidden">
+                        <div className="p-4 border-b-4 border-stone-900 bg-stone-50 flex justify-between items-center">
+                            <h2 className="text-xl font-bold uppercase tracking-tight">Thêm dịch vụ phát sinh</h2>
+                            <button onClick={() => setAddServiceModalOpen(false)} className="text-2xl font-bold">&times;</button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-stone-600 mb-4">
+                                Chọn dịch vụ bổ sung cho đơn hàng. Giá sẽ được tính dựa trên cân nặng của thú cưng hiện tại.
+                            </p>
+
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                {availableServices.length === 0 ? (
+                                    <div className="p-4 text-center text-stone-500 italic border-2 border-dashed border-stone-300">
+                                        Không còn dịch vụ nào khả dụng để thêm
+                                    </div>
+                                ) : (
+                                    availableServices.map((service) => (
+                                        <div
+                                            key={service.serviceId}
+                                            onClick={() => setSelectedServiceToAdd(service.serviceId)}
+                                            className={`p-4 border-2 cursor-pointer transition-all ${selectedServiceToAdd === service.serviceId
+                                                ? 'border-stone-900 bg-amber-50 shadow-[4px_4px_0_#1c1917]'
+                                                : 'border-stone-200 hover:border-stone-400 bg-white'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-start mb-1">
+                                                <div className="font-bold">{service.name}</div>
+                                                <div className="font-mono font-bold text-coral-600">
+                                                    {service.basePrice.toLocaleString()}đ
+                                                </div>
+                                            </div>
+                                            <div className="text-xs text-stone-500">
+                                                {service.durationTime} phút - {service.slotsRequired} slot(s)
+                                            </div>
+                                            <div className="mt-2 text-xs font-bold uppercase text-stone-400">
+                                                [{service.serviceCategory ? (SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory) : 'Khác'}]
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-4 border-t-4 border-stone-900 bg-stone-50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setAddServiceModalOpen(false)}
+                                className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={() => handleAddService(selectedServiceToAdd)}
+                                disabled={!selectedServiceToAdd || addingService}
+                                className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50"
+                            >
+                                {addingService ? 'Đang thêm...' : 'Xác nhận thêm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// Booking Detail Modal Component
+interface BookingDetailModalProps {
+    booking: Booking;
+    onClose: () => void;
+    onConfirm: (bookingId: string, selectedVetId?: string) => void;
+    onBookingUpdated?: () => void;
+    onAddService?: () => void;
+}
+
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+    const [booking, setBooking] = useState<Booking>(initialBooking);
+    const [reassignModalOpen, setReassignModalOpen] = useState(false);
+    const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
+
+    // Vet selection dropdown state - per service
+    const [availableVetsByService, setAvailableVetsByService] = useState<Record<string, VetOption[]>>({});
+    const [selectedVetByService, setSelectedVetByService] = useState<Record<string, string>>({});
+    const [loadingVets, setLoadingVets] = useState(false);
+    const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
+
+    // Fetch available vets when modal opens with PENDING booking
+    useEffect(() => {
+        if (booking.status === 'PENDING') {
+            // Fetch all available vets for dropdown - grouped by service
+            setLoadingVets(true);
+            getAvailableVetsForConfirm(booking.bookingId)
+                .then(data => {
+                    // Group vets by service (for now, use same list for all services)
+                    // In future, can make API return per-service vets
+                    const vetsByService: Record<string, VetOption[]> = {};
+                    const selectedByService: Record<string, string> = {};
+
+                    booking.services.forEach(service => {
+                        const serviceId = service.bookingServiceId || service.serviceId;
+
+                        // Filter vets for this specific service category
+                        const category = service.serviceCategory;
+                        const filteredVets = data.filter(vet => {
+                            const vetSpec = vet.specialty;
+
+                            // 1. Strict Groomer rule
+                            if (category === 'GROOMING_SPA') {
+                                return vetSpec === 'GROOMER';
+                            }
+
+                            // 2. Medical services shouldn't show Groomers
+                            if (vetSpec === 'GROOMER') {
+                                return false;
+                            }
+
+                            // 3. Match specialty or allow VET_GENERAL as fallback for other medical
+                            const requiredSpecialty =
+                                category === 'SURGERY' ? 'VET_SURGERY' :
+                                    category === 'DENTAL' ? 'VET_DENTAL' :
+                                        category === 'DERMATOLOGY' ? 'VET_DERMATOLOGY' :
+                                            'VET_GENERAL';
+
+                            return vetSpec === requiredSpecialty || vetSpec === 'VET_GENERAL';
+                        });
+
+                        vetsByService[serviceId] = filteredVets;
+
+                        // Auto-select vet for this service:
+                        // Priority 1: Suggested vet from backend (if they pass our filter)
+                        // Priority 2: First vet with available slots in the filtered list
+                        const suggested = filteredVets.find(v => v.isSuggested && v.hasAvailableSlots);
+                        const firstAvailable = filteredVets.find(v => v.hasAvailableSlots);
+
+                        if (suggested) {
+                            selectedByService[serviceId] = suggested.vetId;
+                        } else if (firstAvailable) {
+                            selectedByService[serviceId] = firstAvailable.vetId;
+                        }
+                    });
+
+                    setAvailableVetsByService(vetsByService);
+                    setSelectedVetByService(selectedByService);
+                })
+                .catch(err => {
+                    console.error('Failed to fetch available vets:', err);
+                })
+                .finally(() => {
+                    setLoadingVets(false);
+                });
+        }
+    }, [booking.bookingId, booking.status]);
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    };
+
+    const handleOpenReassignModal = (service: BookingServiceItem) => {
+        setSelectedService(service);
+        setReassignModalOpen(true);
+    };
+
+    const handleReassigned = async () => {
+        // Refresh booking data after reassignment
+        try {
+            const updatedBooking = await getBookingById(booking.bookingId);
+            setBooking(updatedBooking);
+            if (onBookingUpdated) {
+                onBookingUpdated();
+            }
+        } catch (error) {
+            console.error('Failed to refresh booking:', error);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white border-4 border-stone-900 shadow-brutal max-w-2xl w-full max-h-[90vh] overflow-auto">
+                {/* Header */}
+                <div className="flex justify-between items-center p-4 border-b-4 border-stone-900 bg-amber-400">
+                    <div>
+                        <h2 className="text-xl font-bold uppercase">Chi tiết đặt lịch</h2>
+                        <p className="font-mono">{booking.bookingCode}</p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-10 h-10 flex items-center justify-center bg-stone-900 text-white font-bold text-xl hover:bg-stone-700"
+                    >
+                        X
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                    {/* Pet & Owner Info */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="border-2 border-stone-900 p-4">
+                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Thông tin thú cưng</h3>
+                            <div className="flex gap-4 items-start">
+                                {/* Pet Avatar */}
+                                <div className="w-20 h-20 border-2 border-stone-900 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0">
+                                    {booking.petPhotoUrl ? (
+                                        <img
+                                            src={booking.petPhotoUrl}
+                                            alt={booking.petName}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-lg font-bold text-stone-400">
+                                            {booking.petName?.charAt(0) || '?'}
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Pet Info */}
+                                <div>
+                                    <div className="text-lg font-bold">{booking.petName}</div>
+                                    <div className="text-sm text-stone-600">
+                                        {booking.petSpecies} - {booking.petBreed}
+                                    </div>
+                                    <div className="text-sm text-stone-500 mt-1">
+                                        {booking.petAge}
+                                        {booking.petWeight && (
+                                            <span className="ml-2 font-medium text-stone-700">• {booking.petWeight} kg</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="border-2 border-stone-900 p-4">
+                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Thông tin chủ</h3>
+                            <div className="text-lg font-bold">{booking.ownerName}</div>
+                            <div className="text-sm text-stone-600">{booking.ownerPhone}</div>
+                            <div className="text-sm text-stone-500">{booking.ownerEmail}</div>
+                            {booking.ownerAddress && (
+                                <div className="text-sm text-stone-500 mt-1">📍 {booking.ownerAddress}</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Payment Status */}
+                    {booking.paymentStatus && (
+                        <div className="border-2 border-stone-900 p-3 flex items-center justify-between mb-4">
+                            <span className="font-bold uppercase text-sm text-stone-500">Thanh toán</span>
+                            <span
+                                className="px-3 py-1 text-sm font-bold border-2 border-stone-900"
+                                style={{
+                                    backgroundColor: PAYMENT_STATUS_LABELS[booking.paymentStatus]?.color || '#D4D4D8',
+                                }}
+                            >
+                                {PAYMENT_STATUS_LABELS[booking.paymentStatus]?.label || booking.paymentStatus}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Services */}
+                    <div className="border-2 border-stone-900 p-4">
+                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Dịch vụ đặt</h3>
+                        {booking.services.map((service, idx) => (
+                            <div key={idx} className="py-3 border-b border-stone-200 last:border-0">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <span className="font-bold">{service.serviceName}</span>
+                                        <span className="ml-2 text-xs bg-stone-200 px-2 py-0.5">
+                                            {SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory}
+                                        </span>
+                                        <div className="text-xs text-stone-500 mt-1">
+                                            {service.durationMinutes} phút - {service.slotsRequired} slot(s)
+                                            {service.scheduledStartTime && service.scheduledEndTime && (
+                                                <span className="ml-2 font-medium text-amber-600">
+                                                    {service.scheduledStartTime.substring(0, 5)} - {service.scheduledEndTime.substring(0, 5)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="font-bold">{formatCurrency(service.price)}</div>
+                                        {/* Pricing Breakdown - always show */}
+                                        <div className="text-xs text-stone-500 mt-1">
+                                            <div className="flex justify-end items-center gap-1">
+                                                {service.basePrice && service.weightPrice && service.weightPrice !== service.basePrice ? (
+                                                    <>
+                                                        <span className="text-stone-400">Giá gốc:</span>
+                                                        <span className="line-through text-stone-400">{formatCurrency(service.basePrice)}</span>
+                                                        <span className="text-mint-600">→ {formatCurrency(service.weightPrice)}</span>
+                                                        <span className="text-stone-400 text-[10px]">(theo cân {booking.petWeight || 0}kg)</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-stone-400">Giá cố định</span>
+                                                        <span className="text-stone-400 text-[10px]">(pet {booking.petWeight || 0}kg)</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Assigned Vet for this service */}
+                                {service.assignedVetName ? (
+                                    <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
+                                        <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
+                                            {service.assignedVetAvatarUrl ? (
+                                                <img
+                                                    src={service.assignedVetAvatarUrl}
+                                                    alt={service.assignedVetName}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
+                                                    {service.assignedVetName.charAt(0)}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-xs flex-1">
+                                            <span className="font-medium">{service.assignedVetName}</span>
+                                            {service.assignedVetSpecialty && (
+                                                <span className="text-stone-500 ml-1">
+                                                    ({STAFF_SPECIALTY_LABELS[service.assignedVetSpecialty] || service.assignedVetSpecialty})
+                                                </span>
+                                            )}
+                                        </div>
+                                        {/* Reassign button - only show for ASSIGNED or later status */}
+                                        {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && (
+                                            <button
+                                                onClick={() => handleOpenReassignModal(service)}
+                                                className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors"
+                                            >
+                                                Đổi BS
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : booking.status === 'PENDING' ? (
+                                    /* Inline Vet Selection Dropdown for PENDING booking */
+                                    (() => {
+                                        const serviceId = service.bookingServiceId || service.serviceId;
+                                        const serviceVets = availableVetsByService[serviceId] || [];
+                                        const selectedVetId = selectedVetByService[serviceId];
+                                        const isDropdownOpen = openDropdownServiceId === serviceId;
+
+                                        if (loadingVets) {
+                                            return (
+                                                <div className="mt-2 flex items-center gap-2 px-2 py-1">
+                                                    <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin"></div>
+                                                    <span className="text-xs text-stone-400">Đang tải bác sĩ...</span>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (serviceVets.length === 0) {
+                                            return (
+                                                <div className="mt-2 flex items-center gap-2 bg-amber-50 px-2 py-1.5 border-2 border-amber-600">
+                                                    <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                    </svg>
+                                                    <span className="text-xs font-bold text-amber-800">Chưa có bác sĩ phù hợp</span>
+                                                </div>
+                                            );
+                                        }
+
+                                        const selectedVet = serviceVets.find(v => v.vetId === selectedVetId);
+
+                                        return (
+                                            <div className="mt-2 relative">
+                                                {/* Dropdown Trigger */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)}
+                                                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-green-50 border-2 border-green-600 hover:shadow-[2px_2px_0_#1c1917] transition-all text-left"
+                                                >
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                        </svg>
+                                                        {selectedVet ? (
+                                                            <>
+                                                                {selectedVet.avatarUrl ? (
+                                                                    <img
+                                                                        src={selectedVet.avatarUrl}
+                                                                        alt={selectedVet.fullName}
+                                                                        className="w-6 h-6 rounded-full border border-green-600 object-cover flex-shrink-0"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0">
+                                                                        <span className="text-xs font-bold text-green-700">
+                                                                            {selectedVet.fullName.charAt(0)}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                <div className="text-xs flex-1 min-w-0">
+                                                                    <span className="font-bold text-green-800">Bác sĩ:</span>
+                                                                    <span className="ml-1 font-medium text-green-700">{selectedVet.fullName}</span>
+                                                                    {selectedVet.isSuggested && (
+                                                                        <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 border border-green-600">Gợi ý</span>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-xs text-stone-500">Chọn bác sĩ...</span>
+                                                        )}
+                                                    </div>
+                                                    <svg className={`w-4 h-4 text-green-600 transition-transform flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+
+                                                {/* Dropdown Options */}
+                                                {isDropdownOpen && (
+                                                    <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
+                                                        {serviceVets.map((vet) => (
+                                                            <button
+                                                                key={vet.vetId}
+                                                                type="button"
+                                                                disabled={!vet.hasAvailableSlots}
+                                                                onClick={() => {
+                                                                    setSelectedVetByService(prev => ({
+                                                                        ...prev,
+                                                                        [serviceId]: vet.vetId
+                                                                    }));
+                                                                    setOpenDropdownServiceId(null);
+                                                                }}
+                                                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedVetId === vet.vetId
+                                                                    ? 'bg-mint-100 border-l-4 border-l-mint-600'
+                                                                    : vet.hasAvailableSlots
+                                                                        ? 'hover:bg-stone-50'
+                                                                        : 'opacity-50 cursor-not-allowed bg-stone-100'
+                                                                    }`}
+                                                            >
+                                                                {/* Avatar */}
+                                                                <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
+                                                                    {vet.avatarUrl ? (
+                                                                        <img src={vet.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">
+                                                                            {vet.fullName.charAt(0)}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="text-xs font-bold text-stone-900 truncate">
+                                                                        {vet.fullName}
+                                                                        {vet.isSuggested && (
+                                                                            <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1 py-0.5 border border-green-600">Gợi ý</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-stone-500 truncate">
+                                                                        {vet.specialtyLabel || vet.specialty}
+                                                                    </div>
+                                                                    {!vet.hasAvailableSlots && vet.unavailableReason && (
+                                                                        <div className="text-[10px] text-red-600">{vet.unavailableReason}</div>
+                                                                    )}
+                                                                </div>
+                                                                {selectedVetId === vet.vetId && (
+                                                                    <svg className="w-4 h-4 text-mint-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
+                                ) : (
+                                    <div className="mt-2 flex items-center justify-between">
+                                        <span className="text-xs text-stone-400 italic">
+                                            Chưa phân công bác sĩ
+                                        </span>
+                                        {/* Assign button for unassigned services in CONFIRMED/ASSIGNED status */}
+                                        {(booking.status === 'CONFIRMED' || booking.status === 'ASSIGNED') && (
+                                            <button
+                                                onClick={() => handleOpenReassignModal(service)}
+                                                className="px-3 py-1 text-xs font-bold bg-coral-400 text-stone-900 border border-stone-900 hover:bg-coral-500 transition-colors"
+                                            >
+                                                Phân công BS
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        {/* Booking-level Fee (Distance) - Always show for HOME_VISIT/SOS */}
+                        {(booking.type === 'HOME_VISIT' || booking.type === 'SOS') && (
+                            <div className="flex justify-between items-center py-2 border-t border-dashed border-stone-300 bg-stone-50 px-2 mt-1">
+                                <span className="text-xs font-semibold text-stone-600 uppercase flex items-center gap-1">
+                                    <TruckIcon className="w-4 h-4" />
+                                    Phí di chuyển {booking.distanceKm ? `(${booking.distanceKm}km)` : ''}
+                                </span>
+                                <span className="text-sm font-bold text-amber-600">
+                                    +{formatCurrency(booking.distanceFee || 0)}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Weight-based Pricing - Always show */}
+                        <div className="flex justify-between items-center py-2 border-t border-dashed border-stone-300 bg-stone-50 px-2 mt-1">
+                            <span className="text-xs font-semibold text-stone-600 uppercase flex items-center gap-1">
+                                <ScaleIcon className="w-4 h-4" />
+                                Phụ phí cân nặng ({booking.petWeight || 0}kg)
+                            </span>
+                            <span className="text-sm font-bold">
+                                {(() => {
+                                    // Weight pricing is ALWAYS a surcharge (never discount)
+                                    // weightPrice = basePrice + surcharge, so difference should be >= 0
+                                    const weightSurcharge = booking.services?.reduce((sum, svc) => {
+                                        if (svc.weightPrice && svc.basePrice && svc.weightPrice > svc.basePrice) {
+                                            return sum + (svc.weightPrice - svc.basePrice);
+                                        }
+                                        return sum;
+                                    }, 0) || 0;
+
+                                    if (weightSurcharge > 0) {
+                                        return <span className="text-amber-600">+{formatCurrency(weightSurcharge)}</span>;
+                                    }
+                                    return <span className="text-stone-400">{formatCurrency(0)}</span>;
+                                })()}
+                            </span>
+                        </div>
+
+                        {/* Price Summary */}
+                        <div className="mt-2 py-2 px-2 bg-stone-100 border border-stone-200 rounded text-xs space-y-1">
+                            <div className="flex justify-between text-stone-500">
+                                <span>Giá dịch vụ gốc</span>
+                                <span>{formatCurrency(booking.services?.reduce((sum, svc) => sum + (svc.basePrice || svc.price || 0), 0) || 0)}</span>
+                            </div>
+                            {(() => {
+                                // Weight pricing is ALWAYS a surcharge (never discount)
+                                const weightSurcharge = booking.services?.reduce((sum, svc) => {
+                                    if (svc.weightPrice && svc.basePrice && svc.weightPrice > svc.basePrice) {
+                                        return sum + (svc.weightPrice - svc.basePrice);
+                                    }
+                                    return sum;
+                                }, 0) || 0;
+                                return weightSurcharge > 0 && (
+                                    <div className="flex justify-between text-stone-500">
+                                        <span>+ Phụ phí cân nặng ({booking.petWeight || 0}kg)</span>
+                                        <span className="text-amber-600">+{formatCurrency(weightSurcharge)}</span>
+                                    </div>
+                                );
+                            })()}
+                            {(booking.type === 'HOME_VISIT' || booking.type === 'SOS') && (booking.distanceFee || 0) > 0 && (
+                                <div className="flex justify-between text-stone-500">
+                                    <span>+ Phí di chuyển ({booking.distanceKm || 0}km)</span>
+                                    <span>+{formatCurrency(booking.distanceFee || 0)}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-stone-900">
+                            <span className="font-bold uppercase">Tổng cộng</span>
+                            <span className="text-xl font-bold text-coral-600">
+                                {formatCurrency(booking.totalPrice)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Schedule */}
+                    <div className="border-2 border-stone-900 p-4">
+                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Lịch hẹn</h3>
+                        <div className="flex gap-6">
+                            <div>
+                                <div className="text-2xl font-bold">{booking.bookingDate}</div>
+                                <div className="text-stone-500">{booking.bookingTime}</div>
+                            </div>
+                            <div className="border-l-2 border-stone-200 pl-6">
+                                <div className="text-sm text-stone-500">Loại</div>
+                                <div className="font-bold">{BOOKING_TYPE_LABELS[booking.type]}</div>
+                            </div>
+                        </div>
+                        {booking.homeAddress && (
+                            <div className="mt-3 pt-3 border-t border-stone-200">
+                                <div className="text-sm text-stone-500">Địa chỉ khám tại nhà</div>
+                                <div className="font-medium">{booking.homeAddress}</div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Assigned Vets */}
+                    <div className="border-2 border-stone-900 p-4">
+                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Bác sĩ phụ trách</h3>
+                        {(() => {
+                            // Collect unique vets from all sources
+                            const uniqueVets = new Map<string, { id: string; name: string; avatarUrl?: string; specialty?: string }>();
+
+                            // 1. Add vets from individual services
+                            booking.services.forEach(service => {
+                                if (service.assignedVetId && service.assignedVetName) {
+                                    uniqueVets.set(service.assignedVetId, {
+                                        id: service.assignedVetId,
+                                        name: service.assignedVetName,
+                                        avatarUrl: service.assignedVetAvatarUrl,
+                                        specialty: service.assignedVetSpecialty,
+                                    });
+                                }
+                            });
+
+                            if (uniqueVets.size === 0) {
+                                return (
+                                    <div className="text-stone-500 italic">
+                                        Chưa phân công - Sau khi xác nhận sẽ tự động gán bác sĩ phù hợp
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="space-y-3">
+                                    {Array.from(uniqueVets.values()).map((vet) => (
+                                        <div key={vet.id} className="flex items-center gap-3">
+                                            <div className="w-12 h-12 border-2 border-stone-900 rounded-lg overflow-hidden bg-mint-200 flex-shrink-0">
+                                                {vet.avatarUrl ? (
+                                                    <img
+                                                        src={vet.avatarUrl}
+                                                        alt={vet.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center font-bold text-lg">
+                                                        {vet.name.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold">{vet.name}</div>
+                                                <div className="text-sm text-stone-500">
+                                                    {vet.specialty ? (STAFF_SPECIALTY_LABELS[vet.specialty] || vet.specialty) : 'Chưa xác định'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    {/* Notes */}
+                    {booking.notes && (
+                        <div className="border-2 border-stone-900 p-4">
+                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Ghi chú</h3>
+                            <p className="text-stone-700">{booking.notes}</p>
+                        </div>
+                    )}
+
+                    {/* Status */}
+                    <div className="border-2 border-stone-900 p-4">
+                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Trạng thái</h3>
+                        <div className="flex items-center gap-2">
+                            {BOOKING_STATUS_CONFIG[booking.status] && (
+                                <span
+                                    className="px-4 py-2 font-bold uppercase border-2 border-stone-900"
+                                    style={{
+                                        backgroundColor: BOOKING_STATUS_CONFIG[booking.status].bgColor,
+                                    }}
+                                >
+                                    {BOOKING_STATUS_CONFIG[booking.status].label}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50">
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                    >
+                        Đóng
+                    </button>
+                    {booking.status === 'PENDING' && (
+                        <button
+                            onClick={() => {
+                                // Get first selected vet from per-service selection
+                                const firstServiceId = booking.services[0]?.bookingServiceId || booking.services[0]?.serviceId;
+                                const selectedVetId = firstServiceId ? selectedVetByService[firstServiceId] : undefined;
+                                onConfirm(booking.bookingId, selectedVetId);
+                                onClose();
+                            }}
+                            disabled={Object.keys(selectedVetByService).length === 0 && Object.keys(availableVetsByService).length > 0}
+                            className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Xác nhận & Gán Vet
+                        </button>
+                    )}
+                    {(booking.status === 'ARRIVED' || booking.status === 'IN_PROGRESS') && (
+                        <>
+                            <button
+                                onClick={onAddService}
+                                className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Thêm dịch vụ
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await completeBooking(booking.bookingId);
+                                        onClose();
+                                        window.location.reload();
+                                    } catch (err) {
+                                        console.error('Failed to complete booking:', err);
+                                    }
+                                }}
+                                className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
+                            >
+                                Checkout
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Reassign Vet Modal */}
+            {selectedService && (
+                <ReassignVetModal
+                    isOpen={reassignModalOpen}
+                    bookingId={booking.bookingId}
+                    service={selectedService}
+                    onClose={() => {
+                        setReassignModalOpen(false);
+                        setSelectedService(null);
+                    }}
+                    onReassigned={handleReassigned}
+                />
+            )}
+        </div>
+    );
+};
+
+export default BookingDashboardPage;

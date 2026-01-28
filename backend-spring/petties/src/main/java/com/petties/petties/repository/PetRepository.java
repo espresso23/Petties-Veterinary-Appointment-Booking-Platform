@@ -12,4 +12,6 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 @Repository
 public interface PetRepository extends JpaRepository<Pet, UUID>, JpaSpecificationExecutor<Pet> {
     List<Pet> findByUser_UserId(UUID userId);
+
+    boolean existsByUserUserId(UUID userId);
 }

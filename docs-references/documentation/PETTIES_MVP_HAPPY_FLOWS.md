@@ -1,8 +1,8 @@
 # PETTIES MVP - Happy Flows
 
-**Version:** 1.1 MVP  
-**Last Updated:** 2025-12-25  
-**Scope:** Core Features (Sprint 1-9)
+**Version:** 1.4.0
+**Last Updated:** 2026-01-22  
+**Scope:** Core Features (Sprint 1-14)
 
 ---
 
@@ -1147,7 +1147,34 @@ CREATE TABLE chat_messages (
 
 ---
 
-### 16.6 Tech Stack
+### 16.7 Kịch bản: Phân tích hình ảnh (Vision Health Analysis)
+
+**Actor:** Pet Owner (Mobile)
+
+```
+1. Pet Owner gặp vấn đề (ví dụ: pet bị phát ban, vết thương hở).
+2. Mở "AI Assistant" → Nhấn icon Camera/Gallery.
+3. Chọn/Chụp ảnh vần đề của pet → Gửi.
+4. Ảnh được upload lên Cloudinary → URL gửi về AI Agent.
+5. Agent reasoning:
+   ┌─────────────────────────────────────────────┐
+   │ THOUGHT: Nhận được hình ảnh từ user         │
+   │ ACTION: analyze_pet_image(image_url)        │
+   │ OBSERVATION: Phát hiện "viêm da dị ứng",    │
+   │              mức độ: Moderate               │
+   │ THOUGHT: Cần tìm clinic gần nhất để gợi ý   │
+   │ ACTION: search_clinics(lat, lng)            │
+   │ OBSERVATION: 3 clinics nearby...            │
+   │ ANSWER: "Phát hiện dấu hiệu viêm da. Nên..."│
+   └─────────────────────────────────────────────┘
+6. AI trả lời kèm Cảnh báo + Booking Suggestion Card.
+7. Pet Owner nhấn "Đặt lịch ngay" trên card → Chuyển đến Booking Flow với thông tin điền sẵn.
+```
+
+---
+
+### 16.8 Tech Stack
+
 
 ```
 📱 Mobile (Flutter):

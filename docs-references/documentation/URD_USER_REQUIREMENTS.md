@@ -1,8 +1,8 @@
 # PETTIES - Tài liệu Yêu cầu Người dùng (URD)
 
 **Dự án:** Petties - Nền tảng Đặt lịch Khám Thú y  
-**Phiên bản:** 1.0  
-**Cập nhật lần cuối:** 25/12/2025  
+**Phiên bản:** 1.5.0  
+**Cập nhật lần cuối:** 22/01/2026  
 
 ---
 
@@ -44,6 +44,7 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 - ✅ Theo dõi hồ sơ y tế và sổ tiêm chủng tập trung
 - ✅ Nhận thông báo nhắc nhở lịch hẹn và tiêm chủng
 - ✅ Chat với AI để được tư vấn chăm sóc thú cưng
+- ✅ Phân tích hình ảnh sức khỏe thú cưng qua AI (AI Vision)
 
 ---
 
@@ -187,6 +188,7 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 2. Nhập câu hỏi về thú cưng (ví dụ: "Chó bị nôn phải làm sao?")
 3. AI phân tích và trả lời với thông tin hữu ích
 4. Nếu cần thiết, AI gợi ý đặt lịch khám ngay
+5. **[Mới]** Gửi ảnh triệu chứng để AI phân tích và cảnh báo mức độ nghiêm trọng (AI Vision)
 
 ---
 
@@ -286,20 +288,21 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 
 ---
 
-#### 2.4.2 Quản lý nhân viên
+#### 2.4.2 Quản lý nhân sự (Staff Management)
 
 | Mục | Nội dung |
 |-----|----------|
 | **Actor** | Chủ phòng khám (Clinic Owner) |
-| **Mục tiêu** | Thêm và quản lý tài khoản nhân viên (Manager, Vet) |
-| **Giải pháp** | Cung cấp tính năng tạo tài khoản nhanh với mật khẩu mặc định |
+| **Mục tiêu** | Mời và quản lý tài khoản nhân viên (Manager, Vet) vào hệ thống |
+| **Giải pháp** | Cung cấp tính năng mời qua Email, đăng nhập qua Google OAuth để bảo mật và tiện lợi |
 
 **Các bước thực hiện:**
 1. Vào mục "Quản lý nhân viên"
 2. Nhấn "Thêm nhân viên"
-3. Nhập: Họ tên, Số điện thoại, Vai trò (Manager/Vet)
-4. Hệ thống tạo tài khoản với mật khẩu = 6 số cuối SĐT
-5. Nhân viên đăng nhập và đổi mật khẩu
+3. Nhập: Email, Vai trò (Manager/Vet), Chuyên môn (nếu là Vet)
+4. Hệ thống: Ghi nhận yêu cầu mời nhân sự gắn với Email
+5. Nhân viên: Sử dụng tài khoản Google khớp với Email được mời để đăng nhập
+6. Hệ thống: Tự động đồng bộ Họ tên và Ảnh từ Google profile trong lần đầu truy cập
 
 ---
 

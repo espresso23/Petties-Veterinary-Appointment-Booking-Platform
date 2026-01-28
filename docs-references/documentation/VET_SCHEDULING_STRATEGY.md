@@ -1,8 +1,7 @@
 # Vet Scheduling & Dispatching Strategy
 
-Hướng dẫn thực tế về cách sắp xếp lịch và điều phối bác sĩ thú y.
-
----
+**Version:** 1.5.0  
+**Last Updated:** 2026-01-22  
 
 ## 1. Nguyên Tắc Cốt Lõi
 
@@ -228,6 +227,12 @@ flowchart TB
     G --> H["Lock 3 slots"]
     H --> I["Status = ASSIGNED"]
     I --> J["Notify Vet"]
+
+    subgraph REASSIGN["GÁN LẠI VET (v1.5.0)"]
+        K["Vet bận / khẩn cấp"] --> L["Manager chọn Reassign Vet"]
+        L --> M["Kiểm tra tính khả dụng (BookingController)"]
+        M --> N["Auto-unlock cũ → Lock mới"]
+    end
 ```
 
 ### 5.2 Dashboard Timeline cho Manager
@@ -297,6 +302,16 @@ flowchart TB
 3. Update booking `status = CANCELLED`
 4. Xử lý hoàn tiền (nếu có)
 5. Notify Vet và Manager
+
+### 7.4 Block/Unblock Slot thủ công (Manual Slot Control) ✅
+**Tính năng mới v1.5.0:** Manager có thể block từng slot cụ thể của Vet (ví dụ nghỉ đột xuất 30p) mà không cần xóa cả ca trực.
+- Tác vụ: `BlockSlot` / `UnblockSlot`
+- Status: `BLOCKED` (không hiển thị cho khách)
+
+### 7.5 Xóa ca trực hàng loạt (Bulk Shift Delete) ✅
+**Tính năng mới v1.5.0:** Xóa toàn bộ shifts của Vet trong 1 khoảng thời gian (ví dụ Vet xin nghỉ phép 1 tuần).
+- Tác vụ: `DeleteShiftsByRange`
+- System: Tự động xóa các Slots chưa được Booked. Booking đã Booked cần Manager Reassign trước.
 
 → Các slots giờ lại trống, có thể nhận booking mới
 
