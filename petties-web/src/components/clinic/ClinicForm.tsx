@@ -25,6 +25,15 @@ const DAYS_OF_WEEK = [
   'SATURDAY',
   'SUNDAY',
 ] as const
+const DAY_LABELS: Record<string, string> = {
+  MONDAY: 'THỨ HAI',
+  TUESDAY: 'THỨ BA',
+  WEDNESDAY: 'THỨ TƯ',
+  THURSDAY: 'THỨ NĂM',
+  FRIDAY: 'THỨ SÁU',
+  SATURDAY: 'THỨ BẢY',
+  SUNDAY: 'CHỦ NHẬT',
+}
 
 export function ClinicForm({
   initialData,
@@ -341,7 +350,7 @@ export function ClinicForm({
               <div key={day} className="border-2 border-stone-900 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-bold uppercase text-stone-900">
-                    {day}
+                    {DAY_LABELS[day]}
                     {is24h && (
                       <span className="ml-2 text-xs bg-amber-600 text-white px-2 py-1 border-2 border-stone-900">
                         24/7
@@ -357,7 +366,7 @@ export function ClinicForm({
                       }
                       className="w-5 h-5 border-2 border-stone-900"
                     />
-                    <span className="text-sm font-bold uppercase text-stone-700">CLOSED</span>
+                    <span className="text-sm font-bold uppercase text-stone-700">ĐÓNG CỬA</span>
                   </label>
                 </div>
 
@@ -366,7 +375,7 @@ export function ClinicForm({
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          OPEN TIME
+                          GIỜ MỞ CỬA
                         </label>
                         <input
                           type="time"
@@ -380,7 +389,7 @@ export function ClinicForm({
                       </div>
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          CLOSE TIME
+                          GIỜ ĐÓNG CỬA
                         </label>
                         <input
                           type="time"
@@ -397,7 +406,7 @@ export function ClinicForm({
                     <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-200">
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          BREAK START (LUNCH)
+                          NGHỈ TRƯA (BẮT ĐẦU)
                         </label>
                         <input
                           type="time"
@@ -411,7 +420,7 @@ export function ClinicForm({
                       </div>
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          BREAK END (LUNCH)
+                          NGHỈ TRƯA (KẾT THÚC)
                         </label>
                         <input
                           type="time"
@@ -448,7 +457,7 @@ export function ClinicForm({
           disabled={isLoading}
           className="btn-brutal flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'SAVING...' : 'SAVE'}
+          {isLoading ? 'ĐANG LƯU...' : 'LƯU'}
         </button>
         {onCancel && (
           <button
@@ -457,7 +466,7 @@ export function ClinicForm({
             disabled={isLoading}
             className="btn-brutal-outline flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            CANCEL
+            HỦY
           </button>
         )}
       </div>

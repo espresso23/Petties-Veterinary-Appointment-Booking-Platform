@@ -129,7 +129,7 @@ export const EmrDetailPage = () => {
                             </div>
                             <div className="flex items-center gap-2 text-stone-600">
                                 <span className="font-bold">Bác sĩ:</span>
-                                <span>BS. {emr.vetName}</span>
+                                <span>BS. {emr.staffName}</span>
                             </div>
                             {emr.ownerName && (
                                 <div className="flex items-center gap-2 text-stone-600">

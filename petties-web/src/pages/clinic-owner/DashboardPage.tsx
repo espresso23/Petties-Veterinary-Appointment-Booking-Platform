@@ -14,7 +14,7 @@ export const ClinicOwnerDashboardPage = () => {
             {/* Header */}
             <header className="mb-8">
                 <h1 className="text-2xl font-bold text-stone-900 uppercase tracking-wide">
-                    CLINIC OWNER DASHBOARD
+                    BẢNG ĐIỀU KHIỂN CHỦ PHÒNG KHÁM
                 </h1>
                 <p className="text-stone-600 mt-1">
                     Chào mừng, {user?.fullName || 'Chủ phòng khám'}
@@ -56,7 +56,7 @@ export const ClinicOwnerDashboardPage = () => {
                         subtitle="Trong phòng khám"
                     />
                     <DashboardCard
-                        title="RATING"
+                        title="ĐIỂM ĐÁNH GIÁ"
                         value="--"
                         subtitle="Trung bình"
                     />
@@ -73,15 +73,15 @@ export const ClinicOwnerDashboardPage = () => {
                 <div className="bg-white border-4 border-stone-900 shadow-brutal p-6 transition-all duration-200 hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[12px_12px_0_#1c1917] cursor-default">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TONG DOANH THU</p>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TỔNG DOANH THU</p>
                             <p className="text-2xl font-bold text-stone-900">-- VND</p>
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">SO BOOKINGS</p>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">SỐ LƯỢNG ĐẶT LỊCH</p>
                             <p className="text-2xl font-bold text-stone-900">--</p>
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TRUNG BINH/BOOKING</p>
+                            <p className="text-xs font-bold text-stone-500 uppercase tracking-wide mb-1">TRUNG BÌNH/ĐẶT LỊCH</p>
                             <p className="text-2xl font-bold text-stone-900">-- VND</p>
                         </div>
                     </div>

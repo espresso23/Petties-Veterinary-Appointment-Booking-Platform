@@ -279,9 +279,9 @@ const VaccinationPage = () => {
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-xs font-bold text-amber-600">
-                                                        {record.vetName.charAt(0)}
+                                                        {record.staffName.charAt(0)}
                                                     </div>
-                                                    <span className="text-sm font-medium">{record.vetName}</span>
+                                                    <span className="text-sm font-medium">{record.staffName}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4">

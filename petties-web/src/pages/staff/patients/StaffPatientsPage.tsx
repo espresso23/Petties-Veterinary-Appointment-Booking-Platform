@@ -608,13 +608,13 @@ export const StaffPatientsPage = () => {
                                                                 <p className="text-sm text-stone-500">
                                                                     {new Date(emr.examinationDate).toLocaleDateString('vi-VN')}
                                                                     <span className="mx-2">•</span>
-                                                                    BS. {emr.vetName}
+                                                                    BS. {emr.staffName}
                                                                 </p>
                                                             </div>
                                                             <div className="flex items-center gap-2">
                                                                 {/* Edit Button - Only if not locked, within 24h, and owned by current staff */}
                                                                 {(!emr.isLocked &&
-                                                                    String(tokenStorage.getUser()?.userId) === emr.vetId &&
+                                                                    String(tokenStorage.getUser()?.userId) === emr.staffId &&
                                                                     (new Date().getTime() - new Date(emr.createdAt).getTime() < 24 * 60 * 60 * 1000)
                                                                 ) ? (
                                                                     <button
@@ -866,10 +866,10 @@ export const StaffPatientsPage = () => {
                                                                 <td className="p-4">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="w-6 h-6 rounded-full bg-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-600">
-                                                                            {record.vetName.charAt(0)}
+                                                                            {record.staffName.charAt(0)}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            Dr. {record.vetName.split(' ').pop()}
+                                                                            Dr. {record.staffName.split(' ').pop()}
                                                                         </div>
                                                                     </div>
                                                                 </td>
@@ -1061,7 +1061,7 @@ export const StaffPatientsPage = () => {
                                 <div className="col-span-2">
                                     <p className="text-xs text-stone-500 font-bold uppercase">Bác sĩ thực hiện</p>
                                     <p className="font-bold text-stone-800">
-                                        {selectedVaccination.vetName}
+                                        {selectedVaccination.staffName}
                                     </p>
                                 </div>
                             </div>

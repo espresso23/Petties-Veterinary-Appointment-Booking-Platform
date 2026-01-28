@@ -74,7 +74,7 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
             htmlFor={`logo-upload-${clinicId}`}
             className={`btn-brutal inline-block cursor-pointer ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {uploading ? 'ĐANG UPLOAD...' : 'CHỌN LOGO'}
+            {uploading ? 'ĐANG TẢI LÊN...' : 'CHỌN LOGO'}
           </label>
           <p className="text-xs text-stone-500 mt-1">
             {logoUrl ? 'Logo đã được tải lên' : 'Chưa có logo, sẽ sử dụng logo mặc định'}

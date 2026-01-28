@@ -37,14 +37,14 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
       // Add Goong Map tiles
       if (env.GOONG_MAP_TILES_KEY) {
         const goongTileUrl = `https://tiles.goong.io/assets/goong_map_web/{z}/{x}/{y}.png?api_key=${env.GOONG_MAP_TILES_KEY}`
-        
+
         console.log('[ClinicMap] Initializing Goong map tiles...', {
           clinic: clinic.name,
           hasKey: !!env.GOONG_MAP_TILES_KEY,
           keyLength: env.GOONG_MAP_TILES_KEY?.length || 0,
           tileUrl: goongTileUrl.replace(env.GOONG_MAP_TILES_KEY, '***'),
         })
-        
+
         const tileLayer = L.tileLayer(goongTileUrl, {
           maxZoom: 20,
           minZoom: 1,
@@ -52,7 +52,7 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
           tileSize: 256,
           zoomOffset: 0,
         })
-        
+
         tileLayer.on('tileerror', (error) => {
           console.error('[ClinicMap] Goong tile error:', error)
           // Fallback to OpenStreetMap if Goong fails
@@ -68,11 +68,11 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
           })
           osmLayer.addTo(mapInstanceRef.current)
         })
-        
+
         tileLayer.on('tileload', () => {
           console.log('[ClinicMap] Tile loaded successfully')
         })
-        
+
         tileLayer.addTo(mapInstanceRef.current)
       } else {
         console.warn('[ClinicMap] No Goong Map Tiles Key, using OpenStreetMap fallback')
@@ -133,8 +133,8 @@ export function ClinicMapOSM({ clinic, height = '400px', zoom = 15 }: ClinicMapO
   if (!clinic.latitude || !clinic.longitude) {
     return (
       <div className="card-brutal p-6 bg-amber-50 border-amber-600">
-        <div className="text-amber-800 font-bold uppercase mb-1">No Location</div>
-        <div className="text-amber-700 text-sm">This clinic does not have location coordinates.</div>
+        <div className="text-amber-800 font-bold uppercase mb-1">Chưa cập nhật vị trí</div>
+        <div className="text-amber-700 text-sm">Phòng khám này chưa cập nhật vị trí bản đồ.</div>
       </div>
     )
   }

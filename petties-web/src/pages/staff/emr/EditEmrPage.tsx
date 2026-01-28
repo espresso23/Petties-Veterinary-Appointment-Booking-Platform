@@ -103,7 +103,7 @@ export const EditEmrPage = () => {
                     navigate(-1)
                     return
                 }
-                if (currentUser?.userId && String(currentUser.userId) !== emr.vetId) {
+                if (currentUser?.userId && String(currentUser.userId) !== emr.staffId) {
                     showToast('error', 'Bạn không có quyền chỉnh sửa bệnh án này.')
                     navigate(-1)
                     return

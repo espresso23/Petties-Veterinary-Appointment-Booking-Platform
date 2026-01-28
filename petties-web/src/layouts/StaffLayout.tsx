@@ -68,14 +68,14 @@ export const StaffLayout = () => {
         {
             title: 'DASHBOARD',
             items: [
-                { path: '/staff', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
+                { path: '/staff', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
             ]
         },
         {
             title: 'CÔNG VIỆC',
             items: [
                 { path: '/staff/schedule', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
-                { path: '/staff/bookings', label: 'BOOKINGS', icon: ClipboardDocumentListIcon, unreadCount: assignedBookingCount },
+                { path: '/staff/bookings', label: 'LỊCH HẸN', icon: ClipboardDocumentListIcon, unreadCount: assignedBookingCount },
                 { path: '/staff/patients', label: 'BỆNH NHÂN', icon: UserGroupIcon },
             ]
         },
@@ -98,7 +98,7 @@ export const StaffLayout = () => {
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="VETERINARIAN"
+                roleName="STAFF"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}
