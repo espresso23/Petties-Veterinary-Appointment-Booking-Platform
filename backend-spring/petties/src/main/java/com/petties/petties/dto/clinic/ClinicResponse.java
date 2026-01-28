@@ -38,6 +38,7 @@ public class ClinicResponse {
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String logo; // URL to clinic logo
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
     private Map<String, OperatingHours> operatingHours;
     private ClinicStatus status;
     private String rejectionReason;

@@ -88,6 +88,7 @@ public class ClinicService {
                 clinic.setProvince(request.getProvince());
                 clinic.setSpecificLocation(request.getSpecificLocation());
                 clinic.setLogo(request.getLogo());
+                clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
                 clinic.setOperatingHours(request.getOperatingHours());
@@ -152,6 +153,7 @@ public class ClinicService {
                 clinic.setProvince(request.getProvince());
                 clinic.setSpecificLocation(request.getSpecificLocation());
                 clinic.setLogo(request.getLogo());
+                clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
                 clinic.setOperatingHours(request.getOperatingHours());
@@ -639,6 +641,7 @@ public class ClinicService {
                                 .province(clinic.getProvince())
                                 .specificLocation(clinic.getSpecificLocation())
                                 .logo(clinic.getLogo())
+                                .businessLicenseUrl(clinic.getBusinessLicenseUrl())
                                 .phone(clinic.getPhone())
                                 .email(clinic.getEmail())
                                 .latitude(clinic.getLatitude())
