@@ -51,12 +51,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * - Get Bookings by Staff (Staff/Manager)
  * - Get Booking by ID
  * - Get Booking by Code
- * - Check Vet Availability (Manager)
+ * - Check Staff Availability (Manager)
  * - Confirm Booking (Manager)
  * - Cancel Booking
  * - Get My Bookings (Pet Owner)
- * - Get Available Vets for Reassign (Manager)
- * - Reassign Vet (Manager)
+ * - Get Available Staff for Reassign (Manager)
+ * - Reassign Staff (Manager)
  *
  * Each endpoint tests:
  * - Happy path (200/201)

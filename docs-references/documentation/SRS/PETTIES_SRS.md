@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 1.6.1 (109 Use Cases + Updated ERD with 24 Entities + Section 3.9 EMR)
-**Last Updated:** 2026-01-23
+**Version:** 1.7.0 (Use Cases organized by Boundary + Updated ERD)
+**Last Updated:** 2026-01-28
 **Document Status:** In Progress
 
 ---
@@ -157,135 +157,171 @@ graph TB
 | **CLINIC_OWNER** | Web only | Chủ phòng khám, quản lý dịch vụ, doanh thu |
 | **ADMIN** | Web only | Admin nền tảng, duyệt phòng khám, quản lý AI |
 
-### 2.2 User Stories (Organized by Epic/Module)
-> **Note:** Requirements are now organized by Functional Module rather than by User Role to align with System Design.
+### 2.2 Use Cases (Organized by Boundary/Feature Module)
 
-#### 2.2.1 Authentication & Onboarding
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-01 | Pet Owner | **Register & Login** (Email/OTP) | High |
-| UC-PO-02 | Pet Owner | **Google Login** (OAuth 2.0) | High |
-| UC-ST-01 | Staff | **Staff Login** (Invited Account) | High |
-| UC-CM-01 | Manager | **Manager Login** | High |
-| UC-CM-03 | Manager | **Invite Staff** (Quick Add by Email) | High |
-| UC-CO-01 | Clinic Owner | **Register Clinic** (Pending Approval) | High |
-| UC-AD-01 | Admin | **Admin Login** | High |
+> **Approach:** Use Cases được nhóm theo **Boundary** (nhóm tính năng) thay vì theo Actor.
+> Mỗi Boundary chứa nhiều Use Cases với nhiều Actors khác nhau tham gia.
+> Cách tiếp cận này giúp nhìn nhận hệ thống theo góc độ chức năng, phù hợp với Business Workflow.
 
-#### 2.2.2 User Profile & Account Setup
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-03 | Pet Owner | **Manage Personal Profile** (Update Info, Avatar) | Medium |
-| UC-PO-03d| Pet Owner | **Change Password** | Medium |
-| UC-PO-03c| Pet Owner | **Change Email** | Low |
-| UC-PO-24 | Pet Owner | **Cancel Email Change Request** | Low |
+#### 2.2.1 Authentication & Onboarding (Boundary)
 
-#### 2.2.3 Pet Records & Health Hub
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-04 | Pet Owner | **Manage Pet Profiles** (Add/Edit/Delete) | High |
-| UC-PO-11 | Pet Owner | **View Pet EMR Records** | Medium |
-| UC-PO-12 | Pet Owner | **View Vaccination Records** | Medium |
-| UC-VT-13 | Staff | **View Patient History** (Mobile) | High |
-| UC-PO-21 | Pet Owner | **Update Pet Allergies** (Separate endpoint) | Low |
-| UC-PO-22 | Pet Owner | **Update Pet Weight** (Quick update) | Low |
+**Actors involved:** Pet Owner, Staff, Clinic Manager, Clinic Owner, Admin
 
-#### 2.2.4 Clinic Discovery & Search
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-05 | Pet Owner | **Search Clinics** (Location/Filter) | High |
-| UC-PO-05b| Pet Owner | **View Clinic Details** | High |
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-AUTH-01 | Register Account (Email/OTP) | Pet Owner | - | High |
+| UC-AUTH-02 | Login by Google OAuth | Pet Owner, Staff | - | High |
+| UC-AUTH-03 | Staff Login (Invited Account) | Staff | Clinic Manager | High |
+| UC-AUTH-04 | Manager Login | Clinic Manager | - | High |
+| UC-AUTH-05 | Invite Staff (Quick Add by Email) | Clinic Manager | Staff | High |
+| UC-AUTH-06 | Register Clinic (Pending Approval) | Clinic Owner | Admin | High |
+| UC-AUTH-07 | Admin Login | Admin | - | High |
 
-#### 2.2.5 Booking & Appointment Lifecycle
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-06 | Pet Owner | **Book Clinic Visit** | High |
-| UC-PO-07 | Pet Owner | **Book Home Visit** | High |
-| UC-PO-08 | Pet Owner | **View My Bookings** | High |
-| UC-PO-09 | Pet Owner | **Cancel Booking** | Medium |
-| UC-PO-10 | Pet Owner | **Online Payment** (Stripe) | High |
-| UC-ST-03 | Staff | **View Assigned Bookings** | High |
-| UC-ST-04 | Staff | **Update Appointment Progress** | High |
-| UC-ST-05 | Staff | **Check-in Patient** | High |
-| UC-ST-09 | Staff | **Mark Treatment Finished** (Request payment) | High |
-| UC-ST-14 | Staff | **Staff Home Dashboard Summary** (Today stats) | Medium |
-| UC-CM-05 | Manager | **View New Bookings** | High |
-| UC-CM-06 | Manager | **Assign Staff to Booking** | High |
-| UC-CM-07 | Manager | **Handle Cancellations & Refunds** | Medium |
-| UC-CM-10 | Manager | **Receive Payment & Checkout** (Close booking) | High |
-| UC-CM-14 | Manager | **Check Staff Availability** (Before confirm) | Medium |
-| UC-CM-15 | Manager | **Reassign Staff to Service** | Medium |
+#### 2.2.2 User Profile & Account Setup (Boundary)
 
-#### 2.2.6 Staffing & Scheduling
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-ST-02 | Staff | **View Personal Schedule** | High |
-| UC-CM-02 | Manager | **View Staff List** | High |
-| UC-CM-04 | Manager | **Create Staff Shift** (Manual Scheduling) | High |
-| UC-CM-16 | Manager | **Manage Shifts** (Delete/Edit) | Medium |
-| UC-CO-06 | Clinic Owner | **Quick Add Staff by Email** (Google OAuth sync) | Medium |
-| UC-CO-07 | Clinic Owner | **Manage Clinic Staff** | Medium |
-| UC-CM-11 | Manager | **Block/Unblock Slot** (Manual slot management) | Low |
-| UC-CM-12 | Manager | **Bulk Shift Delete** (Delete multiple shifts) | Low |
+**Actors involved:** Pet Owner, Staff
 
-#### 2.2.7 Clinical Operations & Service Setup
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-CO-02 | Clinic Owner | **Manage Clinic Info** | High |
-| UC-CO-03 | Clinic Owner | **Configure Clinic Services** | High |
-| UC-CO-04 | Clinic Owner | **Configure Pricing & Weights** | High |
-| UC-CO-08 | Clinic Owner | **Manage Master Services** | High |
-| UC-CO-05 | Clinic Owner | **View Revenue Reports** | Medium |
-| UC-CO-09 | Clinic Owner | **Clinic Geocode** (Convert address to GPS) | Medium |
-| UC-CO-10 | Clinic Owner | **Clinic Distance Calculation** (Calculate from user) | Medium |
-| UC-CO-11 | Clinic Owner | **Service Home Visit Toggle** (Enable/disable) | Low |
-| UC-CO-12 | Clinic Owner | **Service Price Per KM** (Distance pricing) | Low |
-| UC-CO-13 | Clinic Owner | **Bulk Price Per KM Update** | Low |
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-PROFILE-01 | Manage Personal Profile (Update Info, Avatar) | Pet Owner, Staff | - | Medium |
+| UC-PROFILE-02 | Change Password | Pet Owner, Staff | - | Medium |
+| UC-PROFILE-03 | Change Email | Pet Owner | - | Low |
+| UC-PROFILE-04 | Cancel Email Change Request | Pet Owner | - | Low |
 
-#### 2.2.8 Patient Management (EMR & Care)
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-ST-06 | Staff | **Create EMR Record** (SOAP) | High |
-| UC-ST-07 | Staff | **Prescribe Medication** | Medium |
-| UC-ST-08 | Staff | **Add Vaccination Record** | Medium |
-| UC-ST-12 | Staff | **Patient Lookup** | Medium |
-| UC-CM-08 | Manager | **View Patient List** | Medium |
-| UC-CM-09 | Manager | **View Patient Records** | Medium |
+#### 2.2.3 Pet Records & Health Hub (Boundary)
 
-#### 2.2.9 SOS Emergency Services
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-15 | Pet Owner | **Request SOS** | High |
-| UC-PO-17 | Pet Owner | **Track Staff Location** | High |
-| UC-PO-18 | Pet Owner | **View ETA & Route** | High |
-| UC-PO-19 | Pet Owner | **Receive Arrival Alert** | High |
-| UC-ST-10 | Staff | **Receive SOS Assignment** | High |
-| UC-ST-11 | Staff | **Start Emergency Travel** (Manual Click) | High |
-| UC-ST-11b| Staff | **Confirm SOS Arrival** (Manual Click/Auto-Geofence) | High |
-| UC-CM-13 | Manager | **Dispatch SOS** (if manual) | Medium |
+**Actors involved:** Pet Owner, Staff
 
-#### 2.2.10 AI Assistance & Agents
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-PO-14a| Pet Owner | **Ask Pet Care Advice** (RAG) | Medium |
-| UC-PO-14b| Pet Owner | **Symptom Check** | Medium |
-| UC-PO-14c| Pet Owner | **AI Booking Assistant** | Medium |
-| UC-PO-20 | Pet Owner | **Real-time Chat** (WebSocket) | Medium |
-| UC-PO-23 | Pet Owner | **Chat Images Gallery** (View all images) | Low |
-| UC-AD-05 | Admin | **Manage Agent Tools** | Low |
-| UC-AD-06 | Admin | **Manage Knowledge Base** | Low |
-| UC-AD-07 | Admin | **Test Agent Playground** | Low |
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-PET-01 | Manage Pet Profiles (Add/Edit/Delete) | Pet Owner | - | High |
+| UC-PET-02 | View Pet EMR Records | Pet Owner | Staff | Medium |
+| UC-PET-03 | View Vaccination Records | Pet Owner | Staff | Medium |
+| UC-PET-04 | View Patient History (Mobile) | Staff | - | High |
+| UC-PET-05 | Update Pet Allergies | Pet Owner | - | Low |
+| UC-PET-06 | Update Pet Weight (Quick update) | Pet Owner | - | Low |
 
-#### 2.2.11 Platform Administration & Governance
-| UC-ID | Actor | User Story / Requirement | Priority |
-| :--- | :--- | :--- | :--- |
-| UC-AD-02 | Admin | **View Pending Clinics** | High |
-| UC-AD-03 | Admin | **Approve/Reject Clinic** | High |
-| UC-AD-04 | Admin | **View Platform Stats** | Medium |
-| UC-AD-08 | Admin | **View User Reports** | Medium |
-| UC-AD-09 | Admin | **Moderate Users** (Ban/Suspend) | Medium |
-| UC-AD-10 | Admin | **SSE Real-time Notifications** | Low |
-| UC-PO-13 | Pet Owner | **Rate & Review** | Low |
-| UC-PO-16 | Pet Owner | **Report Violation** | Low |
+#### 2.2.4 Clinic Discovery & Search (Boundary)
+
+**Actors involved:** Pet Owner
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-CLINIC-01 | Search Clinics (Location/Filter) | Pet Owner | - | High |
+| UC-CLINIC-02 | View Clinic Details | Pet Owner | - | High |
+
+#### 2.2.5 Booking & Appointment Lifecycle (Boundary)
+
+**Actors involved:** Pet Owner, Staff, Clinic Manager
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-BOOK-01 | Book Clinic Visit | Pet Owner | Clinic Manager | High |
+| UC-BOOK-02 | Book Home Visit | Pet Owner | Clinic Manager | High |
+| UC-BOOK-03 | View My Bookings | Pet Owner | - | High |
+| UC-BOOK-04 | Cancel Booking | Pet Owner | Clinic Manager | Medium |
+| UC-BOOK-05 | Online Payment (Stripe) | Pet Owner | - | High |
+| UC-BOOK-06 | View Assigned Bookings | Staff | - | High |
+| UC-BOOK-07 | Update Appointment Progress | Staff | - | High |
+| UC-BOOK-08 | Check-in Patient | Staff | - | High |
+| UC-BOOK-09 | Mark Treatment Finished | Staff | - | High |
+| UC-BOOK-10 | Staff Home Dashboard Summary | Staff | - | Medium |
+| UC-BOOK-11 | View New Bookings | Clinic Manager | - | High |
+| UC-BOOK-12 | Assign Staff to Booking | Clinic Manager | Staff | High |
+| UC-BOOK-13 | Handle Cancellations & Refunds | Clinic Manager | Pet Owner | Medium |
+| UC-BOOK-14 | Receive Payment & Checkout | Clinic Manager | Pet Owner | High |
+| UC-BOOK-15 | Check Staff Availability | Clinic Manager | Staff | Medium |
+| UC-BOOK-16 | Reassign Staff to Service | Clinic Manager | Staff | Medium |
+
+#### 2.2.6 Staffing & Scheduling (Boundary)
+
+**Actors involved:** Staff, Clinic Manager, Clinic Owner
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-SCHED-01 | View Personal Schedule | Staff | - | High |
+| UC-SCHED-02 | View Staff List | Clinic Manager | - | High |
+| UC-SCHED-03 | Create Staff Shift (Manual Scheduling) | Clinic Manager | Staff | High |
+| UC-SCHED-04 | Manage Shifts (Delete/Edit) | Clinic Manager | Staff | Medium |
+| UC-SCHED-05 | Quick Add Staff by Email | Clinic Owner | Staff | Medium |
+| UC-SCHED-06 | Manage Clinic Staff | Clinic Owner | Staff, Manager | Medium |
+| UC-SCHED-07 | Block/Unblock Slot | Clinic Manager | - | Low |
+| UC-SCHED-08 | Bulk Shift Delete | Clinic Manager | - | Low |
+
+#### 2.2.7 Clinical Operations & Service Setup (Boundary)
+
+**Actors involved:** Clinic Owner, Clinic Manager
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-OPS-01 | Manage Clinic Info | Clinic Owner | - | High |
+| UC-OPS-02 | Configure Clinic Services | Clinic Owner | - | High |
+| UC-OPS-03 | Configure Pricing & Weights | Clinic Owner | - | High |
+| UC-OPS-04 | Manage Master Services | Clinic Owner | - | High |
+| UC-OPS-05 | View Revenue Reports | Clinic Owner | - | Medium |
+| UC-OPS-06 | Clinic Geocode (Convert address to GPS) | Clinic Owner | - | Medium |
+| UC-OPS-07 | Clinic Distance Calculation | Clinic Owner | - | Medium |
+| UC-OPS-08 | Service Home Visit Toggle | Clinic Owner | - | Low |
+| UC-OPS-09 | Service Price Per KM | Clinic Owner | - | Low |
+| UC-OPS-10 | Bulk Price Per KM Update | Clinic Owner | - | Low |
+
+#### 2.2.8 Electronic Medical Records - EMR (Boundary)
+
+**Actors involved:** Staff, Clinic Manager, Pet Owner
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-EMR-01 | Create EMR Record (SOAP) | Staff | - | High |
+| UC-EMR-02 | Prescribe Medication | Staff | - | Medium |
+| UC-EMR-03 | Add Vaccination Record | Staff | - | Medium |
+| UC-EMR-04 | Patient Lookup | Staff | - | Medium |
+| UC-EMR-05 | View Patient List | Clinic Manager | - | Medium |
+| UC-EMR-06 | View Patient Records | Clinic Manager, Pet Owner | Staff | Medium |
+
+#### 2.2.9 SOS Emergency Services (Boundary)
+
+**Actors involved:** Pet Owner, Staff, Clinic Manager
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-SOS-01 | Request SOS | Pet Owner | Clinic Manager | High |
+| UC-SOS-02 | Track Staff Location | Pet Owner | Staff | High |
+| UC-SOS-03 | View ETA & Route | Pet Owner | Staff | High |
+| UC-SOS-04 | Receive Arrival Alert | Pet Owner | Staff | High |
+| UC-SOS-05 | Receive SOS Assignment | Staff | Clinic Manager | High |
+| UC-SOS-06 | Start Emergency Travel (Manual Click) | Staff | - | High |
+| UC-SOS-07 | Confirm SOS Arrival | Staff | Pet Owner | High |
+| UC-SOS-08 | Dispatch SOS (Manual) | Clinic Manager | Staff | Medium |
+
+#### 2.2.10 AI Assistance & Agents (Boundary)
+
+**Actors involved:** Pet Owner, Admin
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-AI-01 | Ask Pet Care Advice (RAG) | Pet Owner | - | Medium |
+| UC-AI-02 | Symptom Check | Pet Owner | - | Medium |
+| UC-AI-03 | AI Booking Assistant | Pet Owner | - | Medium |
+| UC-AI-04 | Real-time Chat (WebSocket) | Pet Owner | - | Medium |
+| UC-AI-05 | Chat Images Gallery | Pet Owner | - | Low |
+| UC-AI-06 | Manage Agent Tools | Admin | - | Low |
+| UC-AI-07 | Manage Knowledge Base | Admin | - | Low |
+| UC-AI-08 | Test Agent Playground | Admin | - | Low |
+
+#### 2.2.11 Platform Administration & Governance (Boundary)
+
+**Actors involved:** Admin, Pet Owner
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-GOV-01 | View Pending Clinics | Admin | - | High |
+| UC-GOV-02 | Approve/Reject Clinic | Admin | Clinic Owner | High |
+| UC-GOV-03 | View Platform Stats | Admin | - | Medium |
+| UC-GOV-04 | View User Reports | Admin | - | Medium |
+| UC-GOV-05 | Moderate Users (Ban/Suspend) | Admin | - | Medium |
+| UC-GOV-06 | SSE Real-time Notifications | Admin | - | Low |
+| UC-GOV-07 | Rate & Review | Pet Owner | Staff, Clinic | Low |
+| UC-GOV-08 | Report Violation | Pet Owner | Admin | Low |
 
 ### 2.3 Use Case Implementation Status Reference
 
@@ -3734,10 +3770,132 @@ Sentry Integration: Enabled with issue alerts
 | 38 | MSG-S18 | Toast message | Check-out completed | "Check-out thành công. Lịch khám đã hoàn tất." |
 | 39 | MSG-S19 | Toast message | Image uploaded | "Tải ảnh lên thành công" |
 | 40 | MSG-S20 | Toast message | Profile updated | "Cập nhật thông tin cá nhân thành công" |
+---
+
+### 5.4 Test Strategy
+
+#### 5.4.1 Test Types Overview
+
+| Test Type | Description | Tools | Responsibility |
+|-----------|-------------|-------|----------------|
+| Unit Test | Test individual components (services, controllers) | JUnit 5, Mockito | Developer |
+| Integration Test | Test component interactions (API endpoints) | Spring Boot Test | Developer |
+| Functional Test | Test complete user scenarios (end-to-end) | Manual + Postman | QA Team |
+| Security Test | Test authentication, authorization, vulnerabilities | OWASP ZAP, Manual | Security + QA |
+| Performance Test | Test load and response time | JMeter, k6 | DevOps + QA |
+
+---
+
+#### 5.4.2 Functional Tests
+
+Functional tests verify that the system behaves correctly from the user's perspective.
+
+##### Authentication & Account
+
+| TC-ID | Test Case | Pre-condition | Steps | Expected Result | Priority |
+|-------|-----------|---------------|-------|-----------------|----------|
+| TC-AUTH-01 | Register with valid email | User not registered | 1. Enter valid email, password 2. Enter OTP | Account created, redirect to home | High |
+| TC-AUTH-02 | Register with existing email | Email already registered | 1. Enter existing email | Show error MSG-E06 | High |
+| TC-AUTH-03 | Login with valid credentials | User exists | 1. Enter email/password 2. Submit | Login successful, JWT issued | High |
+| TC-AUTH-04 | Login with wrong password | User exists | 1. Enter wrong password | Show error MSG-E01 | High |
+| TC-AUTH-05 | Forgot password OTP | User exists | 1. Request OTP 2. Enter OTP 3. Set new password | Password changed | Medium |
+| TC-AUTH-06 | OTP expired retry | OTP sent > 5 mins | 1. Enter expired OTP | Show error MSG-E05 | Medium |
+| TC-AUTH-07 | Google OAuth login | Google account linked | 1. Click Google login | Login successful | Medium |
+| TC-AUTH-08 | Pet Owner login on Web | Pet Owner account | 1. Try login on web | Show error MSG-E18 | High |
+
+##### Pet Management
+
+| TC-ID | Test Case | Pre-condition | Steps | Expected Result | Priority |
+|-------|-----------|---------------|-------|-----------------|----------|
+| TC-PET-01 | Add new pet | User logged in | 1. Fill pet info 2. Upload avatar 3. Save | Pet created, show MSG-S07 | High |
+| TC-PET-02 | Edit pet info | Pet exists | 1. Update pet info 2. Save | Pet updated, show MSG-S08 | High |
+| TC-PET-03 | Delete pet with no bookings | Pet has no active booking | 1. Delete pet 2. Confirm | Pet deleted, show MSG-S09 | Medium |
+| TC-PET-04 | Delete pet with active booking | Pet has pending booking | 1. Try to delete | Show error, cannot delete | Medium |
+| TC-PET-05 | View pet medical history | Pet has EMR records | 1. Open pet profile 2. View history | Show list of EMR records | High |
+
+##### Booking Flow
+
+| TC-ID | Test Case | Pre-condition | Steps | Expected Result | Priority |
+|-------|-----------|---------------|-------|-----------------|----------|
+| TC-BOOK-01 | Create IN_CLINIC booking | User logged in, pet exists | 1. Select clinic 2. Select service 3. Choose slot 4. Confirm | Booking created, status PENDING | High |
+| TC-BOOK-02 | Create HOME_VISIT booking | Clinic supports home visit | 1. Select HOME_VISIT type 2. Enter address | Booking with location created | High |
+| TC-BOOK-03 | Slot already booked | Same slot booked by another | 1. Select same slot | Show error MSG-E07 | High |
+| TC-BOOK-04 | Cancel booking > 24h | Booking > 24h before | 1. Cancel booking | Full refund, show MSG-S05 | High |
+| TC-BOOK-05 | Cancel booking < 4h | Booking < 4h before | 1. Try to cancel | Show error MSG-E08 | High |
+| TC-BOOK-06 | Manager confirm booking | Booking status PENDING | 1. Manager clicks confirm | Status → CONFIRMED | High |
+| TC-BOOK-07 | Manager assign staff | Booking status CONFIRMED | 1. Select staff 2. Assign | Status → ASSIGNED | High |
+| TC-BOOK-08 | Staff check-in | Booking status ASSIGNED | 1. Staff clicks check-in | Status → IN_PROGRESS | High |
+| TC-BOOK-09 | Staff checkout | Booking status IN_PROGRESS | 1. Staff clicks checkout | Status → COMPLETED | High |
+| TC-BOOK-10 | Reassign staff | Booking status ASSIGNED | 1. Manager selects new staff | Staff changed, slots updated | Medium |
+
+##### Payment Flow
+
+| TC-ID | Test Case | Pre-condition | Steps | Expected Result | Priority |
+|-------|-----------|---------------|-------|-----------------|----------|
+| TC-PAY-01 | Cash payment | Booking IN_PROGRESS | 1. Select CASH 2. Confirm | Payment recorded | High |
+| TC-PAY-02 | QR payment | Booking IN_PROGRESS | 1. Select QR 2. Scan | Payment callback received | High |
+| TC-PAY-03 | Add extra service | Booking IN_PROGRESS | 1. Add service 2. Recalculate | Total price updated | Medium |
+
+##### EMR & Patient
+
+| TC-ID | Test Case | Pre-condition | Steps | Expected Result | Priority |
+|-------|-----------|---------------|-------|-----------------|----------|
+| TC-EMR-01 | Create EMR SOAP | Booking IN_PROGRESS | 1. Fill SOAP form 2. Save | EMR created, show MSG-S15 | High |
+| TC-EMR-02 | Edit EMR within 24h | EMR < 24h old, same clinic | 1. Edit EMR 2. Save | EMR updated | Medium |
+| TC-EMR-03 | Edit EMR after 24h | EMR > 24h old | 1. Try to edit | Read-only, cannot edit | Medium |
+| TC-EMR-04 | View EMR from other clinic | EMR from different clinic | 1. Open EMR | Read-only view | Medium |
+| TC-EMR-05 | Staff view patient before exam | Booking assigned | 1. Open patient info | Show pet info + history | High |
+| TC-EMR-06 | Add vaccination record | Pet exists | 1. Add vaccine info 2. Save | Vaccination recorded | Medium |
+
+---
+
+#### 5.4.3 Security Tests
+
+Security tests verify that the system is protected against unauthorized access and common vulnerabilities.
+
+##### Authentication Security
+
+| TC-ID | Test Case | Attack Vector | Steps | Expected Behavior | Priority |
+|-------|-----------|---------------|-------|-------------------|----------|
+| TC-SEC-01 | Brute force login | Multiple wrong passwords | 1. Submit wrong password 10+ times | Account locked after 5 attempts | High |
+| TC-SEC-02 | SQL Injection login | Malicious input | 1. Enter `' OR '1'='1` in email | Input sanitized, error returned | High |
+| TC-SEC-03 | JWT token tampering | Modified token | 1. Modify JWT payload 2. Send request | 401 Unauthorized | High |
+| TC-SEC-04 | Expired token access | Token > 24h | 1. Use expired access token | 401 Unauthorized, MSG-E02 | High |
+| TC-SEC-05 | Refresh token reuse | Token already used | 1. Reuse refresh token | Old token invalidated | Medium |
+| TC-SEC-06 | Password plain text | Check storage | 1. Query database | Password is BCrypt hashed | High |
+
+##### Authorization Security
+
+| TC-ID | Test Case | Attack Vector | Steps | Expected Behavior | Priority |
+|-------|-----------|---------------|-------|-------------------|----------|
+| TC-SEC-07 | PET_OWNER access admin API | Role bypass | 1. Call /admin/* endpoint | 403 Forbidden, MSG-E03 | High |
+| TC-SEC-08 | STAFF access other clinic data | Horizontal privilege | 1. Query other clinic's bookings | 403 Forbidden | High |
+| TC-SEC-09 | Access other user's pet | IDOR attack | 1. GET /pets/{other_pet_id} | 403 Forbidden | High |
+| TC-SEC-10 | MANAGER modify other clinic | Cross-clinic access | 1. Try to update other clinic | 403 Forbidden | High |
+| TC-SEC-11 | Unauthenticated API access | No token | 1. Call protected endpoint without token | 401 Unauthorized | High |
+
+##### Data Security
+
+| TC-ID | Test Case | Attack Vector | Steps | Expected Behavior | Priority |
+|-------|-----------|---------------|-------|-------------------|----------|
+| TC-SEC-12 | XSS in user input | Stored XSS | 1. Enter `<script>alert(1)</script>` in name | Input sanitized/escaped | High |
+| TC-SEC-13 | File upload malware | Malicious file | 1. Upload .exe as avatar | File type rejected | High |
+| TC-SEC-14 | File size limit | DoS attack | 1. Upload file > 10MB | 413 Payload Too Large | Medium |
+| TC-SEC-15 | HTTPS enforcement | Man-in-middle | 1. Access http:// | Redirect to https:// | High |
+| TC-SEC-16 | Sensitive data in logs | Information leak | 1. Check server logs | No passwords/tokens logged | Medium |
+
+##### API Security
+
+| TC-ID | Test Case | Attack Vector | Steps | Expected Behavior | Priority |
+|-------|-----------|---------------|-------|-------------------|----------|
+| TC-SEC-17 | Rate limiting | DDoS attack | 1. Send 100+ requests/min | 429 Too Many Requests | Medium |
+| TC-SEC-18 | CORS policy | Cross-origin attack | 1. Request from unknown origin | CORS blocked | High |
+| TC-SEC-19 | Input validation bypass | Invalid data | 1. Send negative price value | 400 Bad Request | Medium |
+| TC-SEC-20 | Mass assignment | Object injection | 1. Add `role: ADMIN` to request | Extra fields ignored | High |
 
 ---
 
 **Document Status:** In Progress
-**Version:** 1.6.0
-**Last Updated:** 2026-01-22
+**Version:** 1.7.0
+**Last Updated:** 2026-01-28
 **Author:** Petties Development Team

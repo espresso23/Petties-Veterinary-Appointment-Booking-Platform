@@ -804,19 +804,99 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 > - **Separate Schemas (optional)**: AI Service tables can use `ai_` prefix for logical separation
 > - **Total Tables**: 24 tables (17 Backend + 7 AI Service)
 
-#### 2.1.1 Entity Relationship Diagram
+#### 2.1.1 Entity Relationship Diagram (Conceptual)
 
-> **Note:** ERD is generated from [dbdiagram.io](https://dbdiagram.io/).
+> **Lưu ý:** ERD ở mức Conceptual tập trung vào **dữ liệu** và **quan hệ** giữa các đối tượng trong hệ thống, không đi sâu vào chi tiết database design (columns, types, constraints).
+
+##### A. Core Business Entities (Dữ liệu cốt lõi)
+
+| Entity | Description | Key Relationships |
+|--------|-------------|-------------------|
+| **User** | Người dùng hệ thống (Pet Owner, Staff, Manager, Owner, Admin) | 1 User → N Pets (owns), 1 User → 1 Clinic (works_at) |
+| **Pet** | Thú cưng được đăng ký trong hệ thống | 1 Pet → 1 Owner, 1 Pet → N EMRs, 1 Pet → N Vaccinations |
+| **Clinic** | Phòng khám thú y đã đăng ký và được duyệt | 1 Clinic → N Services, N Staff, N Bookings |
+| **ClinicService** | Dịch vụ do phòng khám cung cấp | 1 Service → 1 Clinic, N Weight Prices |
+| **Booking** | Lịch hẹn khám/dịch vụ | 1 Booking → 1 Pet, 1 Clinic, N Services, 1 Assigned Staff |
+| **EMRRecord** | Hồ sơ bệnh án điện tử (MongoDB) | 1 EMR → 1 Pet, 1 Staff, 1 Booking (optional) |
+| **Vaccination** | Sổ tiêm chủng (MongoDB) | 1 Vaccination → 1 Pet, 1 Staff |
+| **StaffShift** | Lịch làm việc của nhân viên | 1 Shift → 1 Staff, 1 Clinic, N Slots |
+| **Slot** | Khung giờ khám (30 phút) | 1 Slot → 1 Shift, N Bookings |
+| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions, N ChatSessions |
+| **Tool** | MCP Tools cho AI Agent | N Tools → M Agents (many-to-many) |
+| **ChatSession** | Phiên chat với AI | 1 Session → 1 User, N Messages |
+| **KnowledgeDocument** | Tài liệu RAG Knowledge Base | Standalone |
+
+##### B. Entity Relationships Diagram (ERD)
+
+```mermaid
+erDiagram
+    USER ||--o{ PET : owns
+    USER ||--o{ BOOKING : creates
+    USER }o--|| CLINIC : works_at
+    USER ||--o{ STAFF_SHIFT : has
+    USER ||--o{ CHAT_SESSION : has
+
+    PET ||--o{ BOOKING : scheduled_for
+    PET ||--o{ EMR_RECORD : has
+    PET ||--o{ VACCINATION : receives
+
+    CLINIC ||--o{ CLINIC_SERVICE : offers
+    CLINIC ||--o{ STAFF_SHIFT : schedules
+    CLINIC ||--o{ BOOKING : receives
+    CLINIC ||--o{ MASTER_SERVICE : owns
+
+    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has
+    CLINIC_SERVICE }o--|| MASTER_SERVICE : inherits_from
+
+    BOOKING ||--o{ BOOKING_SERVICE_ITEM : contains
+    BOOKING }o--|| USER : assigned_to
+    BOOKING ||--o{ BOOKING_SLOT : occupies
+
+    EMR_RECORD }o--|| BOOKING : linked_to
+    EMR_RECORD }o--|| USER : created_by
+
+    VACCINATION }o--|| USER : administered_by
+
+    STAFF_SHIFT }o--|| USER : belongs_to
+    STAFF_SHIFT ||--o{ SLOT : generates
+
+    SLOT ||--o{ BOOKING_SLOT : reserved_by
+
+    USER ||--o{ NOTIFICATION : receives
+
+    AGENT ||--o{ PROMPT_VERSION : has
+    AGENT ||--o{ CHAT_SESSION : handles
+    AGENT }o--o{ TOOL : uses
+
+    CHAT_SESSION ||--o{ CHAT_MESSAGE : contains
+```
+
+##### C. Entity Groups by Domain
+
+| Domain | Entities | Purpose |
+|--------|----------|---------|
+| **User Management** | User, RefreshToken, BlacklistedToken | Người dùng, xác thực, phân quyền |
+| **Pet Health** | Pet, EMRRecord (MongoDB), Vaccination (MongoDB) | Thông tin thú cưng, hồ sơ sức khỏe |
+| **Clinic Operations** | Clinic, ClinicImage, ClinicPricePerKm | Phòng khám, hình ảnh, cấu hình khoảng cách |
+| **Services & Pricing** | MasterService, ClinicService, ServiceWeightPrice | Dịch vụ, bảng giá theo cân nặng |
+| **Scheduling** | StaffShift, Slot | Lịch làm việc nhân viên, khung giờ |
+| **Booking** | Booking, BookingServiceItem, BookingSlot, Payment | Đặt lịch, chi tiết dịch vụ, thanh toán |
+| **Notifications** | Notification | Thông báo hệ thống |
+| **AI Service** | Agent, Tool, PromptVersion, ChatSession, ChatMessage, KnowledgeDocument, SystemSetting | AI chatbot, RAG, cấu hình |
+
+##### D. Detailed ERD (Database Design)
+
+> **Note:** ERD chi tiết (với columns, types, constraints) được generate từ [dbdiagram.io](https://dbdiagram.io/).
 > DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
 
-**Instructions to generate ERD:**
+**Instructions to generate Detailed ERD:**
 1. Visit https://dbdiagram.io/
 2. Copy content from `PETTIES_DBML.dbml`
 3. Paste into editor
 4. Export PNG/PDF
 
 ```
-[ERD Diagram - Paste screenshot from dbdiagram.io here]
+[Detailed ERD Diagram - Paste screenshot from dbdiagram.io here]
 ```
 
 #### 2.1.2 Table Groups
@@ -1389,20 +1469,20 @@ JWT_SECRET
 |-----------------|--------|-------------------------|-------|
 | chat_sessions | user_id | users.user_id | User UUID stored as VARCHAR(100) |
 
-#### 2.1.6 Entity Relationship Diagram
+#### 2.1.6 Complete ERD (All Tables)
 
-> **Note:** ERD is generated from [dbdiagram.io](https://dbdiagram.io/).
+> **Note:** Complete ERD bao gồm tất cả 24 tables (17 Backend + 7 AI Service).
+> ERD này là **Database Design** chi tiết với columns, types, constraints.
 > DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
-> Contains all 24 tables (17 Backend + 7 AI Service)
 
-**Instructions to generate ERD:**
+**Instructions to generate Complete ERD:**
 1. Visit https://dbdiagram.io/
 2. Copy content from `PETTIES_DBML.dbml`
 3. Paste into editor
 4. Export PNG/PDF
 
 ```
-[ERD Diagram - Paste screenshot from dbdiagram.io here]
+[Complete ERD Diagram - Paste screenshot from dbdiagram.io here]
 ```
 
 ---

@@ -19,25 +19,23 @@ stateDiagram-v2
     
     ASSIGNED --> ASSIGNED: Manager Reassign Staff (v1.5.0)
     
-    ASSIGNED --> CHECK_IN: Staff check-in (IN_CLINIC)
+    ASSIGNED --> IN_PROGRESS: Staff check-in (IN_CLINIC)
     ASSIGNED --> ON_THE_WAY: Staff bắt đầu di chuyển (HOME_VISIT/SOS)
     ASSIGNED --> NO_SHOW: Khách không đến
     ASSIGNED --> CANCELLED: Hủy
     
     ON_THE_WAY --> ARRIVED: Staff đến nơi
     
-    ARRIVED --> CHECK_IN: Staff bắt đầu khám
+    ARRIVED --> IN_PROGRESS: Staff check-in
     
-    CHECK_IN --> IN_PROGRESS: Đang khám
-    
-    IN_PROGRESS --> CHECK_OUT: Staff kết thúc + Thu tiền
-    
-    CHECK_OUT --> COMPLETED: Thanh toán thành công
+    IN_PROGRESS --> COMPLETED: Staff checkout + Thanh toán
     
     CANCELLED --> [*]
     NO_SHOW --> [*]
     COMPLETED --> [*]
 ```
+
+> **Note:** `check-in` và `checkout` là **hành động (actions)**, không phải trạng thái. Check-in chuyển booking sang `IN_PROGRESS`, checkout chuyển sang `COMPLETED`.
 
 ---
 
@@ -50,12 +48,17 @@ stateDiagram-v2
 | `ASSIGNED` | Đã phân công Staff | Clinic Manager | All |
 | `ON_THE_WAY` | Staff đang đến | Staff | HOME_VISIT, SOS |
 | `ARRIVED` | Staff đã đến | Staff | HOME_VISIT, SOS |
-| `CHECK_IN` | Bắt đầu khám | Staff | All |
-| `IN_PROGRESS` | Đang khám | Auto | All |
-| `CHECK_OUT` | Kết thúc + Thanh toán | Staff | All |
-| `COMPLETED` | Hoàn thành | Auto (after payment) | All |
+| `IN_PROGRESS` | Đang khám (sau check-in) | Staff | All |
+| `COMPLETED` | Hoàn thành (sau checkout + thanh toán) | Staff | All |
 | `CANCELLED` | Đã hủy | Pet Owner/Clinic | All |
 | `NO_SHOW` | Khách không đến | Clinic | All |
+
+### Actions (Hành động)
+
+| Action | Trigger | Transition |
+|--------|---------|------------|
+| `check-in` | Staff bấm check-in | ASSIGNED/ARRIVED → IN_PROGRESS |
+| `checkout` | Staff bấm checkout | IN_PROGRESS → COMPLETED |
 
 ---
 
@@ -63,17 +66,17 @@ stateDiagram-v2
 
 ### 3.1 IN_CLINIC (Khám tại phòng khám)
 ```
-PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → ASSIGNED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 ### 3.2 HOME_VISIT (Khám tại nhà)
 ```
-PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 ### 3.3 SOS (Cấp cứu)
 ```
-PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY (GPS Tracking) → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY (GPS Tracking) → ARRIVED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 > **Note:** SOS có thêm GPS tracking real-time qua Redis
@@ -105,18 +108,13 @@ sequenceDiagram
 
     Note over PO: Pet Owner đến phòng khám
 
-    V->>S: Check-in
-    S->>S: Status = CHECK_IN → IN_PROGRESS
+    V->>S: Check-in (action)
+    S->>S: Status = IN_PROGRESS
     S-->>PO: 🔔 Đang được khám
 
     Note over V: Staff khám + Ghi EMR
 
-    V->>S: Check-out
-    S->>S: Status = CHECK_OUT
-    S-->>PO: 💳 Yêu cầu thanh toán
-
-    PO->>S: Thanh toán (Cash/Online)
-    S->>S: Payment PAID
+    V->>S: Checkout (action)
     S->>S: Status = COMPLETED
     S-->>PO: ✅ Hoàn thành
 ```
@@ -181,8 +179,8 @@ sequenceDiagram
     S->>S: Status = ARRIVED
     R->>R: Stop GPS tracking
 
-    V->>S: Check-in → IN_PROGRESS → Check-out
-    S->>S: Status = COMPLETED
+    V->>S: Check-in (action) → Khám → Checkout (action)
+    S->>S: IN_PROGRESS → COMPLETED
 ```
 
 ---
@@ -191,7 +189,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[CHECK_OUT] --> B{Payment Method?}
+    A[IN_PROGRESS] --> B[Staff hoàn thành khám]
     B -->|CASH| C[Staff thu tiền]
     B -->|ONLINE| D[Pet Owner thanh toán online]
     

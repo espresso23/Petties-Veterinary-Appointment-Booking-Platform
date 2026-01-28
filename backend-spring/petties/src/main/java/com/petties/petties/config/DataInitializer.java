@@ -283,10 +283,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 1 for Bella - Viêm tai ngoài
                 EmrRecord emr1 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Chủ nuôi báo cáo: Bé gãi tai nhiều trong 3 ngày qua, có mùi hôi từ tai, lắc đầu thường xuyên.")
                         .objective(
@@ -322,10 +322,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 2 for Bella - Tái khám
                 EmrRecord emr2 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Tái khám sau 7 ngày điều trị viêm tai. Chủ nuôi cho biết bé đã bớt gãi, không còn lắc đầu nhiều.")
                         .objective(
@@ -354,10 +354,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Rocky - Tiêu chảy
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Bé tiêu chảy 2 ngày nay, phân lỏng có nhầy. Ăn ít, uống nước bình thường. Không nôn.")
                         .objective(
@@ -393,10 +393,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Mimi - Khám sức khỏe định kỳ
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Khám sức khỏe định kỳ. Chủ nuôi không có than phiền gì đặc biệt. Bé ăn uống bình thường, chơi đùa vui vẻ.")
                         .objective(

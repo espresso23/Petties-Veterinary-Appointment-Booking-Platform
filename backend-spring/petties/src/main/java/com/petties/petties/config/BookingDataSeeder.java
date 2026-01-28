@@ -129,7 +129,8 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 // Check if shifts already exist for next 7 days
                 LocalDate today = LocalDate.now();
-                List<StaffShift> existingShifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(vet.getUserId(), today);
+                List<StaffShift> existingShifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(vet.getUserId(),
+                                today);
                 if (!existingShifts.isEmpty()) {
                         log.info("   - Staff shifts already exist");
                         return;
@@ -431,22 +432,22 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 "123 Mỹ Khê, Ngũ Hành Sơn, Đà Nẵng", homeLat12, homeLng12,
                                 BigDecimal.valueOf(distKm12), BookingStatus.IN_PROGRESS);
 
-                // 2. TODAY - ASSIGNED (Home Visit - Ready for travel)
+                // 2. TODAY - CONFIRMED (Home Visit - Assigned staff, ready for vet to check-in)
                 double homeLat13 = 16.0280, homeLng13 = 108.2380;
                 double distKm13 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
                                 BigDecimal.valueOf(homeLat13), BigDecimal.valueOf(homeLng13));
                 createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(14, 0),
-                                String.format("[TODAY] Đã gán BS - TEST START TRAVEL (%.1fkm)", distKm13),
+                                String.format("[TODAY] Đã xác nhận - Chờ BS check-in (%.1fkm)", distKm13),
                                 findServicesByCategory(allServices, "VACCINATION", 1),
                                 "456 Ngô Quyền, Sơn Trà, Đà Nẵng", homeLat13, homeLng13,
-                                BigDecimal.valueOf(distKm13), BookingStatus.ASSIGNED);
+                                BigDecimal.valueOf(distKm13), BookingStatus.CONFIRMED);
 
-                // 3. TODAY - CHECK_IN (In Clinic - Waiting for Vet)
+                // 3. TODAY - CONFIRMED (In Clinic - Waiting for Vet to start service)
                 createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(10, 30),
-                                "[TODAY] Khách đã đến Check-in (Đợi bác sĩ)",
+                                "[TODAY] Khách đã đến - Chờ BS bắt đầu khám",
                                 findServicesByCategory(allServices, "DERMATOLOGY", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CHECK_IN);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED);
 
                 // 4. TODAY - COMPLETED (Finished earlier)
                 createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
@@ -617,7 +618,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create a home visit booking with custom status (for testing IN_PROGRESS)
-         * Also assigns vet for ASSIGNED/IN_PROGRESS/CHECK_IN statuses
+         * Also assigns vet for ASSIGNED/IN_PROGRESS statuses
          */
         private void createBookingWithStatus(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
@@ -641,10 +642,10 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 BigDecimal totalPrice = servicesTotal.add(distanceFee);
 
-                // Find a staff to assign for ASSIGNED/IN_PROGRESS/CHECK_IN statuses
+                // Find a staff to assign for ASSIGNED/IN_PROGRESS statuses
                 User assignedStaff = null;
                 if (status == BookingStatus.ASSIGNED || status == BookingStatus.IN_PROGRESS
-                                || status == BookingStatus.CHECK_IN || status == BookingStatus.CONFIRMED) {
+                                || status == BookingStatus.CONFIRMED) {
                         assignedStaff = userRepository.findByUsername("vet").orElse(null);
                         if (assignedStaff == null) {
                                 log.warn("vet user not found, booking will have no assigned staff");

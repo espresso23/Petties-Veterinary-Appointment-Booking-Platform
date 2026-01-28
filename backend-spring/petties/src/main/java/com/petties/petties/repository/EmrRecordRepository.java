@@ -20,7 +20,7 @@ public interface EmrRecordRepository extends MongoRepository<EmrRecord, String> 
 
     List<EmrRecord> findByClinicIdOrderByExaminationDateDesc(UUID clinicId);
 
-    List<EmrRecord> findByVetIdOrderByExaminationDateDesc(UUID vetId);
+    List<EmrRecord> findByStaffIdOrderByExaminationDateDesc(UUID staffId);
 
     boolean existsByBookingId(UUID bookingId);
 

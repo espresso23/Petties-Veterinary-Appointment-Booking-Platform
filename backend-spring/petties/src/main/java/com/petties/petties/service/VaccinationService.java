@@ -31,11 +31,11 @@ public class VaccinationService {
     private final UserRepository userRepository;
 
     @Transactional
-    public VaccinationResponse createVaccination(CreateVaccinationRequest request, UUID vetId) {
-        User vet = userRepository.findById(vetId)
-                .orElseThrow(() -> new ResourceNotFoundException("Vet not found"));
+    public VaccinationResponse createVaccination(CreateVaccinationRequest request, UUID staffId) {
+        User staff = userRepository.findById(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff not found"));
 
-        Clinic clinic = vet.getWorkingClinic();
+        Clinic clinic = staff.getWorkingClinic();
 
         Pet pet = petRepository.findById(request.getPetId())
                 .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
@@ -43,10 +43,10 @@ public class VaccinationService {
         VaccinationRecord record = VaccinationRecord.builder()
                 .petId(request.getPetId())
                 .bookingId(request.getBookingId())
-                .vetId(vetId)
+                .staffId(staffId)
                 .clinicId(clinic != null ? clinic.getClinicId() : null)
                 .clinicName(clinic != null ? clinic.getName() : "N/A")
-                .vetName(vet.getFullName())
+                .staffName(staff.getFullName())
                 .vaccineName(request.getVaccineName())
                 .batchNumber(request.getBatchNumber())
                 .vaccinationDate(request.getVaccinationDate())
