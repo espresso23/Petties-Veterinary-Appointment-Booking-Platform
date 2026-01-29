@@ -69,8 +69,8 @@ public class ClinicStaffService {
         }
 
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
-            if (request.getRole() != Role.VET) {
-                throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Bác sĩ");
+            if (request.getRole() != Role.STAFF) {
+                throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Nhân viên");
             }
             if (currentUser.getWorkingClinic() == null
                     || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
@@ -94,7 +94,7 @@ public class ClinicStaffService {
             // Assign to this clinic
             existingUser.setRole(request.getRole());
             existingUser.setWorkingClinic(clinic);
-            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+            if (request.getRole() == Role.STAFF && request.getSpecialty() != null) {
                 existingUser.setSpecialty(request.getSpecialty());
             }
             userRepository.save(existingUser);
@@ -106,7 +106,7 @@ public class ClinicStaffService {
             newUser.setUsername(request.getEmail()); // Use email as username
             newUser.setRole(request.getRole());
             newUser.setWorkingClinic(clinic);
-            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+            if (request.getRole() == Role.STAFF && request.getSpecialty() != null) {
                 newUser.setSpecialty(request.getSpecialty());
             }
             // Set random password - user must login via Google OAuth
@@ -137,10 +137,10 @@ public class ClinicStaffService {
     }
 
     /**
-     * Clinic Owner or Clinic Manager assigns a Vet
+     * Clinic Owner or Clinic Manager assigns a Staff member
      */
     @Transactional
-    public void assignVet(UUID clinicId, String usernameOrEmail) {
+    public void assignStaff(UUID clinicId, String usernameOrEmail) {
         User currentUser = authService.getCurrentUser();
 
         // Security Check: If current user is a MANAGER, they must belong to this clinic
@@ -153,8 +153,8 @@ public class ClinicStaffService {
 
         User user = findUserByUsernameOrEmail(usernameOrEmail);
 
-        if (user.getRole() != Role.VET) {
-            throw new IllegalArgumentException("User must have VET role");
+        if (user.getRole() != Role.STAFF) {
+            throw new IllegalArgumentException("User must have STAFF role");
         }
 
         assignToClinic(clinicId, user);
@@ -217,9 +217,9 @@ public class ClinicStaffService {
             throw new IllegalArgumentException("User does not belong to this clinic");
         }
 
-        // Only VETs have specialty
-        if (staff.getRole() != Role.VET) {
-            throw new IllegalArgumentException("Only VET staff can have specialty");
+        // Only STAFFs have specialty
+        if (staff.getRole() != Role.STAFF) {
+            throw new IllegalArgumentException("Only STAFF can have specialty");
         }
 
         // Authorization: CLINIC_OWNER must own the clinic

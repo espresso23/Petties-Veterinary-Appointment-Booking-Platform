@@ -295,7 +295,7 @@ flowchart TB
   - Chat message có metadata lưu tool_calls và citations
 - **Business Rules:**
   - BR-004: Response phải inline cite nguồn (format: [Tài liệu X, trang Y])
-  - BR-005: Nếu confidence < 0.6 → Thêm disclaimer "Tôi không chắc chắn, bạn nên hỏi bác sĩ"
+  - BR-005: Nếu confidence < 0.6 → Thêm disclaimer "Tôi không chắc chắn, bạn nên hỏi nhân viên"
 
 ---
 
@@ -314,7 +314,7 @@ flowchart TB
      - Viêm dạ dày ruột (90%)
      - Nhiễm trùng (70%)
      - Ngộ độc thức ăn (65%)
-  6. Agent tổng hợp và gợi ý: "Có thể mèo bị viêm dạ dày ruột. Nên đưa đến bác sĩ ngay."
+  6. Agent tổng hợp và gợi ý: "Có thể mèo bị viêm dạ dày ruột. Nên đưa đến nhân viên ngay."
   7. Agent hỏi: "Bạn có cần tôi tìm phòng khám gần bạn không?"
 - **Alternative Flow:**
   - AF1: Nếu không tìm thấy bệnh phù hợp → Gợi ý hỏi thêm triệu chứng
@@ -322,7 +322,7 @@ flowchart TB
 - **Postcondition:**
   - Conversation context được cập nhật với thông tin bệnh
 - **Business Rules:**
-  - BR-006: Luôn khuyến nghị đi khám thật, không thay thế bác sĩ
+  - BR-006: Luôn khuyến nghị đi khám thật, không thay thế nhân viên
   - BR-007: Nếu triệu chứng nguy hiểm → Hiển thị warning banner
 
 ---
@@ -441,7 +441,7 @@ flowchart TB
 
      Quy tắc:
      - Luôn lịch sự và thân thiện
-     - Nếu không chắc chắn, gợi ý hỏi bác sĩ
+     - Nếu không chắc chắn, gợi ý hỏi nhân viên
      - Cite nguồn khi dùng knowledge base
      ```
   4. Admin click "Save as New Version"
@@ -774,7 +774,7 @@ flowchart TB
      **Chunk 1** (Score: 0.89)
      Source: cham_soc_cho_meo.pdf (Page 12)
      Text: "Khi mèo bị sổ mũi, cần quan sát thêm các triệu chứng khác như sốt,
-            hắt hơi, chảy nước mắt. Nếu kéo dài > 3 ngày, nên đưa đến bác sĩ..."
+            hắt hơi, chảy nước mắt. Nếu kéo dài > 3 ngày, nên đưa đến nhân viên..."
 
      **Chunk 2** (Score: 0.82)
      Source: benh_thuong_gap_meo.pdf (Page 5)
@@ -1020,7 +1020,7 @@ As a **Pet Owner**, I want **to mô tả triệu chứng của pet và nhận t�
 - [ ] AC1: User mô tả triệu chứng (ví dụ: "mèo bỏ ăn, nôn")
 - [ ] AC2: Agent gọi tool symptom_search và trả về danh sách bệnh có thể
 - [ ] AC3: Agent giải thích từng bệnh với mức độ nghiêm trọng
-- [ ] AC4: Agent luôn gợi ý "Nên đưa đến bác sĩ để khám chính xác"
+- [ ] AC4: Agent luôn gợi ý "Nên đưa đến nhân viên để khám chính xác"
 - [ ] AC5: Nếu triệu chứng nguy hiểm (máu, co giật) → Hiển thị warning banner
 
 ---

@@ -144,7 +144,7 @@ export const ClinicManagerLayout = () => {
             title: 'QUẢN LÝ',
             items: [
                 { path: '/clinic-manager', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
-                { path: '/clinic-manager/vets', label: 'BÁC SĨ', icon: UserGroupIcon },
+                { path: '/clinic-manager/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
                 { path: '/clinic-manager/shifts', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
                 { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
                 { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },

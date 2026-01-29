@@ -34,15 +34,15 @@ public class EmrService {
          * Create a new EMR record
          */
         @org.springframework.transaction.annotation.Transactional
-        public EmrResponse createEmr(CreateEmrRequest request, UUID vetId) {
-                // Get vet info
-                User vet = userRepository.findById(vetId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Vet not found"));
+        public EmrResponse createEmr(CreateEmrRequest request, UUID staffId) {
+                // Get staff info
+                User staff = userRepository.findById(staffId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Staff not found"));
 
-                // Get clinic from vet's working clinic (Optional for Dev/Test)
-                Clinic clinic = vet.getWorkingClinic();
+                // Get clinic from staff's working clinic (Optional for Dev/Test)
+                Clinic clinic = staff.getWorkingClinic();
                 // if (clinic == null) {
-                // throw new RuntimeException("Vet is not assigned to any clinic");
+                // throw new RuntimeException("Staff is not assigned to any clinic");
                 // }
 
                 // Get pet info
@@ -76,10 +76,10 @@ public class EmrService {
                 EmrRecord emr = EmrRecord.builder()
                                 .petId(request.getPetId())
                                 .bookingId(request.getBookingId())
-                                .vetId(vetId)
+                                .staffId(staffId)
                                 .clinicId(clinic != null ? clinic.getClinicId() : null)
                                 .clinicName(clinic != null ? clinic.getName() : "N/A")
-                                .vetName(vet.getFullName())
+                                .staffName(staff.getFullName())
                                 .subjective(request.getSubjective())
                                 .objective(request.getObjective())
                                 .assessment(request.getAssessment())
@@ -112,15 +112,15 @@ public class EmrService {
         }
 
         /**
-         * Update EMR record (Only creator Vet & within 24h)
+         * Update EMR record (Only creator Staff & within 24h)
          */
         @org.springframework.transaction.annotation.Transactional
-        public EmrResponse updateEmr(String emrId, CreateEmrRequest request, UUID currentVetId) {
+        public EmrResponse updateEmr(String emrId, CreateEmrRequest request, UUID currentStaffId) {
                 EmrRecord emr = emrRecordRepository.findById(emrId)
                                 .orElseThrow(() -> new ResourceNotFoundException("EMR not found"));
 
-                // Rule 1: Only the creating Vet can edit
-                if (!emr.getVetId().equals(currentVetId)) {
+                // Rule 1: Only the creating Staff can edit
+                if (!emr.getStaffId().equals(currentStaffId)) {
                         throw new ForbiddenException(
                                         "Bạn không có quyền chỉnh sửa bệnh án này (Chỉ người tạo mới được sửa)");
                 }
@@ -251,10 +251,10 @@ public class EmrService {
                                 .id(emr.getId())
                                 .petId(emr.getPetId())
                                 .bookingId(emr.getBookingId())
-                                .vetId(emr.getVetId())
+                                .staffId(emr.getStaffId())
                                 .clinicId(emr.getClinicId())
                                 .clinicName(emr.getClinicName())
-                                .vetName(emr.getVetName())
+                                .staffName(emr.getStaffName())
                                 .petName(petName)
                                 .petSpecies(petSpecies)
                                 .petBreed(petBreed)

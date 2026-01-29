@@ -61,12 +61,12 @@
 
 ```
 1. Dashboard → Xem booking mới (PENDING)
-2. Chọn booking → Gán bác sĩ
+2. Chọn booking → Gán nhân viên
 3. Xác nhận → Status: ASSIGNED
-4. Bác sĩ nhận thông báo
+4. Nhân viên nhận thông báo
 ```
 
-**Actor:** Vet (Mobile/Web)
+**Actor:** Staff (Mobile/Web)
 
 ```
 1. Xem lịch hẹn → Booking mới (ASSIGNED)
@@ -78,7 +78,7 @@
 
 ## 4. HF-004: Thực hiện khám (Medical Service)
 
-**Actor:** Vet (Mobile/Web)
+**Actor:** Staff (Mobile/Web)
 
 ```
 1. Pet Owner đến phòng khám
@@ -120,7 +120,7 @@
 ```
 1. Khi đặt lịch → Chọn "Tiền mặt"
 2. Payment status: UNPAID
-3. Checkout → Vet thu tiền
+3. Checkout → Staff thu tiền
 4. Xác nhận → Payment status: PAID
 ```
 
@@ -131,7 +131,7 @@
 **Actor:** Pet Owner (Mobile)
 
 ```
-1. Sau khi COMPLETED → Popup đánh giá bác sĩ
+1. Sau khi COMPLETED → Popup đánh giá nhân viên
 2. Chọn 1-5 sao → Submit (hoặc Skip)
 3. Sau 24h → Nhận thông báo "Đánh giá phòng khám"
 4. Chọn 1-5 sao + Viết nhận xét → Submit
@@ -148,7 +148,7 @@
 2. Tab "Hồ sơ bệnh án" → Danh sách EMR
 3. Chọn EMR → Xem chi tiết:
    - Ngày khám
-   - Bác sĩ
+   - Nhân viên
    - Chẩn đoán
    - Đơn thuốc
 4. Tab "Tiêm chủng" → Lịch sử tiêm + nhắc nhở
@@ -163,14 +163,14 @@
 ```
 1. Dashboard → "Quản lý nhân viên" (Staff Management)
 2. Chọn "Thêm nhân viên" (Quick Add)
-3. Nhập: Email, Vai trò (Vet/Manager), Specialty (nếu Vet)
+3. Nhập: Email, Vai trò (Staff/Manager), Specialty (nếu Staff)
 4. Lưu → Tài khoản được tạo ngay lập tức (Status: ACTIVE)
 5. Nhân viên đăng nhập bằng: Google OAuth (Email đã mời)
 ```
 
 ---
 
-## 9. HF-009: Quản lý lịch bác sĩ (Clinic Manager)
+## 9. HF-009: Quản lý lịch nhân viên (Clinic Manager)
 
 **Actor:** Clinic Manager (Web)
 
@@ -178,7 +178,7 @@
 
 ```
 1. Dashboard → "Lịch làm việc"
-2. Chọn bác sĩ → Chọn ngày/tuần/tháng
+2. Chọn nhân viên → Chọn ngày/tuần/tháng
 3. Click vào ô trống → Popup "Thêm ca"
 4. Nhập: Giờ bắt đầu, Giờ kết thúc, Giờ nghỉ (optional)
 5. Lưu → Slots tự động tạo (mỗi 30 phút)
@@ -198,7 +198,7 @@
 ### 9.3 Quản lý lịch đã có
 
 ```
-1. Xem lịch tuần/tháng → Thấy ca của tất cả bác sĩ
+1. Xem lịch tuần/tháng → Thấy ca của tất cả nhân viên
 2. Click ca → Xem chi tiết: slots booked/available
 3. Sửa ca → Chỉ được nếu không có booking
 4. Xóa ca → Chỉ được nếu không có booking
@@ -206,9 +206,9 @@
 
 ---
 
-## 10. HF-010: Vet xem và quản lý lịch cá nhân
+## 10. HF-010: Staff xem và quản lý lịch cá nhân
 
-**Actor:** Vet (Mobile/Web)
+**Actor:** Staff (Mobile/Web)
 
 ### 10.1 Xem lịch làm việc
 
@@ -240,7 +240,7 @@
 1. Chọn ca → "Yêu cầu thay đổi"
 2. Nhập lý do
 3. Gửi → Manager nhận thông báo
-4. Manager approve/reject → Vet nhận kết quả
+4. Manager approve/reject → Staff nhận kết quả
 ```
 
 ---
@@ -279,7 +279,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
 
 ## 12. HF-012: Đổi Email (Change Email)
 
-**Actor:** Pet Owner, Vet, Clinic Owner, Clinic Manager
+**Actor:** Pet Owner, Staff, Clinic Owner, Clinic Manager
 
 ```
 1. Profile Page → Click icon "Edit" cạnh Email
@@ -296,9 +296,9 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
 
 ---
 
-## 13. HF-013: Assign Vet to Booking (Chi tiết)
+## 13. HF-013: Assign Staff to Booking (Chi tiết)
 
-**Actors:** Pet Owner (Mobile), Clinic Manager (Web), Vet (Mobile/Web)
+**Actors:** Pet Owner (Mobile), Clinic Manager (Web), Staff (Mobile/Web)
 
 > 📌 **Nguyên tắc:** Mỗi slot = 30 phút. Dịch vụ dù ngắn hơn 30 phút vẫn chiếm tối thiểu 1 slot.
 
@@ -334,7 +334,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    - total_price: 150,000 VND
 
 ✅ NOTIFICATION created → Clinic Manager
-   - "Booking mới #B001 cần gán bác sĩ"
+   - "Booking mới #B001 cần gán nhân viên"
 ```
 
 ---
@@ -356,7 +356,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
 
 ---
 
-#### Phase 3: Manager Gán Vet
+#### Phase 3: Manager Gán Staff
 
 ```
 1. Manager click vào booking #B001
@@ -372,8 +372,8 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    │ 📝 Ghi chú: (không có)                  │
    └─────────────────────────────────────────┘
 
-3. Click nút "Gán Bác sĩ"
-4. Hệ thống query: Tìm VET có slot 09:00 AVAILABLE ngày 25/12
+3. Click nút "Gán Nhân viên"
+4. Hệ thống query: Tìm STAFF có slot 09:00 AVAILABLE ngày 25/12
    
    SELECT v.id, v.full_name, shift.start_time, shift.end_time
    FROM users v
@@ -384,7 +384,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
      AND s.start_time = '09:00'
      AND s.status = 'AVAILABLE';
 
-5. Popup hiển thị danh sách Vet khả dụng:
+5. Popup hiển thị danh sách Staff khả dụng:
    ┌─────────────────────────────────────────┐
    │ CHỌN BÁC SĨ CHO SLOT 09:00             │
    ├─────────────────────────────────────────┤
@@ -422,7 +422,7 @@ UPDATE bookings SET
     status = 'ASSIGNED'
 WHERE id = 'B001';
 
--- 4. Create notification for Vet
+-- 4. Create notification for Staff
 INSERT INTO notifications (user_id, type, title, content)
 VALUES ([Dr.Minh_id], 'BOOKING', 'Booking mới', 
         'Bạn được gán booking #B001 - Tiêm Vaccine lúc 09:00');
@@ -434,14 +434,14 @@ COMMIT;
 ```
 ✅ Toast: "Đã gán Dr. Minh cho booking #B001"
 ✅ Booking status badge: PENDING → ASSIGNED (màu vàng)
-✅ Vet nhận push notification
+✅ Staff nhận push notification
 ```
 
 ---
 
-#### Phase 4: Vet Nhận Assignment (Không cần Accept/Reject)
+#### Phase 4: Staff Nhận Assignment (Không cần Accept/Reject)
 
-> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Khi Manager assign, booking tự động CONFIRMED.
+> 💡 **Lưu ý:** Staff KHÔNG có quyền Accept/Reject. Khi Manager assign, booking tự động CONFIRMED.
 
 **Khi Manager assign xong:**
 
@@ -449,7 +449,7 @@ COMMIT;
 1. System tự động:
    - Status: ASSIGNED → CONFIRMED
    - Notify Pet Owner: "Lịch hẹn đã xác nhận"
-   - Notify Vet: "Bạn có lịch hẹn mới"
+   - Notify Staff: "Bạn có lịch hẹn mới"
 
 2. Dr. Minh nhận notification trên app
 3. Click vào → Xem chi tiết booking:
@@ -464,7 +464,7 @@ COMMIT;
    ├─────────────────────────────────────────┤
    │   [📞 GỌI CHỦ PET]   [🗺️ XEM ĐỊA CHỈ]   │
    └─────────────────────────────────────────┘
-4. Vet chuẩn bị thực hiện dịch vụ vào giờ hẹn
+4. Staff chuẩn bị thực hiện dịch vụ vào giờ hẹn
 ```
 
 **Database Changes (khi Manager assign):**
@@ -480,7 +480,7 @@ INSERT INTO notifications (user_id, type, title, content)
 VALUES ([PetOwner_id], 'BOOKING', 'Lịch hẹn đã xác nhận', 
         'Dr. Minh sẽ khám Tiêm Vaccine lúc 09:00 ngày 25/12');
 
--- 3. Notify Vet
+-- 3. Notify Staff
 INSERT INTO notifications (user_id, type, title, content)
 VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới', 
         'Bạn được gán booking #B001 - Tiêm Vaccine lúc 09:00');
@@ -490,7 +490,7 @@ VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới',
 ```
 ✅ Manager Dashboard: Toast "Đã gán Dr. Minh cho booking #B001"
 ✅ Booking status badge: PENDING → CONFIRMED (màu xanh)
-✅ Vet nhận push notification
+✅ Staff nhận push notification
 ✅ Pet Owner nhận push notification xác nhận
 ```
 
@@ -506,16 +506,16 @@ VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới',
 3. Hệ thống check: slot 14:00 + 14:30 đều AVAILABLE?
    - Nếu cả 2 trống → ✅ Hiển thị 14:00
    - Nếu thiếu 1 slot → ❌ Không hiển thị 14:00
-4. Manager gán Vet → Hệ thống lock CẢ 2 slots:
+4. Manager gán Staff → Hệ thống lock CẢ 2 slots:
    - slot 14:00: BOOKED
    - slot 14:30: BOOKED
 5. Tạo 2 records trong BOOKING_SLOT:
    - (booking_id, slot_14:00)
    - (booking_id, slot_14:30)
-6. Status tự động CONFIRMED (không cần Vet accept)
+6. Status tự động CONFIRMED (không cần Staff accept)
 ```
 
-**Query tìm Vet có đủ 2 slot liên tiếp:**
+**Query tìm Staff có đủ 2 slot liên tiếp:**
 ```sql
 SELECT v.id, v.full_name
 FROM users v
@@ -573,20 +573,20 @@ WHERE shift.clinic_id = 'ABC'
 
 | Case | Xử lý |
 |------|-------|
-| Không có Vet nào có slot trống | Hiển thị "Không có bác sĩ khả dụng. Vui lòng chọn giờ khác." |
-| Vet được gán nhưng shift bị hủy | Manager tự động được notify để gán lại |
-| Pet Owner hủy lúc ASSIGNED | Slot được restore, Vet được notify |
+| Không có Staff nào có slot trống | Hiển thị "Không có nhân viên khả dụng. Vui lòng chọn giờ khác." |
+| Staff được gán nhưng shift bị hủy | Manager tự động được notify để gán lại |
+| Pet Owner hủy lúc ASSIGNED | Slot được restore, Staff được notify |
 | Double-assign (race condition) | Database constraint + Transaction isolation |
 
 ---
 
 ## 14. HF-014: SOS Emergency Geo-Tracking (Real-time)
 
-**Actors:** Vet (Mobile), Pet Owner (Mobile), System
+**Actors:** Staff (Mobile), Pet Owner (Mobile), System
 
 > 📌 **Áp dụng cho:** Tất cả booking có `type = SOS` (Cấp cứu khẩn cấp)
 > 
-> 🗺️ **Tính năng:** Tracking vị trí bác sĩ realtime giống Grab/Gojek
+> 🗺️ **Tính năng:** Tracking vị trí nhân viên realtime giống Grab/Gojek
 
 ### 14.1 Preconditions
 
@@ -594,7 +594,7 @@ WHERE shift.clinic_id = 'ABC'
 ✅ Booking type = SOS (Emergency)
 ✅ Booking status = CONFIRMED hoặc ASSIGNED (SOS mode)
 ✅ Đến giờ hẹn (hoặc trước 30 phút)
-✅ Vet app có quyền GPS
+✅ Staff app có quyền GPS
 ✅ Pet Owner app có internet
 ```
 
@@ -602,12 +602,12 @@ WHERE shift.clinic_id = 'ABC'
 
 ### 14.2 Kịch bản Chi Tiết
 
-#### Phase 1: Vet Bắt Đầu Di Chuyển (Start Travel)
+#### Phase 1: Staff Bắt Đầu Di Chuyển (Start Travel)
 
-**Actor:** Vet (Mobile)
+**Actor:** Staff (Mobile)
 
 ```
-1. Vet mở app → Tab "Lịch hẹn hôm nay"
+1. Staff mở app → Tab "Lịch hẹn hôm nay"
 2. Thấy booking HOME_VISIT với badge "CONFIRMED"
 3. Click vào booking → Chi tiết hiển thị:
    ┌─────────────────────────────────────────┐
@@ -623,7 +623,7 @@ WHERE shift.clinic_id = 'ABC'
    │         [🚗 BẮT ĐẦU DI CHUYỂN]          │
    └─────────────────────────────────────────┘
 
-4. Vet click "Bắt đầu di chuyển"
+4. Staff click "Bắt đầu di chuyển"
 5. App yêu cầu quyền GPS (nếu chưa có)
 6. Confirm popup: "Bắt đầu tracking vị trí?"
 7. Click "Xác nhận"
@@ -640,7 +640,7 @@ WHERE id = 'B001';
 
 -- 2. Notify Pet Owner
 INSERT INTO notifications (user_id, type, title, content)
-VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đang đến!', 
+VALUES ([PetOwner_id], 'BOOKING', 'Nhân viên đang đến!', 
         'Dr. Minh đã bắt đầu di chuyển đến nhà bạn.');
 ```
 
@@ -649,7 +649,7 @@ VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đang đến!',
 ✅ Booking status: CONFIRMED → ON_THE_WAY
 ✅ GPS tracking started (interval: 30 giây)
 ✅ Push notification → Pet Owner
-✅ Vet app hiển thị: "Đang tracking vị trí..."
+✅ Staff app hiển thị: "Đang tracking vị trí..."
 ```
 
 ---
@@ -660,7 +660,7 @@ VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đang đến!',
 
 ```
 Trong khi status = ON_THE_WAY:
-  1. App Vet gửi GPS coordinates mỗi 30 giây
+  1. App Staff gửi GPS coordinates mỗi 30 giây
   2. System cập nhật vào booking:
      - vet_current_lat
      - vet_current_long
@@ -695,7 +695,7 @@ PUT /api/bookings/B001/location
 **Actor:** Pet Owner (Mobile)
 
 ```
-1. Pet Owner nhận push notification: "Bác sĩ cứu hộ đang đến!"
+1. Pet Owner nhận push notification: "Nhân viên cứu hộ đang đến!"
 2. Click vào notification → Mở app
 3. Xem booking detail → Tab "SOS Tracking"
 4. Bản đồ hiển thị:
@@ -724,7 +724,7 @@ PUT /api/bookings/B001/location
 6. Pet Owner có thể:
    - Phóng to/thu nhỏ bản đồ
    - Xem đường đi dự kiến
-   - Gọi điện cho bác sĩ
+   - Gọi điện cho nhân viên
 ```
 
 **Tech Implementation:**
@@ -743,14 +743,14 @@ PUT /api/bookings/B001/location
 
 ```
 Khi khoảng cách <= 500m:
-  1. System detect: Vet sắp đến nơi
+  1. System detect: Staff sắp đến nơi
   2. Trigger notification → Pet Owner
 ```
 
 **Push Notification:**
 ```json
 {
-    "title": "Bác sĩ sắp đến!",
+    "title": "Nhân viên sắp đến!",
     "body": "Dr. Minh còn cách nhà bạn khoảng 500m. Vui lòng chuẩn bị.",
     "data": {
         "booking_id": "B001",
@@ -767,7 +767,7 @@ Khi khoảng cách <= 500m:
 │ 🚗 Dr. Minh sắp đến!                   │
 │ Còn ~500m • 2 phút nữa                 │
 │                                         │
-│ Vui lòng chuẩn bị đón bác sĩ.          │
+│ Vui lòng chuẩn bị đón nhân viên.          │
 │         [XEM BẢN ĐỒ]                    │
 └─────────────────────────────────────────┘
 ```
@@ -776,10 +776,10 @@ Khi khoảng cách <= 500m:
 
 #### Phase 5: Thông Báo Đến Nơi
 
-**Actor:** Vet (Mobile)
+**Actor:** Staff (Mobile)
 
 ```
-1. Vet đến địa chỉ khách hàng
+1. Staff đến địa chỉ khách hàng
 2. App hiển thị popup:
    ┌─────────────────────────────────────────┐
    │ 📍 BẠN ĐÃ ĐẾN ĐỊA CHỈ                  │
@@ -791,14 +791,14 @@ Khi khoảng cách <= 500m:
    │         [✅ ĐÃ ĐẾN NƠI]                 │
    └─────────────────────────────────────────┘
 
-3. Vet click "Đã đến nơi"
+3. Staff click "Đã đến nơi"
 ```
 
 **System Actions:**
 ```sql
 -- 1. Notify Pet Owner
 INSERT INTO notifications (user_id, type, title, content)
-VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đã đến!', 
+VALUES ([PetOwner_id], 'BOOKING', 'Nhân viên đã đến!', 
         'Dr. Minh đã đến địa chỉ nhà bạn. Vui lòng ra đón.');
 ```
 
@@ -809,7 +809,7 @@ VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đã đến!',
 ├─────────────────────────────────────────┤
 │ 👨‍⚕️ Dr. Minh đã đến địa chỉ của bạn.    │
 │                                         │
-│ Vui lòng ra đón bác sĩ.                │
+│ Vui lòng ra đón nhân viên.                │
 │                                         │
 │   [📞 GỌI ĐIỆN]    [💬 NHẮN TIN]        │
 └─────────────────────────────────────────┘
@@ -819,12 +819,12 @@ VALUES ([PetOwner_id], 'BOOKING', 'Bác sĩ đã đến!',
 
 #### Phase 6: Check-in Tại Nhà
 
-**Actor:** Vet (Mobile)
+**Actor:** Staff (Mobile)
 
 ```
-1. Pet Owner ra đón bác sĩ
-2. Vet gặp pet và owner
-3. Vet click "Check-in" trên app:
+1. Pet Owner ra đón nhân viên
+2. Staff gặp pet và owner
+3. Staff click "Check-in" trên app:
    ┌─────────────────────────────────────────┐
    │ 🏠 HOME VISIT CHECK-IN                  │
    ├─────────────────────────────────────────┤
@@ -852,9 +852,9 @@ WHERE id = 'B001';
 
 ```
 CONFIRMED
-    ↓ (Vet click "Bắt đầu di chuyển")
+    ↓ (Staff click "Bắt đầu di chuyển")
 ON_THE_WAY  ← GPS tracking ACTIVE
-    ↓ (Vet click "Check-in")
+    ↓ (Staff click "Check-in")
 CHECK_IN    ← GPS tracking STOPPED
     ↓ (Bắt đầu khám)
 IN_PROGRESS
@@ -873,8 +873,8 @@ COMPLETED
 | `booking.type` | ENUM | = 'HOME_VISIT' |
 | `booking.status` | ENUM | CONFIRMED → ON_THE_WAY → CHECK_IN → ... |
 | `booking.home_address` | VARCHAR | Địa chỉ nhà khách |
-| `booking.vet_current_lat` | DECIMAL | Latitude hiện tại của Vet |
-| `booking.vet_current_long` | DECIMAL | Longitude hiện tại của Vet |
+| `booking.vet_current_lat` | DECIMAL | Latitude hiện tại của Staff |
+| `booking.vet_current_long` | DECIMAL | Longitude hiện tại của Staff |
 | `booking.distance_km` | DECIMAL | Khoảng cách tính từ clinic |
 
 ---
@@ -883,10 +883,10 @@ COMPLETED
 
 | Thời điểm | Notification | Gửi đến |
 |-----------|--------------|---------|
-| Vet click "Bắt đầu di chuyển" | "Bác sĩ đang đến!" | Pet Owner |
-| Khoảng cách <= 500m | "Bác sĩ sắp đến!" | Pet Owner |
-| Vet click "Đã đến nơi" | "Bác sĩ đã đến!" | Pet Owner |
-| Vet check-in | "Bắt đầu khám" | Pet Owner |
+| Staff click "Bắt đầu di chuyển" | "Nhân viên đang đến!" | Pet Owner |
+| Khoảng cách <= 500m | "Nhân viên sắp đến!" | Pet Owner |
+| Staff click "Đã đến nơi" | "Nhân viên đã đến!" | Pet Owner |
+| Staff check-in | "Bắt đầu khám" | Pet Owner |
 
 ---
 
@@ -894,11 +894,11 @@ COMPLETED
 
 | Case | Xử lý |
 |------|-------|
-| Vet mất GPS signal | Hiển thị vị trí cuối cùng + badge "GPS yếu" |
+| Staff mất GPS signal | Hiển thị vị trí cuối cùng + badge "GPS yếu" |
 | Pet Owner không có internet | Cache vị trí cuối, hiển thị khi có mạng |
-| Vet đi sai đường / delay | ETA tự động update |
-| Vet hủy giữa chừng | Notify Pet Owner + Manager, status = CANCELLED |
-| Pet Owner không ở nhà | Vet gọi điện, nếu không được → NO_SHOW |
+| Staff đi sai đường / delay | ETA tự động update |
+| Staff hủy giữa chừng | Notify Pet Owner + Manager, status = CANCELLED |
+| Pet Owner không ở nhà | Staff gọi điện, nếu không được → NO_SHOW |
 
 ---
 
@@ -924,9 +924,9 @@ COMPLETED
 
 ---
 
-## 15. HF-015: Chat 1-1 (Pet Owner ↔ Manager/Vet)
+## 15. HF-015: Chat 1-1 (Pet Owner ↔ Manager/Staff)
 
-**Actors:** Pet Owner (Mobile), Clinic Manager (Web), Vet (Mobile/Web)
+**Actors:** Pet Owner (Mobile), Clinic Manager (Web), Staff (Mobile/Web)
 
 > 📌 **Mục đích:** Giao tiếp trực tiếp giữa Pet Owner với nhân viên Clinic về booking
 
@@ -967,17 +967,17 @@ COMPLETED
 
 ---
 
-### 15.3 Kịch bản: Pet Owner Chat với Vet
+### 15.3 Kịch bản: Pet Owner Chat với Staff
 
-**Trigger:** Sau khi Vet được gán cho booking (status = ASSIGNED)
+**Trigger:** Sau khi Staff được gán cho booking (status = ASSIGNED)
 
 ```
 1. Pet Owner mở chi tiết booking
-2. Thấy thông tin Vet được gán
-3. Nút "💬 Chat với Bác sĩ" xuất hiện
-4. Click → Mở chat với Vet
-5. Nhắn: "Bác sĩ ơi, mèo em bị nôn từ sáng..."
-6. Vet nhận notification + reply
+2. Thấy thông tin Staff được gán
+3. Nút "💬 Chat với Nhân viên" xuất hiện
+4. Click → Mở chat với Staff
+5. Nhắn: "Nhân viên ơi, mèo em bị nôn từ sáng..."
+6. Staff nhận notification + reply
 ```
 
 ---
@@ -1335,7 +1335,7 @@ CREATE TABLE chat_messages (
    │ [Avatar] Dr. Lan ⭐4.7                  │
    ├─────────────────────────────────────────┤
    │ 💬 ĐÁNH GIÁ GẦN ĐÂY                     │
-   │ ⭐⭐⭐⭐⭐ - "Bác sĩ rất tận tình..."    │
+   │ ⭐⭐⭐⭐⭐ - "Nhân viên rất tận tình..."    │
    │ ⭐⭐⭐⭐☆ - "Phòng khám sạch sẽ..."      │
    │ [Xem tất cả 120 đánh giá →]            │
    ├─────────────────────────────────────────┤
@@ -1354,7 +1354,7 @@ CREATE TABLE chat_messages (
 | `/api/clinics/nearby` | GET | Lấy phòng khám gần vị trí (lat, long, radius) |
 | `/api/clinics/{id}` | GET | Chi tiết phòng khám |
 | `/api/clinics/{id}/services` | GET | Danh sách dịch vụ |
-| `/api/clinics/{id}/vets` | GET | Danh sách bác sĩ |
+| `/api/clinics/{id}/vets` | GET | Danh sách nhân viên |
 | `/api/clinics/{id}/reviews` | GET | Đánh giá phòng khám |
 | `/api/clinics/search` | GET | Tìm kiếm theo tên/địa chỉ |
 
@@ -1378,7 +1378,7 @@ LIMIT 20;
 
 ---
 
-## 18. HF-018: Đánh Giá Clinic & Vet Sau Khám
+## 18. HF-018: Đánh Giá Clinic & Staff Sau Khám
 
 **Actors:** Pet Owner (Mobile)
 
@@ -1400,7 +1400,7 @@ LIMIT 20;
 
 ```
 1. Booking status chuyển → COMPLETED
-2. App hiển thị popup đánh giá bác sĩ:
+2. App hiển thị popup đánh giá nhân viên:
    ┌─────────────────────────────────────────┐
    │ ⭐ ĐÁNH GIÁ BÁC SĨ                      │
    ├─────────────────────────────────────────┤
@@ -1414,7 +1414,7 @@ LIMIT 20;
    ├─────────────────────────────────────────┤
    │ Nhận xét (tùy chọn):                    │
    │ ┌─────────────────────────────────────┐ │
-   │ │ Bác sĩ rất tận tình và chuyên      │ │
+   │ │ Nhân viên rất tận tình và chuyên      │ │
    │ │ nghiệp, mèo của tôi đã...          │ │
    │ └─────────────────────────────────────┘ │
    ├─────────────────────────────────────────┤
@@ -1432,10 +1432,10 @@ INSERT INTO vet_reviews (
     booking_id, pet_owner_id, vet_id, rating, comment, created_at
 ) VALUES (
     'B001', 'owner_123', 'vet_minh', 5, 
-    'Bác sĩ rất tận tình...', NOW()
+    'Nhân viên rất tận tình...', NOW()
 );
 
--- Update Vet's average rating
+-- Update Staff's average rating
 UPDATE users SET 
     rating_avg = (SELECT AVG(rating) FROM vet_reviews WHERE vet_id = 'vet_minh'),
     rating_count = (SELECT COUNT(*) FROM vet_reviews WHERE vet_id = 'vet_minh')
@@ -1523,7 +1523,7 @@ WHERE clinic_id = 'clinic_abc';
    ├─────────────────────────────────────────┤
    │ 👨‍⚕️ Dr. Minh Nguyễn      ⭐⭐⭐⭐⭐    │
    │    25/12/2024 | Tiêm vaccine           │
-   │    "Bác sĩ rất tận tình..."            │
+   │    "Nhân viên rất tận tình..."            │
    │    [Sửa] [Xóa]                          │
    └─────────────────────────────────────────┘
 
@@ -1549,7 +1549,7 @@ WHERE clinic_id = 'clinic_abc';
 
 | Thời điểm | Notification | Gửi đến |
 |-----------|--------------|---------|
-| Booking COMPLETED | "Đánh giá bác sĩ?" (popup) | Pet Owner |
+| Booking COMPLETED | "Đánh giá nhân viên?" (popup) | Pet Owner |
 | +24 giờ | "Đánh giá phòng khám?" | Pet Owner |
 | +48 giờ (nếu chưa đánh giá) | "Nhắc: Đánh giá phòng khám ABC" | Pet Owner |
 | Sau 7 ngày | Không nhắc nữa | - |

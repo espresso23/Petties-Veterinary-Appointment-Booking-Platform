@@ -68,8 +68,11 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         // Appointments Tab (switched via body)
         break;
       case 3:
-        // For Profile, you might keep pushing route if it's a separate screen
-        // Or if you want it embedded, implement MyProfileTab
+        // Chat Tab - Navigate to chat list
+        context.push(AppRoutes.chatList);
+        break;
+      case 4:
+        // Profile - Navigate to profile screen
         context.push(AppRoutes.profile);
         break;
     }
@@ -496,6 +499,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
               icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
           BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
           BottomNavigationBarItem(
               icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
         ],

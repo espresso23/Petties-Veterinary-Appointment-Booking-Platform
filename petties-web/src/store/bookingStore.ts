@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import { getBookingsByClinic, getBookingsByVet } from '../services/bookingService'
+import { getBookingsByClinic, getBookingsByStaff } from '../services/bookingService'
 import type { BookingStatus } from '../types/booking'
 
 interface BookingState {
   // Booking counts for sidebar badges
   pendingBookingCount: number  // For Manager: PENDING bookings count
-  assignedBookingCount: number // For Vet: ASSIGNED bookings count
+  assignedBookingCount: number // For Staff: ASSIGNED bookings count
   isLoading: boolean
 
   // Actions
@@ -16,7 +16,7 @@ interface BookingState {
   decrementPendingBookingCount: () => void
   decrementAssignedBookingCount: () => void
   refreshPendingBookingCount: (clinicId: string) => Promise<void>
-  refreshAssignedBookingCount: (vetId: string) => Promise<void>
+  refreshAssignedBookingCount: (staffId: string) => Promise<void>
   reset: () => void
 }
 
@@ -75,11 +75,11 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     }
   },
 
-  refreshAssignedBookingCount: async (vetId: string) => {
+  refreshAssignedBookingCount: async (staffId: string) => {
     try {
       set({ isLoading: true })
-      // Fetch ASSIGNED bookings count for Vet
-      const response = await getBookingsByVet(vetId, 'ASSIGNED' as BookingStatus, 0, 1)
+      // Fetch ASSIGNED bookings count for Staff
+      const response = await getBookingsByStaff(staffId, 'ASSIGNED' as BookingStatus, 0, 1)
       set({ assignedBookingCount: response.totalElements, isLoading: false })
     } catch (error) {
       console.error('Failed to refresh assigned booking count:', error)

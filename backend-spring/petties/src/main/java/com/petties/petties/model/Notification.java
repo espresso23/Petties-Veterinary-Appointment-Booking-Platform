@@ -18,7 +18,7 @@ import java.util.UUID;
  *
  * Types:
  * - Clinic status (APPROVED, REJECTED, PENDING) - for Clinic Owners
- * - VetShift notifications (VET_SHIFT_*) - for Vets
+ * - StaffShift notifications (STAFF_SHIFT_*) - for Staff
  */
 @Entity
 @Table(name = "notifications", indexes = {
@@ -49,10 +49,10 @@ public class Notification {
     @org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
     private Clinic clinic;
 
-    // For VetShift-related notifications
+    // For StaffShift-related notifications
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id")
-    private VetShift shift;
+    private StaffShift shift;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)

@@ -79,7 +79,7 @@ class BookingStatusTransitionTest {
         testBooking.setPet(pet);
         testBooking.setPetOwner(petOwner);
         testBooking.setClinic(clinic);
-        testBooking.setAssignedVet(vet);
+        testBooking.setAssignedStaff(vet);
         testBooking.setBookingDate(LocalDate.now());
         testBooking.setBookingTime(LocalTime.of(10, 0));
         testBooking.setType(BookingType.HOME_VISIT);
@@ -219,7 +219,7 @@ class BookingStatusTransitionTest {
 
             // Then
             assertThat(response).isNotNull();
-            verify(notificationService).sendVetOnWayNotification(testBooking);
+            verify(notificationService).sendStaffOnWayNotification(testBooking);
             // Status should NOT change
             assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.ASSIGNED);
         }
@@ -237,7 +237,7 @@ class BookingStatusTransitionTest {
 
             // Then
             assertThat(response).isNotNull();
-            verify(notificationService).sendVetOnWayNotification(testBooking);
+            verify(notificationService).sendStaffOnWayNotification(testBooking);
         }
 
         @Test

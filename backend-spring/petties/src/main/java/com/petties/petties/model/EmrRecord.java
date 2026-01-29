@@ -36,12 +36,12 @@ public class EmrRecord {
     @Indexed
     private UUID bookingId;
 
-    private UUID vetId;
+    private UUID staffId;
     private UUID clinicId;
 
     // Denormalized for display
     private String clinicName;
-    private String vetName;
+    private String staffName;
 
     // ========== SOAP NOTES ==========
     private String subjective; // S - Triệu chứng do chủ nuôi mô tả

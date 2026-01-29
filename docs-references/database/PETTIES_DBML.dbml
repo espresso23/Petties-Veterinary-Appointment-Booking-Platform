@@ -1,0 +1,852 @@
+// =============================================================================
+// PETTIES DATABASE SCHEMA - PostgreSQL
+// =============================================================================
+// Project: Petties - Veterinary Appointment Booking Platform
+// Generated: 2025-01-26
+// Version: 1.0
+//
+// Instructions:
+// 1. Copy this entire file content
+// 2. Go to https://dbdiagram.io/
+// 3. Paste into the editor
+// 4. Export as PNG/PDF for documentation
+// =============================================================================
+
+Project Petties {
+  database_type: 'PostgreSQL'
+  Note: '''
+    # Petties Database Schema
+
+    Veterinary Appointment Booking Platform
+
+    ## Database Groups:
+
+    ### Spring Boot Backend (17 tables):
+    - **Auth & User**: users, refresh_tokens, blacklisted_tokens
+    - **Pet**: pets
+    - **Clinic**: clinics, clinic_images, clinic_price_per_km
+    - **Services**: master_services, clinic_services, service_weight_prices
+    - **Scheduling**: staff_shifts, slots
+    - **Booking**: bookings, booking_service_items, booking_slots, payments
+    - **Notification**: notifications
+
+    ### AI Agent Service (7 tables):
+    - **Agent Config**: ai_agents, ai_tools, ai_prompt_versions
+    - **Chat History**: ai_chat_sessions, ai_chat_messages
+    - **RAG**: ai_knowledge_documents
+    - **Settings**: ai_system_settings
+  '''
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+Enum role {
+  PET_OWNER
+  STAFF
+  CLINIC_MANAGER
+  CLINIC_OWNER
+  ADMIN
+}
+
+Enum staff_role {
+  STAFF
+  CLINIC_MANAGER
+}
+
+Enum staff_specialty {
+  VET_GENERAL [note: 'General veterinarian']
+  VET_SURGERY [note: 'Surgical specialist']
+  VET_DENTAL [note: 'Veterinary dentist']
+  VET_DERMATOLOGY [note: 'Veterinary dermatologist']
+  GROOMER [note: 'Grooming staff']
+}
+
+Enum staff_status {
+  ACTIVE
+  INACTIVE
+}
+
+Enum service_category {
+  GROOMING_SPA
+  VACCINATION
+  CHECK_UP
+  SURGERY
+  DENTAL
+  DERMATOLOGY
+  OTHER
+}
+
+Enum clinic_status {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+Enum booking_type {
+  IN_CLINIC
+  HOME_VISIT
+  SOS
+}
+
+Enum booking_status {
+  PENDING
+  CONFIRMED
+  ASSIGNED
+  ON_THE_WAY [note: 'Only for HOME_VISIT, SOS']
+  ARRIVED [note: 'Only for HOME_VISIT, SOS']
+  CHECK_IN
+  IN_PROGRESS
+  CHECK_OUT
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+Enum slot_status {
+  AVAILABLE
+  BOOKED
+  BLOCKED
+}
+
+Enum payment_method {
+  CASH
+  QR
+  CARD
+}
+
+Enum payment_status {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+Enum notification_type {
+  // Clinic-related (for Owner)
+  APPROVED
+  REJECTED
+  PENDING
+  // Clinic-related (for Admin)
+  CLINIC_PENDING_APPROVAL
+  // StaffShift-related (for Staff)
+  STAFF_SHIFT_ASSIGNED
+  STAFF_SHIFT_UPDATED
+  STAFF_SHIFT_DELETED
+  // Booking-related
+  BOOKING_CREATED
+  BOOKING_CONFIRMED
+  BOOKING_ASSIGNED
+  BOOKING_CANCELLED
+  BOOKING_CHECKIN
+  BOOKING_COMPLETED
+  STAFF_ON_WAY
+  // Additional
+  CLINIC_VERIFIED
+  RE_EXAMINATION_REMINDER
+}
+
+// =============================================================================
+// TABLE GROUPS
+// =============================================================================
+
+TableGroup auth_user {
+  users
+  refresh_tokens
+  blacklisted_tokens
+}
+
+TableGroup pet_management {
+  pets
+}
+
+TableGroup clinic_management {
+  clinics
+  clinic_images
+  clinic_price_per_km
+}
+
+TableGroup service_management {
+  master_services
+  clinic_services
+  service_weight_prices
+}
+
+TableGroup scheduling {
+  staff_shifts
+  slots
+}
+
+TableGroup booking_management {
+  bookings
+  booking_service_items
+  booking_slots
+  payments
+}
+
+TableGroup notification_management {
+  notifications
+}
+
+// =============================================================================
+// TABLES - AUTH & USER
+// =============================================================================
+
+Table users {
+  user_id uuid [pk, note: 'Primary Key']
+  username varchar(50) [unique, not null]
+  password varchar(255) [not null]
+  phone varchar(20) [unique]
+  email varchar(100) [unique, not null]
+  full_name varchar(100)
+  avatar varchar(500)
+  avatar_public_id varchar(100)
+  role role [not null, note: 'PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN']
+  specialty staff_specialty [note: 'Only for STAFF (VET_GENERAL, GROOMER, etc.)']
+  rating_avg decimal(2,1) [default: 0.0]
+  rating_count int [default: 0]
+  fcm_token varchar(500) [note: 'Firebase Cloud Messaging token']
+  address varchar(500) [note: 'Default address for Pet Owner']
+  working_clinic_id uuid [note: 'FK - Clinic where staff works']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Soft delete']
+
+  indexes {
+    email [unique]
+    phone [unique]
+    username [unique]
+    (role) [name: 'idx_users_role']
+    (working_clinic_id) [name: 'idx_users_working_clinic']
+  }
+
+  Note: 'Users table - Soft delete pattern'
+}
+
+Table refresh_tokens {
+  token_id uuid [pk]
+  user_id uuid [not null]
+  token_hash varchar(255) [unique, not null]
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (user_id) [name: 'idx_refresh_tokens_user_id']
+    (token_hash) [unique, name: 'idx_refresh_tokens_token_hash']
+  }
+
+  Note: 'JWT Refresh tokens - multi-device support'
+}
+
+Table blacklisted_tokens {
+  token_id uuid [pk]
+  token_hash varchar(255) [unique, not null]
+  user_id uuid [not null]
+  expires_at timestamp [not null]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (token_hash) [unique, name: 'idx_blacklisted_tokens_token_hash']
+    (user_id) [name: 'idx_blacklisted_tokens_user_id']
+  }
+
+  Note: 'Blacklisted tokens after logout'
+}
+
+// =============================================================================
+// TABLES - PET
+// =============================================================================
+
+Table pets {
+  id uuid [pk]
+  user_id uuid [not null, note: 'FK - Pet Owner']
+  name varchar(100) [not null]
+  species varchar(50) [note: 'Dog, Cat, Other']
+  breed varchar(100)
+  date_of_birth date
+  weight decimal(5,2) [note: 'Weight in kg']
+  gender varchar(10)
+  color varchar(100)
+  allergies text
+  image_url varchar(500)
+  image_public_id varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (user_id) [name: 'idx_pets_user_id']
+  }
+
+  Note: 'Pet profiles'
+}
+
+// =============================================================================
+// TABLES - CLINIC
+// =============================================================================
+
+Table clinics {
+  clinic_id uuid [pk]
+  owner_id uuid [not null, note: 'FK - Clinic Owner']
+  name varchar(200) [not null]
+  description text
+  address varchar(500) [not null]
+  ward varchar(100)
+  district varchar(100)
+  province varchar(100)
+  specific_location varchar(200)
+  phone varchar(20)
+  email varchar(100)
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+  logo varchar(500)
+  operating_hours jsonb [note: 'JSON: {monday: {open, close, break_start, break_end, is_closed}}']
+  status clinic_status [not null, default: 'PENDING']
+  rejection_reason text
+  rating_avg decimal(2,1) [default: 0.0]
+  rating_count int [default: 0]
+  approved_at timestamp
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deleted_at timestamp [note: 'Soft delete']
+
+  indexes {
+    (owner_id) [name: 'idx_clinics_owner_id']
+    (status) [name: 'idx_clinics_status']
+    (latitude, longitude) [name: 'idx_clinics_location']
+  }
+
+  Note: 'Veterinary clinics - Soft delete pattern'
+}
+
+Table clinic_images {
+  image_id uuid [pk]
+  clinic_id uuid [not null]
+  image_url varchar(500) [not null]
+  caption varchar(200)
+  display_order int [default: 0]
+  is_primary boolean [default: false]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (clinic_id) [name: 'idx_clinic_images_clinic_id']
+  }
+
+  Note: 'Clinic gallery images'
+}
+
+Table clinic_price_per_km {
+  clinic_id uuid [pk, note: 'FK and PK - 1:1 with clinics']
+  price_per_km decimal(12,2) [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  Note: 'Travel pricing for Home Visit services - 1:1 with Clinic'
+}
+
+// =============================================================================
+// TABLES - SERVICES
+// =============================================================================
+
+Table master_services {
+  master_service_id uuid [pk]
+  name varchar(200) [not null]
+  description text
+  default_price decimal(19,2) [note: 'Default price']
+  duration_time int [note: 'Duration in minutes']
+  slots_required int [default: 1, note: 'Number of slots required']
+  is_home_visit boolean [default: false]
+  default_price_per_km decimal(19,2)
+  service_category varchar(100)
+  pet_type varchar(100) [note: 'Dog, Cat, All']
+  icon varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  Note: 'Service templates - Created by CLINIC_OWNER, inherited by clinics'
+}
+
+Table clinic_services {
+  service_id uuid [pk]
+  clinic_id uuid [not null]
+  master_service_id uuid [note: 'FK - Null if custom service']
+  is_custom boolean [default: false, note: 'true = Custom, false = Inherited']
+  name varchar(200) [not null]
+  description text
+  base_price decimal(19,2)
+  duration_time int
+  slots_required int [default: 1]
+  is_active boolean [default: true]
+  is_home_visit boolean [default: false]
+  price_per_km decimal(19,2)
+  service_category service_category
+  pet_type varchar(100)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (clinic_id) [name: 'idx_clinic_services_clinic_id']
+    (master_service_id) [name: 'idx_clinic_services_master_service_id']
+    (service_category) [name: 'idx_clinic_services_category']
+    (is_active) [name: 'idx_clinic_services_active']
+  }
+
+  Note: 'Clinic services - Custom or Inherited from MasterService'
+}
+
+Table service_weight_prices {
+  weight_price_id uuid [pk]
+  service_id uuid [note: 'FK - ClinicService (nullable)']
+  master_service_id uuid [note: 'FK - MasterService (nullable)']
+  min_weight decimal(10,2) [not null]
+  max_weight decimal(10,2) [not null]
+  price decimal(19,2) [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (service_id) [name: 'idx_service_weight_prices_service_id']
+    (master_service_id) [name: 'idx_service_weight_prices_master_service_id']
+  }
+
+  Note: 'Service pricing by pet weight'
+}
+
+// =============================================================================
+// TABLES - SCHEDULING
+// =============================================================================
+
+Table staff_shifts {
+  shift_id uuid [pk]
+  staff_id uuid [not null, note: 'FK - User (STAFF role)']
+  clinic_id uuid [not null]
+  work_date date [not null]
+  start_time time [not null]
+  end_time time [not null]
+  break_start time [note: 'Lunch break start (optional)']
+  break_end time
+  is_overnight boolean [default: false, note: 'Overnight shift']
+  notes varchar(500)
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (staff_id, work_date) [name: 'idx_shift_staff_date']
+    (clinic_id, work_date) [name: 'idx_shift_clinic_date']
+  }
+
+  Note: 'Staff work shifts - Auto-generates 30-min slots'
+}
+
+Table slots {
+  slot_id uuid [pk]
+  shift_id uuid [not null]
+  start_time time [not null]
+  end_time time [not null]
+  status slot_status [not null, default: 'AVAILABLE']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (shift_id) [name: 'idx_slot_shift']
+    (status) [name: 'idx_slot_status']
+    (start_time, end_time) [name: 'idx_slot_time']
+  }
+
+  Note: '30-minute time slots - Auto-generated from StaffShift'
+}
+
+// =============================================================================
+// TABLES - BOOKING
+// =============================================================================
+
+Table bookings {
+  booking_id uuid [pk]
+  booking_code varchar(20) [unique, not null, note: 'Format: BK-YYYYMMDD-XXXX']
+  pet_id uuid [not null]
+  pet_owner_id uuid [not null]
+  clinic_id uuid [not null]
+  assigned_staff_id uuid [note: 'FK - Assigned staff (nullable)']
+  booking_date date [not null]
+  booking_time time [not null]
+  type booking_type [not null, default: 'IN_CLINIC']
+  home_address varchar(500) [note: 'Only for HOME_VISIT, SOS']
+  home_lat decimal(10,7)
+  home_long decimal(10,7)
+  distance_km decimal(5,2)
+  distance_fee decimal(12,2)
+  total_price decimal(12,2)
+  status booking_status [not null, default: 'PENDING']
+  cancellation_reason text
+  cancelled_by uuid
+  notes text
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (booking_code) [unique, name: 'idx_bookings_code']
+    (pet_owner_id) [name: 'idx_bookings_pet_owner']
+    (clinic_id) [name: 'idx_bookings_clinic']
+    (assigned_staff_id) [name: 'idx_bookings_staff']
+    (status) [name: 'idx_bookings_status']
+    (booking_date) [name: 'idx_bookings_date']
+  }
+
+  Note: 'Appointments - Core entity of booking system'
+}
+
+Table booking_service_items {
+  booking_service_id uuid [pk]
+  booking_id uuid [not null]
+  service_id uuid [not null, note: 'FK - ClinicService']
+  assigned_staff_id uuid [note: 'FK - Staff assigned to this service']
+  unit_price decimal(12,2) [note: 'Price snapshot at booking time']
+  base_price decimal(12,2)
+  weight_price decimal(12,2)
+  quantity int [default: 1]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (booking_id) [name: 'idx_booking_service_items_booking']
+    (service_id) [name: 'idx_booking_service_items_service']
+  }
+
+  Note: 'Junction table Booking <-> Service (M:N)'
+}
+
+Table booking_slots {
+  booking_slot_id uuid [pk]
+  booking_id uuid [not null]
+  slot_id uuid [not null]
+  booking_service_id uuid [note: 'FK - Link to specific service']
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (booking_id) [name: 'idx_booking_slots_booking']
+    (slot_id) [name: 'idx_booking_slots_slot']
+  }
+
+  Note: 'Junction table Booking <-> Slot (M:N)'
+}
+
+Table payments {
+  payment_id uuid [pk]
+  booking_id uuid [unique, not null, note: 'FK - 1:1 with Booking']
+  amount decimal(12,2) [not null]
+  method payment_method [not null, default: 'CASH']
+  status payment_status [not null, default: 'PENDING']
+  stripe_payment_id varchar(255)
+  paid_at timestamp
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (booking_id) [unique, name: 'idx_payments_booking']
+    (status) [name: 'idx_payments_status']
+  }
+
+  Note: 'Payments - 1:1 with Booking'
+}
+
+// =============================================================================
+// TABLES - NOTIFICATION
+// =============================================================================
+
+Table notifications {
+  notification_id uuid [pk]
+  user_id uuid [not null, note: 'FK - Notification receiver']
+  clinic_id uuid [note: 'FK - Related clinic (optional)']
+  shift_id uuid [note: 'FK - Related shift (optional)']
+  type notification_type [not null]
+  emr_id varchar(50) [note: 'MongoDB ObjectId as String']
+  message text [not null]
+  reason text
+  read boolean [default: false]
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (user_id) [name: 'idx_notification_user']
+    (type) [name: 'idx_notification_type']
+    (read) [name: 'idx_notification_read']
+  }
+
+  Note: 'Notifications - Clinic status, StaffShift, Booking notifications'
+}
+
+// =============================================================================
+// RELATIONSHIPS
+// =============================================================================
+
+// --- Auth & User ---
+Ref users_working_clinic: users.working_clinic_id > clinics.clinic_id
+Ref refresh_tokens_user: refresh_tokens.user_id > users.user_id
+Ref blacklisted_tokens_user: blacklisted_tokens.user_id > users.user_id
+
+// --- Pet ---
+Ref pets_owner: pets.user_id > users.user_id
+
+// --- Clinic ---
+Ref clinics_owner: clinics.owner_id > users.user_id
+Ref clinic_images_clinic: clinic_images.clinic_id > clinics.clinic_id
+Ref clinic_price_per_km_clinic: clinic_price_per_km.clinic_id - clinics.clinic_id
+
+// --- Services ---
+Ref clinic_services_clinic: clinic_services.clinic_id > clinics.clinic_id
+Ref clinic_services_master: clinic_services.master_service_id > master_services.master_service_id
+Ref service_weight_prices_service: service_weight_prices.service_id > clinic_services.service_id
+Ref service_weight_prices_master: service_weight_prices.master_service_id > master_services.master_service_id
+
+// --- Scheduling ---
+Ref staff_shifts_staff: staff_shifts.staff_id > users.user_id
+Ref staff_shifts_clinic: staff_shifts.clinic_id > clinics.clinic_id
+Ref slots_shift: slots.shift_id > staff_shifts.shift_id
+
+// --- Booking ---
+Ref bookings_pet: bookings.pet_id > pets.id
+Ref bookings_pet_owner: bookings.pet_owner_id > users.user_id
+Ref bookings_clinic: bookings.clinic_id > clinics.clinic_id
+Ref bookings_assigned_staff: bookings.assigned_staff_id > users.user_id
+Ref booking_service_items_booking: booking_service_items.booking_id > bookings.booking_id
+Ref booking_service_items_service: booking_service_items.service_id > clinic_services.service_id
+Ref booking_service_items_staff: booking_service_items.assigned_staff_id > users.user_id
+Ref booking_slots_booking: booking_slots.booking_id > bookings.booking_id
+Ref booking_slots_slot: booking_slots.slot_id > slots.slot_id
+Ref booking_slots_service_item: booking_slots.booking_service_id > booking_service_items.booking_service_id
+Ref payments_booking: payments.booking_id - bookings.booking_id
+
+// --- Notification ---
+Ref notifications_user: notifications.user_id > users.user_id
+Ref notifications_clinic: notifications.clinic_id > clinics.clinic_id
+Ref notifications_shift: notifications.shift_id > staff_shifts.shift_id
+
+// =============================================================================
+// AI AGENT SERVICE TABLES (petties-agent-serivce - Separate PostgreSQL schema)
+// =============================================================================
+// Note: These tables are managed by Alembic migrations in the AI Service
+// They may use a separate PostgreSQL database or schema (ai_service)
+
+// ==================== AI AGENT ENUMS ====================
+
+Enum ai_tool_type {
+  code_based [note: 'FastMCP @mcp.tool decorators']
+  api_based [note: 'Spring Boot API calls']
+}
+
+Enum ai_setting_category {
+  llm [note: 'OpenRouter settings']
+  rag [note: 'Cohere + Qdrant settings']
+  embeddings [note: 'Cohere embeddings']
+  vector_db [note: 'Qdrant settings']
+  general [note: 'General settings']
+}
+
+Enum ai_message_role {
+  user
+  assistant
+  system
+  tool
+}
+
+Enum ai_file_type {
+  pdf
+  docx
+  txt
+  md
+}
+
+// ==================== AI AGENT TABLE GROUP ====================
+
+TableGroup ai_agent_config {
+  ai_agents
+  ai_tools
+  ai_prompt_versions
+}
+
+TableGroup ai_chat_history {
+  ai_chat_sessions
+  ai_chat_messages
+}
+
+TableGroup ai_knowledge_base {
+  ai_knowledge_documents
+}
+
+TableGroup ai_configuration {
+  ai_system_settings
+}
+
+// ==================== AI TABLES ====================
+
+Table ai_agents {
+  id int [pk, increment]
+  name varchar(100) [unique, not null, note: 'Agent name: petties_agent']
+  description text
+
+  // LLM Configuration
+  temperature float [default: 0.7, note: 'Range 0.0-1.0']
+  max_tokens int [default: 2000]
+  top_p float [default: 0.9, note: 'Range 0.0-1.0']
+  model varchar(100) [default: 'google/gemini-2.0-flash-exp:free', note: 'OpenRouter model ID']
+
+  // Prompts
+  system_prompt text [note: 'System prompt defining agent behavior']
+
+  // Status
+  enabled boolean [default: true]
+
+  // Timestamps
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  indexes {
+    (name) [unique, name: 'idx_ai_agents_name']
+  }
+
+  Note: 'Single Agent configuration - Petties AI Assistant'
+}
+
+Table ai_tools {
+  id int [pk, increment]
+  name varchar(100) [unique, not null, note: 'Tool name: check_slot, create_booking']
+  description text [note: 'Semantic description for LLM']
+  tool_type ai_tool_type [default: 'code_based']
+
+  // Schema definition (JSON format)
+  input_schema json [note: 'JSON schema for input parameters']
+  output_schema json [note: 'JSON schema for output data']
+
+  // Status & Assignment
+  enabled boolean [default: false, note: 'Admin enables after deployment']
+  assigned_agents json [note: 'List of agent names: ["petties_agent"]']
+
+  // Timestamps
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  indexes {
+    (name) [unique, name: 'idx_ai_tools_name']
+    (enabled) [name: 'idx_ai_tools_enabled']
+  }
+
+  Note: 'Code-based tools metadata (@mcp.tool decorators)'
+}
+
+Table ai_prompt_versions {
+  id int [pk, increment]
+  agent_id int [not null, note: 'FK -> ai_agents.id']
+  version int [not null, note: 'Version number: 1, 2, 3...']
+  prompt_text text [not null, note: 'Full prompt content']
+  is_active boolean [default: false, note: 'Active version flag']
+
+  // Metadata
+  created_by varchar(100) [note: 'Admin username']
+  notes text [note: 'Change notes']
+
+  // Timestamp
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (agent_id, version) [unique, name: 'idx_ai_prompt_versions_agent_version']
+    (agent_id, is_active) [name: 'idx_ai_prompt_versions_active']
+  }
+
+  Note: 'Version control for System Prompts'
+}
+
+Table ai_chat_sessions {
+  id int [pk, increment]
+  agent_id int [note: 'FK -> ai_agents.id (SET NULL on delete)']
+  user_id uuid [not null, note: 'FK -> users.user_id (Logical reference to Spring Boot Backend)']
+  session_id varchar(100) [unique, not null, note: 'Session identifier']
+
+  // Timestamps
+  started_at timestamptz [default: `now()`]
+  ended_at timestamptz [note: 'Session end time']
+
+  indexes {
+    (session_id) [unique, name: 'idx_ai_chat_sessions_session_id']
+    (user_id) [name: 'idx_ai_chat_sessions_user_id']
+    (agent_id) [name: 'idx_ai_chat_sessions_agent_id']
+  }
+
+  Note: 'Chat sessions between users and AI agents'
+}
+
+Table ai_chat_messages {
+  id int [pk, increment]
+  session_id int [not null, note: 'FK -> ai_chat_sessions.id']
+  role ai_message_role [not null, note: 'user, assistant, system, tool']
+  content text [not null, note: 'Message content']
+  message_metadata json [note: 'Tool calls, ReAct steps, etc.']
+
+  // Timestamp
+  timestamp timestamptz [default: `now()`]
+
+  indexes {
+    (session_id, timestamp) [name: 'idx_ai_chat_messages_session_time']
+  }
+
+  Note: 'Individual messages in chat sessions'
+}
+
+Table ai_knowledge_documents {
+  id int [pk, increment]
+  filename varchar(255) [not null, note: 'Original filename']
+  file_path varchar(500) [not null, note: 'Storage path']
+  file_type ai_file_type [note: 'pdf, docx, txt, md']
+  file_size int [note: 'Size in bytes']
+
+  // Processing status
+  processed boolean [default: false, note: 'Chunked and embedded?']
+  vector_count int [default: 0, note: 'Number of vectors created']
+
+  // Metadata
+  uploaded_by varchar(100) [note: 'Admin user']
+  notes text
+
+  // Timestamps
+  uploaded_at timestamptz [default: `now()`]
+  processed_at timestamptz [note: 'When processing completed']
+
+  indexes {
+    (processed) [name: 'idx_ai_knowledge_documents_processed']
+    (file_type) [name: 'idx_ai_knowledge_documents_type']
+  }
+
+  Note: 'Uploaded documents for RAG (Retrieval-Augmented Generation)'
+}
+
+Table ai_system_settings {
+  id int [pk, increment]
+  key varchar(100) [unique, not null, note: 'Setting key: OPENROUTER_API_KEY, etc.']
+  value text [not null, note: 'Setting value (encrypted if sensitive)']
+  category ai_setting_category [default: 'general']
+  is_sensitive boolean [default: false, note: 'Encrypt value if true']
+  description text [note: 'Setting description']
+
+  // Timestamps
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+
+  indexes {
+    (key) [unique, name: 'idx_ai_system_settings_key']
+    (category) [name: 'idx_ai_system_settings_category']
+  }
+
+  Note: 'Configurable settings (API keys, LLM models) - Admin Dashboard'
+}
+
+// ==================== AI SERVICE RELATIONSHIPS ====================
+
+// Agent -> Prompt Versions (1:N)
+Ref: ai_prompt_versions.agent_id > ai_agents.id
+
+// Agent -> Chat Sessions (1:N)
+Ref: ai_chat_sessions.agent_id > ai_agents.id
+
+// Chat Session -> Chat Messages (1:N)
+Ref: ai_chat_messages.session_id > ai_chat_sessions.id
+
+// ==================== CROSS-SERVICE REFERENCE ====================
+// AI Service <-> Spring Boot Backend (Logical - Same PostgreSQL Server)
+
+Ref: ai_chat_sessions.user_id > users.user_id

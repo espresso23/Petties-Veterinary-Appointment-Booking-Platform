@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkVetAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableVetsForConfirm, completeBooking } from '../../../services/bookingService';
-import type { VetOption } from '../../../services/bookingService';
-import type { Booking, BookingStatus, BookingServiceItem, VetAvailabilityCheckResponse } from '../../../types/booking';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking } from '../../../services/bookingService';
+import type { StaffOption } from '../../../services/bookingService';
+import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import type { ClinicServiceResponse } from '../../../types/service';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
-import { ReassignVetModal } from '../../../components/booking/ReassignVetModal';
-import { VetAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/VetAvailabilityWarningModal';
+import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
+import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { useToast } from '../../../components/Toast';
 import { TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
 import '../../../styles/brutalist.css';
@@ -43,9 +43,9 @@ export const BookingDashboardPage = () => {
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [confirming, setConfirming] = useState<string | null>(null);
 
-    // Vet availability warning modal state
+    // Staff availability warning modal state
     const [availabilityWarningOpen, setAvailabilityWarningOpen] = useState(false);
-    const [availabilityCheckResult, setAvailabilityCheckResult] = useState<VetAvailabilityCheckResponse | null>(null);
+    const [availabilityCheckResult, setAvailabilityCheckResult] = useState<StaffAvailabilityCheckResponse | null>(null);
     const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
 
     // Add-on Service state
@@ -120,29 +120,29 @@ export const BookingDashboardPage = () => {
     }, [fetchBookings]);
 
     // Handle confirm booking - checks availability first
-    const handleConfirm = async (bookingId: string, selectedVetId?: string) => {
+    const handleConfirm = async (bookingId: string, selectedStaffId?: string) => {
         setConfirming(bookingId);
         try {
-            // If vet is manually selected, skip availability check and confirm directly
-            if (selectedVetId) {
-                await confirmBooking(bookingId, { selectedVetId });
+            // If staff is manually selected, skip availability check and confirm directly
+            if (selectedStaffId) {
+                await confirmBooking(bookingId, { selectedStaffId });
                 showToast('success', 'Đã xác nhận và gán bác sĩ thành công');
                 await fetchBookings();
                 setSelectedBooking(null);
                 return;
             }
 
-            // Step 1: Check vet availability (auto-assign mode)
-            const availability = await checkVetAvailability(bookingId);
+            // Step 1: Check staff availability (auto-assign mode)
+            const availability = await checkStaffAvailability(bookingId);
 
-            if (availability.allServicesHaveVets) {
-                // All vets available, proceed with normal confirmation
+            if (availability.allServicesHaveStaff) {
+                // All staff available, proceed with normal confirmation
                 await confirmBooking(bookingId);
                 showToast('success', 'Đã xác nhận và gán bác sĩ thành công');
                 await fetchBookings();
                 setSelectedBooking(null);
             } else {
-                // Some services don't have available vets, show warning modal
+                // Some services don't have available staff, show warning modal
                 setAvailabilityCheckResult(availability);
                 setPendingBookingId(bookingId);
                 setAvailabilityWarningOpen(true);
@@ -162,7 +162,7 @@ export const BookingDashboardPage = () => {
         setConfirming(pendingBookingId);
         try {
             if (option === 'cancel') {
-                // User wants to cancel and add vet schedule first
+                // User wants to cancel and add staff schedule first
                 setAvailabilityWarningOpen(false);
                 setPendingBookingId(null);
                 setAvailabilityCheckResult(null);
@@ -200,7 +200,7 @@ export const BookingDashboardPage = () => {
         if (!selectedBooking) return;
 
         try {
-            // Fetch available services for this booking (filters by specialty for Vets/Home Visit)
+            // Fetch available services for this booking (filters by specialty for Staff/Home Visit)
             const services = await getAvailableServicesForAddOn(selectedBooking.bookingId);
 
             setAvailableServices(services);
@@ -392,42 +392,42 @@ export const BookingDashboardPage = () => {
                                     </td>
                                     <td className="p-4 text-center">
                                         {getStatusBadge(booking.status)}
-                                        {/* Show all unique assigned vets from services with avatar */}
+{/* Show all unique assigned staff from services with avatar */}
                                         {(() => {
-                                            const vets = new Map<string, { name: string; avatar?: string }>();
+                                            const staffMembers = new Map<string, { name: string; avatar?: string }>();
 
-                                            // 1. Add vets from individual services
+                                            // 1. Add staff from individual services
                                             booking.services.forEach(service => {
-                                                if (service.assignedVetId && service.assignedVetName) {
-                                                    vets.set(service.assignedVetId, {
-                                                        name: service.assignedVetName,
-                                                        avatar: service.assignedVetAvatarUrl
+                                                if (service.assignedStaffId && service.assignedStaffName) {
+                                                    staffMembers.set(service.assignedStaffId, {
+                                                        name: service.assignedStaffName,
+                                                        avatar: service.assignedStaffAvatarUrl
                                                     });
                                                 }
                                             });
 
-                                            if (vets.size === 0) return null;
+                                            if (staffMembers.size === 0) return null;
 
                                             return (
                                                 <div className="mt-2 flex flex-wrap gap-1 justify-center">
-                                                    {Array.from(vets.values()).map((vet, idx) => (
+                                                    {Array.from(staffMembers.values()).map((staff, idx) => (
                                                         <div key={idx} className="flex items-center gap-1.5 bg-mint-100 px-2 py-1 rounded-full border border-stone-300">
-                                                            {/* Vet Avatar */}
+                                                            {/* Staff Avatar */}
                                                             <div className="w-5 h-5 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
-                                                                {vet.avatar ? (
+                                                                {staff.avatar ? (
                                                                     <img
-                                                                        src={vet.avatar}
-                                                                        alt={vet.name}
+                                                                        src={staff.avatar}
+                                                                        alt={staff.name}
                                                                         className="w-full h-full object-cover"
                                                                     />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-mint-200 text-stone-600">
-                                                                        {vet.name.charAt(0)}
+                                                                        {staff.name.charAt(0)}
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            {/* Vet Name */}
-                                                            <span className="text-xs font-medium text-stone-700">{vet.name}</span>
+                                                            {/* Staff Name */}
+                                                            <span className="text-xs font-medium text-stone-700">{staff.name}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -471,9 +471,9 @@ export const BookingDashboardPage = () => {
                 />
             )}
 
-            {/* Vet Availability Warning Modal */}
+            {/* Staff Availability Warning Modal */}
             {availabilityCheckResult && (
-                <VetAvailabilityWarningModal
+                <StaffAvailabilityWarningModal
                     isOpen={availabilityWarningOpen}
                     availability={availabilityCheckResult}
                     onClose={() => {
@@ -556,7 +556,7 @@ export const BookingDashboardPage = () => {
 interface BookingDetailModalProps {
     booking: Booking;
     onClose: () => void;
-    onConfirm: (bookingId: string, selectedVetId?: string) => void;
+    onConfirm: (bookingId: string, selectedStaffId?: string) => void;
     onBookingUpdated?: () => void;
     onAddService?: () => void;
 }
@@ -566,39 +566,39 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
 
-    // Vet selection dropdown state - per service
-    const [availableVetsByService, setAvailableVetsByService] = useState<Record<string, VetOption[]>>({});
-    const [selectedVetByService, setSelectedVetByService] = useState<Record<string, string>>({});
-    const [loadingVets, setLoadingVets] = useState(false);
+    // Staff selection dropdown state - per service
+    const [availableStaffByService, setAvailableStaffByService] = useState<Record<string, StaffOption[]>>({});
+    const [selectedStaffByService, setSelectedStaffByService] = useState<Record<string, string>>({});
+    const [loadingStaff, setLoadingStaff] = useState(false);
     const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
 
-    // Fetch available vets when modal opens with PENDING booking
+    // Fetch available staff when modal opens with PENDING booking
     useEffect(() => {
         if (booking.status === 'PENDING') {
-            // Fetch all available vets for dropdown - grouped by service
-            setLoadingVets(true);
-            getAvailableVetsForConfirm(booking.bookingId)
+            // Fetch all available staff for dropdown - grouped by service
+            setLoadingStaff(true);
+            getAvailableStaffForConfirm(booking.bookingId)
                 .then(data => {
-                    // Group vets by service (for now, use same list for all services)
-                    // In future, can make API return per-service vets
-                    const vetsByService: Record<string, VetOption[]> = {};
+                    // Group staff by service (for now, use same list for all services)
+                    // In future, can make API return per-service staff
+                    const staffByService: Record<string, StaffOption[]> = {};
                     const selectedByService: Record<string, string> = {};
 
                     booking.services.forEach(service => {
                         const serviceId = service.bookingServiceId || service.serviceId;
 
-                        // Filter vets for this specific service category
+                        // Filter staff for this specific service category
                         const category = service.serviceCategory;
-                        const filteredVets = data.filter(vet => {
-                            const vetSpec = vet.specialty;
+                        const filteredStaff = data.filter(staff => {
+                            const staffSpec = staff.specialty;
 
                             // 1. Strict Groomer rule
                             if (category === 'GROOMING_SPA') {
-                                return vetSpec === 'GROOMER';
+                                return staffSpec === 'GROOMER';
                             }
 
                             // 2. Medical services shouldn't show Groomers
-                            if (vetSpec === 'GROOMER') {
+                            if (staffSpec === 'GROOMER') {
                                 return false;
                             }
 
@@ -609,32 +609,32 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                         category === 'DERMATOLOGY' ? 'VET_DERMATOLOGY' :
                                             'VET_GENERAL';
 
-                            return vetSpec === requiredSpecialty || vetSpec === 'VET_GENERAL';
+                            return staffSpec === requiredSpecialty || staffSpec === 'VET_GENERAL';
                         });
 
-                        vetsByService[serviceId] = filteredVets;
+                        staffByService[serviceId] = filteredStaff;
 
-                        // Auto-select vet for this service:
-                        // Priority 1: Suggested vet from backend (if they pass our filter)
-                        // Priority 2: First vet with available slots in the filtered list
-                        const suggested = filteredVets.find(v => v.isSuggested && v.hasAvailableSlots);
-                        const firstAvailable = filteredVets.find(v => v.hasAvailableSlots);
+                        // Auto-select staff for this service:
+                        // Priority 1: Suggested staff from backend (if they pass our filter)
+                        // Priority 2: First staff with available slots in the filtered list
+                        const suggested = filteredStaff.find(s => s.isSuggested && s.hasAvailableSlots);
+                        const firstAvailable = filteredStaff.find(s => s.hasAvailableSlots);
 
                         if (suggested) {
-                            selectedByService[serviceId] = suggested.vetId;
+                            selectedByService[serviceId] = suggested.staffId;
                         } else if (firstAvailable) {
-                            selectedByService[serviceId] = firstAvailable.vetId;
+                            selectedByService[serviceId] = firstAvailable.staffId;
                         }
                     });
 
-                    setAvailableVetsByService(vetsByService);
-                    setSelectedVetByService(selectedByService);
+                    setAvailableStaffByService(staffByService);
+                    setSelectedStaffByService(selectedByService);
                 })
                 .catch(err => {
-                    console.error('Failed to fetch available vets:', err);
+                    console.error('Failed to fetch available staff:', err);
                 })
                 .finally(() => {
-                    setLoadingVets(false);
+                    setLoadingStaff(false);
                 });
         }
     }, [booking.bookingId, booking.status]);
@@ -783,69 +783,72 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                     </div>
                                 </div>
 
-                                {/* Assigned Vet for this service */}
-                                {service.assignedVetName ? (
+                                {/* Assigned Staff for this service */}
+                                {service.assignedStaffName ? (
                                     <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
                                         <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
-                                            {service.assignedVetAvatarUrl ? (
+                                            {service.assignedStaffAvatarUrl ? (
                                                 <img
-                                                    src={service.assignedVetAvatarUrl}
-                                                    alt={service.assignedVetName}
+                                                    src={service.assignedStaffAvatarUrl}
+                                                    alt={service.assignedStaffName}
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
-                                                    {service.assignedVetName.charAt(0)}
+                                                    {service.assignedStaffName.charAt(0)}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="text-xs flex-1">
-                                            <span className="font-medium">{service.assignedVetName}</span>
-                                            {service.assignedVetSpecialty && (
+                                            <span className="font-medium">{service.assignedStaffName}</span>
+                                            {service.assignedStaffSpecialty && (
                                                 <span className="text-stone-500 ml-1">
-                                                    ({STAFF_SPECIALTY_LABELS[service.assignedVetSpecialty] || service.assignedVetSpecialty})
+                                                    ({STAFF_SPECIALTY_LABELS[service.assignedStaffSpecialty] || service.assignedStaffSpecialty})
                                                 </span>
                                             )}
                                         </div>
-                                        {/* Reassign button - only show for ASSIGNED or later status */}
-                                        {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && (
+                                        {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && booking.status !== 'IN_PROGRESS' && (
                                             <button
                                                 onClick={() => handleOpenReassignModal(service)}
-                                                className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors"
+                                                className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors flex items-center gap-1"
+                                                title="Đổi nhân viên"
                                             >
-                                                Đổi BS
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                                    <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0v2.433l-.31-.31a7 7 0 00-11.712 3.138.75.75 0 001.449.39 5.5 5.5 0 019.201-2.466l.312.311H12.18c-.414 0-.75.336-.75.75s.336.75.75.75h4.242z" clipRule="evenodd" />
+                                                </svg>
+                                                Đổi người
                                             </button>
                                         )}
                                     </div>
                                 ) : booking.status === 'PENDING' ? (
-                                    /* Inline Vet Selection Dropdown for PENDING booking */
+                                    /* Inline Staff Selection Dropdown for PENDING booking */
                                     (() => {
                                         const serviceId = service.bookingServiceId || service.serviceId;
-                                        const serviceVets = availableVetsByService[serviceId] || [];
-                                        const selectedVetId = selectedVetByService[serviceId];
+                                        const serviceStaff = availableStaffByService[serviceId] || [];
+                                        const selectedStaffId = selectedStaffByService[serviceId];
                                         const isDropdownOpen = openDropdownServiceId === serviceId;
 
-                                        if (loadingVets) {
+                                        if (loadingStaff) {
                                             return (
                                                 <div className="mt-2 flex items-center gap-2 px-2 py-1">
                                                     <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin"></div>
-                                                    <span className="text-xs text-stone-400">Đang tải bác sĩ...</span>
+                                                    <span className="text-xs text-stone-400">Đang tải nhân viên...</span>
                                                 </div>
                                             );
                                         }
 
-                                        if (serviceVets.length === 0) {
+                                        if (serviceStaff.length === 0) {
                                             return (
                                                 <div className="mt-2 flex items-center gap-2 bg-amber-50 px-2 py-1.5 border-2 border-amber-600">
                                                     <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                                     </svg>
-                                                    <span className="text-xs font-bold text-amber-800">Chưa có bác sĩ phù hợp</span>
+                                                    <span className="text-xs font-bold text-amber-800">Chưa có nhân viên phù hợp</span>
                                                 </div>
                                             );
                                         }
 
-                                        const selectedVet = serviceVets.find(v => v.vetId === selectedVetId);
+                                        const selectedStaff = serviceStaff.find(s => s.staffId === selectedStaffId);
 
                                         return (
                                             <div className="mt-2 relative">
@@ -859,31 +862,31 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                         <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                                         </svg>
-                                                        {selectedVet ? (
+                                                        {selectedStaff ? (
                                                             <>
-                                                                {selectedVet.avatarUrl ? (
+                                                                {selectedStaff.avatarUrl ? (
                                                                     <img
-                                                                        src={selectedVet.avatarUrl}
-                                                                        alt={selectedVet.fullName}
+                                                                        src={selectedStaff.avatarUrl}
+                                                                        alt={selectedStaff.fullName}
                                                                         className="w-6 h-6 rounded-full border border-green-600 object-cover flex-shrink-0"
                                                                     />
                                                                 ) : (
                                                                     <div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0">
                                                                         <span className="text-xs font-bold text-green-700">
-                                                                            {selectedVet.fullName.charAt(0)}
+                                                                            {selectedStaff.fullName.charAt(0)}
                                                                         </span>
                                                                     </div>
                                                                 )}
                                                                 <div className="text-xs flex-1 min-w-0">
-                                                                    <span className="font-bold text-green-800">Bác sĩ:</span>
-                                                                    <span className="ml-1 font-medium text-green-700">{selectedVet.fullName}</span>
-                                                                    {selectedVet.isSuggested && (
+                                                                    <span className="font-bold text-green-800">Nhân viên:</span>
+                                                                    <span className="ml-1 font-medium text-green-700">{selectedStaff.fullName}</span>
+                                                                    {selectedStaff.isSuggested && (
                                                                         <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 border border-green-600">Gợi ý</span>
                                                                     )}
                                                                 </div>
                                                             </>
                                                         ) : (
-                                                            <span className="text-xs text-stone-500">Chọn bác sĩ...</span>
+                                                            <span className="text-xs text-stone-500">Chọn nhân viên...</span>
                                                         )}
                                                     </div>
                                                     <svg className={`w-4 h-4 text-green-600 transition-transform flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -894,50 +897,50 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                 {/* Dropdown Options */}
                                                 {isDropdownOpen && (
                                                     <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
-                                                        {serviceVets.map((vet) => (
+                                                        {serviceStaff.map((staff) => (
                                                             <button
-                                                                key={vet.vetId}
+                                                                key={staff.staffId}
                                                                 type="button"
-                                                                disabled={!vet.hasAvailableSlots}
+                                                                disabled={!staff.hasAvailableSlots}
                                                                 onClick={() => {
-                                                                    setSelectedVetByService(prev => ({
+                                                                    setSelectedStaffByService(prev => ({
                                                                         ...prev,
-                                                                        [serviceId]: vet.vetId
+                                                                        [serviceId]: staff.staffId
                                                                     }));
                                                                     setOpenDropdownServiceId(null);
                                                                 }}
-                                                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedVetId === vet.vetId
+                                                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedStaffId === staff.staffId
                                                                     ? 'bg-mint-100 border-l-4 border-l-mint-600'
-                                                                    : vet.hasAvailableSlots
+                                                                    : staff.hasAvailableSlots
                                                                         ? 'hover:bg-stone-50'
                                                                         : 'opacity-50 cursor-not-allowed bg-stone-100'
                                                                     }`}
                                                             >
                                                                 {/* Avatar */}
                                                                 <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
-                                                                    {vet.avatarUrl ? (
-                                                                        <img src={vet.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                                    {staff.avatarUrl ? (
+                                                                        <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" />
                                                                     ) : (
                                                                         <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">
-                                                                            {vet.fullName.charAt(0)}
+                                                                            {staff.fullName.charAt(0)}
                                                                         </div>
                                                                     )}
                                                                 </div>
                                                                 <div className="flex-1 min-w-0">
                                                                     <div className="text-xs font-bold text-stone-900 truncate">
-                                                                        {vet.fullName}
-                                                                        {vet.isSuggested && (
+                                                                        {staff.fullName}
+                                                                        {staff.isSuggested && (
                                                                             <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1 py-0.5 border border-green-600">Gợi ý</span>
                                                                         )}
                                                                     </div>
                                                                     <div className="text-[10px] text-stone-500 truncate">
-                                                                        {vet.specialtyLabel || vet.specialty}
+                                                                        {staff.specialtyLabel || staff.specialty}
                                                                     </div>
-                                                                    {!vet.hasAvailableSlots && vet.unavailableReason && (
-                                                                        <div className="text-[10px] text-red-600">{vet.unavailableReason}</div>
+                                                                    {!staff.hasAvailableSlots && staff.unavailableReason && (
+                                                                        <div className="text-[10px] text-red-600">{staff.unavailableReason}</div>
                                                                     )}
                                                                 </div>
-                                                                {selectedVetId === vet.vetId && (
+                                                                {selectedStaffId === staff.staffId && (
                                                                     <svg className="w-4 h-4 text-mint-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                                     </svg>
@@ -1064,54 +1067,54 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         )}
                     </div>
 
-                    {/* Assigned Vets */}
+                    {/* Assigned Staff */}
                     <div className="border-2 border-stone-900 p-4">
-                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Bác sĩ phụ trách</h3>
+                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Nhân viên phụ trách</h3>
                         {(() => {
-                            // Collect unique vets from all sources
-                            const uniqueVets = new Map<string, { id: string; name: string; avatarUrl?: string; specialty?: string }>();
+                            // Collect unique staff from all sources
+                            const uniqueStaff = new Map<string, { id: string; name: string; avatarUrl?: string; specialty?: string }>();
 
-                            // 1. Add vets from individual services
+                            // 1. Add staff from individual services
                             booking.services.forEach(service => {
-                                if (service.assignedVetId && service.assignedVetName) {
-                                    uniqueVets.set(service.assignedVetId, {
-                                        id: service.assignedVetId,
-                                        name: service.assignedVetName,
-                                        avatarUrl: service.assignedVetAvatarUrl,
-                                        specialty: service.assignedVetSpecialty,
+                                if (service.assignedStaffId && service.assignedStaffName) {
+                                    uniqueStaff.set(service.assignedStaffId, {
+                                        id: service.assignedStaffId,
+                                        name: service.assignedStaffName,
+                                        avatarUrl: service.assignedStaffAvatarUrl,
+                                        specialty: service.assignedStaffSpecialty,
                                     });
                                 }
                             });
 
-                            if (uniqueVets.size === 0) {
+                            if (uniqueStaff.size === 0) {
                                 return (
                                     <div className="text-stone-500 italic">
-                                        Chưa phân công - Sau khi xác nhận sẽ tự động gán bác sĩ phù hợp
+                                        Chưa phân công - Sau khi xác nhận sẽ tự động gán nhân viên phù hợp
                                     </div>
                                 );
                             }
 
                             return (
                                 <div className="space-y-3">
-                                    {Array.from(uniqueVets.values()).map((vet) => (
-                                        <div key={vet.id} className="flex items-center gap-3">
+                                    {Array.from(uniqueStaff.values()).map((staff) => (
+                                        <div key={staff.id} className="flex items-center gap-3">
                                             <div className="w-12 h-12 border-2 border-stone-900 rounded-lg overflow-hidden bg-mint-200 flex-shrink-0">
-                                                {vet.avatarUrl ? (
+                                                {staff.avatarUrl ? (
                                                     <img
-                                                        src={vet.avatarUrl}
-                                                        alt={vet.name}
+                                                        src={staff.avatarUrl}
+                                                        alt={staff.name}
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center font-bold text-lg">
-                                                        {vet.name.charAt(0)}
+                                                        {staff.name.charAt(0)}
                                                     </div>
                                                 )}
                                             </div>
                                             <div>
-                                                <div className="font-bold">{vet.name}</div>
+                                                <div className="font-bold">{staff.name}</div>
                                                 <div className="text-sm text-stone-500">
-                                                    {vet.specialty ? (STAFF_SPECIALTY_LABELS[vet.specialty] || vet.specialty) : 'Chưa xác định'}
+                                                    {staff.specialty ? (STAFF_SPECIALTY_LABELS[staff.specialty] || staff.specialty) : 'Chưa xác định'}
                                                 </div>
                                             </div>
                                         </div>
@@ -1158,16 +1161,16 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     {booking.status === 'PENDING' && (
                         <button
                             onClick={() => {
-                                // Get first selected vet from per-service selection
+                                // Get first selected staff from per-service selection
                                 const firstServiceId = booking.services[0]?.bookingServiceId || booking.services[0]?.serviceId;
-                                const selectedVetId = firstServiceId ? selectedVetByService[firstServiceId] : undefined;
-                                onConfirm(booking.bookingId, selectedVetId);
+                                const selectedStaffId = firstServiceId ? selectedStaffByService[firstServiceId] : undefined;
+                                onConfirm(booking.bookingId, selectedStaffId);
                                 onClose();
                             }}
-                            disabled={Object.keys(selectedVetByService).length === 0 && Object.keys(availableVetsByService).length > 0}
+                            disabled={Object.keys(selectedStaffByService).length === 0 && Object.keys(availableStaffByService).length > 0}
                             className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Xác nhận & Gán Vet
+                            Xác nhận & Gán nhân viên
                         </button>
                     )}
                     {(booking.status === 'ARRIVED' || booking.status === 'IN_PROGRESS') && (
@@ -1197,9 +1200,9 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                 </div>
             </div>
 
-            {/* Reassign Vet Modal */}
+            {/* Reassign Staff Modal */}
             {selectedService && (
-                <ReassignVetModal
+                <ReassignStaffModal
                     isOpen={reassignModalOpen}
                     bookingId={booking.bookingId}
                     service={selectedService}

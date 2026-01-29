@@ -49,11 +49,11 @@ public class BookingResponse {
     private String clinicAddress;
     private String clinicPhone;
 
-    // ========== VET INFO ==========
-    private UUID assignedVetId;
-    private String assignedVetName;
-    private String assignedVetSpecialty;
-    private String assignedVetAvatarUrl;
+    // ========== STAFF INFO ==========
+    private UUID assignedStaffId;
+    private String assignedStaffName;
+    private String assignedStaffSpecialty;
+    private String assignedStaffAvatarUrl;
 
     // ========== PAYMENT INFO ==========
     private String paymentStatus; // PENDING, PAID, REFUNDED, FAILED
@@ -100,11 +100,11 @@ public class BookingResponse {
         private BigDecimal basePrice; // Original service base price
         private BigDecimal weightPrice; // Price tier based on pet weight
 
-        // Assigned vet info for this specific service
-        private UUID assignedVetId;
-        private String assignedVetName;
-        private String assignedVetAvatarUrl;
-        private String assignedVetSpecialty;
+        // Assigned staff info for this specific service
+        private UUID assignedStaffId;
+        private String assignedStaffName;
+        private String assignedStaffAvatarUrl;
+        private String assignedStaffSpecialty;
 
         // Scheduled time for this service
         private LocalTime scheduledStartTime;

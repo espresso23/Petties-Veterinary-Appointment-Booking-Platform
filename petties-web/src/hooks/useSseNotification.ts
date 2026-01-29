@@ -17,9 +17,9 @@ type NotificationType =
   | 'APPROVED'
   | 'REJECTED'
   | 'PENDING'
-  | 'VET_SHIFT_ASSIGNED'
-  | 'VET_SHIFT_UPDATED'
-  | 'VET_SHIFT_DELETED'
+  | 'STAFF_SHIFT_ASSIGNED'
+  | 'STAFF_SHIFT_UPDATED'
+  | 'STAFF_SHIFT_DELETED'
   // Booking notifications
   | 'BOOKING_CREATED'
   | 'BOOKING_CONFIRMED'
@@ -27,7 +27,7 @@ type NotificationType =
   | 'BOOKING_CANCELLED'
   | 'BOOKING_CHECKIN'
   | 'BOOKING_COMPLETED'
-  | 'VET_ON_WAY'
+  | 'STAFF_ON_WAY'
   // Admin notifications
   | 'CLINIC_PENDING_APPROVAL'
   | 'CLINIC_VERIFIED'
@@ -54,7 +54,7 @@ interface NotificationData {
   // Clinic-related fields
   clinicId?: string
   clinicName?: string
-  // VetShift-related fields
+  // StaffShift-related fields
   shiftId?: string
   shiftDate?: string
   shiftStartTime?: string
@@ -80,10 +80,10 @@ interface UseSseNotificationOptions {
 interface BookingUpdateData {
   bookingId: string
   bookingCode: string
-  action: 'ASSIGNED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'VET_REASSIGNED' | 'SERVICE_ADDED'
+  action: 'ASSIGNED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'STAFF_REASSIGNED' | 'SERVICE_ADDED'
   status: string
-  oldVetId?: string  // For VET_REASSIGNED action - the vet being removed
-  newVetId?: string  // For VET_REASSIGNED action - the vet being assigned
+  oldStaffId?: string  // For STAFF_REASSIGNED action - the staff being removed
+  newStaffId?: string  // For STAFF_REASSIGNED action - the staff being assigned
 }
 
 interface UseSseNotificationReturn {
@@ -175,13 +175,13 @@ export function useSseNotification(
         case 'REJECTED':
           showToast('error', message || `Phong kham "${clinicName}" khong duoc duyet`)
           break
-        case 'VET_SHIFT_ASSIGNED':
+        case 'STAFF_SHIFT_ASSIGNED':
           showToast('info', message || 'Ban duoc gan ca lam viec moi')
           break
-        case 'VET_SHIFT_UPDATED':
+        case 'STAFF_SHIFT_UPDATED':
           showToast('warning', message || 'Ca lam viec cua ban da duoc cap nhat')
           break
-        case 'VET_SHIFT_DELETED':
+        case 'STAFF_SHIFT_DELETED':
           showToast('warning', message || 'Ca lam viec cua ban da bi xoa')
           break
         // Booking notifications
@@ -231,7 +231,7 @@ export function useSseNotification(
 
           case 'SHIFT_UPDATE':
             console.log('[SSE] Shift update received:', data.data)
-            // Trigger callback for shift updates (e.g., refresh VetShift list)
+            // Trigger callback for shift updates (e.g., refresh StaffShift list)
             onShiftUpdateRef.current?.(data.data)
             break
 

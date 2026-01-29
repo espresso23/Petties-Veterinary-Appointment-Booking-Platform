@@ -404,7 +404,7 @@ export function AddressAutocompleteOSM({
         />
         {isGeocoding && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-stone-500 font-bold uppercase pointer-events-none">
-            Searching...
+            Đang tìm kiếm...
           </div>
         )}
 

@@ -7,13 +7,13 @@ import '../ui/auth/forgot_password_screen.dart';
 import '../ui/auth/reset_password_screen.dart';
 import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
-import '../ui/vet/vet_home_screen.dart';
-import '../ui/vet/vet_schedule_screen.dart';
-import '../ui/vet/vet_booking_detail_screen.dart';
-import '../ui/vet/patient/patient_screens.dart';
-import '../ui/vet/emr/create_emr_screen.dart';
-import '../ui/vet/emr/emr_detail_screen.dart';
-import '../ui/vet/emr/edit_emr_screen.dart';
+import '../ui/staff/staff_home_screen.dart';
+import '../ui/staff/staff_schedule_screen.dart';
+import '../ui/staff/staff_booking_detail_screen.dart';
+import '../ui/staff/patient/patient_screens.dart';
+import '../ui/staff/emr/create_emr_screen.dart';
+import '../ui/staff/emr/emr_detail_screen.dart';
+import '../ui/staff/emr/edit_emr_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/profile/edit_profile_screen.dart';
 import '../ui/screens/profile/change_password_screen.dart';
@@ -41,7 +41,7 @@ import 'app_routes.dart';
 ///
 /// Mobile App Roles:
 /// - PET_OWNER: ✅ Mobile only
-/// - VET: ✅ Mobile + Web
+/// - STAFF: ✅ Mobile + Web
 /// - CLINIC_OWNER: ❌ Web only (blocked on mobile)
 /// - CLINIC_MANAGER: ❌ Web only (blocked on mobile)
 /// - ADMIN: ❌ Web only (blocked on mobile)
@@ -50,13 +50,13 @@ class AppRouterConfig {
       GlobalKey<NavigatorState>();
 
   /// Get the appropriate home route based on user role
-  /// Only PET_OWNER and VET are allowed on mobile
+  /// Only PET_OWNER and STAFF are allowed on mobile
   static String _getHomeRouteForRole(String? role) {
     switch (role) {
       case 'PET_OWNER':
         return AppRoutes.petOwnerHome;
-      case 'VET':
-        return AppRoutes.vetHome;
+      case 'STAFF':
+        return AppRoutes.staffHome;
       case 'CLINIC_OWNER':
         // CLINIC_OWNER should not use mobile app (web only)
         return AppRoutes.login;
@@ -201,34 +201,34 @@ class AppRouterConfig {
             return PetOwnerHomeScreen(initialTabIndex: initialTabIndex);
           },
         ),
-        // VET: Web + Mobile
+        // STAFF: Web + Mobile
         GoRoute(
-          path: AppRoutes.vetHome,
-          builder: (context, state) => const VetHomeScreen(),
+          path: AppRoutes.staffHome,
+          builder: (context, state) => const StaffHomeScreen(),
         ),
         GoRoute(
-          path: AppRoutes.vetSchedule,
-          builder: (context, state) => const VetScheduleScreen(),
+          path: AppRoutes.staffSchedule,
+          builder: (context, state) => const StaffScheduleScreen(),
         ),
 
-        // VET Booking Detail Route (from HEAD)
+        // STAFF Booking Detail Route (from HEAD)
         GoRoute(
-          path: AppRoutes.vetBookingDetail,
+          path: AppRoutes.staffBookingDetail,
           builder: (context, state) {
             final bookingId = state.pathParameters['bookingId']!;
-            return VetBookingDetailScreen(bookingId: bookingId);
+            return StaffBookingDetailScreen(bookingId: bookingId);
           },
         ),
 
-        // VET Patient Routes (from intergrationFeature)
+        // STAFF Patient Routes (from intergrationFeature)
         GoRoute(
-          path: AppRoutes.vetPatients,
+          path: AppRoutes.staffPatients,
           builder: (context, state) => const PatientListScreen(),
         ),
 
-        // VET EMR Routes (from intergrationFeature)
+        // STAFF EMR Routes (from intergrationFeature)
         GoRoute(
-          path: AppRoutes.vetCreateEmr,
+          path: AppRoutes.staffCreateEmr,
           builder: (context, state) {
             final petId = state.pathParameters['petId']!;
             final petName = state.uri.queryParameters['petName'];
@@ -241,14 +241,14 @@ class AppRouterConfig {
           },
         ),
         GoRoute(
-          path: AppRoutes.vetEmrDetail,
+          path: AppRoutes.staffEmrDetail,
           builder: (context, state) {
             final emrId = state.pathParameters['emrId']!;
             return EmrDetailScreen(emrId: emrId);
           },
         ),
         GoRoute(
-          path: AppRoutes.vetEmrEdit,
+          path: AppRoutes.staffEmrEdit,
           builder: (context, state) {
             final emrId = state.pathParameters['emrId']!;
             return EditEmrScreen(emrId: emrId);

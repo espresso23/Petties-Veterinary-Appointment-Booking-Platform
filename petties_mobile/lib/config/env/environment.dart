@@ -17,19 +17,20 @@ class Environment {
   // Nếu chạy trên điện thoại thật (Real Device) thì PHẢI dùng IP LAN của máy tính (ví dụ: 192.168.1.5)
   // Mở CMD gõ 'ipconfig' để xem IP
   static String get _devBaseUrl {
-    if (Platform.isAndroid) {
-      // ====== CHỌN 1 TRONG CÁC CÁCH ======
-      // 1. Physical Device (adb reverse): dùng localhost
-      // Chạy: adb reverse tcp:8080 tcp:8080
-      // return 'http://localhost:8080/api';
-
-      // 2. Emulator: dùng 10.0.2.2
-      return 'http://10.0.2.2:8080/api';
-
-      // 3. Physical Device (WiFi): dùng IP LAN (ipconfig)
-      // return 'http://192.168.17.213:8080/api';
+    // 1. Priority: .env file
+    // Check if .env is loaded and has the key
+    if (dotenv.isInitialized &&
+        dotenv.env['API_BASE_URL'] != null &&
+        dotenv.env['API_BASE_URL']!.isNotEmpty) {
+      return '${dotenv.env['API_BASE_URL']}/api';
     }
-    // iOS Simulator uses localhost
+
+    // 2. Fallback if .env missing
+    if (Platform.isAndroid) {
+      // Default for Android Emulator
+      return 'http://10.0.2.2:8080/api';
+    }
+    // Default for iOS / Web
     return 'http://localhost:8080/api';
   }
 

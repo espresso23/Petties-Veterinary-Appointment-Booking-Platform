@@ -27,6 +27,15 @@ const DAYS_OF_WEEK = [
   'SATURDAY',
   'SUNDAY',
 ] as const
+const DAY_LABELS: Record<string, string> = {
+  MONDAY: 'THỨ HAI',
+  TUESDAY: 'THỨ BA',
+  WEDNESDAY: 'THỨ TƯ',
+  THURSDAY: 'THỨ NĂM',
+  FRIDAY: 'THỨ SÁU',
+  SATURDAY: 'THỨ BẢY',
+  SUNDAY: 'CHỦ NHẬT',
+}
 
 export function ClinicForm({
   initialData,
@@ -101,23 +110,23 @@ export function ClinicForm({
       // Validate file type
       const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
       if (!validTypes.includes(file.type)) {
-        setErrors(prev => ({...prev, businessLicense: 'Chỉ chấp nhận file PDF, JPG, hoặc PNG'}))
+        setErrors(prev => ({ ...prev, businessLicense: 'Chỉ chấp nhận file PDF, JPG, hoặc PNG' }))
         return
       }
-      
+
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({...prev, businessLicense: 'Kích thước file không được vượt quá 5MB'}))
+        setErrors(prev => ({ ...prev, businessLicense: 'Kích thước file không được vượt quá 5MB' }))
         return
       }
 
       setBusinessLicenseFile(file)
       setBusinessLicensePreview(file.name)
-      
+
       // Clear error if any
       if (errors.businessLicense) {
         setErrors(prev => {
-          const newErrors = {...prev}
+          const newErrors = { ...prev }
           delete newErrors.businessLicense
           return newErrors
         })
@@ -147,8 +156,8 @@ export function ClinicForm({
       missingFields.push('Số điện thoại')
     }
     if (!businessLicenseFile && !initialData?.businessLicenseUrl) {
-      newErrors.businessLicense = 'Giấy chứng nhận hành nghề/kinh doanh thú y là bắt buộc'
-      missingFields.push('Giấy chứng nhận hành nghề')
+      newErrors.businessLicense = 'Giấy phép kinh doanh là bắt buộc'
+      missingFields.push('Giấy phép kinh doanh')
     }
     if (formData.phone && !/^0\d{9,10}$/.test(formData.phone)) {
       newErrors.phone = 'Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)'
@@ -158,12 +167,12 @@ export function ClinicForm({
     }
 
     setErrors(newErrors)
-    
+
     // Show toast if there are missing required fields
     if (missingFields.length > 0) {
       showToast('error', `Vui lòng điền đầy đủ các trường bắt buộc: ${missingFields.join(', ')}`)
     }
-    
+
     return Object.keys(newErrors).length === 0
   }
 
@@ -332,9 +341,9 @@ export function ClinicForm({
           <div>
             <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
               <DocumentTextIcon className="inline-block w-5 h-5 mr-2 text-stone-900" />
-              Giấy chứng nhận hành nghề/kinh doanh thú y *
+              Giấy phép kinh doanh *
             </label>
-            
+
             {!businessLicenseFile ? (
               <div className="relative">
                 <input
@@ -374,7 +383,7 @@ export function ClinicForm({
               <p className="text-red-600 text-sm mt-1 font-bold">{errors.businessLicense}</p>
             )}
             <p className="text-xs text-stone-500 mt-1">
-              Giấy chứng nhận hành nghề hoặc giấy phép kinh doanh thú y là bắt buộc để phòng khám được duyệt
+              Giấy phép kinh doanh là bắt buộc để phòng khám được duyệt
             </p>
           </div>
         </div>
@@ -466,7 +475,7 @@ export function ClinicForm({
               <div key={day} className="border-2 border-stone-900 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-sm font-bold uppercase text-stone-900">
-                    {day}
+                    {DAY_LABELS[day]}
                     {is24h && (
                       <span className="ml-2 text-xs bg-amber-600 text-white px-2 py-1 border-2 border-stone-900">
                         24/7
@@ -482,7 +491,7 @@ export function ClinicForm({
                       }
                       className="w-5 h-5 border-2 border-stone-900"
                     />
-                    <span className="text-sm font-bold uppercase text-stone-700">CLOSED</span>
+                    <span className="text-sm font-bold uppercase text-stone-700">ĐÓNG CỬA</span>
                   </label>
                 </div>
 
@@ -491,7 +500,7 @@ export function ClinicForm({
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          OPEN TIME
+                          GIỜ MỞ CỬA
                         </label>
                         <input
                           type="time"
@@ -505,7 +514,7 @@ export function ClinicForm({
                       </div>
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          CLOSE TIME
+                          GIỜ ĐÓNG CỬA
                         </label>
                         <input
                           type="time"
@@ -522,7 +531,7 @@ export function ClinicForm({
                     <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-200">
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          BREAK START (LUNCH)
+                          NGHỈ TRƯA (BẮT ĐẦU)
                         </label>
                         <input
                           type="time"
@@ -536,7 +545,7 @@ export function ClinicForm({
                       </div>
                       <div>
                         <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
-                          BREAK END (LUNCH)
+                          NGHỈ TRƯA (KẾT THÚC)
                         </label>
                         <input
                           type="time"

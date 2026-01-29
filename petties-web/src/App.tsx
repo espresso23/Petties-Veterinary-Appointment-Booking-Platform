@@ -7,7 +7,7 @@ import { ToastProvider } from './components/Toast'
 import { MainLayout } from './layouts/MainLayout'
 import { AuthLayout } from './layouts/AuthLayout'
 import { AdminLayout } from './layouts/AdminLayout'
-import { VetLayout } from './layouts/VetLayout'
+import { StaffLayout } from './layouts/StaffLayout'
 import { ClinicOwnerLayout } from './layouts/ClinicOwnerLayout'
 import { ClinicManagerLayout } from './layouts/ClinicManagerLayout'
 
@@ -28,9 +28,10 @@ import { PlaygroundPage } from './pages/admin/playground'
 import { ClinicApprovalPage } from './pages/admin/clinics'
 
 // Role-specific Pages
-import { VetDashboardPage, VetSchedulePage, VetBookingsPage, CreateEmrPage, EmrDetailPage, VetPatientsPage, EditEmrPage } from './pages/vet'
-import VaccinationPage from './pages/vet/vaccine/VaccinationPage'
-import { NotificationsPage as VetNotificationsPage } from './pages/vet/NotificationsPage'
+import { StaffDashboardPage, StaffSchedulePage, StaffBookingsPage, StaffPatientsPage } from './pages/staff'
+import { NotificationsPage as StaffNotificationsPage } from './pages/staff/NotificationsPage'
+import { CreateEmrPage, EmrDetailPage, EditEmrPage } from './pages/staff'
+import VaccinationPage from './pages/staff/vaccine/VaccinationPage'
 import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
 import { ClinicManagerDashboardPage, ChatPage as ClinicManagerChatPage } from './pages/clinic-manager'
 import { NotificationsPage as ClinicManagerNotificationsPage } from './pages/clinic-manager/NotificationsPage'
@@ -41,8 +42,8 @@ import {
   ClinicDetailPage,
 } from './pages/clinic-owner/clinics'
 import { StaffManagementPage } from './pages/clinic-owner/staff'
-import { VetsManagementPage } from './pages/clinic-manager/vets'
-import { VetShiftPage } from './pages/clinic-manager/shifts/VetShiftPage'
+import { StaffManagementPage as ClinicManagerStaffPage } from './pages/clinic-manager/staff'
+import { StaffShiftPage } from './pages/clinic-manager/shifts/StaffShiftPage'
 import { BookingDashboardPage } from './pages/clinic-manager/bookings/BookingDashboardPage'
 import { ServicesViewPage } from './pages/clinic-manager/services/ServicesViewPage'
 
@@ -103,17 +104,17 @@ function App() {
             <Route path="profile" element={<ProfilePage />} />
           </Route >
 
-          {/* Vet Routes */}
-          < Route path="/vet" element={
-            < ProtectedRoute allowedRoles={['VET']} >
-              <VetLayout />
+          {/* Staff Routes */}
+          < Route path="/staff" element={
+            < ProtectedRoute allowedRoles={['STAFF']} >
+              <StaffLayout />
             </ProtectedRoute >
           }>
-            <Route index element={<VetDashboardPage />} />
-            <Route path="schedule" element={<VetSchedulePage />} />
-            <Route path="bookings" element={<VetBookingsPage />} />
-            <Route path="patients" element={<VetPatientsPage />} />
-            <Route path="notifications" element={<VetNotificationsPage />} />
+            <Route index element={<StaffDashboardPage />} />
+            <Route path="schedule" element={<StaffSchedulePage />} />
+            <Route path="bookings" element={<StaffBookingsPage />} />
+            <Route path="patients" element={<StaffPatientsPage />} />
+            <Route path="notifications" element={<StaffNotificationsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="emr/create/:petId" element={<CreateEmrPage />} />
             <Route path="emr/edit/:emrId" element={<EditEmrPage />} />
@@ -147,8 +148,8 @@ function App() {
             <Route index element={<ClinicManagerDashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="bookings" element={<BookingDashboardPage />} />
-            <Route path="vets" element={<VetsManagementPage />} />
-            <Route path="shifts" element={<VetShiftPage />} />
+            <Route path="staff" element={<ClinicManagerStaffPage />} />
+            <Route path="shifts" element={<StaffShiftPage />} />
             <Route path="services" element={<ServicesViewPage />} />
             <Route path="chat" element={<ClinicManagerChatPage />} />
             <Route path="notifications" element={<ClinicManagerNotificationsPage />} />

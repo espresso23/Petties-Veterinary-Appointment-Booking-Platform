@@ -48,15 +48,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * Tests cover:
  * - Create Booking (Pet Owner)
  * - Get Bookings by Clinic (Manager)
- * - Get Bookings by Vet (Vet/Manager)
+ * - Get Bookings by Staff (Staff/Manager)
  * - Get Booking by ID
  * - Get Booking by Code
- * - Check Vet Availability (Manager)
+ * - Check Staff Availability (Manager)
  * - Confirm Booking (Manager)
  * - Cancel Booking
  * - Get My Bookings (Pet Owner)
- * - Get Available Vets for Reassign (Manager)
- * - Reassign Vet (Manager)
+ * - Get Available Staff for Reassign (Manager)
+ * - Reassign Staff (Manager)
  *
  * Each endpoint tests:
  * - Happy path (200/201)
@@ -340,45 +340,45 @@ class BookingControllerUnitTest {
                                 .andExpect(jsonPath("$.content").isEmpty());
         }
 
-        // ==================== GET BOOKINGS BY VET TESTS ====================
+        // ==================== GET BOOKINGS BY STAFF TESTS ====================
 
         @Test
-        @DisplayName("TC-BOOKING-GET-004: Get bookings by vet - Returns 200")
-        @WithMockUser(roles = "VET")
-        void getBookingsByVet_validVetId_returns200() throws Exception {
+        @DisplayName("TC-BOOKING-GET-004: Get bookings by staff - Returns 200")
+        @WithMockUser(roles = "STAFF")
+        void getBookingsByStaff_validStaffId_returns200() throws Exception {
                 // Arrange
-                UUID vetId = UUID.randomUUID();
+                UUID staffId = UUID.randomUUID();
                 BookingResponse booking = createMockBookingResponse();
-                booking.setAssignedVetId(vetId);
-                booking.setAssignedVetName("BS. Trần Văn B");
+                booking.setAssignedStaffId(staffId);
+                booking.setAssignedStaffName("BS. Trần Văn B");
                 Page<BookingResponse> bookingPage = new PageImpl<>(List.of(booking));
 
-                when(bookingService.getBookingsByVet(eq(vetId), any(), any(Pageable.class)))
+                when(bookingService.getBookingsByStaff(eq(staffId), any(), any(Pageable.class)))
                                 .thenReturn(bookingPage);
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/vet/{vetId}", vetId))
+                mockMvc.perform(get("/bookings/staff/{staffId}", staffId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.content[0].assignedVetName").value("BS. Trần Văn B"));
+                                .andExpect(jsonPath("$.content[0].assignedStaffName").value("BS. Trần Văn B"));
 
-                verify(bookingService).getBookingsByVet(eq(vetId), any(), any(Pageable.class));
+                verify(bookingService).getBookingsByStaff(eq(staffId), any(), any(Pageable.class));
         }
 
         @Test
-        @DisplayName("TC-BOOKING-GET-005: Get bookings by vet with status filter - Returns 200")
-        @WithMockUser(roles = "VET")
-        void getBookingsByVet_withStatusFilter_returns200() throws Exception {
+        @DisplayName("TC-BOOKING-GET-005: Get bookings by staff with status filter - Returns 200")
+        @WithMockUser(roles = "STAFF")
+        void getBookingsByStaff_withStatusFilter_returns200() throws Exception {
                 // Arrange
-                UUID vetId = UUID.randomUUID();
+                UUID staffId = UUID.randomUUID();
                 BookingResponse booking = createMockBookingResponse();
                 booking.setStatus(BookingStatus.ASSIGNED);
                 Page<BookingResponse> bookingPage = new PageImpl<>(List.of(booking));
 
-                when(bookingService.getBookingsByVet(eq(vetId), eq(BookingStatus.ASSIGNED), any(Pageable.class)))
+                when(bookingService.getBookingsByStaff(eq(staffId), eq(BookingStatus.ASSIGNED), any(Pageable.class)))
                                 .thenReturn(bookingPage);
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/vet/{vetId}", vetId)
+                mockMvc.perform(get("/bookings/staff/{staffId}", staffId)
                                 .param("status", "ASSIGNED"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content[0].status").value("ASSIGNED"));
@@ -459,101 +459,101 @@ class BookingControllerUnitTest {
                                 .andExpect(jsonPath("$.message").value("Booking not found"));
         }
 
-        // ==================== CHECK VET AVAILABILITY TESTS ====================
+        // ==================== CHECK STAFF AVAILABILITY TESTS ====================
 
         @Test
-        @DisplayName("TC-BOOKING-VET-001: Check vet availability - All services have vets - Returns 200")
+        @DisplayName("TC-BOOKING-STAFF-001: Check staff availability - All services have staff - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void checkVetAvailability_allServicesHaveVets_returns200() throws Exception {
+        void checkStaffAvailability_allServicesHaveStaff_returns200() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
-                VetAvailabilityCheckResponse response = VetAvailabilityCheckResponse.builder()
-                                .allServicesHaveVets(true)
+                StaffAvailabilityCheckResponse response = StaffAvailabilityCheckResponse.builder()
+                                .allServicesHaveStaff(true)
                                 .services(List.of(
                                                 ServiceAvailability.builder()
                                                                 .bookingServiceId(UUID.randomUUID())
                                                                 .serviceName("Khám tổng quát")
-                                                                .hasAvailableVet(true)
-                                                                .suggestedVetId(UUID.randomUUID())
-                                                                .suggestedVetName("BS. Trần Văn B")
+                                                                .hasAvailableStaff(true)
+                                                                .suggestedStaffId(UUID.randomUUID())
+                                                                .suggestedStaffName("BS. Trần Văn B")
                                                                 .price(new BigDecimal("200000"))
                                                                 .build()))
                                 .alternativeTimeSlots(Collections.emptyList())
                                 .priceReductionIfRemoved(BigDecimal.ZERO)
                                 .build();
 
-                when(bookingService.checkVetAvailability(bookingId)).thenReturn(response);
+                when(bookingService.checkStaffAvailability(bookingId)).thenReturn(response);
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-vet-availability", bookingId))
+                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.allServicesHaveVets").value(true))
+                                .andExpect(jsonPath("$.allServicesHaveStaff").value(true))
                                 .andExpect(jsonPath("$.services[0].serviceName").value("Khám tổng quát"))
-                                .andExpect(jsonPath("$.services[0].hasAvailableVet").value(true));
+                                .andExpect(jsonPath("$.services[0].hasAvailableStaff").value(true));
 
-                verify(bookingService).checkVetAvailability(bookingId);
+                verify(bookingService).checkStaffAvailability(bookingId);
         }
 
         @Test
-        @DisplayName("TC-BOOKING-VET-002: Check vet availability - Some services missing vets - Returns 200")
+        @DisplayName("TC-BOOKING-STAFF-002: Check staff availability - Some services missing staff - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void checkVetAvailability_someServicesMissingVets_returns200WithWarning() throws Exception {
+        void checkStaffAvailability_someServicesMissingStaff_returns200WithWarning() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
-                VetAvailabilityCheckResponse response = VetAvailabilityCheckResponse.builder()
-                                .allServicesHaveVets(false)
+                StaffAvailabilityCheckResponse response = StaffAvailabilityCheckResponse.builder()
+                                .allServicesHaveStaff(false)
                                 .services(List.of(
                                                 ServiceAvailability.builder()
                                                                 .bookingServiceId(UUID.randomUUID())
                                                                 .serviceName("Khám tổng quát")
-                                                                .hasAvailableVet(true)
-                                                                .suggestedVetName("BS. Trần Văn B")
+                                                                .hasAvailableStaff(true)
+                                                                .suggestedStaffName("BS. Trần Văn B")
                                                                 .price(new BigDecimal("200000"))
                                                                 .build(),
                                                 ServiceAvailability.builder()
                                                                 .bookingServiceId(UUID.randomUUID())
                                                                 .serviceName("Cạo vôi răng")
-                                                                .hasAvailableVet(false)
+                                                                .hasAvailableStaff(false)
                                                                 .unavailableReason(
-                                                                                "Không có bác sĩ nha khoa thú y có ca làm việc")
+                                                                                "Không có nhân viên nha khoa thú y có ca làm việc")
                                                                 .price(new BigDecimal("350000"))
                                                                 .build()))
                                 .alternativeTimeSlots(List.of(
                                                 AlternativeTimeSlot.builder()
                                                                 .specialty("VET_DENTAL")
-                                                                .specialtyLabel("Bác sĩ nha khoa thú y")
+                                                                .specialtyLabel("Nhân viên nha khoa thú y")
                                                                 .date(LocalDate.of(2025, 1, 17))
                                                                 .availableTimes(List.of("09:00", "10:00", "14:00"))
-                                                                .vetName("BS. Lê Văn C")
-                                                                .vetId(UUID.randomUUID())
+                                                                .staffName("BS. Lê Văn C")
+                                                                .staffId(UUID.randomUUID())
                                                                 .build()))
                                 .priceReductionIfRemoved(new BigDecimal("350000"))
                                 .build();
 
-                when(bookingService.checkVetAvailability(bookingId)).thenReturn(response);
+                when(bookingService.checkStaffAvailability(bookingId)).thenReturn(response);
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-vet-availability", bookingId))
+                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.allServicesHaveVets").value(false))
-                                .andExpect(jsonPath("$.services[1].hasAvailableVet").value(false))
+                                .andExpect(jsonPath("$.allServicesHaveStaff").value(false))
+                                .andExpect(jsonPath("$.services[1].hasAvailableStaff").value(false))
                                 .andExpect(jsonPath("$.services[1].unavailableReason").exists())
                                 .andExpect(jsonPath("$.alternativeTimeSlots").isNotEmpty())
                                 .andExpect(jsonPath("$.priceReductionIfRemoved").value(350000));
         }
 
         @Test
-        @DisplayName("TC-BOOKING-VET-003: Check vet availability - Booking not found - Returns 404")
+        @DisplayName("TC-BOOKING-STAFF-003: Check staff availability - Booking not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void checkVetAvailability_bookingNotFound_returns404() throws Exception {
+        void checkStaffAvailability_bookingNotFound_returns404() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
 
-                when(bookingService.checkVetAvailability(bookingId))
+                when(bookingService.checkStaffAvailability(bookingId))
                                 .thenThrow(new ResourceNotFoundException("Booking not found: " + bookingId));
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-vet-availability", bookingId))
+                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
                                 .andExpect(status().isNotFound());
         }
 
@@ -586,21 +586,21 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("TC-BOOKING-CONFIRM-002: Confirm booking with manual vet assignment - Returns 200")
+        @DisplayName("TC-BOOKING-CONFIRM-002: Confirm booking with manual staff assignment - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void confirmBooking_withManualVetAssignment_returns200() throws Exception {
+        void confirmBooking_withManualStaffAssignment_returns200() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
-                UUID vetId = UUID.randomUUID();
+                UUID staffId = UUID.randomUUID();
                 BookingConfirmRequest request = BookingConfirmRequest.builder()
-                                .assignedVetId(vetId)
+                                .assignedStaffId(staffId)
                                 .managerNotes("Chỉ định BS. Trần Văn B")
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
                 response.setStatus(BookingStatus.ASSIGNED);
-                response.setAssignedVetId(vetId);
-                response.setAssignedVetName("BS. Trần Văn B");
+                response.setAssignedStaffId(staffId);
+                response.setAssignedStaffName("BS. Trần Văn B");
 
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
@@ -611,7 +611,7 @@ class BookingControllerUnitTest {
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("ASSIGNED"))
-                                .andExpect(jsonPath("$.assignedVetName").value("BS. Trần Văn B"));
+                                .andExpect(jsonPath("$.assignedStaffName").value("BS. Trần Văn B"));
         }
 
         @Test
@@ -788,85 +788,85 @@ class BookingControllerUnitTest {
                 verify(bookingService).getMyBookings(eq(userId), any(Pageable.class));
         }
 
-        // ==================== GET AVAILABLE VETS FOR REASSIGN TESTS
+        // ==================== GET AVAILABLE STAFF FOR REASSIGN TESTS
         // ====================
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-001: Get available vets for reassign - Returns 200")
+        @DisplayName("TC-BOOKING-REASSIGN-001: Get available staff for reassign - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void getAvailableVetsForReassign_validRequest_returns200() throws Exception {
+        void getAvailableStaffForReassign_validRequest_returns200() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
 
-                List<AvailableVetResponse> availableVets = List.of(
-                                AvailableVetResponse.builder()
-                                                .vetId(UUID.randomUUID())
-                                                .vetName("BS. Trần Văn B")
+                List<AvailableStaffResponse> availableStaff = List.of(
+                                AvailableStaffResponse.builder()
+                                                .staffId(UUID.randomUUID())
+                                                .staffName("BS. Trần Văn B")
                                                 .specialty("VET_GENERAL")
                                                 .available(true)
                                                 .bookedCount(2)
                                                 .availableSlots(List.of("09:30", "10:00", "14:00"))
                                                 .build(),
-                                AvailableVetResponse.builder()
-                                                .vetId(UUID.randomUUID())
-                                                .vetName("BS. Lê Văn C")
+                                AvailableStaffResponse.builder()
+                                                .staffId(UUID.randomUUID())
+                                                .staffName("BS. Lê Văn C")
                                                 .specialty("VET_GENERAL")
                                                 .available(false)
                                                 .unavailableReason("Không có ca làm việc")
                                                 .build());
 
-                when(bookingService.getAvailableVetsForReassign(bookingId, serviceId))
-                                .thenReturn(availableVets);
+                when(bookingService.getAvailableStaffForReassign(bookingId, serviceId))
+                                .thenReturn(availableStaff);
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-vets", bookingId, serviceId))
+                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-staff", bookingId, serviceId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$[0].vetName").value("BS. Trần Văn B"))
+                                .andExpect(jsonPath("$[0].staffName").value("BS. Trần Văn B"))
                                 .andExpect(jsonPath("$[0].available").value(true))
                                 .andExpect(jsonPath("$[0].availableSlots").isArray())
                                 .andExpect(jsonPath("$[1].available").value(false))
                                 .andExpect(jsonPath("$[1].unavailableReason").value("Không có ca làm việc"));
 
-                verify(bookingService).getAvailableVetsForReassign(bookingId, serviceId);
+                verify(bookingService).getAvailableStaffForReassign(bookingId, serviceId);
         }
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-002: Get available vets for reassign - Booking not found - Returns 404")
+        @DisplayName("TC-BOOKING-REASSIGN-002: Get available staff for reassign - Booking not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void getAvailableVetsForReassign_bookingNotFound_returns404() throws Exception {
+        void getAvailableStaffForReassign_bookingNotFound_returns404() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
 
-                when(bookingService.getAvailableVetsForReassign(bookingId, serviceId))
+                when(bookingService.getAvailableStaffForReassign(bookingId, serviceId))
                                 .thenThrow(new ResourceNotFoundException("Booking not found: " + bookingId));
 
                 // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-vets", bookingId, serviceId))
+                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-staff", bookingId, serviceId))
                                 .andExpect(status().isNotFound());
         }
 
-        // ==================== REASSIGN VET TESTS ====================
+        // ==================== REASSIGN STAFF TESTS ====================
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-003: Reassign vet with valid request - Returns 200")
+        @DisplayName("TC-BOOKING-REASSIGN-003: Reassign staff with valid request - Returns 200")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void reassignVet_validRequest_returns200() throws Exception {
+        void reassignStaff_validRequest_returns200() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
-                UUID newVetId = UUID.randomUUID();
+                UUID newStaffId = UUID.randomUUID();
 
-                ReassignVetRequest request = ReassignVetRequest.builder()
-                                .newVetId(newVetId)
+                ReassignStaffRequest request = ReassignStaffRequest.builder()
+                                .newStaffId(newStaffId)
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.getServices().get(0).setAssignedVetId(newVetId);
-                response.getServices().get(0).setAssignedVetName("BS. Nguyễn Văn D");
+                response.getServices().get(0).setAssignedStaffId(newStaffId);
+                response.getServices().get(0).setAssignedStaffName("BS. Nguyễn Văn D");
 
-                when(bookingService.reassignVetForService(bookingId, serviceId, newVetId))
+                when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenReturn(response);
 
                 // Act & Assert
@@ -874,25 +874,25 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.services[0].assignedVetName").value("BS. Nguyễn Văn D"));
+                                .andExpect(jsonPath("$.services[0].assignedStaffName").value("BS. Nguyễn Văn D"));
 
-                verify(bookingService).reassignVetForService(bookingId, serviceId, newVetId);
+                verify(bookingService).reassignStaffForService(bookingId, serviceId, newStaffId);
         }
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-004: Reassign vet - Service not found - Returns 404")
+        @DisplayName("TC-BOOKING-REASSIGN-004: Reassign staff - Service not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void reassignVet_serviceNotFound_returns404() throws Exception {
+        void reassignStaff_serviceNotFound_returns404() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
-                UUID newVetId = UUID.randomUUID();
+                UUID newStaffId = UUID.randomUUID();
 
-                ReassignVetRequest request = ReassignVetRequest.builder()
-                                .newVetId(newVetId)
+                ReassignStaffRequest request = ReassignStaffRequest.builder()
+                                .newStaffId(newStaffId)
                                 .build();
 
-                when(bookingService.reassignVetForService(bookingId, serviceId, newVetId))
+                when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenThrow(new ResourceNotFoundException("Service item not found: " + serviceId));
 
                 // Act & Assert
@@ -903,20 +903,20 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-005: Reassign vet - Vet not found - Returns 404")
+        @DisplayName("TC-BOOKING-REASSIGN-005: Reassign staff - Staff not found - Returns 404")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void reassignVet_vetNotFound_returns404() throws Exception {
+        void reassignStaff_staffNotFound_returns404() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
-                UUID newVetId = UUID.randomUUID();
+                UUID newStaffId = UUID.randomUUID();
 
-                ReassignVetRequest request = ReassignVetRequest.builder()
-                                .newVetId(newVetId)
+                ReassignStaffRequest request = ReassignStaffRequest.builder()
+                                .newStaffId(newStaffId)
                                 .build();
 
-                when(bookingService.reassignVetForService(bookingId, serviceId, newVetId))
-                                .thenThrow(new ResourceNotFoundException("Vet not found: " + newVetId));
+                when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
+                                .thenThrow(new ResourceNotFoundException("Staff not found: " + newStaffId));
 
                 // Act & Assert
                 mockMvc.perform(post("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
@@ -926,19 +926,19 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("TC-BOOKING-REASSIGN-006: Reassign vet - No available slots - Returns 400")
+        @DisplayName("TC-BOOKING-REASSIGN-006: Reassign staff - No available slots - Returns 400")
         @WithMockUser(roles = "CLINIC_MANAGER")
-        void reassignVet_noAvailableSlots_returns400() throws Exception {
+        void reassignStaff_noAvailableSlots_returns400() throws Exception {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
-                UUID newVetId = UUID.randomUUID();
+                UUID newStaffId = UUID.randomUUID();
 
-                ReassignVetRequest request = ReassignVetRequest.builder()
-                                .newVetId(newVetId)
+                ReassignStaffRequest request = ReassignStaffRequest.builder()
+                                .newStaffId(newStaffId)
                                 .build();
 
-                when(bookingService.reassignVetForService(bookingId, serviceId, newVetId))
+                when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenThrow(new BadRequestException("Không có đủ slot liên tiếp tại thời gian yêu cầu"));
 
                 // Act & Assert

@@ -37,7 +37,7 @@ public class BookingDataSeeder implements CommandLineRunner {
         private final ClinicRepository clinicRepository;
         private final ClinicServiceRepository clinicServiceRepository;
         private final BookingRepository bookingRepository;
-        private final VetShiftRepository vetShiftRepository;
+        private final StaffShiftRepository staffShiftRepository;
         private final PricingService pricingService;
         private final LocationService locationService;
 
@@ -55,7 +55,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 try {
                         seedMockPets();
-                        seedMockVetShifts();
+                        seedMockStaffShifts();
                         seedMockServices(); // Add services with required categories
                         seedMockBookings();
                         log.info("✅ Booking mock data seeded successfully!");
@@ -112,9 +112,9 @@ public class BookingDataSeeder implements CommandLineRunner {
         }
 
         /**
-         * Create mock vet shifts for testing auto-assign
+         * Create mock staff shifts for testing auto-assign
          */
-        private void seedMockVetShifts() {
+        private void seedMockStaffShifts() {
                 User vet = userRepository.findByUsername("vet").orElse(null);
                 if (vet == null) {
                         log.warn("vet user not found, skipping shift seeding");
@@ -129,26 +129,27 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 // Check if shifts already exist for next 7 days
                 LocalDate today = LocalDate.now();
-                List<VetShift> existingShifts = vetShiftRepository.findByVet_UserIdAndWorkDate(vet.getUserId(), today);
+                List<StaffShift> existingShifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(vet.getUserId(),
+                                today);
                 if (!existingShifts.isEmpty()) {
-                        log.info("   - Vet shifts already exist");
+                        log.info("   - Staff shifts already exist");
                         return;
                 }
 
                 // Create shifts for next 7 days (8:00 - 17:00)
                 for (int i = 0; i < 7; i++) {
                         LocalDate shiftDate = today.plusDays(i);
-                        VetShift shift = VetShift.builder()
-                                        .vet(vet)
+                        StaffShift shift = StaffShift.builder()
+                                        .staff(vet)
                                         .clinic(clinic)
                                         .workDate(shiftDate)
                                         .startTime(LocalTime.of(8, 0))
                                         .endTime(LocalTime.of(17, 0))
                                         .isOvernight(false)
                                         .build();
-                        vetShiftRepository.save(shift);
+                        staffShiftRepository.save(shift);
                 }
-                log.info("   + Created 7 days of vet shifts for {}", vet.getFullName());
+                log.info("   + Created 7 days of staff shifts for {}", vet.getFullName());
         }
 
         /**
@@ -410,33 +411,79 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 clinic.getLatitude(), clinic.getLongitude(),
                                 BigDecimal.valueOf(homeLat11), BigDecimal.valueOf(homeLng11));
                 createBookingWithHomeVisit(clinic, pet3, petOwner, day3, LocalTime.of(14, 0),
-                                String.format("[+3 DAYS] Tắm spa tại nhà - chó lớn 32kg, %.1fkm (TEST WEIGHT + DISTANCE)",
+                                String.format("[+3 DAYS] Tắm spa tại nhà - chó lớn 32kg, %.1fkm (TEST WEIGHT)",
                                                 distKm11),
                                 findServicesByCategory(allServices, "GROOMING_SPA", 1),
                                 "789 Võ Chí Công, Mỹ An, Ngũ Hành Sơn, Đà Nẵng", homeLat11, homeLng11,
                                 BigDecimal.valueOf(distKm11));
 
-                // ========== BOOKING 12: IN_PROGRESS for testing Add-on Service ==========
+                // =========================================================================================
+                // ========== TODAY (COMPREHENSIVE TEST CASES) ==========
+                // =========================================================================================
+
+                // 1. TODAY - IN_PROGRESS (Home Visit - Add-on Service Test)
                 double homeLat12 = 16.0150, homeLng12 = 108.2450;
                 double distKm12 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
                                 BigDecimal.valueOf(homeLat12), BigDecimal.valueOf(homeLng12));
-                createBookingWithStatus(clinic, pet1, petOwner, LocalDate.now(), LocalTime.of(10, 0),
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(10, 0),
                                 String.format("[TODAY] Đang khám tại nhà - TEST ADD-ON SERVICE (%.1fkm)", distKm12),
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
                                 "123 Mỹ Khê, Ngũ Hành Sơn, Đà Nẵng", homeLat12, homeLng12,
                                 BigDecimal.valueOf(distKm12), BookingStatus.IN_PROGRESS);
 
-                // ========== BOOKING 13: ASSIGNED for testing Check-in flow ==========
+                // 2. TODAY - CONFIRMED (Home Visit - Assigned staff, ready for vet to check-in)
                 double homeLat13 = 16.0280, homeLng13 = 108.2380;
                 double distKm13 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
                                 BigDecimal.valueOf(homeLat13), BigDecimal.valueOf(homeLng13));
-                createBookingWithStatus(clinic, pet2, petOwner, LocalDate.now(), LocalTime.of(14, 0),
-                                String.format("[TODAY] Đã gán BS - TEST CHECK-IN (%.1fkm)", distKm13),
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(14, 0),
+                                String.format("[TODAY] Đã xác nhận - Chờ BS check-in (%.1fkm)", distKm13),
                                 findServicesByCategory(allServices, "VACCINATION", 1),
                                 "456 Ngô Quyền, Sơn Trà, Đà Nẵng", homeLat13, homeLng13,
-                                BigDecimal.valueOf(distKm13), BookingStatus.ASSIGNED);
+                                BigDecimal.valueOf(distKm13), BookingStatus.CONFIRMED);
+
+                // 3. TODAY - CONFIRMED (In Clinic - Waiting for Vet to start service)
+                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(10, 30),
+                                "[TODAY] Khách đã đến - Chờ BS bắt đầu khám",
+                                findServicesByCategory(allServices, "DERMATOLOGY", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED);
+
+                // 4. TODAY - COMPLETED (Finished earlier)
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
+                                "[TODAY] Khám xong lúc sáng sớm",
+                                findServicesByCategory(allServices, "CHECK_UP", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.COMPLETED);
+
+                // 5. TODAY - ON_THE_WAY (Vet is driving)
+                double homeLat16 = 16.0400, homeLng16 = 108.2300;
+                double distKm16 = locationService.calculateDistance(
+                                clinic.getLatitude(), clinic.getLongitude(),
+                                BigDecimal.valueOf(homeLat16), BigDecimal.valueOf(homeLng16));
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(11, 0),
+                                String.format("[TODAY] Bác sĩ đang di chuyển - ON WAY (%.1fkm)", distKm16),
+                                findServicesByCategory(allServices, "CHECK_UP", 1),
+                                "99 Nguyễn Văn Linh, Đà Nẵng", homeLat16, homeLng16,
+                                BigDecimal.valueOf(distKm16), BookingStatus.ON_THE_WAY);
+
+                // 6. TODAY - SOS (PENDING ASSIGNMENT - EMERGENCY)
+                // Use custom creation for SOS to set correct type
+                // createSosBooking(clinic, pet3, petOwner, today,
+                // LocalTime.now().plusMinutes(30),
+                // "🚨 [TODAY] SOS CẤP CỨU - Chó khó thở (Cần Assign gấp)",
+                // findServicesByCategory(allServices, "CHECK_UP", 1));
+
+                // 7. TODAY - CANCELLED (By user)
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(9, 30),
+                                "[TODAY] Đã hủy do bận đột xuất",
+                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CANCELLED);
+
+                // 8. TODAY - CONFIRMED (Upcoming later today)
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(16, 30),
+                                "[TODAY] Lịch hẹn chiều muộn (Đã xác nhận)",
+                                findServicesByCategory(allServices, "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED);
         }
 
         /**
@@ -571,7 +618,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create a home visit booking with custom status (for testing IN_PROGRESS)
-         * Also assigns vet for ASSIGNED/IN_PROGRESS/CHECK_IN statuses
+         * Also assigns vet for ASSIGNED/IN_PROGRESS statuses
          */
         private void createBookingWithStatus(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
@@ -595,13 +642,13 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 BigDecimal totalPrice = servicesTotal.add(distanceFee);
 
-                // Find a vet to assign for ASSIGNED/IN_PROGRESS/CHECK_IN statuses
-                User assignedVet = null;
+                // Find a staff to assign for ASSIGNED/IN_PROGRESS statuses
+                User assignedStaff = null;
                 if (status == BookingStatus.ASSIGNED || status == BookingStatus.IN_PROGRESS
-                                || status == BookingStatus.CHECK_IN || status == BookingStatus.CONFIRMED) {
-                        assignedVet = userRepository.findByUsername("vet").orElse(null);
-                        if (assignedVet == null) {
-                                log.warn("vet user not found, booking will have no assigned vet");
+                                || status == BookingStatus.CONFIRMED) {
+                        assignedStaff = userRepository.findByUsername("vet").orElse(null);
+                        if (assignedStaff == null) {
+                                log.warn("vet user not found, booking will have no assigned staff");
                         }
                 }
 
@@ -621,7 +668,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 .homeLat(BigDecimal.valueOf(lat))
                                 .homeLong(BigDecimal.valueOf(lng))
                                 .distanceKm(distanceKm)
-                                .assignedVet(assignedVet)
+                                .assignedStaff(assignedStaff)
                                 .build();
 
                 for (ClinicService service : services) {
@@ -635,15 +682,15 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         .basePrice(basePrice)
                                         .weightPrice(weightPrice)
                                         .quantity(1)
-                                        .assignedVet(assignedVet)
+                                        .assignedStaff(assignedStaff)
                                         .build();
                         booking.getBookingServices().add(item);
                 }
 
                 bookingRepository.save(booking);
-                log.info("   + Created {} booking: {} - {} (vet: {}, total: {}đ)",
+                log.info("   + Created {} booking: {} - {} (staff: {}, total: {}đ)",
                                 status, bookingCode, notes,
-                                assignedVet != null ? assignedVet.getFullName() : "NONE", totalPrice);
+                                assignedStaff != null ? assignedStaff.getFullName() : "NONE", totalPrice);
         }
 
         /**

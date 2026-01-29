@@ -24,9 +24,9 @@ class BookingResponse {
   final double? totalPrice;
   final String? notes;
   final List<BookingServiceItem> services;
-  // Vet info
-  final String? assignedVetName;
-  final String? assignedVetAvatarUrl;
+  // Staff info
+  final String? assignedStaffName;
+  final String? assignedStaffAvatarUrl;
 
   BookingResponse({
     this.bookingId,
@@ -51,8 +51,8 @@ class BookingResponse {
     this.totalPrice,
     this.notes,
     this.services = const [],
-    this.assignedVetName,
-    this.assignedVetAvatarUrl,
+    this.assignedStaffName,
+    this.assignedStaffAvatarUrl,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -82,8 +82,8 @@ class BookingResponse {
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??
           [],
-      assignedVetName: json['assignedVetName'],
-      assignedVetAvatarUrl: json['assignedVetAvatarUrl'],
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
     );
   }
 }
@@ -93,9 +93,9 @@ class BookingServiceItem {
   final String? serviceId;
   final String? serviceName;
   final double? price;
-  final String? assignedVetId;
-  final String? assignedVetName;
-  final String? assignedVetAvatarUrl;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
+  final String? assignedStaffAvatarUrl;
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
@@ -105,9 +105,9 @@ class BookingServiceItem {
     this.serviceId,
     this.serviceName,
     this.price,
-    this.assignedVetId,
-    this.assignedVetName,
-    this.assignedVetAvatarUrl,
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffAvatarUrl,
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
@@ -119,9 +119,9 @@ class BookingServiceItem {
       serviceId: json['serviceId'],
       serviceName: json['serviceName'],
       price: (json['price'] as num?)?.toDouble(),
-      assignedVetId: json['assignedVetId'],
-      assignedVetName: json['assignedVetName'],
-      assignedVetAvatarUrl: json['assignedVetAvatarUrl'],
+      assignedStaffId: json['assignedStaffId'],
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],
@@ -130,25 +130,25 @@ class BookingServiceItem {
 }
 
 /// ============================================================
-/// VET HOME SUMMARY MODELS
-/// Matches backend VetHomeSummaryResponse
+/// STAFF HOME SUMMARY MODELS
+/// Matches backend StaffHomeSummaryResponse
 /// ============================================================
 
-class VetHomeSummaryResponse {
+class StaffHomeSummaryResponse {
   final int todayBookingsCount;
   final int pendingCount;
   final int inProgressCount;
   final List<UpcomingBookingDTO> upcomingBookings;
 
-  VetHomeSummaryResponse({
+  StaffHomeSummaryResponse({
     required this.todayBookingsCount,
     required this.pendingCount,
     required this.inProgressCount,
     required this.upcomingBookings,
   });
 
-  factory VetHomeSummaryResponse.fromJson(Map<String, dynamic> json) {
-    return VetHomeSummaryResponse(
+  factory StaffHomeSummaryResponse.fromJson(Map<String, dynamic> json) {
+    return StaffHomeSummaryResponse(
       todayBookingsCount: json['todayBookingsCount'] ?? 0,
       pendingCount: json['pendingCount'] ?? 0,
       inProgressCount: json['inProgressCount'] ?? 0,

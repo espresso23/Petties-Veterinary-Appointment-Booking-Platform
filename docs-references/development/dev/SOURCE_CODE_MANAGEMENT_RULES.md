@@ -20,31 +20,45 @@ Quy tắc quản lý source code cho team Petties (5 người).
 
 ### Branch Structure
 ```
-main (production) ─── Protected, requires 2 approvals
+main (production) ─── Protected, requires 2 approvals, auto deploy Production
   │
-  └── develop (integration) ─── Protected, requires 1 approval
+  └── develop (test environment) ─── Protected, requires 1 approval, auto deploy Test
         │
-        ├── feature/* ─── Individual work
-        ├── bugfix/* ─── Bug fixes
-        └── hotfix/* ─── Emergency fixes (from main)
+        └── integrationFeature (team integration) ─── Protected, requires 1 approval
+              │
+              ├── feature/* ─── Individual work
+              ├── bugfix/* ─── Bug fixes
+              └── hotfix/* ─── Emergency fixes (from main)
 ```
 
 ### Protection Settings (GitHub)
 
-**Main Branch:**
+**1. Main Branch:**
+- The main branch serves as the source of truth for production-ready code
+- Only thoroughly tested and approved changes from develop are merged here
 - Require PR before merging
 - Require 2 approvals (bắt buộc Team Leader + 1 người khác)
 - Require status checks to pass
 - Require conversation resolution
 - Do not allow force pushes
 - Do not allow deletions
+- **Auto deploy:** Push triggers `deploy-ec2.yml` → Production Environment
 
-**Develop Branch:**
+**2. Develop Branch:**
+- The develop branch is the integration branch where all feature branches merge ready for test environment
+- Used for team code sharing and integration testing
 - Require PR before merging
 - Require 1 approval
 - Require status checks to pass (`ci.yml` must pass)
 - Do not allow force pushes
 - **Auto deploy:** Push triggers `deploy-test.yml` → Test Environment
+
+**3. IntegrationFeature Branch:**
+- The integrationFeature branch is the integration branch where all feature branches merge
+- Used for team code sharing before merging to develop
+- Require PR before merging
+- Require 1 approval
+- Protected with CI/CD checks
 
 ---
 
@@ -632,7 +646,13 @@ v1.0.0 - Production ready
 
 ```
 BRANCHES:
-  main ← develop ← feature/*
+  main ← develop ← integrationFeature ← feature/*
+
+BRANCH PURPOSES:
+  main: Production code (2 approvals, auto deploy prod)
+  develop: Test environment (1 approval, auto deploy test)
+  integrationFeature: Team integration (1 approval)
+  feature/*: Individual work
 
 COMMIT:
   feat|fix|docs|style|refactor|test|chore(scope): message
@@ -644,10 +664,10 @@ REVIEW TIME:
   Small: 4h | Medium: 8h | Large: 24h
 
 APPROVALS:
-  main: 2 | develop: 1
+  main: 2 | develop: 1 | integrationFeature: 1
 
 FORBIDDEN:
-  - Force push to main/develop
+  - Force push to main/develop/integrationFeature
   - Commit credentials
   - Skip code review
   - Merge without tests passing
@@ -655,5 +675,5 @@ FORBIDDEN:
 
 ---
 
-**Last Updated:** 2025-12-16
+**Last Updated:** 2025-01-28
 **Maintained By:** Petties Team

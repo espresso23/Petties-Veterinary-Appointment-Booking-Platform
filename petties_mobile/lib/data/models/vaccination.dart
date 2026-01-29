@@ -2,10 +2,10 @@ class VaccinationRecord {
   final String id;
   final String petId;
   final String? bookingId;
-  final String vetId;
+  final String staffId;
   final String? clinicId;
   final String clinicName;
-  final String vetName;
+  final String staffName;
   final String vaccineName;
   final String? batchNumber;
   final DateTime vaccinationDate;
@@ -18,10 +18,10 @@ class VaccinationRecord {
     required this.id,
     required this.petId,
     this.bookingId,
-    required this.vetId,
+    required this.staffId,
     this.clinicId,
     required this.clinicName,
-    required this.vetName,
+    required this.staffName,
     required this.vaccineName,
     this.batchNumber,
     required this.vaccinationDate,
@@ -36,10 +36,10 @@ class VaccinationRecord {
       id: json['id'] ?? '',
       petId: json['petId'] ?? '',
       bookingId: json['bookingId'],
-      vetId: json['vetId'] ?? '',
+      staffId: json['staffId'] ?? '',
       clinicId: json['clinicId'],
       clinicName: json['clinicName'] ?? 'N/A',
-      vetName: json['vetName'] ?? 'N/A',
+      staffName: json['staffName'] ?? 'N/A',
       vaccineName: json['vaccineName'] ?? '',
       batchNumber: json['batchNumber'],
       vaccinationDate: DateTime.parse(json['vaccinationDate']),

@@ -4,10 +4,10 @@ export interface EmrRecord {
     id: string
     petId: string
     bookingId?: string
-    vetId: string
+    staffId: string
     clinicId: string
     clinicName: string
-    vetName: string
+    staffName: string
     petName: string
     petSpecies: string
     petBreed: string
@@ -98,7 +98,7 @@ export const emrService = {
     },
 
     /**
-     * Create a new EMR record (Vet only)
+     * Create a new EMR record (Staff only)
      */
     async createEmr(request: CreateEmrRequest): Promise<EmrRecord> {
         const response = await api.post<EmrRecord>('/emr', request)
@@ -106,7 +106,7 @@ export const emrService = {
     },
 
     /**
-     * Update EMR record (Vet only)
+     * Update EMR record (Staff only)
      */
     async updateEmr(emrId: string, request: CreateEmrRequest): Promise<EmrRecord> {
         const response = await api.put<EmrRecord>(`/emr/${emrId}`, request)

@@ -101,7 +101,7 @@ public class PetService {
             if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER) {
                 // Owner: Only see their own pets
                 predicates.add(cb.equal(root.get("user").get("userId"), currentUser.getUserId()));
-            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.VET ||
+            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF ||
                     currentUser.getRole() == com.petties.petties.model.enums.Role.CLINIC_MANAGER) {
                 // Vet/Manager: Only see pets that have at least one EMR at their clinic
                 if (currentUser.getWorkingClinic() != null) {
@@ -207,10 +207,10 @@ public class PetService {
         User currentUser = authService.getCurrentUser();
 
         // Only VET, CLINIC_MANAGER, or ADMIN can update allergies
-        if (currentUser.getRole() != com.petties.petties.model.enums.Role.VET &&
+        if (currentUser.getRole() != com.petties.petties.model.enums.Role.STAFF &&
                 currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
                 currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
-            throw new ForbiddenException("Chỉ bác sĩ thú y mới có thể cập nhật thông tin dị ứng");
+            throw new ForbiddenException("Chỉ nhân viên y tế mới có thể cập nhật thông tin dị ứng");
         }
 
         Pet pet = petRepository.findById(petId)
@@ -232,10 +232,10 @@ public class PetService {
         User currentUser = authService.getCurrentUser();
 
         // Only VET, CLINIC_MANAGER, or ADMIN can update weight
-        if (currentUser.getRole() != com.petties.petties.model.enums.Role.VET &&
+        if (currentUser.getRole() != com.petties.petties.model.enums.Role.STAFF &&
                 currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
                 currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
-            throw new ForbiddenException("Chỉ bác sĩ thú y mới có thể cập nhật cân nặng");
+            throw new ForbiddenException("Chỉ nhân viên y tế mới có thể cập nhật cân nặng");
         }
 
         Pet pet = petRepository.findById(petId)

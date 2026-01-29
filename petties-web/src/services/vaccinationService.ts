@@ -4,11 +4,11 @@ export interface VaccinationRecord {
     id: string
     petId: string
     bookingId?: string
-    vetId: string
+    staffId: string
     clinicId: string
 
     clinicName: string
-    vetName: string
+    staffName: string
 
     vaccineName: string
     batchNumber?: string

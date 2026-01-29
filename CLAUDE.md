@@ -83,7 +83,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 | Role | Web | Mobile |
 |------|-----|--------|
 | PET_OWNER | - | Mobile only |
-| VET | Web + Mobile | Web + Mobile |
+| STAFF | Web + Mobile | Web + Mobile |
 | CLINIC_OWNER | Web only | - |
 | CLINIC_MANAGER | Web only | - |
 | ADMIN | Web only | - |

@@ -15,7 +15,7 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 | STT | Đối tượng | Mô tả | Nền tảng |
 |:---:|-----------|-------|:--------:|
 | 1 | Chủ thú cưng (Pet Owner) | Người nuôi thú cưng, cần tìm dịch vụ y tế cho pet | 📱 Mobile |
-| 2 | Bác sĩ thú y (Vet) | Chuyên gia y tế thực hiện khám, chẩn đoán, điều trị | 📱 Mobile + 💻 Web |
+| 2 | Nhân viên thú y (Staff) | Chuyên gia y tế thực hiện khám, chẩn đoán, điều trị | 📱 Mobile + 💻 Web |
 | 3 | Quản lý phòng khám (Clinic Manager) | Nhân viên vận hành phòng khám, điều phối lịch hẹn | 💻 Web |
 | 4 | Chủ phòng khám (Clinic Owner) | Chủ doanh nghiệp phòng khám, quản lý kinh doanh | 💻 Web |
 | 5 | Quản trị viên (Admin) | Quản lý toàn bộ nền tảng Petties | 💻 Web |
@@ -48,10 +48,10 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 
 ---
 
-#### 1.2.2 👨‍⚕️ Bác sĩ thú y (Vet)
+#### 1.2.2 👨‍⚕️ Nhân viên thú y (Staff)
 
 **Đặc điểm:**
-- Là bác sĩ thú y có chứng chỉ hành nghề
+- Là nhân viên thú y có chứng chỉ hành nghề
 - Thuộc về **một phòng khám duy nhất** (clinic-based)
 - Thực hiện khám, chẩn đoán, điều trị cho thú cưng
 
@@ -74,18 +74,18 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 
 **Đặc điểm:**
 - Là nhân viên điều hành hàng ngày tại phòng khám
-- Tiếp nhận và phân bổ lịch hẹn cho bác sĩ
+- Tiếp nhận và phân bổ lịch hẹn cho nhân viên
 - Làm việc trên nền tảng web tại quầy lễ tân
 
 **Vấn đề gặp phải:**
 - ❌ Sổ đặt lịch thủ công, dễ bị trùng lịch
-- ❌ Khó phân bổ công việc hợp lý cho đội ngũ bác sĩ
+- ❌ Khó phân bổ công việc hợp lý cho đội ngũ nhân viên
 - ❌ Thiếu công cụ quản lý luồng khám trong ngày
 
 **Kỳ vọng:**
 - ✅ Xem và quản lý booking mới từ Pet Owner
-- ✅ Phân công bác sĩ phù hợp cho từng booking
-- ✅ Quản lý lịch làm việc (ca/shift) của bác sĩ
+- ✅ Phân công nhân viên phù hợp cho từng booking
+- ✅ Quản lý lịch làm việc (ca/shift) của nhân viên
 - ✅ Theo dõi luồng khám: Check-in → Khám → Check-out
 - ✅ Chat với Pet Owner để tư vấn và hỗ trợ
 
@@ -106,7 +106,7 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 **Kỳ vọng:**
 - ✅ Quản lý thông tin phòng khám (địa chỉ, giờ mở cửa, hình ảnh)
 - ✅ Quản lý danh mục dịch vụ và bảng giá linh hoạt
-- ✅ Thêm và quản lý nhân viên (Manager, Vet)
+- ✅ Thêm và quản lý nhân viên (Manager, Staff)
 - ✅ Xem báo cáo doanh thu và thống kê
 - ✅ Nhận đánh giá từ khách hàng
 
@@ -192,13 +192,13 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 
 ---
 
-### 2.2 👨‍⚕️ Bác sĩ thú y (Vet)
+### 2.2 👨‍⚕️ Nhân viên thú y (Staff)
 
 #### 2.2.1 Xem và quản lý booking được phân công
 
 | Mục | Nội dung |
 |-----|----------|
-| **Actor** | Bác sĩ thú y (Vet) |
+| **Actor** | Nhân viên thú y (Staff) |
 | **Mục tiêu** | Nắm rõ lịch hẹn trong ngày và chuẩn bị cho các ca khám |
 | **Giải pháp** | Cung cấp giao diện xem lịch với danh sách booking chi tiết |
 
@@ -215,7 +215,7 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 
 | Mục | Nội dung |
 |-----|----------|
-| **Actor** | Bác sĩ thú y (Vet) |
+| **Actor** | Nhân viên thú y (Staff) |
 | **Mục tiêu** | Ghi lại kết quả khám, chẩn đoán và đơn thuốc |
 | **Giải pháp** | Cung cấp form nhập hồ sơ bệnh án điện tử |
 
@@ -237,30 +237,30 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 | Mục | Nội dung |
 |-----|----------|
 | **Actor** | Quản lý phòng khám (Clinic Manager) |
-| **Mục tiêu** | Tiếp nhận booking mới và phân công bác sĩ phù hợp |
-| **Giải pháp** | Cung cấp dashboard quản lý booking với tính năng gán bác sĩ |
+| **Mục tiêu** | Tiếp nhận booking mới và phân công nhân viên phù hợp |
+| **Giải pháp** | Cung cấp dashboard quản lý booking với tính năng gán nhân viên |
 
 **Các bước thực hiện:**
 1. Đăng nhập trang web quản lý
 2. Xem danh sách booking mới (trạng thái PENDING)
 3. Xem chi tiết booking: dịch vụ, địa điểm, thời gian
-4. Chọn bác sĩ còn trống trong khung giờ đó
-5. Gán bác sĩ cho booking
-6. Hệ thống gửi thông báo cho bác sĩ và Pet Owner
+4. Chọn nhân viên còn trống trong khung giờ đó
+5. Gán nhân viên cho booking
+6. Hệ thống gửi thông báo cho nhân viên và Pet Owner
 
 ---
 
-#### 2.3.2 Quản lý lịch làm việc bác sĩ
+#### 2.3.2 Quản lý lịch làm việc nhân viên
 
 | Mục | Nội dung |
 |-----|----------|
 | **Actor** | Quản lý phòng khám (Clinic Manager) |
-| **Mục tiêu** | Tạo và quản lý ca làm việc cho bác sĩ |
+| **Mục tiêu** | Tạo và quản lý ca làm việc cho nhân viên |
 | **Giải pháp** | Cung cấp calendar view với tính năng tạo shift và tự động chia slot |
 
 **Các bước thực hiện:**
 1. Vào mục "Lịch làm việc"
-2. Chọn bác sĩ và ngày làm việc
+2. Chọn nhân viên và ngày làm việc
 3. Nhập giờ bắt đầu, giờ kết thúc, giờ nghỉ trưa
 4. Hệ thống tự động chia thành các slot 30 phút
 5. Xác nhận và lưu ca làm việc
@@ -293,13 +293,13 @@ Hệ thống Petties phục vụ **5 nhóm đối tượng** chính với các v
 | Mục | Nội dung |
 |-----|----------|
 | **Actor** | Chủ phòng khám (Clinic Owner) |
-| **Mục tiêu** | Mời và quản lý tài khoản nhân viên (Manager, Vet) vào hệ thống |
+| **Mục tiêu** | Mời và quản lý tài khoản nhân viên (Manager, Staff) vào hệ thống |
 | **Giải pháp** | Cung cấp tính năng mời qua Email, đăng nhập qua Google OAuth để bảo mật và tiện lợi |
 
 **Các bước thực hiện:**
 1. Vào mục "Quản lý nhân viên"
 2. Nhấn "Thêm nhân viên"
-3. Nhập: Email, Vai trò (Manager/Vet), Chuyên môn (nếu là Vet)
+3. Nhập: Email, Vai trò (Manager/Staff), Chuyên môn (nếu là Staff)
 4. Hệ thống: Ghi nhận yêu cầu mời nhân sự gắn với Email
 5. Nhân viên: Sử dụng tài khoản Google khớp với Email được mời để đăng nhập
 6. Hệ thống: Tự động đồng bộ Họ tên và Ảnh từ Google profile trong lần đầu truy cập

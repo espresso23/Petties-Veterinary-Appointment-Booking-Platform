@@ -1,13 +1,13 @@
 package com.petties.petties.service;
 
-import com.petties.petties.dto.booking.AvailableVetResponse;
+import com.petties.petties.dto.booking.AvailableStaffResponse;
 import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
-import com.petties.petties.dto.booking.VetAvailabilityCheckResponse;
-import com.petties.petties.dto.booking.VetOptionDTO;
-import com.petties.petties.dto.booking.VetHomeSummaryResponse;
+import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
+import com.petties.petties.dto.booking.StaffOptionDTO;
+import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
 import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Booking;
@@ -51,7 +51,7 @@ public class BookingService {
         private final ClinicRepository clinicRepository;
         private final ClinicServiceRepository clinicServiceRepository;
         private final UserRepository userRepository;
-        private final VetAssignmentService vetAssignmentService;
+        private final StaffAssignmentService staffAssignmentService;
         private final NotificationService notificationService;
         private final PricingService pricingService;
         private final BookingServiceItemRepository bookingServiceItemRepository;
@@ -204,12 +204,12 @@ public class BookingService {
         // ========== CONFIRM BOOKING ==========
 
         /**
-         * Confirm booking and auto-assign vets to all services (Manager action)
+         * Confirm booking and auto-assign staff to all services (Manager action)
          * Groups services by specialty and assigns appropriate vet for each
          *
          * Supports partial confirmation options:
-         * - allowPartial: Confirm even if some services don't have available vets
-         * - removeUnavailableServices: Remove services without available vets and
+         * - allowPartial: Confirm even if some services don't have available staff
+         * - removeUnavailableServices: Remove services without available staff and
          * recalculate price
          */
         @Transactional
@@ -243,13 +243,13 @@ public class BookingService {
 
                 // Handle removeUnavailableServices option
                 if (removeUnavailable) {
-                        VetAvailabilityCheckResponse availability = vetAssignmentService
-                                        .checkVetAvailabilityForBooking(booking);
+                        StaffAvailabilityCheckResponse availability = staffAssignmentService
+                                        .checkStaffAvailabilityForBooking(booking);
 
-                        if (!availability.isAllServicesHaveVets()) {
-                                // Remove services without available vets
+                        if (!availability.isAllServicesHaveStaff()) {
+                                // Remove services without available staff
                                 List<UUID> servicesToRemove = availability.getServices().stream()
-                                                .filter(s -> !s.isHasAvailableVet())
+                                                .filter(s -> !s.isHasAvailableStaff())
                                                 .map(s -> s.getBookingServiceId())
                                                 .collect(Collectors.toList());
 
@@ -294,48 +294,48 @@ public class BookingService {
                 // Update status to CONFIRMED
                 booking.setStatus(BookingStatus.CONFIRMED);
 
-                // Determine which vet to use for manual assignment
-                // Priority: selectedVetId > assignedVetId (both serve same purpose)
-                UUID manualVetId = null;
+                // Determine which staff to use for manual assignment
+                // Priority: selectedStaffId > assignedStaffId (both serve same purpose)
+                UUID manualStaffId = null;
                 if (request != null) {
-                        manualVetId = request.getSelectedVetId() != null
-                                        ? request.getSelectedVetId()
-                                        : request.getAssignedVetId();
+                        manualStaffId = request.getSelectedStaffId() != null
+                                        ? request.getSelectedStaffId()
+                                        : request.getAssignedStaffId();
                 }
 
-                // Auto-assign vets to all services (or manual-assign if specified)
-                if (manualVetId != null) {
-                        // Manual assignment - assign same vet to all services
-                        final UUID finalManualVetId = manualVetId;
-                        User manualVet = userRepository.findById(finalManualVetId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bác sĩ"));
-                        log.info("Manual vet assignment: {}", manualVet.getFullName());
+                // Auto-assign staff to all services (or manual-assign if specified)
+                if (manualStaffId != null) {
+                        // Manual assignment - assign same staff to all services
+                        final UUID finalManualStaffId = manualStaffId;
+                        User manualStaff = userRepository.findById(finalManualStaffId)
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên"));
+                        log.info("Manual staff assignment: {}", manualStaff.getFullName());
 
-                        booking.setAssignedVet(manualVet);
-                        booking.getBookingServices().forEach(item -> item.setAssignedVet(manualVet));
+                        booking.setAssignedStaff(manualStaff);
+                        booking.getBookingServices().forEach(item -> item.setAssignedStaff(manualStaff));
                         booking.setStatus(BookingStatus.ASSIGNED);
 
                         // Reserve slots for the booking
-                        vetAssignmentService.reserveSlotsForBooking(booking);
+                        staffAssignmentService.reserveSlotsForBooking(booking);
 
-                        notificationService.sendBookingAssignedNotificationToVet(booking);
+                        notificationService.sendBookingAssignedNotificationToStaff(booking);
 
-                        // Push SSE event to assigned vet and clinic managers for real-time sync
+                        // Push SSE event to assigned staff and clinic managers for real-time sync
                         pushBookingUpdateToUsers(booking, "ASSIGNED");
                 } else {
-                        // Auto-assign vets based on service specialty
-                        Map<UUID, User> assignments = vetAssignmentService.assignVetsToAllServices(booking);
+                        // Auto-assign staff based on service specialty
+                        Map<UUID, User> assignments = staffAssignmentService.assignStaffToAllServices(booking);
 
                         boolean allAssigned = assignments.size() == booking.getBookingServices().size();
 
                         if (allAssigned) {
                                 booking.setStatus(BookingStatus.ASSIGNED);
                                 // Reserve slots for the booking
-                                vetAssignmentService.reserveSlotsForBooking(booking);
-                                // Send notification to all assigned vets
-                                notificationService.sendBookingAssignedNotificationToVet(booking);
+                                staffAssignmentService.reserveSlotsForBooking(booking);
+                                // Send notification to all assigned staff
+                                notificationService.sendBookingAssignedNotificationToStaff(booking);
 
-                                // Push SSE event to assigned vets and clinic managers for real-time sync
+                                // Push SSE event to assigned staff and clinic managers for real-time sync
                                 pushBookingUpdateToUsers(booking, "ASSIGNED");
                         } else if (allowPartial && !assignments.isEmpty()) {
                                 // Partial assignment allowed
@@ -349,7 +349,7 @@ public class BookingService {
                                 booking.setStatus(BookingStatus.CONFIRMED);
                         }
 
-                        log.info("Auto-assigned {} vets to services", assignments.size());
+                        log.info("Auto-assigned {} staff to services", assignments.size());
                 }
 
                 Booking updatedBooking = bookingRepository.save(booking);
@@ -372,11 +372,11 @@ public class BookingService {
         }
 
         /**
-         * Get bookings assigned to a vet
+         * Get bookings assigned to a staff
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByVet(UUID vetId, BookingStatus status, Pageable pageable) {
-                return bookingRepository.findByAssignedVetIdAndStatus(vetId, status, pageable)
+        public Page<BookingResponse> getBookingsByStaff(UUID staffId, BookingStatus status, Pageable pageable) {
+                return bookingRepository.findByAssignedStaffIdAndStatus(staffId, status, pageable)
                                 .map(this::mapToResponse);
         }
 
@@ -415,7 +415,7 @@ public class BookingService {
                 }
 
                 // Release slots back to AVAILABLE before cancelling
-                vetAssignmentService.releaseSlotsForBooking(booking);
+                staffAssignmentService.releaseSlotsForBooking(booking);
 
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancellationReason(reason);
@@ -438,8 +438,9 @@ public class BookingService {
         private BookingResponse mapToResponse(Booking booking) {
                 Pet pet = booking.getPet();
                 User owner = booking.getPetOwner();
+
                 Clinic clinic = booking.getClinic();
-                User vet = booking.getAssignedVet();
+                User staff = booking.getAssignedStaff();
 
                 // Calculate pet age
                 String petAge = "N/A";
@@ -456,7 +457,7 @@ public class BookingService {
                 List<BookingResponse.BookingServiceItemResponse> serviceResponses = new java.util.ArrayList<>();
 
                 for (BookingServiceItem item : booking.getBookingServices()) {
-                        User itemVet = item.getAssignedVet();
+                        User itemStaff = item.getAssignedStaff();
                         int durationMinutes = item.getService().getDurationTime() != null
                                         ? item.getService().getDurationTime()
                                         : 30; // Default 30 minutes
@@ -482,12 +483,12 @@ public class BookingService {
                                         // Pricing breakdown fields
                                         .basePrice(item.getBasePrice())
                                         .weightPrice(item.getWeightPrice())
-                                        // Vet info for this specific service
-                                        .assignedVetId(itemVet != null ? itemVet.getUserId() : null)
-                                        .assignedVetName(itemVet != null ? itemVet.getFullName() : null)
-                                        .assignedVetAvatarUrl(itemVet != null ? itemVet.getAvatar() : null)
-                                        .assignedVetSpecialty(itemVet != null && itemVet.getSpecialty() != null
-                                                        ? itemVet.getSpecialty().name()
+                                        // Staff info for this specific service
+                                        .assignedStaffId(itemStaff != null ? itemStaff.getUserId() : null)
+                                        .assignedStaffName(itemStaff != null ? itemStaff.getFullName() : null)
+                                        .assignedStaffAvatarUrl(itemStaff != null ? itemStaff.getAvatar() : null)
+                                        .assignedStaffSpecialty(itemStaff != null && itemStaff.getSpecialty() != null
+                                                        ? itemStaff.getSpecialty().name()
                                                         : null)
                                         // Scheduled time (based on slot allocation, not service duration)
                                         .scheduledStartTime(startTime)
@@ -521,13 +522,14 @@ public class BookingService {
                                 .clinicName(clinic.getName())
                                 .clinicAddress(clinic.getAddress())
                                 .clinicPhone(clinic.getPhone())
-                                // Vet info
-                                .assignedVetId(vet != null ? vet.getUserId() : null)
-                                .assignedVetName(vet != null ? vet.getFullName() : null)
-                                .assignedVetSpecialty(
-                                                vet != null && vet.getSpecialty() != null ? vet.getSpecialty().name()
+                                // Staff info
+                                .assignedStaffId(staff != null ? staff.getUserId() : null)
+                                .assignedStaffName(staff != null ? staff.getFullName() : null)
+                                .assignedStaffSpecialty(
+                                                staff != null && staff.getSpecialty() != null
+                                                                ? staff.getSpecialty().name()
                                                                 : null)
-                                .assignedVetAvatarUrl(vet != null ? vet.getAvatar() : null)
+                                .assignedStaffAvatarUrl(staff != null ? staff.getAvatar() : null)
                                 // Payment info
                                 .paymentStatus(booking.getPayment() != null
                                                 ? booking.getPayment().getStatus().name()
@@ -554,19 +556,19 @@ public class BookingService {
                                 .build();
         }
 
-        // ========== VET AVAILABILITY CHECK ==========
+        // ========== STAFF AVAILABILITY CHECK ==========
 
         /**
-         * Check vet availability for a booking before confirmation
-         * Returns detailed info about which services have available vets
+         * Check staff availability for a booking before confirmation
+         * Returns detailed info about which services have available staff
          * and suggests alternative time slots if needed
          *
          * @param bookingId Booking ID to check
-         * @return VetAvailabilityCheckResponse with availability details
+         * @return StaffAvailabilityCheckResponse with availability details
          */
         @Transactional(readOnly = true)
-        public VetAvailabilityCheckResponse checkVetAvailability(UUID bookingId) {
-                log.info("Checking vet availability for booking {}", bookingId);
+        public StaffAvailabilityCheckResponse checkStaffAvailability(UUID bookingId) {
+                log.info("Checking staff availability for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
@@ -575,41 +577,41 @@ public class BookingService {
                         throw new IllegalStateException("Chỉ có thể kiểm tra availability cho booking PENDING");
                 }
 
-                return vetAssignmentService.checkVetAvailabilityForBooking(booking);
+                return staffAssignmentService.checkStaffAvailabilityForBooking(booking);
         }
 
         /**
-         * Get available vets for manual selection when confirming a booking
+         * Get available staff for manual selection when confirming a booking
          *
-         * @param bookingId Booking ID to get available vets for
-         * @return List of VetOptionDTO with availability and workload info
+         * @param bookingId Booking ID to get available staff for
+         * @return List of StaffOptionDTO with availability and workload info
          */
         @Transactional(readOnly = true)
-        public List<VetOptionDTO> getAvailableVetsForConfirm(UUID bookingId) {
-                log.info("Getting available vets for confirm: booking {}", bookingId);
+        public List<StaffOptionDTO> getAvailableStaffForConfirm(UUID bookingId) {
+                log.info("Getting available staff for confirm: booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
                 if (booking.getStatus() != BookingStatus.PENDING) {
-                        throw new IllegalStateException("Chỉ có thể lấy danh sách bác sĩ cho booking PENDING");
+                        throw new IllegalStateException("Chỉ có thể lấy danh sách nhân viên cho booking PENDING");
                 }
 
-                return vetAssignmentService.getAvailableVetsForBookingConfirm(booking);
+                return staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
         }
 
-        // ========== VET REASSIGNMENT ==========
+        // ========== STAFF REASSIGNMENT ==========
 
         /**
-         * Get available vets for reassigning a specific service
+         * Get available staff for reassigning a specific service
          *
          * @param bookingId Booking ID
          * @param serviceId BookingServiceItem ID
-         * @return List of available vets with their status
+         * @return List of available staff with their status
          */
         @Transactional(readOnly = true)
-        public List<AvailableVetResponse> getAvailableVetsForReassign(UUID bookingId, UUID serviceId) {
-                log.info("Getting available vets for reassign: booking={}, service={}", bookingId, serviceId);
+        public List<AvailableStaffResponse> getAvailableStaffForReassign(UUID bookingId, UUID serviceId) {
+                log.info("Getting available staff for reassign: booking={}, service={}", bookingId, serviceId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
@@ -632,63 +634,63 @@ public class BookingService {
                 // Calculate start time for this service
                 LocalTime startTime = calculateServiceStartTime(booking, serviceId);
 
-                // Get currently assigned vet ID to exclude from list
-                UUID currentVetId = serviceItem.getAssignedVet() != null
-                                ? serviceItem.getAssignedVet().getUserId()
+                // Get currently assigned staff ID to exclude from list
+                UUID currentStaffId = serviceItem.getAssignedStaff() != null
+                                ? serviceItem.getAssignedStaff().getUserId()
                                 : null;
 
-                return vetAssignmentService.getAvailableVetsForReassign(
+                return staffAssignmentService.getAvailableStaffForReassign(
                                 booking.getClinic().getClinicId(),
                                 booking.getBookingDate(),
                                 startTime,
                                 requiredSpecialty,
                                 slotsNeeded,
-                                currentVetId);
+                                currentStaffId);
         }
 
         /**
-         * Reassign vet for a specific service
+         * Reassign staff for a specific service
          *
-         * @param bookingId Booking ID
-         * @param serviceId BookingServiceItem ID
-         * @param newVetId  New vet ID to assign
+         * @param bookingId  Booking ID
+         * @param serviceId  BookingServiceItem ID
+         * @param newStaffId New staff ID to assign
          * @return Updated booking response
          */
         @Transactional
-        public BookingResponse reassignVetForService(UUID bookingId, UUID serviceId, UUID newVetId) {
-                log.info("Reassigning vet for booking={}, service={}, newVet={}", bookingId, serviceId, newVetId);
+        public BookingResponse reassignStaffForService(UUID bookingId, UUID serviceId, UUID newStaffId) {
+                log.info("Reassigning staff for booking={}, service={}, newStaff={}", bookingId, serviceId, newStaffId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                // SAVE old vet BEFORE reassigning
+                // SAVE old staff BEFORE reassigning
                 BookingServiceItem serviceItem = booking.getBookingServices().stream()
                                 .filter(s -> s.getBookingServiceId().equals(serviceId))
                                 .findFirst()
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Service not found in booking: " + serviceId));
 
-                User oldVet = serviceItem.getAssignedVet();
-                UUID oldVetId = oldVet != null ? oldVet.getUserId() : null;
+                User oldStaff = serviceItem.getAssignedStaff();
+                UUID oldStaffId = oldStaff != null ? oldStaff.getUserId() : null;
                 String serviceName = serviceItem.getService().getName();
 
-                log.info("Old vet for service {}: {}", serviceId, oldVetId);
+                log.info("Old staff for service {}: {}", serviceId, oldStaffId);
 
-                // Perform the reassignment (this will replace oldVet with newVet)
-                vetAssignmentService.reassignVetForService(serviceId, newVetId, bookingServiceItemRepository);
+                // Perform the reassignment (this will replace oldStaff with newStaff)
+                staffAssignmentService.reassignStaffForService(serviceId, newStaffId, bookingServiceItemRepository);
 
                 // Refresh booking from DB
                 booking = bookingRepository.findById(bookingId).orElseThrow();
 
-                // Get new vet for notification
-                User newVet = userRepository.findById(newVetId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Vet not found: " + newVetId));
+                // Get new staff for notification
+                User newStaff = userRepository.findById(newStaffId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Staff not found: " + newStaffId));
 
-                // Send in-app notification + FCM push to both vets
-                notificationService.sendVetReassignedNotification(booking, newVet, oldVet, serviceName);
+                // Send in-app notification + FCM push to both staff
+                notificationService.sendStaffReassignedNotification(booking, newStaff, oldStaff, serviceName);
 
-                // Push SSE event to BOTH old and new vet for real-time sync
-                pushBookingUpdateToVets(booking, "VET_REASSIGNED", oldVetId, newVetId);
+                // Push SSE event to BOTH old and new staff for real-time sync
+                pushBookingUpdateToStaff(booking, "STAFF_REASSIGNED", oldStaffId, newStaffId);
 
                 return mapToResponse(booking);
         }
@@ -720,7 +722,7 @@ public class BookingService {
 
         /**
          * Add a service to an active booking (IN_PROGRESS or ARRIVED)
-         * Used when vet wants to add extra services during home visit
+         * Used when staff wants to add extra services during home visit
          * Distance fee is NOT recalculated (already at location)
          *
          * @param bookingId   Booking ID
@@ -758,30 +760,30 @@ public class BookingService {
                         throw new IllegalArgumentException("Dịch vụ này đã có trong đơn hàng");
                 }
 
-                // ============ SPECIALTY VALIDATION FOR HOME_VISIT VET ============
-                // If booking is HOME_VISIT and current user is VET,
+                // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
+                // If booking is HOME_VISIT and current user is STAFF,
                 // they can only add services within their specialty
                 if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                && currentUser.getRole() == com.petties.petties.model.enums.Role.VET) {
+                                && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
 
-                        StaffSpecialty vetSpecialty = currentUser.getSpecialty();
+                        StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                         StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
                                         ? service.getServiceCategory().getRequiredSpecialty()
                                         : StaffSpecialty.VET_GENERAL;
 
-                        // VET_GENERAL can do any service, but specialized vets must match
-                        boolean isSpecialtyMatch = vetSpecialty == StaffSpecialty.VET_GENERAL
-                                        || vetSpecialty == requiredSpecialty;
+                        // VET_GENERAL can do any service, but specialized staff must match
+                        boolean isSpecialtyMatch = staffSpecialty == StaffSpecialty.VET_GENERAL
+                                        || staffSpecialty == requiredSpecialty;
 
                         if (!isSpecialtyMatch) {
-                                log.warn("Vet {} with specialty {} cannot add service {} requiring specialty {}",
-                                                currentUser.getUserId(), vetSpecialty, service.getName(),
+                                log.warn("Staff {} with specialty {} cannot add service {} requiring specialty {}",
+                                                currentUser.getUserId(), staffSpecialty, service.getName(),
                                                 requiredSpecialty);
                                 throw new IllegalArgumentException(
                                                 String.format("Bạn không thể thêm dịch vụ này vì nằm ngoài chuyên môn của bạn. "
                                                                 +
                                                                 "Chuyên môn của bạn: %s, Dịch vụ yêu cầu: %s",
-                                                                vetSpecialty, requiredSpecialty));
+                                                                staffSpecialty, requiredSpecialty));
                         }
                 }
                 // IN_CLINIC: Manager can add any service (no specialty restriction)
@@ -799,7 +801,7 @@ public class BookingService {
                                 .basePrice(basePrice)
                                 .weightPrice(weightPrice)
                                 .quantity(1)
-                                .assignedVet(booking.getAssignedVet()) // Same vet as booking
+                                .assignedStaff(booking.getAssignedStaff()) // Same staff as booking
                                 .build();
 
                 booking.getBookingServices().add(newItem);
@@ -848,9 +850,9 @@ public class BookingService {
                 return allActiveServices.stream()
                                 .filter(service -> !existingServiceIds.contains(service.getServiceId()))
                                 .filter(service -> {
-                                        // Specialty filtering for Vets in Home Visit
+                                        // Specialty filtering for Staff in Home Visit
                                         if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                                        && currentUser.getRole() == com.petties.petties.model.enums.Role.VET) {
+                                                        && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
 
                                                 StaffSpecialty vetSpecialty = currentUser.getSpecialty();
                                                 StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
@@ -898,8 +900,8 @@ public class BookingService {
 
                 log.info("Getting available slots for clinic {}, date {}, services {}", clinicId, date, serviceIds);
 
-                // Delegate to VetAssignmentService for Smart Availability algorithm
-                List<LocalTime> availableStartTimes = vetAssignmentService.findAvailableSlots(clinicId, date,
+                // Delegate to StaffAssignmentService for Smart Availability algorithm
+                List<LocalTime> availableStartTimes = staffAssignmentService.findAvailableSlots(clinicId, date,
                                 serviceIds);
 
                 return AvailableSlotsResponse.builder()
@@ -1019,7 +1021,7 @@ public class BookingService {
 
                 // Send notification
                 try {
-                        notificationService.sendVetOnWayNotification(booking);
+                        notificationService.sendStaffOnWayNotification(booking);
                         log.info("Sent 'vet on the way' notification for booking {}", booking.getBookingCode());
                 } catch (Exception e) {
                         log.error("Failed to send 'vet on the way' notification: {}", e.getMessage());
@@ -1032,37 +1034,37 @@ public class BookingService {
         // ========== PRIVATE HELPER METHODS ==========
 
         /**
-         * Push SSE event when reassigning vet
-         * Notifies BOTH old vet (to remove from schedule) and new vet (to add to
+         * Push SSE event when reassigning staff
+         * Notifies BOTH old staff (to remove from schedule) and new staff (to add to
          * schedule)
          *
-         * @param booking  The updated booking
-         * @param action   Action type (VET_REASSIGNED)
-         * @param oldVetId Old vet ID (who is being removed from booking)
-         * @param newVetId New vet ID (who is being assigned)
+         * @param booking    The updated booking
+         * @param action     Action type (STAFF_REASSIGNED)
+         * @param oldStaffId Old staff ID (who is being removed from booking)
+         * @param newStaffId New staff ID (who is being assigned)
          */
-        private void pushBookingUpdateToVets(Booking booking, String action, UUID oldVetId, UUID newVetId) {
+        private void pushBookingUpdateToStaff(Booking booking, String action, UUID oldStaffId, UUID newStaffId) {
                 try {
                         java.util.Map<String, Object> eventData = new java.util.HashMap<>();
                         eventData.put("bookingId", booking.getBookingId().toString());
                         eventData.put("bookingCode", booking.getBookingCode());
                         eventData.put("action", action);
                         eventData.put("status", booking.getStatus().name());
-                        eventData.put("oldVetId", oldVetId != null ? oldVetId.toString() : "");
-                        eventData.put("newVetId", newVetId != null ? newVetId.toString() : "");
+                        eventData.put("oldStaffId", oldStaffId != null ? oldStaffId.toString() : "");
+                        eventData.put("newStaffId", newStaffId != null ? newStaffId.toString() : "");
 
                         SseEventDto event = SseEventDto.bookingUpdate(eventData);
 
-                        // Push to OLD vet (so they can remove from their schedule)
-                        if (oldVetId != null) {
-                                sseEmitterService.pushToUser(oldVetId, event);
-                                log.debug("Pushed BOOKING_UPDATE to OLD vet: {}", oldVetId);
+                        // Push to OLD staff (so they can remove from their schedule)
+                        if (oldStaffId != null) {
+                                sseEmitterService.pushToUser(oldStaffId, event);
+                                log.debug("Pushed BOOKING_UPDATE to OLD staff: {}", oldStaffId);
                         }
 
-                        // Push to NEW vet (so they can add to their schedule)
-                        if (newVetId != null) {
-                                sseEmitterService.pushToUser(newVetId, event);
-                                log.debug("Pushed BOOKING_UPDATE to NEW vet: {}", newVetId);
+                        // Push to NEW staff (so they can add to their schedule)
+                        if (newStaffId != null) {
+                                sseEmitterService.pushToUser(newStaffId, event);
+                                log.debug("Pushed BOOKING_UPDATE to NEW staff: {}", newStaffId);
                         }
 
                         // Push to all managers of the clinic
@@ -1073,10 +1075,10 @@ public class BookingService {
                                 log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
                         }
 
-                        log.info("VET_REASSIGN event pushed for booking {}: oldVet={}, newVet={}",
-                                        booking.getBookingCode(), oldVetId, newVetId);
+                        log.info("STAFF_REASSIGN event pushed for booking {}: oldStaff={}, newStaff={}",
+                                        booking.getBookingCode(), oldStaffId, newStaffId);
                 } catch (Exception e) {
-                        log.warn("Failed to push SSE event for vet reassign {}: {}",
+                        log.warn("Failed to push SSE event for staff reassign {}: {}",
                                         booking.getBookingCode(), e.getMessage());
                 }
         }
@@ -1100,9 +1102,9 @@ public class BookingService {
                         SseEventDto event = SseEventDto.bookingUpdate(eventData);
 
                         // Push to assigned vet
-                        if (booking.getAssignedVet() != null) {
-                                sseEmitterService.pushToUser(booking.getAssignedVet().getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to vet: {}", booking.getAssignedVet().getUserId());
+                        if (booking.getAssignedStaff() != null) {
+                                sseEmitterService.pushToUser(booking.getAssignedStaff().getUserId(), event);
+                                log.debug("Pushed BOOKING_UPDATE to staff: {}", booking.getAssignedStaff().getUserId());
                         }
 
                         // Push to all managers of the clinic
@@ -1121,25 +1123,26 @@ public class BookingService {
                 }
         }
 
-        // ========== VET HOME SUMMARY ==========
+        // ========== STAFF HOME SUMMARY ==========
 
         /**
-         * Get vet home screen summary - optimized single API call for mobile
+         * Get staff home screen summary - optimized single API call for mobile
          * Returns: today's booking count, pending count, in-progress count, and
          * upcoming bookings
          *
-         * @param vetId Vet user ID
-         * @return VetHomeSummaryResponse with aggregated data
+         * @param staffId Staff user ID
+         * @return StaffHomeSummaryResponse with aggregated data
          */
         @Transactional(readOnly = true)
-        public VetHomeSummaryResponse getVetHomeSummary(UUID vetId) {
-                log.info("Getting home summary for vet {}", vetId);
+        public StaffHomeSummaryResponse getStaffHomeSummary(UUID staffId) {
+                log.info("Getting home summary for staff {}", staffId);
 
                 try {
                         LocalDate today = LocalDate.now();
 
-                        // Get all bookings assigned to this vet for today
-                        List<Booking> todayBookings = bookingRepository.findByAssignedVetIdAndBookingDate(vetId, today);
+                        // Get all bookings assigned to this staff for today
+                        List<Booking> todayBookings = bookingRepository.findByAssignedStaffIdAndBookingDate(staffId,
+                                        today);
 
                         // Get upcoming bookings (today and next 7 days) with active statuses
                         LocalDate endDate = today.plusDays(7);
@@ -1148,8 +1151,8 @@ public class BookingService {
                                         BookingStatus.ASSIGNED,
                                         BookingStatus.IN_PROGRESS);
                         List<Booking> upcomingBookings = bookingRepository
-                                        .findByAssignedVetIdAndBookingDateBetweenAndStatusIn(
-                                                        vetId, today, endDate, activeStatuses);
+                                        .findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(
+                                                        staffId, today, endDate, activeStatuses);
 
                         // Calculate stats for today
                         int todayCount = todayBookings != null ? todayBookings.size() : 0;
@@ -1177,14 +1180,14 @@ public class BookingService {
                                                 .collect(Collectors.toList());
                         }
 
-                        return VetHomeSummaryResponse.builder()
+                        return StaffHomeSummaryResponse.builder()
                                         .todayBookingsCount(todayCount)
                                         .pendingCount(pendingCount)
                                         .inProgressCount(inProgressCount)
                                         .upcomingBookings(upcomingDTOs)
                                         .build();
                 } catch (Exception e) {
-                        log.error("Error getting vet home summary for vet {}: {}", vetId, e.getMessage(), e);
+                        log.error("Error getting staff home summary for staff {}: {}", staffId, e.getMessage(), e);
                         throw e;
                 }
         }

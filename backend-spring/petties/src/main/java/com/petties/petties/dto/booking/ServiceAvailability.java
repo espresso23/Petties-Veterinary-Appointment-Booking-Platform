@@ -45,32 +45,33 @@ public class ServiceAvailability {
     private BigDecimal price;
 
     /**
-     * Whether there's an available vet with the required specialty
+     * Whether there's an available staff with the required specialty
      */
-    private boolean hasAvailableVet;
+    private boolean hasAvailableStaff;
 
     /**
-     * Suggested vet ID if available
+     * Suggested staff ID if available
      */
-    private UUID suggestedVetId;
+    private UUID suggestedStaffId;
 
     /**
-     * Suggested vet name if available
+     * Suggested staff name if available
      */
-    private String suggestedVetName;
+    private String suggestedStaffName;
 
     /**
-     * Suggested vet avatar URL if available
+     * Suggested staff avatar URL if available
      */
-    private String suggestedVetAvatarUrl;
+    private String suggestedStaffAvatarUrl;
 
     /**
-     * Suggested vet specialty enum name (e.g., "VET_GENERAL", "VET_DENTAL")
+     * Suggested staff specialty enum name (e.g., "STAFF_GENERAL", "STAFF_DENTAL")
      */
-    private String suggestedVetSpecialty;
+    private String suggestedStaffSpecialty;
 
     /**
-     * Reason why no vet is available (e.g., "Không có bác sĩ nha khoa có ca làm việc vào ngày này")
+     * Reason why no staff is available (e.g., "Không có bác sĩ nha khoa có ca làm
+     * việc vào ngày này")
      */
     private String unavailableReason;
 }

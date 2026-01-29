@@ -51,7 +51,7 @@ export function ClinicsListPage() {
           <div className="flex items-center justify-between flex-wrap gap-4 mb-10 border-b-[3px] border-black pb-4">
             <div>
               <div className="inline-block bg-black text-white px-3 py-1 text-xs font-black uppercase tracking-widest">
-                Owner Dashboard
+                QUẢN LÝ PHÒNG KHÁM
               </div>
               <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mt-3 leading-tight">
                 Phòng Khám Của Tôi

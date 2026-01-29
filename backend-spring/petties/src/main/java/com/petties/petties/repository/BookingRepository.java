@@ -44,50 +44,50 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("clinicId") UUID clinicId,
                         @Param("date") LocalDate date);
 
-        // ========== FIND BY VET ==========
+        // ========== FIND BY STAFF ==========
 
         /**
-         * Find all bookings where vet is assigned to at least one service
-         * This is more accurate than checking only booking.assignedVet because
-         * a vet can be assigned to specific services within a booking
+         * Find all bookings where staff is assigned to at least one service
+         * This is more accurate than checking only booking.assignedStaff because
+         * a staff member can be assigned to specific services within a booking
          */
         @Query("SELECT DISTINCT b FROM Booking b " +
                         "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedVet.userId = :vetId " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
                         "AND (:status IS NULL OR b.status = :status) " +
                         "ORDER BY b.bookingDate ASC, b.bookingTime ASC")
-        Page<Booking> findByAssignedVetIdAndStatus(
-                        @Param("vetId") UUID vetId,
+        Page<Booking> findByAssignedStaffIdAndStatus(
+                        @Param("staffId") UUID staffId,
                         @Param("status") BookingStatus status,
                         Pageable pageable);
 
         /**
-         * Find bookings for a vet on a specific date
-         * Checks if vet is assigned to any service in the booking
+         * Find bookings for a staff on a specific date
+         * Checks if staff is assigned to any service in the booking
          */
         @Query("SELECT DISTINCT b FROM Booking b " +
                         "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedVet.userId = :vetId " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
                         "AND b.bookingDate = :date " +
                         "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
                         "com.petties.petties.model.enums.BookingStatus.NO_SHOW) " +
                         "ORDER BY b.bookingTime ASC")
-        List<Booking> findByVetIdAndDate(
-                        @Param("vetId") UUID vetId,
+        List<Booking> findByStaffIdAndDate(
+                        @Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
 
         /**
-         * Count active bookings for a vet on a specific date (for load balancing)
-         * Checks if vet is assigned to any service in the booking
+         * Count active bookings for a staff on a specific date (for load balancing)
+         * Checks if staff is assigned to any service in the booking
          */
         @Query("SELECT COUNT(DISTINCT b) FROM Booking b " +
                         "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedVet.userId = :vetId " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
                         "AND b.bookingDate = :date " +
                         "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
                         "com.petties.petties.model.enums.BookingStatus.NO_SHOW)")
-        long countActiveBookingsByVetAndDate(
-                        @Param("vetId") UUID vetId,
+        long countActiveBookingsByStaffAndDate(
+                        @Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
 
         // ========== FIND BY PET OWNER ==========
@@ -125,11 +125,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         "ORDER BY b.createdAt DESC")
         List<Booking> findPendingByClinicId(@Param("clinicId") UUID clinicId);
 
-        // ========== VET HOME SUMMARY QUERIES ==========
+        // ========== STAFF HOME SUMMARY QUERIES ==========
 
         /**
-         * Find all bookings assigned to a vet on a specific date
-         * Uses booking-service-level assignedVet to ensure all vets assigned to the
+         * Find all bookings assigned to a staff on a specific date
+         * Uses booking-service-level assignedStaff to ensure all staff assigned to the
          * booking can see it
          * JOIN FETCH pet, petOwner to avoid LazyInitializationException
          */
@@ -137,16 +137,16 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         "LEFT JOIN FETCH b.pet " +
                         "LEFT JOIN FETCH b.petOwner " +
                         "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedVet.userId = :vetId " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
                         "AND b.bookingDate = :date " +
                         "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
                         "com.petties.petties.model.enums.BookingStatus.NO_SHOW)")
-        List<Booking> findByAssignedVetIdAndBookingDate(
-                        @Param("vetId") UUID vetId,
+        List<Booking> findByAssignedStaffIdAndBookingDate(
+                        @Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
 
         /**
-         * Find upcoming bookings for a vet within a date range and with specific
+         * Find upcoming bookings for a staff within a date range and with specific
          * statuses
          * JOIN FETCH pet, petOwner to avoid LazyInitializationException
          */
@@ -154,11 +154,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         "LEFT JOIN FETCH b.pet " +
                         "LEFT JOIN FETCH b.petOwner " +
                         "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedVet.userId = :vetId " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
                         "AND b.bookingDate BETWEEN :startDate AND :endDate " +
                         "AND b.status IN :statuses")
-        List<Booking> findByAssignedVetIdAndBookingDateBetweenAndStatusIn(
-                        @Param("vetId") UUID vetId,
+        List<Booking> findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(
+                        @Param("staffId") UUID staffId,
                         @Param("startDate") LocalDate startDate,
                         @Param("endDate") LocalDate endDate,
                         @Param("statuses") List<BookingStatus> statuses);

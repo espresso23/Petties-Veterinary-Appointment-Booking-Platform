@@ -149,7 +149,7 @@ class PetService {
     }
   }
 
-  /// VET: Update only pet allergies
+  /// STAFF: Update only pet allergies
   Future<Pet> updateAllergies(String petId, String? allergies) async {
     try {
       final response = await _apiClient.patch(

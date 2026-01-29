@@ -41,7 +41,7 @@ export const ClinicOwnerLayout = () => {
         {
             title: 'HỆ THỐNG',
             items: [
-                { path: '/clinic-owner', label: 'DASHBOARD', icon: Squares2X2Icon, end: true },
+                { path: '/clinic-owner', label: 'BẢNG ĐIỀU KHIỂN', icon: Squares2X2Icon, end: true },
                 { path: '/clinic-owner/clinics', label: 'QUẢN LÝ PHÒNG KHÁM', icon: HomeModernIcon },
                 { path: '/clinic-owner/staff', label: 'NHÂN SỰ', icon: UserGroupIcon },
             ]
@@ -73,7 +73,7 @@ export const ClinicOwnerLayout = () => {
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="CLINIC OWNER"
+                roleName="CHỦ PHÒNG KHÁM"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}

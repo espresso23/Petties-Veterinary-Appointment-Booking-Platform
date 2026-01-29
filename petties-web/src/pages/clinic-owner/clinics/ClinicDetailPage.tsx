@@ -101,13 +101,13 @@ export function ClinicDetailPage() {
         <div className="max-w-4xl mx-auto">
           <div className="card-brutal p-12 text-center">
             <div className="text-stone-600 font-bold uppercase text-lg mb-2">
-              {error || 'Clinic Not Found'}
+              {error || 'Không tìm thấy phòng khám'}
             </div>
             <button
               onClick={() => navigate(ROUTES.clinicOwner.clinics)}
               className="btn-brutal-outline mt-4"
             >
-              BACK TO LIST
+              QUAY LẠI DANH SÁCH
             </button>
           </div>
         </div>
@@ -123,10 +123,20 @@ export function ClinicDetailPage() {
   }
 
   const statusLabels: Record<string, string> = {
-    PENDING: 'PENDING',
-    APPROVED: 'APPROVED',
-    REJECTED: 'REJECTED',
-    SUSPENDED: 'SUSPENDED',
+    PENDING: 'CHỜ DUYỆT',
+    APPROVED: 'ĐÃ DUYỆT',
+    REJECTED: 'TỪ CHỐI',
+    SUSPENDED: 'TẠM NGƯNG',
+  }
+
+  const DAY_LABELS: Record<string, string> = {
+    MONDAY: 'THỨ HAI',
+    TUESDAY: 'THỨ BA',
+    WEDNESDAY: 'THỨ TƯ',
+    THURSDAY: 'THỨ NĂM',
+    FRIDAY: 'THỨ SÁU',
+    SATURDAY: 'THỨ BẢY',
+    SUNDAY: 'CHỦ NHẬT',
   }
 
   const DAYS_OF_WEEK = [
@@ -151,7 +161,7 @@ export function ClinicDetailPage() {
                   to={ROUTES.clinicOwner.clinics}
                   className="btn-brutal-outline px-3 py-2 text-sm shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
                 >
-                  ← BACK TO LIST
+                  ← QUAY LẠI DANH SÁCH
                 </Link>
                 <div className="flex gap-2">
                   <Link
@@ -159,14 +169,14 @@ export function ClinicDetailPage() {
                     className="btn-brutal-outline"
                   >
                     <PencilIcon className="w-4 h-4 mr-2" />
-                    EDIT
+                    SỬA
                   </Link>
                   <button
                     onClick={handleDeleteClick}
                     className="btn-brutal-outline text-red-600 border-red-600 hover:bg-red-50"
                   >
                     <TrashIcon className="w-4 h-4 mr-2" />
-                    DELETE
+                    XÓA
                   </button>
                 </div>
               </div>
@@ -228,7 +238,7 @@ export function ClinicDetailPage() {
                       />
                     </div>
                     <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                      PRIMARY
+                      ẢNH ĐẠI DIỆN
                     </div>
                   </div>
                 ) : (
@@ -250,7 +260,7 @@ export function ClinicDetailPage() {
                           </div>
                           {(image.isPrimary || index === 0) && (
                             <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                              PRIMARY
+                              ẢNH ĐẠI DIỆN
                             </div>
                           )}
                         </div>
@@ -390,7 +400,7 @@ export function ClinicDetailPage() {
                     return (
                       <div key={day} className="border-2 border-stone-900 p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-bold uppercase text-stone-900">{day}</div>
+                          <div className="text-sm font-bold uppercase text-stone-900">{DAY_LABELS[day]}</div>
                           {is24h && (
                             <span className="text-xs bg-amber-600 text-white px-2 py-1 border-2 border-stone-900 font-bold uppercase">
                               24/7
@@ -398,7 +408,7 @@ export function ClinicDetailPage() {
                           )}
                         </div>
                         {hours.isClosed ? (
-                          <div className="text-stone-600 font-bold uppercase text-xs">CLOSED</div>
+                          <div className="text-stone-600 font-bold uppercase text-xs">ĐÓNG CỬA</div>
                         ) : (
                           <>
                             <div className="text-stone-900 border-b border-stone-200 pb-1 mb-1">
@@ -425,7 +435,7 @@ export function ClinicDetailPage() {
             <div className="card-brutal p-6 mb-6">
               <h2 className="text-lg font-bold uppercase text-stone-900 mb-4 flex items-center gap-2">
                 <DocumentTextIcon className="w-6 h-6" />
-                GIẤY CHỨNG NHẬN HÀNH NGHỀ
+                GIẤY PHÉP KINH DOANH
               </h2>
               <div className="border-2 border-stone-900 p-4 bg-amber-50">
                 {currentClinic.businessLicenseUrl.toLowerCase().endsWith('.pdf') ? (
@@ -447,7 +457,7 @@ export function ClinicDetailPage() {
                   <div className="flex flex-col items-center gap-4">
                     <img
                       src={currentClinic.businessLicenseUrl}
-                      alt="Giấy chứng nhận hành nghề"
+                      alt="Giấy phép kinh doanh"
                       className="max-w-full max-h-96 object-contain border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917]"
                     />
                     <a
@@ -467,7 +477,7 @@ export function ClinicDetailPage() {
           {/* Map */}
           {currentClinic.latitude && currentClinic.longitude && (
             <div className="card-brutal p-6 mb-6">
-              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">LOCATION</h2>
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">VỊ TRÍ</h2>
               <ClinicMapOSM clinic={currentClinic} />
               <div className="mt-4">
                 <DistanceCalculator clinicId={currentClinic.clinicId} />
@@ -487,14 +497,14 @@ export function ClinicDetailPage() {
           <div className="card-brutal p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-stone-600 font-bold uppercase mb-1">CREATED AT</div>
+                <div className="text-stone-600 font-bold uppercase mb-1">NGÀY TẠO</div>
                 <div className="text-stone-900">
                   {new Date(currentClinic.createdAt).toLocaleString('vi-VN')}
                 </div>
               </div>
               {currentClinic.updatedAt && (
                 <div>
-                  <div className="text-stone-600 font-bold uppercase mb-1">UPDATED AT</div>
+                  <div className="text-stone-600 font-bold uppercase mb-1">CẬP NHẬT LÚC</div>
                   <div className="text-stone-900">
                     {new Date(currentClinic.updatedAt).toLocaleString('vi-VN')}
                   </div>
@@ -502,7 +512,7 @@ export function ClinicDetailPage() {
               )}
               {currentClinic.approvedAt && (
                 <div>
-                  <div className="text-stone-600 font-bold uppercase mb-1">APPROVED AT</div>
+                  <div className="text-stone-600 font-bold uppercase mb-1">DUYỆT LÚC</div>
                   <div className="text-stone-900">
                     {new Date(currentClinic.approvedAt).toLocaleString('vi-VN')}
                   </div>

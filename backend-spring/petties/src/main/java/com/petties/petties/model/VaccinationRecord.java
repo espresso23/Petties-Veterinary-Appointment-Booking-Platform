@@ -33,12 +33,12 @@ public class VaccinationRecord {
     private UUID petId;
 
     private UUID bookingId;
-    private UUID vetId;
+    private UUID staffId;
     private UUID clinicId;
 
     // Denormalized for display
     private String clinicName;
-    private String vetName;
+    private String staffName;
 
     private String vaccineName;
     private String batchNumber;

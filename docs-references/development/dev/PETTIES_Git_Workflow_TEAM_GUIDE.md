@@ -150,7 +150,7 @@ Title: "feat: Implement vet shift management"
 
 Description:
 ## Mô tả
-Thêm hệ thống quản lý shift cho bác sĩ
+Thêm hệ thống quản lý shift cho nhân viên
 
 ## Feature
 ✓ Auto-detect available vets

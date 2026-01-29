@@ -38,8 +38,8 @@ erDiagram
         varchar address "nullable (default home address)"
         varchar avatar
         enum status "ACTIVE|SUSPENDED|PENDING"
-        enum role "PET_OWNER|VET|CLINIC_MANAGER|CLINIC_OWNER|ADMIN"
-        uuid clinic_id FK "nullable (for VET, CLINIC_MANAGER)"
+        enum role "PET_OWNER|STAFF|CLINIC_MANAGER|CLINIC_OWNER|ADMIN"
+        uuid clinic_id FK "nullable (for STAFF, CLINIC_MANAGER)"
         timestamp created_at
         timestamp updated_at
         timestamp deleted_at
@@ -264,7 +264,7 @@ erDiagram
         uuid id PK
         uuid booking_id FK
         uuid reviewer_id FK
-        enum type "VET|CLINIC"
+        enum type "STAFF|CLINIC"
         int rating "1-5"
         text comment
         timestamp created_at
@@ -406,10 +406,10 @@ erDiagram
     %% USER relationships
     USER ||--o{ PET : "owns"
     USER ||--o{ CLINIC : "owns (CLINIC_OWNER)"
-    CLINIC ||--o{ USER : "has_staff (VET, CLINIC_MANAGER)"
+    CLINIC ||--o{ USER : "has_staff (STAFF, CLINIC_MANAGER)"
     USER ||--o{ VET_SHIFT : "works_in"
     USER ||--o{ BOOKING : "books (PET_OWNER)"
-    USER ||--o{ BOOKING : "assigned_to (VET)"
+    USER ||--o{ BOOKING : "assigned_to (STAFF)"
     USER ||--o{ EMR : "creates"
     USER ||--o{ VACCINATION : "performs"
     USER ||--o{ REVIEW : "writes"
@@ -489,7 +489,7 @@ Central user account entity storing credentials and profile information for all 
 **Business Role:**
 - User registration, login, and profile management
 - Role-based access control (5 distinct roles)
-- For VET/CLINIC_MANAGER: linked to exactly one CLINIC via `clinic_id`
+- For STAFF/CLINIC_MANAGER: linked to exactly one CLINIC via `clinic_id`
 - For PET_OWNER: can own multiple PETs and create multiple BOOKINGs; uses `address` for home visits
 - For CLINIC_OWNER: can own multiple CLINICs
 - For ADMIN: platform-wide oversight
@@ -512,7 +512,7 @@ Central user account entity storing credentials and profile information for all 
 - **Soft Delete**: `deleted_at` ensures history remains if user is removed
 - Removed CLINIC_STAFF table; staff membership handled via `clinic_id` and `role` directly on USER
 - Simplifies queries and eliminates redundancy for staff-to-clinic relationship
-- Each staff member (VET, CLINIC_MANAGER) belongs to exactly 1 clinic
+- Each staff member (STAFF, CLINIC_MANAGER) belongs to exactly 1 clinic
 
 ---
 
@@ -806,15 +806,15 @@ PENDING
 ASSIGNED  
   → (pet owner confirms)
 CONFIRMED  
-  → (for HOME_VISIT: Vet clicks **"Start Travel"** button)
+  → (for HOME_VISIT: Staff clicks **"Start Travel"** button)
 ON_THE_WAY
-  → (for HOME_VISIT: Vet reaches location, clicks **"Arrived"**)
+  → (for HOME_VISIT: Staff reaches location, clicks **"Arrived"**)
 ARRIVED
-  → (Vet/Pet owner ready, Vet clicks **"Check-in"**)
+  → (Staff/Pet owner ready, Staff clicks **"Check-in"**)
 CHECK_IN  
-  → (Vet examines pet)
+  → (Staff examines pet)
 IN_PROGRESS  
-  → (Vet finishes service, clicks **"Check-out"**)
+  → (Staff finishes service, clicks **"Check-out"**)
 CHECK_OUT  
   → (Payment finalized: ONLINE already paid or CASH received)
 COMPLETED
@@ -830,7 +830,7 @@ CHECK_IN/IN_PROGRESS/ON_THE_WAY/ARRIVED → NO_SHOW (if either party fails to me
 - distance_km stored for reference and analytics, not pricing calculations
 - Multiple CHATs per booking support different communication contexts (owner ↔ vet, owner ↔ manager)
 - **Cancellation Tracking**: `cancellation_reason` and `cancelled_by` store audit trail for cancelled appointments.
-- **Real-time Tracking (For HOME_VISIT)**: Triggered when Vet clicks "Start Travel" in the app. The app then pushes GPS coordinates to `vet_current_lat/long` every 30-60 seconds while status is `ON_THE_WAY`.
+- **Real-time Tracking (For HOME_VISIT)**: Triggered when Staff clicks "Start Travel" in the app. The app then pushes GPS coordinates to `vet_current_lat/long` every 30-60 seconds while status is `ON_THE_WAY`.
 
 ---
 
@@ -859,14 +859,14 @@ Records payment information for each booking, supporting multiple payment method
 ### **2.12 EMR** – Electronic Medical Record (SOAP Standard)
 
 **Purpose:**
-Hồ sơ bệnh án điện tử được bác sĩ tạo ra trong/sau quá trình khám, tuân thủ tiêu chuẩn SOAP của y tế.
+Hồ sơ bệnh án điện tử được nhân viên tạo ra trong/sau quá trình khám, tuân thủ tiêu chuẩn SOAP của y tế.
 
 **Business Role:**
-- Được VET tạo ra sau khi khám bệnh.
+- Được STAFF tạo ra sau khi khám bệnh.
 - Ghi nhận chi tiết theo 4 phần:
     - **Subjective (S):** Triệu chứng, bệnh sử do chủ nuôi cung cấp.
     - **Objective (O):** Các chỉ số lâm sàng (cân nặng, nhiệt độ, nhịp tim...) đo đạc được.
-    - **Assessment (A):** Chẩn đoán của bác sĩ.
+    - **Assessment (A):** Chẩn đoán của nhân viên.
     - **Plan (P):** Phác đồ điều trị, lời dặn.
 - Chứa nhiều bản ghi đơn thuốc (PRESCRIPTION) và ảnh y tế (EMR_IMAGE).
 
@@ -889,7 +889,7 @@ Hồ sơ bệnh án điện tử được bác sĩ tạo ra trong/sau quá trìn
 Lưu trữ các hình ảnh, video, tài liệu đính kèm liên quan đến một bệnh án cụ thể (vd: ảnh vết thương, phim X-quang, kết quả xét nghiệm).
 
 **Business Role:**
-- Bác sĩ upload ảnh trong quá trình tạo/sửa EMR.
+- Nhân viên upload ảnh trong quá trình tạo/sửa EMR.
 - Hỗ trợ lưu nhiều ảnh cho một bệnh án.
 - Ảnh được lưu trữ trên Cloudinary, DB chỉ lưu URL.
 
@@ -930,7 +930,7 @@ Documents specific medication and instructions within an EMR, enabling pet owner
 Records each vaccination event, forming a complete vaccination history/card when aggregated per pet.
 
 **Business Role:**
-- Created by VET during or after a booking
+- Created by STAFF during or after a booking
 - Each record = one vaccination event (not a card/record object)
 - **Full vaccination card of a pet = all VACCINATION records for that pet**
 - Tracks vaccine name, vaccination date, next due date (for reminders)
@@ -961,7 +961,7 @@ Captures user ratings and comments about veterinarian or clinic service quality.
 
 **Business Role:**
 - Created by pet owner after a completed booking
-- Type indicates target: VET (rate the veterinarian) or CLINIC (rate the clinic)
+- Type indicates target: STAFF (rate the veterinarian) or CLINIC (rate the clinic)
 - Rating scale 1–5, with optional comment
 - Used to calculate CLINIC.rating_avg (denormalized field)
 
@@ -970,7 +970,7 @@ Captures user ratings and comments about veterinarian or clinic service quality.
 - By USER – N:1 (user can write multiple reviews over time)
 
 **Design Notes:**
-- Separate VET vs. CLINIC type allows targeting feedback appropriately
+- Separate STAFF vs. CLINIC type allows targeting feedback appropriately
 - Denormalized CLINIC.rating_avg simplifies clinic discovery and ranking
 
 ---
@@ -1020,7 +1020,7 @@ Represents a single conversation thread between exactly two users (never group c
 **Types of Conversations (examples):**
 - Pet owner ↔ Assigned vet (about a specific booking)
 - Pet owner ↔ Clinic manager (about service, scheduling)
-- Vet ↔ Clinic manager (internal consultation, possible future extension)
+- Staff ↔ Clinic manager (internal consultation, possible future extension)
 
 **Key Relationships:**
 - Between two USER entities (user1_id, user2_id) – N:N via this record
@@ -1102,7 +1102,7 @@ Stores JWT tokens that have been explicitly invalidated (e.g., after logout) bef
 Quản lý các báo cáo vi phạm từ người dùng đối với các đối tượng khác trên nền tảng (User hoặc Clinic).
 
 **Business Role:**
-- Pet Owner báo cáo Vet/Clinic về thái độ hoặc sai sót chuyên môn.
+- Pet Owner báo cáo Staff/Clinic về thái độ hoặc sai sót chuyên môn.
 - Clinic báo cáo Pet Owner về hành vi không phù hợp hoặc lừa đảo.
 - Admin xem xét và xử lý (Warn, Suspend, Ban).
 
@@ -1264,14 +1264,14 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 | 2 | CLINIC | Core | Phòng khám thú y | has USER (staff), offers SERVICE, receives USER_REPORT |
 | 3 | SERVICE | Core | Dịch vụ và khung giá | belongs to CLINIC, used_in BOOKING |
 | 4 | PET | Core | Hồ sơ thú cưng | owns by USER, has BOOKING, has EMR |
-| 5 | VET_SHIFT | Core | Lịch trực bác sĩ | belongs to USER (vet) & CLINIC, contains SLOT |
+| 5 | VET_SHIFT | Core | Lịch trực nhân viên | belongs to USER (vet) & CLINIC, contains SLOT |
 | 6 | SLOT | Core | Đơn vị thời gian 30p | belongs to VET_SHIFT, reserved_by BOOKING |
 | 7 | BOOKING | Core | Lịch hẹn | created by USER, has PAYMENT, has EMR |
 | 8 | PAYMENT | Core | Giao dịch thanh toán | for BOOKING (1:1) |
 | 9 | EMR | Core | Bệnh án điện tử (SOAP) | for BOOKING, has PRESCRIPTION, has EMR_IMAGE |
 | 10 | EMR_IMAGE | Core | Ảnh y tế đính kèm | belongs to EMR (1:N) |
 | 11 | PRESCRIPTION | Core | Đơn thuốc | in EMR (1:N) |
-| 12 | VACCINATION | Core | Lịch sử tiêm chủng | for PET (1:N), performed by VET |
+| 12 | VACCINATION | Core | Lịch sử tiêm chủng | for PET (1:N), performed by STAFF |
 | 13 | REVIEW | Core | Đánh giá & Phản hồi | for BOOKING (1:N) |
 | 14 | NOTIFICATION | Core | Thông báo hệ thống | to USER (1:N) |
 | 15 | CHAT_CONVERSATION | Chat | Hội thoại 1-1 | between USERs |
@@ -1301,7 +1301,7 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 |------|-----|-----------|-------------|-------------|
 | USER | PET | owns | 1–N | Pet owner has multiple pets; each pet has one owner |
 | USER | CLINIC | owns | 1–N | Clinic owner has multiple clinics |
-| CLINIC | USER | has_staff | 1–N | Clinic employs multiple staff (VET, CLINIC_MANAGER) via clinic_id |
+| CLINIC | USER | has_staff | 1–N | Clinic employs multiple staff (STAFF, CLINIC_MANAGER) via clinic_id |
 | USER | REFRESH_TOKEN | has | 1–N | User has multiple refresh tokens (for multiple devices) |
 | CLINIC | CLINIC_IMAGE | has_images | 1–N | Clinic has multiple profile images |
 | USER | USER_REPORT | submits | 1–N | User submits reports |
@@ -1321,7 +1321,7 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 
 | From | To | Relationship | Cardinality | Description |
 |------|-----|-----------|-------------|-------------|
-| USER (VET) | VET_SHIFT | works_in | 1–N | Vet has multiple shifts |
+| USER (STAFF) | VET_SHIFT | works_in | 1–N | Staff has multiple shifts |
 | VET_SHIFT | SLOT | contains | 1–N | One shift contains multiple 30-min slots |
 | SLOT | BOOKING | reserved_by | 1–0..1 | Slot is booked by zero or one booking |
 
@@ -1332,7 +1332,7 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 | USER (PET_OWNER) | BOOKING | books | 1–N | Pet owner creates multiple bookings |
 | PET | BOOKING | has | 1–N | Pet has multiple appointments |
 | SERVICE | BOOKING | used_in | 1–N | Service used in multiple bookings; **SERVICE sets pricing** |
-| USER (VET) | BOOKING | assigned_to | 1–N | Vet is assigned to multiple bookings (assigned_vet_id) |
+| USER (STAFF) | BOOKING | assigned_to | 1–N | Staff is assigned to multiple bookings (assigned_vet_id) |
 | BOOKING | SLOT | reserves | 1–1 | Each booking reserves exactly one slot |
 
 ### Payment & Medical Tier
@@ -1342,7 +1342,7 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 | BOOKING | PAYMENT | has | 1–1 | Each booking has one payment |
 | BOOKING | EMR | documented_by | 1–0..1 | Booking optionally has one EMR (vet-created) |
 | PET | EMR | has | 1–N | Pet has multiple EMRs over time |
-| USER (VET) | EMR | creates | 1–N | Vet creates multiple EMRs |
+| USER (STAFF) | EMR | creates | 1–N | Staff creates multiple EMRs |
 | EMR | PRESCRIPTION | contains | 1–N | EMR contains multiple medicines |
 | EMR | EMR_IMAGE | has_photos | 1–N | EMR includes medical photos/files |
 
@@ -1351,7 +1351,7 @@ Stores global configurations such as API keys and URLs for AI services. Matches 
 | From | To | Relationship | Cardinality | Description |
 |------|-----|-----------|-------------|-------------|
 | PET | VACCINATION | receives | 1–N | Pet receives multiple vaccinations (= vaccination card) |
-| USER (VET) | VACCINATION | performs | 1–N | Vet administers multiple vaccinations |
+| USER (STAFF) | VACCINATION | performs | 1–N | Staff administers multiple vaccinations |
 | BOOKING | VACCINATION | records | 1–N | Booking records multiple vaccinations if administered during appointment |
 | BOOKING | REVIEW | receives | 1–N | Booking receives multiple reviews (vet + clinic) |
 | USER | REVIEW | writes | 1–N | User writes multiple reviews |
@@ -1505,7 +1505,7 @@ BOOKING 2 (HOME_VISIT, 2 km):
 | Role | Platform | Clinic | Key Permissions | Description |
 |------|----------|--------|-----------------|-------------|
 | **PET_OWNER** | Mobile | N/A | • Own pets<br>• Create bookings<br>• View booking history<br>• View pet medical records<br>• Pay for bookings<br>• Write reviews<br>• Chat with clinic<br>• Receive notifications | Pet owner; only mobile app access |
-| **VET** | Mobile + Web | 1 (via clinic_id) | • View assigned bookings<br>• Create EMR after examination<br>• Write prescriptions<br>• Record vaccinations<br>• Create/update VET_SHIFTs<br>• Receive notifications<br>• Chat with clinic staff and owners | Veterinarian; dual-platform for flexibility |
+| **STAFF** | Mobile + Web | 1 (via clinic_id) | • View assigned bookings<br>• Create EMR after examination<br>• Write prescriptions<br>• Record vaccinations<br>• Create/update VET_SHIFTs<br>• Receive notifications<br>• Chat with clinic staff and owners | Veterinarian; dual-platform for flexibility |
 | **CLINIC_MANAGER** | Web | 1 (via clinic_id) | • Create/manage VET_SHIFTs<br>• View all clinic bookings<br>• Assign vets to bookings<br>• View clinic reports<br>• Manage clinic staff<br>• Chat with vets and owners<br>• Receive booking notifications | Clinic operations manager |
 | **CLINIC_OWNER** | Web | Many | • Register/edit clinic info<br>• Create services<br>• View all clinic data<br>• View financial reports<br>• Manage staff assignments<br>• View clinic analytics<br>• Receive system-related notifications (registration, approval, etc.) | Business owner; oversees multiple clinics |
 | **ADMIN** | Web | N/A | • Approve/reject clinic registration<br>• View platform analytics<br>• Manage user accounts<br>• System settings<br>• Generate reports | Platform administrator |
@@ -1537,7 +1537,7 @@ BOOKING 2 (HOME_VISIT, 2 km):
 
 **Justification:**
 - **Simplification**: One less table, simpler schema
-- **Business Constraint**: Each staff member (VET, CLINIC_MANAGER) belongs to exactly one clinic in MVP
+- **Business Constraint**: Each staff member (STAFF, CLINIC_MANAGER) belongs to exactly one clinic in MVP
 - **Query Efficiency**: Direct clinic_id on USER enables simpler queries
 - **Future Scalability**: If multi-clinic staff needed, re-introduce CLINIC_STAFF without breaking existing schema
 
@@ -1590,7 +1590,7 @@ Pet: "Milo" Vaccination Card
 
 **Justification:**
 - **Optionality**: Cancelled, no-show bookings don't generate EMR
-- **Vet Discretion**: Vet decides whether EMR is necessary (check-up vs. consultation)
+- **Staff Discretion**: Staff decides whether EMR is necessary (check-up vs. consultation)
 - **Data Integrity**: No empty/placeholder EMR records
 - **Simplicity**: One-to-optional-one relationship is clearer than null handling
 
@@ -1622,7 +1622,7 @@ Pet: "Milo" Vaccination Card
 
 ### Design Decision 8: Home Visit Geo-Tracking Architecture
 
-**Decision:** Lưu trữ vị trí GPS realtime của Vet trong BOOKING entity, không tạo bảng riêng cho location history.
+**Decision:** Lưu trữ vị trí GPS realtime của Staff trong BOOKING entity, không tạo bảng riêng cho location history.
 
 **Justification:**
 - **Simplicity (MVP)**: Không cần lưu lịch sử toàn bộ đường đi, chỉ cần vị trí hiện tại.
@@ -1635,23 +1635,23 @@ Pet: "Milo" Vaccination Card
 |-------|------|----------|
 | `home_lat` | DECIMAL | Latitude của địa chỉ nhà Pet Owner |
 | `home_long` | DECIMAL | Longitude của địa chỉ nhà Pet Owner |
-| `vet_current_lat` | DECIMAL | Vị trí hiện tại của Vet (cập nhật mỗi 30s) |
-| `vet_current_long` | DECIMAL | Longitude hiện tại của Vet |
+| `vet_current_lat` | DECIMAL | Vị trí hiện tại của Staff (cập nhật mỗi 30s) |
+| `vet_current_long` | DECIMAL | Longitude hiện tại của Staff |
 | `vet_location_updated_at` | TIMESTAMP | Thời điểm cập nhật GPS lần cuối |
 
 **Business Rules:**
 1. Home Visit bắt buộc: `home_address`, `home_lat`, `home_long` NOT NULL khi `type = HOME_VISIT`
 2. GPS tracking chỉ active khi `status = ON_THE_WAY`
 3. System tính ETA dựa trên: `vet_current_lat/long` → `home_lat/home_long`
-4. Notification trigger khi distance <= 500m (Vet sắp đến)
+4. Notification trigger khi distance <= 500m (Staff sắp đến)
 5. Clear GPS data khi CHECK_IN (privacy)
 
 **Status Flow for HOME_VISIT:**
 ```
 CONFIRMED
-    ↓ (Vet click "Bắt đầu di chuyển")
+    ↓ (Staff click "Bắt đầu di chuyển")
 ON_THE_WAY  ← GPS tracking ACTIVE, update every 30s
-    ↓ (Vet click "Check-in")
+    ↓ (Staff click "Check-in")
 CHECK_IN    ← GPS tracking STOPPED, vet_current_lat/long = NULL
     ↓
 IN_PROGRESS → CHECK_OUT → COMPLETED
@@ -1659,7 +1659,7 @@ IN_PROGRESS → CHECK_OUT → COMPLETED
 
 **Future Enhancement (Post-MVP):**
 - VET_LOCATION_HISTORY table: lưu toàn bộ GPS points để render lại đường đi
-- Geofencing: Auto-detect khi Vet đến gần
+- Geofencing: Auto-detect khi Staff đến gần
 - Firebase Realtime Database: Thay thế polling bằng realtime sync
 
 ---
@@ -1678,7 +1678,7 @@ IN_PROGRESS → CHECK_OUT → COMPLETED
 
 - **Price Calculation**: Performed on backend at booking creation; returned as total_price
 - **Slot Availability**: Query SLOT table filtered by AVAILABLE status for given shift
-- **GPS Tracking API**: Backend endpoint `POST /bookings/{id}/location` used by Vet App to update `vet_current_lat/long` only when status is `ON_THE_WAY`.
+- **GPS Tracking API**: Backend endpoint `POST /bookings/{id}/location` used by Staff App to update `vet_current_lat/long` only when status is `ON_THE_WAY`.
 - **Vaccination Card**: Query all VACCINATION by pet_id, ordered by vaccination_date DESC
 - **Pricing History**: Store calculated price in BOOKING for audit trail; SERVICE changes don't affect historical bookings
 

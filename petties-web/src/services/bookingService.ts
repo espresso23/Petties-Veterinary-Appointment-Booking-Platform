@@ -2,7 +2,7 @@
  * Booking API Service
  */
 import axios from './api/client';
-import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableVetResponse, VetAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest } from '../types/booking';
+import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest } from '../types/booking';
 import type { BookingStatus } from '../types/booking';
 import type { ClinicServiceResponse } from '../types/service';
 
@@ -15,9 +15,9 @@ interface PageResponse<T> {
     number: number;
 }
 
-// Vet option for dropdown selection
-export interface VetOption {
-    vetId: string;
+// Staff option for dropdown selection
+export interface StaffOption {
+    staffId: string;
     fullName: string;
     avatarUrl?: string;
     specialty: string;
@@ -51,10 +51,10 @@ export const getBookingsByClinic = async (
 };
 
 /**
- * Get bookings by vet (for Vet)
+ * Get bookings by staff (for Staff)
  */
-export const getBookingsByVet = async (
-    vetId: string,
+export const getBookingsByStaff = async (
+    staffId: string,
     status?: BookingStatus,
     page: number = 0,
     size: number = 20
@@ -64,7 +64,7 @@ export const getBookingsByVet = async (
     params.append('size', size.toString());
     if (status) params.append('status', status);
 
-    const response = await axios.get(`${BOOKING_API}/vet/${vetId}?${params.toString()}`);
+    const response = await axios.get(`${BOOKING_API}/staff/${staffId}?${params.toString()}`);
     return response.data;
 };
 
@@ -93,7 +93,7 @@ export const createBooking = async (request: CreateBookingRequest): Promise<Book
 };
 
 /**
- * Confirm booking and auto-assign vet (Manager)
+ * Confirm booking and auto-assign staff (Manager)
  */
 export const confirmBooking = async (
     bookingId: string,
@@ -104,13 +104,13 @@ export const confirmBooking = async (
 };
 
 /**
- * Check vet availability before confirming booking
+ * Check staff availability before confirming booking
  * Returns detailed availability for each service and alternative time slot suggestions
  */
-export const checkVetAvailability = async (
+export const checkStaffAvailability = async (
     bookingId: string
-): Promise<VetAvailabilityCheckResponse> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/check-vet-availability`);
+): Promise<StaffAvailabilityCheckResponse> => {
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/check-staff-availability`);
     return response.data;
 };
 
@@ -137,33 +137,33 @@ export const cancelBooking = async (bookingId: string, reason: string): Promise<
 };
 
 /**
- * Get available vets for reassigning a specific service
+ * Get available staff for reassigning a specific service
  */
-export const getAvailableVetsForReassign = async (
+export const getAvailableStaffForReassign = async (
     bookingId: string,
     serviceId: string
-): Promise<AvailableVetResponse[]> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/services/${serviceId}/available-vets`);
+): Promise<AvailableStaffResponse[]> => {
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/services/${serviceId}/available-staff`);
     return response.data;
 };
 
 /**
- * Reassign vet for a specific service in a booking
+ * Reassign staff for a specific service in a booking
  */
-export const reassignVetForService = async (
+export const reassignStaffForService = async (
     bookingId: string,
     serviceId: string,
-    newVetId: string
+    newStaffId: string
 ): Promise<Booking> => {
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/services/${serviceId}/reassign`, {
-        newVetId
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/services/${serviceId}/reassign-staff`, {
+        newStaffId
     });
     return response.data;
 };
 
 /**
  * Add a service to an active booking (IN_PROGRESS or ARRIVED)
- * Used when vet wants to add extra services during home visit
+ * Used when staff wants to add extra services during home visit
  * Distance fee is NOT recalculated
  */
 export const addServiceToBooking = async (
@@ -178,7 +178,7 @@ export const addServiceToBooking = async (
 
 /**
  * Get available services that can be added to this booking
- * Filters by specialty for Home Visit Vets
+ * Filters by specialty for Home Visit Staff
  */
 export const getAvailableServicesForAddOn = async (
     bookingId: string
@@ -188,18 +188,18 @@ export const getAvailableServicesForAddOn = async (
 };
 
 /**
- * Get available vets for confirming booking (dropdown selection)
- * Returns list of vets matching service specialty with availability status
+ * Get available staff for confirming booking (dropdown selection)
+ * Returns list of staff matching service specialty with availability status
  */
-export const getAvailableVetsForConfirm = async (
+export const getAvailableStaffForConfirm = async (
     bookingId: string
-): Promise<VetOption[]> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/available-vets-for-confirm`);
+): Promise<StaffOption[]> => {
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/available-staff-for-confirm`);
     return response.data;
 };
 
 /**
- * Check-in booking (Vet or Manager)
+ * Check-in booking (Staff or Manager)
  * Transitions: ASSIGNED → IN_PROGRESS
  */
 export const checkInBooking = async (bookingId: string): Promise<Booking> => {

@@ -157,14 +157,14 @@ public class DataInitializer implements CommandLineRunner {
 
                 if (targetUser == null) {
                     // Create if not exists
-                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.VET);
+                    targetUser = initializeUser("hoangdat", "123456", targetEmail, "Dr. Hoang Dat", Role.STAFF);
                 }
 
                 if (targetUser != null) {
                     boolean changed = false;
                     // Force Role VET
-                    if (targetUser.getRole() != Role.VET && targetUser.getRole() != Role.ADMIN) {
-                        targetUser.setRole(Role.VET);
+                    if (targetUser.getRole() != Role.STAFF && targetUser.getRole() != Role.ADMIN) {
+                        targetUser.setRole(Role.STAFF);
                         changed = true;
                     }
                     // Assign Clinic
@@ -283,10 +283,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 1 for Bella - Viêm tai ngoài
                 EmrRecord emr1 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Chủ nuôi báo cáo: Bé gãi tai nhiều trong 3 ngày qua, có mùi hôi từ tai, lắc đầu thường xuyên.")
                         .objective(
@@ -322,10 +322,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 2 for Bella - Tái khám
                 EmrRecord emr2 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Tái khám sau 7 ngày điều trị viêm tai. Chủ nuôi cho biết bé đã bớt gãi, không còn lắc đầu nhiều.")
                         .objective(
@@ -354,10 +354,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Rocky - Tiêu chảy
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Bé tiêu chảy 2 ngày nay, phân lỏng có nhầy. Ăn ít, uống nước bình thường. Không nôn.")
                         .objective(
@@ -393,10 +393,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Mimi - Khám sức khỏe định kỳ
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .vetId(vet.getUserId())
+                        .staffId(vet.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .vetName(vet.getFullName())
+                        .staffName(vet.getFullName())
                         .subjective(
                                 "Khám sức khỏe định kỳ. Chủ nuôi không có than phiền gì đặc biệt. Bé ăn uống bình thường, chơi đùa vui vẻ.")
                         .objective(
@@ -552,7 +552,7 @@ public class DataInitializer implements CommandLineRunner {
         user.setEmail(email);
         user.setPhone("0" + (long) (Math.random() * 1000000000L));
         user.setFullName(fullName);
-        user.setRole(Role.VET);
+        user.setRole(Role.STAFF);
         user.setSpecialty(specialty);
         user.setAvatar(
                 "https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+") + "&background=86EFAC&color=1c1917");
