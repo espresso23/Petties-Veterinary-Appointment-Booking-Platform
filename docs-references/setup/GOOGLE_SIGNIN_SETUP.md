@@ -49,7 +49,7 @@ Hướng dẫn cấu hình Google Sign-In cho Petties (Mobile + Web).
 | `mobile` | `PET_OWNER` | Pet owners using the mobile app |
 | `web` | `CLINIC_OWNER` | Clinic owners registering via web |
 
-> ⚠️ VET và CLINIC_MANAGER **không đăng ký qua Google** - họ được cấp tài khoản bởi Clinic.
+> ⚠️ STAFF và CLINIC_MANAGER **không đăng ký qua Google** - họ được cấp tài khoản bởi Clinic.
 
 ---
 

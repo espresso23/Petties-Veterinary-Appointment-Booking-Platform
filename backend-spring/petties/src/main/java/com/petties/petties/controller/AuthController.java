@@ -22,7 +22,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -46,12 +45,23 @@ public class AuthController {
     /**
      * Step 1: Send OTP to email for registration
      * 
+     * Normal mode: Returns SendOtpResponse with email and expiry info
+     * DEV mode (skip OTP): Returns AuthResponse with tokens (user registered
+     * directly)
+     * 
      * @param request Registration data (username, email, password, phone, role)
-     * @return SendOtpResponse with email and expiry info
+     * @return SendOtpResponse or AuthResponse (in dev mode with skip OTP)
      */
     @PostMapping("/register/send-otp")
-    public ResponseEntity<SendOtpResponse> sendRegistrationOtp(@Valid @RequestBody SendOtpRequest request) {
-        SendOtpResponse response = registrationOtpService.sendRegistrationOtp(request);
+    public ResponseEntity<?> sendRegistrationOtp(@Valid @RequestBody SendOtpRequest request) {
+        Object response = registrationOtpService.sendRegistrationOtp(request);
+
+        // DEV MODE: Return 201 Created với AuthResponse (user đã được tạo)
+        if (response instanceof AuthResponse) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        }
+
+        // Normal: Return 200 OK với SendOtpResponse
         return ResponseEntity.ok(response);
     }
 

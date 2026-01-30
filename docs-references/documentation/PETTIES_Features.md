@@ -7,79 +7,87 @@
 ### 🐕 **ROLE 1: PET_OWNER (Customer đồng thời là chủ thú cưng) MOBILE ONLY**
 1. Đăng ký / Đăng nhập ✅
 2. Quản lý hồ sơ cá nhân ✅
-3. Tạo/sửa hồ sơ thú cưng
-4. Tìm kiếm phòng khám
-5. Tìm kiếm bác sĩ
-6. Đặt lịch khám tại phòng (Clinic Visit)
-7. Đặt lịch khám tại nhà (Home Visit)
-8. Xem lịch booking của tôi
-9. Xem chi tiết booking
+3. Tạo/sửa hồ sơ thú cưng ✅
+4. Tìm kiếm phòng khám ✅
+5. Tìm kiếm nhân viên
+6. Đặt lịch khám tại phòng (Clinic Visit) ✅
+7. Đặt lịch khám tại nhà (Home Visit) ✅
+8. Xem lịch booking của tôi ✅
+9. Xem chi tiết booking ✅
 10. Hủy booking
 11. Thanh toán online.
-12. Xem hồ sơ y tế thú cưng (EMR)
-13. Xem sổ tiêm chủng
-14. Đánh giá & review bác sĩ
-15. Chat với AI Chatbot (Pet Care Assistant)
+12. Xem hồ sơ y tế thú cưng (EMR) ✅
+13. Xem sổ tiêm chủng ✅
+14. Đánh giá & review nhân viên
+15. Chat với AI Chatbot (Pet Care Assistant) ✅
 16. SOS - Cấp cứu khẩn cấp
-17. Video Consultation (Tư vấn video từ xa)
-18. Xem đơn thuốc trong hồ sơ bệnh án (EMR)
-19. Nhận thông báo & nhắc nhở (Push/Email/SMS)
-20. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng
-21. **[SOS] Xem bản đồ realtime vị trí bác sĩ**
-22. **[SOS] Tracking đường di chuyển của bác sĩ** (định tuyến cứu hộ)
-23. **[SOS] Nhận thông báo khi bác sĩ sắp đến / đã đến nơi**
+17. **AI Vision: Phân tích hình ảnh sức khỏe thú cưng** ✅
+18. **Hủy yêu cầu thay đổi Email** ✅
+19. Video Consultation (Tư vấn video từ xa)
+20. Xem đơn thuốc trong hồ sơ bệnh án (EMR) ✅
+21. Nhận thông báo & nhắc nhở (Push/Email/SMS) ✅
+22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng ✅
+23. **[SOS] Xem bản đồ realtime vị trí nhân viên**
+24. **[SOS] Tracking đường di chuyển của nhân viên** (định tuyến cứu hộ)
+25. **[SOS] Nhận thông báo khi nhân viên sắp đến / đã đến nơi**
 
 ---
 
-### 👨‍⚕️ **ROLE 2: VET (Bác sĩ thú y) MOBILE + WEB**
+### 👨‍⚕️ **ROLE 2: STAFF (Nhân viên - nhân viên thú y, groomer) MOBILE + WEB**
 1. Đăng nhập từ account được cấp ✅
 2. Xem hồ sơ của tôi ✅
-3. Xem lịch làm việc của tôi
-4. Xem booking được gán
-5. Check-in bệnh nhân
-6. Check-out bệnh nhân
-7. Xem hồ sơ y tế thú cưng
-8. Xem sổ tiêm chủng của pet
-9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám 
-10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]**
-11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]**
+3. Xem lịch làm việc của tôi ✅
+4. Xem booking được gán ✅
+5. Check-in bệnh nhân ✅
+6. **Hoàn thành khám (Treatment Finished)**: Nhân viên xác nhận đã khám xong, gửi yêu cầu thanh toán tới Manager. ✅
+7. Xem hồ sơ y tế thú cưng ✅
+8. Xem sổ tiêm chủng của pet ✅
+9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám ✅
+10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]** ✅
+11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]** ✅
 12. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
 13. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
 14. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
+15. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
 
 ---
 
 ### 👨‍💼 **ROLE 3: CLINIC_MANAGER (Quản lý phòng khám) WEB-ONLY**
 1. Đăng nhập ✅
-2. Xem danh sách bác sĩ ✅ (BE)
-3. Thêm bác sĩ thủ công ✅ (BE)
-4. Xóa/bỏ liên kết bác sĩ ✅ (BE)
-5. Import lịch bác sĩ thủ công ✅
-6. Xem booking mới
-7. Gán bác sĩ cho booking
-8. Gán lại booking (nếu bác sĩ từ chối)
+2. Xem danh sách nhân viên ✅
+3. Thêm nhân viên thủ công ✅
+4. Xóa/bỏ liên kết nhân viên ✅
+5. Import lịch nhân viên thủ công ✅
+6. Xem booking mới ✅
+7. Gán nhân viên cho booking ✅
+8. Gán lại booking (nếu nhân viên từ chối) ✅
 9. Gán dịch vụ nếu user chưa chọn được
-10. Quản lý hủy & hoàn tiền
-11. Xem dashboard hôm nay
-12. Quản lý ca làm việc nhân viên
-14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**:
+10. **Nhận tiền & Checkout (Payment & Completion)**: Nhận thanh toán từ khách và thực hiện thao tác Checkout để đóng đơn hàng.
+11. Quản lý hủy & hoàn tiền
+12. Xem dashboard hôm nay ✅
+13. Quản lý ca làm việc nhân viên ✅
+14. **Quản lý Hồ sơ Bệnh nhân (Patient Management)**: ✅
     - Xem danh sách bệnh nhân từng khám tại phòng khám
     - Xem chi tiết Lịch sử EMR và Sổ tiêm chủng của bệnh nhân (Read-Only)
+15. **Block/Unblock Slot thủ công (Manual Slot Control)** ✅
+16. **Xóa ca trực hàng loạt (Bulk Shift Delete)** ✅
+17. **Kiểm tra tính khả dụng của nhân viên (Check Staff Availability)** ✅
+18. **Gán lại nhân viên cho dịch vụ (Reassign Staff)** ✅
 
 ---
 
 ### 🏥 **ROLE 4: CLINIC_OWNER (Chủ phòng khám) WEB-ONLY**
 1. Đăng nhập ✅
-2. Quản lý thông tin phòng khám
-3. **Quản lý Danh mục Dịch vụ (Master Services):**
+2. Quản lý thông tin phòng khám ✅
+3. **Quản lý Danh mục Dịch vụ (Master Services):** ✅
     - Tạo danh mục dịch vụ tiêu chuẩn (Tên, Category, Mô tả, Icon, Giá mặc định).
     - Cấu hình giá sẵn để gán nhanh cho các phòng khám.
-4. **Quản lý Dịch vụ tại Phòng khám (Clinic Services):**
+4. **Quản lý Dịch vụ tại Phòng khám (Clinic Services):** ✅
     - **Thừa hưởng (Inherit):** Áp dụng từ Master Services với giá đã cấu hình sẵn (có thể ghi đè/override giá riêng nếu muốn).
     - **Tự tạo (Custom):** Tạo các dịch vụ riêng biệt chỉ có tại phòng khám đó.
     - Cấu hình giá chi tiết (Base price, Price per KM) và trạng thái (Active/Inactive) cho từng dịch vụ cụ thể.
-5. Xem Dashboard Phòng Khám
-6. Theo dõi doanh thu ✅ (BE)
+5. Xem Dashboard Phòng Khám ✅
+6. Theo dõi doanh thu ✅
 
 
 ---
@@ -140,6 +148,7 @@
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
 - 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
 - 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
 - 🤖 Citation & Attribution - Trích dẫn nguồn
@@ -168,6 +177,7 @@
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
 │  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
 │  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
+│  ├── @mcp.tool: analyze_pet_image → Phân tích hình ảnh (Vision)     │
 │  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
 │  ├── @mcp.tool: check_slots       → Check available slots          │
 │  └── @mcp.tool: create_booking    → Create booking via chat        │
@@ -198,6 +208,7 @@
 ### AI Tools (FastMCP Protocol)
 - 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
 - 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
+- 🔧 `analyze_pet_image` - Phân tích hình ảnh sức khỏe pet (Vision)
 - 🔧 `search_clinics` - Tìm phòng khám gần đây
 - 🔧 `check_slots` - Kiểm tra slot trống
 - 🔧 `create_booking` - Tạo lịch hẹn qua chat
@@ -226,7 +237,7 @@
 - Đặt lịch khẩn cấp
 
 ### 📹 Video Consultation (Tư Vấn Video)
-- Gọi video trực tiếp với bác sĩ
+- Gọi video trực tiếp với nhân viên
 - Chẩn đoán từ xa
 
 ### Electronic Medical Records (EMR)
@@ -256,29 +267,30 @@
 - Hỗ trợ đa ngôn ngữ
 - Timezone support - Múi giờ
 
-### 👨‍⚕️ Vet/Manager Account Creation Flow (Quick Add) ✅ (Backend Done)
-**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh và cấp tài khoản cho nhân sự (thông qua SĐT).
+### 👨‍⚕️ Staff/Manager Account Creation Flow (Quick Add) ✅ (Updated - Use Google OAuth)
+**Mô tả:** Quy trình để CLINIC_OWNER/MANAGER thêm nhanh nhân sự vào hệ thống thông qua Email. Nhân viên sẽ đăng nhập bằng tài khoản Google, thông tin cá nhân sẽ tự động đồng bộ.
 
 #### Screen Flows:
 1. Owner/Manager truy cập màn hình "Quản lý nhân sự" (Staff Management).
 2. Chọn "Thêm nhân viên" (Quick Add).
 3. Nhập các thông tin tối giản:
-    - Họ và tên
-    - Số điện thoại (Bắt buộc, dùng làm Username)
-    - Vai trò (Clinic Manager hoặc Vet)
+    - Email (Bắt buộc, dùng để liên kết tài khoản Google)
+    - Vai trò (Clinic Manager hoặc Staff)
+    - Chuyên môn (Chỉ áp dụng cho Staff)
 4. Hệ thống:
-    - Kiểm tra SĐT đã tồn tại chưa.
-    - Tạo tài khoản với `username = phone`.
-    - Tạo mật khẩu mặc định = **6 số cuối SĐT**.
-    - Gán `workingClinic` trỏ về chi nhánh hiện tại.
-5. Nhân viên sử dụng SĐT và mật khẩu mặc định để đăng nhập vào Web/Mobile ngay lập tức.
+    - Kiểm tra Email đã thuộc phòng khám khác chưa.
+    - Tạo bản ghi nhân sự tạm thời gắn với Email.
+5. Nhân viên sử dụng tài khoản Google tương ứng với Email đã mời để đăng nhập.
+6. Hệ thống:
+    - Tự động lấy `fullName` và `avatar` từ Google profile trong lần đăng nhập đầu tiên.
+    - Hoàn tất kích hoạt tài khoản nhân sự.
 
 #### Form thêm nhanh (Quick Add Form):
 | Field | Required | Description |
 |-------|----------|-------------|
-| Họ và tên | ✅ | Tên đầy đủ |
-| Số điện thoại | ✅ | Định danh đăng nhập, mã xác thực sau này |
-| Vai trò | ✅ | Chọn Clinic Manager hoặc Vet |
+| Email | ✅ | Email dùng để đăng nhập Google OAuth |
+| Vai trò | ✅ | Chọn Clinic Manager hoặc Staff |
+| Chuyên môn | 🔄 | Áp dụng cho Staff để gán booking phù hợp |
 
 #### Account States:
 | Status | Mô tả | Đăng nhập? |
@@ -286,19 +298,21 @@
 | `ACTIVE` | Hoạt động bình thường | ✅ |
 | `DEACTIVATED` | Nghỉ việc / Bị vô hiệu hóa | ❌ |
 
+**Lưu ý:** Từ phiên bản mới, Role `STAFF` đã được đổi thành `STAFF` để bao quát cả nhân viên thú y (VET_GENERAL, VET_SURGERY, etc.) và nhân viên grooming (GROOMER). Chuyên môn được phân biệt qua trường `StaffSpecialty`.
+
 ---
 
 ### 👨‍💼 Quản lý Lịch làm việc (Manual Scheduling Flow)
-**Mô tả:** Quy trình CLINIC_MANAGER tạo lịch làm việc cho bác sĩ và hệ thống tự động sinh Slot.
+**Mô tả:** Quy trình CLINIC_MANAGER tạo lịch làm việc cho nhân viên và hệ thống tự động sinh Slot.
 
 #### Quy trình chi tiết:
-1. **Manager chọn Bác sĩ & Ngày**: Chọn bác sĩ từ danh sách và chọn ngày trên Calendar.
+1. **Manager chọn Nhân viên & Ngày**: Chọn nhân viên từ danh sách và chọn ngày trên Calendar.
 2. **Nhập thời gian**:
     - Giờ bắt đầu (Start Time): ví dụ 08:00
     - Giờ kết thúc (End Time): ví dụ 17:00
     - Thời gian nghỉ (Break Start/End): ví dụ 12:00 - 13:00 (Hệ thống sẽ không tạo Slot trong lúc này).
 3. **Hệ thống xử lý (Background)**:
-    - Kiểm tra Overlap: Bác sĩ đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
+    - Kiểm tra Overlap: Nhân viên đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
     - Chia nhỏ thời gian thành các Slot 30 phút.
     - Lưu vào DB: 1 bản ghi `VetShift` và danh sách các `Slot`.
 4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
@@ -315,9 +329,9 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ Quy trình Booking (Booking workflow): (PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED)
+✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
   
-✅ **Rating system** (Pet owner đánh giá Clinic/Vet)  
+✅ **Rating system** (Pet owner đánh giá Clinic/Staff)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
 ✅ **AI Chatbot** (Single Agent + ReAct Pattern + MCP Tools)  
 ✅ **EMR với đơn thuốc** (Prescription trong hồ sơ bệnh án)  
@@ -349,7 +363,23 @@
 
 ---
 
-**Version: 8.0 - PETTIES MVP SCOPE (1-MONTH)**  
-**Status: ✅ READY FOR DEV**  
-**Total Features: ~48 (MVP Scope)**  
-**Last Updated: December 26, 2025**
+**Version: 1.7.0 - PETTIES MVP SCOPE (VET→STAFF MIGRATION COMPLETE)**
+**Status: ✅ READY FOR DEV**
+**Total Features: 109 Use Cases (Full Coverage)**
+**Last Updated: January 29, 2026**
+
+---
+
+## 📊 MIGRATION STATUS: VET → STAFF ✅ HOÀN THÀNH
+
+> **Note:** Thuật ngữ `Vet` đã được migrate sang `Staff` để phù hợp với mô hình nhân viên đa dạng (Bác sĩ thú y, Groomer, v.v.)
+
+| Thành phần | Trạng thái |
+|------------|------------|
+| Database (Flyway) | ✅ 3 migrations |
+| Backend (Spring Boot) | ✅ 98% |
+| Frontend (React) | ✅ 100% |
+| Mobile (Flutter) | ✅ 100% |
+| Unit Tests | ✅ 62/62 passed |
+
+**Chi tiết:** Xem `docs-references/development/dev/VET_TO_STAFF_MIGRATION_GUIDE.md`

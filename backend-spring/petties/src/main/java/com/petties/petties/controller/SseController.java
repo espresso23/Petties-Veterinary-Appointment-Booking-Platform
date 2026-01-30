@@ -53,7 +53,7 @@ public class SseController {
      * - CONNECTED: Initial connection confirmation
      * - HEARTBEAT: Keep-alive ping (every 30 seconds)
      * - NOTIFICATION: New notification arrived
-     * - SHIFT_UPDATE: VetShift changed (for calendar auto-refresh)
+     * - SHIFT_UPDATE: StaffShift changed (for calendar auto-refresh)
      *
      * @param token JWT access token passed as query parameter
      * @return SseEmitter for the SSE stream

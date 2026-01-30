@@ -203,14 +203,14 @@ export const NotificationsPage = () => {
               disabled={page === 0}
               className="px-4 py-2 bg-white text-stone-900 text-sm font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Trước
+              TRƯỚC
             </button>
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
               className="px-4 py-2 bg-white text-stone-900 text-sm font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-px hover:translate-y-px transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sau
+              SAU
             </button>
           </div>
         </div>

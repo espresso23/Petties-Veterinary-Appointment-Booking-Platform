@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import '../models/chat.dart';
 import 'api_client.dart';
 
@@ -17,6 +19,17 @@ class ChatService {
   Future<List<ChatConversation>> getConversations() async {
     final response = await _apiClient.get('/chat/conversations');
     final data = response.data;
+    
+    // DEBUG LOGGING
+    print('DEBUG: getConversations Raw Data Type: ${data.runtimeType}');
+    if (data is Map && data.containsKey('content')) {
+      final list = data['content'] as List;
+      if (list.isNotEmpty) {
+        print('DEBUG: First Item clinicLogo: ${list[0]['clinicLogo']}');
+        print('DEBUG: First Item clinic_logo: ${list[0]['clinic_logo']}');
+      }
+    }
+
     List<dynamic> conversations;
 
     if (data is Map && data.containsKey('content')) {
@@ -35,6 +48,16 @@ class ChatService {
   Future<ChatConversation> getConversation(String conversationId) async {
     final response =
         await _apiClient.get('/chat/conversations/$conversationId');
+    final data = response.data;
+    
+    // DEBUG SINGULAR
+    print('DEBUG: Single Conv Raw: $data');
+    if (data is Map) {
+       print('DEBUG: Single Conv clinicLogo: ${data['clinicLogo']}');
+       print('DEBUG: Single Conv clinic_logo: ${data['clinic_logo']}');
+       print('DEBUG: Single Conv clinicId: ${data['clinicId']}');
+    }
+
     return ChatConversation.fromJson(response.data);
   }
 
@@ -65,11 +88,53 @@ class ChatService {
   }
 
   /// Gửi tin nhắn
-  Future<ChatMessage> sendMessage(String conversationId, String content) async {
+  Future<ChatMessage> sendMessage(String conversationId, String content, {String? imageUrl, File? imageFile}) async {
+    print('DEBUG: ChatService.sendMessage called with content: "$content", imageUrl: $imageUrl, imageFile: ${imageFile?.path}');
+    
+    if (imageFile != null) {
+      // Send as multipart form data
+      final formData = FormData.fromMap({
+        'content': content,
+        'file': await MultipartFile.fromFile(imageFile.path),
+      });
+
+      final response = await _apiClient.post(
+        '/chat/conversations/$conversationId/messages',
+        data: formData,
+      );
+      print('DEBUG: ChatService.sendMessage multipart response: ${response.data}');
+      return ChatMessage.fromJson(response.data);
+    } else {
+      // Send as JSON
+      final data = {'content': content};
+      if (imageUrl != null) {
+        data['imageUrl'] = imageUrl;
+      }
+
+      final response = await _apiClient.post(
+        '/chat/conversations/$conversationId/messages',
+        data: data,
+      );
+      print('DEBUG: ChatService.sendMessage JSON response: ${response.data}');
+      return ChatMessage.fromJson(response.data);
+    }
+  }
+
+  /// Gửi hình ảnh
+  Future<ChatMessage> uploadImage(String conversationId, File imageFile) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(imageFile.path),
+    });
+
     final response = await _apiClient.post(
-      '/chat/conversations/$conversationId/messages',
-      data: {'content': content},
+      '/chat/conversations/$conversationId/images',
+      data: formData,
     );
+
+    // Debug: In ra response data
+    print('Upload image response: ${response.data}');
+
+    // API trả về MessageResponse
     return ChatMessage.fromJson(response.data);
   }
 

@@ -173,8 +173,8 @@ export function NotificationBell({
             </svg>
           </div>
         )
-      case 'VET_SHIFT_ASSIGNED':
-      case 'VET_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_UPDATED':
         return (
           <div className="w-8 h-8 bg-amber-100 border-2 border-stone-900 flex items-center justify-center">
             <svg
@@ -192,7 +192,7 @@ export function NotificationBell({
             </svg>
           </div>
         )
-      case 'VET_SHIFT_DELETED':
+      case 'STAFF_SHIFT_DELETED':
         return (
           <div className="w-8 h-8 bg-orange-100 border-2 border-stone-900 flex items-center justify-center">
             <svg

@@ -12,10 +12,10 @@ export const ROUTES = {
     settings: '/admin/settings',
   },
 
-  // Vet routes
-  vet: {
-    dashboard: '/vet',
-    profile: '/vet/profile',
+  // Staff routes
+  staff: {
+    dashboard: '/staff',
+    profile: '/staff/profile',
   },
 
   // Clinic Owner routes
@@ -29,6 +29,7 @@ export const ROUTES = {
   clinicManager: {
     dashboard: '/clinic-manager',
     profile: '/clinic-manager/profile',
+    bookings: '/clinic-manager/bookings',
   },
 } as const
 

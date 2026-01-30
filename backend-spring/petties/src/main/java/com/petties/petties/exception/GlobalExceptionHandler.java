@@ -18,21 +18,24 @@ import org.springframework.security.access.AccessDeniedException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /**
  * Global Exception Handler for REST API
  *
- * Handles all exceptions thrown by controllers and returns consistent error responses.
+ * Handles all exceptions thrown by controllers and returns consistent error
+ * responses.
  * All error messages are in Vietnamese for better UX.
  *
  * Error Response Format:
  * {
- *   "timestamp": "2025-12-24T18:30:00",
- *   "status": 400,
- *   "error": "Bad Request",
- *   "message": "Thong bao loi bang tieng Viet",
- *   "path": "/api/v1/resource",
- *   "errors": {"field": "message"}  // Optional, for validation errors
+ * "timestamp": "2025-12-24T18:30:00",
+ * "status": 400,
+ * "error": "Bad Request",
+ * "message": "Thong bao loi bang tieng Viet",
+ * "path": "/api/v1/resource",
+ * "errors": {"field": "message"} // Optional, for validation errors
  * }
  *
  * @author Petties Team
@@ -238,14 +241,62 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
                         HttpMessageNotReadableException ex,
                         HttpServletRequest request) {
+
+                String message = "Dữ liệu đầu vào không đúng định dạng";
+                Throwable cause = ex.getMostSpecificCause();
+
+                if (cause != null) {
+                        message = "Lỗi định dạng dữ liệu: " + cause.getMessage();
+                        // Try to get field name if possible
+                        if (cause instanceof JsonMappingException) {
+                                JsonMappingException jsonEx = (JsonMappingException) cause;
+                                if (jsonEx.getPath() != null && !jsonEx.getPath().isEmpty()) {
+                                        String fieldName = jsonEx.getPath().get(0).getFieldName();
+                                        message = "Giá trị không hợp lệ tại trường: " + fieldName;
+                                }
+                        }
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.BAD_REQUEST.value())
                                 .error("Bad Request")
-                                .message("Dữ liệu đầu vào không đúng định dạng hoặc giá trị không hợp lệ")
+                                .message(message)
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(DataIntegrityViolationException.class) // Code: 409
+        public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+                        DataIntegrityViolationException ex,
+                        HttpServletRequest request) {
+                log.warn("Data integrity violation at {}: {}", request.getRequestURI(), ex.getMessage());
+
+                // Parse specific constraint violations for user-friendly messages
+                String message = "Dữ liệu đã tồn tại trong hệ thống";
+                String rootCause = ex.getMostSpecificCause().getMessage();
+
+                if (rootCause != null) {
+                        if (rootCause.contains("users_username_key") || rootCause.contains("users_email_key")) {
+                                message = "Email này đã được đăng ký. Vui lòng đăng nhập hoặc sử dụng email khác.";
+                        } else if (rootCause.contains("users_phone_key")) {
+                                message = "Số điện thoại này đã được sử dụng.";
+                        } else if (rootCause.contains("clinics_") && rootCause.contains("_key")) {
+                                message = "Thông tin phòng khám đã tồn tại trong hệ thống.";
+                        } else if (rootCause.contains("_key") || rootCause.contains("unique")) {
+                                message = "Dữ liệu trùng lặp. Thông tin này đã tồn tại trong hệ thống.";
+                        }
+                }
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.CONFLICT);
         }
 
         @ExceptionHandler(Exception.class) // Code: 500

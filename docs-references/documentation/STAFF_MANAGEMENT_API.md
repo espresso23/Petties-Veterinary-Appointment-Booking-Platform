@@ -1,6 +1,6 @@
 # Staff Management API Documentation
 
-Tài liệu này mô tả các API dùng để quản lý nhân sự (Managers và Vets) cho các phòng khám trong hệ thống Petties.
+Tài liệu này mô tả các API dùng để quản lý nhân sự (Managers và Staff) cho các phòng khám trong hệ thống Petties.
 
 ## 📌 Tổng quan thiết kế
 - **Định danh chính**: Sử dụng **Số điện thoại** làm `username`.
@@ -8,7 +8,7 @@ Tài liệu này mô tả các API dùng để quản lý nhân sự (Managers v
 - **Email**: Không bắt buộc (Nullable).
 - **Phân quyền**:
     - `CLINIC_OWNER`: Quản lý toàn bộ nhân sự của phòng khám mình sở hữu.
-    - `CLINIC_MANAGER`: Quản lý danh sách Bác sĩ (Vets) thuộc chi nhánh đang làm việc.
+    - `CLINIC_MANAGER`: Quản lý danh sách Nhân viên (Staff) thuộc chi nhánh đang làm việc.
 
 ---
 
@@ -25,12 +25,12 @@ Tạo mới một tài khoản User và gán trực tiếp vào phòng khám.
 {
   "fullName": "Nguyễn Văn A",
   "phone": "0912345678",
-  "role": "VET" // Hoặc "CLINIC_MANAGER"
+  "role": "STAFF" // Hoặc "CLINIC_MANAGER"
 }
 ```
 - **Xử lý đặc biệt**: 
     - Nếu `phone` là `0912345678`, mật khẩu mặc định sẽ là `345678`.
-    - `CLINIC_MANAGER` chỉ có thể tạo `VET` cho chi nhánh của mình.
+    - `CLINIC_MANAGER` chỉ có thể tạo `STAFF` cho chi nhánh của mình.
 
 ### 2. Gán Quản lý (Assign Manager)
 Gán một người dùng đã có tài khoản trên hệ thống làm Quản lý cho phòng khám.
@@ -39,8 +39,8 @@ Gán một người dùng đã có tài khoản trên hệ thống làm Quản l
 - **Method**: `POST`
 - **Auth**: `Bearer Token` (Role: `CLINIC_OWNER`)
 
-### 3. Gán Bác sĩ (Assign Vet)
-Gán một người dùng đã có tài khoản trên hệ thống làm Bác sĩ cho phòng khám.
+### 3. Gán Nhân viên (Assign Staff)
+Gán một người dùng đã có tài khoản trên hệ thống làm Nhân viên cho phòng khám.
 
 - **URL**: `/clinics/{clinicId}/staff/vet/{usernameOrEmail}`
 - **Method**: `POST`

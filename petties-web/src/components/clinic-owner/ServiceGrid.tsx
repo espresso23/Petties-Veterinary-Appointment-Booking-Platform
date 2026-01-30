@@ -40,6 +40,7 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
     pricePerKm: response.pricePerKm,
     serviceCategory: response.serviceCategory,
     petType: response.petType,
+    description: response.description,
     weightPrices: response.weightPrices,
   }
 }
@@ -55,6 +56,7 @@ function mapServiceToRequest(service: any, clinicId: string): ClinicServiceReque
     pricePerKm: 0,
     serviceCategory: service.serviceCategory,
     petType: service.petType,
+    description: service.description,
     weightPrices: service.weightPrices,
   }
 }

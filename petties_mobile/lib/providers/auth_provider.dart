@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../data/models/auth_response.dart';
 import '../data/models/user_response.dart';
+import '../core/error/exceptions.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/google_auth_service.dart';
 import '../utils/storage_service.dart';
@@ -94,10 +95,20 @@ class AuthProvider extends ChangeNotifier {
             );
             notifyListeners();
           } catch (e) {
-            debugPrint('Error fetching user: $e');
-            // Clear invalid tokens
-            if (e is DioException && e.response?.statusCode == 401) {
+            debugPrint('Error fetching user: $e (Type: ${e.runtimeType})');
+            // Clear invalid tokens on 401/403 or 404
+            if (e is AuthException || 
+                e is NotFoundException ||
+                e.toString().contains('User not found') ||
+                e.toString().contains('401') ||
+                e.toString().contains('403') ||
+                e.toString().contains('404')) {
               await logout();
+            } else if (e is DioException) {
+              final statusCode = e.response?.statusCode;
+              if (statusCode == 401 || statusCode == 404) {
+                await logout();
+              }
             }
             notifyListeners();
           }
@@ -136,11 +147,24 @@ class AuthProvider extends ChangeNotifier {
         );
         notifyListeners();
       } catch (e) {
-        debugPrint('Error refreshing user in background: $e');
-        // Only logout on 401 Unauthorized
-        if (e is DioException && e.response?.statusCode == 401) {
-          debugPrint('Token invalid (401), logging out...');
+        debugPrint('Error refreshing user in background: $e (Type: ${e.runtimeType})');
+        
+        // Logout on 401/403 (AuthException) or 404 (NotFoundException)
+        // Also check string content as fallback in case of type matching issues
+        if (e is AuthException || 
+            e is NotFoundException || 
+            e.toString().contains('User not found') ||
+            e.toString().contains('401') ||
+            e.toString().contains('403') ||
+            e.toString().contains('404')) {
+          
+          debugPrint('Auth/NotFound condition met, logging out...');
           await logout();
+        } else if (e is DioException) {
+          final statusCode = e.response?.statusCode;
+          if (statusCode == 401 || statusCode == 404) {
+            await logout();
+          }
         }
         // Keep using cached data on network error
       }

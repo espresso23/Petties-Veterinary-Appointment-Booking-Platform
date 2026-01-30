@@ -1,6 +1,6 @@
 export { AuthLayout } from './AuthLayout'
 export { MainLayout } from './MainLayout'
-export { VetLayout } from './VetLayout'
+export { StaffLayout } from './StaffLayout'
 export { ClinicManagerLayout } from './ClinicManagerLayout'
 export { ClinicOwnerLayout } from './ClinicOwnerLayout'
 export { AdminLayout } from './AdminLayout'

@@ -83,7 +83,7 @@ class ClinicStaffControllerUnitTest {
                                                 .userId(UUID.randomUUID())
                                                 .fullName("Dr. Nguyen")
                                                 .email("dr.nguyen@gmail.com")
-                                                .role(Role.VET)
+                                                .role(Role.STAFF)
                                                 .specialty(StaffSpecialty.VET_GENERAL)
                                                 .build(),
                                 StaffResponse.builder()
@@ -99,7 +99,7 @@ class ClinicStaffControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.length()").value(2))
                                 .andExpect(jsonPath("$[0].fullName").value("Dr. Nguyen"))
-                                .andExpect(jsonPath("$[0].role").value("VET"))
+                                .andExpect(jsonPath("$[0].role").value("STAFF"))
                                 .andExpect(jsonPath("$[1].role").value("CLINIC_MANAGER"));
         }
 
@@ -122,7 +122,7 @@ class ClinicStaffControllerUnitTest {
                 // Arrange
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("vet@gmail.com");
-                request.setRole(Role.VET);
+                request.setRole(Role.STAFF);
                 request.setSpecialty(StaffSpecialty.VET_SURGERY);
 
                 doNothing().when(staffService).inviteByEmail(eq(clinicId), any(InviteByEmailRequest.class));
@@ -144,7 +144,7 @@ class ClinicStaffControllerUnitTest {
         void inviteByEmail_asManager_returns200() throws Exception {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("newvet@gmail.com");
-                request.setRole(Role.VET);
+                request.setRole(Role.STAFF);
                 request.setSpecialty(StaffSpecialty.VET_GENERAL);
 
                 doNothing().when(staffService).inviteByEmail(eq(clinicId), any(InviteByEmailRequest.class));
@@ -179,7 +179,7 @@ class ClinicStaffControllerUnitTest {
         void inviteByEmail_alreadyAssigned_returns409() throws Exception {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("existing@gmail.com");
-                request.setRole(Role.VET);
+                request.setRole(Role.STAFF);
 
                 doThrow(new ResourceAlreadyExistsException("User is already assigned to another clinic"))
                                 .when(staffService)
@@ -217,7 +217,7 @@ class ClinicStaffControllerUnitTest {
         void inviteByEmail_blankEmail_returns400() throws Exception {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("");
-                request.setRole(Role.VET);
+                request.setRole(Role.STAFF);
 
                 mockMvc.perform(post("/clinics/{clinicId}/staff/invite-by-email", clinicId)
                                 .with(csrf())
@@ -232,7 +232,7 @@ class ClinicStaffControllerUnitTest {
         void inviteByEmail_invalidEmail_returns400() throws Exception {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("not-an-email");
-                request.setRole(Role.VET);
+                request.setRole(Role.STAFF);
 
                 mockMvc.perform(post("/clinics/{clinicId}/staff/invite-by-email", clinicId)
                                 .with(csrf())
@@ -321,5 +321,41 @@ class ClinicStaffControllerUnitTest {
                 mockMvc.perform(get("/clinics/{clinicId}/staff/has-manager", clinicId))
                                 .andExpect(status().isOk())
                                 .andExpect(content().string("false"));
+        }
+
+        // ==================== ASSIGN STAFF TESTS ====================
+
+        @Test
+        @WithMockUser(roles = "CLINIC_OWNER")
+        @DisplayName("TC-UNIT-STAFF-016: Conflict - assign staff already assigned to another clinic")
+        void assignStaff_alreadyAssignedToAnotherClinic_returns409() throws Exception {
+                String usernameOrEmail = "staff@gmail.com";
+
+                doThrow(new ResourceAlreadyExistsException(
+                        "Nhân viên này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại."))
+                                .when(staffService)
+                                .assignStaff(eq(clinicId), eq(usernameOrEmail));
+
+                mockMvc.perform(post("/clinics/{clinicId}/staff/assign/{usernameOrEmail}", clinicId, usernameOrEmail)
+                                .with(csrf()))
+                                .andExpect(status().isConflict());
+        }
+
+        // ==================== ASSIGN MANAGER TESTS ====================
+
+        @Test
+        @WithMockUser(roles = "CLINIC_OWNER")
+        @DisplayName("TC-UNIT-STAFF-017: Conflict - assign manager already assigned to another clinic")
+        void assignManager_alreadyAssignedToAnotherClinic_returns409() throws Exception {
+                String usernameOrEmail = "manager@gmail.com";
+
+                doThrow(new ResourceAlreadyExistsException(
+                        "Quản lý này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại."))
+                                .when(staffService)
+                                .assignManager(eq(clinicId), eq(usernameOrEmail));
+
+                mockMvc.perform(post("/clinics/{clinicId}/staff/manager/{usernameOrEmail}", clinicId, usernameOrEmail)
+                                .with(csrf()))
+                                .andExpect(status().isConflict());
         }
 }

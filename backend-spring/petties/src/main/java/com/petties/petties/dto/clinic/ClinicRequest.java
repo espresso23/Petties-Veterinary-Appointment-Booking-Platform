@@ -62,4 +62,7 @@ public class ClinicRequest {
     private BigDecimal longitude;
 
     private String logo; // URL to clinic logo
+
+    @Size(max = 500, message = "URL giấy phép kinh doanh không được vượt quá 500 ký tự")
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
 }

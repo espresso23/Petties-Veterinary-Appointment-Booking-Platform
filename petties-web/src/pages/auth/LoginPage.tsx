@@ -8,14 +8,14 @@ import { parseApiError } from '../../utils/errorHandler'
 import { HomeIcon, CpuChipIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import '../../styles/brutalist.css'
 
-// Google Client ID (Web)
-const GOOGLE_CLIENT_ID = '770052765216-lhn9icposo0odos1petjhdfrpcnso7fe.apps.googleusercontent.com'
+// Google Client ID (Web) - from google-services.json (client_type: 3)
+const GOOGLE_CLIENT_ID = '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com'
 
 // Helper to get role-based dashboard path
 function getRoleDashboard(role: string): string {
   const dashboards: Record<string, string> = {
     'ADMIN': '/admin',
-    'VET': '/vet',
+    'STAFF': '/staff',
     'CLINIC_MANAGER': '/clinic-manager',
     'CLINIC_OWNER': '/clinic-owner',
     // PET_OWNER blocked from web - mobile only

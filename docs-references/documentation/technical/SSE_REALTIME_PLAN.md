@@ -9,10 +9,10 @@ Hệ thống SSE hiện đã được tích hợp hoàn tất cho các luồng t
 *   **Thông báo Phòng khám (Clinic Notifications):**
     *   `APPROVED`/`REJECTED`: Gửi cho **Clinic Owner** ngay khi Admin phê duyệt hoặc từ chối phòng khám.
     *   `CLINIC_PENDING_APPROVAL`: Gửi cho tất cả **Admin** ngay khi có phòng khám mới đăng ký.
-*   **Thông báo Lịch làm việc (Vet Shift Notifications):**
-    *   `VET_SHIFT_ASSIGNED`: Gửi cho **Bác sĩ** khi được gán ca làm việc mới.
-    *   `VET_SHIFT_UPDATED`: Gửi cho **Bác sĩ** khi lịch trực bị thay đổi.
-    *   `VET_SHIFT_DELETED`: Gửi cho **Bác sĩ** khi ca làm việc bị hủy.
+*   **Thông báo Lịch làm việc (Staff Shift Notifications):**
+    *   `VET_SHIFT_ASSIGNED`: Gửi cho **Nhân viên** khi được gán ca làm việc mới.
+    *   `VET_SHIFT_UPDATED`: Gửi cho **Nhân viên** khi lịch trực bị thay đổi.
+    *   `VET_SHIFT_DELETED`: Gửi cho **Nhân viên** khi ca làm việc bị hủy.
 *   **Hệ thống đếm thông báo Real-time:**
     *   Cập nhật con số chưa đọc (Unread Badge) trên thanh Sidebar ngay lập tức cho 5 roles. ✅
 *   **Hệ thống đếm Phòng khám chờ duyệt (Admin Clinic Counter):**
@@ -24,7 +24,7 @@ Hệ thống SSE hiện đã được tích hợp hoàn tất cho các luồng t
 
 ### Phân hệ A: Quản lý Lịch hẹn & Hàng đợi (Booking & Queue)
 *   **Live Booking Update:** Khi khách đặt lịch, màn hình Quản lý của Clinic tự động cập nhật slot mà không cần load lại trang.
-*   **Queue Status:** Cập nhật trạng thái "Đang khám", "Chờ thanh toán" trên Dashboard của Bác sĩ và Lễ tân ngay khi có tác động từ phía đối diện.
+*   **Queue Status:** Cập nhật trạng thái "Đang khám", "Chờ thanh toán" trên Dashboard của Nhân viên và Lễ tân ngay khi có tác động từ phía đối diện.
 *   **Auto-conflict Alert:** Cảnh báo tức thì nếu hai người cùng cố gắng đặt một slot tại cùng một thời điểm.
 
 ### Phân hệ B: Tư vấn & AI (AI Assistant)

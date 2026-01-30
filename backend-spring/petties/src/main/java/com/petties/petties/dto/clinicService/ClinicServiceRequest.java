@@ -26,6 +26,9 @@ public class ClinicServiceRequest {
     @Size(max = 200, message = "Tên dịch vụ không được quá 200 ký tự")
     private String name;
 
+    @Size(max = 1000, message = "Mô tả không được quá 1000 ký tự")
+    private String description;
+
     @NotNull(message = "Giá cơ bản không được để trống")
     @Min(value = 0, message = "Giá cơ bản không được nhỏ hơn 0")
     private BigDecimal basePrice;
@@ -43,8 +46,7 @@ public class ClinicServiceRequest {
     @Min(value = 0, message = "Giá theo km không được nhỏ hơn 0")
     private BigDecimal pricePerKm;
 
-    @Size(max = 100, message = "Loại dịch vụ không được quá 100 ký tự")
-    private String serviceCategory;
+    private com.petties.petties.model.enums.ServiceCategory serviceCategory;
 
     @Size(max = 100, message = "Loại thú nuôi không được quá 100 ký tự")
     private String petType;

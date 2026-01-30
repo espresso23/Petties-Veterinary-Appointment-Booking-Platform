@@ -16,6 +16,7 @@ class ChatWebSocketService {
   private client: Client | null = null
   private subscriptions: Map<string, () => void> = new Map()
   private messageHandlers: Map<string, Set<MessageHandler>> = new Map()
+  private globalMessageHandlers: Set<MessageHandler> = new Set()
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private isConnecting = false
@@ -84,6 +85,23 @@ class ChatWebSocketService {
   }
 
   /**
+   * Add a global message handler that receives all messages
+   */
+  addGlobalMessageHandler(handler: MessageHandler): () => void {
+    this.globalMessageHandlers.add(handler)
+    return () => {
+      this.globalMessageHandlers.delete(handler)
+    }
+  }
+
+  /**
+   * Remove a global message handler
+   */
+  removeGlobalMessageHandler(handler: MessageHandler): void {
+    this.globalMessageHandlers.delete(handler)
+  }
+
+  /**
    * Disconnect from WebSocket server
    */
   disconnect(): void {
@@ -96,6 +114,7 @@ class ChatWebSocketService {
       this.subscriptions.forEach((unsubscribe) => unsubscribe())
       this.subscriptions.clear()
       this.messageHandlers.clear()
+      this.globalMessageHandlers.clear()
 
       this.client.deactivate()
       this.client = null
@@ -128,6 +147,8 @@ class ChatWebSocketService {
           const handlers = this.messageHandlers.get(chatBoxId)
           // Dispatch to handlers
           handlers?.forEach((h) => h(wsMessage))
+          // Dispatch to global handlers
+          this.globalMessageHandlers.forEach((h) => h(wsMessage))
         } catch (e) {
           console.error('[WS] Failed to parse message:', e)
         }

@@ -83,7 +83,7 @@ export const AdminLayout = () => {
       <Sidebar
         groups={navGroups}
         user={user}
-        roleName="ADMIN PANEL"
+        roleName="QUẢN TRỊ VIÊN"
         state={state}
         toggleSidebar={toggleSidebar}
         onLogout={handleLogout}

@@ -20,10 +20,10 @@ export function ClinicCard({ clinic, showActions = false, onEdit, onDelete }: Cl
   }
 
   const statusLabels: Record<string, string> = {
-    PENDING: 'PENDING',
-    APPROVED: 'APPROVED',
-    REJECTED: 'REJECTED',
-    SUSPENDED: 'SUSPENDED',
+    PENDING: 'CHỜ DUYỆT',
+    APPROVED: 'ĐÃ DUYỆT',
+    REJECTED: 'TỪ CHỐI',
+    SUSPENDED: 'TẠM NGƯNG',
   }
 
   const getImageUrl = (image: string | { imageUrl: string }): string => {
@@ -121,7 +121,7 @@ export function ClinicCard({ clinic, showActions = false, onEdit, onDelete }: Cl
                 onClick={() => onEdit(clinic.clinicId)}
                 className="btn-brutal-outline flex-1"
               >
-                EDIT
+                Chỉnh sửa
               </button>
             )}
             {onDelete && (
@@ -129,7 +129,7 @@ export function ClinicCard({ clinic, showActions = false, onEdit, onDelete }: Cl
                 onClick={() => onDelete(clinic.clinicId)}
                 className="btn-brutal-outline flex-1 text-red-600 border-red-600 hover:bg-red-50"
               >
-                DELETE
+                Xóa
               </button>
             )}
           </div>

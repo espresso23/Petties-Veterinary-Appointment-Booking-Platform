@@ -6,7 +6,11 @@ class Pet {
   final DateTime dateOfBirth;
   final double weight;
   final String gender;
+  final String? color;
+  final String? allergies;
   final String? imageUrl;
+  final String? ownerName;
+  final String? ownerPhone;
 
   Pet({
     required this.id,
@@ -16,7 +20,11 @@ class Pet {
     required this.dateOfBirth,
     required this.weight,
     required this.gender,
+    this.color,
+    this.allergies,
     this.imageUrl,
+    this.ownerName,
+    this.ownerPhone,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) {
@@ -30,7 +38,11 @@ class Pet {
         : DateTime.now(),
       weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
       gender: json['gender'] ?? '',
+      color: json['color'],
+      allergies: json['allergies'],
       imageUrl: json['imageUrl'],
+      ownerName: json['ownerName'],
+      ownerPhone: json['ownerPhone'],
     );
   }
 
@@ -43,7 +55,12 @@ class Pet {
       'dateOfBirth': dateOfBirth.toIso8601String().split('T')[0],
       'weight': weight,
       'gender': gender,
+      'color': color,
+      'allergies': allergies,
       'imageUrl': imageUrl,
+      'ownerName': ownerName,
+      'ownerPhone': ownerPhone,
     };
   }
 }
+

@@ -6,12 +6,14 @@ import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
+import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.RejectClinicRequest;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ClinicService;
+import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +47,7 @@ public class ClinicController {
     private final ClinicService clinicService;
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
+    private final ClinicStaffService clinicStaffService;
 
     /**
      * GET /api/clinics
@@ -87,6 +91,17 @@ public class ClinicController {
     }
 
     /**
+     * GET /api/clinics/{id}/public-staff
+     * Get clinic staff list for Pet Owners (public, no sensitive data)
+     * Public access - no authentication required
+     */
+    @GetMapping("/{id}/public-staff")
+    public ResponseEntity<List<PublicStaffResponse>> getPublicClinicStaff(@PathVariable UUID id) {
+        List<PublicStaffResponse> staff = clinicStaffService.getPublicClinicStaff(id);
+        return ResponseEntity.ok(staff);
+    }
+
+    /**
      * POST /api/clinics
      * Create new clinic
      * CLINIC_OWNER only
@@ -127,19 +142,32 @@ public class ClinicController {
         return ResponseEntity.ok(Map.of("message", "Clinic deleted successfully"));
     }
 
-    /**
-     * GET /api/clinics/search
-     * Search clinics by name
-     * Public access
-     */
     @GetMapping("/search")
     public ResponseEntity<Page<ClinicResponse>> searchClinics(
-            @RequestParam String name,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) BigDecimal latitude,
+            @RequestParam(required = false) BigDecimal longitude,
+            @RequestParam(required = false, name = "radiusKm") Double radiusKm,
+            @RequestParam(required = false) Boolean isOpenNow,
+            @RequestParam(required = false) String province,
+            @RequestParam(required = false) String district,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String service,
+            @RequestParam(required = false) Boolean sortByRating,
+            @RequestParam(required = false) Boolean sortByDistance,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<ClinicResponse> clinics = clinicService.searchClinics(name, pageable);
+        Page<ClinicResponse> clinics = clinicService.searchClinics(
+                latitude, longitude, radiusKm,
+                query, isOpenNow,
+                province, district,
+                minPrice, maxPrice,
+                service,
+                sortByRating, sortByDistance,
+                pageable);
         return ResponseEntity.ok(clinics);
     }
 

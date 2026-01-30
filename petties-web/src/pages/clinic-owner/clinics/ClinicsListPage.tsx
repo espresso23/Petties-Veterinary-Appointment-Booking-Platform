@@ -51,7 +51,7 @@ export function ClinicsListPage() {
           <div className="flex items-center justify-between flex-wrap gap-4 mb-10 border-b-[3px] border-black pb-4">
             <div>
               <div className="inline-block bg-black text-white px-3 py-1 text-xs font-black uppercase tracking-widest">
-                Owner Dashboard
+                QUẢN LÝ PHÒNG KHÁM
               </div>
               <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mt-3 leading-tight">
                 Phòng Khám Của Tôi
@@ -65,7 +65,7 @@ export function ClinicsListPage() {
               style={{ backgroundColor: 'rgb(255, 107, 53)' }}
               className="text-white px-5 py-3 font-black uppercase border-[3px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all"
             >
-              Tạo phòng khám
+              Đăng kí phòng khám
             </button>
           </div>
 

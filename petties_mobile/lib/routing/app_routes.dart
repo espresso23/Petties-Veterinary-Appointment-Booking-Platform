@@ -18,16 +18,31 @@ class AppRoutes {
   static const String bookings = '/bookings';
   static const String profile = '/profile';
 
-  // Role-specific Home Routes (Mobile only: PET_OWNER, VET)
+  // Role-specific Home Routes (Mobile only: PET_OWNER, STAFF)
   static const String petOwnerHome = '/pet-owner/home';
-  static const String vetHome = '/vet/home';
-  static const String vetSchedule = '/vet/schedule';
+  static const String staffHome = '/staff/home';
+  static const String staffSchedule = '/staff/schedule';
+  static const String staffBookingDetail = '/staff/booking/:bookingId';
 
-  // Booking Flow
-  static const String clinicDetails = '/clinic/:id';
-  static const String selectService = '/booking/select-service';
-  static const String selectDateTime = '/booking/select-datetime';
-  static const String bookingConfirmation = '/booking/confirmation';
+  // STAFF Patient Routes
+  static const String staffPatients = '/staff/patients';
+  static const String staffPatientDetail = '/staff/patients/:petId';
+
+  // STAFF EMR Routes
+  static const String staffCreateEmr = '/staff/emr/create/:petId';
+  static const String staffEmrDetail = '/staff/emr/:emrId';
+  static const String staffEmrEdit = '/staff/emr/edit/:emrId';
+  static const String clinicSearch = '/clinics/search';
+  static const String clinicDetail = '/clinics/:id';
+  static const String clinicMap = '/clinics/map';
+  static const String clinicAllServices = '/clinics/:id/services';
+
+  // Booking Flow (Pet Owner)
+  static const String bookingSelectPet = '/booking/:clinicId/pet';
+  static const String bookingSelectServices = '/booking/services';
+  static const String bookingSelectDateTime = '/booking/datetime';
+  static const String bookingConfirm = '/booking/confirm';
+  static const String bookingSuccess = '/booking/success';
   static const String bookingDetails = '/booking/:id';
 
   // Profile & Settings
@@ -54,3 +69,4 @@ class AppRoutes {
   static const String privacyPolicy = '/privacy';
   static const String help = '/help';
 }
+

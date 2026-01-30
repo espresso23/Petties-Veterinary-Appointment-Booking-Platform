@@ -411,7 +411,7 @@ Admin Dashboard cung cấp:
 ```json
 [
   {"query": "Đặt lịch khám thứ 2", "expected_agent": "booking_agent"},
-  {"query": "Tôi muốn hẹn bác sĩ", "expected_agent": "booking_agent"},
+  {"query": "Tôi muốn hẹn nhân viên", "expected_agent": "booking_agent"},
   {"query": "Có slot nào trống không?", "expected_agent": "booking_agent"}
 ]
 ```

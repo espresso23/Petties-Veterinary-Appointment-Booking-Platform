@@ -423,7 +423,7 @@ public class AuthService {
          * Validate if the user's role is allowed on the platform.
          * Role-Platform Matrix:
          * - PET_OWNER: mobile only
-         * - VET: web + mobile
+         * - STAFF: web + mobile
          * - CLINIC_OWNER, CLINIC_MANAGER, ADMIN: web only
          */
         private void validateRolePlatformAccess(Role role, String platform) {
@@ -432,7 +432,7 @@ public class AuthService {
 
                 boolean allowed = switch (role) {
                         case PET_OWNER -> isMobile;
-                        case VET -> true;
+                        case STAFF -> true;
                         case CLINIC_OWNER, CLINIC_MANAGER, ADMIN -> isWeb;
                 };
 

@@ -65,7 +65,7 @@ export const ToolsPage = () => {
 
   // Filter tools by search query
   const filteredTools = tools.filter(tool => {
-    const matchesSearch = searchQuery.trim() === '' || 
+    const matchesSearch = searchQuery.trim() === '' ||
       tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tool.description?.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch

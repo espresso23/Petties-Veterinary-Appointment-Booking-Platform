@@ -17,6 +17,7 @@ import com.petties.petties.repository.UserRepository;
 import com.petties.petties.util.TokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +38,6 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class RegistrationOtpService {
 
     private final UserRepository userRepository;
@@ -48,8 +48,33 @@ public class RegistrationOtpService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final OtpRedisService otpRedisService;
 
+    /**
+     * DEV MODE: Khi true, bỏ qua xác thực OTP và tạo user trực tiếp.
+     * Cấu hình trong application-{profile}.properties
+     */
+    private final boolean skipOtpVerification;
+
     private static final int RESEND_COOLDOWN_SECONDS = 60;
     private static final int MAX_ATTEMPTS = 5;
+
+    public RegistrationOtpService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            OtpService otpService,
+            EmailService emailService,
+            JwtTokenProvider tokenProvider,
+            RefreshTokenRepository refreshTokenRepository,
+            OtpRedisService otpRedisService,
+            @Value("${app.otp.skip-verification:false}") boolean skipOtpVerification) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.otpService = otpService;
+        this.emailService = emailService;
+        this.tokenProvider = tokenProvider;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.otpRedisService = otpRedisService;
+        this.skipOtpVerification = skipOtpVerification;
+    }
 
     /**
      * Gui OTP cho dang ky moi
@@ -59,8 +84,12 @@ public class RegistrationOtpService {
      * 2. Check cooldown
      * 3. Luu pending registration vao Redis (TTL 5 phut)
      * 4. Gui email OTP
+     *
+     * DEV MODE: Neu skipOtpVerification=true, bo qua OTP va dang ky truc tiep
+     * 
+     * @return SendOtpResponse (normal) or AuthResponse (dev mode with skip OTP)
      */
-    public SendOtpResponse sendRegistrationOtp(SendOtpRequest request) {
+    public Object sendRegistrationOtp(SendOtpRequest request) {
         String email = request.getEmail().toLowerCase().trim();
 
         // 1. Check username khong ton tai trong User table
@@ -71,6 +100,12 @@ public class RegistrationOtpService {
         // 2. Check email khong ton tai trong User table
         if (userRepository.existsByEmail(email)) {
             throw new ResourceAlreadyExistsException("Email đã được sử dụng");
+        }
+
+        // DEV MODE: Skip OTP và đăng ký trực tiếp
+        if (skipOtpVerification) {
+            log.warn("[DEV MODE] OTP verification is DISABLED. Registering user directly without email verification.");
+            return registerWithoutOtp(request, email);
         }
 
         // 3. Check username khong dang pending o email khac
@@ -113,6 +148,49 @@ public class RegistrationOtpService {
                 .email(email)
                 .expiryMinutes(otpService.getExpiryMinutes())
                 .resendCooldownSeconds(RESEND_COOLDOWN_SECONDS)
+                .build();
+    }
+
+    /**
+     * [DEV MODE ONLY] Dang ky truc tiep khong can OTP
+     * Chi su dung khi app.otp.skip-verification=true
+     */
+    @Transactional
+    private AuthResponse registerWithoutOtp(SendOtpRequest request, String email) {
+        // Tao User truc tiep
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPhone(request.getPhone());
+        user.setFullName(request.getFullName());
+        user.setRole(request.getRole());
+
+        User savedUser = userRepository.save(user);
+
+        // Generate tokens
+        String accessToken = tokenProvider.generateToken(
+                savedUser.getUserId(),
+                savedUser.getUsername(),
+                savedUser.getRole().name());
+        String refreshToken = tokenProvider.generateRefreshToken(
+                savedUser.getUserId(),
+                savedUser.getUsername());
+
+        // Save refresh token
+        saveRefreshToken(savedUser.getUserId(), refreshToken);
+
+        log.info("[DEV MODE] User registered without OTP verification: email={}", email);
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .userId(savedUser.getUserId())
+                .username(savedUser.getUsername())
+                .email(savedUser.getEmail())
+                .fullName(savedUser.getFullName())
+                .role(savedUser.getRole().name())
                 .build();
     }
 

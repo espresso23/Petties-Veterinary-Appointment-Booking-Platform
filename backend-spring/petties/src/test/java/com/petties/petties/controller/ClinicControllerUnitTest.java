@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.file.UploadResponse;
-import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.User;
@@ -274,10 +273,11 @@ class ClinicControllerUnitTest {
         void searchClinics_validName_returns200() throws Exception {
                 Page<ClinicResponse> page = new PageImpl<>(List.of(
                                 mockClinic(UUID.randomUUID(), "Clinic Search Result")));
-                when(clinicService.searchClinics(eq("Clinic"), any())).thenReturn(page);
+                when(clinicService.searchClinics(any(), any(), any(), eq("Clinic"), any(), any(), any(), any(), any(),
+                                any(), any(), any(), any())).thenReturn(page);
 
                 mockMvc.perform(get("/clinics/search")
-                                .param("name", "Clinic"))
+                                .param("query", "Clinic"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content", hasSize(1)));
         }

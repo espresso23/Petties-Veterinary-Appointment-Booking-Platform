@@ -1,6 +1,6 @@
 export type UserRole =
   | 'PET_OWNER'
-  | 'VET'
+  | 'STAFF'
   | 'CLINIC_MANAGER'
   | 'CLINIC_OWNER'
   | 'ADMIN'

@@ -71,6 +71,17 @@ public class ChatMessage {
     private String content;
 
     /**
+     * Message type: TEXT or IMAGE
+     */
+    @Builder.Default
+    private MessageType messageType = MessageType.TEXT;
+
+    /**
+     * Image URL for image messages
+     */
+    private String imageUrl;
+
+    /**
      * Message status: SENT, DELIVERED, SEEN
      */
     @Builder.Default
@@ -105,5 +116,14 @@ public class ChatMessage {
         SENT,
         DELIVERED,
         SEEN
+    }
+
+    /**
+     * Message type enum
+     */
+    public enum MessageType {
+        TEXT,
+        IMAGE,
+        IMAGE_TEXT
     }
 }

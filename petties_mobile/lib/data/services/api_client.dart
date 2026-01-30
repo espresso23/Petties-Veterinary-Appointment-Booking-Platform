@@ -144,7 +144,14 @@ class ApiClient {
 
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
-        final message = error.response?.data?['message'] ?? 'Server error';
+        
+        // Safely extract message from response data
+        String message = 'Server error';
+        if (error.response?.data is Map<String, dynamic>) {
+          message = error.response?.data['message'] ?? 'Server error';
+        } else if (error.response?.data is String) {
+          message = error.response?.data;
+        }
 
         if (statusCode == 401 || statusCode == 403) {
           return AuthException(message, statusCode.toString());

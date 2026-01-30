@@ -75,14 +75,14 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // ========== VET-SPECIFIC FIELDS ==========
+    // ========== STAFF-SPECIFIC FIELDS ==========
 
     // Chuyên môn của Staff (VET hoặc GROOMER)
     @Enumerated(EnumType.STRING)
     @Column(name = "specialty", length = 100)
     private com.petties.petties.model.enums.StaffSpecialty specialty;
 
-    // Rating trung bình của Vet (1.0 - 5.0)
+    // Rating trung bình của Staff (1.0 - 5.0)
     @Column(name = "rating_avg", precision = 2, scale = 1)
     private java.math.BigDecimal ratingAvg;
 
@@ -93,6 +93,10 @@ public class User {
     // FCM Token for push notifications
     @Column(name = "fcm_token", length = 500)
     private String fcmToken;
+
+    // Address for Pet Owner (used in bookings)
+    @Column(name = "address", length = 500)
+    private String address;
 
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)

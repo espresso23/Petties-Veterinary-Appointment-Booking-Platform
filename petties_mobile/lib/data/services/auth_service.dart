@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/auth_response.dart';
 import '../models/send_otp_response.dart';
 import '../models/user_response.dart';
 import 'api_client.dart';
 import '../../config/constants/app_constants.dart';
+import '../../config/env/environment.dart';
 import '../../utils/storage_service.dart';
 
 /// Service for authentication operations
@@ -51,6 +53,11 @@ class AuthService {
     String platform = 'mobile', // 'mobile' or 'web'
   }) async {
     try {
+      // Debug: Log API URL being used
+      debugPrint(
+          '🔑 Google Sign-In: Calling ${Environment.baseUrl}/auth/google');
+      debugPrint('🔑 Platform: $platform');
+
       final response = await _apiClient.post(
         '/auth/google',
         data: {
@@ -121,7 +128,20 @@ class AuthService {
   }
 
   /// Step 1: Gửi OTP đến email để đăng ký
-  Future<SendOtpResponse> sendRegistrationOtp({
+  ///
+  /// Normal mode: Trả về SendOtpResponse
+  /// DEV mode (skip OTP): Trả về AuthResponse và user đã được đăng ký xong
+  ///
+  /// Caller cần check response type:
+  /// ```dart
+  /// final response = await sendRegistrationOtp(...);
+  /// if (response is AuthResponse) {
+  ///   // Dev mode - user đã đăng ký xong
+  /// } else {
+  ///   // Normal - chuyển sang step OTP
+  /// }
+  /// ```
+  Future<dynamic> sendRegistrationOtp({
     required String username,
     required String email,
     required String password,
@@ -141,6 +161,15 @@ class AuthService {
           'role': role,
         },
       );
+
+      // DEV MODE: Nếu response chứa accessToken, đây là AuthResponse
+      if (response.data is Map && response.data.containsKey('accessToken')) {
+        final authResponse = AuthResponse.fromJson(response.data);
+        await _saveAuthData(authResponse);
+        return authResponse;
+      }
+
+      // Normal mode: SendOtpResponse
       return SendOtpResponse.fromJson(response.data);
     } catch (e) {
       rethrow;

@@ -3,7 +3,7 @@ import type { StaffMember, InviteByEmailRequest } from '../../types/clinicStaff'
 
 /**
  * ClinicStaff Service
- * Manages staff for clinics (VET, CLINIC_MANAGER)
+ * Manages staff for clinics (STAFF, CLINIC_MANAGER)
  */
 export const clinicStaffService = {
     /**
@@ -38,10 +38,10 @@ export const clinicStaffService = {
     },
 
     /**
-     * Assign an existing user as Vet
+     * Assign an existing user as Staff
      */
-    assignVet: async (clinicId: string, usernameOrEmail: string): Promise<void> => {
-        await apiClient.post(`/clinics/${clinicId}/staff/vet/${encodeURIComponent(usernameOrEmail)}`)
+    assignStaff: async (clinicId: string, usernameOrEmail: string): Promise<void> => {
+        await apiClient.post(`/clinics/${clinicId}/staff/staff/${encodeURIComponent(usernameOrEmail)}`)
     },
 
     /**

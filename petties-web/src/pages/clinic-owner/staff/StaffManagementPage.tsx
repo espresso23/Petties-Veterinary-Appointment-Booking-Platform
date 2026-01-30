@@ -7,7 +7,7 @@ import type { StaffMember, InviteByEmailRequest, StaffSpecialty } from '../../..
 
 /**
  * Staff Management Page - For Clinic Owner
- * Manage all staff (VET, CLINIC_MANAGER) for owned clinics
+ * Manage all staff (STAFF, CLINIC_MANAGER) for owned clinics
  */
 export function StaffManagementPage() {
     const { clinics, getMyClinics, isLoading: clinicsLoading } = useClinicStore()
@@ -179,7 +179,7 @@ export function StaffManagementPage() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleAddStaff}
-                allowedRoles={['VET', 'CLINIC_MANAGER']}
+                allowedRoles={['STAFF', 'CLINIC_MANAGER']}
                 disabledRoles={hasManager ? ['CLINIC_MANAGER'] : []}
                 title="THÊM NHÂN VIÊN MỚI"
             />
