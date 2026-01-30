@@ -121,7 +121,7 @@ class Clinic {
     if (images != null && images!.isNotEmpty) {
       return images!.first;
     }
-    return logo;
+    return null;
   }
 
   /// Check if clinic is currently open based on Vietnam timezone (GMT+7)
@@ -170,7 +170,7 @@ class Clinic {
   OperatingHours? _getOperatingHoursForDay(int weekday) {
     final dayNameUpper = _getDayName(weekday);
     final dayNameLower = dayNameUpper.toLowerCase();
-    
+
     // Try uppercase first, then lowercase (backend uses lowercase)
     return operatingHours?[dayNameUpper] ?? operatingHours?[dayNameLower];
   }

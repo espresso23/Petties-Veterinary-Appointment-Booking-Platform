@@ -6,12 +6,14 @@ import com.petties.petties.dto.clinic.ClinicRequest;
 import com.petties.petties.dto.clinic.ClinicResponse;
 import com.petties.petties.dto.clinic.DistanceResponse;
 import com.petties.petties.dto.clinic.GeocodeResponse;
+import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.RejectClinicRequest;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ClinicService;
+import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +47,7 @@ public class ClinicController {
     private final ClinicService clinicService;
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
+    private final ClinicStaffService clinicStaffService;
 
     /**
      * GET /api/clinics
@@ -84,6 +88,17 @@ public class ClinicController {
     public ResponseEntity<ClinicResponse> getClinicById(@PathVariable UUID id) {
         ClinicResponse clinic = clinicService.getClinicById(id);
         return ResponseEntity.ok(clinic);
+    }
+
+    /**
+     * GET /api/clinics/{id}/public-staff
+     * Get clinic staff list for Pet Owners (public, no sensitive data)
+     * Public access - no authentication required
+     */
+    @GetMapping("/{id}/public-staff")
+    public ResponseEntity<List<PublicStaffResponse>> getPublicClinicStaff(@PathVariable UUID id) {
+        List<PublicStaffResponse> staff = clinicStaffService.getPublicClinicStaff(id);
+        return ResponseEntity.ok(staff);
     }
 
     /**

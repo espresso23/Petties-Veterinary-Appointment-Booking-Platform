@@ -98,7 +98,7 @@ export const StaffLayout = () => {
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="STAFF"
+                roleName="NHÂN VIÊN PHÒNG KHÁM"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}

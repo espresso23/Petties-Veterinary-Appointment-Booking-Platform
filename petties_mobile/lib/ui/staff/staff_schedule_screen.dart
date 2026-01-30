@@ -135,15 +135,17 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
     final user = authProvider.user;
     final userName = user?.fullName?.isNotEmpty == true
         ? user!.fullName!
-        : (user?.username ?? 'Bác sĩ');
+        : (user?.username ?? 'Nhân viên');
     final avatarUrl = user?.avatar;
+    // Get clinic name from shifts if available
+    final clinicName = _shifts.isNotEmpty ? _shifts.first.clinicName : null;
 
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(userName, avatarUrl),
+            _buildHeader(userName, avatarUrl, clinicName),
             _buildViewModeToggle(),
             _buildWeekPicker(),
             Expanded(
@@ -161,7 +163,7 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
     );
   }
 
-  Widget _buildHeader(String userName, String? avatarUrl) {
+  Widget _buildHeader(String userName, String? avatarUrl, String? clinicName) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Row(
@@ -215,6 +217,16 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
                     color: AppColors.stone900,
                   ),
                 ),
+                if (clinicName != null && clinicName.isNotEmpty)
+                  Text(
+                    clinicName,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),

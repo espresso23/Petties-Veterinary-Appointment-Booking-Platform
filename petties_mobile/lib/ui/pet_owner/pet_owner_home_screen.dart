@@ -81,7 +81,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   @override
   Widget build(BuildContext context) {
     // Determine title based on tab
-    String title = '🐕 PETTIES';
+    String title = 'PETTIES';
     bool showActions = true;
     
     if (_currentIndex == 1) {
@@ -195,14 +195,25 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'CHÀO MỪNG, $username! 👋',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.stone900,
-              letterSpacing: 1,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'CHÀO MỪNG, $username!',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.stone900,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.waving_hand,
+                color: AppColors.primary,
+                size: 24,
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(

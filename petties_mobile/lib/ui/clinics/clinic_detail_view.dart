@@ -4,6 +4,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/models/clinic.dart';
+import '../../data/models/staff_member.dart';
+import '../../data/services/clinic_service.dart';
 import '../../providers/clinic_provider.dart';
 
 /// Clinic Detail View - Neobrutalism Style
@@ -24,6 +26,12 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   final ScrollController _scrollController = ScrollController();
   final PageController _imagePageController = PageController();
   int _currentImageIndex = 0;
+
+  // Staff section state
+  bool _isTeamExpanded = false;
+  bool _isLoadingStaff = false;
+  List<StaffMember> _staffList = [];
+  final ClinicService _clinicService = ClinicService();
 
   @override
   void initState() {
@@ -823,70 +831,287 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   }
 
   Widget _buildTeamSection(Clinic clinic) {
+    return Column(
+      children: [
+        // Clickable header
+        GestureDetector(
+          onTap: _toggleTeamSection,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: _isTeamExpanded
+                  ? const BorderRadius.vertical(top: Radius.circular(12))
+                  : BorderRadius.circular(12),
+              border: Border.all(color: AppColors.stone900, width: 2),
+              boxShadow: _isTeamExpanded
+                  ? null
+                  : const [
+                      BoxShadow(
+                          color: AppColors.stone900, offset: Offset(3, 3)),
+                    ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Team avatars preview
+                  SizedBox(
+                    width: 100,
+                    height: 48,
+                    child: Stack(
+                      children: [
+                        _buildTeamAvatar(
+                            0,
+                            _staffList.isNotEmpty
+                                ? _staffList[0].avatar
+                                : null),
+                        Positioned(
+                          left: 28,
+                          child: _buildTeamAvatar(
+                              1,
+                              _staffList.length > 1
+                                  ? _staffList[1].avatar
+                                  : null),
+                        ),
+                        if (_staffList.length > 2)
+                          Positioned(
+                            left: 56,
+                            child: _buildMoreBadge('+${_staffList.length - 2}'),
+                          )
+                        else
+                          Positioned(
+                              left: 56, child: _buildTeamAvatar(2, null)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Đội ngũ chuyên gia',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.stone900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _staffList.isEmpty
+                              ? 'Nhấn để xem chi tiết'
+                              : '${_staffList.length} nhân viên',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.stone100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: _isLoadingStaff
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          )
+                        : Icon(
+                            _isTeamExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                            color: AppColors.stone600,
+                            size: 20,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Expanded staff list
+        if (_isTeamExpanded) _buildExpandedStaffList(),
+      ],
+    );
+  }
+
+  void _toggleTeamSection() async {
+    if (_isTeamExpanded) {
+      // Collapse
+      setState(() {
+        _isTeamExpanded = false;
+      });
+    } else {
+      // Expand and fetch staff if not loaded yet
+      setState(() {
+        _isTeamExpanded = true;
+      });
+
+      if (_staffList.isEmpty) {
+        setState(() {
+          _isLoadingStaff = true;
+        });
+
+        try {
+          final staff = await _clinicService.getClinicStaff(widget.clinicId);
+          setState(() {
+            _staffList =
+                staff.where((s) => s.role != 'CLINIC_MANAGER').toList();
+            _isLoadingStaff = false;
+          });
+        } catch (e) {
+          setState(() {
+            _isLoadingStaff = false;
+          });
+          debugPrint('Error loading staff: $e');
+        }
+      }
+    }
+  }
+
+  Widget _buildExpandedStaffList() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+        border: const Border(
+          left: BorderSide(color: AppColors.stone900, width: 2),
+          right: BorderSide(color: AppColors.stone900, width: 2),
+          bottom: BorderSide(color: AppColors.stone900, width: 2),
+        ),
         boxShadow: const [
           BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Team avatars
-            SizedBox(
-              width: 100,
-              height: 48,
-              child: Stack(
-                children: [
-                  _buildTeamAvatar(0, null),
-                  Positioned(left: 28, child: _buildTeamAvatar(1, null)),
-                  Positioned(left: 56, child: _buildMoreBadge('+4')),
-                ],
+      child: _isLoadingStaff
+          ? const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Đội ngũ chuyên gia',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.stone900,
+            )
+          : _staffList.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Center(
+                    child: Text(
+                      'Chưa có thông tin nhân viên',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.stone500,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '7 Bác sĩ thú y',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.stone100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.chevron_right,
-                color: AppColors.stone600,
-                size: 20,
-              ),
-            ),
-          ],
+                )
+              : Column(
+                  children: [
+                    const Divider(height: 1, color: AppColors.stone200),
+                    ..._staffList.map((staff) => _buildStaffItem(staff)),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildStaffItem(StaffMember staff) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.stone100, width: 1),
         ),
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.stone200,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone900, width: 1.5),
+            ),
+            child: ClipOval(
+              child: staff.avatar != null
+                  ? Image.network(
+                      staff.avatar!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.person,
+                        color: AppColors.stone400,
+                        size: 28,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.person,
+                      color: AppColors.stone400,
+                      size: 28,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  staff.displayName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.stone900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  staff.displaySpecialty,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.stone500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Specialty badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: staff.isVet
+                  ? AppColors.info.withValues(alpha: 0.15)
+                  : AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: staff.isVet ? AppColors.info : AppColors.primary,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              staff.isVet ? 'Bác sĩ' : 'Chăm sóc',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: staff.isVet ? AppColors.info : AppColors.primary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

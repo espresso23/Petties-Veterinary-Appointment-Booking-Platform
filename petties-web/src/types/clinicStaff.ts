@@ -5,6 +5,12 @@
 
 export type StaffRole = 'STAFF' | 'CLINIC_MANAGER'
 
+// Labels for Role display (Vietnamese)
+export const ROLE_LABELS: Record<StaffRole, string> = {
+    STAFF: 'Nhân viên phòng khám',
+    CLINIC_MANAGER: 'Quản lý phòng khám',
+};
+
 // Chuyên môn của nhân viên
 export type StaffSpecialty =
     | 'VET_GENERAL'      // Bác sĩ thú y tổng quát

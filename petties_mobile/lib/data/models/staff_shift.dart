@@ -60,6 +60,7 @@ class StaffShiftResponse extends BaseModel {
   final String? staffName;
   final String? staffAvatar;
   final String clinicId;
+  final String? clinicName;
   final String workDate; // "YYYY-MM-DD"
   final String startTime;
   final String endTime;
@@ -82,6 +83,7 @@ class StaffShiftResponse extends BaseModel {
     this.staffName,
     this.staffAvatar,
     required this.clinicId,
+    this.clinicName,
     required this.workDate,
     required this.startTime,
     required this.endTime,
@@ -107,6 +109,7 @@ class StaffShiftResponse extends BaseModel {
       staffName: json['staffName'],
       staffAvatar: json['staffAvatar'],
       clinicId: json['clinicId'],
+      clinicName: json['clinicName'],
       workDate: json['workDate'],
       startTime: json['startTime'],
       endTime: json['endTime'],

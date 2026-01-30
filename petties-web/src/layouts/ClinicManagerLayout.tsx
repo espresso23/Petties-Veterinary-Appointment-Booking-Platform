@@ -171,7 +171,7 @@ export const ClinicManagerLayout = () => {
             <Sidebar
                 groups={navGroups}
                 user={user}
-                roleName="CLINIC MANAGER"
+                roleName="QUẢN LÝ PHÒNG KHÁM"
                 state={state}
                 toggleSidebar={toggleSidebar}
                 onLogout={handleLogout}

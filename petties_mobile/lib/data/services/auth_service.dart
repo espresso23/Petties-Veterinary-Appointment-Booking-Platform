@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/auth_response.dart';
 import '../models/send_otp_response.dart';
 import '../models/user_response.dart';
 import 'api_client.dart';
 import '../../config/constants/app_constants.dart';
+import '../../config/env/environment.dart';
 import '../../utils/storage_service.dart';
 
 /// Service for authentication operations
@@ -51,6 +53,11 @@ class AuthService {
     String platform = 'mobile', // 'mobile' or 'web'
   }) async {
     try {
+      // Debug: Log API URL being used
+      debugPrint(
+          '🔑 Google Sign-In: Calling ${Environment.baseUrl}/auth/google');
+      debugPrint('🔑 Platform: $platform');
+
       final response = await _apiClient.post(
         '/auth/google',
         data: {

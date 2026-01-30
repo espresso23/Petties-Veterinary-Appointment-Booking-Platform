@@ -2,7 +2,7 @@
  * StaffBookingsPage - Page for Staff to view their assigned bookings
  * Displays list of bookings with status filters and details modal
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { getBookingsByStaff, getBookingById, checkInBooking, completeBooking } from '../../services/bookingService'
@@ -54,20 +54,36 @@ export const StaffBookingsPage = () => {
     const focusBookingId = (location.state as { focusBookingId?: string })?.focusBookingId
 
     // Fetch bookings
+    const lastRequestIdRef = useRef(0)
+
+    // Fetch bookings
     const fetchBookings = useCallback(async () => {
         if (!user?.userId) return
 
+        const requestId = ++lastRequestIdRef.current
         setLoading(true)
+        // Clear bookings immediately when filter changes to give visual feedback and avoid confusion
+        if (page === 0) setBookings([])
+
         try {
             const status = statusFilter === 'ALL' ? undefined : statusFilter
+            console.log(`[StaffBookingsPage] Fetching bookings status=${status} page=${page} reqId=${requestId}`)
             const response = await getBookingsByStaff(user.userId, status, page, pageSize)
-            setBookings(response.content)
-            setTotalPages(response.totalPages)
-            setTotalElements(response.totalElements)
+
+            // Only update state if this is still the latest request
+            if (requestId === lastRequestIdRef.current) {
+                setBookings(response.content)
+                setTotalPages(response.totalPages)
+                setTotalElements(response.totalElements)
+            }
         } catch (error) {
-            console.error('Error fetching bookings:', error)
+            if (requestId === lastRequestIdRef.current) {
+                console.error('Error fetching bookings:', error)
+            }
         } finally {
-            setLoading(false)
+            if (requestId === lastRequestIdRef.current) {
+                setLoading(false)
+            }
         }
     }, [user?.userId, statusFilter, page])
 

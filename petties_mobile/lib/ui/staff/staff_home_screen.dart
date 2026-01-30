@@ -882,8 +882,6 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
               false, () => context.push(AppRoutes.staffSchedule)),
           _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,
               () => context.push(AppRoutes.staffPatients)),
-          _buildNavItem(
-              context, Icons.folder_open_rounded, 'Hồ sơ', false, null),
           _buildNavItem(context, Icons.person_rounded, 'Cá nhân', false,
               () => context.push(AppRoutes.profile)),
         ],

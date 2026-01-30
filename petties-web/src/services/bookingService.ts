@@ -64,7 +64,9 @@ export const getBookingsByStaff = async (
     params.append('size', size.toString());
     if (status) params.append('status', status);
 
-    const response = await axios.get(`${BOOKING_API}/staff/${staffId}?${params.toString()}`);
+    const url = `${BOOKING_API}/staff/${staffId}?${params.toString()}`;
+    console.log(`[API] getBookingsByStaff url=${url}`);
+    const response = await axios.get(url);
     return response.data;
 };
 

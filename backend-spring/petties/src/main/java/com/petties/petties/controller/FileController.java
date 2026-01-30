@@ -92,7 +92,7 @@ public class FileController {
     }
 
     /**
-     * Upload business license document (PDF, JPG, PNG - max 5MB)
+     * Upload business license document (PDF, JPG, PNG - max 10MB)
      *
      * @param file File giấy phép kinh doanh
      * @return UploadResponse với url file đã upload
@@ -101,21 +101,7 @@ public class FileController {
     public ResponseEntity<UploadResponse> uploadBusinessLicense(
             @RequestParam("file") MultipartFile file
     ) {
-        // Validate file type
-        String contentType = file.getContentType();
-        if (contentType == null || 
-            !(contentType.equals("application/pdf") || 
-              contentType.equals("image/jpeg") || 
-              contentType.equals("image/jpg") || 
-              contentType.equals("image/png"))) {
-            throw new IllegalArgumentException("Chỉ chấp nhận file PDF, JPG hoặc PNG");
-        }
-        
-        // Validate file size (max 5MB)
-        if (file.getSize() > 5 * 1024 * 1024) {
-            throw new IllegalArgumentException("Kích thước file không được vượt quá 5MB");
-        }
-        
+        // Use standard uploadFile method (PDF now supported in ALLOWED_CONTENT_TYPES)
         UploadResponse response = cloudinaryService.uploadFile(file, "business-licenses");
         return ResponseEntity.ok(response);
     }

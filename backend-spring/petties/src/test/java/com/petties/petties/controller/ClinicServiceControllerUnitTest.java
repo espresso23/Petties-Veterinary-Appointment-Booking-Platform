@@ -248,7 +248,8 @@ class ClinicServiceControllerUnitTest {
         @Test
         @DisplayName("TC-UNIT-SERVICE-051: Success - get services by clinic id")
         void getServicesByClinicId_returns200() throws Exception {
-                when(clinicServiceService.getServicesByClinicId(testClinicId)).thenReturn(List.of(testServiceResponse));
+                when(clinicServiceService.getPublicServicesByClinicId(testClinicId))
+                                .thenReturn(List.of(testServiceResponse));
 
                 mockMvc.perform(get("/services/by-clinic/{clinicId}", testClinicId))
                                 .andExpect(status().isOk())

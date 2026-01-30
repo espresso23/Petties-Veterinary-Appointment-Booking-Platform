@@ -1,4 +1,5 @@
 import '../models/clinic.dart';
+import '../models/staff_member.dart';
 import 'api_client.dart';
 
 class ClinicService {
@@ -117,6 +118,24 @@ class ClinicService {
       if (response.data is List) {
         return (response.data as List)
             .map((json) => Clinic.fromJson(json))
+            .toList();
+      }
+
+      return [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get public staff list for a clinic (for Pet Owners)
+  Future<List<StaffMember>> getClinicStaff(String clinicId) async {
+    try {
+      final response = await _apiClient.get('/clinics/$clinicId/public-staff');
+
+      if (response.data is List) {
+        return (response.data as List)
+            .where((json) => json != null)
+            .map((json) => StaffMember.fromJson(json))
             .toList();
       }
 

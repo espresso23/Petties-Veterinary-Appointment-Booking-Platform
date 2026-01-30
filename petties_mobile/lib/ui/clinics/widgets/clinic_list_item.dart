@@ -20,46 +20,49 @@ class ClinicListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [
-          BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Clinic Image with Rating Badge
-          _buildClinicImage(),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Clinic Image with Rating Badge
+            _buildClinicImage(),
 
-          // Clinic Info
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Name and Distance Row
-                _buildNameRow(),
-                const SizedBox(height: 4),
+            // Clinic Info
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name and Distance Row
+                  _buildNameRow(),
+                  const SizedBox(height: 4),
 
-                // Address
-                _buildAddress(),
-                const SizedBox(height: 8),
+                  // Address
+                  _buildAddress(),
+                  const SizedBox(height: 8),
 
-                // Status Row (Open/Emergency)
-                _buildStatusRow(),
-                const SizedBox(height: 12),
+                  // Status Row (Open/Emergency)
+                  _buildStatusRow(),
+                  const SizedBox(height: 12),
 
-                // Action Button
-                _buildActionButton(),
-              ],
+                  // Action Button
+                  _buildActionButton(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -137,6 +140,50 @@ class ClinicListItem extends StatelessWidget {
               ),
             ),
           ),
+
+        // Clinic Logo - Top Right
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone900, width: 2),
+              boxShadow: const [
+                BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+              ],
+            ),
+            child: ClipOval(
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: clinic.logo != null && clinic.logo!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: clinic.logo!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.store, // Default icon on error
+                          size: 24,
+                          color: AppColors.stone400,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.store, // Default icon when no logo
+                        size: 24,
+                        color: AppColors.stone400,
+                      ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

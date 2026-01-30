@@ -83,6 +83,11 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll() // WebSocket handshake (SockJS)
                         .requestMatchers("/ws-native/**").permitAll() // WebSocket handshake (native mobile)
                         .requestMatchers("/sse/**").permitAll() // SSE - auth via query param
+                        // Public clinic endpoints for Pet Owner (no auth required)
+                        .requestMatchers(HttpMethod.GET, "/clinics/*/public-staff").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/search").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/nearby").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/clinics/locations").permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

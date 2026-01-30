@@ -10,7 +10,7 @@ public enum StaffSpecialty {
     VET_SURGERY("Bác sĩ phẫu thuật"),
     VET_DENTAL("Bác sĩ nha khoa thú y"),
     VET_DERMATOLOGY("Bác sĩ da liễu thú y"),
-    GROOMER("Nhân viên Grooming");
+    GROOMER("Nhân viên chăm sóc thú cưng");
 
     private final String vietnameseLabel;
 

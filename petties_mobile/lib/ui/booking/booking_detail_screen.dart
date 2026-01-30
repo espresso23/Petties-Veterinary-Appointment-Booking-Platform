@@ -284,40 +284,40 @@ class AppointmentDetailScreen extends StatelessWidget {
     );
   }
 
-  /// Check if any vet is assigned to this booking
+  /// Check if any staff is assigned to this booking
   bool _hasAssignedVets() {
-    // Check main booking vet
-    if (booking.assignedVetName != null &&
-        booking.assignedVetName!.isNotEmpty) {
+    // Check main booking staff
+    if (booking.assignedStaffName != null &&
+        booking.assignedStaffName!.isNotEmpty) {
       return true;
     }
-    // Check service-level vets
+    // Check service-level staff
     return booking.services.any((s) =>
-        s.assignedVetId != null &&
-        s.assignedVetName != null &&
-        s.assignedVetName!.isNotEmpty);
+        s.assignedStaffId != null &&
+        s.assignedStaffName != null &&
+        s.assignedStaffName!.isNotEmpty);
   }
 
-  /// Get unique vets from all services
+  /// Get unique staff from all services
   List<Map<String, String?>> _getUniqueVets() {
     final Map<String, Map<String, String?>> vetMap = {};
 
-    // First, add the main assigned vet if exists
-    if (booking.assignedVetName != null &&
-        booking.assignedVetName!.isNotEmpty) {
-      final vetId = 'main'; // placeholder for main vet
-      vetMap[vetId] = {
-        'name': booking.assignedVetName,
-        'avatarUrl': booking.assignedVetAvatarUrl,
+    // First, add the main assigned staff if exists
+    if (booking.assignedStaffName != null &&
+        booking.assignedStaffName!.isNotEmpty) {
+      final staffId = 'main'; // placeholder for main staff
+      vetMap[staffId] = {
+        'name': booking.assignedStaffName,
+        'avatarUrl': booking.assignedStaffAvatarUrl,
       };
     }
 
-    // Then add vets from services (they may override or add new vets)
+    // Then add staff from services (they may override or add new staff)
     for (final service in booking.services) {
-      if (service.assignedVetId != null && service.assignedVetName != null) {
-        vetMap[service.assignedVetId!] = {
-          'name': service.assignedVetName,
-          'avatarUrl': service.assignedVetAvatarUrl,
+      if (service.assignedStaffId != null && service.assignedStaffName != null) {
+        vetMap[service.assignedStaffId!] = {
+          'name': service.assignedStaffName,
+          'avatarUrl': service.assignedStaffAvatarUrl,
         };
       }
     }

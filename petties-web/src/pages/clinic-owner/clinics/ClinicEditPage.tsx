@@ -93,6 +93,8 @@ export function ClinicEditPage() {
               phone: currentClinic.phone,
               email: currentClinic.email,
               operatingHours: currentClinic.operatingHours,
+              businessLicenseUrl: currentClinic.businessLicenseUrl,
+              logo: currentClinic.logo,
             }}
             clinicId={currentClinic.clinicId}
             initialImages={currentClinic.imageDetails || []}

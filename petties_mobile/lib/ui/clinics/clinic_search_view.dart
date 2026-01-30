@@ -24,7 +24,8 @@ class ClinicSearchView extends StatefulWidget {
   State<ClinicSearchView> createState() => _ClinicSearchViewState();
 }
 
-class _ClinicSearchViewState extends State<ClinicSearchView> {
+class _ClinicSearchViewState extends State<ClinicSearchView>
+    with AutomaticKeepAliveClientMixin {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _debounceTimer;
@@ -39,7 +40,11 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
   static const List<Map<String, dynamic>> _serviceCategories = [
     {'key': 'GROOMING_SPA', 'name': 'Làm đẹp & Spa', 'icon': Icons.cut},
     {'key': 'VACCINATION', 'name': 'Tiêm phòng', 'icon': Icons.vaccines},
-    {'key': 'CHECK_UP', 'name': 'Khám tổng quát', 'icon': Icons.health_and_safety},
+    {
+      'key': 'CHECK_UP',
+      'name': 'Khám tổng quát',
+      'icon': Icons.health_and_safety
+    },
     {'key': 'SURGERY', 'name': 'Phẫu thuật', 'icon': Icons.medical_services},
     {'key': 'DENTAL', 'name': 'Nha khoa', 'icon': Icons.mood},
     {'key': 'DERMATOLOGY', 'name': 'Da liễu', 'icon': Icons.healing},
@@ -52,6 +57,9 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
   Province? _selectedProvince;
   bool _isLoadingProvinces = false;
   bool _isLoadingDistricts = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -97,6 +105,7 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final content = SafeArea(
       child: Column(
         children: [
@@ -1241,24 +1250,32 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                     spacing: 8,
                     runSpacing: 8,
                     children: _serviceCategories.map((category) {
-                      final isSelected = _selectedServiceCategories.contains(category['key']);
+                      final isSelected =
+                          _selectedServiceCategories.contains(category['key']);
                       return GestureDetector(
                         onTap: () {
                           setSheetState(() {
                             if (isSelected) {
-                              _selectedServiceCategories.remove(category['key']);
+                              _selectedServiceCategories
+                                  .remove(category['key']);
                             } else {
-                              _selectedServiceCategories.add(category['key'] as String);
+                              _selectedServiceCategories
+                                  .add(category['key'] as String);
                             }
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary : AppColors.white,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.white,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: isSelected ? AppColors.primary : AppColors.stone300,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.stone300,
                               width: 1.5,
                             ),
                           ),
@@ -1268,7 +1285,9 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                               Icon(
                                 category['icon'] as IconData,
                                 size: 16,
-                                color: isSelected ? AppColors.white : AppColors.stone600,
+                                color: isSelected
+                                    ? AppColors.white
+                                    : AppColors.stone600,
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -1276,7 +1295,9 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: isSelected ? AppColors.white : AppColors.stone700,
+                                  color: isSelected
+                                      ? AppColors.white
+                                      : AppColors.stone700,
                                 ),
                               ),
                             ],
@@ -1344,9 +1365,10 @@ class _ClinicSearchViewState extends State<ClinicSearchView> {
                               maxPrice: _priceRange.end < 5000000
                                   ? _priceRange.end
                                   : null,
-                              serviceCategories: _selectedServiceCategories.isNotEmpty
-                                  ? _selectedServiceCategories
-                                  : null,
+                              serviceCategories:
+                                  _selectedServiceCategories.isNotEmpty
+                                      ? _selectedServiceCategories
+                                      : null,
                             );
                             Navigator.pop(context);
                           },

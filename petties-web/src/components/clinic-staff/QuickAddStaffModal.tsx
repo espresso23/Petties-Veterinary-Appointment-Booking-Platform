@@ -154,7 +154,7 @@ export function QuickAddStaffModal({
                                         className="sr-only"
                                         disabled={isSubmitting || disabledRoles.includes('STAFF')}
                                     />
-                                    BÁC SĨ THÚ Y
+                                    NHÂN VIÊN PHÒNG KHÁM
                                 </label>
                             )}
                             {allowedRoles.includes('CLINIC_MANAGER') && (

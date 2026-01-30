@@ -545,6 +545,7 @@ public class StaffShiftService {
                 .staffName(staff.getFullName())
                 .staffAvatar(staff.getAvatar())
                 .clinicId(shift.getClinic().getClinicId())
+                .clinicName(shift.getClinic().getName())
                 .workDate(shift.getWorkDate())
                 .startTime(shift.getStartTime())
                 .endTime(shift.getEndTime())

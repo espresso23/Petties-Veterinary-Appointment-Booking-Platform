@@ -4,7 +4,8 @@ import {
     CalendarDaysIcon,
     ClockIcon,
     CheckCircleIcon,
-    StarIcon
+    StarIcon,
+    BuildingOfficeIcon
 } from '@heroicons/react/24/outline'
 
 /**
@@ -18,11 +19,19 @@ export const StaffDashboardPage = () => {
             {/* Header */}
             <div className="mb-8">
                 <h1 className="heading-brutal text-stone-900 mb-2">
-                    DASHBOARD BÁC SĨ
+                    DASHBOARD NHÂN VIÊN
                 </h1>
                 <p className="text-stone-600 text-lg">
-                    Chào mừng trở lại, <span className="font-bold text-amber-600">Bác sĩ {user?.fullName || 'Bác sĩ'}</span>
+                    Chào mừng trở lại, <span className="font-bold text-amber-600">Nhân viên {user?.fullName || ''}</span>
                 </p>
+                {user?.workingClinicName && (
+                    <div className="flex items-center gap-2 mt-2 text-stone-500">
+                        <BuildingOfficeIcon className="w-5 h-5" />
+                        <span>
+                            Phòng khám: <span className="font-bold text-stone-700">{user.workingClinicName}</span>
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Stats Grid */}

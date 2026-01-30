@@ -29,7 +29,8 @@ public class CloudinaryService {
             "image/jpeg",
             "image/png",
             "image/gif",
-            "image/webp");
+            "image/webp",
+            "application/pdf");
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -195,7 +196,7 @@ public class CloudinaryService {
 
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new BadRequestException("Định dạng file không hợp lệ. Chỉ chấp nhận: JPEG, PNG, GIF, WEBP.");
+            throw new BadRequestException("Định dạng file không hợp lệ. Chỉ chấp nhận: JPEG, PNG, GIF, WEBP, PDF.");
         }
     }
 

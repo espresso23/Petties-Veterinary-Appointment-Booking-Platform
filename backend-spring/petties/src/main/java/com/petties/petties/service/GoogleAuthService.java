@@ -10,8 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-
 /**
  * Service for Google ID Token verification
  */
@@ -20,20 +18,51 @@ import java.util.Collections;
 public class GoogleAuthService {
 
     @Value("${google.client-id}")
-    private String googleClientId;
+    private String googleWebClientId;
+
+    // Android Client IDs for different signing keys (debug/release/production)
+    @Value("${google.android-client-ids:}")
+    private String androidClientIds;
+
+    // iOS Client ID
+    @Value("${google.ios-client-id:}")
+    private String iosClientId;
 
     private GoogleIdTokenVerifier verifier;
 
     @PostConstruct
     public void init() {
+        // Build list of all valid audience IDs
+        java.util.List<String> validAudiences = new java.util.ArrayList<>();
+
+        // Add Web Client ID (always required)
+        validAudiences.add(googleWebClientId);
+
+        // Add Android Client IDs if configured
+        if (androidClientIds != null && !androidClientIds.isBlank()) {
+            for (String id : androidClientIds.split(",")) {
+                if (!id.isBlank()) {
+                    validAudiences.add(id.trim());
+                }
+            }
+        }
+
+        // Add iOS Client ID if configured
+        if (iosClientId != null && !iosClientId.isBlank()) {
+            validAudiences.add(iosClientId.trim());
+        }
+
         verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
                 GsonFactory.getDefaultInstance())
-                .setAudience(Collections.singletonList(googleClientId))
+                .setAudience(validAudiences)
                 .build();
 
-        log.info("GoogleAuthService initialized with client ID: {}...",
-                googleClientId.substring(0, Math.min(20, googleClientId.length())));
+        log.info("GoogleAuthService initialized with {} valid audience(s): {}",
+                validAudiences.size(),
+                validAudiences.stream()
+                        .map(id -> id.substring(0, Math.min(20, id.length())) + "...")
+                        .toList());
     }
 
     /**

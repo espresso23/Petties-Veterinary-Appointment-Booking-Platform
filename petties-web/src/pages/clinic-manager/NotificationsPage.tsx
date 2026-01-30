@@ -54,7 +54,8 @@ export const NotificationsPage = () => {
     loadUnreadCount()
   }, [page])
 
-  const handleMarkAsRead = async (notificationId: string) => {
+  const handleMarkAsRead = async (notificationId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     try {
       await notificationService.markAsRead(notificationId)
       setNotifications((prev) =>
@@ -87,6 +88,9 @@ export const NotificationsPage = () => {
       case 'APPROVED':
       case 'REJECTED':
         return '/clinic-manager/dashboard'
+      case 'BOOKING_CREATED':
+      case 'BOOKING_CANCELLED':
+        return '/clinic-manager/bookings'
       default:
         return null
     }
@@ -125,6 +129,10 @@ export const NotificationsPage = () => {
         return 'bg-blue-100 border-blue-600'
       case 'STAFF_SHIFT_DELETED':
         return 'bg-orange-100 border-orange-600'
+      case 'BOOKING_CREATED':
+        return 'bg-blue-100 border-blue-600'
+      case 'BOOKING_CANCELLED':
+        return 'bg-red-100 border-red-600'
       default:
         return 'bg-stone-100 border-stone-600'
     }
@@ -142,6 +150,10 @@ export const NotificationsPage = () => {
         return 'CA LÀM VIỆC ĐÃ CẬP NHẬT'
       case 'STAFF_SHIFT_DELETED':
         return 'CA LÀM VIỆC ĐÃ XÓA'
+      case 'BOOKING_CREATED':
+        return 'LỊCH HẸN MỚI'
+      case 'BOOKING_CANCELLED':
+        return 'LỊCH HẸN ĐÃ HỦY'
       default:
         return 'THÔNG BÁO'
     }
@@ -179,6 +191,22 @@ export const NotificationsPage = () => {
           <div className="w-10 h-10 bg-red-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+        )
+      case 'BOOKING_CREATED':
+        return (
+          <div className="w-10 h-10 bg-blue-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+        )
+      case 'BOOKING_CANCELLED':
+        return (
+          <div className="w-10 h-10 bg-red-500 border-2 border-stone-900 flex items-center justify-center">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
         )
@@ -283,7 +311,7 @@ export const NotificationsPage = () => {
                 </div>
                 {!notification.read && (
                   <button
-                    onClick={() => handleMarkAsRead(notification.notificationId)}
+                    onClick={(e) => handleMarkAsRead(notification.notificationId, e)}
                     className="ml-4 px-3 py-1.5 bg-yellow-400 text-stone-900 text-[10px] font-black uppercase border-2 border-stone-900 shadow-[3px_3px_0_0_#000] hover:bg-yellow-500 hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
                   >
                     Đánh dấu đã đọc

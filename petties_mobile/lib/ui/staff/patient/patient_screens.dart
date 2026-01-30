@@ -91,12 +91,12 @@ class _PatientListScreenState extends State<PatientListScreen> {
     return list;
   }
 
-  String _getSpeciesEmoji(String species) {
+  IconData _getSpeciesIcon(String species) {
     final s = species.toLowerCase();
-    if (s.contains('chó') || s == 'dog') return '🐕';
-    if (s.contains('mèo') || s == 'cat') return '🐱';
-    if (s.contains('thỏ') || s == 'rabbit') return '🐰';
-    return '🐾';
+    if (s.contains('chó') || s == 'dog') return Icons.pets;
+    if (s.contains('mèo') || s == 'cat') return Icons.pets;
+    if (s.contains('thỏ') || s == 'rabbit') return Icons.cruelty_free;
+    return Icons.pets;
   }
 
   String _calculateAge(DateTime dateOfBirth) {
@@ -351,9 +351,10 @@ class _PatientListScreenState extends State<PatientListScreen> {
               ),
               child: patient.imageUrl == null
                   ? Center(
-                      child: Text(
-                        _getSpeciesEmoji(patient.species),
-                        style: const TextStyle(fontSize: 24),
+                      child: Icon(
+                        _getSpeciesIcon(patient.species),
+                        size: 24,
+                        color: AppColors.stone500,
                       ),
                     )
                   : null,
@@ -465,11 +466,19 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     return '$years tuổi';
   }
 
-  String _getSpeciesEmoji(String species) {
+  String _getSpeciesLabel(String species) {
     final s = species.toLowerCase();
     if (s.contains('chó') || s == 'dog') return 'Chó';
     if (s.contains('mèo') || s == 'cat') return 'Mèo';
     return species;
+  }
+
+  IconData _getSpeciesIconForDetail(String species) {
+    final s = species.toLowerCase();
+    if (s.contains('chó') || s == 'dog') return Icons.pets;
+    if (s.contains('mèo') || s == 'cat') return Icons.pets;
+    if (s.contains('thỏ') || s == 'rabbit') return Icons.cruelty_free;
+    return Icons.pets;
   }
 
   String _getGenderVietnamese(String gender) {
@@ -621,9 +630,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             ),
             child: patient.imageUrl == null
                 ? Center(
-                    child: Text(
-                      _getSpeciesEmoji(patient.species),
-                      style: const TextStyle(fontSize: 48),
+                    child: Icon(
+                      _getSpeciesIconForDetail(patient.species),
+                      size: 48,
+                      color: AppColors.stone500,
                     ),
                   )
                 : null,

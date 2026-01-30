@@ -1,5 +1,6 @@
 package com.petties.petties.service;
 
+import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.StaffResponse;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Clinic;
@@ -35,6 +36,23 @@ public class ClinicStaffService {
 
         return clinic.getStaff().stream()
                 .map(this::mapToStaffResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get public staff list for Pet Owners (no sensitive data)
+     * Only returns STAFF role (Vets and Groomers), excludes CLINIC_MANAGER
+     */
+    @Transactional(readOnly = true)
+    public List<PublicStaffResponse> getPublicClinicStaff(UUID clinicId) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+        return clinic.getStaff().stream()
+                .filter(user -> user.getRole() != Role.CLINIC_MANAGER && user.getRole() != Role.CLINIC_OWNER) // Exclude
+                                                                                                              // Manager
+                                                                                                              // & Owner
+                .map(this::mapToPublicStaffResponse)
                 .collect(Collectors.toList());
     }
 
@@ -133,6 +151,13 @@ public class ClinicStaffService {
             throw new IllegalArgumentException("User must have CLINIC_MANAGER role");
         }
 
+        // Check if user already assigned to another clinic
+        if (user.getWorkingClinic() != null
+                && !user.getWorkingClinic().getClinicId().equals(clinicId)) {
+            throw new ResourceAlreadyExistsException(
+                    "Quản lý này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại.");
+        }
+
         assignToClinic(clinicId, user);
     }
 
@@ -155,6 +180,13 @@ public class ClinicStaffService {
 
         if (user.getRole() != Role.STAFF) {
             throw new IllegalArgumentException("User must have STAFF role");
+        }
+
+        // Check if user already assigned to another clinic
+        if (user.getWorkingClinic() != null
+                && !user.getWorkingClinic().getClinicId().equals(clinicId)) {
+            throw new ResourceAlreadyExistsException(
+                    "Nhân viên này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại.");
         }
 
         assignToClinic(clinicId, user);
@@ -266,6 +298,21 @@ public class ClinicStaffService {
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
                 .specialty(user.getSpecialty())
+                .build();
+    }
+
+    private PublicStaffResponse mapToPublicStaffResponse(User user) {
+        String specialtyLabel = user.getSpecialty() != null
+                ? user.getSpecialty().getVietnameseLabel()
+                : "Nhân viên";
+
+        return PublicStaffResponse.builder()
+                .userId(user.getUserId())
+                .fullName(user.getFullName())
+                .avatar(user.getAvatar())
+                .specialty(user.getSpecialty())
+                .specialtyLabel(specialtyLabel)
+                .role(user.getRole())
                 .build();
     }
 }

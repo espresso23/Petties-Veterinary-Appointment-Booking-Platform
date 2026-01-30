@@ -337,8 +337,8 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                       ],
                     ),
                     
-                    // Assigned Vet (if any)
-                    if (booking.assignedVetName != null) ...[
+                    // Assigned Staff (if any)
+                    if (booking.assignedStaffName != null) ...[
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -351,17 +351,17 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                             child: CircleAvatar(
                               radius: 10,
                               backgroundColor: AppColors.white,
-                              backgroundImage: booking.assignedVetAvatarUrl != null
-                                  ? NetworkImage(booking.assignedVetAvatarUrl!)
+                              backgroundImage: booking.assignedStaffAvatarUrl != null
+                                  ? NetworkImage(booking.assignedStaffAvatarUrl!)
                                   : null,
-                              child: booking.assignedVetAvatarUrl == null
+                              child: booking.assignedStaffAvatarUrl == null
                                   ? const Icon(Icons.person, size: 14, color: AppColors.stone400)
                                   : null,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'BS. ${booking.assignedVetName}',
+                            'BS. ${booking.assignedStaffName}',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,

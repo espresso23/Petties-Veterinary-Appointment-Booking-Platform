@@ -13,7 +13,7 @@ class StaffShiftService {
     required String endDate,
   }) async {
     final response = await _apiClient.get(
-      '/staff-shifts/me',
+      '/shifts/me',
       queryParameters: {
         'startDate': startDate,
         'endDate': endDate,
@@ -30,7 +30,7 @@ class StaffShiftService {
 
   /// Get shift detail with slots
   Future<StaffShiftResponse> getShiftDetail(String shiftId) async {
-    final response = await _apiClient.get('/staff-shifts/$shiftId');
+    final response = await _apiClient.get('/shifts/$shiftId');
 
     if (response.statusCode == 200) {
       return StaffShiftResponse.fromJson(response.data);

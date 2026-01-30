@@ -24,6 +24,7 @@ public class StaffShiftResponse {
     private String staffName;
     private String staffAvatar;
     private UUID clinicId;
+    private String clinicName;
     private LocalDate workDate;
     private LocalTime startTime;
     private LocalTime endTime;

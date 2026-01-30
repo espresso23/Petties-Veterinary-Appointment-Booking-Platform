@@ -322,4 +322,40 @@ class ClinicStaffControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(content().string("false"));
         }
+
+        // ==================== ASSIGN STAFF TESTS ====================
+
+        @Test
+        @WithMockUser(roles = "CLINIC_OWNER")
+        @DisplayName("TC-UNIT-STAFF-016: Conflict - assign staff already assigned to another clinic")
+        void assignStaff_alreadyAssignedToAnotherClinic_returns409() throws Exception {
+                String usernameOrEmail = "staff@gmail.com";
+
+                doThrow(new ResourceAlreadyExistsException(
+                        "Nhân viên này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại."))
+                                .when(staffService)
+                                .assignStaff(eq(clinicId), eq(usernameOrEmail));
+
+                mockMvc.perform(post("/clinics/{clinicId}/staff/assign/{usernameOrEmail}", clinicId, usernameOrEmail)
+                                .with(csrf()))
+                                .andExpect(status().isConflict());
+        }
+
+        // ==================== ASSIGN MANAGER TESTS ====================
+
+        @Test
+        @WithMockUser(roles = "CLINIC_OWNER")
+        @DisplayName("TC-UNIT-STAFF-017: Conflict - assign manager already assigned to another clinic")
+        void assignManager_alreadyAssignedToAnotherClinic_returns409() throws Exception {
+                String usernameOrEmail = "manager@gmail.com";
+
+                doThrow(new ResourceAlreadyExistsException(
+                        "Quản lý này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại."))
+                                .when(staffService)
+                                .assignManager(eq(clinicId), eq(usernameOrEmail));
+
+                mockMvc.perform(post("/clinics/{clinicId}/staff/manager/{usernameOrEmail}", clinicId, usernameOrEmail)
+                                .with(csrf()))
+                                .andExpect(status().isConflict());
+        }
 }

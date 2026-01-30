@@ -66,6 +66,7 @@ export function ClinicForm({
 
   const [businessLicenseFile, setBusinessLicenseFile] = useState<File | null>(null)
   const [businessLicensePreview, setBusinessLicensePreview] = useState<string>(initialData?.businessLicenseUrl || '')
+  const [showLicensePreview, setShowLicensePreview] = useState(false)
   const [isUploadingLicense, setIsUploadingLicense] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -121,7 +122,18 @@ export function ClinicForm({
       }
 
       setBusinessLicenseFile(file)
-      setBusinessLicensePreview(file.name)
+
+      // Create Data URL for image preview
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setBusinessLicensePreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        // For non-image files (PDF), just show filename
+        setBusinessLicensePreview(file.name)
+      }
 
       // Clear error if any
       if (errors.businessLicense) {
@@ -344,7 +356,7 @@ export function ClinicForm({
               Giấy phép kinh doanh *
             </label>
 
-            {!businessLicenseFile ? (
+            {!businessLicenseFile && !businessLicensePreview ? (
               <div className="relative">
                 <input
                   type="file"
@@ -364,18 +376,33 @@ export function ClinicForm({
                 </label>
               </div>
             ) : (
-              <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border-2 border-green-600 shadow-[3px_3px_0px_#16a34a]">
-                <DocumentTextIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
-                <span className="text-sm font-bold text-green-800 flex-1 truncate">
-                  {businessLicensePreview}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleRemoveBusinessLicense}
-                  className="px-3 py-1 bg-red-600 text-white text-xs font-bold uppercase border-2 border-red-800 shadow-[2px_2px_0px_#991b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#991b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
-                >
-                  XÓA
-                </button>
+              <div>
+                <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border-2 border-green-600 shadow-[3px_3px_0px_#16a34a]">
+                  <DocumentTextIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
+                  <span className="text-sm font-bold text-green-800 flex-1 truncate">
+                    {businessLicenseFile?.name || 'Đã tải lên'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemoveBusinessLicense}
+                    className="px-3 py-1 bg-red-600 text-white text-xs font-bold uppercase border-2 border-red-800 shadow-[2px_2px_0px_#991b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#991b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
+                  >
+                    XÓA
+                  </button>
+                </div>
+                {/* Image Preview */}
+                {businessLicensePreview && (businessLicensePreview.startsWith('data:image') || businessLicensePreview.startsWith('http')) && (
+                  <div className="mt-3">
+                    <p className="text-xs font-bold uppercase text-stone-700 mb-2">XEM TRƯỚC:</p>
+                    <img
+                      src={businessLicensePreview}
+                      alt="Xem trước giấy phép kinh doanh"
+                      className="max-h-64 border-2 border-stone-900 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => setShowLicensePreview(true)}
+                    />
+                    <p className="text-xs text-stone-500 mt-1">Click vào ảnh để xem lớn hơn</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -388,6 +415,29 @@ export function ClinicForm({
           </div>
         </div>
       </div>
+
+      {/* License Preview Modal */}
+      {showLicensePreview && businessLicensePreview && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowLicensePreview(false)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] overflow-auto">
+            <img
+              src={businessLicensePreview}
+              alt="Giấy phép kinh doanh"
+              className="max-w-full max-h-[85vh] object-contain border-4 border-white rounded-lg"
+            />
+            <button
+              type="button"
+              onClick={() => setShowLicensePreview(false)}
+              className="absolute top-2 right-2 w-10 h-10 bg-white border-2 border-stone-900 shadow-[3px_3px_0px_#1c1917] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#1c1917] flex items-center justify-center font-bold text-xl"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Logo Upload - Only show if clinicId exists (edit mode or after creation) */}
       {clinicId && (

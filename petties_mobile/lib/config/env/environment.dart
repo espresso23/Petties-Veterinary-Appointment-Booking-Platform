@@ -107,11 +107,23 @@ class Environment {
     'GOOGLE_SERVER_CLIENT_ID',
     // Web Client ID (client_type: 3) from google-services.json
     defaultValue:
-        '620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com',
+        '620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com',
   );
 
   /// Google Server Client ID for backend token verification
   static String get googleServerClientId => _googleServerClientId;
+
+  // ============================================================
+  // Google Maps Configuration
+  // ============================================================
+  /// Google Maps API Key from .env file
+  /// Note: For Android, this is also configured in build.gradle.kts -> AndroidManifest.xml
+  static String get googleMapsApiKey {
+    if (dotenv.isInitialized && dotenv.env['MAP_API_KEY'] != null) {
+      return dotenv.env['MAP_API_KEY']!;
+    }
+    return '';
+  }
 
   // ============================================================
   // Debug helpers
@@ -136,10 +148,12 @@ class Environment {
   // ============================================================
 
   // Compile-time dart-define values
-  static const String _mapApiKeyFromDartDefine =
-      String.fromEnvironment('MAP_API_KEY');
-  static const String _goongApiKeyFromDartDefine =
-      String.fromEnvironment('GOONG_API_KEY');
+  static const String _mapApiKeyFromDartDefine = String.fromEnvironment(
+    'MAP_API_KEY',
+  );
+  static const String _goongApiKeyFromDartDefine = String.fromEnvironment(
+    'GOONG_API_KEY',
+  );
 
   /// Google Maps API Key
   /// Priority: --dart-define > .env file (via dotenv)

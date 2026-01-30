@@ -65,7 +65,7 @@ export function ClinicsListPage() {
               style={{ backgroundColor: 'rgb(255, 107, 53)' }}
               className="text-white px-5 py-3 font-black uppercase border-[3px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all"
             >
-              Tạo phòng khám
+              Đăng kí phòng khám
             </button>
           </div>
 

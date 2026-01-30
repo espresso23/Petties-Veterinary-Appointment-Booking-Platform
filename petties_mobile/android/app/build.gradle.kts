@@ -32,7 +32,19 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
-val mapApiKey = localProperties.getProperty("MAP_API_KEY") ?: ""
+
+// Read MAP_API_KEY from .env file (priority) or local.properties (fallback)
+val envFile = rootProject.file("../.env")
+var mapApiKey = ""
+if (envFile.exists()) {
+    val envProperties = Properties()
+    envFile.inputStream().use { envProperties.load(it) }
+    mapApiKey = envProperties.getProperty("MAP_API_KEY") ?: ""
+}
+// Fallback to local.properties if not found in .env
+if (mapApiKey.isEmpty()) {
+    mapApiKey = localProperties.getProperty("MAP_API_KEY") ?: ""
+}
 
 android {
     namespace = "world.petties.mobile" // Ensure this matches your package name
