@@ -21,6 +21,13 @@ import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('CRASH ERROR: ${details.exception}');
+    debugPrint('CRASH STACK: ${details.stack}');
+  };
 
   // Load environment variables from .env file
   try {

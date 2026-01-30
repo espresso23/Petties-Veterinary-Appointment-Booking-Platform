@@ -1,5 +1,7 @@
 import 'api_client.dart';
 import '../models/booking.dart';
+import 'auth_service.dart';
+import 'dart:convert';
 
 /// BookingService - Handles booking-related API calls for mobile Vet
 class BookingService {
@@ -28,5 +30,30 @@ class BookingService {
   Future<VetHomeSummaryResponse> getVetHomeSummary() async {
     final response = await _apiClient.get('/bookings/vet/home-summary');
     return VetHomeSummaryResponse.fromJson(response.data);
+  }
+
+  /// Get bookings by vet ID with filtering and pagination
+  Future<Map<String, dynamic>> getBookingsByVet({
+    String? status,
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      final user = await AuthService().getCurrentUser();
+      if (user == null) throw Exception('User not logged in');
+
+      final response = await _apiClient.get(
+        '/bookings/vet/${user.userId}',
+        queryParameters: {
+          if (status != null && status != 'all') 'status': status,
+          'page': page,
+          'size': size,
+          'sort': 'bookingDate,desc',
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
   }
 }

@@ -29,6 +29,17 @@ class EmrService {
     }
   }
 
+  /// Get EMR by Booking ID (returns null if not found)
+  Future<EmrRecord?> getEmrByBookingId(String bookingId) async {
+    try {
+      final response = await _apiClient.get('/emr/booking/$bookingId');
+      return EmrRecord.fromJson(response.data);
+    } catch (e) {
+      // Return null if EMR not found for this booking
+      return null;
+    }
+  }
+
   /// Create a new EMR record (Vet only)
   Future<EmrRecord> createEmr(CreateEmrRequest request) async {
     try {

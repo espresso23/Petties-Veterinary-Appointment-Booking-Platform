@@ -58,6 +58,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                         seedMockVetShifts();
                         seedMockServices(); // Add services with required categories
                         seedMockBookings();
+
                         log.info("✅ Booking mock data seeded successfully!");
                 } catch (Exception e) {
                         log.error("❌ Failed to seed booking mock data: {}", e.getMessage());
@@ -113,6 +114,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create mock vet shifts for testing auto-assign
+         * Extends to 21:00 to cover evening test bookings
          */
         private void seedMockVetShifts() {
                 User vet = userRepository.findByUsername("vet").orElse(null);
@@ -127,28 +129,47 @@ public class BookingDataSeeder implements CommandLineRunner {
                         return;
                 }
 
-                // Check if shifts already exist for next 7 days
                 LocalDate today = LocalDate.now();
-                List<VetShift> existingShifts = vetShiftRepository.findByVet_UserIdAndWorkDate(vet.getUserId(), today);
-                if (!existingShifts.isEmpty()) {
-                        log.info("   - Vet shifts already exist");
-                        return;
-                }
 
-                // Create shifts for next 7 days (8:00 - 17:00)
-                for (int i = 0; i < 7; i++) {
-                        LocalDate shiftDate = today.plusDays(i);
-                        VetShift shift = VetShift.builder()
+                // 1. Ensure TODAY has a shift for testing (even if Sunday)
+                List<VetShift> shiftsToday = vetShiftRepository.findByVet_UserIdAndWorkDate(vet.getUserId(), today);
+                if (shiftsToday.isEmpty()) {
+                        VetShift todayShift = VetShift.builder()
                                         .vet(vet)
                                         .clinic(clinic)
-                                        .workDate(shiftDate)
+                                        .workDate(today)
                                         .startTime(LocalTime.of(8, 0))
-                                        .endTime(LocalTime.of(17, 0))
+                                        .endTime(LocalTime.of(21, 0)) // Extended for testing
                                         .isOvernight(false)
                                         .build();
-                        vetShiftRepository.save(shift);
+                        vetShiftRepository.save(todayShift);
+                        log.info("   + Created/Forced shift for TODAY (Sunday testing): 08:00-21:00");
+                } else {
+                        // Update existing shift to ensure it covers test times
+                        VetShift existing = shiftsToday.get(0);
+                        if (existing.getEndTime().isBefore(LocalTime.of(21, 0))) {
+                                existing.setEndTime(LocalTime.of(21, 0));
+                                vetShiftRepository.save(existing);
+                                log.info("   + Extended existing Today shift to 21:00 for testing");
+                        }
                 }
-                log.info("   + Created 7 days of vet shifts for {}", vet.getFullName());
+
+                // 2. Ensure next 6 days have shifts
+                for (int i = 1; i <= 6; i++) {
+                        LocalDate shiftDate = today.plusDays(i);
+                        if (vetShiftRepository.findByVet_UserIdAndWorkDate(vet.getUserId(), shiftDate).isEmpty()) {
+                                VetShift shift = VetShift.builder()
+                                                .vet(vet)
+                                                .clinic(clinic)
+                                                .workDate(shiftDate)
+                                                .startTime(LocalTime.of(8, 0))
+                                                .endTime(LocalTime.of(21, 0))
+                                                .isOvernight(false)
+                                                .build();
+                                vetShiftRepository.save(shift);
+                        }
+                }
+                log.info("   + Verified vet shifts for next 7 days");
         }
 
         /**
@@ -259,8 +280,6 @@ public class BookingDataSeeder implements CommandLineRunner {
                         return;
                 }
 
-                // Try to find clinic by name pattern first, then fallback to clinicManager's
-                // clinic
                 Clinic clinic = clinicRepository.findAll().stream()
                                 .filter(c -> c.getName() != null && c.getName().contains("Central"))
                                 .findFirst()
@@ -285,158 +304,111 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
                 log.info("   - Found {} pets for petOwner", pets.size());
 
-                // Check bookings - clear old PENDING bookings and reseed if needed
                 LocalDate today = LocalDate.now();
-                List<Booking> existingPendingBookings = bookingRepository.findAll().stream()
-                                .filter(b -> b.getStatus() == BookingStatus.PENDING
-                                                || b.getStatus() == BookingStatus.CONFIRMED)
-                                .filter(b -> b.getNotes() != null && b.getNotes().startsWith("[")) // Only seeded
-                                                                                                   // bookings have
-                                                                                                   // [TOMORROW] etc
-                                                                                                   // prefix
-                                .toList();
+                LocalDate tomorrow = today.plusDays(1);
 
-                // Delete old seeded bookings that are in the past
-                List<Booking> staleBookings = existingPendingBookings.stream()
-                                .filter(b -> b.getBookingDate().isBefore(today))
-                                .toList();
-
-                if (!staleBookings.isEmpty()) {
-                        log.info("   - Cleaning up {} stale seeded bookings from past dates", staleBookings.size());
-                        bookingRepository.deleteAll(staleBookings);
-                }
-
-                // Check if we have enough FUTURE bookings
-                long futureBookingsCount = existingPendingBookings.stream()
-                                .filter(b -> !b.getBookingDate().isBefore(today))
-                                .count();
-
-                if (futureBookingsCount >= 8) {
-                        log.info("   - Already have {} future seeded bookings, skipping", futureBookingsCount);
+                // Check if bookings already exist for today to avoid resetting user's work
+                long todayBookingsCount = bookingRepository.countByClinicAndDate(clinic.getClinicId(), today);
+                if (todayBookingsCount > 50) { // Much higher threshold to be sure it seeds
+                        log.info("   🔒 Rich bookings already exist for today ({}), skipping mock booking generation.",
+                                        today);
                         return;
                 }
-                log.info("   - Current future bookings: {}, will seed more", futureBookingsCount);
 
                 // Get services by category
                 List<ClinicService> allServices = clinicServiceRepository
                                 .findByClinicClinicIdAndIsActiveTrue(clinic.getClinicId());
-                log.info("   - Found {} active services for clinic", allServices.size());
+
                 if (allServices.isEmpty()) {
                         log.warn("No services found for clinic, skipping booking seeding");
                         return;
                 }
 
-                // Use FUTURE dates for testing (today's bookings may already be past the time)
-                LocalDate tomorrow = today.plusDays(1);
-                LocalDate dayAfter = today.plusDays(2);
-                LocalDate day3 = today.plusDays(3);
                 Pet pet1 = pets.get(0);
                 Pet pet2 = pets.size() > 1 ? pets.get(1) : pet1;
                 Pet pet3 = pets.size() > 2 ? pets.get(2) : pet1;
 
-                // ========== TOMORROW BOOKINGS ==========
+                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Vet) ==========
 
-                // BOOKING 1: Single service (CHECK_UP) - Morning
-                createBooking(clinic, pet1, petOwner, tomorrow, LocalTime.of(9, 0),
-                                BookingType.IN_CLINIC, "[TOMORROW] Khám tổng quát sáng",
-                                findServicesByCategory(allServices, "CHECK_UP", 1));
+                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Vet) ==========
 
-                // BOOKING 2: Single service (GROOMING_SPA) - Late Morning
-                createBooking(clinic, pet1, petOwner, tomorrow, LocalTime.of(10, 30),
-                                BookingType.IN_CLINIC, "[TOMORROW] Tắm spa",
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1));
+                // 1. Check-up (08:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
+                 * "Khám định kỳ sáng",
+                 * findServicesByCategory(allServices, "CHECK_UP", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "vet",
+                 * BookingType.IN_CLINIC);
+                 */
 
-                // BOOKING 3: MULTI-SERVICE (CHECK_UP + GROOMING - different specialty)
-                createBooking(clinic, pet2, petOwner, tomorrow, LocalTime.of(14, 0),
-                                BookingType.IN_CLINIC, "[TOMORROW] Combo khám + tắm (MULTI-SPECIALTY)",
-                                findServicesByCategories(allServices, new String[] { "CHECK_UP", "GROOMING_SPA" }));
+                // 2. Vaccination (09:30) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(9, 30),
+                 * "Tiêm ngừa vaccine",
+                 * findServicesByCategory(allServices, "VACCINATION", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "vet",
+                 * BookingType.IN_CLINIC);
+                 */
 
-                // BOOKING 4: HOME VISIT (VACCINATION) - calculate real distance from clinic
-                double homeLat4 = 16.0058, homeLng4 = 108.2478;
-                double distKm4 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat4), BigDecimal.valueOf(homeLng4));
-                createBookingWithHomeVisit(clinic, pet1, petOwner, tomorrow, LocalTime.of(15, 30),
-                                String.format("[TOMORROW] Tiêm vaccine tại nhà - %.1fkm", distKm4),
+                // 3. Grooming (11:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(11, 0),
+                 * "Tắm spa tại nhà",
+                 * findServicesByCategory(allServices, "GROOMING_SPA", 1),
+                 * "123 Nguyễn Văn Linh, Q.7, HCM", 5.5, 5.5, BigDecimal.valueOf(50),
+                 * BookingStatus.CONFIRMED, "vet", BookingType.HOME_VISIT);
+                 */
+
+                // 4. Check-up (14:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(14, 0),
+                 * "Khám sức khỏe tổng quát",
+                 * findServicesByCategory(allServices, "CHECK_UP", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.IN_PROGRESS, "vet",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // 5. Dental (15:30) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
+                 * "Cạo vôi răng",
+                 * findServicesByCategory(allServices, "DENTAL", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "vet",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // 6. Dermatology (17:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(17, 0),
+                 * "Khám da liễu",
+                 * findServicesByCategory(allServices, "DERMATOLOGY", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "vet",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // ========== TODAY'S BOOKINGS (PENDING - Waiting for Clinic Assignment)
+                // ==========
+
+                // 1. Vaccination (15:00) - PENDING
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(15, 0),
+                                "Tiêm ngừa 5 bệnh (cần gán bác sĩ)",
                                 findServicesByCategory(allServices, "VACCINATION", 1),
-                                "123 Lê Văn Hiến, Ngũ Hành Sơn, Đà Nẵng", homeLat4, homeLng4,
-                                BigDecimal.valueOf(distKm4));
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
 
-                // ========== DAY AFTER TOMORROW BOOKINGS ==========
-
-                // BOOKING 5: MULTI-SERVICE (DENTAL + DERMATOLOGY)
-                createBooking(clinic, pet1, petOwner, dayAfter, LocalTime.of(9, 30),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Combo nha khoa + da liễu",
-                                findServicesByCategories(allServices, new String[] { "DENTAL", "DERMATOLOGY" }));
-
-                // BOOKING 6: Single DENTAL
-                createBooking(clinic, pet2, petOwner, dayAfter, LocalTime.of(11, 0),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Cạo vôi răng chó lớn",
-                                findServicesByCategory(allServices, "DENTAL", 1));
-
-                // BOOKING 7: Triple services (CHECK_UP + VACCINATION + GROOMING)
-                createBooking(clinic, pet3, petOwner, dayAfter, LocalTime.of(14, 30),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Combo 3 dịch vụ",
-                                findServicesByCategories(allServices,
-                                                new String[] { "CHECK_UP", "VACCINATION", "GROOMING_SPA" }));
-
-                // ========== 3 DAYS LATER BOOKINGS ==========
-
-                // BOOKING 8: Morning slot for testing reassign
-                createBooking(clinic, pet1, petOwner, day3, LocalTime.of(8, 30),
-                                BookingType.IN_CLINIC, "[+3 DAYS] Khám sớm - test reassign",
-                                findServicesByCategory(allServices, "CHECK_UP", 1));
-
-                // BOOKING 9: HOME VISIT with multiple services - calculate real distance
-                double homeLat9 = 15.9925, homeLng9 = 108.2564;
-                double distKm9 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat9), BigDecimal.valueOf(homeLng9));
-                createBookingWithHomeVisit(clinic, pet2, petOwner, day3, LocalTime.of(10, 0),
-                                String.format("[+3 DAYS] Khám + tiêm tại nhà - %.1fkm", distKm9),
-                                findServicesByCategories(allServices, new String[] { "CHECK_UP", "VACCINATION" }),
-                                "456 Trần Đại Nghĩa, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng", homeLat9, homeLng9,
-                                BigDecimal.valueOf(distKm9));
-
-                // BOOKING 10: Late afternoon booking
-                createBooking(clinic, pet3, petOwner, day3, LocalTime.of(16, 0),
-                                BookingType.IN_CLINIC, "[+3 DAYS] Khám da liễu chiều muộn",
-                                findServicesByCategory(allServices, "DERMATOLOGY", 1));
-
-                // ========== BOOKING 11: HOME VISIT với pet nặng để test weight-based +
-                // distance pricing ==========
-                double homeLat11 = 16.0321, homeLng11 = 108.2395;
-                double distKm11 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat11), BigDecimal.valueOf(homeLng11));
-                createBookingWithHomeVisit(clinic, pet3, petOwner, day3, LocalTime.of(14, 0),
-                                String.format("[+3 DAYS] Tắm spa tại nhà - chó lớn 32kg, %.1fkm (TEST WEIGHT + DISTANCE)",
-                                                distKm11),
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                                "789 Võ Chí Công, Mỹ An, Ngũ Hành Sơn, Đà Nẵng", homeLat11, homeLng11,
-                                BigDecimal.valueOf(distKm11));
-
-                // ========== BOOKING 12: IN_PROGRESS for testing Add-on Service ==========
-                double homeLat12 = 16.0150, homeLng12 = 108.2450;
-                double distKm12 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat12), BigDecimal.valueOf(homeLng12));
-                createBookingWithStatus(clinic, pet1, petOwner, LocalDate.now(), LocalTime.of(10, 0),
-                                String.format("[TODAY] Đang khám tại nhà - TEST ADD-ON SERVICE (%.1fkm)", distKm12),
+                // 2. Check-up (15:30) - PENDING
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
+                                "Kiểm tra định kỳ (cần gán bác sĩ)",
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
-                                "123 Mỹ Khê, Ngũ Hành Sơn, Đà Nẵng", homeLat12, homeLng12,
-                                BigDecimal.valueOf(distKm12), BookingStatus.IN_PROGRESS);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
 
-                // ========== BOOKING 13: ASSIGNED for testing Check-in flow ==========
-                double homeLat13 = 16.0280, homeLng13 = 108.2380;
-                double distKm13 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat13), BigDecimal.valueOf(homeLng13));
-                createBookingWithStatus(clinic, pet2, petOwner, LocalDate.now(), LocalTime.of(14, 0),
-                                String.format("[TODAY] Đã gán BS - TEST CHECK-IN (%.1fkm)", distKm13),
-                                findServicesByCategory(allServices, "VACCINATION", 1),
-                                "456 Ngô Quyền, Sơn Trà, Đà Nẵng", homeLat13, homeLng13,
-                                BigDecimal.valueOf(distKm13), BookingStatus.ASSIGNED);
+                // 3. Grooming (16:00) - PENDING
+                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(16, 0),
+                                "Spa làm đẹp (cần gán bác sĩ)",
+                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
         }
 
         /**
@@ -575,7 +547,8 @@ public class BookingDataSeeder implements CommandLineRunner {
          */
         private void createBookingWithStatus(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
-                        String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status) {
+                        String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
+                        String vetUsername, BookingType type) {
 
                 if (services.isEmpty())
                         return;
@@ -583,9 +556,9 @@ public class BookingDataSeeder implements CommandLineRunner {
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
-                // Calculate distance fee (using highest pricePerKm)
+                // Calculate distance fee
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
-                                BookingType.HOME_VISIT);
+                                type);
 
                 // Calculate service prices
                 BigDecimal servicesTotal = BigDecimal.ZERO;
@@ -595,13 +568,15 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 BigDecimal totalPrice = servicesTotal.add(distanceFee);
 
-                // Find a vet to assign for ASSIGNED/IN_PROGRESS/CHECK_IN statuses
+                // Find a vet to assign
                 User assignedVet = null;
-                if (status == BookingStatus.ASSIGNED || status == BookingStatus.IN_PROGRESS
-                                || status == BookingStatus.CHECK_IN || status == BookingStatus.CONFIRMED) {
-                        assignedVet = userRepository.findByUsername("vet").orElse(null);
+                // Assign vet if status implies a vet is involved
+                // (CONFIRMED/IN_PROGRESS/COMPLETED)
+                if (status == BookingStatus.CONFIRMED || status == BookingStatus.IN_PROGRESS
+                                || status == BookingStatus.COMPLETED) {
+                        assignedVet = userRepository.findByUsername(vetUsername).orElse(null);
                         if (assignedVet == null) {
-                                log.warn("vet user not found, booking will have no assigned vet");
+                                log.warn("{} user not found, booking will have no assigned vet", vetUsername);
                         }
                 }
 
@@ -612,7 +587,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 .clinic(clinic)
                                 .bookingDate(date)
                                 .bookingTime(time)
-                                .type(BookingType.HOME_VISIT)
+                                .type(type)
                                 .totalPrice(totalPrice)
                                 .distanceFee(distanceFee)
                                 .status(status)

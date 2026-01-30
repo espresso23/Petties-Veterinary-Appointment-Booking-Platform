@@ -52,7 +52,13 @@ class Environment {
       return _apiUrlOverride;
     }
 
-    // Priority 2: Flavor specific defaults
+    // Priority 2: API_URL from .env file (via dotenv)
+    try {
+      final envUrl = dotenv.env['API_URL'] ?? '';
+      if (envUrl.isNotEmpty) return envUrl;
+    } catch (_) {}
+
+    // Priority 3: Flavor specific defaults
     switch (_flavor) {
       case 'prod':
         return _prodBaseUrl;

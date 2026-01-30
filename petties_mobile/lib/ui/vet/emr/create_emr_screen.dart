@@ -12,12 +12,16 @@ class CreateEmrScreen extends StatefulWidget {
   final String petId;
   final String? petName;
   final String? petSpecies;
+  final String? bookingId;
+  final String? bookingCode;
 
   const CreateEmrScreen({
     super.key,
     required this.petId,
     this.petName,
     this.petSpecies,
+    this.bookingId,
+    this.bookingCode,
   });
 
   @override
@@ -43,6 +47,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   final _temperatureController = TextEditingController();
   final _heartRateController = TextEditingController();
   final _notesController = TextEditingController();
+  final _allergiesController = TextEditingController();
   
   int? _bcs; // Body Condition Score 1-9
   DateTime? _reExaminationDate;
@@ -71,6 +76,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       setState(() {
         _petInfo = pet;
         _weightController.text = pet.weight.toString();
+        _allergiesController.text = pet.allergies ?? '';
         _medicalHistory = emrs;
         _isLoadingPet = false;
       });
@@ -114,6 +120,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
 
       final request = CreateEmrRequest(
         petId: widget.petId,
+        bookingId: widget.bookingId,
         subjective: _subjectiveController.text.isEmpty ? null : _subjectiveController.text,
         objective: objectiveParts.isEmpty ? null : objectiveParts.join('. '),
         assessment: _assessmentController.text,
@@ -129,6 +136,15 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       );
 
       await _emrService.createEmr(request);
+
+      // Update allergies if changed
+      if (_petInfo != null && _allergiesController.text != (_petInfo!.allergies ?? '')) {
+         try {
+           await _petService.updateAllergies(widget.petId, _allergiesController.text);
+         } catch (e) {
+            debugPrint('Error updating allergies: $e');
+         }
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,6 +180,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     _temperatureController.dispose();
     _heartRateController.dispose();
     _reExamAmountController.dispose();
+    _allergiesController.dispose();
     super.dispose();
   }
 
@@ -237,59 +254,104 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.stone200),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: AppColors.stone100,
-              borderRadius: BorderRadius.circular(35),
-              image: pet.imageUrl != null
-                  ? DecorationImage(
-                      image: NetworkImage(pet.imageUrl!),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: pet.imageUrl == null
-                ? Center(
-                    child: Text(
-                      pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: AppColors.stone100,
+                  borderRadius: BorderRadius.circular(35),
+                  image: pet.imageUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(pet.imageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: pet.imageUrl == null
+                    ? Center(
+                        child: Text(
+                          pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pet.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.stone900,
+                      ),
                     ),
-                  )
-                : null,
+                    const SizedBox(height: 4),
+                    Text(
+                      '${pet.species} ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''} • ${_translateGender(pet.gender)} • ${_calculateAge(pet.dateOfBirth)}',
+                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                    ),
+                    Text(
+                      'Cân nặng: ${pet.weight} kg',
+                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Chủ: ${pet.ownerName ?? 'N/A'} • ${pet.ownerPhone ?? ''}',
+                      style: const TextStyle(color: AppColors.stone400, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  pet.name,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.stone900,
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                   Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                   SizedBox(width: 4),
+                   Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _allergiesController,
+                maxLines: 2,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Không có ghi nhận dị ứng.',
+                  hintStyle: TextStyle(color: AppColors.stone400),
+                  filled: true,
+                  fillColor: Colors.amber.shade50,
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.amber.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.amber.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.amber),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${pet.species} ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''} • ${_translateGender(pet.gender)} • ${_calculateAge(pet.dateOfBirth)}',
-                  style: const TextStyle(color: AppColors.stone500, fontSize: 13),
-                ),
-                Text(
-                  'Cân nặng: ${pet.weight} kg',
-                  style: const TextStyle(color: AppColors.stone500, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Chủ: ${pet.ownerName ?? 'N/A'} • ${pet.ownerPhone ?? ''}',
-                  style: const TextStyle(color: AppColors.stone400, fontSize: 12),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -341,13 +403,35 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Biểu mẫu SOAP',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              color: AppColors.stone900,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Biểu mẫu SOAP',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900,
+                ),
+              ),
+              if (widget.bookingCode != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Text(
+                    'Booking #${widget.bookingCode}',
+                    style: TextStyle(
+                      color: Colors.blue.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 20),
 

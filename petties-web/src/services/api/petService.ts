@@ -68,12 +68,50 @@ export const updateWeight = async (petId: string, weight: number): Promise<Pet> 
     return response.data
 }
 
+export interface VetPatient {
+    petId: string
+    petName: string
+    species: string
+    breed: string
+    gender?: string
+    ageYears: number
+    ageMonths: number
+    imageUrl?: string
+    ownerName: string
+    ownerPhone?: string
+    isAssignedToMe: boolean
+    nextAppointment?: string
+    bookingStatus?: string
+    lastVisitDate?: string
+    weight?: number
+    allergies?: string
+}
+
+/**
+ * Get prioritized patients for Vet (Assigned first)
+ */
+export const getVetPatients = async (clinicId: string, vetId: string): Promise<VetPatient[]> => {
+    const response = await api.get('/pets/vet', {
+        params: { clinicId, vetId }
+    })
+    return response.data
+}
+
 export const petService = {
     getAllPets,
     getPetById,
     searchPets,
     updateAllergies,
     updateWeight,
+    getVetPatients,
+
+    /**
+     * Get current user's pets
+     */
+    getMyPets: async (): Promise<Pet[]> => {
+        const response = await api.get('/pets/me')
+        return response.data
+    }
 }
 
 export default petService

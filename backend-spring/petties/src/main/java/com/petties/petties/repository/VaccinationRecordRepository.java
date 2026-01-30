@@ -10,4 +10,11 @@ import java.util.UUID;
 @Repository
 public interface VaccinationRecordRepository extends MongoRepository<VaccinationRecord, String> {
     List<VaccinationRecord> findByPetIdOrderByVaccinationDateDesc(UUID petId);
+
+    /**
+     * Find vaccinations due on a specific date that haven't had a reminder sent yet
+     */
+    List<VaccinationRecord> findByNextDueDateAndReminderSentNot(java.time.LocalDate nextDueDate, Boolean reminderSent);
+
+    List<VaccinationRecord> findByNextDueDate(java.time.LocalDate nextDueDate);
 }

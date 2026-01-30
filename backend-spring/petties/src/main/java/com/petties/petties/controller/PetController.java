@@ -35,6 +35,13 @@ public class PetController {
         return ResponseEntity.ok(petService.getMyPets());
     }
 
+    @GetMapping("/vet")
+    public ResponseEntity<List<com.petties.petties.dto.pet.VetPatientDTO>> getVetPatients(
+            @RequestParam UUID clinicId,
+            @RequestParam UUID vetId) {
+        return ResponseEntity.ok(petService.getPatientsForVet(clinicId, vetId));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PetResponse> getPet(@PathVariable UUID id) {
         return ResponseEntity.ok(petService.getPet(id));

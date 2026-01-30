@@ -113,54 +113,42 @@ public class VetAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime bookingTime = booking.getBookingTime();
+        LocalTime currentTime = booking.getBookingTime();
 
         Map<UUID, User> assignments = new HashMap<>();
         Map<StaffSpecialty, User> specialtyVetCache = new HashMap<>();
 
-        // Group services by required specialty
-        Map<StaffSpecialty, List<BookingServiceItem>> servicesBySpecialty = new HashMap<>();
-
+        // Process services sequentially to calculate correct start times for each
         for (BookingServiceItem item : booking.getBookingServices()) {
             StaffSpecialty specialty = getSpecialtyForService(item);
-            servicesBySpecialty.computeIfAbsent(specialty, k -> new ArrayList<>()).add(item);
-        }
 
-        log.info("Services grouped by specialty: {}",
-                servicesBySpecialty.entrySet().stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> e.getValue().size())));
+            // Calculate slots needed for this specific service
+            Integer duration = item.getService().getDurationTime();
+            int slotsNeeded = (duration != null && duration > 0)
+                    ? (int) Math.ceil(duration / 30.0)
+                    : 1;
 
-        // Assign vet for each specialty group
-        for (Map.Entry<StaffSpecialty, List<BookingServiceItem>> entry : servicesBySpecialty.entrySet()) {
-            StaffSpecialty specialty = entry.getKey();
-            List<BookingServiceItem> items = entry.getValue();
+            // Find available vet for this specialty at THIS specific time with ENOUGH slots
+            // This ensures we pick a vet who actually has capacity
+            User vet = findAvailableVetForSpecialtyAtTime(
+                    clinicId, bookingDate, currentTime, specialty, slotsNeeded);
 
-            // Find available vet for this specialty (reuse if already assigned)
-            User vet = specialtyVetCache.get(specialty);
-            if (vet == null) {
-                vet = findAvailableVetForSpecialty(clinicId, bookingDate, bookingTime, specialty);
-                if (vet != null) {
-                    specialtyVetCache.put(specialty, vet);
-                }
+            if (vet != null) {
+                item.setAssignedVet(vet);
+                assignments.put(item.getBookingServiceId(), vet);
+                specialtyVetCache.put(specialty, vet);
+                log.info("Assigned vet {} to service {} (specialty: {}) at {}",
+                        vet.getFullName(), item.getService().getName(), specialty, currentTime);
+            } else {
+                log.warn("No vet available for service {} (specialty: {}) at {}",
+                        item.getService().getName(), specialty, currentTime);
             }
 
-            // Assign same vet to all services of this specialty
-            for (BookingServiceItem item : items) {
-                if (vet != null) {
-                    item.setAssignedVet(vet);
-                    assignments.put(item.getBookingServiceId(), vet);
-                    log.info("Assigned vet {} to service {} (specialty: {})",
-                            vet.getFullName(), item.getService().getName(), specialty);
-                } else {
-                    log.warn("No vet available for service {} (specialty: {})",
-                            item.getService().getName(), specialty);
-                }
-            }
+            // Advance time for next service
+            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
-        // Set primary vet on booking (first assigned vet or most specialized)
+        // Set primary vet on booking (highest specialty priority)
         if (!specialtyVetCache.isEmpty()) {
             User primaryVet = selectPrimaryVet(specialtyVetCache);
             booking.setAssignedVet(primaryVet);
@@ -179,32 +167,6 @@ public class VetAssignmentService {
             return category.getRequiredSpecialty();
         }
         return StaffSpecialty.VET_GENERAL;
-    }
-
-    /**
-     * Find available vet for a specific specialty
-     */
-    private User findAvailableVetForSpecialty(UUID clinicId, LocalDate date, LocalTime time, StaffSpecialty specialty) {
-        log.info(">> Finding vet for specialty: {}", specialty);
-        List<User> matchingVets = findVetsWithSpecialty(clinicId, specialty);
-        log.info(">> Found {} vets with specialty {}", matchingVets.size(), specialty);
-
-        if (matchingVets.isEmpty() && specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
-            log.info("No vets with {} specialty, falling back to VET_GENERAL", specialty);
-            matchingVets = findVetsWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-            log.info(">> Fallback found {} VET_GENERAL vets", matchingVets.size());
-        }
-
-        if (matchingVets.isEmpty()) {
-            return null;
-        }
-
-        List<User> availableVets = filterByShiftAvailability(matchingVets, clinicId, date, time);
-        if (availableVets.isEmpty()) {
-            return null;
-        }
-
-        return selectVetWithLeastBookings(availableVets, date);
     }
 
     /**

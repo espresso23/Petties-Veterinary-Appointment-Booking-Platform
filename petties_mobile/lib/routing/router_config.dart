@@ -9,8 +9,10 @@ import '../ui/onboarding/onboarding_screen.dart';
 import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/vet/vet_home_screen.dart';
 import '../ui/vet/vet_schedule_screen.dart';
+import '../ui/vet/booking/vet_bookings_screen.dart';
 import '../ui/vet/vet_booking_detail_screen.dart';
 import '../ui/vet/patient/patient_screens.dart';
+import '../ui/vet/patient/vaccination_form_screen.dart';
 import '../ui/vet/emr/create_emr_screen.dart';
 import '../ui/vet/emr/emr_detail_screen.dart';
 import '../ui/vet/emr/edit_emr_screen.dart';
@@ -20,6 +22,7 @@ import '../ui/screens/profile/change_password_screen.dart';
 import '../ui/pet/pet_list_screen.dart';
 import '../ui/pet/add_edit_pet_screen.dart';
 import '../ui/pet/pet_detail_screen.dart';
+import '../ui/pet/pet_health_record_screen.dart';
 import '../ui/screens/notification/notification_list_screen.dart';
 import '../ui/chat/chat_list_screen.dart';
 import '../ui/chat/chat_detail_screen.dart';
@@ -199,6 +202,10 @@ class AppRouterConfig {
           path: AppRoutes.vetSchedule,
           builder: (context, state) => const VetScheduleScreen(),
         ),
+        GoRoute(
+          path: AppRoutes.vetBookings,
+          builder: (context, state) => const VetBookingsScreen(),
+        ),
 
         // VET Booking Detail Route (from HEAD)
         GoRoute(
@@ -214,6 +221,21 @@ class AppRouterConfig {
           path: AppRoutes.vetPatients,
           builder: (context, state) => const PatientListScreen(),
         ),
+        GoRoute(
+          path: AppRoutes.vetVaccinationForm,
+          builder: (context, state) {
+            final petId = state.pathParameters['petId']!;
+            final petName = state.uri.queryParameters['petName'] ?? 'Thú cưng';
+            final bookingId = state.uri.queryParameters['bookingId'];
+            final bookingCode = state.uri.queryParameters['bookingCode'];
+            return VaccinationFormScreen(
+              petId: petId,
+              petName: petName,
+              bookingId: bookingId,
+              bookingCode: bookingCode,
+            );
+          },
+        ),
 
         // VET EMR Routes (from intergrationFeature)
         GoRoute(
@@ -222,10 +244,14 @@ class AppRouterConfig {
             final petId = state.pathParameters['petId']!;
             final petName = state.uri.queryParameters['petName'];
             final petSpecies = state.uri.queryParameters['petSpecies'];
+            final bookingId = state.uri.queryParameters['bookingId'];
+            final bookingCode = state.uri.queryParameters['bookingCode'];
             return CreateEmrScreen(
               petId: petId,
               petName: petName,
               petSpecies: petSpecies,
+              bookingId: bookingId,
+              bookingCode: bookingCode,
             );
           },
         ),
@@ -302,6 +328,15 @@ class AppRouterConfig {
           builder: (context, state) {
             final id = state.pathParameters['id']!;
             return PetDetailScreen(id: id);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.petHealthRecord,
+          builder: (context, state) {
+            final id = state.pathParameters['id']!;
+            final tabStr = state.uri.queryParameters['tab'];
+            final tabIndex = tabStr == '1' ? 1 : 0;
+            return PetHealthRecordScreen(petId: id, initialTabIndex: tabIndex);
           },
         ),
         GoRoute(

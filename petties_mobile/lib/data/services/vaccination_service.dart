@@ -7,10 +7,14 @@ class VaccinationService {
   /// Get vaccinations for a pet
   Future<List<VaccinationRecord>> getVaccinationsByPet(String petId) async {
     final response = await _apiClient.get('/vaccinations/pet/$petId');
-    
-    // ApiClient returns Response, accessing .data specifically
     final List<dynamic> data = response.data as List<dynamic>;
-    
+    return data.map((json) => VaccinationRecord.fromJson(json)).toList();
+  }
+
+  /// Get predicted/upcoming vaccinations for a pet
+  Future<List<VaccinationRecord>> getUpcomingVaccinations(String petId) async {
+    final response = await _apiClient.get('/vaccinations/pet/$petId/upcoming');
+    final List<dynamic> data = response.data as List<dynamic>;
     return data.map((json) => VaccinationRecord.fromJson(json)).toList();
   }
 
@@ -22,5 +26,10 @@ class VaccinationService {
     );
     
     return VaccinationRecord.fromJson(response.data);
+  }
+
+  /// Delete a vaccination record
+  Future<void> deleteVaccination(String id) async {
+    await _apiClient.delete('/vaccinations/$id');
   }
 }

@@ -41,5 +41,8 @@ public enum NotificationType {
     CLINIC_VERIFIED,
 
     // Re-examination
-    RE_EXAMINATION_REMINDER
+    RE_EXAMINATION_REMINDER,
+
+    // Vaccination
+    VACCINATION_REMINDER
 }

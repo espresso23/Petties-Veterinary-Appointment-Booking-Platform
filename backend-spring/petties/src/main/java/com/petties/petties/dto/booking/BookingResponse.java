@@ -25,6 +25,7 @@ public class BookingResponse {
 
     private UUID bookingId;
     private String bookingCode;
+    private String emrId; // Linked EMR ID if exists
 
     // ========== PET INFO ==========
     private UUID petId;
@@ -59,8 +60,12 @@ public class BookingResponse {
     private String paymentMethod; // CASH, QR, CARD
 
     // ========== BOOKING INFO ==========
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate bookingDate;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm:ss")
     private LocalTime bookingTime;
+
     private BookingType type;
     private BookingStatus status;
     private BigDecimal totalPrice;
@@ -77,6 +82,7 @@ public class BookingResponse {
     private BigDecimal distanceFee; // Home visit fee (pricePerKm × distanceKm) applied once
 
     // ========== TIMESTAMPS ==========
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     /**
@@ -106,7 +112,10 @@ public class BookingResponse {
         private String assignedVetSpecialty;
 
         // Scheduled time for this service
+        @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm:ss")
         private LocalTime scheduledStartTime;
+
+        @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm:ss")
         private LocalTime scheduledEndTime;
     }
 }

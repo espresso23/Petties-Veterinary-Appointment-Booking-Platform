@@ -4,6 +4,7 @@ export interface EmrRecord {
     id: string
     petId: string
     bookingId?: string
+    bookingCode?: string
     vetId: string
     clinicId: string
     clinicName: string
@@ -26,6 +27,7 @@ export interface EmrRecord {
     examinationDate: string
     reExaminationDate?: string
     createdAt: string
+    updatedAt?: string
     isLocked?: boolean
 }
 

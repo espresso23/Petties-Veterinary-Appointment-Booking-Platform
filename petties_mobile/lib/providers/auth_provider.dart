@@ -78,7 +78,7 @@ class AuthProvider extends ChangeNotifier {
           // No valid cache, need to fetch from server
           try {
             final freshUser = await _authService.getCurrentUser().timeout(
-                  const Duration(seconds: 5), // Reduced timeout
+                  const Duration(seconds: 15), // Increased timeout
                 );
             _user = freshUser;
             await _authService.saveUserProfile(freshUser);
@@ -129,7 +129,7 @@ class AuthProvider extends ChangeNotifier {
     Future(() async {
       try {
         final freshUser = await _authService.getCurrentUser().timeout(
-              const Duration(seconds: 10),
+              const Duration(seconds: 30),
             );
         _user = freshUser;
         await _authService.saveUserProfile(freshUser);

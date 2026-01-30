@@ -61,7 +61,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            onPressed: () => context.push(AppRoutes.notifications),
           ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -181,8 +181,11 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         )),
         const SizedBox(width: 12),
         Expanded(
-            child: _buildActionCard(
-                Icons.medical_services, 'Sổ\ntiêm', AppColors.stone600)),
+            child: GestureDetector(
+          onTap: () => context.push(AppRoutes.myPets),
+          child: _buildActionCard(
+              Icons.medical_services, 'Sổ\ntiêm', AppColors.primary),
+        )),
       ],
     );
   }

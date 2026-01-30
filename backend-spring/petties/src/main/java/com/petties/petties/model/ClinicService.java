@@ -63,6 +63,13 @@ public class ClinicService {
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
+    // NEW: Reminder schedule for vaccination
+    @Column(name = "reminder_interval")
+    private Integer reminderInterval;
+
+    @Column(name = "reminder_unit", length = 50)
+    private String reminderUnit; // DAYS, WEEKS, MONTHS, YEARS
+
     @Column(name = "price_per_km", precision = 19, scale = 2)
     private BigDecimal pricePerKm;
 

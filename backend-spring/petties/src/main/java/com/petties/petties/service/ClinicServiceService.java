@@ -114,6 +114,10 @@ public class ClinicServiceService {
         service.setServiceCategory(request.getServiceCategory());
         service.setPetType(request.getPetType());
 
+        // Handle reminder schedule
+        service.setReminderInterval(request.getReminderInterval());
+        service.setReminderUnit(request.getReminderUnit());
+
         // Handle weight prices
         if (request.getWeightPrices() != null && !request.getWeightPrices().isEmpty()) {
             for (WeightPriceDto dto : request.getWeightPrices()) {
@@ -188,6 +192,12 @@ public class ClinicServiceService {
         }
         if (request.getPetType() != null) {
             service.setPetType(request.getPetType());
+        }
+        if (request.getReminderInterval() != null) {
+            service.setReminderInterval(request.getReminderInterval());
+        }
+        if (request.getReminderUnit() != null) {
+            service.setReminderUnit(request.getReminderUnit());
         }
 
         // Handle weight prices update
@@ -473,6 +483,8 @@ public class ClinicServiceService {
                 .pricePerKm(service.getPricePerKm())
                 .serviceCategory(service.getServiceCategory())
                 .petType(service.getPetType())
+                .reminderInterval(service.getReminderInterval())
+                .reminderUnit(service.getReminderUnit())
                 .weightPrices(weightPriceDtos)
                 .createdAt(service.getCreatedAt())
                 .updatedAt(service.getUpdatedAt())

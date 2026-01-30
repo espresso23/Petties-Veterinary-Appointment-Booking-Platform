@@ -5,6 +5,7 @@ import com.petties.petties.model.*;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
+import com.petties.petties.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class EmrService {
         private final EmrRecordRepository emrRecordRepository;
         private final PetRepository petRepository;
         private final UserRepository userRepository;
+        private final BookingRepository bookingRepository;
 
         /**
          * Create a new EMR record
@@ -38,6 +40,12 @@ public class EmrService {
                 // Get vet info
                 User vet = userRepository.findById(vetId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Vet not found"));
+
+                // Check if EMR already exists for this booking
+                if (emrRecordRepository.existsByBookingId(request.getBookingId())) {
+                        throw new BadRequestException(
+                                        "Bệnh án cho booking này đã tồn tại. Vui lòng chỉnh sửa bệnh án cũ.");
+                }
 
                 // Get clinic from vet's working clinic (Optional for Dev/Test)
                 Clinic clinic = vet.getWorkingClinic();
@@ -210,8 +218,9 @@ public class EmrService {
          */
         @org.springframework.transaction.annotation.Transactional(readOnly = true)
         public EmrResponse getEmrByBookingId(UUID bookingId) {
-                EmrRecord emr = emrRecordRepository.findByBookingId(bookingId)
-                                .orElseThrow(() -> new RuntimeException("EMR not found for booking"));
+                java.util.List<EmrRecord> emrs = emrRecordRepository.findByBookingId(bookingId);
+                EmrRecord emr = emrs.stream().findFirst()
+                                .orElseThrow(() -> new ResourceNotFoundException("Chưa có bệnh án cho lịch hẹn này"));
 
                 Pet pet = petRepository.findById(emr.getPetId()).orElse(null);
                 return mapToResponse(emr, pet);
@@ -247,10 +256,18 @@ public class EmrService {
                                                 .collect(Collectors.toList())
                                 : List.of();
 
+                String bookingCode = null;
+                if (emr.getBookingId() != null) {
+                        bookingCode = bookingRepository.findById(emr.getBookingId())
+                                        .map(com.petties.petties.model.Booking::getBookingCode)
+                                        .orElse(null);
+                }
+
                 return EmrResponse.builder()
                                 .id(emr.getId())
                                 .petId(emr.getPetId())
                                 .bookingId(emr.getBookingId())
+                                .bookingCode(bookingCode)
                                 .vetId(emr.getVetId())
                                 .clinicId(emr.getClinicId())
                                 .clinicName(emr.getClinicName())

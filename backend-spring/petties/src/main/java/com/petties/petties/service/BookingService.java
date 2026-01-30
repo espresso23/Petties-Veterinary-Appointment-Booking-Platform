@@ -56,6 +56,7 @@ public class BookingService {
         private final PricingService pricingService;
         private final BookingServiceItemRepository bookingServiceItemRepository;
         private final SseEmitterService sseEmitterService;
+        private final EmrRecordRepository emrRecordRepository;
 
         // ========== CREATE BOOKING ==========
 
@@ -211,9 +212,13 @@ public class BookingService {
                                         "Không thể xác nhận booking đã qua ngày. Vui lòng hủy và đặt lại.");
                 }
 
-                if (booking.getBookingDate().isEqual(today) && booking.getBookingTime().isBefore(now)) {
-                        throw new IllegalStateException(
-                                        "Không thể xác nhận booking đã qua giờ hẹn. Vui lòng hủy và đặt lại.");
+                // Allow a 30-minute grace period for confirming today's bookings
+                if (booking.getBookingDate().isEqual(today)) {
+                        LocalTime graceTime = booking.getBookingTime().plusMinutes(30);
+                        if (now.isAfter(graceTime)) {
+                                throw new IllegalStateException(
+                                                "Không thể xác nhận booking đã quá 30 phút so với giờ hẹn. Vui lòng gán bác sĩ thủ công hoặc đặt lại.");
+                        }
                 }
 
                 boolean allowPartial = request != null && Boolean.TRUE.equals(request.getAllowPartial());
@@ -283,52 +288,65 @@ public class BookingService {
                 }
 
                 // Auto-assign vets to all services (or manual-assign if specified)
-                if (manualVetId != null) {
-                        // Manual assignment - assign same vet to all services
-                        final UUID finalManualVetId = manualVetId;
-                        User manualVet = userRepository.findById(finalManualVetId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy bác sĩ"));
-                        log.info("Manual vet assignment: {}", manualVet.getFullName());
+                try {
+                        if (manualVetId != null) {
+                                // Manual assignment - assign same vet to all services
+                                final UUID finalManualVetId = manualVetId;
+                                User manualVet = userRepository.findById(finalManualVetId)
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Không tìm thấy bác sĩ"));
+                                log.info("Manual vet assignment: {}", manualVet.getFullName());
 
-                        booking.setAssignedVet(manualVet);
-                        booking.getBookingServices().forEach(item -> item.setAssignedVet(manualVet));
-                        booking.setStatus(BookingStatus.ASSIGNED);
-
-                        // Reserve slots for the booking
-                        vetAssignmentService.reserveSlotsForBooking(booking);
-
-                        notificationService.sendBookingAssignedNotificationToVet(booking);
-
-                        // Push SSE event to assigned vet and clinic managers for real-time sync
-                        pushBookingUpdateToUsers(booking, "ASSIGNED");
-                } else {
-                        // Auto-assign vets based on service specialty
-                        Map<UUID, User> assignments = vetAssignmentService.assignVetsToAllServices(booking);
-
-                        boolean allAssigned = assignments.size() == booking.getBookingServices().size();
-
-                        if (allAssigned) {
+                                booking.setAssignedVet(manualVet);
+                                booking.getBookingServices().forEach(item -> item.setAssignedVet(manualVet));
                                 booking.setStatus(BookingStatus.ASSIGNED);
+
                                 // Reserve slots for the booking
                                 vetAssignmentService.reserveSlotsForBooking(booking);
-                                // Send notification to all assigned vets
+
                                 notificationService.sendBookingAssignedNotificationToVet(booking);
 
-                                // Push SSE event to assigned vets and clinic managers for real-time sync
+                                // Push SSE event to assigned vet and clinic managers for real-time sync
                                 pushBookingUpdateToUsers(booking, "ASSIGNED");
-                        } else if (allowPartial && !assignments.isEmpty()) {
-                                // Partial assignment allowed
-                                booking.setStatus(BookingStatus.CONFIRMED);
-                                log.info("Partial assignment: {} of {} services assigned",
-                                                assignments.size(), booking.getBookingServices().size());
-                                // Don't reserve slots for partial assignment - manager will assign manually
-                                // later
-                        } else if (!assignments.isEmpty()) {
-                                // Some assignments made, treat as partial
-                                booking.setStatus(BookingStatus.CONFIRMED);
-                        }
+                        } else {
+                                // Auto-assign vets based on service specialty (now slot-aware)
+                                Map<UUID, User> assignments = vetAssignmentService.assignVetsToAllServices(booking);
 
-                        log.info("Auto-assigned {} vets to services", assignments.size());
+                                boolean allAssigned = assignments.size() == booking.getBookingServices().size();
+
+                                if (allAssigned) {
+                                        booking.setStatus(BookingStatus.ASSIGNED);
+                                        // Reserve slots for the booking
+                                        vetAssignmentService.reserveSlotsForBooking(booking);
+                                        // Send notification to all assigned vets
+                                        notificationService.sendBookingAssignedNotificationToVet(booking);
+
+                                        // Push SSE event to assigned vets and clinic managers for real-time sync
+                                        pushBookingUpdateToUsers(booking, "ASSIGNED");
+                                } else if (allowPartial && !assignments.isEmpty()) {
+                                        // Partial assignment allowed
+                                        booking.setStatus(BookingStatus.CONFIRMED);
+                                        log.info("Partial assignment: {} of {} services assigned",
+                                                        assignments.size(), booking.getBookingServices().size());
+                                        // Don't reserve slots for partial assignment - manager will assign manually
+                                        // later
+                                } else {
+                                        log.warn("Auto-assignment failed or incomplete: only {}/{} assigned",
+                                                        assignments.size(), booking.getBookingServices().size());
+                                        throw new IllegalStateException(
+                                                        "Hệ thống không tìm thấy đủ bác sĩ còn trống lịch để gán tự động. Vui lòng gán thủ công.");
+                                }
+
+                                log.info("Auto-assigned {} vets to services", assignments.size());
+                        }
+                } catch (Exception e) {
+                        log.error("Failed during booking assignment/reservation: {}", e.getMessage(), e);
+                        // Re-throw as IllegalStateException to returning 400-series if it's a business
+                        // logic failure
+                        if (e instanceof IllegalStateException || e instanceof ResourceNotFoundException) {
+                                throw e;
+                        }
+                        throw new IllegalStateException("Lỗi khi gán lịch: " + e.getMessage());
                 }
 
                 Booking updatedBooking = bookingRepository.save(booking);
@@ -354,9 +372,21 @@ public class BookingService {
          * Get bookings assigned to a vet
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByVet(UUID vetId, BookingStatus status, Pageable pageable) {
-                return bookingRepository.findByAssignedVetIdAndStatus(vetId, status, pageable)
-                                .map(this::mapToResponse);
+        public Page<com.petties.petties.dto.booking.BookingResponse> getBookingsByVet(
+                        UUID vetId,
+                        com.petties.petties.model.enums.BookingStatus status,
+                        org.springframework.data.domain.Pageable pageable) {
+                log.info("Fetching booking history for vet ID: {}", vetId);
+
+                try {
+                        // JPQL query handles null status automatically
+                        Page<Booking> bookings = bookingRepository.findByAssignedVetIdAndStatus(vetId, status,
+                                        pageable);
+                        return bookings.map(this::mapToResponse);
+                } catch (Exception e) {
+                        log.error("Error fetching bookings for vet {}: {}", vetId, e.getMessage(), e);
+                        throw new RuntimeException("Failed to fetch vet bookings: " + e.getMessage(), e);
+                }
         }
 
         /**
@@ -415,121 +445,140 @@ public class BookingService {
          * Map Booking entity to BookingResponse DTO
          */
         private BookingResponse mapToResponse(Booking booking) {
-                Pet pet = booking.getPet();
-                User owner = booking.getPetOwner();
-                Clinic clinic = booking.getClinic();
-                User vet = booking.getAssignedVet();
+                try {
+                        Pet pet = booking.getPet();
+                        User owner = booking.getPetOwner();
+                        Clinic clinic = booking.getClinic();
+                        User vet = booking.getAssignedVet();
 
-                // Calculate pet age
-                String petAge = "N/A";
-                if (pet.getDateOfBirth() != null) {
-                        Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
-                        petAge = age.getYears() > 0
-                                        ? age.getYears() + " tuổi"
-                                        : age.getMonths() + " tháng";
-                }
+                        // Check if EMR already exists for this booking
+                        // Use list to safely handle duplicates without exception
+                        java.util.List<com.petties.petties.model.EmrRecord> emrs = emrRecordRepository
+                                        .findByBookingId(booking.getBookingId());
+                        String emrId = !emrs.isEmpty() ? emrs.get(0).getId() : null;
 
-                // Map services with assigned vet info and calculate scheduled times
-                // Use slotsRequired * 30 minutes (slot duration) for consistency with schedule
-                LocalTime currentTime = booking.getBookingTime();
-                List<BookingResponse.BookingServiceItemResponse> serviceResponses = new java.util.ArrayList<>();
+                        // Calculate pet age
+                        String petAge = "N/A";
+                        if (pet.getDateOfBirth() != null) {
+                                Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
+                                petAge = age.getYears() > 0
+                                                ? age.getYears() + " tuổi"
+                                                : age.getMonths() + " tháng";
+                        }
 
-                for (BookingServiceItem item : booking.getBookingServices()) {
-                        User itemVet = item.getAssignedVet();
-                        int durationMinutes = item.getService().getDurationTime() != null
-                                        ? item.getService().getDurationTime()
-                                        : 30; // Default 30 minutes
+                        // Map services with assigned vet info and calculate scheduled times
+                        // Use slotsRequired * 30 minutes (slot duration) for consistency with schedule
+                        LocalTime currentTime = booking.getBookingTime();
+                        List<BookingResponse.BookingServiceItemResponse> serviceResponses = new java.util.ArrayList<>();
 
-                        // Calculate slots from duration: ceil(duration / 30)
-                        // This ensures consistency with slot reservation logic
-                        int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
-                        int slotDurationMinutes = slotsRequired * 30; // Each slot is 30 min
+                        for (BookingServiceItem item : booking.getBookingServices()) {
+                                User itemVet = item.getAssignedVet();
+                                int durationMinutes = item.getService().getDurationTime() != null
+                                                ? item.getService().getDurationTime()
+                                                : 30; // Default 30 minutes
 
-                        LocalTime startTime = currentTime;
-                        LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
+                                // Calculate slots from duration: ceil(duration / 30)
+                                // This ensures consistency with slot reservation logic
+                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
+                                int slotDurationMinutes = slotsRequired * 30; // Each slot is 30 min
 
-                        serviceResponses.add(BookingResponse.BookingServiceItemResponse.builder()
-                                        .bookingServiceId(item.getBookingServiceId()) // BookingServiceItem ID
-                                        .serviceId(item.getService().getServiceId())
-                                        .serviceName(item.getService().getName())
-                                        .serviceCategory(item.getService().getServiceCategory() != null
-                                                        ? item.getService().getServiceCategory().name()
-                                                        : null)
-                                        .price(item.getUnitPrice())
-                                        .slotsRequired(slotsRequired)
-                                        .durationMinutes(durationMinutes)
-                                        // Pricing breakdown fields
-                                        .basePrice(item.getBasePrice())
-                                        .weightPrice(item.getWeightPrice())
-                                        // Vet info for this specific service
-                                        .assignedVetId(itemVet != null ? itemVet.getUserId() : null)
-                                        .assignedVetName(itemVet != null ? itemVet.getFullName() : null)
-                                        .assignedVetAvatarUrl(itemVet != null ? itemVet.getAvatar() : null)
-                                        .assignedVetSpecialty(itemVet != null && itemVet.getSpecialty() != null
-                                                        ? itemVet.getSpecialty().name()
-                                                        : null)
-                                        // Scheduled time (based on slot allocation, not service duration)
-                                        .scheduledStartTime(startTime)
-                                        .scheduledEndTime(endTime)
-                                        .build());
+                                LocalTime startTime = currentTime;
+                                LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
 
-                        // Move to next time slot
-                        currentTime = endTime;
-                }
-
-                return BookingResponse.builder()
-                                .bookingId(booking.getBookingId())
-                                .bookingCode(booking.getBookingCode())
-                                // Pet info
-                                .petId(pet.getId())
-                                .petName(pet.getName())
-                                .petSpecies(pet.getSpecies())
-                                .petBreed(pet.getBreed())
-                                .petAge(petAge)
-                                .petPhotoUrl(pet.getImageUrl())
-                                .petWeight(pet.getWeight())
-                                // Owner info
-                                .ownerId(owner.getUserId())
-                                .ownerName(owner.getFullName())
-                                .ownerPhone(owner.getPhone())
-                                .ownerEmail(owner.getEmail())
-                                .ownerAvatarUrl(owner.getAvatar())
-                                .ownerAddress(owner.getAddress())
-                                // Clinic info
-                                .clinicId(clinic.getClinicId())
-                                .clinicName(clinic.getName())
-                                .clinicAddress(clinic.getAddress())
-                                // Vet info
-                                .assignedVetId(vet != null ? vet.getUserId() : null)
-                                .assignedVetName(vet != null ? vet.getFullName() : null)
-                                .assignedVetSpecialty(
-                                                vet != null && vet.getSpecialty() != null ? vet.getSpecialty().name()
+                                serviceResponses.add(BookingResponse.BookingServiceItemResponse.builder()
+                                                .bookingServiceId(item.getBookingServiceId()) // BookingServiceItem ID
+                                                .serviceId(item.getService().getServiceId())
+                                                .serviceName(item.getService().getName())
+                                                .serviceCategory(item.getService().getServiceCategory() != null
+                                                                ? item.getService().getServiceCategory().name()
                                                                 : null)
-                                .assignedVetAvatarUrl(vet != null ? vet.getAvatar() : null)
-                                // Payment info
-                                .paymentStatus(booking.getPayment() != null
-                                                ? booking.getPayment().getStatus().name()
-                                                : "PENDING")
-                                .paymentMethod(booking.getPayment() != null && booking.getPayment().getMethod() != null
-                                                ? booking.getPayment().getMethod().name()
-                                                : null)
-                                // Booking info
-                                .bookingDate(booking.getBookingDate())
-                                .bookingTime(booking.getBookingTime())
-                                .type(booking.getType())
-                                .status(booking.getStatus())
-                                .totalPrice(booking.getTotalPrice())
-                                .notes(booking.getNotes())
-                                .services(serviceResponses)
-                                // Home visit info
-                                .homeAddress(booking.getHomeAddress())
-                                .homeLat(booking.getHomeLat())
-                                .homeLong(booking.getHomeLong())
-                                .distanceKm(booking.getDistanceKm())
-                                .distanceFee(booking.getDistanceFee())
-                                // Timestamps
-                                .createdAt(booking.getCreatedAt())
-                                .build();
+                                                .price(item.getUnitPrice())
+                                                .slotsRequired(slotsRequired)
+                                                .durationMinutes(durationMinutes)
+                                                // Pricing breakdown fields
+                                                .basePrice(item.getBasePrice())
+                                                .weightPrice(item.getWeightPrice())
+                                                // Vet info for this specific service
+                                                .assignedVetId(itemVet != null ? itemVet.getUserId() : null)
+                                                .assignedVetName(itemVet != null ? itemVet.getFullName() : null)
+                                                .assignedVetAvatarUrl(itemVet != null ? itemVet.getAvatar() : null)
+                                                .assignedVetSpecialty(itemVet != null && itemVet.getSpecialty() != null
+                                                                ? itemVet.getSpecialty().name()
+                                                                : null)
+                                                // Scheduled time (based on slot allocation, not service duration)
+                                                .scheduledStartTime(startTime)
+                                                .scheduledEndTime(endTime)
+                                                .build());
+
+                                // Move to next time slot
+                                currentTime = endTime;
+                        }
+
+                        return BookingResponse.builder()
+                                        .bookingId(booking.getBookingId())
+                                        .bookingId(booking.getBookingId())
+                                        .bookingCode(booking.getBookingCode())
+                                        .emrId(emrId)
+                                        // Pet info
+                                        .petId(pet.getId())
+                                        .petName(pet.getName())
+                                        .petSpecies(pet.getSpecies())
+                                        .petBreed(pet.getBreed())
+                                        .petAge(petAge)
+                                        .petPhotoUrl(pet.getImageUrl())
+                                        .petWeight(pet.getWeight())
+                                        // Owner info
+                                        .ownerId(owner.getUserId())
+                                        .ownerName(owner.getFullName())
+                                        .ownerPhone(owner.getPhone())
+                                        .ownerEmail(owner.getEmail())
+                                        .ownerAvatarUrl(owner.getAvatar())
+                                        .ownerAddress(owner.getAddress())
+                                        // Clinic info
+                                        .clinicId(clinic.getClinicId())
+                                        .clinicName(clinic.getName())
+                                        .clinicAddress(clinic.getAddress())
+                                        // Vet info
+                                        .assignedVetId(vet != null ? vet.getUserId() : null)
+                                        .assignedVetName(vet != null ? vet.getFullName() : null)
+                                        .assignedVetSpecialty(
+                                                        vet != null && vet.getSpecialty() != null
+                                                                        ? vet.getSpecialty().name()
+                                                                        : null)
+                                        .assignedVetAvatarUrl(vet != null ? vet.getAvatar() : null)
+                                        // Payment info
+                                        .paymentStatus(booking.getPayment() != null
+                                                        ? booking.getPayment().getStatus().name()
+                                                        : "PENDING")
+                                        .paymentMethod(booking.getPayment() != null
+                                                        && booking.getPayment().getMethod() != null
+                                                                        ? booking.getPayment().getMethod().name()
+                                                                        : null)
+                                        // Booking info
+                                        .bookingDate(booking.getBookingDate())
+                                        .bookingTime(booking.getBookingTime())
+                                        .type(booking.getType())
+                                        .status(booking.getStatus())
+                                        .totalPrice(booking.getTotalPrice())
+                                        .notes(booking.getNotes())
+                                        .services(serviceResponses)
+                                        // Home visit info
+                                        .homeAddress(booking.getHomeAddress())
+                                        .homeLat(booking.getHomeLat())
+                                        .homeLong(booking.getHomeLong())
+                                        .distanceKm(booking.getDistanceKm())
+                                        .distanceFee(booking.getDistanceFee())
+                                        // Timestamps
+                                        .createdAt(booking.getCreatedAt())
+                                        .build();
+                } catch (Exception e) {
+                        log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(),
+                                        e);
+                        // Return a minimal valid response or rethrow depending on severity.
+                        // We'll throw RuntimeException to see the error in logs, but arguably we could
+                        // return null and filter it out upstream if we wanted partial success.
+                        throw new RuntimeException("Error mapping booking " + booking.getBookingCode(), e);
+                }
         }
 
         // ========== VET AVAILABILITY CHECK ==========
@@ -823,25 +872,32 @@ public class BookingService {
                                 .collect(Collectors.toSet());
 
                 // Filter and Map
-                return allActiveServices.stream()
-                                .filter(service -> !existingServiceIds.contains(service.getServiceId()))
-                                .filter(service -> {
-                                        // Specialty filtering for Vets in Home Visit
-                                        if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                                        && currentUser.getRole() == com.petties.petties.model.enums.Role.VET) {
+                try {
+                        return allActiveServices.stream()
+                                        .filter(service -> !existingServiceIds.contains(service.getServiceId()))
+                                        .filter(service -> {
+                                                // Specialty filtering for Vets in Home Visit
+                                                if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
+                                                                && currentUser.getRole() == com.petties.petties.model.enums.Role.VET) {
 
-                                                StaffSpecialty vetSpecialty = currentUser.getSpecialty();
-                                                StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
-                                                                ? service.getServiceCategory().getRequiredSpecialty()
-                                                                : StaffSpecialty.VET_GENERAL;
+                                                        StaffSpecialty vetSpecialty = currentUser.getSpecialty();
+                                                        StaffSpecialty requiredSpecialty = service
+                                                                        .getServiceCategory() != null
+                                                                                        ? service.getServiceCategory()
+                                                                                                        .getRequiredSpecialty()
+                                                                                        : StaffSpecialty.VET_GENERAL;
 
-                                                return vetSpecialty == StaffSpecialty.VET_GENERAL
-                                                                || vetSpecialty == requiredSpecialty;
-                                        }
-                                        return true; // Managers or In-Clinic bookings see all
-                                })
-                                .map(this::mapServiceToResponse)
-                                .collect(Collectors.toList());
+                                                        return vetSpecialty == StaffSpecialty.VET_GENERAL
+                                                                        || vetSpecialty == requiredSpecialty;
+                                                }
+                                                return true; // Managers or In-Clinic bookings see all
+                                        })
+                                        .map(this::mapServiceToResponse)
+                                        .collect(Collectors.toList());
+                } catch (Exception e) {
+                        log.error("Error filtering/mapping services for booking {}: {}", bookingId, e.getMessage(), e);
+                        throw e; // Controller will catch this
+                }
         }
 
         private com.petties.petties.dto.clinicService.ClinicServiceResponse mapServiceToResponse(
@@ -902,10 +958,10 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
-                // Validate status
-                if (booking.getStatus() != BookingStatus.ASSIGNED) {
+                // Validate status - allow ASSIGNED or ARRIVED
+                if (booking.getStatus() != BookingStatus.ASSIGNED && booking.getStatus() != BookingStatus.ARRIVED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái ASSIGNED. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái ASSIGNED hoặc ARRIVED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -1124,6 +1180,7 @@ public class BookingService {
                         List<BookingStatus> activeStatuses = List.of(
                                         BookingStatus.CONFIRMED,
                                         BookingStatus.ASSIGNED,
+                                        BookingStatus.PENDING,
                                         BookingStatus.IN_PROGRESS);
                         List<Booking> upcomingBookings = bookingRepository
                                         .findByAssignedVetIdAndBookingDateBetweenAndStatusIn(
@@ -1133,7 +1190,8 @@ public class BookingService {
                         int todayCount = todayBookings != null ? todayBookings.size() : 0;
                         int pendingCount = todayBookings != null ? (int) todayBookings.stream()
                                         .filter(b -> b.getStatus() == BookingStatus.CONFIRMED
-                                                        || b.getStatus() == BookingStatus.ASSIGNED)
+                                                        || b.getStatus() == BookingStatus.ASSIGNED
+                                                        || b.getStatus() == BookingStatus.PENDING)
                                         .count() : 0;
                         int inProgressCount = todayBookings != null ? (int) todayBookings.stream()
                                         .filter(b -> b.getStatus() == BookingStatus.IN_PROGRESS)

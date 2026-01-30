@@ -17,7 +17,7 @@ const AUTH_BASE = `${env.API_BASE_URL}/auth`
 // ===== TYPES =====
 
 export interface User {
-    userId: number
+    userId: string
     username: string
     email: string
     fullName: string

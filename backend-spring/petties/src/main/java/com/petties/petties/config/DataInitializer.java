@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +35,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-
+@Order(1) // Run BEFORE BookingDataSeeder (Order 2)
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
@@ -152,7 +153,7 @@ public class DataInitializer implements CommandLineRunner {
                 }
 
                 // Ensure specific user has access to Clinic Data
-                String targetEmail = "congnvde180639@fpt.edu.vn";
+                String targetEmail = "datdat13112004@gmail.com";
                 User targetUser = userRepository.findByEmail(targetEmail).orElse(null);
 
                 if (targetUser == null) {

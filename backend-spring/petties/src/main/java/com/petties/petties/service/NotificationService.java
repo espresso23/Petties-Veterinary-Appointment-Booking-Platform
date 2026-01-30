@@ -454,9 +454,9 @@ public class NotificationService {
          * Notify new vet when reassigned to a booking service
          * Also optionally notify old vet that they were removed
          *
-         * @param booking   The booking
-         * @param newVet    The newly assigned vet
-         * @param oldVet    The previously assigned vet (can be null)
+         * @param booking     The booking
+         * @param newVet      The newly assigned vet
+         * @param oldVet      The previously assigned vet (can be null)
          * @param serviceName The service being reassigned
          */
         @Transactional
@@ -734,6 +734,8 @@ public class NotificationService {
                                 .message(notification.getMessage())
                                 .reason(notification.getReason())
                                 .read(notification.getRead())
+                                .actionType(notification.getActionType())
+                                .actionData(notification.getActionData())
                                 .createdAt(notification.getCreatedAt());
 
                 // Add clinic fields if present

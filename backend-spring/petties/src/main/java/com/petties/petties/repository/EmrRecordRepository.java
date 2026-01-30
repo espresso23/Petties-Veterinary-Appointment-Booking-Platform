@@ -16,7 +16,7 @@ public interface EmrRecordRepository extends MongoRepository<EmrRecord, String> 
 
     List<EmrRecord> findByPetIdOrderByCreatedAtDesc(UUID petId);
 
-    Optional<EmrRecord> findByBookingId(UUID bookingId);
+    List<EmrRecord> findByBookingId(UUID bookingId);
 
     List<EmrRecord> findByClinicIdOrderByExaminationDateDesc(UUID clinicId);
 

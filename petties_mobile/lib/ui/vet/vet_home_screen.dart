@@ -559,12 +559,8 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED') {
-          statusTag = 'ĐÃ ASSIGN';
-          tagColor = AppColors.infoLight;
-          tagTextColor = AppColors.info;
-        } else if (booking.status == 'CONFIRMED') {
-          statusTag = 'ĐÃ XÁC NHẬN';
+        } else if (booking.status == 'ASSIGNED' || booking.status == 'CONFIRMED') {
+          statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;
         }
@@ -625,7 +621,11 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
   }) {
     return GestureDetector(
       onTap: bookingId != null
-          ? () => context.push('/vet/booking/$bookingId')
+          ? () async {
+              await context.push('/vet/booking/$bookingId');
+              // Refresh data when returning from booking detail
+              _fetchData();
+            }
           : null,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -879,7 +879,7 @@ class _VetHomeScreenState extends State<VetHomeScreen> {
           _buildNavItem(
               context, Icons.grid_view_rounded, 'Trang chủ', true, null),
           _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch hẹn',
-              false, () => context.push(AppRoutes.vetSchedule)),
+              false, () => context.push(AppRoutes.vetBookings)),
           _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,
               () => context.push(AppRoutes.vetPatients)),
           _buildNavItem(
