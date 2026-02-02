@@ -1805,11 +1805,13 @@ flowchart LR
 | POST | `/ai/knowledge/query` | Test RAG Retrieval | Admin |
 | GET | `/ai/knowledge/status` | KB Status & Stats | Admin |
 
-### 3.3 Planned Modules (Backend)
+### 3.3 Implemented Modules (Backend) - Previously Planned
+
+> **Note:** These modules were originally marked as "Planned" but are now **FULLY IMPLEMENTED** and functional in production.
 
 #### 3.3.1 Patient Management Module
 
-> **Status:** Design Approved. Endpoint paths finalized.
+> **Status:** ✅ **IMPLEMENTED** (Sprint 7-8). All endpoints functional.
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
@@ -1825,6 +1827,8 @@ flowchart LR
 | DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | STAFF |
 
 #### 3.3.2 Booking Management Module
+n> **Status:** ✅ **IMPLEMENTED** (Sprint 6-7). Full booking lifecycle supported.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/api/bookings` | Create new booking (Select slot) | Pet Owner |
@@ -1833,6 +1837,8 @@ flowchart LR
 | PATCH | `/api/bookings/{id}/status` | Update booking status | CM, STAFF |
 
 #### 3.3.3 Discovery & Search Module
+n> **Status:** ✅ **IMPLEMENTED** (Sprint 4-5). Integrated with Goong Maps API.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/discovery/nearby` | Find clinics by coordinates (lat, lng, radius) | Public |
@@ -1840,6 +1846,8 @@ flowchart LR
 | GET | `/api/discovery/geocoding` | Convert address to coordinates (Map API proxy) | Public |
 
 #### 3.3.4 Vaccination History Module (Merged)
+n> **Status:** ✅ **IMPLEMENTED** (Sprint 7). Fully integrated with EMR module.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/pets/{petId}/vaccinations` | Get full vaccination history | Auth |
