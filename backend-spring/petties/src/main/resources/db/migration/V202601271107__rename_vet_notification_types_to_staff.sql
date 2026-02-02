@@ -54,6 +54,7 @@ BEGIN
                 'BOOKING_COMPLETED',
                 'BOOKING_REMINDER',
                 'RE_EXAMINATION_REMINDER',
+                'VACCINATION_REMINDER',
                 'SYSTEM',
                 'PROMOTION'
             ])
