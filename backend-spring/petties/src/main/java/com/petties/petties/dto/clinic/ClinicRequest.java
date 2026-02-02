@@ -65,4 +65,10 @@ public class ClinicRequest {
 
     @Size(max = 500, message = "URL giấy phép kinh doanh không được vượt quá 500 ký tự")
     private String businessLicenseUrl; // URL to business license/veterinary practice certificate
+
+    @Size(max = 100, message = "Tên ngân hàng không được vượt quá 100 ký tự")
+    private String bankName; // Tên ngân hàng
+
+    @Size(max = 50, message = "Số tài khoản không được vượt quá 50 ký tự")
+    private String accountNumber; // Số tài khoản ngân hàng
 }

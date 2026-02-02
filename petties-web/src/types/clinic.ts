@@ -75,6 +75,8 @@ export interface ClinicRequest {
   longitude?: number
   logo?: string // URL to clinic logo
   businessLicenseUrl?: string // URL to business license
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
 }
 
 export interface ClinicResponse {
@@ -99,6 +101,8 @@ export interface ClinicResponse {
   longitude?: number
   logo?: string // URL to clinic logo
   businessLicenseUrl?: string // URL to business license
+  bankName?: string // Tên ngân hàng
+  accountNumber?: string // Số tài khoản ngân hàng
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string

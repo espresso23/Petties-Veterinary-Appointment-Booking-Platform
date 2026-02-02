@@ -91,6 +91,8 @@ public class ClinicService {
                 clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
                 clinic.setStatus(ClinicStatus.PENDING);
 
@@ -156,6 +158,8 @@ public class ClinicService {
                 clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
 
                 // Update coordinates: prioritize provided coordinates, otherwise geocode if
@@ -644,6 +648,8 @@ public class ClinicService {
                                 .businessLicenseUrl(clinic.getBusinessLicenseUrl())
                                 .phone(clinic.getPhone())
                                 .email(clinic.getEmail())
+                                .bankName(clinic.getBankName())
+                                .accountNumber(clinic.getAccountNumber())
                                 .latitude(clinic.getLatitude())
                                 .longitude(clinic.getLongitude())
                                 .operatingHours(clinic.getOperatingHours())

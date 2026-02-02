@@ -162,4 +162,18 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("startDate") LocalDate startDate,
                         @Param("endDate") LocalDate endDate,
                         @Param("statuses") List<BookingStatus> statuses);
+
+        // ========== PAYMENT SYSTEM QUERIES ==========
+
+        /**
+         * Find all bookings with eager loading of to-one relations
+         * Used by TransactionService for payment reconciliation
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "LEFT JOIN FETCH b.clinic " +
+                        "LEFT JOIN FETCH b.assignedStaff " +
+                        "LEFT JOIN FETCH b.payment")
+        List<Booking> findAllWithToOneRelations();
 }

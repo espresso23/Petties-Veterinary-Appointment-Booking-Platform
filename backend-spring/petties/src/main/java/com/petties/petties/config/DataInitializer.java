@@ -4,6 +4,13 @@ import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.Booking;
+import com.petties.petties.model.Payment;
+import com.petties.petties.model.ClinicService;
+import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.model.Prescription;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
@@ -12,6 +19,9 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.BookingRepository;
+import com.petties.petties.repository.PaymentRepository;
+import com.petties.petties.repository.ClinicServiceRepository;
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.model.ChatConversation;
@@ -41,6 +51,9 @@ public class DataInitializer implements CommandLineRunner {
     private final ClinicRepository clinicRepository;
     private final PetRepository petRepository;
     private final EmrRecordRepository emrRecordRepository;
+    private final BookingRepository bookingRepository;
+    private final PaymentRepository paymentRepository;
+    private final ClinicServiceRepository clinicServiceRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -206,6 +219,11 @@ public class DataInitializer implements CommandLineRunner {
         // Seed a second conversation from petOwner2
         if (petOwner2 != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner2, clinicManager, clinic);
+        }
+
+        // Seed transaction test data for TransactionService (from Payment branch)
+        if (petOwner != null && clinic != null) {
+            seedTransactionTestData(petOwner, clinic, clinicManager);
         }
     }
 
@@ -679,6 +697,66 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created clinic '{}' in {} - Rating: {}", name, district, rating);
         } catch (Exception e) {
             log.error("   x Failed to create clinic '{}': {}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Seed transaction test data for TransactionService (from Payment branch)
+     */
+    private void seedTransactionTestData(User petOwner, Clinic clinic, User clinicManager) {
+        if (petOwner == null || clinic == null) {
+            log.info("   - Skipping transaction test data (missing petOwner or clinic)");
+            return;
+        }
+
+        try {
+            // 1. Create test Pet
+            Pet pet = Pet.builder()
+                    .name("Test Dog")
+                    .user(petOwner)
+                    .species("Cho")
+                    .breed("Corgi")
+                    .gender("MALE")
+                    .dateOfBirth(java.time.LocalDate.of(2022, 1, 15))
+                    .weight(10.5)
+                    .build();
+            pet = petRepository.save(pet);
+            log.info("   + Created test pet: {}", pet.getName());
+
+            // 2. Create Booking
+            Booking booking = Booking.builder()
+                    .bookingCode("BK-TEST-001")
+                    .pet(pet)
+                    .petOwner(petOwner)
+                    .clinic(clinic)
+                    .assignedStaff(clinicManager)
+                    .bookingDate(java.time.LocalDate.now().plusDays(1))
+                    .bookingTime(java.time.LocalTime.of(10, 0))
+                    .type(BookingType.IN_CLINIC)
+                    .totalPrice(java.math.BigDecimal.valueOf(2000))
+                    .status(BookingStatus.PENDING)
+                    .notes("Test booking cho Transaction Service")
+                    .build();
+
+            booking = bookingRepository.save(booking);
+            log.info("   + Created test booking: {} - Total: {} VND",
+                    booking.getBookingCode(), booking.getTotalPrice());
+
+            // 3. Create Payment with QR method
+            Payment payment = Payment.builder()
+                    .booking(booking)
+                    .amount(java.math.BigDecimal.valueOf(2000))
+                    .method(PaymentMethod.QR)
+                    .status(PaymentStatus.PENDING)
+                    .build();
+            payment = paymentRepository.save(payment);
+            booking.setPayment(payment);
+            bookingRepository.save(booking);
+            log.info("   + Created test payment: {} VND - Method: {}",
+                    payment.getAmount(), payment.getMethod());
+
+        } catch (Exception e) {
+            log.error("   x Failed to seed transaction test data: {}", e.getMessage());
         }
     }
 }

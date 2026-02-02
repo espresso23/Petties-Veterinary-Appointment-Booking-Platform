@@ -109,6 +109,8 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      #SePay API Token
+      SEPAY_API_TOKEN: ${SEPAY_API_TOKEN:-}
       # Sentry Error Monitoring (disabled for test)
       SENTRY_DSN:
     ports:
