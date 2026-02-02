@@ -157,7 +157,7 @@ export const reassignStaffForService = async (
     serviceId: string,
     newStaffId: string
 ): Promise<Booking> => {
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/services/${serviceId}/reassign-staff`, {
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/services/${serviceId}/reassign`, {
         newStaffId
     });
     return response.data;
