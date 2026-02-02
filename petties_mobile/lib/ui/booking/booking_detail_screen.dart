@@ -37,9 +37,9 @@ class AppointmentDetailScreen extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildClinicCard(context),
                   const SizedBox(height: 16),
-                  // Show vet info if any vet is assigned (from booking or services)
-                  if (_hasAssignedVets()) ...[
-                    _buildVetCard(),
+                  // Show staff info if any staff is assigned (from booking or services)
+                  if (_hasAssignedStaff()) ...[
+                    _buildStaffCard(),
                     const SizedBox(height: 16),
                   ],
                   _buildTimeCard(),
@@ -285,7 +285,7 @@ class AppointmentDetailScreen extends StatelessWidget {
   }
 
   /// Check if any staff is assigned to this booking
-  bool _hasAssignedVets() {
+  bool _hasAssignedStaff() {
     // Check main booking staff
     if (booking.assignedStaffName != null &&
         booking.assignedStaffName!.isNotEmpty) {
@@ -299,14 +299,14 @@ class AppointmentDetailScreen extends StatelessWidget {
   }
 
   /// Get unique staff from all services
-  List<Map<String, String?>> _getUniqueVets() {
-    final Map<String, Map<String, String?>> vetMap = {};
+  List<Map<String, String?>> _getUniqueStaff() {
+    final Map<String, Map<String, String?>> staffMap = {};
 
     // First, add the main assigned staff if exists
     if (booking.assignedStaffName != null &&
         booking.assignedStaffName!.isNotEmpty) {
       final staffId = 'main'; // placeholder for main staff
-      vetMap[staffId] = {
+      staffMap[staffId] = {
         'name': booking.assignedStaffName,
         'avatarUrl': booking.assignedStaffAvatarUrl,
       };
@@ -314,21 +314,22 @@ class AppointmentDetailScreen extends StatelessWidget {
 
     // Then add staff from services (they may override or add new staff)
     for (final service in booking.services) {
-      if (service.assignedStaffId != null && service.assignedStaffName != null) {
-        vetMap[service.assignedStaffId!] = {
+      if (service.assignedStaffId != null &&
+          service.assignedStaffName != null) {
+        staffMap[service.assignedStaffId!] = {
           'name': service.assignedStaffName,
           'avatarUrl': service.assignedStaffAvatarUrl,
         };
       }
     }
 
-    return vetMap.values.toList();
+    return staffMap.values.toList();
   }
 
-  Widget _buildVetCard() {
-    final vets = _getUniqueVets();
+  Widget _buildStaffCard() {
+    final staffList = _getUniqueStaff();
 
-    if (vets.isEmpty) return const SizedBox.shrink();
+    if (staffList.isEmpty) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -341,7 +342,9 @@ class AppointmentDetailScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            vets.length > 1 ? 'BÁC SĨ PHỤ TRÁCH' : 'BÁC SĨ PHỤ TRÁCH',
+            staffList.length > 1
+                ? 'NHÂN VIÊN PHỤ TRÁCH'
+                : 'NHÂN VIÊN PHỤ TRÁCH',
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -350,17 +353,18 @@ class AppointmentDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ...vets.map((vet) => Padding(
-                padding: EdgeInsets.only(bottom: vets.last == vet ? 0 : 12),
+          ...staffList.map((staff) => Padding(
+                padding:
+                    EdgeInsets.only(bottom: staffList.last == staff ? 0 : 12),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundImage: vet['avatarUrl'] != null
-                          ? NetworkImage(vet['avatarUrl']!)
+                      backgroundImage: staff['avatarUrl'] != null
+                          ? NetworkImage(staff['avatarUrl']!)
                           : null,
                       backgroundColor: AppColors.infoLight,
-                      child: vet['avatarUrl'] == null
+                      child: staff['avatarUrl'] == null
                           ? const Icon(Icons.medical_services,
                               color: AppColors.info, size: 20)
                           : null,
@@ -368,7 +372,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        vet['name'] ?? '',
+                        staff['name'] ?? '',
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,

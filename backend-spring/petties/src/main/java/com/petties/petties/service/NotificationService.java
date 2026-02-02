@@ -166,10 +166,10 @@ public class NotificationService {
                 }
         }
 
-        // ======================== VET SHIFT NOTIFICATIONS ========================
+        // ======================== STAFF SHIFT NOTIFICATIONS ========================
 
         /**
-         * Notify Vet when a new shift is assigned (single shift)
+         * Notify Staff when a new shift is assigned (single shift)
          */
         @Transactional
         public Notification notifyStaffShiftAssigned(User staff, StaffShift shift) {
@@ -200,11 +200,11 @@ public class NotificationService {
         }
 
         /**
-         * Notify Vet when multiple shifts are assigned in batch
+         * Notify Staff when multiple shifts are assigned in batch
          * Creates ONE notification summarizing all shifts instead of N individual
          * notifications
          *
-         * @param vet    The vet being notified
+         * @param staff  The staff being notified
          * @param shifts List of shifts assigned (must not be empty)
          * @param clinic The clinic where shifts are assigned
          */
@@ -259,7 +259,7 @@ public class NotificationService {
         }
 
         /**
-         * Notify Vet when their shift is updated (single shift)
+         * Notify Staff when their shift is updated (single shift)
          */
         @Transactional
         public Notification notifyStaffShiftUpdated(User staff, StaffShift shift) {
@@ -290,7 +290,7 @@ public class NotificationService {
         }
 
         /**
-         * Notify Vet when multiple shifts are updated in batch
+         * Notify Staff when multiple shifts are updated in batch
          * Creates ONE notification summarizing all shifts instead of N individual
          * notifications
          */
@@ -345,7 +345,7 @@ public class NotificationService {
         }
 
         /**
-         * Notify Vet when their shift is deleted
+         * Notify Staff when their shift is deleted
          */
         @Transactional
         public Notification notifyStaffShiftDeleted(User staff, LocalDate workDate, String clinicName) {
@@ -517,7 +517,7 @@ public class NotificationService {
         }
 
         /**
-         * Notify pet owner when vet checks in (starts the service)
+         * Notify pet owner when staff checks in (starts the service)
          */
         @Transactional
         public void sendCheckinNotification(com.petties.petties.model.Booking booking) {
@@ -730,6 +730,8 @@ public class NotificationService {
                                 .message(notification.getMessage())
                                 .reason(notification.getReason())
                                 .read(notification.getRead())
+                                .actionType(notification.getActionType())
+                                .actionData(notification.getActionData())
                                 .createdAt(notification.getCreatedAt());
 
                 // Add clinic fields if present

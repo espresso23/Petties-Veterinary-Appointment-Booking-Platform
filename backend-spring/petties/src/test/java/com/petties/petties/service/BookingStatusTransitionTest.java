@@ -9,6 +9,7 @@ import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.repository.BookingRepository;
+import com.petties.petties.repository.EmrRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -41,6 +42,9 @@ class BookingStatusTransitionTest {
 
     @Mock
     private NotificationService notificationService;
+
+    @Mock
+    private EmrRecordRepository emrRecordRepository;
 
     @InjectMocks
     private BookingService bookingService;

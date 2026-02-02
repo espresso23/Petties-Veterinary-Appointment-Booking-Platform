@@ -559,12 +559,8 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED') {
-          statusTag = 'ĐÃ ASSIGN';
-          tagColor = AppColors.infoLight;
-          tagTextColor = AppColors.info;
-        } else if (booking.status == 'CONFIRMED') {
-          statusTag = 'ĐÃ XÁC NHẬN';
+        } else if (booking.status == 'ASSIGNED' || booking.status == 'CONFIRMED') {
+          statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;
         }
@@ -625,7 +621,11 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   }) {
     return GestureDetector(
       onTap: bookingId != null
-          ? () => context.push('/staff/booking/$bookingId')
+          ? () async {
+              await context.push('/staff/booking/$bookingId');
+              // Refresh data when returning from booking detail
+              _fetchData();
+            }
           : null,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -879,7 +879,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           _buildNavItem(
               context, Icons.grid_view_rounded, 'Trang chủ', true, null),
           _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch hẹn',
-              false, () => context.push(AppRoutes.staffSchedule)),
+              false, () => context.push(AppRoutes.staffBookings)),
           _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,
               () => context.push(AppRoutes.staffPatients)),
           _buildNavItem(context, Icons.person_rounded, 'Cá nhân', false,

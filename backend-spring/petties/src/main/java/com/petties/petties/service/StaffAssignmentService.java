@@ -114,54 +114,42 @@ public class StaffAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime bookingTime = booking.getBookingTime();
+        LocalTime currentTime = booking.getBookingTime();
 
         Map<UUID, User> assignments = new HashMap<>();
         Map<StaffSpecialty, User> specialtyStaffCache = new HashMap<>();
 
-        // Group services by required specialty
-        Map<StaffSpecialty, List<BookingServiceItem>> servicesBySpecialty = new HashMap<>();
-
+        // Process services sequentially to calculate correct start times for each
         for (BookingServiceItem item : booking.getBookingServices()) {
             StaffSpecialty specialty = getSpecialtyForService(item);
-            servicesBySpecialty.computeIfAbsent(specialty, k -> new ArrayList<>()).add(item);
-        }
 
-        log.info("Services grouped by specialty: {}",
-                servicesBySpecialty.entrySet().stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                e -> e.getValue().size())));
+            // Calculate slots needed for this specific service
+            Integer duration = item.getService().getDurationTime();
+            int slotsNeeded = (duration != null && duration > 0)
+                    ? (int) Math.ceil(duration / 30.0)
+                    : 1;
 
-        // Assign staff for each specialty group
-        for (Map.Entry<StaffSpecialty, List<BookingServiceItem>> entry : servicesBySpecialty.entrySet()) {
-            StaffSpecialty specialty = entry.getKey();
-            List<BookingServiceItem> items = entry.getValue();
+            // Find available staff for this specialty at THIS specific time with ENOUGH slots
+            // This ensures we pick a staff who actually has capacity
+            User staff = findAvailableStaffForSpecialtyAtTime(
+                    clinicId, bookingDate, currentTime, specialty, slotsNeeded);
 
-            // Find available staff for this specialty (reuse if already assigned)
-            User staff = specialtyStaffCache.get(specialty);
-            if (staff == null) {
-                staff = findAvailableStaffForSpecialty(clinicId, bookingDate, bookingTime, specialty);
-                if (staff != null) {
-                    specialtyStaffCache.put(specialty, staff);
-                }
+            if (staff != null) {
+                item.setAssignedStaff(staff);
+                assignments.put(item.getBookingServiceId(), staff);
+                specialtyStaffCache.put(specialty, staff);
+                log.info("Assigned staff {} to service {} (specialty: {}) at {}",
+                        staff.getFullName(), item.getService().getName(), specialty, currentTime);
+            } else {
+                log.warn("No staff available for service {} (specialty: {}) at {}",
+                        item.getService().getName(), specialty, currentTime);
             }
 
-            // Assign same staff to all services of this specialty
-            for (BookingServiceItem item : items) {
-                if (staff != null) {
-                    item.setAssignedStaff(staff);
-                    assignments.put(item.getBookingServiceId(), staff);
-                    log.info("Assigned staff {} to service {} (specialty: {})",
-                            staff.getFullName(), item.getService().getName(), specialty);
-                } else {
-                    log.warn("No staff available for service {} (specialty: {})",
-                            item.getService().getName(), specialty);
-                }
-            }
+            // Advance time for next service
+            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
-        // Set primary staff on booking (first assigned staff or most specialized)
+        // Set primary staff on booking (highest specialty priority)
         if (!specialtyStaffCache.isEmpty()) {
             User primaryStaff = selectPrimaryStaff(specialtyStaffCache);
             booking.setAssignedStaff(primaryStaff);
@@ -183,11 +171,11 @@ public class StaffAssignmentService {
     }
 
     /**
-     * Find available staff for a specific specialty
+     * Find available staff for a specific specialty at a specific time with enough slots
      */
-    private User findAvailableStaffForSpecialty(UUID clinicId, LocalDate date, LocalTime time,
-            StaffSpecialty specialty) {
-        log.info(">> Finding staff for specialty: {}", specialty);
+    private User findAvailableStaffForSpecialtyAtTime(UUID clinicId, LocalDate date, LocalTime time,
+            StaffSpecialty specialty, int slotsNeeded) {
+        log.info(">> Finding staff for specialty: {} at time: {} needing {} slots", specialty, time, slotsNeeded);
         List<User> matchingStaff = findStaffWithSpecialty(clinicId, specialty);
         log.info(">> Found {} staff with specialty {}", matchingStaff.size(), specialty);
 
@@ -832,59 +820,6 @@ public class StaffAssignmentService {
                 allHaveStaff, serviceResults.size(), alternatives.size());
 
         return response;
-    }
-
-    /**
-     * Find available staff for a specialty at EXACT time (checking consecutive
-     * slots)
-     */
-    private User findAvailableStaffForSpecialtyAtTime(
-            UUID clinicId, LocalDate date, LocalTime time,
-            StaffSpecialty specialty, int slotsNeeded) {
-
-        List<User> matchingStaff = findStaffWithSpecialty(clinicId, specialty);
-
-        if (matchingStaff.isEmpty() && specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
-            matchingStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-        }
-
-        if (matchingStaff.isEmpty()) {
-            return null;
-        }
-
-        // Filter by shift availability at EXACT time
-        for (User member : matchingStaff) {
-            List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(), date);
-            StaffShift matchingShift = shifts.stream()
-                    .filter(s -> s.getClinic().getClinicId().equals(clinicId) && isTimeWithinShift(time, s))
-                    .findFirst()
-                    .orElse(null);
-
-            if (matchingShift == null) {
-                continue;
-            }
-
-            // Check for consecutive available slots starting at exact time
-            List<Slot> allAvailableSlots = slotRepository
-                    .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(), SlotStatus.AVAILABLE);
-
-            List<Slot> consecutiveSlots = new ArrayList<>();
-            LocalTime expectedStart = time;
-
-            for (Slot slot : allAvailableSlots) {
-                if (slot.getStartTime().equals(expectedStart)) {
-                    consecutiveSlots.add(slot);
-                    expectedStart = slot.getEndTime();
-                    if (consecutiveSlots.size() >= slotsNeeded) {
-                        return member; // Found a staff with enough consecutive slots
-                    }
-                } else if (!consecutiveSlots.isEmpty() && !slot.getStartTime().equals(expectedStart)) {
-                    break; // Gap in consecutive slots
-                }
-            }
-        }
-
-        return null;
     }
 
     /**

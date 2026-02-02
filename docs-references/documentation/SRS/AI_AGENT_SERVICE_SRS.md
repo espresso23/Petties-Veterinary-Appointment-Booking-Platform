@@ -4,8 +4,8 @@
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Module:** AI Agent Service (FastAPI + LangGraph + RAG)
 **Document Type:** Report 3 - Software Requirements Specification
-**Version:** 1.5.0
-**Last Updated:** 2026-01-22
+**Version:** 1.6.0
+**Last Updated:** 2026-02-02
 
 ---
 
@@ -13,12 +13,18 @@
 
 ### 1.1 Mục đích tài liệu
 
-Tài liệu SRS này mô tả đầy đủ các yêu cầu chức năng và phi chức năng của **Petties AI Agent Service** - một hệ thống trợ lý AI thông minh sử dụng Single Agent với ReAct pattern, RAG (Retrieval-Augmented Generation), và FastMCP Tools để hỗ trợ người dùng trong việc chăm sóc thú cưng và đặt lịch khám thú y.
+Tài liệu SRS này mô tả đầy đủ các yêu cầu chức năng và phi chức năng của **Petties AI Agent Service** - một hệ thống trợ lý AI thông minh sử dụng Single Agent với ReAct pattern, RAG (Retrieval-Augmented Generation), và FastMCP Tools. Hệ thống không chỉ đơn thuần là chatbot mà còn là **trợ lý toàn diện** phục vụ:
+
+- **Pet Owners (Mobile):** Tư vấn chăm sóc thú cưng, chẩn đoán sơ bộ triệu chứng, đặt lịch khám qua chat
+- **Clinic Staff & Managers (Web):** Hỗ trợ quản lý lịch hẹn, gợi ý xử lý tình huống, tối ưu hóa quy trình làm việc
+- **Administrators (Web):** Quản lý cấu hình Agent, Knowledge Base, và giám sát hệ thống
 
 ### 1.2 Phạm vi hệ thống
 
 **AI Agent Service** bao gồm các chức năng chính:
 
+- **Pet Owner Assistant:** Chat AI hỗ trợ tư vấn sức khỏe thú cưng và đặt lịch khám
+- **Clinic Assistant:** Trợ lý cho nhân viên phòng khám trong việc quản lý booking và xử lý tình huống
 - **Agent Management:** Quản lý cấu hình Single Agent (system prompt, hyperparameters, model selection)
 - **Tool Management:** Quản lý FastMCP tools (@mcp.tool) với khả năng enable/disable
 - **Knowledge Base:** Upload, indexing và truy vấn tài liệu cho RAG
@@ -85,8 +91,9 @@ flowchart TB
 Petties là nền tảng đặt lịch khám thú y kết nối chủ thú cưng với các phòng khám. AI Agent Service được phát triển để:
 
 1. **Hỗ trợ Pet Owners:** Tư vấn chăm sóc thú cưng, chẩn đoán sơ bộ triệu chứng, đặt lịch qua chat
-2. **Giảm tải cho Clinic Staff:** Tự động trả lời câu hỏi thường gặp
-3. **Tăng trải nghiệm người dùng:** Chatbot thông minh 24/7 với khả năng hiểu tiếng Việt
+2. **Hỗ trợ Clinic Staff:** Tự động trả lời câu hỏi thường gặp, gợi ý xử lý booking, tối ưu lịch làm việc
+3. **Hỗ trợ Clinic Managers:** Quản lý thông minh, báo cáo xu hướng, tư vấn cải thiện dịch vụ
+4. **Tăng trải nghiệm người dùng:** Chatbot thông minh 24/7 với khả năng hiểu tiếng Việt
 
 ### 2.2 Vai trò trong hệ sinh thái Petties
 
@@ -157,6 +164,8 @@ ANSWER: "Dựa trên triệu chứng, mèo có thể bị vấn đề tiêu hóa
 | Actor | Mô tả | Platform |
 |-------|-------|----------|
 | **PET_OWNER** | Chủ thú cưng, người dùng chính của chatbot | Mobile only |
+| **CLINIC_STAFF** | Nhân viên phòng khám, sử dụng AI để hỗ trợ công việc | Web |
+| **CLINIC_MANAGER** | Quản lý phòng khám, sử dụng AI để tối ưu vận hành | Web |
 | **ADMIN** | Quản trị viên hệ thống, cấu hình AI Agent | Web only |
 | **SYSTEM** | Các background jobs (indexing, cleanup) | Backend |
 
@@ -166,17 +175,28 @@ ANSWER: "Dựa trên triệu chứng, mèo có thể bị vấn đề tiêu hóa
 flowchart TB
     subgraph Actors
         PetOwner["👤 PET_OWNER<br/>(Mobile)"]
+        ClinicStaff["👨‍⚕️ CLINIC_STAFF<br/>(Web)"]
+        ClinicManager["👔 CLINIC_MANAGER<br/>(Web)"]
         Admin["👨‍💻 ADMIN<br/>(Web Dashboard)"]
         System["⚙️ SYSTEM<br/>(Background)"]
     end
 
     subgraph UseCases["Use Cases"]
-        subgraph Chat["Chat & Conversation"]
+        subgraph Chat["Chat & Conversation (Pet Owner)"]
             UC001["UC-001: Chat với AI Agent"]
             UC002["UC-002: Hỏi đáp chăm sóc pet"]
             UC003["UC-003: Tìm bệnh theo triệu chứng"]
             UC004["UC-004: Đặt lịch qua chat"]
             UC019["UC-019: Phân tích hình ảnh (Vision)"]
+        end
+
+        subgraph ClinicAssistant["Clinic Assistant (Staff & Manager)"]
+            UC020["UC-020: Hỗ trợ xử lý booking"]
+            UC021["UC-021: Gợi ý reassign staff"]
+            UC022["UC-022: Trả lời FAQ cho khách"]
+            UC023["UC-023: Tổng hợp thông tin bệnh nhân"]
+            UC024["UC-024: Báo cáo xu hướng booking"]
+            UC025["UC-025: Gợi ý tối ưu lịch làm việc"]
         end
 
         subgraph AgentMgmt["Agent Management"]
@@ -214,6 +234,18 @@ flowchart TB
     PetOwner --> UC003
     PetOwner --> UC004
     PetOwner --> UC019
+
+    ClinicStaff --> UC020
+    ClinicStaff --> UC021
+    ClinicStaff --> UC022
+    ClinicStaff --> UC023
+
+    ClinicManager --> UC020
+    ClinicManager --> UC021
+    ClinicManager --> UC022
+    ClinicManager --> UC023
+    ClinicManager --> UC024
+    ClinicManager --> UC025
 
     Admin --> UC005
     Admin --> UC006
@@ -380,6 +412,160 @@ flowchart TB
 
 ---
 
+
+### 4.1.1 Clinic Assistant (Staff & Manager)
+
+#### **UC-020: Hỗ trợ xử lý booking**
+
+- **Actor:** CLINIC_STAFF, CLINIC_MANAGER
+- **Precondition:**
+  - Staff/Manager đã đăng nhập vào Web Dashboard
+  - AI Agent status = ENABLED
+  - Tools: `get_booking_details`, `suggest_actions` enabled
+- **Main Flow:**
+  1. Staff/Manager vào tab "AI Trợ lý" trên web dashboard
+  2. Staff hỏi: "Booking #BK-240202-001 có vấn đề gì không?"
+  3. AI Agent gọi tool `get_booking_details(booking_id="BK-240202-001")`
+  4. Agent phân tích:
+     - Thời gian booking có conflict không?
+     - Staff được assign có shift không?
+     - Pet có lịch sử dị ứng không?
+  5. Agent trả về: "Booking này có vấn đề: Staff Nguyễn Văn A không có ca trực vào thời gian 14:00. Gợi ý: Reassign cho Staff Trần Văn B đang rảnh."
+  6. Staff click "Áp dụng gợi ý" hoặc xử lý thủ công
+- **Alternative Flow:**
+  - AF1: Nếu không tìm thấy booking → "Không tìm thấy booking với mã này"
+  - AF2: Nếu booking không có vấn đề → "Booking hợp lệ, không có conflict"
+- **Postcondition:**
+  - Staff được gợi ý cách xử lý phù hợp
+- **Business Rules:**
+  - BR-033: AI chỉ gợi ý, Staff quyết định cuối cùng
+  - BR-034: Tất cả gợi ý được log để audit
+
+---
+
+#### **UC-021: Gợi ý reassign staff**
+
+- **Actor:** CLINIC_STAFF, CLINIC_MANAGER
+- **Precondition:**
+  - Booking cần reassign (staff nghỉ, quá tải, etc.)
+  - Tool `suggest_staff_reassignment` enabled
+- **Main Flow:**
+  1. Manager hỏi: "Staff nào có thể thay thế cho ca khám 15:00 hôm nay?"
+  2. AI Agent gọi tool `suggest_staff_reassignment(time="15:00", date="today")`
+  3. Tool phân tích:
+     - Staff nào đang có shift vào thời gian đó
+     - Staff nào có specialty phù hợp với dịch vụ
+     - Workload hiện tại của mỗi staff
+  4. Agent trả về danh sách gợi ý:
+     - "1. Trần Văn B (Specialty: Chó) - Đang rảnh, 2 booking hôm nay"
+     - "2. Lê Thị C (Specialty: General) - Ca 14:00-18:00, 3 booking"
+  5. Manager chọn staff phù hợp và confirm reassign
+- **Alternative Flow:**
+  - AF1: Nếu không có staff phù hợp → Gợi ý liên hệ staff nghỉ hoặc reschedule
+- **Postcondition:**
+  - Manager có danh sách staff phù hợp để reassign
+- **Business Rules:**
+  - BR-035: Ưu tiên staff có specialty khớp với service category
+  - BR-036: Hiển thị workload để tránh overload staff
+
+---
+
+#### **UC-022: Trả lời FAQ cho khách**
+
+- **Actor:** CLINIC_STAFF, CLINIC_MANAGER
+- **Precondition:**
+  - Knowledge Base đã có FAQ của phòng khám
+  - Tool `clinic_faq_search` enabled
+- **Main Flow:**
+  1. Staff đang chat với khách hàng, cần tra cứu nhanh
+  2. Staff hỏi AI: "Phòng khám có chính sách hoàn tiền không?"
+  3. AI Agent gọi RAG tool `clinic_faq_search(query="chính sách hoàn tiền")`
+  4. Agent trả về: "Theo chính sách phòng khám: Hoàn 100% nếu hủy trước 24h, hoàn 50% nếu hủy trước 6h, không hoàn nếu hủy < 6h."
+  5. Staff copy/paste câu trả lời gửi cho khách
+- **Alternative Flow:**
+  - AF1: Nếu không tìm thấy → "Không tìm thấy thông tin. Vui lòng liên hệ quản lý."
+- **Postcondition:**
+  - Staff có câu trả lời chính xác để hỗ trợ khách
+- **Business Rules:**
+  - BR-037: Trích dẫn nguồn từ Knowledge Base
+  - BR-038: Nếu confidence < 0.7 → Cảnh báo staff xác nhận lại
+
+---
+
+#### **UC-023: Tổng hợp thông tin bệnh nhân**
+
+- **Actor:** CLINIC_STAFF, CLINIC_MANAGER
+- **Precondition:**
+  - EMR records tồn tại cho pet
+  - Tool `summarize_patient_history` enabled
+- **Main Flow:**
+  1. Staff chuẩn bị khám cho pet, cần review lịch sử
+  2. Staff hỏi AI: "Tóm tắt lịch sử khám của mèo Mimi (Pet ID: 123)"
+  3. AI Agent gọi tool `summarize_patient_history(pet_id="123")`
+  4. Agent tổng hợp từ EMR records:
+     - "Mèo Mimi, 2 tuổi, British Shorthair"
+     - "Lần khám gần nhất: 15/01/2026 - Tiêm vaccine dại"
+     - "Tiền sử: Dị ứng với kháng sinh Amoxicillin (ghi chú 10/2025)"
+     - "Gợi ý: Kiểm tra vaccine tiếp theo vào 07/2026"
+  5. Staff review thông tin trước khi khám
+- **Alternative Flow:**
+  - AF1: Nếu pet chưa có EMR → "Bệnh nhân mới, chưa có lịch sử khám"
+- **Postcondition:**
+  - Staff có overview nhanh về bệnh nhân
+- **Business Rules:**
+  - BR-039: Highlight cảnh báo dị ứng và thông tin quan trọng
+  - BR-040: Chỉ hiển thị cho staff có quyền truy cập EMR
+
+---
+
+#### **UC-024: Báo cáo xu hướng booking** (Manager Only)
+
+- **Actor:** CLINIC_MANAGER
+- **Precondition:**
+  - Có dữ liệu booking ít nhất 30 ngày
+  - Tool `analyze_booking_trends` enabled
+- **Main Flow:**
+  1. Manager hỏi: "Xu hướng booking tháng này như thế nào?"
+  2. AI Agent gọi tool `analyze_booking_trends(period="this_month")`
+  3. Agent phân tích và trả về:
+     - "Tổng booking tháng này: 156 (+12% so với tháng trước)"
+     - "Dịch vụ phổ biến nhất: Tiêm vaccine (35%), Khám tổng quát (28%)"
+     - "Thời gian đông nhất: 9:00-11:00 sáng"
+     - "Gợi ý: Tăng slot buổi sáng, giảm slot buổi chiều (thường trống 30%)"
+  4. Manager sử dụng insights để điều chỉnh operation
+- **Alternative Flow:**
+  - AF1: Nếu dữ liệu ít → "Chưa đủ dữ liệu để phân tích xu hướng"
+- **Postcondition:**
+  - Manager có insights để optimize operation
+- **Business Rules:**
+  - BR-041: Chỉ Manager mới access được báo cáo này
+  - BR-042: Dữ liệu được aggregate, không hiển thị thông tin cá nhân khách
+
+---
+
+#### **UC-025: Gợi ý tối ưu lịch làm việc** (Manager Only)
+
+- **Actor:** CLINIC_MANAGER
+- **Precondition:**
+  - Có dữ liệu shift và booking
+  - Tool `suggest_schedule_optimization` enabled
+- **Main Flow:**
+  1. Manager hỏi: "Lịch làm việc tuần tới có hợp lý không?"
+  2. AI Agent gọi tool `suggest_schedule_optimization(week="next_week")`
+  3. Agent phân tích workload và trả về:
+     - "Thứ 2: Có 20 booking nhưng chỉ 2 staff → Gợi ý thêm 1 staff"
+     - "Thứ 4: 4 staff nhưng chỉ 8 booking → Có thể giảm 1 staff"
+     - "Specialty gap: Không có staff Dermatology ngày Thứ 6"
+  4. Manager điều chỉnh lịch dựa trên gợi ý
+- **Alternative Flow:**
+  - AF1: Nếu lịch hợp lý → "Lịch tuần tới đã tối ưu, không có gợi ý"
+- **Postcondition:**
+  - Manager optimize được staff scheduling
+- **Business Rules:**
+  - BR-043: Đảm bảo mỗi dịch vụ có staff với specialty phù hợp
+  - BR-044: Không để staff overload (> 10 booking/ngày)
+
+---
 
 ### 4.2 Agent Management
 

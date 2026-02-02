@@ -41,7 +41,7 @@ public class ClinicStaffService {
 
     /**
      * Get public staff list for Pet Owners (no sensitive data)
-     * Only returns STAFF role (Vets and Groomers), excludes CLINIC_MANAGER
+     * Only returns STAFF role (staff members), excludes CLINIC_MANAGER
      */
     @Transactional(readOnly = true)
     public List<PublicStaffResponse> getPublicClinicStaff(UUID clinicId) {
@@ -214,7 +214,7 @@ public class ClinicStaffService {
             }
         }
 
-        // Authorization: CLINIC_MANAGER can only remove VETs, not other managers
+        // Authorization: CLINIC_MANAGER can only remove Staff, not other managers
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
             // Must belong to this clinic
             if (currentUser.getWorkingClinic() == null
@@ -232,7 +232,7 @@ public class ClinicStaffService {
     }
 
     /**
-     * Update staff specialty (VET only)
+     * Update staff specialty (STAFF only)
      */
     @Transactional
     public void updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) {

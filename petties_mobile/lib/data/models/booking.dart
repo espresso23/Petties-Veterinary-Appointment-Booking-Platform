@@ -23,6 +23,7 @@ class BookingResponse {
   final String? homeAddress;
   final double? totalPrice;
   final String? notes;
+  final String? emrId;
   final List<BookingServiceItem> services;
   // Staff info
   final String? assignedStaffName;
@@ -50,6 +51,7 @@ class BookingResponse {
     this.homeAddress,
     this.totalPrice,
     this.notes,
+    this.emrId,
     this.services = const [],
     this.assignedStaffName,
     this.assignedStaffAvatarUrl,
@@ -78,6 +80,7 @@ class BookingResponse {
       homeAddress: json['homeAddress'],
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
       notes: json['notes'],
+      emrId: json['emrId'],
       services: (json['services'] as List<dynamic>?)
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??

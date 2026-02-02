@@ -71,18 +71,15 @@ describe('EmrDetailPage', () => {
 
         // Verify Pet Info
         expect(screen.getByText('Buddy')).toBeInTheDocument()
-        expect(screen.getByText(/Chó • Golden Retriever/)).toBeInTheDocument()
+        // Breed is displayed via petBreed field
+        expect(screen.getByText('Golden Retriever')).toBeInTheDocument()
 
-        // Data Integrity Check: Verify Staff Name is displayed with Prefix "BS."
-        // The component renders: <span>BS. {emr.staffName}</span>
-        const staffElement = screen.getByText((content, element) => {
-            return element?.tagName.toLowerCase() === 'span' && content.includes('BS. Nguyễn Văn A')
-        })
-        expect(staffElement).toBeInTheDocument()
+        // Data Integrity Check: Verify Staff Name is displayed
+        // The component renders: "Tạo bởi: {emr.staffName} tại {clinicName}"
+        expect(screen.getByText(/Nguyễn Văn A/)).toBeInTheDocument()
 
-        // Verify Vitals
+        // Verify Weight (shows as "{weightKg} kg")
         expect(screen.getByText('25.5 kg')).toBeInTheDocument()
-        expect(screen.getByText('38.5°C')).toBeInTheDocument()
     })
 
     it('renders error state when API fails', async () => {

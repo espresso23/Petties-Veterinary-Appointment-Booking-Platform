@@ -35,6 +35,13 @@ public class PetController {
         return ResponseEntity.ok(petService.getMyPets());
     }
 
+    @GetMapping("/staff")
+    public ResponseEntity<List<com.petties.petties.dto.pet.StaffPatientDTO>> getStaffPatients(
+            @RequestParam UUID clinicId,
+            @RequestParam UUID staffId) {
+        return ResponseEntity.ok(petService.getPatientsForStaff(clinicId, staffId));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PetResponse> getPet(@PathVariable UUID id) {
         return ResponseEntity.ok(petService.getPet(id));
@@ -56,7 +63,7 @@ public class PetController {
     }
 
     /**
-     * VET can update only allergies field
+     * Staff can update only allergies field
      */
     @PatchMapping("/{id}/allergies")
     public ResponseEntity<PetResponse> updateAllergies(
@@ -67,7 +74,7 @@ public class PetController {
     }
 
     /**
-     * VET can update pet weight
+     * Staff can update pet weight
      */
     @PatchMapping("/{id}/weight")
     public ResponseEntity<PetResponse> updateWeight(

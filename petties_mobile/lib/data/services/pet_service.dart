@@ -42,6 +42,23 @@ class PetService {
     }
   }
 
+  /// STAFF: Get prioritized patient list for a staff
+  Future<List<Pet>> getStaffPatients(String clinicId, String staffId) async {
+    try {
+      final response = await _apiClient.get(
+        '/pets/staff',
+        queryParameters: {
+          'clinicId': clinicId,
+          'staffId': staffId,
+        },
+      );
+      final List<dynamic> data = response.data;
+      return data.map((json) => Pet.fromJson(json)).toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Get pet details
   Future<Pet> getPet(String id) async {
     try {

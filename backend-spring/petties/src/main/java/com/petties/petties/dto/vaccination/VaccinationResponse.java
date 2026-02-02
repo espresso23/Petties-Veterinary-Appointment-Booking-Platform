@@ -26,12 +26,21 @@ public class VaccinationResponse {
     private String staffName;
 
     private String vaccineName;
-    private String batchNumber;
+    private UUID vaccineTemplateId;
+    private Integer doseNumber;
+    private UUID seriesId;
+    private Integer totalDoses;
+    // Removed batchNumber
 
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate vaccinationDate;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate nextDueDate;
 
     private String notes;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
     // Status helpers

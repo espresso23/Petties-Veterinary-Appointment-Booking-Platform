@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useToast } from '../../../components/Toast'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PlusIcon, TrashIcon, PhotoIcon, CalendarDaysIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
@@ -42,6 +42,9 @@ interface FieldErrors {
 export const CreateEmrPage = () => {
     const navigate = useNavigate()
     const { petId } = useParams<{ petId: string }>()
+    const [searchParams] = useSearchParams()
+    const bookingId = searchParams.get('bookingId')
+    const bookingCode = searchParams.get('bookingCode')
     const { showToast } = useToast()
 
     // State for pet info (loaded from API)
@@ -104,6 +107,7 @@ export const CreateEmrPage = () => {
     const [plan, setPlan] = useState('')
     const [notes, setNotes] = useState('')
     const [weight, setWeight] = useState<string>('')
+    const [allergies, setAllergies] = useState('')
 
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
     const [reExaminationDate, setReExaminationDate] = useState('')
@@ -133,6 +137,13 @@ export const CreateEmrPage = () => {
     // Prescription modal
     const [showAddPrescription, setShowAddPrescription] = useState(false)
     const [newPrescription, setNewPrescription] = useState<Partial<Prescription>>({})
+
+    // Initialize fields when petInfo loads
+    useEffect(() => {
+        if (petInfo) {
+            if (petInfo.allergies) setAllergies(petInfo.allergies.join(', '))
+        }
+    }, [petInfo])
 
     // ============= HANDLERS =============
     const handleSavePrescription = () => {
@@ -205,6 +216,7 @@ export const CreateEmrPage = () => {
 
             const request: CreateEmrRequest = {
                 petId: petId!,
+                bookingId: bookingId || undefined,
                 subjective: subjective || undefined,
                 objective: objective || undefined,
                 assessment,
@@ -234,6 +246,15 @@ export const CreateEmrPage = () => {
                         console.error('Failed to update pet weight:', weightErr)
                         // Don't block EMR save if weight update fails
                     }
+                }
+            }
+
+            // Update allergies if changed
+            if (petInfo && allergies !== (petInfo.allergies?.join(', ') || '')) {
+                try {
+                    await petService.updateAllergies(petInfo.id, allergies)
+                } catch (allergyErr) {
+                    console.error('Failed to update allergies:', allergyErr)
                 }
             }
 
@@ -340,16 +361,18 @@ export const CreateEmrPage = () => {
                                 </div>
                             </div>
 
-                            {petInfo.allergies && petInfo.allergies.length > 0 && (
-                                <div className="mt-4 bg-amber-50 border-l-4 border-amber-500 p-3 rounded-r-lg">
-                                    <p className="font-bold text-amber-700 text-sm flex items-center gap-1">
-                                        Cảnh báo Dị ứng:
-                                    </p>
-                                    <p className="text-amber-800 text-sm">
-                                        Dị ứng với {petInfo.allergies.join(', ')}
-                                    </p>
-                                </div>
-                            )}
+                            <div className="mt-4 border-t border-stone-200 pt-4">
+                                <label className="text-stone-500 text-sm font-semibold flex items-center justify-between mb-1">
+                                    Dị ứng / Lưu ý:
+                                </label>
+                                <textarea
+                                    value={allergies}
+                                    onChange={(e) => setAllergies(e.target.value)}
+                                    placeholder="Không có ghi nhận dị ứng."
+                                    rows={2}
+                                    className="w-full text-sm border border-stone-300 rounded-lg p-2 focus:outline-none focus:border-amber-500 bg-amber-50 text-amber-900 placeholder-amber-900/50"
+                                />
+                            </div>
                         </div>
 
                         {/* Medical History Summary */}
@@ -371,7 +394,14 @@ export const CreateEmrPage = () => {
                     {/* ========== CENTER - SOAP FORM ========== */}
                     <div className="col-span-5 space-y-4">
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h2 className="text-xl font-black text-stone-800 mb-6">Biểu mẫu SOAP</h2>
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-black text-stone-800">Biểu mẫu SOAP</h2>
+                                {bookingCode && (
+                                    <div className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-bold rounded-lg border border-blue-200">
+                                        Booking #{bookingCode}
+                                    </div>
+                                )}
+                            </div>
 
                             {/* S - Subjective */}
                             <div className="mb-6">

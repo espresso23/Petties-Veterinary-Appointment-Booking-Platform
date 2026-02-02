@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * - NOTIFICATION: New notification arrived
  * - HEARTBEAT: Keep-alive ping
  * - SHIFT_UPDATE: StaffShift changed (for auto-refresh)
- * - BOOKING_UPDATE: Booking changed (for Vet/Manager sync)
+ * - BOOKING_UPDATE: Booking changed (for Staff/Manager sync)
  */
 @Data
 @Builder
@@ -83,7 +83,7 @@ public class SseEventDto {
     }
 
     /**
-     * Create a booking update event (for Vet/Manager sync)
+     * Create a booking update event (for Staff/Manager sync)
      */
     public static SseEventDto bookingUpdate(Object bookingData) {
         return SseEventDto.builder()

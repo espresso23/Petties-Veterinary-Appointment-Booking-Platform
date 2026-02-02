@@ -58,6 +58,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                         seedMockStaffShifts();
                         seedMockServices(); // Add services with required categories
                         seedMockBookings();
+
                         log.info("✅ Booking mock data seeded successfully!");
                 } catch (Exception e) {
                         log.error("❌ Failed to seed booking mock data: {}", e.getMessage());
@@ -113,43 +114,64 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create mock staff shifts for testing auto-assign
+         * Extends to 21:00 to cover evening test bookings
          */
         private void seedMockStaffShifts() {
-                User vet = userRepository.findByUsername("vet").orElse(null);
-                if (vet == null) {
-                        log.warn("vet user not found, skipping shift seeding");
+                User staff = userRepository.findByUsername("vet").orElse(null);
+                if (staff == null) {
+                        log.warn("staff user not found, skipping shift seeding");
                         return;
                 }
 
-                Clinic clinic = vet.getWorkingClinic();
+                Clinic clinic = staff.getWorkingClinic();
                 if (clinic == null) {
-                        log.warn("vet has no working clinic, skipping shift seeding");
+                        log.warn("staff has no working clinic, skipping shift seeding");
                         return;
                 }
 
-                // Check if shifts already exist for next 7 days
                 LocalDate today = LocalDate.now();
-                List<StaffShift> existingShifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(vet.getUserId(),
-                                today);
-                if (!existingShifts.isEmpty()) {
-                        log.info("   - Staff shifts already exist");
-                        return;
-                }
 
-                // Create shifts for next 7 days (8:00 - 17:00)
-                for (int i = 0; i < 7; i++) {
-                        LocalDate shiftDate = today.plusDays(i);
-                        StaffShift shift = StaffShift.builder()
-                                        .staff(vet)
+                // 1. Ensure TODAY has a shift for testing (even if Sunday)
+                List<StaffShift> shiftsToday = staffShiftRepository.findByStaff_UserIdAndWorkDate(staff.getUserId(),
+                                today);
+                if (shiftsToday.isEmpty()) {
+                        StaffShift todayShift = StaffShift.builder()
+                                        .staff(staff)
                                         .clinic(clinic)
-                                        .workDate(shiftDate)
+                                        .workDate(today)
                                         .startTime(LocalTime.of(8, 0))
-                                        .endTime(LocalTime.of(17, 0))
+                                        .endTime(LocalTime.of(21, 0)) // Extended for testing
                                         .isOvernight(false)
                                         .build();
-                        staffShiftRepository.save(shift);
+                        staffShiftRepository.save(todayShift);
+                        log.info("   + Created/Forced shift for TODAY (Sunday testing): 08:00-21:00");
+                } else {
+                        // Update existing shift to ensure it covers test times
+                        StaffShift existing = shiftsToday.get(0);
+                        if (existing.getEndTime().isBefore(LocalTime.of(21, 0))) {
+                                existing.setEndTime(LocalTime.of(21, 0));
+                                staffShiftRepository.save(existing);
+                                log.info("   + Extended existing Today shift to 21:00 for testing");
+                        }
                 }
-                log.info("   + Created 7 days of staff shifts for {}", vet.getFullName());
+
+                // 2. Ensure next 6 days have shifts
+                for (int i = 1; i <= 6; i++) {
+                        LocalDate shiftDate = today.plusDays(i);
+                        if (staffShiftRepository.findByStaff_UserIdAndWorkDate(staff.getUserId(), shiftDate)
+                                        .isEmpty()) {
+                                StaffShift shift = StaffShift.builder()
+                                                .staff(staff)
+                                                .clinic(clinic)
+                                                .workDate(shiftDate)
+                                                .startTime(LocalTime.of(8, 0))
+                                                .endTime(LocalTime.of(21, 0))
+                                                .isOvernight(false)
+                                                .build();
+                                staffShiftRepository.save(shift);
+                        }
+                }
+                log.info("   + Verified staff shifts for next 7 days");
         }
 
         /**
@@ -260,8 +282,6 @@ public class BookingDataSeeder implements CommandLineRunner {
                         return;
                 }
 
-                // Try to find clinic by name pattern first, then fallback to clinicManager's
-                // clinic
                 Clinic clinic = clinicRepository.findAll().stream()
                                 .filter(c -> c.getName() != null && c.getName().contains("Central"))
                                 .findFirst()
@@ -286,82 +306,99 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
                 log.info("   - Found {} pets for petOwner", pets.size());
 
-                // Check bookings - clear old PENDING bookings and reseed if needed
                 LocalDate today = LocalDate.now();
-                List<Booking> existingPendingBookings = bookingRepository.findAll().stream()
-                                .filter(b -> b.getStatus() == BookingStatus.PENDING
-                                                || b.getStatus() == BookingStatus.CONFIRMED)
-                                .filter(b -> b.getNotes() != null && b.getNotes().startsWith("[")) // Only seeded
-                                                                                                   // bookings have
-                                                                                                   // [TOMORROW] etc
-                                                                                                   // prefix
-                                .toList();
+                LocalDate tomorrow = today.plusDays(1);
+                LocalDate dayAfter = today.plusDays(2);
+                LocalDate day3 = today.plusDays(3);
 
-                // Delete old seeded bookings that are in the past
-                List<Booking> staleBookings = existingPendingBookings.stream()
-                                .filter(b -> b.getBookingDate().isBefore(today))
-                                .toList();
-
-                if (!staleBookings.isEmpty()) {
-                        log.info("   - Cleaning up {} stale seeded bookings from past dates", staleBookings.size());
-                        bookingRepository.deleteAll(staleBookings);
-                }
-
-                // Check if we have enough FUTURE bookings
-                long futureBookingsCount = existingPendingBookings.stream()
-                                .filter(b -> !b.getBookingDate().isBefore(today))
-                                .count();
-
-                if (futureBookingsCount >= 8) {
-                        log.info("   - Already have {} future seeded bookings, skipping", futureBookingsCount);
+                // Check if bookings already exist for today to avoid resetting user's work
+                long todayBookingsCount = bookingRepository.countByClinicAndDate(clinic.getClinicId(), today);
+                if (todayBookingsCount > 50) { // Much higher threshold to be sure it seeds
+                        log.info("   🔒 Rich bookings already exist for today ({}), skipping mock booking generation.",
+                                        today);
                         return;
                 }
-                log.info("   - Current future bookings: {}, will seed more", futureBookingsCount);
 
                 // Get services by category
                 List<ClinicService> allServices = clinicServiceRepository
                                 .findByClinicClinicIdAndIsActiveTrue(clinic.getClinicId());
-                log.info("   - Found {} active services for clinic", allServices.size());
+
                 if (allServices.isEmpty()) {
                         log.warn("No services found for clinic, skipping booking seeding");
                         return;
                 }
 
-                // Use FUTURE dates for testing (today's bookings may already be past the time)
-                LocalDate tomorrow = today.plusDays(1);
-                LocalDate dayAfter = today.plusDays(2);
-                LocalDate day3 = today.plusDays(3);
                 Pet pet1 = pets.get(0);
                 Pet pet2 = pets.size() > 1 ? pets.get(1) : pet1;
                 Pet pet3 = pets.size() > 2 ? pets.get(2) : pet1;
 
-                // ========== TOMORROW BOOKINGS ==========
+                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Staff) ==========
 
-                // BOOKING 1: Single service (CHECK_UP) - Morning
-                createBooking(clinic, pet1, petOwner, tomorrow, LocalTime.of(9, 0),
-                                BookingType.IN_CLINIC, "[TOMORROW] Khám tổng quát sáng",
-                                findServicesByCategory(allServices, "CHECK_UP", 1));
+                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Staff) ==========
 
-                // BOOKING 2: Single service (GROOMING_SPA) - Late Morning
-                createBooking(clinic, pet1, petOwner, tomorrow, LocalTime.of(10, 30),
-                                BookingType.IN_CLINIC, "[TOMORROW] Tắm spa",
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1));
+                // 1. Check-up (08:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
+                 * "Khám định kỳ sáng",
+                 * findServicesByCategory(allServices, "CHECK_UP", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
+                 * BookingType.IN_CLINIC);
+                 */
 
-                // BOOKING 3: MULTI-SERVICE (CHECK_UP + GROOMING - different specialty)
-                createBooking(clinic, pet2, petOwner, tomorrow, LocalTime.of(14, 0),
-                                BookingType.IN_CLINIC, "[TOMORROW] Combo khám + tắm (MULTI-SPECIALTY)",
-                                findServicesByCategories(allServices, new String[] { "CHECK_UP", "GROOMING_SPA" }));
+                // 2. Vaccination (09:30) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(9, 30),
+                 * "Tiêm ngừa vaccine",
+                 * findServicesByCategory(allServices, "VACCINATION", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
+                 * BookingType.IN_CLINIC);
+                 */
 
-                // BOOKING 4: HOME VISIT (VACCINATION) - calculate real distance from clinic
-                double homeLat4 = 16.0058, homeLng4 = 108.2478;
-                double distKm4 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat4), BigDecimal.valueOf(homeLng4));
-                createBookingWithHomeVisit(clinic, pet1, petOwner, tomorrow, LocalTime.of(15, 30),
-                                String.format("[TOMORROW] Tiêm vaccine tại nhà - %.1fkm", distKm4),
+                // 3. Grooming (11:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(11, 0),
+                 * "Tắm spa tại nhà",
+                 * findServicesByCategory(allServices, "GROOMING_SPA", 1),
+                 * "123 Nguyễn Văn Linh, Q.7, HCM", 5.5, 5.5, BigDecimal.valueOf(50),
+                 * BookingStatus.CONFIRMED, "staff", BookingType.HOME_VISIT);
+                 */
+
+                // 4. Check-up (14:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(14, 0),
+                 * "Khám sức khỏe tổng quát",
+                 * findServicesByCategory(allServices, "CHECK_UP", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.IN_PROGRESS, "staff",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // 5. Dental (15:30) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
+                 * "Cạo vôi răng",
+                 * findServicesByCategory(allServices, "DENTAL", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // 6. Dermatology (17:00) - COMMENTED OUT
+                /*
+                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(17, 0),
+                 * "Khám da liễu",
+                 * findServicesByCategory(allServices, "DERMATOLOGY", 1),
+                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
+                 * BookingType.IN_CLINIC);
+                 */
+
+                // ========== TODAY'S BOOKINGS (PENDING - Waiting for Clinic Assignment)
+                // ==========
+
+                // 1. Vaccination (15:00) - PENDING
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(15, 0),
+                                "Tiêm ngừa 5 bệnh (cần gán bác sĩ)",
                                 findServicesByCategory(allServices, "VACCINATION", 1),
-                                "123 Lê Văn Hiến, Ngũ Hành Sơn, Đà Nẵng", homeLat4, homeLng4,
-                                BigDecimal.valueOf(distKm4));
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
 
                 // ========== DAY AFTER TOMORROW BOOKINGS ==========
 
@@ -421,18 +458,15 @@ public class BookingDataSeeder implements CommandLineRunner {
                 // ========== TODAY (COMPREHENSIVE TEST CASES) ==========
                 // =========================================================================================
 
-                // 1. TODAY - IN_PROGRESS (Home Visit - Add-on Service Test)
-                double homeLat12 = 16.0150, homeLng12 = 108.2450;
-                double distKm12 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat12), BigDecimal.valueOf(homeLng12));
-                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(10, 0),
-                                String.format("[TODAY] Đang khám tại nhà - TEST ADD-ON SERVICE (%.1fkm)", distKm12),
+                // 2. Check-up (15:30) - PENDING
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
+                                "Kiểm tra định kỳ (cần gán bác sĩ)",
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
-                                "123 Mỹ Khê, Ngũ Hành Sơn, Đà Nẵng", homeLat12, homeLng12,
-                                BigDecimal.valueOf(distKm12), BookingStatus.IN_PROGRESS);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
 
-                // 2. TODAY - CONFIRMED (Home Visit - Assigned staff, ready for vet to check-in)
+                // 2. TODAY - CONFIRMED (Home Visit - Assigned staff, ready for staff to
+                // check-in)
                 double homeLat13 = 16.0280, homeLng13 = 108.2380;
                 double distKm13 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
@@ -441,21 +475,24 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 String.format("[TODAY] Đã xác nhận - Chờ BS check-in (%.1fkm)", distKm13),
                                 findServicesByCategory(allServices, "VACCINATION", 1),
                                 "456 Ngô Quyền, Sơn Trà, Đà Nẵng", homeLat13, homeLng13,
-                                BigDecimal.valueOf(distKm13), BookingStatus.CONFIRMED);
+                                BigDecimal.valueOf(distKm13), BookingStatus.CONFIRMED, null,
+                                BookingType.HOME_VISIT);
 
-                // 3. TODAY - CONFIRMED (In Clinic - Waiting for Vet to start service)
+                // 3. TODAY - CONFIRMED (In Clinic - Waiting for Staff to start service)
                 createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(10, 30),
                                 "[TODAY] Khách đã đến - Chờ BS bắt đầu khám",
                                 findServicesByCategory(allServices, "DERMATOLOGY", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, null,
+                                BookingType.IN_CLINIC);
 
                 // 4. TODAY - COMPLETED (Finished earlier)
                 createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
                                 "[TODAY] Khám xong lúc sáng sớm",
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.COMPLETED);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.COMPLETED, null,
+                                BookingType.IN_CLINIC);
 
-                // 5. TODAY - ON_THE_WAY (Vet is driving)
+                // 5. TODAY - ON_THE_WAY (Staff is driving)
                 double homeLat16 = 16.0400, homeLng16 = 108.2300;
                 double distKm16 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
@@ -464,7 +501,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 String.format("[TODAY] Bác sĩ đang di chuyển - ON WAY (%.1fkm)", distKm16),
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
                                 "99 Nguyễn Văn Linh, Đà Nẵng", homeLat16, homeLng16,
-                                BigDecimal.valueOf(distKm16), BookingStatus.ON_THE_WAY);
+                                BigDecimal.valueOf(distKm16), BookingStatus.ON_THE_WAY, null,
+                                BookingType.HOME_VISIT);
 
                 // 6. TODAY - SOS (PENDING ASSIGNMENT - EMERGENCY)
                 // Use custom creation for SOS to set correct type
@@ -477,13 +515,22 @@ public class BookingDataSeeder implements CommandLineRunner {
                 createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(9, 30),
                                 "[TODAY] Đã hủy do bận đột xuất",
                                 findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CANCELLED);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CANCELLED, null,
+                                BookingType.IN_CLINIC);
 
                 // 8. TODAY - CONFIRMED (Upcoming later today)
                 createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(16, 30),
                                 "[TODAY] Lịch hẹn chiều muộn (Đã xác nhận)",
                                 findServicesByCategory(allServices, "VACCINATION", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED);
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, null,
+                                BookingType.IN_CLINIC);
+
+                // 3. Grooming (16:00) - PENDING
+                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(16, 0),
+                                "Spa làm đẹp (cần gán bác sĩ)",
+                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
+                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                BookingType.IN_CLINIC);
         }
 
         /**
@@ -618,11 +665,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create a home visit booking with custom status (for testing IN_PROGRESS)
-         * Also assigns vet for ASSIGNED/IN_PROGRESS statuses
+         * Also assigns staff for ASSIGNED/IN_PROGRESS statuses
          */
         private void createBookingWithStatus(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
-                        String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status) {
+                        String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
+                        String staffUsername, BookingType type) {
 
                 if (services.isEmpty())
                         return;
@@ -630,9 +678,9 @@ public class BookingDataSeeder implements CommandLineRunner {
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
-                // Calculate distance fee (using highest pricePerKm)
+                // Calculate distance fee
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
-                                BookingType.HOME_VISIT);
+                                type);
 
                 // Calculate service prices
                 BigDecimal servicesTotal = BigDecimal.ZERO;
@@ -642,13 +690,14 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 BigDecimal totalPrice = servicesTotal.add(distanceFee);
 
-                // Find a staff to assign for ASSIGNED/IN_PROGRESS statuses
+                // Find a staff to assign for ASSIGNED/IN_PROGRESS/CONFIRMED/COMPLETED statuses
                 User assignedStaff = null;
                 if (status == BookingStatus.ASSIGNED || status == BookingStatus.IN_PROGRESS
-                                || status == BookingStatus.CONFIRMED) {
-                        assignedStaff = userRepository.findByUsername("vet").orElse(null);
+                                || status == BookingStatus.CONFIRMED || status == BookingStatus.COMPLETED) {
+                        String username = (staffUsername != null && !staffUsername.isEmpty()) ? staffUsername : "vet";
+                        assignedStaff = userRepository.findByUsername(username).orElse(null);
                         if (assignedStaff == null) {
-                                log.warn("vet user not found, booking will have no assigned staff");
+                                log.warn("{} user not found, booking will have no assigned staff", username);
                         }
                 }
 
@@ -659,7 +708,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 .clinic(clinic)
                                 .bookingDate(date)
                                 .bookingTime(time)
-                                .type(BookingType.HOME_VISIT)
+                                .type(type)
                                 .totalPrice(totalPrice)
                                 .distanceFee(distanceFee)
                                 .status(status)

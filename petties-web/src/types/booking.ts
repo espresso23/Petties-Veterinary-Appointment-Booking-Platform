@@ -37,6 +37,7 @@ export interface BookingServiceItem {
 export interface Booking {
     bookingId: string;
     bookingCode: string;
+    emrId?: string; // Linked EMR ID if exists
 
     // Pet info
     petId: string;

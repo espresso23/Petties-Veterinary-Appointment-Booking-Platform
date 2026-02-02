@@ -249,7 +249,8 @@ public class BookingController {
             @RequestBody AddServiceRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID userId = UUID.fromString(userDetails.getUsername());
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        UUID userId = userPrincipal.getUserId();
         com.petties.petties.model.User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException("User not found"));
 
@@ -267,13 +268,19 @@ public class BookingController {
             @PathVariable UUID bookingId,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        UUID userId = UUID.fromString(userDetails.getUsername());
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        UUID userId = userPrincipal.getUserId();
         com.petties.petties.model.User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException("User not found"));
 
-        List<com.petties.petties.dto.clinicService.ClinicServiceResponse> services = bookingService
-                .getAvailableServicesForAddOn(bookingId, currentUser);
-        return ResponseEntity.ok(services);
+        try {
+            List<com.petties.petties.dto.clinicService.ClinicServiceResponse> services = bookingService
+                    .getAvailableServicesForAddOn(bookingId, currentUser);
+            return ResponseEntity.ok(services);
+        } catch (Exception e) {
+            log.error("Error getting available services for booking {}: {}", bookingId, e.getMessage(), e);
+            throw e;
+        }
     }
 
     // ========== STATUS TRANSITIONS ==========
@@ -329,4 +336,5 @@ public class BookingController {
                 .getStaffHomeSummary(userPrincipal.getUserId());
         return ResponseEntity.ok(response);
     }
+
 }

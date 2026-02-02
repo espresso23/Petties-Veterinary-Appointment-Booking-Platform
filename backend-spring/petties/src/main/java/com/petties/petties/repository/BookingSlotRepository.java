@@ -33,7 +33,7 @@ public interface BookingSlotRepository extends JpaRepository<BookingSlot, UUID> 
 
     /**
      * Find all booking slots for a specific BookingServiceItem
-     * Used when reassigning vet to release old slots
+     * Used when reassigning staff to release old slots
      */
     List<BookingSlot> findByBookingServiceItem_BookingServiceId(UUID bookingServiceId);
 

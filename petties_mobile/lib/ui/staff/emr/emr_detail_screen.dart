@@ -64,7 +64,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Stone 50
+      backgroundColor: AppColors.stone100,
       appBar: AppBar(
         title: const Text('Chi tiết Bệnh án', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
@@ -83,21 +83,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                   Icon(Icons.error_outline, size: 64, color: AppColors.stone300),
-                  const SizedBox(height: 16),
-                  Text('Lỗi: ${snapshot.error}', style: const TextStyle(color: AppColors.stone500)),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => setState(() { _loadData(); }),
-                    child: const Text('Thử lại'),
-                  ),
-                ],
-              ),
-            );
+            return Center(child: Text('Lỗi: ${snapshot.error}'));
           }
 
           if (!snapshot.hasData) {
@@ -105,121 +91,43 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
           }
 
           final emr = snapshot.data!;
-          
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(emr),
-                const SizedBox(height: 24),
-                
-                _buildSection('1. THÔNG TIN CHUNG', [
-                   _buildInfoRow('Ngày khám', DateFormat('dd/MM/yyyy HH:mm').format(emr.examinationDate.isUtc ? emr.examinationDate.toLocal() : emr.examinationDate)),
-                   _buildInfoRow('Bác sĩ', emr.staffName ?? 'N/A'),
-                   if (emr.reExaminationDate != null)
-                     _buildInfoRow('Hẹn tái khám', DateFormat('dd/MM/yyyy').format(emr.reExaminationDate!)),
-                   _buildInfoRow('Phòng khám', emr.clinicName ?? 'N/A'),
-                   if (emr.notes != null && emr.notes!.isNotEmpty)
-                     _buildInfoRow('Ghi chú', emr.notes!),
-                ]),
-                const SizedBox(height: 24),
+                _buildPetInfoCard(emr),
+                const SizedBox(height: 16),
 
-                _buildSection('2. DẤU HIỆU SINH TỒN (OBJECTIVE)', [
-                  Row(
+                // General Info
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.stone200),
+                  ),
+                  child: Column(
                     children: [
-                      Expanded(child: _buildVitalCard('Cân nặng', '${emr.weightKg ?? "--"} kg', Icons.monitor_weight_outlined, Colors.blue)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildVitalCard('Nhiệt độ', '${emr.temperatureC ?? "--"} °C', Icons.thermostat_outlined, Colors.orange)),
+                      _buildInfoRow('Ngày khám', DateFormat('dd/MM/yyyy HH:mm').format(emr.examinationDate.isUtc ? emr.examinationDate.toLocal() : emr.examinationDate)),
+                      _buildInfoRow('Bác sĩ', emr.staffName ?? 'N/A'),
+                      _buildInfoRow('Phòng khám', emr.clinicName ?? 'N/A'),
                     ],
                   ),
-                  const SizedBox(height: 8), // Gap between rows
-                  Row(
-                    children: [
-                      Expanded(child: _buildVitalCard('Nhịp tim', '${emr.heartRate ?? "--"} bpm', Icons.favorite, Colors.red)),
-                      const SizedBox(width: 8),
-                      Expanded(child: _buildVitalCard('Thể trạng (BCS)', '${emr.bcs ?? "--"}/9', Icons.accessibility_new, Colors.green)),
-                    ],
-                  ),
-                  if (emr.objective != null && emr.objective!.isNotEmpty)
-                     Padding(
-                       padding: const EdgeInsets.only(top: 16),
-                       child: _buildTextContent(emr.objective!),
-                     ),
-                ]),
-                const SizedBox(height: 24),
+                ),
+                const SizedBox(height: 16),
 
-                _buildSection('3. TRIỆU CHỨNG (SUBJECTIVE)', [
-                   _buildTextContent(emr.subjective ?? 'Không có thông tin'),
-                ]),
-                const SizedBox(height: 24),
+                // SOAP Content styled like Create Form
+                _buildSoapContent(emr),
 
-                _buildSection('4. CHẨN ĐOÁN (ASSESSMENT)', [
-                   _buildTextContent(emr.assessment ?? 'Chưa có chẩn đoán', isBold: true),
-                ]),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _buildPrescriptions(emr),
 
-                _buildSection('5. PHÁC ĐỒ ĐIỀU TRỊ (PLAN)', [
-                   _buildTextContent(emr.plan ?? 'Chưa có phác đồ'),
-                ]),
-                const SizedBox(height: 24),
-                
-                _buildSection('6. ĐƠN THUỐC', [
-                  if (emr.prescriptions.where((p) => p.medicineName.trim().isNotEmpty).isEmpty)
-                    _buildTextContent('Không có đơn thuốc')
-                  else
-                    ...emr.prescriptions
-                        .where((p) => p.medicineName.trim().isNotEmpty)
-                        .map((p) => _buildPrescriptionCard(p)),
-                ]),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                _buildImages(emr),
 
-                if (emr.images.isNotEmpty) ...[
-                  _buildSection('7. HÌNH ẢNH', [
-                     GridView.builder(
-                       shrinkWrap: true,
-                       physics: const NeverScrollableScrollPhysics(),
-                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                         crossAxisCount: 3,
-                         crossAxisSpacing: 8,
-                         mainAxisSpacing: 8,
-                       ),
-                       itemCount: emr.images.length,
-                       itemBuilder: (context, index) {
-                         final img = emr.images[index];
-                         return GridTile(
-                           footer: (img.description != null && img.description!.isNotEmpty)
-                               ? Container(
-                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                   color: Colors.black54,
-                                   child: Text(
-                                     img.description!,
-                                     style: const TextStyle(color: Colors.white, fontSize: 10),
-                                     maxLines: 1,
-                                     overflow: TextOverflow.ellipsis,
-                                     textAlign: TextAlign.center,
-                                   ),
-                                 )
-                               : null,
-                           child: GestureDetector(
-                             onTap: () => _showFullScreenImage(context, img),
-                             child: Container(
-                               decoration: BoxDecoration(
-                                 borderRadius: BorderRadius.circular(8),
-                                 border: Border.all(color: AppColors.stone300),
-                                 image: DecorationImage(
-                                   image: NetworkImage(img.url),
-                                   fit: BoxFit.cover,
-                                 ),
-                               ),
-                             ),
-                           ),
-                         );
-                       },
-                     ),
-                  ]),
-                   const SizedBox(height: 80), // Bottom padding for FAB
-                ],
+                const SizedBox(height: 80),
               ],
             ),
           );
@@ -230,25 +138,59 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const SizedBox.shrink();
           final emr = snapshot.data!;
-            final now = DateTime.now();
-            final createdAt = emr.createdAt.isUtc ? emr.createdAt.toLocal() : emr.createdAt; // Assuming stored as UTC or already local, but best to be safe
-            // Check if 24h has passed. 
-            // Note: createdAt might need timezone adjustment depending on backend. 
-            // Assuming simplified check: compare time difference.
-            final diff = now.difference(createdAt).inHours;
-            final isActuallyLocked = diff >= 24;
+           // Simplified lock check
+           final now = DateTime.now();
+           final createdAt = emr.createdAt.isUtc ? emr.createdAt.toLocal() : emr.createdAt;
+           final diff = now.difference(createdAt).inHours;
+           final isActuallyLocked = diff >= 24;
 
            if (!isActuallyLocked && !emr.isLocked && emr.staffId == _currentUserId) {
-            return FloatingActionButton(
-              onPressed: () async {
-                 final result = await context.push('/staff/emr/edit/${emr.id}');
-                 if (result == true) {
-                   setState(() { _loadData(); });
-                 }
-              },
-              backgroundColor: AppColors.primary,
-              tooltip: 'Chỉnh sửa',
-              child: const Icon(Icons.edit, color: Colors.white),
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(30),
+                  onTap: () async {
+                     final result = await context.push('/staff/emr/edit/${emr.id}');
+                     if (result == true) {
+                       setState(() { _loadData(); });
+                     }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Chỉnh sửa',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             );
           }
            return const SizedBox.shrink();
@@ -257,235 +199,134 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     );
   }
 
-  String _getGenderVietnamese(String? gender) {
-    if (gender == 'MALE') return 'Đực';
-    if (gender == 'FEMALE') return 'Cái';
-    return gender ?? 'N/A';
-  }
-
-  String _calculateAge(DateTime? dob) {
-    if (dob == null) return 'N/A';
-    final now = DateTime.now();
-    final years = now.year - dob.year;
-    if (years < 1) {
-      final months = (now.year - dob.year) * 12 + now.month - dob.month;
-      return '$months tháng';
-    }
-    return '$years tuổi';
-  }
-
-  Widget _buildVitalCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: color, fontSize: 12), textAlign: TextAlign.center),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(label, style: const TextStyle(color: AppColors.stone500)),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(color: AppColors.stone900, fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.stone900,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _buildHeader(EmrRecord emr) {
+  Widget _buildPetInfoCard(EmrRecord emr) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.stone200),
-         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         children: [
-           Container(
-             width: 80,
-             height: 80,
-             decoration: BoxDecoration(
-               color: AppColors.stone100,
-               shape: BoxShape.circle,
-               image: _pet?.imageUrl != null
-                   ? DecorationImage(
-                       image: NetworkImage(_pet!.imageUrl!),
-                       fit: BoxFit.cover,
-                     )
-                   : null,
-             ),
-             child: _pet?.imageUrl == null
-                 ? Icon(
-                     (emr.petSpecies?.toLowerCase().contains('chó') ?? false) ? Icons.pets : Icons.pets,
-                     color: AppColors.primary,
-                     size: 40,
-                   )
-                 : null,
-           ),
-           const SizedBox(height: 12),
-           Text(
-             emr.petName ?? 'Thú cưng',
-             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.stone900),
-             textAlign: TextAlign.center,
-             maxLines: 2,
-             overflow: TextOverflow.ellipsis,
-           ),
-           const SizedBox(height: 4),
-           Text(
-             '${emr.petSpecies ?? ''} • ${emr.petBreed ?? ''}',
-             style: const TextStyle(color: AppColors.stone500),
-             textAlign: TextAlign.center,
-             maxLines: 1, 
-             overflow: TextOverflow.ellipsis,
-           ),
-           if (_pet != null) ...[
-             const SizedBox(height: 4),
-             Text(
-               '${_calculateAge(_pet!.dateOfBirth)} • ${_getGenderVietnamese(_pet!.gender)}',
-               style: const TextStyle(color: AppColors.stone800, fontWeight: FontWeight.w600),
-             ),
-           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextContent(String content, {bool isBold = false}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: Text(
-        content,
-        style: TextStyle(
-          color: AppColors.stone800,
-          fontSize: 15,
-          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
-          height: 1.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPrescriptionCard(Prescription p) {
-    if (p.medicineName.trim().isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Name (Large, Black)
-          Text(
-            p.medicineName,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-
-          // 2. Duration Badge (if exists)
-          if (p.durationDays != null && p.durationDays! > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(20),
+          Row(
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: AppColors.stone100,
+                  borderRadius: BorderRadius.circular(35),
+                  image: _pet?.imageUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(_pet!.imageUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: _pet?.imageUrl == null
+                    ? Center(
+                        child: Text(
+                          emr.petName?[0] ?? 'P',
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.stone400),
+                        ),
+                      )
+                    : null,
               ),
-              child: Text(
-                "Thời gian: ${p.durationDays} ngày",
-                style: TextStyle(fontSize: 13, color: Colors.blue.shade800, fontWeight: FontWeight.w600),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            emr.petName ?? 'Thú cưng',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.stone900,
+                            ),
+                          ),
+                        ),
+                        if (emr.bookingCode != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.confirmation_number, size: 12, color: Colors.orange.shade700),
+                                const SizedBox(width: 4),
+                                Text(
+                                  emr.bookingCode!,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${emr.petSpecies} • ${emr.petBreed}',
+                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                    ),
+                    if (_pet != null)
+                      Text(
+                        '${_pet!.gender == 'MALE' ? 'Đực' : 'Cái'} • ${_calculateAge(_pet!.dateOfBirth)}',
+                        style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Chủ: ${emr.ownerName ?? 'N/A'}',
+                      style: const TextStyle(color: AppColors.stone400, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: AppColors.stone200),
-          const SizedBox(height: 12),
-
-          // 3. Dosage & Frequency (Simple Text Lines)
-          _buildSimpleDetailRow("Liều lượng:", p.dosage),
-          const SizedBox(height: 8),
-          _buildSimpleDetailRow("Tần suất:", p.frequency),
-
-          // 4. Instructions
-          if (p.instructions != null && p.instructions!.isNotEmpty) ...[
+            ],
+          ),
+          if (_pet?.allergies != null && _pet!.allergies!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1),
             const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.stone50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'HDSD: ${p.instructions}',
-                style: const TextStyle(fontSize: 14, color: Colors.black87, fontStyle: FontStyle.italic),
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                    SizedBox(width: 4),
+                    Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: Text(
+                    _pet!.allergies!,
+                    style: const TextStyle(fontSize: 13, color: AppColors.stone800),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -493,24 +334,257 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     );
   }
 
-  Widget _buildSimpleDetailRow(String label, String? value) {
-    return Row(
+  Widget _buildSoapContent(EmrRecord emr) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Chi tiết khám (SOAP)',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+          ),
+          const SizedBox(height: 20),
+
+          // S
+          _buildContextSection('S - Chủ quan (Subjective)', Colors.blue, emr.subjective),
+          
+          const SizedBox(height: 20),
+
+          // O - Vitals
+          Row(
+            children: [
+              Text('O - Khách quan (Objective)', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w800, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+               Expanded(child: _buildVitalBox('Cân nặng', '${emr.weightKg ?? "-"} kg')),
+               const SizedBox(width: 8),
+               Expanded(child: _buildVitalBox('Nhiệt độ', '${emr.temperatureC ?? "-"} °C')),
+               const SizedBox(width: 8),
+               Expanded(child: _buildVitalBox('Nhịp tim', '${emr.heartRate ?? "-"} bpm')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (emr.bcs != null)
+             Align(
+               alignment: Alignment.centerLeft,
+               child: Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                 decoration: BoxDecoration(
+                   color: AppColors.stone100,
+                   borderRadius: BorderRadius.circular(20),
+                 ),
+                 child: Text('BCS: ${emr.bcs}/9', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone700)),
+               ),
+             ),
+          
+          if (emr.objective != null && emr.objective!.isNotEmpty) ...[
+             const SizedBox(height: 12),
+             Container(
+               width: double.infinity,
+               padding: const EdgeInsets.all(12),
+               decoration: BoxDecoration(
+                 color: AppColors.stone50,
+                 borderRadius: BorderRadius.circular(12),
+                 border: Border.all(color: AppColors.stone200),
+               ),
+               child: Text(emr.objective!, style: const TextStyle(color: AppColors.stone800)),
+             ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // A
+          _buildContextSection('A - Đánh giá (Assessment)', Colors.purple, emr.assessment),
+
+          const SizedBox(height: 20),
+
+          // P
+          _buildContextSection('P - Kế hoạch (Plan)', Colors.orange, emr.plan),
+
+          const SizedBox(height: 20),
+          
+          if (emr.notes != null && emr.notes!.isNotEmpty)
+            _buildContextSection('Ghi chú', Colors.grey, emr.notes),
+
+          if (emr.reExaminationDate != null) ...[
+             const SizedBox(height: 20),
+             Container(
+               padding: const EdgeInsets.all(12),
+               decoration: BoxDecoration(
+                 color: Colors.blue.shade50,
+                 borderRadius: BorderRadius.circular(12),
+                 border: Border.all(color: Colors.blue.shade100),
+               ),
+               child: Row(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                   const Icon(Icons.calendar_month, color: Colors.blue),
+                   const SizedBox(width: 8),
+                   Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       const Text('Hẹn tái khám', style: TextStyle(fontSize: 12, color: Colors.blue)),
+                       Text(
+                         DateFormat('dd/MM/yyyy').format(emr.reExaminationDate!),
+                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16),
+                       ),
+                     ],
+                   )
+                 ],
+               ),
+             ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContextSection(String title, Color color, String? content) {
+    if (content == null || content.isEmpty) return const SizedBox.shrink();
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 100, 
-          child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        ),
-        Expanded(
-          child: Text(
-            value ?? 'N/A', 
-            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500, fontSize: 14),
-          ),
+        Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14)),
+        const SizedBox(height: 8),
+        Container(
+           width: double.infinity,
+           padding: const EdgeInsets.all(12),
+           decoration: BoxDecoration(
+             color: AppColors.stone50,
+             borderRadius: BorderRadius.circular(12),
+             border: Border.all(color: AppColors.stone200),
+           ),
+           child: Text(content, style: const TextStyle(color: AppColors.stone800, height: 1.5)),
         ),
       ],
     );
   }
 
+  Widget _buildVitalBox(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.stone50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.stone500)),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.stone800)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrescriptions(EmrRecord emr) {
+    if (emr.prescriptions.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Đơn thuốc', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.stone900)),
+          const SizedBox(height: 12),
+          ...emr.prescriptions.map((p) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.stone50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(p.medicineName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Row(
+                   children: [
+                     if (p.dosage != null) 
+                       Container(
+                         margin: const EdgeInsets.only(right: 8),
+                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                         child: Text(p.dosage!, style: const TextStyle(fontSize: 12)),
+                       ),
+                     Text('${p.frequency} • ${p.durationDays} ngày', style: const TextStyle(fontSize: 13, color: AppColors.stone600)),
+                   ],
+                ),
+                if (p.instructions != null && p.instructions!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('HDSD: ${p.instructions}', style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.stone500, fontSize: 12)),
+                  ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImages(EmrRecord emr) {
+    if (emr.images.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+       padding: const EdgeInsets.all(16),
+       decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Hình ảnh lâm sàng', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.stone900)),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: emr.images.length,
+            itemBuilder: (context, index) {
+              final img = emr.images[index];
+              return GestureDetector(
+                onTap: () => _showFullScreenImage(context, img),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: NetworkImage(img.url),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+  
   void _showFullScreenImage(BuildContext context, EmrImage img) {
     showDialog(
       context: context,
@@ -556,5 +630,26 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         ),
       ),
     );
+  }
+
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.stone500)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone900)),
+        ],
+      ),
+    );
+  }
+
+  String _calculateAge(DateTime? dob) {
+    if (dob == null) return '';
+    final now = DateTime.now();
+    final years = now.year - dob.year;
+    return '$years tuổi';
   }
 }

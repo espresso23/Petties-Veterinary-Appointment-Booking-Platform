@@ -73,6 +73,12 @@ public class Notification {
     @Builder.Default
     private Boolean read = false;
 
+    @Column(name = "action_type")
+    private String actionType; // e.g., "QUICK_BOOKING", "INFO_ONLY"
+
+    @Column(name = "action_data", columnDefinition = "TEXT")
+    private String actionData; // JSON payload for action
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

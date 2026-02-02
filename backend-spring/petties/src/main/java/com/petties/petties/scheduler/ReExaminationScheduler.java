@@ -35,64 +35,75 @@ public class ReExaminationScheduler {
     @Transactional
     public void checkReExaminations() {
         log.info("Starting Re-examination Reminder check...");
-
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime tomorrowStart = now.plusDays(1).toLocalDate().atStartOfDay();
-        LocalDateTime tomorrowEnd = tomorrowStart.plusDays(1).minusSeconds(1);
 
-        LocalDateTime nextWeekStart = now.plusDays(7).toLocalDate().atStartOfDay();
-        LocalDateTime nextWeekEnd = nextWeekStart.plusDays(1).minusSeconds(1);
+        // 1. Reminder 30 days before
+        scanAndProcess(now.plusDays(30), "REMINDER_30_DAYS", "Còn 1 tháng nữa là đến lịch tái khám");
 
-        // 1. Remind 1 day before
-        List<EmrRecord> tomorrowReminders = emrRecordRepository.findByReExaminationDateBetween(tomorrowStart,
-                tomorrowEnd);
-        processReminders(tomorrowReminders, "ngày mai");
+        // 2. Reminder 7 days before
+        scanAndProcess(now.plusDays(7), "REMINDER_7_DAYS", "Chỉ còn 1 tuần nữa là đến lịch tái khám");
 
-        // 2. Remind 1 week before
-        List<EmrRecord> nextWeekReminders = emrRecordRepository.findByReExaminationDateBetween(nextWeekStart,
-                nextWeekEnd);
-        processReminders(nextWeekReminders, "trong 1 tuần tới");
+        // 3. Reminder 1 day before (Tomorrow)
+        scanAndProcess(now.plusDays(1), "REMINDER_1_DAY", "Ngày mai là lịch tái khám của bé");
 
-        log.info("Completed Re-examination Reminder check. Processed {} + {} records.",
-                tomorrowReminders.size(), nextWeekReminders.size());
+        log.info("Completed Re-examination Reminder check.");
     }
 
-    private void processReminders(List<EmrRecord> records, String timeText) {
+    private void scanAndProcess(LocalDateTime targetDate, String actionSuffix, String titlePrefix) {
+        LocalDateTime start = targetDate.toLocalDate().atStartOfDay();
+        LocalDateTime end = start.plusDays(1).minusSeconds(1);
+
+        List<EmrRecord> records = emrRecordRepository.findByReExaminationDateBetween(start, end);
+        if (records.isEmpty())
+            return;
+
+        log.info("Found {} re-examinations due on {}", records.size(), targetDate.toLocalDate());
+
         for (EmrRecord emr : records) {
             try {
-                if (emr.getPetId() == null)
-                    continue;
-
-                var petOpt = petRepository.findById(emr.getPetId());
-                if (petOpt.isEmpty()) {
-                    continue;
-                }
-                var pet = petOpt.get();
-                var owner = pet.getUser(); // Changed from getOwner() to getUser()
-
-                if (owner == null)
-                    continue;
-
-                String message = String.format(
-                        "Nhắc nhở: Bé %s có lịch tái khám vào %s (%s). Vui lòng đặt lịch hẹn hoặc mang bé đến phòng khám.",
-                        pet.getName(),
-                        emr.getReExaminationDate().format(DATE_FORMATTER),
-                        timeText);
-
-                Notification notification = Notification.builder()
-                        .user(owner)
-                        .emrId(emr.getId()) // Store MongoDB ID as String
-                        .type(NotificationType.RE_EXAMINATION_REMINDER)
-                        .message(message)
-                        .read(false)
-                        .build();
-
-                notificationRepository.save(notification);
-                log.info("Saved re-exam reminder for pet {} (owner {})", pet.getName(), owner.getUserId());
-
+                processReminder(emr, actionSuffix, titlePrefix);
             } catch (Exception e) {
-                log.error("Failed to process reminder for EMR {}", emr.getId(), e);
+                log.error("Failed to processed reminder for EMR {}", emr.getId(), e);
             }
         }
+    }
+
+    private void processReminder(EmrRecord emr, String actionSuffix, String titlePrefix) {
+        if (emr.getPetId() == null)
+            return;
+
+        var petOpt = petRepository.findById(emr.getPetId());
+        if (petOpt.isEmpty())
+            return;
+        var pet = petOpt.get();
+        var owner = pet.getUser();
+
+        if (owner == null)
+            return;
+
+        String message = String.format(
+                "%s. Bé %s có lịch tái khám vào ngày %s.",
+                titlePrefix,
+                pet.getName(),
+                emr.getReExaminationDate().format(DATE_FORMATTER));
+
+        // Create Action Data JSON
+        String actionData = String.format(
+                "{\"petId\":\"%s\",\"serviceName\":\"Tái khám\",\"suggestedDate\":\"%s\"}",
+                pet.getId(),
+                emr.getReExaminationDate().toLocalDate().toString());
+
+        Notification notification = Notification.builder()
+                .user(owner)
+                .emrId(emr.getId()) // Store MongoDB ID as String
+                .type(NotificationType.RE_EXAMINATION_REMINDER)
+                .message(message)
+                .read(false)
+                .actionType("QUICK_BOOKING")
+                .actionData(actionData)
+                .build();
+
+        notificationRepository.save(notification);
+        log.info("Saved {} reminder for pet {} (owner {})", actionSuffix, pet.getName(), owner.getUserId());
     }
 }

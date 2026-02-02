@@ -32,7 +32,13 @@ public class ClinicServiceResponse {
     private BigDecimal pricePerKm;
     private com.petties.petties.model.enums.ServiceCategory serviceCategory;
     private String petType;
+    private Integer reminderInterval;
+    private String reminderUnit;
     private List<WeightPriceDto> weightPrices;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }

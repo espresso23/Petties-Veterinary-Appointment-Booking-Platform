@@ -3,9 +3,9 @@
  * Displays list of bookings with status filters and details modal
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { getBookingsByStaff, getBookingById, checkInBooking, completeBooking } from '../../services/bookingService'
+import { getBookingsByStaff, getBookingById, checkInBooking } from '../../services/bookingService'
 import type { Booking, BookingStatus } from '../../types/booking'
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
@@ -23,6 +23,7 @@ import {
     ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 
+
 // Status filter options - Petties Amber-Stone Theme
 const STATUS_FILTERS: { value: BookingStatus | 'ALL'; label: string; color: string }[] = [
     { value: 'ALL', label: 'Tất cả', color: 'bg-stone-100 text-stone-700' },
@@ -35,6 +36,7 @@ const STATUS_FILTERS: { value: BookingStatus | 'ALL'; label: string; color: stri
 export const StaffBookingsPage = () => {
     const { user } = useAuthStore()
     const location = useLocation()
+    const navigate = useNavigate()
     const { showToast } = useToast()
     const [bookings, setBookings] = useState<Booking[]>([])
     const [loading, setLoading] = useState(true)
@@ -43,6 +45,9 @@ export const StaffBookingsPage = () => {
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
     const [detailLoading, setDetailLoading] = useState(false)
     const [actionLoading, setActionLoading] = useState(false)
+
+    // Vaccine Modal/Redirect state
+    // (Modal bypassed per user request, redirecting directly to recording page)
 
     // Pagination
     const [page, setPage] = useState(0)
@@ -148,6 +153,14 @@ export const StaffBookingsPage = () => {
             year: 'numeric'
         })
     }
+
+    // Navigate directly to vaccine record page
+    const handleOpenVaccineModal = () => {
+        if (!selectedBooking) return
+        const targetPath = `/staff/patients/${selectedBooking.petId}/vaccinations`
+        navigate(`${targetPath}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
+    }
+
 
     return (
         <div className="min-h-screen bg-stone-50 p-6">
@@ -518,41 +531,34 @@ export const StaffBookingsPage = () => {
                                                     }
                                                 }}
                                                 disabled={actionLoading}
-                                                className="flex-1 bg-amber-600 text-white py-3 rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(120,53,15,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50"
+                                                className="flex-1 !bg-amber-600 !text-white py-3 rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(120,53,15,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50"
                                             >
                                                 {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU KHÁM'}
                                             </button>
                                         )}
 
                                         {selectedBooking.status === 'IN_PROGRESS' && (
-                                            <button
-                                                onClick={async () => {
-                                                    // Logic: Manager checkout if CLINIC, Staff checkout if HOME/SOS
-                                                    const isClinic = selectedBooking.type === 'IN_CLINIC'
-                                                    const isManager = user?.role === 'CLINIC_MANAGER' || user?.role === 'ADMIN'
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        if (selectedBooking.emrId) {
+                                                            navigate(`/staff/emr/detail/${selectedBooking.emrId}`)
+                                                        } else {
+                                                            navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
+                                                        }
+                                                    }}
+                                                    className="flex-1 !bg-blue-600 !text-white py-3 rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(29,78,216,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                                                >
+                                                    {selectedBooking.emrId ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN'}
+                                                </button>
 
-                                                    if (isClinic && !isManager) {
-                                                        alert('Chỉ quản lý mới có thể checkout tại phòng khám')
-                                                        return
-                                                    }
-
-                                                    setActionLoading(true)
-                                                    try {
-                                                        await completeBooking(selectedBooking.bookingId)
-                                                        handleViewDetail(selectedBooking.bookingId)
-                                                        fetchBookings() // Reload list
-                                                    } catch (err) {
-                                                        console.error('Complete failed:', err)
-                                                        alert('Thao tác thất bại')
-                                                    } finally {
-                                                        setActionLoading(false)
-                                                    }
-                                                }}
-                                                disabled={actionLoading}
-                                                className="flex-1 bg-green-600 text-white py-3 rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(20,83,45,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all disabled:opacity-50"
-                                            >
-                                                {actionLoading ? 'ĐANG XỬ LÝ...' : (selectedBooking.type === 'IN_CLINIC' ? 'CHECKOUT & HOÀN THÀNH' : 'HOÀN THÀNH KHÁM')}
-                                            </button>
+                                                <button
+                                                    onClick={handleOpenVaccineModal}
+                                                    className="flex-1 !bg-purple-600 !text-white py-3 rounded-xl font-black shadow-[4px_4px_0px_0px_rgba(147,51,234,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
+                                                >
+                                                    TIÊM VACCINE
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </div>

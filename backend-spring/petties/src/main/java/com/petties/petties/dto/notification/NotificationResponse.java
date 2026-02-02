@@ -40,5 +40,8 @@ public class NotificationResponse {
     private LocalDate shiftDate;
     private LocalTime shiftStartTime;
     private LocalTime shiftEndTime;
-}
 
+    // Actionable Notification fields
+    private String actionType;
+    private String actionData;
+}

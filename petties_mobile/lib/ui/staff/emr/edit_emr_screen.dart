@@ -41,7 +41,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   final _heartRateController = TextEditingController();
   final _weightController = TextEditingController();
   final _notesController = TextEditingController();
-  final _bcsController = TextEditingController(); 
+  final _bcsController = TextEditingController();
+  final _allergiesController = TextEditingController();
   
   DateTime? _reExaminationDate;
   bool _enableReExam = false;
@@ -90,6 +91,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       
       _objectiveController.text = emr.objective ?? '';
       _notesController.text = emr.notes ?? '';
+      _allergiesController.text = pet.allergies ?? '';
 
       // Prescriptions
       if (emr.prescriptions != null) {
@@ -167,6 +169,15 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
       await _emrService.updateEmr(widget.emrId, request);
       
+      // Update allergies if changed
+      if (_petInfo != null && _allergiesController.text != (_petInfo!.allergies ?? '')) {
+         try {
+           await _petService.updateAllergies(_originalEmr!.petId, _allergiesController.text);
+         } catch (e) {
+            debugPrint('Error updating allergies: $e');
+         }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -205,6 +216,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     _bcsController.dispose();
     _notesController.dispose();
     _reExamAmountController.dispose();
+    _allergiesController.dispose();
     super.dispose();
   }
 
@@ -314,28 +326,105 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.stone200),
       ),
-      child: Row(
+      child: Column(
         children: [
-          CircleAvatar(
-            backgroundImage: pet.imageUrl != null ? NetworkImage(pet.imageUrl!) : null,
-            child: pet.imageUrl == null ? const Icon(Icons.pets) : null,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(pet.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                Text('${pet.species} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}', style: const TextStyle(color: Colors.grey)),
-                Text(
-                  '${_calculateAge(pet.dateOfBirth)} • ${_getGenderVietnamese(pet.gender)}',
-                  style: const TextStyle(color: AppColors.stone800, fontWeight: FontWeight.w600, fontSize: 13),
+            Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: pet.imageUrl != null ? NetworkImage(pet.imageUrl!) : null,
+                child: pet.imageUrl == null ? const Icon(Icons.pets) : null,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(pet.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                        ),
+                        if (_originalEmr?.bookingCode != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.confirmation_number, size: 10, color: Colors.orange.shade700),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _originalEmr!.bookingCode!,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Text('${pet.species} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}', style: const TextStyle(color: Colors.grey)),
+                    Text(
+                      '${_calculateAge(pet.dateOfBirth)} • ${_getGenderVietnamese(pet.gender)}',
+                      style: const TextStyle(color: AppColors.stone800, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                   Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                   SizedBox(width: 4),
+                   Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _allergiesController,
+                maxLines: 2,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Không có ghi nhận dị ứng.',
+                  hintStyle: TextStyle(color: AppColors.stone400),
+                  filled: true,
+                  fillColor: Colors.amber.shade50,
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.amber.shade200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.amber.shade200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.amber),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
-      ),
+      )
     );
   }
 

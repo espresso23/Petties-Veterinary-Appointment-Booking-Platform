@@ -22,6 +22,7 @@ public class EmrResponse {
     private String id;
     private UUID petId;
     private UUID bookingId;
+    private String bookingCode;
     private UUID staffId;
     private UUID clinicId;
 

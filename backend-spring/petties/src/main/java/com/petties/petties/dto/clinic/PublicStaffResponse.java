@@ -3,7 +3,7 @@ package com.petties.petties.dto.clinic;
 import com.petties.petties.model.enums.StaffSpecialty;
 import lombok.Builder;
 import lombok.Data;
-
+import com.petties.petties.model.enums.Role;
 import java.util.UUID;
 
 /**
@@ -18,5 +18,5 @@ public class PublicStaffResponse {
     private String avatar;
     private StaffSpecialty specialty;
     private String specialtyLabel; // Vietnamese label
-    private com.petties.petties.model.enums.Role role;
+    private Role role;
 }

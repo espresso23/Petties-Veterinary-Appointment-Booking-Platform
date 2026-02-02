@@ -50,6 +50,13 @@ class ApiInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // Expected 404 for EMR check logic, suppress log
+    if (err.response?.statusCode == 404 &&
+        err.requestOptions.path.contains('/emr/booking/')) {
+      super.onError(err, handler);
+      return;
+    }
+
     _logger.e(
       'ERROR[${err.response?.statusCode}] => PATH: ${err.requestOptions.path}',
     );

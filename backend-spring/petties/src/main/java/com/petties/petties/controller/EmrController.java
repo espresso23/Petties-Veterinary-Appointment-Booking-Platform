@@ -38,19 +38,19 @@ public class EmrController {
     }
 
     /**
-     * Create a new EMR record (Vet only)
+     * Create a new EMR record (Staff only)
      */
     @PostMapping
     @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<EmrResponse> createEmr(@Valid @RequestBody CreateEmrRequest request) {
         User currentUser = authService.getCurrentUser();
-        log.info("Vet {} creating EMR for pet {}", currentUser.getUserId(), request.getPetId());
+        log.info("Staff {} creating EMR for pet {}", currentUser.getUserId(), request.getPetId());
         EmrResponse response = emrService.createEmr(request, currentUser.getUserId());
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Update EMR record (Vet only)
+     * Update EMR record (Staff only)
      */
     @PutMapping("/{emrId}")
     @PreAuthorize("hasRole('STAFF')")
@@ -58,13 +58,13 @@ public class EmrController {
             @PathVariable String emrId,
             @Valid @RequestBody CreateEmrRequest request) {
         User currentUser = authService.getCurrentUser();
-        log.info("Vet {} updating EMR {}", currentUser.getUserId(), emrId);
+        log.info("Staff {} updating EMR {}", currentUser.getUserId(), emrId);
         EmrResponse response = emrService.updateEmr(emrId, request, currentUser.getUserId());
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Upload ảnh lâm sàng cho EMR (Vet only)
+     * Upload ảnh lâm sàng cho EMR (Staff only)
      * Trả về URL ảnh để frontend thêm vào danh sách images khi tạo EMR
      */
     @PostMapping(value = "/upload-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

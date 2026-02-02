@@ -25,7 +25,7 @@ export interface PetListResponse {
 }
 
 /**
- * Get all pets (for VET to see patient list)
+ * Get all pets (for Staff to see patient list)
  */
 export const getAllPets = async (page: number = 0, size: number = 20): Promise<PetListResponse> => {
     const response = await api.get('/pets', {
@@ -53,7 +53,7 @@ export const searchPets = async (query: string): Promise<Pet[]> => {
 }
 
 /**
- * VET: Update only pet allergies
+ * Staff: Update only pet allergies
  */
 export const updateAllergies = async (petId: string, allergies: string): Promise<Pet> => {
     const response = await api.patch(`/pets/${petId}/allergies`, { allergies })
@@ -61,10 +61,39 @@ export const updateAllergies = async (petId: string, allergies: string): Promise
 }
 
 /**
- * VET: Update pet weight
+ * Staff: Update pet weight
  */
 export const updateWeight = async (petId: string, weight: number): Promise<Pet> => {
     const response = await api.patch(`/pets/${petId}/weight`, { weight })
+    return response.data
+}
+
+export interface StaffPatient {
+    petId: string
+    petName: string
+    species: string
+    breed: string
+    gender?: string
+    ageYears: number
+    ageMonths: number
+    imageUrl?: string
+    ownerName: string
+    ownerPhone?: string
+    isAssignedToMe: boolean
+    nextAppointment?: string
+    bookingStatus?: string
+    lastVisitDate?: string
+    weight?: number
+    allergies?: string
+}
+
+/**
+ * Get prioritized patients for Staff (Assigned first)
+ */
+export const getStaffPatients = async (clinicId: string, staffId: string): Promise<StaffPatient[]> => {
+    const response = await api.get('/pets/staff', {
+        params: { clinicId, staffId }
+    })
     return response.data
 }
 
@@ -74,6 +103,15 @@ export const petService = {
     searchPets,
     updateAllergies,
     updateWeight,
+    getStaffPatients,
+
+    /**
+     * Get current user's pets
+     */
+    getMyPets: async (): Promise<Pet[]> => {
+        const response = await api.get('/pets/me')
+        return response.data
+    }
 }
 
 export default petService

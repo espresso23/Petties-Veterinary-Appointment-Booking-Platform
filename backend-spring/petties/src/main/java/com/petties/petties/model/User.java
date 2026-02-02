@@ -102,7 +102,7 @@ public class User {
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();
 
-    // For Managers and Vets: The clinic they belong to
+    // For Managers and Staff: The clinic they belong to
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "working_clinic_id")
     private Clinic workingClinic;

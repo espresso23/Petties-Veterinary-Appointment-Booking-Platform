@@ -45,6 +45,36 @@ import org.springframework.dao.DataIntegrityViolationException;
 @Slf4j
 public class GlobalExceptionHandler {
 
+        @ExceptionHandler(IllegalStateException.class)
+        public ResponseEntity<ErrorResponse> handleIllegalStateException(
+                        IllegalStateException ex,
+                        HttpServletRequest request) {
+                log.info("IllegalStateException at {}: {}", request.getRequestURI(), ex.getMessage());
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+                        IllegalArgumentException ex,
+                        HttpServletRequest request) {
+                log.error("IllegalArgumentException at {}: ", request.getRequestURI(), ex);
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.BAD_REQUEST.value())
+                                .error("Bad Request")
+                                .message("Lỗi tham số không hợp lệ: " + ex.getMessage())
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+        }
+
         @ExceptionHandler(ResourceAlreadyExistsException.class) // Code: 409
         public ResponseEntity<ErrorResponse> handleResourceAlreadyExists(
                         ResourceAlreadyExistsException ex,

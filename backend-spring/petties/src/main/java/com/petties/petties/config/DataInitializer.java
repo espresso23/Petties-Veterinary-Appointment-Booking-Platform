@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -34,7 +35,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-
+@Order(1) // Run BEFORE BookingDataSeeder (Order 2)
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
@@ -121,7 +122,7 @@ public class DataInitializer implements CommandLineRunner {
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeVetUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", StaffSpecialty.VET_GENERAL);
+        initializeStaffUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", StaffSpecialty.VET_GENERAL);
 
         // Create more pet owners for testing
         User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
@@ -136,7 +137,7 @@ public class DataInitializer implements CommandLineRunner {
                     .findByOwnerUserId(clinicOwner.getUserId(), org.springframework.data.domain.PageRequest.of(0, 1))
                     .stream().findFirst().orElse(null);
 
-            // QUAN TRỌNG: Assign clinicManager và vet vào clinic này
+            // QUAN TRỌNG: Assign clinicManager và staff vào clinic này
             if (clinic != null) {
                 if (clinicManager != null && clinicManager.getWorkingClinic() == null) {
                     clinicManager.setWorkingClinic(clinic);
@@ -144,15 +145,15 @@ public class DataInitializer implements CommandLineRunner {
                     log.info("   + Assigned clinicManager to clinic: {}", clinic.getName());
                 }
 
-                User vet = userRepository.findByUsername("vet").orElse(null);
-                if (vet != null && vet.getWorkingClinic() == null) {
-                    vet.setWorkingClinic(clinic);
-                    userRepository.save(vet);
-                    log.info("   + Assigned vet to clinic: {}", clinic.getName());
+                User staff = userRepository.findByUsername("vet").orElse(null);
+                if (staff != null && staff.getWorkingClinic() == null) {
+                    staff.setWorkingClinic(clinic);
+                    userRepository.save(staff);
+                    log.info("   + Assigned staff to clinic: {}", clinic.getName());
                 }
 
                 // Ensure specific user has access to Clinic Data
-                String targetEmail = "congnvde180639@fpt.edu.vn";
+                String targetEmail = "datdat13112004@gmail.com";
                 User targetUser = userRepository.findByEmail(targetEmail).orElse(null);
 
                 if (targetUser == null) {
@@ -162,7 +163,7 @@ public class DataInitializer implements CommandLineRunner {
 
                 if (targetUser != null) {
                     boolean changed = false;
-                    // Force Role VET
+                    // Force Role STAFF
                     if (targetUser.getRole() != Role.STAFF && targetUser.getRole() != Role.ADMIN) {
                         targetUser.setRole(Role.STAFF);
                         changed = true;
@@ -176,7 +177,7 @@ public class DataInitializer implements CommandLineRunner {
 
                     if (changed) {
                         userRepository.save(targetUser);
-                        log.info("   + Updated existing user '{}' to Role VET and assigned Clinic '{}'", targetEmail,
+                        log.info("   + Updated existing user '{}' to Role STAFF and assigned Clinic '{}'", targetEmail,
                                 clinic.getName());
                     }
                 }
@@ -187,13 +188,13 @@ public class DataInitializer implements CommandLineRunner {
         seedTestPets(petOwner, petOwner2, petOwner3);
 
         // Seed EMR records for pets
-        User vetForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
-        if (vetForEmr == null) {
-            vetForEmr = userRepository.findByUsername("vet").orElse(null);
+        User staffForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
+        if (staffForEmr == null) {
+            staffForEmr = userRepository.findByUsername("vet").orElse(null);
         }
 
-        if (vetForEmr != null && clinic != null) {
-            seedTestEmrRecords(vetForEmr, clinic);
+        if (staffForEmr != null && clinic != null) {
+            seedTestEmrRecords(staffForEmr, clinic);
         }
 
         // Seed conversation & messages between pet owner và clinic manager (nếu đủ dữ
@@ -260,7 +261,7 @@ public class DataInitializer implements CommandLineRunner {
     /**
      * Seed test EMR records for development/testing
      */
-    private void seedTestEmrRecords(User vet, Clinic clinic) {
+    private void seedTestEmrRecords(User staff, Clinic clinic) {
         log.info("📋 Seeding test EMR records...");
 
         // Get all pets to create EMR records for
@@ -283,10 +284,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 1 for Bella - Viêm tai ngoài
                 EmrRecord emr1 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .staffId(vet.getUserId())
+                        .staffId(staff.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .staffName(vet.getFullName())
+                        .staffName(staff.getFullName())
                         .subjective(
                                 "Chủ nuôi báo cáo: Bé gãi tai nhiều trong 3 ngày qua, có mùi hôi từ tai, lắc đầu thường xuyên.")
                         .objective(
@@ -322,10 +323,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR 2 for Bella - Tái khám
                 EmrRecord emr2 = EmrRecord.builder()
                         .petId(pet.getId())
-                        .staffId(vet.getUserId())
+                        .staffId(staff.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .staffName(vet.getFullName())
+                        .staffName(staff.getFullName())
                         .subjective(
                                 "Tái khám sau 7 ngày điều trị viêm tai. Chủ nuôi cho biết bé đã bớt gãi, không còn lắc đầu nhiều.")
                         .objective(
@@ -354,10 +355,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Rocky - Tiêu chảy
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .staffId(vet.getUserId())
+                        .staffId(staff.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .staffName(vet.getFullName())
+                        .staffName(staff.getFullName())
                         .subjective(
                                 "Bé tiêu chảy 2 ngày nay, phân lỏng có nhầy. Ăn ít, uống nước bình thường. Không nôn.")
                         .objective(
@@ -393,10 +394,10 @@ public class DataInitializer implements CommandLineRunner {
                 // EMR for Mimi - Khám sức khỏe định kỳ
                 EmrRecord emr = EmrRecord.builder()
                         .petId(pet.getId())
-                        .staffId(vet.getUserId())
+                        .staffId(staff.getUserId())
                         .clinicId(clinic.getClinicId())
                         .clinicName(clinic.getName())
-                        .staffName(vet.getFullName())
+                        .staffName(staff.getFullName())
                         .subjective(
                                 "Khám sức khỏe định kỳ. Chủ nuôi không có than phiền gì đặc biệt. Bé ăn uống bình thường, chơi đùa vui vẻ.")
                         .objective(
@@ -522,27 +523,27 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     /**
-     * Helper method to initialize a VET user with specialty
+     * Helper method to initialize a STAFF user with specialty
      */
-    private User initializeVetUser(String username, String password, String email, String fullName,
+    private User initializeStaffUser(String username, String password, String email, String fullName,
             StaffSpecialty specialty) {
         // Check by username
         if (userRepository.existsByUsername(username)) {
-            // Update existing vet's specialty if null
-            User existingVet = userRepository.findByUsername(username).orElse(null);
-            if (existingVet != null && existingVet.getSpecialty() == null) {
-                existingVet.setSpecialty(specialty);
-                existingVet.setAvatar("https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+")
+            // Update existing staff's specialty if null
+            User existingStaff = userRepository.findByUsername(username).orElse(null);
+            if (existingStaff != null && existingStaff.getSpecialty() == null) {
+                existingStaff.setSpecialty(specialty);
+                existingStaff.setAvatar("https://ui-avatars.com/api/?name=" + fullName.replace(" ", "+")
                         + "&background=86EFAC&color=1c1917");
-                userRepository.save(existingVet);
-                log.info("   + Updated vet specialty: {} -> {}", username, specialty);
+                userRepository.save(existingStaff);
+                log.info("   + Updated staff specialty: {} -> {}", username, specialty);
             }
-            return existingVet;
+            return existingStaff;
         }
 
         // Check by email to prevent duplicate key error
         if (userRepository.existsByEmail(email)) {
-            log.info("   - User with email '{}' (VET) already exists.", email);
+            log.info("   - User with email '{}' (STAFF) already exists.", email);
             return userRepository.findByEmail(email).orElse(null);
         }
 
@@ -559,10 +560,10 @@ public class DataInitializer implements CommandLineRunner {
 
         try {
             User savedUser = userRepository.save(user);
-            log.info("   + Created VET user: {} with specialty {}", username, specialty);
+            log.info("   + Created STAFF user: {} with specialty {}", username, specialty);
             return savedUser;
         } catch (Exception e) {
-            log.error("   x Failed to create vet user {}: {}", username, e.getMessage());
+            log.error("   x Failed to create staff user {}: {}", username, e.getMessage());
             return null;
         }
     }

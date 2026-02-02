@@ -3,7 +3,7 @@ package com.petties.petties.model.enums;
 /**
  * Service Category - Loại dịch vụ
  * 
- * Mỗi category map đến một StaffSpecialty để auto-assign vet
+ * Mỗi category map đến một StaffSpecialty để auto-assign staff
  */
 public enum ServiceCategory {
     GROOMING_SPA(StaffSpecialty.GROOMER), // Làm đẹp & Spa

@@ -4,8 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/services/booking_service.dart';
+import '../../data/services/emr_service.dart';
 import '../../data/models/booking.dart';
+import '../../data/models/emr.dart';
 import '../../providers/auth_provider.dart';
+import '../../routing/app_routes.dart';
 
 /// StaffBookingDetailScreen - Displays booking details for Staff with check-in/checkout actions
 class StaffBookingDetailScreen extends StatefulWidget {
@@ -19,7 +22,9 @@ class StaffBookingDetailScreen extends StatefulWidget {
 
 class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   final BookingService _bookingService = BookingService();
+  final EmrService _emrService = EmrService();
   BookingResponse? _booking;
+  EmrRecord? _existingEmr;
   bool _isLoading = true;
   bool _isActionLoading = false;
   String? _error;
@@ -41,8 +46,19 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     setState(() => _isLoading = true);
     try {
       final booking = await _bookingService.getBookingById(widget.bookingId);
+      
+      EmrRecord? emr;
+      try {
+        // Check if EMR exists for this booking
+        emr = await _emrService.getEmrByBookingId(widget.bookingId);
+      } catch (_) {
+        // EMR might not exist yet, ignore error
+        emr = null;
+      }
+      
       setState(() {
         _booking = booking;
+        _existingEmr = emr;
         _error = null;
       });
     } catch (e) {
@@ -463,20 +479,75 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         onPressed: _handleCheckIn,
       );
     }
-    // IN_PROGRESS -> Complete
+    // IN_PROGRESS -> Show EMR and Vaccination buttons
     else if (status == 'IN_PROGRESS') {
-      // Logic: Manager check-out if IN_CLINIC, Staff check-out if HOME_VISIT/SOS
-      if (_booking!.type == 'IN_CLINIC') {
-        // Display a message or just no action button (Manager handles at front desk)
-        actionButton = null;
-      } else {
-        actionButton = _buildActionButton(
-          label: 'Hoàn thành',
-          icon: Icons.check_circle,
-          color: AppColors.success,
-          onPressed: _handleComplete,
-        );
-      }
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildActionButton(
+                label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
+                icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
+                color: _existingEmr != null ? Colors.green : Colors.blue,
+                onPressed: () {
+                  if (_existingEmr != null) {
+                    // Navigate to view EMR
+                    context.push('/staff/emr/${_existingEmr!.id}');
+                  } else {
+                    // Navigate to create EMR
+                    final petId = _booking!.petId;
+                    if (petId != null) {
+                      final petName = _booking!.petName ?? '';
+                      final petSpecies = _booking!.petSpecies ?? '';
+                      context.push(
+                        Uri(
+                          path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
+                          queryParameters: {
+                            'petName': petName,
+                            'petSpecies': petSpecies,
+                            'bookingId': _booking!.bookingId,
+                            'bookingCode': _booking!.bookingCode,
+                          },
+                        ).toString(),
+                      );
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildActionButton(
+                label: 'TIÊM VACCINE',
+                icon: Icons.vaccines_outlined,
+                color: Colors.purple,
+                onPressed: () {
+                  final petId = _booking!.petId;
+                  if (petId != null) {
+                    final petName = _booking!.petName ?? 'Thú cưng';
+                    context.push(
+                      Uri(
+                        path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                        queryParameters: {
+                          'petName': petName,
+                          'bookingId': _booking!.bookingId,
+                          'bookingCode': _booking!.bookingCode,
+                        },
+                      ).toString(),
+                    );
+                  }
+                },
+              ),
+              // Note: Checkout removed - staff doesn't have checkout permission for IN_CLINIC
+            ],
+          ),
+        ),
+      );
     }
 
     if (actionButton == null) return const SizedBox.shrink();

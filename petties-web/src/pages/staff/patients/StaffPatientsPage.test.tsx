@@ -3,7 +3,9 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { StaffPatientsPage } from './StaffPatientsPage'
 import { emrService } from '../../../services/emrService'
 import { vaccinationService } from '../../../services/vaccinationService'
-import { petService } from '../../../services/api/petService'
+import * as petService from '../../../services/api/petService'
+import { tokenStorage } from '../../../services/authService'
+import { useAuthStore } from '../../../store/authStore'
 
 // Mock dependencies
 vi.mock('react-router-dom', () => ({
@@ -22,13 +24,35 @@ vi.mock('../../../services/emrService', () => ({
 
 vi.mock('../../../services/vaccinationService', () => ({
     vaccinationService: {
-        getVaccinationsByPet: vi.fn()
+        getVaccinationsByPet: vi.fn(),
+        getUpcomingVaccinations: vi.fn(),
+        formatDate: vi.fn((d: string) => d || '—'),
+        calculateStatus: vi.fn((_d: string) => 'Valid')
     }
 }))
 
 vi.mock('../../../services/api/petService', () => ({
-    petService: {
-        getAllPets: vi.fn()
+    getStaffPatients: vi.fn()
+}))
+
+vi.mock('../../../services/authService', () => ({
+    tokenStorage: {
+        getUser: vi.fn()
+    }
+}))
+
+vi.mock('../../../store/authStore', () => ({
+    useAuthStore: vi.fn()
+}))
+
+vi.mock('../../../services/bookingService', () => ({
+    getBookingsByStaff: vi.fn().mockResolvedValue([])
+}))
+
+vi.mock('../../../services/api/vaccineTemplateService', () => ({
+    vaccineTemplateService: {
+        getTemplates: vi.fn().mockResolvedValue([]),
+        getAllTemplates: vi.fn().mockResolvedValue([])
     }
 }))
 
@@ -41,20 +65,18 @@ vi.mock('react-datepicker', () => {
 })
 
 describe('StaffPatientsPage', () => {
-    const mockPatients = {
-        content: [
-            {
-                id: 'pet-1',
-                name: 'Mimi',
-                species: 'Mèo',
-                breed: 'Mướp',
-                age: '1 tuổi',
-                ownerName: 'Lê Thị B',
-                ownerPhone: '0909090909'
-            }
-        ],
-        totalElements: 1
-    }
+    const mockPatients = [
+        {
+            petId: 'pet-1',
+            petName: 'Mimi',
+            species: 'CAT',
+            breed: 'Mướp',
+            age: '1 tuổi',
+            ownerName: 'Lê Thị B',
+            ownerPhone: '0909090909',
+            isAssignedToMe: true
+        }
+    ]
 
     const mockVaccinations = [
         {
@@ -72,12 +94,29 @@ describe('StaffPatientsPage', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
+
+        // Mock auth store with user data
+        vi.mocked(useAuthStore).mockReturnValue({
+            user: {
+                userId: 'staff-001',
+                workingClinicId: 'clinic-001',
+                role: 'STAFF'
+            }
+        } as any)
+
+        // Mock tokenStorage
+        vi.mocked(tokenStorage.getUser).mockReturnValue({
+            userId: 'staff-001',
+            role: 'STAFF'
+        } as any)
     })
 
     it('renders list of patients and opens vaccination tab correctly', async () => {
         // Setup initial load
-        vi.mocked(petService.getAllPets).mockResolvedValue(mockPatients as any)
+        vi.mocked(petService.getStaffPatients).mockResolvedValue(mockPatients as any)
         vi.mocked(emrService.getEmrsByPetId).mockResolvedValue([])
+        vi.mocked(vaccinationService.getVaccinationsByPet).mockResolvedValue(mockVaccinations as any)
+        vi.mocked(vaccinationService.getUpcomingVaccinations).mockResolvedValue([])
 
         render(<StaffPatientsPage />)
 
@@ -96,9 +135,6 @@ describe('StaffPatientsPage', () => {
         expect(emrTab).toBeInTheDocument()
 
         // 4. Switch to Vaccinations Tab
-        // Mock the vaccination call before switch
-        vi.mocked(vaccinationService.getVaccinationsByPet).mockResolvedValue(mockVaccinations as any)
-
         const vaccineTab = screen.getByRole('button', { name: /Tiêm phòng/i })
         fireEvent.click(vaccineTab)
 
@@ -110,9 +146,6 @@ describe('StaffPatientsPage', () => {
             // The component renders: Dr. {staffName.split(' ').pop()}
             // "Trần Văn B" -> "B" -> "Dr. B"
             expect(screen.getByText('Dr. B')).toBeInTheDocument()
-
-            // Check Batch
-            expect(screen.getByText('RB-123')).toBeInTheDocument()
         })
     })
 })

@@ -1,6 +1,6 @@
 /**
  * Service Category - Must match backend enum ServiceCategory.java
- * Each category maps to a StaffSpecialty for auto-vet assignment
+ * Each category maps to a StaffSpecialty for auto-staff assignment
  */
 
 import { BeakerIcon, HeartIcon, ScissorsIcon, HomeIcon, SparklesIcon, SunIcon } from '@heroicons/react/24/solid'

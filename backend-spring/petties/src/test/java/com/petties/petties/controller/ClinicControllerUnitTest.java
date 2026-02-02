@@ -14,6 +14,7 @@ import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.service.ClinicService;
+import com.petties.petties.service.ClinicStaffService;
 import com.petties.petties.service.CloudinaryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,9 @@ class ClinicControllerUnitTest {
 
         @MockitoBean
         private BlacklistedTokenRepository blacklistedTokenRepository;
+
+        @MockitoBean
+        private ClinicStaffService clinicStaffService;
 
         @Autowired
         private ObjectMapper objectMapper;

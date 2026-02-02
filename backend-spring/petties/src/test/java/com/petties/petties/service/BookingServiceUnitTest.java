@@ -44,6 +44,8 @@ class BookingServiceUnitTest {
     private UserRepository userRepository;
     @Mock
     private StaffAssignmentService staffAssignmentService;
+    @Mock
+    private EmrRecordRepository emrRecordRepository;
 
     @InjectMocks
     private BookingService bookingService;

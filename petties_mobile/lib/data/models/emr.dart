@@ -3,6 +3,7 @@ class EmrRecord {
   final String id;
   final String petId;
   final String? bookingId;
+  final String? bookingCode;
   final String staffId;
   final String? clinicId;
   final String? clinicName;
@@ -31,6 +32,7 @@ class EmrRecord {
     required this.id,
     required this.petId,
     this.bookingId,
+    this.bookingCode,
     required this.staffId,
     this.clinicId,
     this.clinicName,
@@ -61,6 +63,7 @@ class EmrRecord {
       id: json['id'] ?? '',
       petId: json['petId'] ?? '',
       bookingId: json['bookingId'],
+      bookingCode: json['bookingCode'],
       staffId: json['staffId'] ?? '',
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],

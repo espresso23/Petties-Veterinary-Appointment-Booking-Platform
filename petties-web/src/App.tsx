@@ -14,6 +14,7 @@ import { ClinicManagerLayout } from './layouts/ClinicManagerLayout'
 // Pages
 import { OnboardingPage } from './pages/onboarding'
 import { HomePage } from './pages/home/HomePage'
+import PetHealthRecordPage from './pages/home/PetHealthRecordPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { RegisterPage } from './pages/auth/RegisterPage'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
@@ -86,6 +87,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route path="/home" element={<HomePage />} />
+            <Route path="/home/pets/:petId/health-record" element={<PetHealthRecordPage />} />
           </Route>
 
           {/* Admin Routes */}

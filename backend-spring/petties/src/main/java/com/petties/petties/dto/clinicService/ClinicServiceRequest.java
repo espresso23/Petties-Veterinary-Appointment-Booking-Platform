@@ -48,6 +48,10 @@ public class ClinicServiceRequest {
 
     private com.petties.petties.model.enums.ServiceCategory serviceCategory;
 
+    private Integer reminderInterval;
+
+    private String reminderUnit;
+
     @Size(max = 100, message = "Loại thú nuôi không được quá 100 ký tự")
     private String petType;
 

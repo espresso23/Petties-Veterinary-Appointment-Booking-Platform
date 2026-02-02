@@ -11,6 +11,12 @@ class Pet {
   final String? imageUrl;
   final String? ownerName;
   final String? ownerPhone;
+  final bool isAssignedToMe;
+  final DateTime? nextAppointment;
+  final String? bookingStatus;
+  final String? bookingId;
+  final String? bookingCode;
+  final DateTime? lastVisitDate;
 
   Pet({
     required this.id,
@@ -25,17 +31,23 @@ class Pet {
     this.imageUrl,
     this.ownerName,
     this.ownerPhone,
+    this.isAssignedToMe = false,
+    this.nextAppointment,
+    this.bookingStatus,
+    this.bookingId,
+    this.bookingCode,
+    this.lastVisitDate,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) {
     return Pet(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
+      id: json['id'] ?? json['petId'] ?? '',
+      name: json['name'] ?? json['petName'] ?? '',
       species: json['species'] ?? '',
       breed: json['breed'] ?? '',
       dateOfBirth: json['dateOfBirth'] != null 
         ? DateTime.parse(json['dateOfBirth']) 
-        : DateTime.now(),
+        : (json['dob'] != null ? DateTime.parse(json['dob']) : DateTime.now()),
       weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
       gender: json['gender'] ?? '',
       color: json['color'],
@@ -43,6 +55,12 @@ class Pet {
       imageUrl: json['imageUrl'],
       ownerName: json['ownerName'],
       ownerPhone: json['ownerPhone'],
+      isAssignedToMe: json['isAssignedToMe'] ?? false,
+      nextAppointment: json['nextAppointment'] != null ? DateTime.parse(json['nextAppointment']) : null,
+      bookingStatus: json['bookingStatus'],
+      bookingId: json['bookingId'],
+      bookingCode: json['bookingCode'],
+      lastVisitDate: json['lastVisitDate'] != null ? DateTime.parse(json['lastVisitDate']) : null,
     );
   }
 
@@ -60,6 +78,12 @@ class Pet {
       'imageUrl': imageUrl,
       'ownerName': ownerName,
       'ownerPhone': ownerPhone,
+      'isAssignedToMe': isAssignedToMe,
+      'nextAppointment': nextAppointment?.toIso8601String(),
+      'bookingStatus': bookingStatus,
+      'bookingId': bookingId,
+      'bookingCode': bookingCode,
+      'lastVisitDate': lastVisitDate?.toIso8601String(),
     };
   }
 }

@@ -21,15 +21,19 @@ public class CreateVaccinationRequest {
 
     private UUID bookingId;
 
+    private UUID vaccineTemplateId; // Optional: Link to master data
+
     @NotBlank(message = "Vaccine name is required")
     private String vaccineName;
-
-    private String batchNumber;
 
     @NotNull(message = "Vaccination date is required")
     private LocalDate vaccinationDate;
 
     private LocalDate nextDueDate;
+
+    private String doseSequence; // Values: "1", "2", "3", "BOOSTER", "AD_HOC"
+
+    private String batchNumber; // Vaccine batch number for tracking
 
     private String notes;
 }

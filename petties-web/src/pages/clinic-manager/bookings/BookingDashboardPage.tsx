@@ -83,19 +83,37 @@ export const BookingDashboardPage = () => {
         try {
             // Pass type filter to API if not 'ALL'
             const apiType = typeFilter === 'ALL' ? undefined : typeFilter;
-            const response = await getBookingsByClinic(user.workingClinicId, undefined, apiType);
+
+            // Optimization: For PENDING tab, pass status to API to get full list correctly
+            // For other tabs, we still fetch all and filter client-side (until backend supports list of statuses)
+            // But we request a larger page size to minimize pagination issues
+
+            let statusParam: BookingStatus | undefined = undefined;
+            if (activeTab === 'PENDING') {
+                statusParam = 'PENDING';
+            }
+
+            // Using larger page size to ensure we get enough items when filtering client-side
+            const response = await getBookingsByClinic(
+                user.workingClinicId,
+                statusParam,
+                apiType,
+                0,
+                100
+            );
+
             let filtered = response.content || [];
 
             if (activeTab === 'PENDING') {
-                // Only show PENDING bookings
+                // Should already be filtered by API, but double check
                 filtered = filtered.filter(b => b.status === 'PENDING');
             } else if (activeTab === 'CONFIRMED') {
-                // Show active bookings (not PENDING and not finished/cancelled)
+                // Show active bookings: ASSIGNED, IN_PROGRESS, ARRIVED
+                // STRICTLY EXCLUDE PENDING
                 filtered = filtered.filter(b =>
-                    b.status !== 'PENDING' &&
-                    b.status !== 'COMPLETED' &&
-                    b.status !== 'CANCELLED' &&
-                    b.status !== 'NO_SHOW'
+                    b.status === 'ASSIGNED' ||
+                    b.status === 'IN_PROGRESS' ||
+                    b.status === 'ARRIVED'
                 );
             } else if (activeTab === 'HISTORY') {
                 // Show completed/cancelled bookings

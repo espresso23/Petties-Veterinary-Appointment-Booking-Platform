@@ -1,5 +1,7 @@
 import 'api_client.dart';
 import '../models/booking.dart';
+import 'auth_service.dart';
+import 'dart:convert';
 
 /// BookingService - Handles booking-related API calls for mobile Staff
 class BookingService {
@@ -58,5 +60,30 @@ class BookingService {
       queryParameters: {'reason': reason},
     );
     return BookingResponse.fromJson(response.data);
+  }
+
+  /// Get bookings by staff ID with filtering and pagination
+  Future<Map<String, dynamic>> getBookingsByStaff({
+    String? status,
+    int page = 0,
+    int size = 20,
+  }) async {
+    try {
+      final user = await AuthService().getCurrentUser();
+      if (user == null) throw Exception('User not logged in');
+
+      final response = await _apiClient.get(
+        '/bookings/staff/${user.userId}',
+        queryParameters: {
+          if (status != null && status != 'all') 'status': status,
+          'page': page,
+          'size': size,
+          'sort': 'bookingDate,desc',
+        },
+      );
+      return response.data;
+    } catch (e) {
+      rethrow;
+    }
   }
 }

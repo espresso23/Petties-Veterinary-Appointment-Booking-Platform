@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * DTO for service availability check result
- * Shows whether a specific service in a booking has an available vet
+ * Shows whether a specific service in a booking has an available staff
  */
 @Data
 @Builder

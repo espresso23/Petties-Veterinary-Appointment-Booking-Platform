@@ -17,9 +17,9 @@ class ApiClient {
       BaseOptions(
         baseUrl: Environment.baseUrl,
         connectTimeout:
-            const Duration(milliseconds: AppConstants.connectTimeout),
+            const Duration(milliseconds: 30000), // Increased to 30s
         receiveTimeout:
-            const Duration(milliseconds: AppConstants.receiveTimeout),
+            const Duration(milliseconds: 30000), // Increased to 30s
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

@@ -11,13 +11,19 @@ import {
     LockClosedIcon,
 } from '@heroicons/react/24/outline'
 import { emrService } from '../../../services/emrService'
-import { petService, type Pet } from '../../../services/api/petService'
+import { getStaffPatients, type StaffPatient } from '../../../services/api/petService'
 import { tokenStorage } from '../../../services/authService'
 import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
+import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { vi } from 'date-fns/locale'
-// Note: react-datepicker CSS is loaded via index.css or alternative method
+import 'react-datepicker/dist/react-datepicker.css'
+import { getBookingsByStaff } from '../../../services/bookingService'
+import type { Booking } from '../../../types/booking'
+import { useAuthStore } from '../../../store/authStore'
+import { VaccinationRoadmap } from '../vaccine/components/VaccinationRoadmap'
+import { Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline'
 
 // Register Vietnamese locale
 registerLocale('vi', vi)
@@ -49,6 +55,11 @@ interface Patient {
     allergies?: string
     microchip?: string
     lastExamDate?: string
+
+    // New fields
+    isAssignedToMe?: boolean
+    bookingStatus?: string
+    nextAppointment?: string
 }
 
 type DetailTab = 'overview' | 'emr' | 'vaccinations' | 'lab' | 'documents'
@@ -57,16 +68,47 @@ type DetailTab = 'overview' | 'emr' | 'vaccinations' | 'lab' | 'documents'
 export const StaffPatientsPage = () => {
     const navigate = useNavigate()
     const { showToast } = useToast()
+    const { user } = useAuthStore()
+
+    // State
+    const [bookings, setBookings] = useState<Booking[]>([])
+
+    // Fetch active bookings for this staff to link with patients
+    useEffect(() => {
+        const fetchActiveBookings = async () => {
+            if (!user?.userId) return
+            try {
+                // Fetch IN_PROGRESS and ASSIGNED bookings
+                const [inProgress, assigned] = await Promise.all([
+                    getBookingsByStaff(user.userId, 'IN_PROGRESS', 0, 100).catch(() => ({ content: [] })),
+                    getBookingsByStaff(user.userId, 'ASSIGNED', 0, 100).catch(() => ({ content: [] }))
+                ])
+                // Merge lists
+                const all = [...(inProgress.content || []), ...(assigned.content || [])]
+                setBookings(all)
+            } catch (err) {
+                console.error("Failed to fetch bookings for linking", err)
+            }
+        }
+
+        if (user?.userId) {
+            fetchActiveBookings()
+        }
+    }, [user?.userId])
 
     // State
     const [patients, setPatients] = useState<Patient[]>([])
     const [isLoadingPatients, setIsLoadingPatients] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const [speciesFilter, setSpeciesFilter] = useState<string>('all')
-    const [sortBy, setSortBy] = useState<string>('name-asc')
+    const [sortBy, setSortBy] = useState<string>('priority') // Default to priority
     const [currentPage, setCurrentPage] = useState(1)
     const [rowsPerPage, setRowsPerPage] = useState(10)
     const [totalPatients, setTotalPatients] = useState(0)
+
+    // Vaccine Templates
+    const [vaccineTemplates, setVaccineTemplates] = useState<VaccineTemplate[]>([])
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
     // Modal states
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
@@ -76,74 +118,56 @@ export const StaffPatientsPage = () => {
 
     // Vaccination Tab State
     const [vaccinationRecords, setVaccinationRecords] = useState<VaccinationRecord[]>([])
+    const [upcomingRecords, setUpcomingRecords] = useState<VaccinationRecord[]>([]) // Add state
     const [isLoadingVaccinations, setIsLoadingVaccinations] = useState(false)
     const [isAddVaccinationModalOpen, setIsAddVaccinationModalOpen] = useState(false)
     const [selectedVaccination, setSelectedVaccination] = useState<VaccinationRecord | null>(null)
+    const [viewMode, setViewMode] = useState<'list' | 'roadmap'>('list')
 
     // Add Vaccination Form State
     const [vaccineName, setVaccineName] = useState('')
-    const [batchNumber, setBatchNumber] = useState('')
     const [vaccinationDate, setVaccinationDate] = useState<Date | null>(null)
     const [nextDueDate, setNextDueDate] = useState<Date | null>(null)
     const [vaccinationNotes, setVaccinationNotes] = useState('')
+    const [doseSequence, setDoseSequence] = useState<string>('1')
     const [isSubmittingVaccination, setIsSubmittingVaccination] = useState(false)
 
-    // Allergies editing state
-    const [isEditingAllergies, setIsEditingAllergies] = useState(false)
-    const [allergiesInput, setAllergiesInput] = useState('')
-    const [isSavingAllergies, setIsSavingAllergies] = useState(false)
+    // Fetch Templates on mount
+    useEffect(() => {
+        vaccineTemplateService.getAllTemplates().then(setVaccineTemplates).catch(console.error)
+    }, [])
 
-    // Handler for saving allergies
-    const handleSaveAllergies = async () => {
-        if (!selectedPatient) return
-        setIsSavingAllergies(true)
-        try {
-            await petService.updateAllergies(selectedPatient.id, allergiesInput)
-            // Update local state
-            setSelectedPatient(prev => prev ? { ...prev, allergies: allergiesInput } : null)
-            setPatients(prev => prev.map(p => p.id === selectedPatient.id ? { ...p, allergies: allergiesInput } : p))
-            setIsEditingAllergies(false)
-            showToast('success', 'Đã cập nhật thông tin dị ứng!')
-        } catch (err) {
-            console.error('Error saving allergies:', err)
-            showToast('error', 'Lỗi khi cập nhật dị ứng')
-        } finally {
-            setIsSavingAllergies(false)
-        }
-    }
-
-    // Load patients from API only
+    // Load patients from API (Prioritized)
     useEffect(() => {
         const loadPatients = async () => {
+            if (!user?.userId || !user?.workingClinicId) return
+
             setIsLoadingPatients(true)
             try {
-                const response = await petService.getAllPets(currentPage - 1, rowsPerPage)
-                const mappedPatients: Patient[] = (response.content || []).map((pet: Pet) => {
-                    // Calculate age from dateOfBirth
-                    let ageStr = 'N/A'
-                    if (pet.dateOfBirth) {
-                        const birthDate = new Date(pet.dateOfBirth)
-                        const today = new Date()
-                        const ageYears = today.getFullYear() - birthDate.getFullYear()
-                        ageStr = `${ageYears} tuổi`
-                    }
+                // Use the new prioritized API
+                const staffPatients = await getStaffPatients(user.workingClinicId, user.userId)
+
+                const mappedPatients: Patient[] = staffPatients.map((pet: StaffPatient) => {
                     return {
-                        id: pet.id,
-                        name: pet.name,
+                        id: pet.petId,
+                        name: pet.petName,
                         species: pet.species,
                         breed: pet.breed || 'N/A',
-                        age: ageStr,
+                        age: `${pet.ageYears} tuổi ${pet.ageMonths} tháng`,
                         sex: pet.gender === 'MALE' ? 'Đực' : pet.gender === 'FEMALE' ? 'Cái' : pet.gender,
                         weight: pet.weight,
-                        color: pet.color || undefined,
                         imageUrl: pet.imageUrl,
                         ownerName: pet.ownerName || 'N/A',
                         ownerPhone: pet.ownerPhone,
-                        allergies: pet.allergies,
+                        isAssignedToMe: pet.isAssignedToMe,
+                        bookingStatus: pet.bookingStatus,
+                        nextAppointment: pet.nextAppointment,
+                        lastExamDate: pet.lastVisitDate,
+                        allergies: pet.allergies // Map allergies field
                     }
                 })
                 setPatients(mappedPatients)
-                setTotalPatients(response.totalElements || 0)
+                setTotalPatients(mappedPatients.length)
             } catch (err) {
                 console.error('Error loading patients:', err)
                 setPatients([])
@@ -152,8 +176,10 @@ export const StaffPatientsPage = () => {
                 setIsLoadingPatients(false)
             }
         }
-        loadPatients()
-    }, [currentPage, rowsPerPage])
+        if (user?.userId) {
+            loadPatients()
+        }
+    }, [user?.userId, user?.workingClinicId])
 
     // Load Data based on Tab
     useEffect(() => {
@@ -174,8 +200,12 @@ export const StaffPatientsPage = () => {
         if (!selectedPatient) return
         setIsLoadingVaccinations(true)
         try {
-            const records = await vaccinationService.getVaccinationsByPet(selectedPatient.id)
+            const [records, upcoming] = await Promise.all([
+                vaccinationService.getVaccinationsByPet(selectedPatient.id),
+                vaccinationService.getUpcomingVaccinations(selectedPatient.id)
+            ])
             setVaccinationRecords(records)
+            setUpcomingRecords(upcoming)
         } catch (err) {
             console.error(err)
             showToast('error', 'Không thể tải lịch sử tiêm chủng')
@@ -193,12 +223,21 @@ export const StaffPatientsPage = () => {
 
         setIsSubmittingVaccination(true)
         try {
+            // Find active booking
+            const activeBooking = bookings.find(b =>
+                b.petId === selectedPatient.id &&
+                (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+            )
+
             await vaccinationService.createVaccination({
                 petId: selectedPatient.id,
+                bookingId: activeBooking?.bookingId,
                 vaccineName,
-                batchNumber,
+                // batchNumber removed from Service but kept in UI if user wants to log in notes
+                vaccineTemplateId: selectedTemplateId !== 'manual' ? selectedTemplateId : undefined,
                 vaccinationDate: vaccinationDate.toISOString().split('T')[0],
                 nextDueDate: nextDueDate ? nextDueDate.toISOString().split('T')[0] : undefined,
+                doseSequence,
                 notes: vaccinationNotes
             })
 
@@ -216,8 +255,9 @@ export const StaffPatientsPage = () => {
 
     const resetVaccinationForm = () => {
         setVaccineName('')
-        setBatchNumber('')
-        setVaccinationDate(null)
+        setSelectedTemplateId('')
+        setDoseSequence('1')
+        setVaccinationDate(new Date())
         setNextDueDate(null)
         setVaccinationNotes('')
     }
@@ -253,6 +293,14 @@ export const StaffPatientsPage = () => {
     // Sort patients
     const sortedPatients = [...filteredPatients].sort((a, b) => {
         switch (sortBy) {
+            case 'priority':
+                // Assuming original 'patients' list is sorted by API (which it is)
+                // We trust the original order. But since filter creates a new array, 
+                // and the original order is index based, if we just return 0, it keeps current order.
+                // However, let's explicit: 
+                // Primary: Assigned to Me
+                if (a.isAssignedToMe !== b.isAssignedToMe) return a.isAssignedToMe ? -1 : 1
+                return 0
             case 'name-asc':
                 return a.name.localeCompare(b.name, 'vi')
             case 'name-desc':
@@ -331,6 +379,7 @@ export const StaffPatientsPage = () => {
                         onChange={(e) => setSortBy(e.target.value)}
                         className="px-3 py-2 border border-stone-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-100 focus:outline-none bg-stone-50 text-sm font-medium transition-all cursor-pointer"
                     >
+                        <option value="priority">Độ ưu tiên</option>
                         <option value="name-asc">Tên A → Z</option>
                         <option value="name-desc">Tên Z → A</option>
 
@@ -351,6 +400,7 @@ export const StaffPatientsPage = () => {
                                 <tr>
                                     <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">#</th>
                                     <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">Thú cưng</th>
+                                    <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">Trạng thái</th>
                                     <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">Loài/Giống</th>
                                     <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">Chủ nuôi</th>
                                     <th className="text-left px-4 py-3 text-sm font-bold text-stone-600">Cân nặng</th>
@@ -373,8 +423,36 @@ export const StaffPatientsPage = () => {
                                                         {getSpeciesEmoji(patient.species)}
                                                     </div>
                                                 )}
-                                                <span className="font-bold text-stone-800">{patient.name}</span>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-stone-800">{patient.name}</span>
+                                                        {patient.isAssignedToMe && (
+                                                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider rounded border border-blue-200">
+                                                                Của tôi
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {patient.bookingStatus && ['IN_PROGRESS', 'CONFIRMED', 'ASSIGNED', 'COMPLETED'].includes(patient.bookingStatus) ? (
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${(() => {
+                                                    switch (patient.bookingStatus) {
+                                                        case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
+                                                        case 'CONFIRMED':
+                                                        case 'ASSIGNED': return 'bg-orange-100 text-orange-700 border-orange-200'
+                                                        case 'COMPLETED': return 'bg-green-100 text-green-700 border-green-200'
+                                                        default: return 'bg-stone-100 text-stone-600 border-stone-200'
+                                                    }
+                                                })()}`}>
+                                                    {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
+                                                        (patient.bookingStatus === 'CONFIRMED' || patient.bookingStatus === 'ASSIGNED') ? 'Chờ khám' :
+                                                            patient.bookingStatus === 'COMPLETED' ? 'Đã khám' : ''}
+                                                </span>
+                                            ) : (
+                                                <span className="text-stone-400 text-xs italic">Không có lịch</span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-stone-600">{patient.species} / {patient.breed}</td>
                                         <td className="px-4 py-3 text-stone-600">{patient.ownerName}</td>
@@ -455,53 +533,16 @@ export const StaffPatientsPage = () => {
                                         {selectedPatient.ownerPhone && <span>SĐT: {selectedPatient.ownerPhone}</span>}
                                     </div>
 
-                                    {/* Allergies Section - Editable by VET */}
+                                    {/* Allergies Section - Read Only */}
                                     <div className="flex items-center gap-2 mb-4 flex-wrap">
-                                        {isEditingAllergies ? (
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={allergiesInput}
-                                                    onChange={(e) => setAllergiesInput(e.target.value)}
-                                                    placeholder="Nhập thông tin dị ứng..."
-                                                    className="px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-amber-500"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    onClick={handleSaveAllergies}
-                                                    disabled={isSavingAllergies}
-                                                    className="px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 disabled:opacity-50"
-                                                >
-                                                    {isSavingAllergies ? '...' : 'Lưu'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setIsEditingAllergies(false)}
-                                                    className="px-3 py-1.5 bg-stone-200 text-stone-700 text-xs font-bold rounded-lg hover:bg-stone-300"
-                                                >
-                                                    Hủy
-                                                </button>
-                                            </div>
+                                        {selectedPatient.allergies ? (
+                                            <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-300">
+                                                Dị ứng: {selectedPatient.allergies}
+                                            </span>
                                         ) : (
-                                            <>
-                                                {selectedPatient.allergies ? (
-                                                    <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-300">
-                                                        Dị ứng: {selectedPatient.allergies}
-                                                    </span>
-                                                ) : (
-                                                    <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs font-bold rounded-full border border-stone-200">
-                                                        Chưa có thông tin dị ứng
-                                                    </span>
-                                                )}
-                                                <button
-                                                    onClick={() => {
-                                                        setAllergiesInput(selectedPatient.allergies || '')
-                                                        setIsEditingAllergies(true)
-                                                    }}
-                                                    className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-200 border border-amber-300"
-                                                >
-                                                    Cập nhật dị ứng
-                                                </button>
-                                            </>
+                                            <span className="px-3 py-1 bg-stone-100 text-stone-500 text-xs font-bold rounded-full border border-stone-200">
+                                                Chưa có thông tin dị ứng
+                                            </span>
                                         )}
                                     </div>
 
@@ -562,13 +603,56 @@ export const StaffPatientsPage = () => {
                                 <div>
                                     {/* Header with buttons */}
                                     <div className="flex items-center justify-between mb-6">
-                                        <h3 className="text-xl font-bold text-stone-800">
-                                            Lịch sử bệnh án
-                                        </h3>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-stone-800">
+                                                Lịch sử bệnh án
+                                            </h3>
+                                            {/* Show Active Booking Indicator */}
+                                            {(() => {
+                                                const activeBooking = bookings.find(b =>
+                                                    b.petId === selectedPatient.id &&
+                                                    (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                )
+                                                if (activeBooking) {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 mt-1">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                                                            Booking #{activeBooking.bookingCode}
+                                                        </span>
+                                                    )
+                                                }
+                                                return null
+                                            })()}
+                                        </div>
                                         <div className="flex gap-3">
-
                                             <button
-                                                onClick={() => navigate(`/staff/emr/create/${selectedPatient.id}`)}
+                                                onClick={() => {
+                                                    const activeBooking = bookings.find(b =>
+                                                        b.petId === selectedPatient.id &&
+                                                        (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                    )
+
+                                                    // Check if EMR already exists for this booking
+                                                    const existingEmr = activeBooking
+                                                        ? emrRecords.find(e => e.bookingId === activeBooking.bookingId)
+                                                        : null
+
+                                                    if (existingEmr) {
+                                                        // If exists, go to Detail or Edit depending on lock status
+                                                        if (!existingEmr.isLocked && String(user?.userId) === String(existingEmr.staffId)) {
+                                                            navigate(`/staff/emr/edit/${existingEmr.id}`)
+                                                        } else {
+                                                            navigate(`/staff/emr/detail/${existingEmr.id}`)
+                                                        }
+                                                        return
+                                                    }
+
+                                                    let url = `/staff/emr/create/${selectedPatient.id}`
+                                                    if (activeBooking) {
+                                                        url += `?bookingId=${activeBooking.bookingId}&bookingCode=${activeBooking.bookingCode}`
+                                                    }
+                                                    navigate(url)
+                                                }}
                                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
                                             >
                                                 <PlusIcon className="w-4 h-4" />
@@ -609,28 +693,36 @@ export const StaffPatientsPage = () => {
                                                                     {new Date(emr.examinationDate).toLocaleDateString('vi-VN')}
                                                                     <span className="mx-2">•</span>
                                                                     BS. {emr.staffName}
+                                                                    {emr.bookingCode && (
+                                                                        <span className="ml-2 font-mono text-xs bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
+                                                                            #{emr.bookingCode}
+                                                                        </span>
+                                                                    )}
                                                                 </p>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                {/* Edit Button - Only if not locked, within 24h, and owned by current staff */}
-                                                                {(!emr.isLocked &&
-                                                                    String(tokenStorage.getUser()?.userId) === emr.staffId &&
-                                                                    (new Date().getTime() - new Date(emr.createdAt).getTime() < 24 * 60 * 60 * 1000)
-                                                                ) ? (
-                                                                    <button
-                                                                        onClick={() => navigate(`/staff/emr/edit/${emr.id}`)}
-                                                                        className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
-                                                                        title="Chỉnh sửa bệnh án (Trong vòng 24h)"
-                                                                    >
-                                                                        <PencilSquareIcon className="w-4 h-4" />
-                                                                        <span className="text-xs font-bold">Sửa</span>
-                                                                    </button>
-                                                                ) : (
-                                                                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-50 text-stone-400 rounded-lg border border-stone-100 select-none">
-                                                                        <LockClosedIcon className="w-3.5 h-3.5" />
-                                                                        <span className="text-xs font-medium">Chỉ xem</span>
-                                                                    </div>
-                                                                )}
+                                                                {/* Edit Button - Only if not locked and owned by current staff */}
+                                                                {(() => {
+                                                                    const isWithin24h = (new Date().getTime() - new Date(emr.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+                                                                    const isOwner = String(tokenStorage.getUser()?.userId) === String(emr.staffId);
+                                                                    const canEdit = !emr.isLocked && isOwner && isWithin24h;
+
+                                                                    return canEdit ? (
+                                                                        <button
+                                                                            onClick={() => navigate(`/staff/emr/edit/${emr.id}`)}
+                                                                            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                                                                            title="Chỉnh sửa bệnh án (Trong vòng 24h)"
+                                                                        >
+                                                                            <PencilSquareIcon className="w-4 h-4" />
+                                                                            <span className="text-xs font-bold">Sửa</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-50 text-stone-400 rounded-lg border border-stone-100 select-none">
+                                                                            <LockClosedIcon className="w-3.5 h-3.5" />
+                                                                            <span className="text-xs font-medium">Chỉ xem</span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                                 {emr.clinicId && (
                                                                     <span className="px-3 py-1.5 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg">
                                                                         Nguồn: {emr.clinicName}
@@ -690,32 +782,125 @@ export const StaffPatientsPage = () => {
                                     {/* SECTION 1: RECORD NEW VACCINATION (INLINE FORM) */}
                                     <div className="bg-stone-50 border border-stone-200 rounded-2xl p-6">
                                         <div className="flex items-center gap-2 mb-6">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
                                                 <PlusIcon className="w-5 h-5" />
                                             </div>
                                             <h3 className="text-lg font-bold text-stone-800">Ghi Nhận Mũi Tiêm Mới</h3>
                                         </div>
 
                                         <form onSubmit={handleAddVaccination} className="space-y-6">
+                                            {/* Show Active Booking if found */}
+                                            {(() => {
+                                                const activeBooking = bookings.find(b =>
+                                                    b.petId === selectedPatient.id &&
+                                                    (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                )
+
+                                                if (activeBooking) {
+                                                    return (
+                                                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                                                                <span className="text-sm font-bold text-orange-800">
+                                                                    Đang có lịch hẹn: #{activeBooking.bookingCode}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-xs text-orange-600 font-medium">
+                                                                Sẽ được liên kết vào hồ sơ này
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                }
+                                                return null
+                                            })()}
+
+                                            {/* Dose Sequence Selector */}
+                                            <div className="space-y-2 mt-4">
+                                                <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest">Loại mũi tiêm</label>
+                                                <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200 w-fit">
+                                                    {['1', '2', '3', 'BOOSTER'].map((seq) => (
+                                                        <button
+                                                            key={seq}
+                                                            type="button"
+                                                            onClick={() => setDoseSequence(seq)}
+                                                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${doseSequence === seq
+                                                                ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
+                                                                : 'text-stone-400 hover:text-stone-600'
+                                                                }`}
+                                                        >
+                                                            {seq === 'BOOSTER' ? 'TIÊM NHẮC' : `MŨI ${seq}`}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
                                             <div className="grid grid-cols-4 gap-4">
                                                 {/* Vaccine Type */}
+                                                {/* Vaccine Template Selection */}
                                                 <div className="space-y-1.5 col-span-1">
                                                     <label className="block text-xs font-bold text-stone-600 uppercase">Loại Vaccine</label>
-                                                    <input
-                                                        type="text"
-                                                        list="vaccine-types"
-                                                        value={vaccineName}
-                                                        onChange={(e) => setVaccineName(e.target.value)}
-                                                        placeholder="Chọn loại..."
-                                                        className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium"
-                                                        required
-                                                    />
-                                                    <datalist id="vaccine-types">
-                                                        {VACCINE_TYPES.map(type => (
-                                                            <option key={type} value={type} />
+                                                    <select
+                                                        value={selectedTemplateId}
+                                                        onChange={(e) => {
+                                                            const tmplId = e.target.value
+                                                            setSelectedTemplateId(tmplId)
+
+                                                            const tmpl = vaccineTemplates.find(t => t.id === tmplId)
+                                                            if (tmpl) {
+                                                                setVaccineName(tmpl.name)
+
+                                                                // Smart Dose Prediction (Locally)
+                                                                const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                                const normalizedInput = normalize(tmpl.name);
+                                                                const existingCount = vaccinationRecords.filter(r =>
+                                                                    r.workflowStatus === 'COMPLETED' && normalize(r.vaccineName) === normalizedInput
+                                                                ).length;
+
+                                                                if (existingCount >= (tmpl.seriesDoses || 1)) {
+                                                                    setDoseSequence('BOOSTER');
+                                                                } else {
+                                                                    setDoseSequence(String(existingCount + 1));
+                                                                }
+
+                                                                // Auto-calculate next due date if vaccination date is set
+                                                                const vDate = vaccinationDate || new Date();
+                                                                if (!vaccinationDate) setVaccinationDate(vDate);
+
+                                                                if (tmpl.repeatIntervalDays) {
+                                                                    const nextDate = new Date(vDate)
+                                                                    nextDate.setDate(nextDate.getDate() + tmpl.repeatIntervalDays)
+                                                                    setNextDueDate(nextDate)
+                                                                }
+                                                            } else {
+                                                                setVaccineName('')
+                                                                setDoseSequence('1')
+                                                            }
+                                                        }}
+                                                        className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium cursor-pointer"
+                                                    >
+                                                        <option value="">-- Chọn Vaccine Mẫu --</option>
+                                                        {vaccineTemplates.map(t => (
+                                                            <option key={t.id} value={t.id}>
+                                                                {t.name} ({t.manufacturer})
+                                                            </option>
                                                         ))}
-                                                    </datalist>
+                                                        <option value="manual">Nhập thủ công...</option>
+                                                    </select>
                                                 </div>
+
+                                                {/* Manual Name Input (if needed or manual selected) */}
+                                                {(selectedTemplateId === 'manual' || !selectedTemplateId) && (
+                                                    <div className="space-y-1.5 col-span-1">
+                                                        <label className="block text-xs font-bold text-stone-600 uppercase">Tên Vaccine (Thủ công)</label>
+                                                        <input
+                                                            type="text"
+                                                            value={vaccineName}
+                                                            onChange={(e) => setVaccineName(e.target.value)}
+                                                            placeholder="Nhập tên..."
+                                                            className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium"
+                                                        />
+                                                    </div>
+                                                )}
 
                                                 {/* Date Administered */}
                                                 <div className="space-y-1.5 col-span-1">
@@ -750,7 +935,8 @@ export const StaffPatientsPage = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Batch No */}
+                                                {/* Batch No - HIDDEN per requirement */}
+                                                {/*
                                                 <div className="space-y-1.5 col-span-1">
                                                     <label className="block text-xs font-bold text-stone-600 uppercase">Số Lô (Batch)</label>
                                                     <input
@@ -761,6 +947,7 @@ export const StaffPatientsPage = () => {
                                                         className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium font-mono"
                                                     />
                                                 </div>
+                                                */}
                                             </div>
 
                                             {/* Notes & Button */}
@@ -778,7 +965,7 @@ export const StaffPatientsPage = () => {
                                                 <button
                                                     type="submit"
                                                     disabled={isSubmittingVaccination}
-                                                    className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:opacity-50 shadow-lg shadow-blue-200 flex items-center gap-2 whitespace-nowrap h-[42px]"
+                                                    className="px-6 py-2.5 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50 shadow-lg shadow-orange-100 flex items-center gap-2 whitespace-nowrap h-[42px]"
                                                 >
                                                     {isSubmittingVaccination ? 'Đang lưu...' : 'Lưu Hồ Sơ'}
                                                 </button>
@@ -793,35 +980,52 @@ export const StaffPatientsPage = () => {
                                                 <span className="text-2xl">↺</span>
                                                 <h3 className="text-xl font-bold text-stone-800">Lịch Sử Tiêm Chủng</h3>
                                             </div>
-                                            {/* Optional: Filter buttons matching screenshot */}
-                                            <div className="flex gap-2">
-                                                <button className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-bold text-stone-600 hover:bg-stone-50">
-                                                    Filter
+
+                                            <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200 w-fit">
+                                                <button
+                                                    onClick={() => setViewMode('list')}
+                                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'list'
+                                                        ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
+                                                        : 'text-stone-500 hover:text-stone-700'
+                                                        }`}
+                                                >
+                                                    <ListBulletIcon className="w-4 h-4" />
+                                                    DANH SÁCH
                                                 </button>
-                                                <button className="px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-bold text-stone-600 hover:bg-stone-50">
-                                                    Export
+                                                <button
+                                                    onClick={() => setViewMode('roadmap')}
+                                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'roadmap'
+                                                        ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
+                                                        : 'text-stone-500 hover:text-stone-700'
+                                                        }`}
+                                                >
+                                                    <Squares2X2Icon className="w-4 h-4" />
+                                                    LỘ TRÌNH
                                                 </button>
                                             </div>
                                         </div>
 
                                         {isLoadingVaccinations ? (
                                             <div className="p-12 text-center text-stone-500 bg-stone-50 rounded-xl border border-stone-200">Đang tải dữ liệu...</div>
+                                        ) : viewMode === 'roadmap' ? (
+                                            <VaccinationRoadmap records={vaccinationRecords} upcomingRecords={upcomingRecords} />
                                         ) : vaccinationRecords.length === 0 ? (
                                             <div className="p-12 text-center text-stone-500 bg-stone-50 rounded-xl border border-stone-200">
                                                 Chưa có lịch sử tiêm chủng. Hãy thêm mũi tiêm đầu tiên bên trên.
                                             </div>
                                         ) : (
                                             <div className="border border-stone-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                                                {/* Existing Table Code */}
                                                 <table className="w-full text-left">
                                                     <thead className="bg-stone-50 border-b border-stone-200">
                                                         <tr>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Vaccine Name</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Administered</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Next Due</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Batch No.</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Vet</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">Status</th>
-                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider text-right">Actions</th>
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">TÊN VACCINE</th>
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">NGÀY TIÊM</th>
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">TÁI CHỦNG</th>
+
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">BÁC SĨ</th>
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider">TRẠNG THÁI</th>
+                                                            <th className="p-4 text-xs font-black text-stone-400 uppercase tracking-wider text-right">THAO TÁC</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-stone-100">
@@ -833,11 +1037,20 @@ export const StaffPatientsPage = () => {
                                                             >
                                                                 <td className="p-4">
                                                                     <div className="flex items-center gap-3">
-                                                                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                                                                            💉
-                                                                        </div>
+
                                                                         <div>
-                                                                            <div className="font-bold text-stone-900">{record.vaccineName}</div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div className="font-bold text-stone-900">{record.vaccineName}</div>
+                                                                                {record.doseNumber && (
+                                                                                    <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-wider rounded border border-orange-200">
+                                                                                        Mũi {record.doseNumber}
+                                                                                        {(() => {
+                                                                                            const tpl = vaccineTemplates.find(t => t.id === record.vaccineTemplateId);
+                                                                                            return tpl && tpl.seriesDoses > 1 ? ` / ${tpl.seriesDoses}` : '';
+                                                                                        })()}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                             {/* Subtitle if needed, e.g. "Core Vaccine" - currently mocked */}
                                                                             <div className="text-xs text-stone-400">Vaccine</div>
                                                                         </div>
@@ -845,42 +1058,50 @@ export const StaffPatientsPage = () => {
                                                                 </td>
                                                                 <td className="p-4">
                                                                     <span className="font-bold text-stone-700">
-                                                                        {new Date(record.vaccinationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                                        {vaccinationService.formatDate(record.vaccinationDate)}
                                                                     </span>
                                                                 </td>
                                                                 <td className="p-4">
-                                                                    {record.nextDueDate ? (
-                                                                        <div className="flex flex-col">
-                                                                            <span className="font-bold text-stone-700">
-                                                                                {new Date(record.nextDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).split(',')[0]}
-                                                                            </span>
-                                                                            <span className="text-xs text-stone-400">
-                                                                                {new Date(record.nextDueDate).getFullYear()}
-                                                                            </span>
-                                                                        </div>
-                                                                    ) : <span className="text-stone-400">-</span>}
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-bold text-stone-700">
+                                                                            {vaccinationService.formatDate(record.nextDueDate)}
+                                                                        </span>
+                                                                    </div>
                                                                 </td>
-                                                                <td className="p-4">
-                                                                    <span className="font-mono text-stone-600 text-sm">{record.batchNumber || '-'}</span>
-                                                                </td>
+
                                                                 <td className="p-4">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="w-6 h-6 rounded-full bg-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-600">
-                                                                            {record.staffName.charAt(0)}
+                                                                            {record.staffName ? record.staffName.charAt(0) : '?'}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            Dr. {record.staffName.split(' ').pop()}
+                                                                            {record.staffName ? `Dr. ${record.staffName.split(' ').pop()}` : 'Chưa phân công'}
                                                                         </div>
                                                                     </div>
                                                                 </td>
                                                                 <td className="p-4">
-                                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(record.status)}`}>
-                                                                        {record.status}
-                                                                    </span>
+                                                                    {record.workflowStatus === 'PENDING' ? (
+                                                                        <span className="px-3 py-1 rounded-full text-xs font-bold border bg-stone-50 text-stone-500 border-stone-200">
+                                                                            Chờ tiêm
+                                                                        </span>
+                                                                    ) : (
+                                                                        new Date(record.vaccinationDate || '').getFullYear() > 1970 ? (
+                                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(vaccinationService.calculateStatus(record.nextDueDate))}`}>
+                                                                                {vaccinationService.calculateStatus(record.nextDueDate) === 'Valid' ? 'Hiệu lực' :
+                                                                                    vaccinationService.calculateStatus(record.nextDueDate) === 'Overdue' ? 'Quá hạn' :
+                                                                                        vaccinationService.calculateStatus(record.nextDueDate) === 'Expiring Soon' ? 'Sắp hết hạn' : 'N/A'}
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="px-3 py-1 rounded-full text-xs font-bold border bg-stone-100 text-stone-400">PENDING</span>
+                                                                        )
+                                                                    )}
                                                                 </td>
                                                                 <td className="p-4 text-right">
-                                                                    <button className="p-2 hover:bg-stone-100 rounded-full text-stone-400 group-hover:text-stone-600">
-                                                                        <span className="font-bold mb-2 block">...</span>
+                                                                    <button
+                                                                        onClick={(e) => handleDeleteVaccination(record.id, e)}
+                                                                        className="p-2 hover:bg-red-50 text-stone-300 hover:text-red-600 rounded-full transition-colors"
+                                                                    >
+                                                                        <TrashIcon className="w-5 h-5" />
                                                                     </button>
                                                                 </td>
                                                             </tr>
@@ -900,194 +1121,203 @@ export const StaffPatientsPage = () => {
                             )}
                         </div>
                     </div>
-                </div>
-            )}
+                </div >
+            )
+            }
 
             {/* ============= ADD VACCINATION MODAL (Level 2) ============= */}
-            {isAddVaccinationModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
-                            <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-                                <PlusIcon className="w-6 h-6 text-blue-600" />
-                                Thêm Mũi Tiêm
-                            </h2>
-                            <button onClick={() => setIsAddVaccinationModalOpen(false)} className="p-2 hover:bg-stone-200 rounded-full">
-                                <XMarkIcon className="w-6 h-6 text-stone-500" />
-                            </button>
+            {
+                isAddVaccinationModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+                        <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                            <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
+                                <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
+                                    <PlusIcon className="w-6 h-6 text-blue-600" />
+                                    Thêm Mũi Tiêm
+                                </h2>
+                                <button onClick={() => setIsAddVaccinationModalOpen(false)} className="p-2 hover:bg-stone-200 rounded-full">
+                                    <XMarkIcon className="w-6 h-6 text-stone-500" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleAddVaccination} className="p-6 space-y-4">
+                                {/* Active Booking Banner */}
+                                {(() => {
+                                    const activeBooking = bookings.find(b =>
+                                        b.petId === selectedPatient?.id &&
+                                        (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                    )
+                                    if (activeBooking) {
+                                        return (
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                                    <span className="text-sm font-bold text-blue-800">
+                                                        Liên kết với Booking #{activeBooking.bookingCode}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+                                })()}
+                                {/* Vaccine Type */}
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-bold text-stone-700">Loại Vaccine *</label>
+                                    <input
+                                        type="text"
+                                        list="vaccine-types"
+                                        value={vaccineName}
+                                        onChange={(e) => setVaccineName(e.target.value)}
+                                        placeholder="Chọn hoặc nhập tên..."
+                                        className="input-brutal w-full"
+                                        required
+                                        autoFocus
+                                    />
+                                    <datalist id="vaccine-types">
+                                        {VACCINE_TYPES.map(type => (
+                                            <option key={type} value={type} />
+                                        ))}
+                                    </datalist>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Date Administered */}
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-bold text-stone-700">Ngày Tiêm *</label>
+                                        <div className="relative">
+                                            <DatePicker
+                                                selected={vaccinationDate}
+                                                onChange={(date: Date | null) => setVaccinationDate(date || new Date())}
+                                                dateFormat="dd/MM/yyyy"
+                                                locale="vi"
+                                                className="input-brutal w-full pl-10"
+                                            />
+                                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                                        </div>
+                                    </div>
+
+                                    {/* Next Due Date */}
+                                    <div className="space-y-1">
+                                        <label className="block text-sm font-bold text-stone-700">Tái Chủng</label>
+                                        <div className="relative">
+                                            <DatePicker
+                                                selected={nextDueDate}
+                                                onChange={(date: Date | null) => setNextDueDate(date)}
+                                                dateFormat="dd/MM/yyyy"
+                                                locale="vi"
+                                                placeholderText="dd/mm/yyyy"
+                                                className="input-brutal w-full pl-10"
+                                                minDate={vaccinationDate ?? undefined}
+                                            />
+                                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                                        </div>
+                                    </div>
+                                </div>
+
+
+
+                                {/* Notes */}
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-bold text-stone-700">Ghi Chú</label>
+                                    <textarea
+                                        value={vaccinationNotes}
+                                        onChange={(e) => setVaccinationNotes(e.target.value)}
+                                        placeholder="Phản ứng sau tiêm..."
+                                        className="input-brutal w-full min-h-[60px]"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end pt-4 border-t border-stone-100">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddVaccinationModalOpen(false)}
+                                        className="mr-3 px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded-lg"
+                                    >
+                                        Hủy
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingVaccination}
+                                        className="btn-brutal bg-blue-600 text-white hover:bg-blue-700 disabled:bg-stone-400"
+                                    >
+                                        {isSubmittingVaccination ? 'Đang lưu...' : 'Lưu Hồ Sơ'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-
-                        <form onSubmit={handleAddVaccination} className="p-6 space-y-4">
-                            {/* Vaccine Type */}
-                            <div className="space-y-1">
-                                <label className="block text-sm font-bold text-stone-700">Loại Vaccine *</label>
-                                <input
-                                    type="text"
-                                    list="vaccine-types"
-                                    value={vaccineName}
-                                    onChange={(e) => setVaccineName(e.target.value)}
-                                    placeholder="Chọn hoặc nhập tên..."
-                                    className="input-brutal w-full"
-                                    required
-                                    autoFocus
-                                />
-                                <datalist id="vaccine-types">
-                                    {VACCINE_TYPES.map(type => (
-                                        <option key={type} value={type} />
-                                    ))}
-                                </datalist>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Date Administered */}
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-bold text-stone-700">Ngày Tiêm *</label>
-                                    <div className="relative">
-                                        <DatePicker
-                                            selected={vaccinationDate}
-                                            onChange={(date: Date | null) => setVaccinationDate(date || new Date())}
-                                            dateFormat="dd/MM/yyyy"
-                                            locale="vi"
-                                            className="input-brutal w-full pl-10"
-                                        />
-                                        <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                                    </div>
-                                </div>
-
-                                {/* Next Due Date */}
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-bold text-stone-700">Tái Chủng</label>
-                                    <div className="relative">
-                                        <DatePicker
-                                            selected={nextDueDate}
-                                            onChange={(date: Date | null) => setNextDueDate(date)}
-                                            dateFormat="dd/MM/yyyy"
-                                            locale="vi"
-                                            placeholderText="dd/mm/yyyy"
-                                            className="input-brutal w-full pl-10"
-                                            minDate={vaccinationDate ?? undefined}
-                                        />
-                                        <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Batch No */}
-                            <div className="space-y-1">
-                                <label className="block text-sm font-bold text-stone-700">Số Lô (Batch No.)</label>
-                                <input
-                                    type="text"
-                                    value={batchNumber}
-                                    onChange={(e) => setBatchNumber(e.target.value)}
-                                    placeholder="VD: RB-992"
-                                    className="input-brutal w-full"
-                                />
-                            </div>
-
-                            {/* Notes */}
-                            <div className="space-y-1">
-                                <label className="block text-sm font-bold text-stone-700">Ghi Chú</label>
-                                <textarea
-                                    value={vaccinationNotes}
-                                    onChange={(e) => setVaccinationNotes(e.target.value)}
-                                    placeholder="Phản ứng sau tiêm..."
-                                    className="input-brutal w-full min-h-[60px]"
-                                />
-                            </div>
-
-                            <div className="flex justify-end pt-4 border-t border-stone-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsAddVaccinationModalOpen(false)}
-                                    className="mr-3 px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded-lg"
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSubmittingVaccination}
-                                    className="btn-brutal bg-blue-600 text-white hover:bg-blue-700 disabled:bg-stone-400"
-                                >
-                                    {isSubmittingVaccination ? 'Đang lưu...' : 'Lưu Hồ Sơ'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* ============= VACCINATION DETAIL MODAL (Level 2) ============= */}
-            {selectedVaccination && (
-                <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setSelectedVaccination(null)}>
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
-                            <h2 className="text-xl font-bold text-stone-800">Chi Tiết Mũi Tiêm</h2>
-                            <button onClick={() => setSelectedVaccination(null)} className="p-2 hover:bg-stone-200 rounded-full">
-                                <XMarkIcon className="w-6 h-6 text-stone-500" />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center text-3xl">
-                                    💉
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-stone-900">{selectedVaccination.vaccineName}</h3>
-                                    <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(selectedVaccination.status)}`}>
-                                        {selectedVaccination.status === 'Valid' ? 'Đang Hiệu lực' : selectedVaccination.status === 'Overdue' ? 'Đã Quá hạn' : 'Sắp hết hạn'}
-                                    </span>
-                                </div>
+            {
+                selectedVaccination && (
+                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setSelectedVaccination(null)}>
+                        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
+                                <h2 className="text-xl font-bold text-stone-800">Chi Tiết Mũi Tiêm</h2>
+                                <button onClick={() => setSelectedVaccination(null)} className="p-2 hover:bg-stone-200 rounded-full">
+                                    <XMarkIcon className="w-6 h-6 text-stone-500" />
+                                </button>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
-                                <div>
-                                    <p className="text-xs text-stone-500 font-bold uppercase">Ngày tiêm</p>
-                                    <p className="font-bold text-stone-800 text-lg">
-                                        {new Date(selectedVaccination.vaccinationDate).toLocaleDateString('vi-VN')}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-stone-500 font-bold uppercase">Tái chủng</p>
-                                    <p className={`font-bold text-lg ${selectedVaccination.nextDueDate ? 'text-blue-600' : 'text-stone-400'}`}>
-                                        {selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate).toLocaleDateString('vi-VN') : 'Không có'}
-                                    </p>
-                                </div>
-                                <div className="col-span-2">
-                                    <p className="text-xs text-stone-500 font-bold uppercase">Số Lô (Batch)</p>
-                                    <p className="font-mono font-bold text-stone-800">
-                                        {selectedVaccination.batchNumber || 'N/A'}
-                                    </p>
-                                </div>
-                                <div className="col-span-2">
-                                    <p className="text-xs text-stone-500 font-bold uppercase">Bác sĩ thực hiện</p>
-                                    <p className="font-bold text-stone-800">
-                                        {selectedVaccination.staffName}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {selectedVaccination.notes && (
-                                <div>
-                                    <p className="text-xs text-stone-500 font-bold uppercase mb-2">Ghi chú</p>
-                                    <div className="bg-stone-50 p-3 rounded-lg border border-stone-200 text-stone-700 italic text-sm">
-                                        {selectedVaccination.notes}
+                            <div className="p-6 space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center text-3xl">
+                                        💉
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-stone-900">{selectedVaccination.vaccineName}</h3>
+                                        <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(selectedVaccination.status)}`}>
+                                            {selectedVaccination.status === 'Valid' ? 'Đang Hiệu lực' : selectedVaccination.status === 'Overdue' ? 'Đã Quá hạn' : 'Sắp hết hạn'}
+                                        </span>
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                        <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end">
-                            <button
-                                onClick={(e) => handleDeleteVaccination(selectedVaccination.id, e)}
-                                className="px-4 py-2 bg-white border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 flex items-center gap-2"
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                                Xóa Hồ Sơ
-                            </button>
+
+                                <div className="grid grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
+                                    <div>
+                                        <p className="text-xs text-stone-500 font-bold uppercase">Ngày tiêm</p>
+                                        <p className="font-bold text-stone-800 text-lg">
+                                            {selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate).toLocaleDateString('vi-VN') : 'Chưa tiêm'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-stone-500 font-bold uppercase">Tái chủng</p>
+                                        <p className={`font-bold text-lg ${selectedVaccination.nextDueDate ? 'text-blue-600' : 'text-stone-400'}`}>
+                                            {selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate).toLocaleDateString('vi-VN') : 'Không có'}
+                                        </p>
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <p className="text-xs text-stone-500 font-bold uppercase">Bác sĩ thực hiện</p>
+                                        <p className="font-bold text-stone-800">
+                                            {selectedVaccination.staffName}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {selectedVaccination.notes && (
+                                    <div>
+                                        <p className="text-xs text-stone-500 font-bold uppercase mb-2">Ghi chú</p>
+                                        <div className="bg-stone-50 p-3 rounded-lg border border-stone-200 text-stone-700 italic text-sm">
+                                            {selectedVaccination.notes}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end">
+                                <button
+                                    onClick={(e) => handleDeleteVaccination(selectedVaccination.id, e)}
+                                    className="px-4 py-2 bg-white border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 flex items-center gap-2"
+                                >
+                                    <TrashIcon className="w-4 h-4" />
+                                    Xóa Hồ Sơ
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }
 

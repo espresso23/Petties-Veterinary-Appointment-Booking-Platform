@@ -1,8 +1,8 @@
 # SOFTWARE DESIGN DOCUMENT (SDD)
 # PETTIES AI AGENT SERVICE
 
-**Document Version:** 1.5.0
-**Last Updated:** 2026-01-22
+**Document Version:** 1.6.0
+**Last Updated:** 2026-02-02
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Component:** AI Agent Service (FastAPI + LangGraph + ReAct Pattern)
 
@@ -25,7 +25,7 @@
 
 ### 1.1 High-Level Architecture
 
-Petties AI Agent Service được xây dựng theo kiến trúc **Single Agent với ReAct Pattern**, sử dụng **LangGraph** để orchestrate agent workflow và **FastMCP** để quản lý tools.
+Petties AI Agent Service được xây dựng theo kiến trúc **Single Agent với ReAct Pattern**, sử dụng **LangGraph** để orchestrate agent workflow và **FastMCP** để quản lý tools. Hệ thống không chỉ là chatbot đơn thuần mà là **trợ lý AI toàn diện** phục vụ Pet Owners (Mobile), Clinic Staff & Managers (Web), và Administrators.
 
 ```mermaid
 flowchart TB

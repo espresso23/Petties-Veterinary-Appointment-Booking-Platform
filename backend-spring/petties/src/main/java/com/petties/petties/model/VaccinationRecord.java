@@ -41,7 +41,10 @@ public class VaccinationRecord {
     private String staffName;
 
     private String vaccineName;
-    private String batchNumber;
+    private String batchNumber; // Vaccine batch number for tracking
+
+    // NEW: Status of the vaccination record (PENDING, COMPLETED)
+    private String status;
 
     private LocalDate vaccinationDate;
 
@@ -52,6 +55,14 @@ public class VaccinationRecord {
     private Boolean reminderSent;
 
     private String notes;
+
+    // LINK TO MASTER DATA
+    private UUID vaccineTemplateId;
+
+    // SERIES TRACKING
+    private Integer doseNumber; // e.g. 1, 2, 3
+    private Integer totalDoses; // e.g. 3
+    private UUID seriesId; // Groups related doses (1,2,3) together
 
     @CreatedDate
     private LocalDateTime createdAt;

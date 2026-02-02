@@ -21,6 +21,10 @@ enum NotificationType {
   BOOKING_COMPLETED,
   STAFF_ON_WAY,
 
+  // Reminders
+  VACCINATION_REMINDER,
+  RE_EXAMINATION_REMINDER,
+
   // Others
   SYSTEM_NOTIFICATION
 }
@@ -43,6 +47,10 @@ class NotificationModel {
   final String? shiftStartTime;
   final String? shiftEndTime;
 
+  // Actionable fields
+  final String? actionType;
+  final String? actionData;
+
   NotificationModel({
     required this.id,
     required this.type,
@@ -56,6 +64,8 @@ class NotificationModel {
     this.shiftDate,
     this.shiftStartTime,
     this.shiftEndTime,
+    this.actionType,
+    this.actionData,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
@@ -74,6 +84,8 @@ class NotificationModel {
           : null,
       shiftStartTime: json['shiftStartTime'] as String?,
       shiftEndTime: json['shiftEndTime'] as String?,
+      actionType: json['actionType'] as String?,
+      actionData: json['actionData'] as String?,
     );
   }
 
