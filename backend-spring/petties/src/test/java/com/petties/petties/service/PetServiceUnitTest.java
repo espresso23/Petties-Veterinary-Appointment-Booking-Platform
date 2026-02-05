@@ -6,6 +6,8 @@ import com.petties.petties.dto.pet.PetResponse;
 import com.petties.petties.dto.pet.StaffPatientDTO;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.model.Booking;
+import com.petties.petties.model.BookingServiceItem;
+import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
@@ -112,30 +114,33 @@ class PetServiceUnitTest {
         UUID clinicId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
 
-        // 1. Mock Booking for Staff (My Patient)
+        UUID petId = UUID.randomUUID();
         Pet pet1 = new Pet();
-        pet1.setId(UUID.randomUUID());
+        pet1.setId(petId);
         pet1.setName("My Patient");
+        pet1.setUser(new User());
 
+        // 1. Mock Repository Calls for Patient Identification
+        // EmrRecord mocking - service now calls findByClinicId and maps to petIds
+        when(emrRecordRepository.findByClinicId(clinicId)).thenReturn(Collections.emptyList());
+        when(bookingRepository.findPetIdsByClinicId(clinicId)).thenReturn(List.of(petId));
+        when(petRepository.findAllById(any())).thenReturn(List.of(pet1));
+
+        // 2. Mock Today's Bookings for Overlay
         Booking myBooking = new Booking();
         myBooking.setPet(pet1);
-        myBooking.setAssignedStaff(new User()); // Just needs object
-        myBooking.getAssignedStaff().setUserId(staffId);
         myBooking.setBookingDate(LocalDate.now());
         myBooking.setBookingTime(LocalTime.of(10, 0));
-        myBooking.setStatus(com.petties.petties.model.enums.BookingStatus.ASSIGNED);
+        myBooking.setStatus(BookingStatus.CONFIRMED);
 
-        when(bookingRepository.findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(
-                eq(staffId), any(LocalDate.class), any(LocalDate.class), anyList()))
+        BookingServiceItem item = new BookingServiceItem();
+        User staff = new User();
+        staff.setUserId(staffId);
+        item.setAssignedStaff(staff);
+        myBooking.setBookingServices(List.of(item));
+
+        when(bookingRepository.findByClinicIdAndDateWithDetails(eq(clinicId), any(LocalDate.class)))
                 .thenReturn(List.of(myBooking));
-
-        // 2. Mock Clinic Booking (Clinic Patient)
-        when(bookingRepository.findByClinicIdAndDate(eq(clinicId), any(LocalDate.class)))
-                .thenReturn(Collections.emptyList());
-
-        // 3. Mock Clinic EMRs
-        when(emrRecordRepository.findByClinicIdOrderByExaminationDateDesc(clinicId))
-                .thenReturn(Collections.emptyList());
 
         // Act
         List<StaffPatientDTO> patients = petService.getPatientsForStaff(clinicId, staffId);

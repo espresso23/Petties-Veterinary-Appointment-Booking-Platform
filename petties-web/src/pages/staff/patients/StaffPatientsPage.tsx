@@ -19,7 +19,7 @@ import { vaccineTemplateService, type VaccineTemplate } from '../../../services/
 import DatePicker, { registerLocale } from 'react-datepicker'
 import { vi } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
-import { getBookingsByStaff } from '../../../services/bookingService'
+import { getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
 import type { Booking } from '../../../types/booking'
 import { useAuthStore } from '../../../store/authStore'
 import { VaccinationRoadmap } from '../vaccine/components/VaccinationRoadmap'
@@ -60,6 +60,7 @@ interface Patient {
     isAssignedToMe?: boolean
     bookingStatus?: string
     nextAppointment?: string
+    bookingCode?: string
 }
 
 type DetailTab = 'overview' | 'emr' | 'vaccinations' | 'lab' | 'documents'
@@ -73,28 +74,40 @@ export const StaffPatientsPage = () => {
     // State
     const [bookings, setBookings] = useState<Booking[]>([])
 
-    // Fetch active bookings for this staff to link with patients
+    // Fetch active bookings for this clinic today (all bookings, not just assigned to me)
     useEffect(() => {
         const fetchActiveBookings = async () => {
-            if (!user?.userId) return
+            if (!user?.workingClinicId) return
             try {
-                // Fetch IN_PROGRESS and ASSIGNED bookings
-                const [inProgress, assigned] = await Promise.all([
-                    getBookingsByStaff(user.userId, 'IN_PROGRESS', 0, 100).catch(() => ({ content: [] })),
-                    getBookingsByStaff(user.userId, 'ASSIGNED', 0, 100).catch(() => ({ content: [] }))
-                ])
-                // Merge lists
-                const all = [...(inProgress.content || []), ...(assigned.content || [])]
-                setBookings(all)
+                // Use clinic today bookings - shared visibility
+                const todayBookings = await getClinicTodayBookings(user.workingClinicId)
+                // Filter to only active statuses
+                const activeBookings = todayBookings.filter(b =>
+                    b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ARRIVED'
+                )
+                setBookings(activeBookings)
+                console.log('Loaded clinic today bookings:', activeBookings)
             } catch (err) {
                 console.error("Failed to fetch bookings for linking", err)
+                // Fallback to staff-only bookings
+                try {
+                    if (!user?.userId) return
+                    const [inProgress, confirmed] = await Promise.all([
+                        getBookingsByStaff(user.userId, 'IN_PROGRESS', 0, 100).catch(() => ({ content: [] })),
+                        getBookingsByStaff(user.userId, 'CONFIRMED', 0, 100).catch(() => ({ content: [] }))
+                    ])
+                    const all = [...(inProgress.content || []), ...(confirmed.content || [])]
+                    setBookings(all)
+                } catch (fallbackErr) {
+                    console.error("Fallback booking fetch also failed", fallbackErr)
+                }
             }
         }
 
-        if (user?.userId) {
+        if (user?.workingClinicId) {
             fetchActiveBookings()
         }
-    }, [user?.userId])
+    }, [user?.userId, user?.workingClinicId])
 
     // State
     const [patients, setPatients] = useState<Patient[]>([])
@@ -147,7 +160,10 @@ export const StaffPatientsPage = () => {
                 // Use the new prioritized API
                 const staffPatients = await getStaffPatients(user.workingClinicId, user.userId)
 
+                console.log('API Response - staffPatients:', JSON.stringify(staffPatients, null, 2))
+
                 const mappedPatients: Patient[] = staffPatients.map((pet: StaffPatient) => {
+                    console.log('Mapping pet:', pet.petName, 'bookingStatus:', pet.bookingStatus, 'bookingCode:', pet.bookingCode, 'isAssignedToMe:', pet.isAssignedToMe)
                     return {
                         id: pet.petId,
                         name: pet.petName,
@@ -161,6 +177,7 @@ export const StaffPatientsPage = () => {
                         ownerPhone: pet.ownerPhone,
                         isAssignedToMe: pet.isAssignedToMe,
                         bookingStatus: pet.bookingStatus,
+                        bookingCode: pet.bookingCode,
                         nextAppointment: pet.nextAppointment,
                         lastExamDate: pet.lastVisitDate,
                         allergies: pet.allergies // Map allergies field
@@ -226,7 +243,7 @@ export const StaffPatientsPage = () => {
             // Find active booking
             const activeBooking = bookings.find(b =>
                 b.petId === selectedPatient.id &&
-                (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
             )
 
             await vaccinationService.createVaccination({
@@ -436,20 +453,24 @@ export const StaffPatientsPage = () => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            {patient.bookingStatus && ['IN_PROGRESS', 'CONFIRMED', 'ASSIGNED', 'COMPLETED'].includes(patient.bookingStatus) ? (
-                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${(() => {
-                                                    switch (patient.bookingStatus) {
-                                                        case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
-                                                        case 'CONFIRMED':
-                                                        case 'ASSIGNED': return 'bg-orange-100 text-orange-700 border-orange-200'
-                                                        case 'COMPLETED': return 'bg-green-100 text-green-700 border-green-200'
-                                                        default: return 'bg-stone-100 text-stone-600 border-stone-200'
-                                                    }
-                                                })()}`}>
-                                                    {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
-                                                        (patient.bookingStatus === 'CONFIRMED' || patient.bookingStatus === 'ASSIGNED') ? 'Chờ khám' :
-                                                            patient.bookingStatus === 'COMPLETED' ? 'Đã khám' : ''}
-                                                </span>
+                                            {patient.bookingStatus && ['IN_PROGRESS', 'ARRIVED', 'CONFIRMED'].includes(patient.bookingStatus) ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-block w-fit ${(() => {
+                                                        switch (patient.bookingStatus) {
+                                                            case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
+                                                            case 'ARRIVED': return 'bg-teal-100 text-teal-700 border-teal-200'
+                                                            case 'CONFIRMED': return 'bg-orange-100 text-orange-700 border-orange-200'
+                                                            default: return 'bg-stone-100 text-stone-600 border-stone-200'
+                                                        }
+                                                    })()}`}>
+                                                        {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
+                                                            patient.bookingStatus === 'ARRIVED' ? 'Đã đến' :
+                                                                (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
+                                                    </span>
+                                                    {patient.bookingCode && (
+                                                        <span className="text-[10px] font-mono text-stone-500">{patient.bookingCode}</span>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-stone-400 text-xs italic">Không có lịch</span>
                                             )}
@@ -611,7 +632,7 @@ export const StaffPatientsPage = () => {
                                             {(() => {
                                                 const activeBooking = bookings.find(b =>
                                                     b.petId === selectedPatient.id &&
-                                                    (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                                 )
                                                 if (activeBooking) {
                                                     return (
@@ -629,7 +650,7 @@ export const StaffPatientsPage = () => {
                                                 onClick={() => {
                                                     const activeBooking = bookings.find(b =>
                                                         b.petId === selectedPatient.id &&
-                                                        (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                                     )
 
                                                     // Check if EMR already exists for this booking
@@ -793,7 +814,7 @@ export const StaffPatientsPage = () => {
                                             {(() => {
                                                 const activeBooking = bookings.find(b =>
                                                     b.petId === selectedPatient.id &&
-                                                    (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                                 )
 
                                                 if (activeBooking) {
@@ -1145,7 +1166,7 @@ export const StaffPatientsPage = () => {
                                 {(() => {
                                     const activeBooking = bookings.find(b =>
                                         b.petId === selectedPatient?.id &&
-                                        (b.status === 'IN_PROGRESS' || b.status === 'ASSIGNED')
+                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                     )
                                     if (activeBooking) {
                                         return (

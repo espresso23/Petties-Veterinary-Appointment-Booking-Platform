@@ -3,22 +3,39 @@ package com.petties.petties.service;
 import com.petties.petties.dto.file.UploadResponse;
 import com.petties.petties.dto.pet.PetRequest;
 import com.petties.petties.dto.pet.PetResponse;
+import com.petties.petties.dto.pet.StaffPatientDTO;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.model.Booking;
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.Role;
+import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.PetRepository;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,7 +49,7 @@ public class PetService {
     private final AuthService authService;
     private final CloudinaryService cloudinaryService;
     private final EmrRecordRepository emrRecordRepository;
-    private final com.petties.petties.repository.BookingRepository bookingRepository;
+    private final BookingRepository bookingRepository;
 
     @Transactional
     public PetResponse createPet(PetRequest request, MultipartFile image) {
@@ -82,7 +99,7 @@ public class PetService {
         // For now, let's strictly enforce ownership for safety.
         // If not owner and not Staff (logic to be added later if needed), throw error.
         // For now, let's strictly enforce ownership for safety.
-        if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER &&
+        if (currentUser.getRole() == Role.PET_OWNER &&
                 !pet.getUser().getUserId().equals(currentUser.getUserId())) {
             validateOwnership(pet, currentUser);
         }
@@ -91,45 +108,50 @@ public class PetService {
     }
 
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<PetResponse> getPets(
+    public Page<PetResponse> getPets(
             String species,
             String breed,
-            org.springframework.data.domain.Pageable pageable) {
+            Pageable pageable) {
 
         User currentUser = authService.getCurrentUser();
 
-        org.springframework.data.jpa.domain.Specification<Pet> spec = (root, query, cb) -> {
-            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+        Specification<Pet> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
             // Filter logic based on Role
-            if (currentUser.getRole() == com.petties.petties.model.enums.Role.PET_OWNER) {
+            if (currentUser.getRole() == Role.PET_OWNER) {
                 // Owner: Only see their own pets
                 predicates.add(cb.equal(root.get("user").get("userId"), currentUser.getUserId()));
-            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF ||
-                    currentUser.getRole() == com.petties.petties.model.enums.Role.CLINIC_MANAGER) {
-                // Staff/Manager: Only see pets that have at least one EMR at their clinic
+            } else if (currentUser.getRole() == Role.STAFF ||
+                    currentUser.getRole() == Role.CLINIC_MANAGER) {
+                // Staff/Manager: See pets that have at least one EMR OR Booking at their clinic
                 if (currentUser.getWorkingClinic() != null) {
-                    // Query MongoDB for pet IDs with EMRs at this clinic
-                    List<EmrRecord> clinicEmrs = emrRecordRepository.findByClinicIdOrderByExaminationDateDesc(
-                            currentUser.getWorkingClinic().getClinicId());
+                    UUID workingClinicId = currentUser.getWorkingClinic().getClinicId();
 
-                    // Extract unique pet IDs from EMRs
-                    Set<UUID> petIdsWithEmr = clinicEmrs.stream()
+                    // 1. Get pet IDs from EMRs at this clinic (efficiently)
+                    List<UUID> petIdsFromEmr = emrRecordRepository.findByClinicId(workingClinicId)
+                            .stream()
                             .map(EmrRecord::getPetId)
-                            .collect(Collectors.toSet());
+                            .distinct()
+                            .collect(Collectors.toList());
 
-                    if (!petIdsWithEmr.isEmpty()) {
-                        // Filter: WHERE pet.id IN (petIds from EMRs)
-                        predicates.add(root.get("id").in(petIdsWithEmr));
-                    } else {
-                        // No EMRs at this clinic -> empty list
-                        predicates.add(cb.disjunction());
-                    }
+                    // 2. Subquery for pet IDs from Bookings at this clinic
+                    Subquery<UUID> bookingSubquery = query.subquery(UUID.class);
+                    Root<Booking> subBooking = bookingSubquery.from(Booking.class);
+                    bookingSubquery.select(subBooking.get("pet").get("id"));
+                    bookingSubquery.where(cb.equal(subBooking.get("clinic").get("clinicId"), workingClinicId));
+
+                    // Combine: (pet.id IN emrPetIds) OR (pet.id IN (SELECT pet_id FROM bookings
+                    // WHERE clinic_id = ...))
+                    Predicate hasEmr = petIdsFromEmr.isEmpty() ? cb.disjunction() : root.get("id").in(petIdsFromEmr);
+                    Predicate hasBooking = root.get("id").in(bookingSubquery);
+
+                    predicates.add(cb.or(hasEmr, hasBooking));
                 } else {
                     // If Staff/Manager has no clinic assigned, return empty list for safety
                     predicates.add(cb.disjunction());
                 }
-            } else if (currentUser.getRole() == com.petties.petties.model.enums.Role.CLINIC_OWNER) {
+            } else if (currentUser.getRole() == Role.CLINIC_OWNER) {
                 // Clinic Owner: See pets that have bookings at ANY of their owned clinics
                 // TODO: Implement for multiple clinics if needed. For now treating similar to
                 // Manager if they switch context,
@@ -138,14 +160,13 @@ public class PetService {
                 // "ownedClinics" list.
                 // Assuming Owner might need to see all pets across all their clinics.
 
-                List<com.petties.petties.model.Clinic> ownedClinics = currentUser.getOwnedClinics();
+                List<Clinic> ownedClinics = currentUser.getOwnedClinics();
                 if (ownedClinics != null && !ownedClinics.isEmpty()) {
-                    List<UUID> ownedClinicIds = ownedClinics.stream().map(com.petties.petties.model.Clinic::getClinicId)
+                    List<UUID> ownedClinicIds = ownedClinics.stream().map(Clinic::getClinicId)
                             .collect(Collectors.toList());
 
-                    jakarta.persistence.criteria.Subquery<UUID> subquery = query.subquery(UUID.class);
-                    jakarta.persistence.criteria.Root<com.petties.petties.model.Booking> subBooking = subquery
-                            .from(com.petties.petties.model.Booking.class);
+                    Subquery<UUID> subquery = query.subquery(UUID.class);
+                    Root<Booking> subBooking = subquery.from(Booking.class);
 
                     subquery.select(subBooking.get("pet").get("id"));
                     subquery.where(subBooking.get("clinic").get("clinicId").in(ownedClinicIds));
@@ -164,7 +185,7 @@ public class PetService {
                 predicates.add(cb.like(cb.lower(root.get("breed")), "%" + breed.toLowerCase() + "%"));
             }
 
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.and(predicates.toArray(new Predicate[0]));
         };
 
         return petRepository.findAll(spec, pageable).map(this::mapToResponse);
@@ -211,9 +232,9 @@ public class PetService {
         User currentUser = authService.getCurrentUser();
 
         // Only VET, CLINIC_MANAGER, or ADMIN can update allergies
-        if (currentUser.getRole() != com.petties.petties.model.enums.Role.STAFF &&
-                currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
-                currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
+        if (currentUser.getRole() != Role.STAFF &&
+                currentUser.getRole() != Role.CLINIC_MANAGER &&
+                currentUser.getRole() != Role.ADMIN) {
             throw new ForbiddenException("Chỉ nhân viên y tế mới có thể cập nhật thông tin dị ứng");
         }
 
@@ -236,9 +257,9 @@ public class PetService {
         User currentUser = authService.getCurrentUser();
 
         // Only VET, CLINIC_MANAGER, or ADMIN can update weight
-        if (currentUser.getRole() != com.petties.petties.model.enums.Role.STAFF &&
-                currentUser.getRole() != com.petties.petties.model.enums.Role.CLINIC_MANAGER &&
-                currentUser.getRole() != com.petties.petties.model.enums.Role.ADMIN) {
+        if (currentUser.getRole() != Role.STAFF &&
+                currentUser.getRole() != Role.CLINIC_MANAGER &&
+                currentUser.getRole() != Role.ADMIN) {
             throw new ForbiddenException("Chỉ nhân viên y tế mới có thể cập nhật cân nặng");
         }
 
@@ -294,172 +315,175 @@ public class PetService {
     }
 
     @Transactional(readOnly = true)
-    public List<com.petties.petties.dto.pet.StaffPatientDTO> getPatientsForStaff(UUID clinicId, UUID staffId) {
-        // 1. Get MY assigned patients (Active bookings Today or Future)
-        LocalDate today = java.time.LocalDate.now();
-        List<com.petties.petties.model.enums.BookingStatus> activeStatuses = List.of(
-                com.petties.petties.model.enums.BookingStatus.CONFIRMED,
-                com.petties.petties.model.enums.BookingStatus.ASSIGNED,
-                com.petties.petties.model.enums.BookingStatus.ARRIVED,
-                com.petties.petties.model.enums.BookingStatus.IN_PROGRESS);
+    public List<StaffPatientDTO> getPatientsForStaff(UUID clinicId, UUID staffId) {
+        log.info("Getting patients for staff {} at clinic {}", staffId, clinicId);
 
-        // Fetch bookings assigned to this Staff (Today onwards)
-        List<com.petties.petties.model.Booking> myBookings = bookingRepository
-                .findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(
-                        staffId, today, today.plusYears(1), activeStatuses);
+        // 1. Identify ALL clinic patients (those who ever had an EMR or Booking at this
+        // clinic)
+        List<UUID> petIdsFromEmr = emrRecordRepository.findByClinicId(clinicId)
+                .stream()
+                .map(EmrRecord::getPetId)
+                .distinct()
+                .collect(Collectors.toList());
+        List<UUID> petIdsFromBooking = bookingRepository.findPetIdsByClinicId(clinicId);
 
-        java.util.Map<UUID, com.petties.petties.dto.pet.StaffPatientDTO> patientMap = new java.util.HashMap<>();
+        Set<UUID> allClinicPetIds = new HashSet<>();
+        allClinicPetIds.addAll(petIdsFromEmr);
+        allClinicPetIds.addAll(petIdsFromBooking);
 
-        // Process "My Patients"
-        for (com.petties.petties.model.Booking b : myBookings) {
-            Pet pet = b.getPet();
-            if (pet == null)
-                continue;
+        log.info("Found {} unique pets from EMR and {} from Booking, total unique: {}",
+                petIdsFromEmr.size(), petIdsFromBooking.size(), allClinicPetIds.size());
 
-            com.petties.petties.dto.pet.StaffPatientDTO dto = patientMap.getOrDefault(pet.getId(), mapToStaffDto(pet));
-            dto.setAssignedToMe(true);
-
-            LocalDateTime bookingDateTime = LocalDateTime.of(b.getBookingDate(), b.getBookingTime());
-            if (dto.getNextAppointment() == null || bookingDateTime.isBefore(dto.getNextAppointment())) {
-                dto.setNextAppointment(bookingDateTime);
-                dto.setBookingStatus(b.getStatus().name());
-                dto.setBookingId(b.getBookingId());
-                dto.setBookingCode(b.getBookingCode());
-            }
-            patientMap.put(pet.getId(), dto);
+        if (allClinicPetIds.isEmpty()) {
+            return new ArrayList<>();
         }
 
-        // 2. Get Clinic-wide active bookings for TODAY (to show status for all
-        // patients)
-        // Filter out PENDING bookings - staff should only see confirmed/assigned
-        // bookings
-        List<com.petties.petties.model.Booking> clinicBookingsToday = bookingRepository.findByClinicIdAndDate(clinicId,
-                today).stream()
-                .filter(b -> b.getStatus() != com.petties.petties.model.enums.BookingStatus.PENDING)
-                .collect(java.util.stream.Collectors.toList());
-        for (com.petties.petties.model.Booking b : clinicBookingsToday) {
+        // Fetch all these pets
+        List<Pet> allPets = petRepository.findAllById(allClinicPetIds);
+        Map<UUID, StaffPatientDTO> patientMap = new HashMap<>();
+
+        // Initialize map with all clinic pets
+        for (Pet pet : allPets) {
+            patientMap.put(pet.getId(), mapToStaffDto(pet));
+        }
+
+        // 2. Fetch today's bookings to overlay active status and assignments
+        LocalDate today = LocalDate.now();
+        List<Booking> clinicBookingsToday = bookingRepository.findByClinicIdAndDateWithDetails(clinicId, today);
+
+        log.info("Found {} bookings today for clinic {}", clinicBookingsToday.size(), clinicId);
+
+        // Filter active statuses for status badge priority
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.CONFIRMED,
+                BookingStatus.ARRIVED,
+                BookingStatus.IN_PROGRESS,
+                BookingStatus.ON_THE_WAY);
+
+        for (Booking b : clinicBookingsToday) {
             Pet pet = b.getPet();
             if (pet == null)
                 continue;
 
-            com.petties.petties.dto.pet.StaffPatientDTO dto = patientMap.get(pet.getId());
-            if (dto == null) {
-                // If not in map yet (not my booking), we will add it below via EMRs,
-                // but let's check if we should add it now if it's currently at the clinic.
-                // However, for consistency with original logic, we only add if they had a visit
-                // (EMR)
-                // OR it's my booking. Let's stick to showing status for those in list.
-                continue;
+            StaffPatientDTO dto = patientMap.get(pet.getId());
+            if (dto == null)
+                continue; // Should already be in map if clinic matches
+
+            log.debug("Processing booking {} for pet {} with status {}", b.getBookingId(), pet.getName(), b.getStatus());
+
+            // Handle assignments correctly
+            boolean isAssignedToThisStaff = b.getBookingServices() != null && b.getBookingServices().stream()
+                    .anyMatch(bs -> bs.getAssignedStaff() != null && bs.getAssignedStaff().getUserId().equals(staffId));
+
+            if (isAssignedToThisStaff) {
+                dto.setAssignedToMe(true);
             }
 
-            // Status priority: If we already have a status (from my booking), only
-            // overwrite if this one is more "advanced"
-            // or if my booking was in the past/future and this one is today.
-            String currentStatusStr = dto.getBookingStatus();
-            if (currentStatusStr == null) {
-                dto.setBookingStatus(b.getStatus().name());
-                dto.setBookingId(b.getBookingId());
-                dto.setBookingCode(b.getBookingCode());
-                // If it's today's clinic booking but wasn't assigned to me, we should still
-                // show it as "Next" if relevant
-                if (dto.getNextAppointment() == null) {
-                    dto.setNextAppointment(LocalDateTime.of(b.getBookingDate(), b.getBookingTime()));
-                }
-            } else {
-                // Keep the most active status for today
-                try {
-                    com.petties.petties.model.enums.BookingStatus s1 = com.petties.petties.model.enums.BookingStatus
-                            .valueOf(currentStatusStr);
-                    com.petties.petties.model.enums.BookingStatus s2 = b.getStatus();
-                    if (s2.ordinal() > s1.ordinal()
-                            && s2.ordinal() <= com.petties.petties.model.enums.BookingStatus.IN_PROGRESS.ordinal()) {
-                        dto.setBookingStatus(s2.name());
+            // Status Priority logic: Only update if new status is higher priority
+            if (activeStatuses.contains(b.getStatus())) {
+                String currentStatusStr = dto.getBookingStatus();
+                log.debug("Pet {} has active status {}, current DTO status: {}", pet.getName(), b.getStatus(), currentStatusStr);
+                if (shouldUpdateStatus(currentStatusStr, b.getStatus())) {
+                    updateDtoWithBooking(dto, b);
+                    log.debug("Updated DTO with booking status: {}", b.getStatus());
+                } else if (currentStatusStr != null && currentStatusStr.equals(b.getStatus().name())) {
+                    // Same status, keep earlier time
+                    LocalDateTime newTime = LocalDateTime.of(b.getBookingDate(), b.getBookingTime());
+                    if (dto.getNextAppointment() == null || newTime.isBefore(dto.getNextAppointment())) {
+                        updateDtoWithBooking(dto, b);
                     }
-                } catch (Exception e) {
-                    /* ignore */ }
-            }
-        }
-
-        // 3. Get Clinic Patients (via EMRs or other Bookings)
-        // Using EMRs is good to find patients who have VISITED.
-        List<EmrRecord> clinicEmrs = emrRecordRepository.findByClinicIdOrderByExaminationDateDesc(clinicId);
-
-        for (EmrRecord emr : clinicEmrs) {
-            if (!patientMap.containsKey(emr.getPetId())) {
-                petRepository.findById(emr.getPetId()).ifPresent(pet -> {
-                    com.petties.petties.dto.pet.StaffPatientDTO dto = mapToStaffDto(pet);
-                    dto.setAssignedToMe(false);
-                    dto.setLastVisitDate(emr.getExaminationDate());
-
-                    // Check if they have an active clinic booking for status
-                    clinicBookingsToday.stream()
-                            .filter(bk -> bk.getPet().getId().equals(pet.getId()))
-                            .findFirst()
-                            .ifPresent(bk -> {
-                                dto.setBookingStatus(bk.getStatus().name());
-                                dto.setBookingId(bk.getBookingId());
-                                dto.setBookingCode(bk.getBookingCode());
-                                dto.setNextAppointment(LocalDateTime.of(bk.getBookingDate(), bk.getBookingTime()));
-                            });
-
-                    patientMap.put(pet.getId(), dto);
-                });
-            } else {
-                // Update last visit if needed
-                com.petties.petties.dto.pet.StaffPatientDTO dto = patientMap.get(emr.getPetId());
-                if (dto.getLastVisitDate() == null || (emr.getExaminationDate() != null
-                        && emr.getExaminationDate().isAfter(dto.getLastVisitDate()))) {
-                    dto.setLastVisitDate(emr.getExaminationDate());
                 }
             }
         }
 
-        // 3. Convert to List and Sort
-        List<com.petties.petties.dto.pet.StaffPatientDTO> sortedList = new java.util.ArrayList<>(patientMap.values());
-
+        // 3. Sort final results
+        List<StaffPatientDTO> sortedList = new ArrayList<>(patientMap.values());
         sortedList.sort((p1, p2) -> {
-            // Priority 1: Assigned to Me
+            // Priority 1: Booking Status (Active first)
+            int priority1 = getStatusPriority(p1.getBookingStatus());
+            int priority2 = getStatusPriority(p2.getBookingStatus());
+            if (priority1 != priority2) {
+                return Integer.compare(priority2, priority1);
+            }
+
+            // Priority 2: Assigned to Me
             if (p1.isAssignedToMe() != p2.isAssignedToMe()) {
                 return p1.isAssignedToMe() ? -1 : 1;
             }
-            // Priority 2: Next Appointment (Nearest first)
+
+            // Priority 3: Appointment Time
             if (p1.getNextAppointment() != null && p2.getNextAppointment() != null) {
                 return p1.getNextAppointment().compareTo(p2.getNextAppointment());
             }
-            if (p1.getNextAppointment() != null)
-                return -1;
-            if (p2.getNextAppointment() != null)
-                return 1;
 
-            // Priority 3: Last Visit (Recent first)
-            if (p1.getLastVisitDate() != null && p2.getLastVisitDate() != null) {
-                return p2.getLastVisitDate().compareTo(p1.getLastVisitDate()); // Descending
-            }
-
+            // Priority 4: Name
             return p1.getPetName().compareToIgnoreCase(p2.getPetName());
         });
+
+        log.info("Returning {} patients, first 3 statuses: {}",
+                sortedList.size(),
+                sortedList.stream().limit(3).map(StaffPatientDTO::getBookingStatus).collect(Collectors.toList()));
 
         return sortedList;
     }
 
-    private com.petties.petties.dto.pet.StaffPatientDTO mapToStaffDto(Pet pet) {
+    /**
+     * Check if we should update the current status with a new status
+     * Higher priority status wins
+     */
+    private boolean shouldUpdateStatus(String currentStatus, BookingStatus newStatus) {
+        if (currentStatus == null)
+            return true;
+        int currentPriority = getStatusPriority(currentStatus);
+        int newPriority = getStatusPriority(newStatus.name());
+        return newPriority > currentPriority;
+    }
+
+    /**
+     * Get priority order for booking status (higher = more important)
+     */
+    private int getStatusPriority(String status) {
+        if (status == null)
+            return 0;
+        switch (status) {
+            case "IN_PROGRESS":
+                return 4;
+            case "ARRIVED":
+                return 3;
+            case "ON_THE_WAY":
+                return 2;
+            case "CONFIRMED":
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    private void updateDtoWithBooking(StaffPatientDTO dto, Booking b) {
+        dto.setBookingStatus(b.getStatus().name());
+        dto.setBookingId(b.getBookingId());
+        dto.setBookingCode(b.getBookingCode());
+        dto.setNextAppointment(LocalDateTime.of(b.getBookingDate(), b.getBookingTime()));
+        log.info("Set DTO bookingStatus={}, bookingCode={} for pet {}", b.getStatus().name(), b.getBookingCode(), dto.getPetName());
+    }
+
+    private StaffPatientDTO mapToStaffDto(Pet pet) {
         // Calculate age
         int ageYears = 0;
         int ageMonths = 0;
         if (pet.getDateOfBirth() != null) {
-            java.time.Period period = java.time.Period.between(pet.getDateOfBirth(), java.time.LocalDate.now());
+            Period period = Period.between(pet.getDateOfBirth(), LocalDate.now());
             ageYears = period.getYears();
             ageMonths = period.getMonths();
         }
 
-        return com.petties.petties.dto.pet.StaffPatientDTO.builder()
+        return StaffPatientDTO.builder()
                 .petId(pet.getId())
                 .petName(pet.getName())
                 .species(pet.getSpecies())
                 .breed(pet.getBreed())
                 .gender(pet.getGender())
                 .ageYears(ageYears)
-                .ageMonths(ageMonths)
                 .ageMonths(ageMonths)
                 .dob(pet.getDateOfBirth())
                 .weight(pet.getWeight())

@@ -31,11 +31,11 @@ public enum NotificationType {
     // Booking notifications
     BOOKING_CREATED,
     BOOKING_CONFIRMED,
-    BOOKING_ASSIGNED,
     BOOKING_CANCELLED,
     BOOKING_CHECKIN, // Staff đã check-in và bắt đầu khám
     BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành
     STAFF_ON_WAY, // Nhân viên đang trên đường đến (HOME_VISIT/SOS)
+    BOOKING_ASSIGNED, // Staff được gán vào booking
 
     // Additional Clinic notifications
     CLINIC_VERIFIED,

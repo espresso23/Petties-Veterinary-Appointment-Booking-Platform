@@ -82,6 +82,7 @@ export interface StaffPatient {
     isAssignedToMe: boolean
     nextAppointment?: string
     bookingStatus?: string
+    bookingCode?: string
     lastVisitDate?: string
     weight?: number
     allergies?: string
