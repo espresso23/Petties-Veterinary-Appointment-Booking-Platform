@@ -76,6 +76,12 @@ public class Clinic {
     @Column(name = "email", length = 100)
     private String email;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName; // Tên ngân hàng
+
+    @Column(name = "account_number", length = 50)
+    private String accountNumber; // Số tài khoản ngân hàng
+
     @Column(name = "latitude", precision = 10, scale = 8)
     private BigDecimal latitude;
 
@@ -84,6 +90,9 @@ public class Clinic {
 
     @Column(name = "logo", length = 500)
     private String logo; // URL to clinic logo (nullable, single file like images but only one)
+
+    @Column(name = "business_license_url", length = 500)
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
 
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)

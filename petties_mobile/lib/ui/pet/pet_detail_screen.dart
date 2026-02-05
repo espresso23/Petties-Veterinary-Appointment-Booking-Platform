@@ -171,14 +171,22 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         icon: Icons.history,
                         label: 'LỊCH SỬ KHÁM',
                         color: AppColors.primary,
-                        onTap: () {},
+                        onTap: () {
+                          context.push(
+                            '${AppRoutes.petHealthRecord.replaceAll(':id', widget.id)}?tab=1',
+                          );
+                        },
                       ),
                       const SizedBox(height: 16),
                       _buildActionButton(
                         icon: Icons.vaccines,
                         label: 'SỔ TIÊM CHỦNG',
                         color: AppColors.stone200,
-                        onTap: () {},
+                        onTap: () {
+                          context.push(
+                            '${AppRoutes.petHealthRecord.replaceAll(':id', widget.id)}?tab=0',
+                          );
+                        },
                       ),
                     ],
                   ),

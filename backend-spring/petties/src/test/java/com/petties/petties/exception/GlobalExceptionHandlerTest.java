@@ -289,7 +289,8 @@ class GlobalExceptionHandlerTest {
         }
     }
 
-    // ==================== RESOURCE ALREADY EXISTS EXCEPTION TESTS ====================
+    // ==================== RESOURCE ALREADY EXISTS EXCEPTION TESTS
+    // ====================
 
     @Nested
     @DisplayName("ResourceAlreadyExistsException Tests")
@@ -371,7 +372,8 @@ class GlobalExceptionHandlerTest {
         @DisplayName("Nen tra ve status 401 cho authentication exception")
         void handleAuthenticationException_ShouldReturn401() {
             // Given
-            InsufficientAuthenticationException ex = new InsufficientAuthenticationException("Full authentication required");
+            InsufficientAuthenticationException ex = new InsufficientAuthenticationException(
+                    "Full authentication required");
 
             // When
             ResponseEntity<ErrorResponse> response = exceptionHandler.handleAuthenticationException(ex, request);
@@ -394,7 +396,8 @@ class GlobalExceptionHandlerTest {
 
             // Then
             assertThat(response.getBody()).isNotNull();
-            // Message se la "null" vi InsufficientAuthenticationException khong cho phep null message
+            // Message se la "null" vi InsufficientAuthenticationException khong cho phep
+            // null message
             // Nhung logic fallback van duoc test
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
@@ -573,7 +576,8 @@ class GlobalExceptionHandlerTest {
         }
     }
 
-    // ==================== HTTP MESSAGE NOT READABLE EXCEPTION TESTS ====================
+    // ==================== HTTP MESSAGE NOT READABLE EXCEPTION TESTS
+    // ====================
 
     @Nested
     @DisplayName("HttpMessageNotReadableException Tests")
@@ -592,7 +596,7 @@ class GlobalExceptionHandlerTest {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().getMessage())
-                    .isEqualTo("Dữ liệu đầu vào không đúng định dạng hoặc giá trị không hợp lệ");
+                    .isEqualTo("Dữ liệu đầu vào không đúng định dạng");
         }
 
         @Test

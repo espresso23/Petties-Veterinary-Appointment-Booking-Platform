@@ -23,15 +23,21 @@ public class ClinicServiceResponse {
     private UUID masterServiceId; // NEW: ID của master service (null nếu custom)
     private Boolean isCustom; // NEW: true = custom, false = inherited
     private String name;
+    private String description;
     private BigDecimal basePrice;
     private Integer durationTime;
     private Integer slotsRequired;
     private Boolean isActive;
     private Boolean isHomeVisit;
-    private BigDecimal pricePerKm;
-    private String serviceCategory;
+    private com.petties.petties.model.enums.ServiceCategory serviceCategory;
     private String petType;
+    private Integer reminderInterval;
+    private String reminderUnit;
     private List<WeightPriceDto> weightPrices;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime updatedAt;
 }

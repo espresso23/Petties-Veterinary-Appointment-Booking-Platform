@@ -29,7 +29,8 @@ public class CloudinaryService {
             "image/jpeg",
             "image/png",
             "image/gif",
-            "image/webp");
+            "image/webp",
+            "application/pdf");
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -128,6 +129,37 @@ public class CloudinaryService {
     }
 
     /**
+     * Upload EMR clinical image với transformation tối ưu
+     */
+    public UploadResponse uploadEmrImage(MultipartFile file) {
+        validateFile(file);
+        checkCloudinaryConfig();
+
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "petties/emr",
+                            "resource_type", "image",
+                            "transformation", new Transformation<>()
+                                    .width(1600)
+                                    .height(1200)
+                                    .crop("limit")
+                                    .quality("auto:good")
+                                    .fetchFormat("auto")));
+
+            log.info("EMR image uploaded successfully: {}", uploadResult.get("public_id"));
+
+            return mapUploadResult(uploadResult);
+
+        } catch (Exception e) {
+            log.error("Failed to upload EMR image to Cloudinary: {}", e.getMessage(), e);
+            throw new BadRequestException("Không thể upload ảnh lâm sàng: " + e.getMessage());
+        }
+    }
+
+    /**
      * Xóa file trên Cloudinary
      */
     public boolean deleteFile(String publicId) {
@@ -164,7 +196,7 @@ public class CloudinaryService {
 
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
-            throw new BadRequestException("Định dạng file không hợp lệ. Chỉ chấp nhận: JPEG, PNG, GIF, WEBP.");
+            throw new BadRequestException("Định dạng file không hợp lệ. Chỉ chấp nhận: JPEG, PNG, GIF, WEBP, PDF.");
         }
     }
 

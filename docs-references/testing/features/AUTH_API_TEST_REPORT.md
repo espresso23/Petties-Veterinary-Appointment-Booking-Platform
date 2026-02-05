@@ -12,7 +12,7 @@
 ### 1.1 Feature Description
 
 Hệ thống Authentication hỗ trợ các quy trình bảo mật dựa trên OTP và JWT:
-- **Đăng nhập đa vai trò**: Hỗ trợ PET_OWNER, VET, CLINIC_MANAGER.
+- **Đăng nhập đa vai trò**: Hỗ trợ PET_OWNER, STAFF, CLINIC_MANAGER.
 - **Đăng ký với OTP**: Quy trình 2 bước (Gửi OTP -> Xác thực & Tạo tài khoản).
 - **Quên mật khẩu với OTP**: Quy trình 2 bước để đặt lại mật khẩu an toàn.
 - **Google Sign-In**: Đăng nhập nhanh thông qua Google ID Token.

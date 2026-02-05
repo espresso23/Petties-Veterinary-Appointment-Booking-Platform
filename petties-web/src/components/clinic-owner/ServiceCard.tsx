@@ -7,12 +7,10 @@ import {
   HomeIcon,
   InformationCircleIcon,
   XMarkIcon,
-  BeakerIcon,
-  HeartIcon,
-  ScissorsIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
 import type { WeightPriceDto } from '../../types/service'
+import { getCategoryById } from '../../constants/serviceCategory'
 
 export interface ClinicService {
   id: string
@@ -22,9 +20,9 @@ export interface ClinicService {
   duration: number // in minutes
   isActive: boolean
   isHomeVisit: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
+  description?: string
   weightPrices?: WeightPriceDto[]
 }
 
@@ -34,7 +32,6 @@ interface ServiceCardProps {
   onDelete: (e: React.MouseEvent) => void
   onToggleStatus: (e: React.MouseEvent) => void
   onToggleHomeVisit?: (e: React.MouseEvent) => void
-  onConfigPricePerKm?: (e: React.MouseEvent) => void
   onClick: () => void
 }
 
@@ -44,7 +41,6 @@ export function ServiceCard({
   onDelete,
   onToggleStatus,
   onToggleHomeVisit,
-  onConfigPricePerKm,
   onClick,
 }: ServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
@@ -78,22 +74,15 @@ export function ServiceCard({
     if (priceRange.hasRange) {
       const minFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.min)
       const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
-      return `${minFormatted} - ${maxFormatted} VNĐ`
+      return `${minFormatted} - ${maxFormatted} đ`
     }
-    return new Intl.NumberFormat('vi-VN').format(service.price) + ' VNĐ'
+    return new Intl.NumberFormat('vi-VN').format(service.price) + ' đ'
   }
 
   const formattedPrice = getPriceDisplay()
 
-  const categories = [
-    { id: 'Y Tế & Chăm Sóc Sức Khỏe', label: 'Y Tế & Chăm Sóc Sức Khỏe', icon: BeakerIcon, color: '#e0f2fe' },
-    { id: 'Chăm sóc sức khỏe chuyên sâu', label: 'Chăm sóc sức khỏe chuyên sâu', icon: HeartIcon, color: '#fef2f2' },
-    { id: 'Tiêm phòng', label: 'Tiêm phòng', icon: BeakerIcon, color: '#ecfdf5' },
-    { id: 'Làm Đẹp (Grooming) & Spa', label: 'Làm Đẹp (Grooming) & Spa', icon: ScissorsIcon, color: '#f5f3ff' },
-    { id: 'Trông Giữ & Lưu Trú', label: 'Trông Giữ & Lưu Trú', icon: HomeIcon, color: '#fffbeb' },
-  ]
-
-  const categoryInfo = categories.find(c => c.id === service.serviceCategory)
+  // Use centralized categories from constants
+  const categoryInfo = getCategoryById(service.serviceCategory)
 
   return (
     <>
@@ -143,43 +132,24 @@ export function ServiceCard({
         </div>
 
         {/* Card Content */}
-        <div className="mt-8">
-          <h3 className="text-2xl font-black text-black mb-2 uppercase tracking-tight">
+        <div className="mt-10">
+          <h3 className="text-[21px] font-black text-black mb-2 uppercase tracking-tight pr-[140px]">
             {service.name}
           </h3>
+
+          {service.description && (
+            <p className="text-sm font-bold text-gray-600 line-clamp-2 mt-2">
+              {service.description}
+            </p>
+          )}
 
           <div className="space-y-3 mt-4">
             <div className="flex items-start justify-between border-b-2 border-black pb-2">
               <span className="font-bold text-black">GIÁ DỊCH VỤ</span>
               <div className="text-right">
-                <span className="font-black text-xl text-[#FF6B35]">
+                <span className="font-black text-lg text-[#FF6B35]">
                   {formattedPrice}
                 </span>
-                {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0 && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="text-[10px] font-black text-green-600 uppercase">
-                      +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                    </div>
-                    {onConfigPricePerKm && (
-                      <button
-                        onClick={onConfigPricePerKm}
-                        style={{
-                          marginLeft: 'auto',
-                          fontSize: '10px',
-                          fontWeight: '900',
-                          backgroundColor: 'rgb(231 229 228)',
-                          padding: '2px 8px',
-                          border: '2px solid black',
-                          textTransform: 'uppercase',
-                          color: 'black'
-                        }}
-                        title="Config giá per km"
-                      >
-                        Sửa
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -195,19 +165,15 @@ export function ServiceCard({
             {service.serviceCategory && (
               <div className="flex items-center justify-between border-t-2 border-black pt-2">
                 <span className="font-black text-[11px] text-black uppercase tracking-widest">Loại dịch vụ</span>
-                <div className="flex items-center gap-2 bg-white border-2 border-black px-2 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  {categoryInfo && (
-                    <div
-                      className="p-1 border border-black"
-                      style={{ backgroundColor: categoryInfo.color }}
-                    >
-                      <categoryInfo.icon className="w-3 h-3 text-black" />
-                    </div>
-                  )}
-                  <span className="font-black text-black text-[11px] uppercase truncate max-w-[120px]">
-                    {service.serviceCategory}
-                  </span>
-                </div>
+                {categoryInfo && (
+                  <div
+                    style={{ backgroundColor: categoryInfo.color }}
+                    className="border-2 border-black px-2 py-1 flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  >
+                    <categoryInfo.icon className="w-3.5 h-3.5" style={{ color: categoryInfo.textColor }} />
+                    <span className="text-[10px] font-black uppercase" style={{ color: categoryInfo.textColor }}>{categoryInfo.label}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -298,21 +264,6 @@ export function ServiceCard({
               </div>
             </div>
 
-            {/* Price Per KM (only for home visit services) */}
-            {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0 && (
-              <div className="bg-blue-50 border-b-2 border-black p-3">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="w-5 h-5 text-blue-600" />
-                    <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
-                  </div>
-                  <span className="text-lg font-black text-green-600">
-                    +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Weight Price Tiers */}
             <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
               <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Phụ phí theo cân nặng</p>
@@ -345,9 +296,7 @@ export function ServiceCard({
             {/* Footer Note */}
             <div className="bg-gray-100 border-t-2 border-black p-3">
               <p className="text-xs font-bold text-gray-600">
-                {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0
-                  ? 'Giá cuối cùng = Giá cơ bản + Phụ phí cân nặng + Phụ phí di chuyển (KM x giá/KM)'
-                  : 'Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng'}
+                Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng
               </p>
             </div>
           </div>

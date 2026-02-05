@@ -74,6 +74,28 @@ export const chatService = {
   },
 
   /**
+   * Upload an image for a conversation
+   */
+  uploadImage: async (
+    conversationId: string,
+    file: File
+  ): Promise<{ imageUrl: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiClient.post<{ imageUrl: string }>(
+      `/chat/conversations/${conversationId}/images`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+    return response.data
+  },
+
+  /**
    * Mark all messages in a conversation as read
    */
   markAsRead: async (conversationId: string): Promise<void> => {

@@ -36,8 +36,8 @@ export const RoleGuard = ({ allowedRoles }: RoleGuardProps) => {
  */
 export const getRoleBasedPath = (role: UserRole): string => {
     switch (role) {
-        case 'VET':
-            return '/vet'
+        case 'STAFF':
+            return '/staff'
         case 'CLINIC_MANAGER':
             return '/clinic-manager'
         case 'CLINIC_OWNER':

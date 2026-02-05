@@ -12,5 +12,9 @@ public class PetResponse {
     private java.time.LocalDate dateOfBirth;
     private double weight;
     private String gender;
+    private String color;
+    private String allergies;
     private String imageUrl;
+    private String ownerName;
+    private String ownerPhone;
 }

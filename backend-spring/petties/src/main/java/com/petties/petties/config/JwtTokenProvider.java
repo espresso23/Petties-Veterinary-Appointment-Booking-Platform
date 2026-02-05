@@ -67,7 +67,12 @@ public class JwtTokenProvider {
 
     public UUID getUserIdFromToken(String token) {
         String userIdStr = getClaimFromToken(token, claims -> claims.get("userId", String.class));
-        return UUID.fromString(userIdStr);
+        try {
+            return UUID.fromString(userIdStr);
+        } catch (IllegalArgumentException e) {
+            org.slf4j.LoggerFactory.getLogger(JwtTokenProvider.class).error("Invalid UUID in token: {}", userIdStr);
+            throw new IllegalArgumentException("Token contains invalid User ID format: " + userIdStr);
+        }
     }
 
     public String getRoleFromToken(String token) {

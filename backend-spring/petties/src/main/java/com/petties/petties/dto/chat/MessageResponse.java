@@ -28,6 +28,9 @@ public class MessageResponse {
 
     private String content;
 
+    private String messageType;
+    private String imageUrl;
+
     private String status;
 
     private boolean isRead;

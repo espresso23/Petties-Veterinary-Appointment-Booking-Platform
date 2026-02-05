@@ -83,7 +83,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 | Role | Web | Mobile |
 |------|-----|--------|
 | PET_OWNER | - | Mobile only |
-| VET | Web + Mobile | Web + Mobile |
+| STAFF | Web + Mobile | Web + Mobile |
 | CLINIC_OWNER | Web only | - |
 | CLINIC_MANAGER | Web only | - |
 | ADMIN | Web only | - |
@@ -820,6 +820,137 @@ petties-report-writer (Sequence Diagrams) + petties-report-writer (Test Cases) +
 
 **Design:**
 - `docs-references/design/design-style-guide.md` - Neobrutalism UI guide
+
+## UML Diagram Standards (Petties SDD)
+
+**Khi viết Class Diagram hoặc Sequence Diagram cho SDD reports, PHẢI tuân thủ các quy tắc sau:**
+
+### Class Diagram Rules
+
+**1. Class Structure:**
+```mermaid
+class ClassName {
+    -privateField type
+    +publicMethod(param) returnType
+}
+```
+- `-` : private field
+- `+` : public method
+- Không cần ghi getter/setter
+
+**2. Class Types:**
+| Type | Content |
+|------|---------|
+| Controller | Methods là các API endpoints |
+| Service | Methods là business logic |
+| Repository | Interface với `<<interface>>`, methods là query |
+| Entity | Fields đầy đủ, không có methods (trừ isExpired, etc.) |
+| Enum | Dùng `<<enumeration>>` stereotype |
+
+**3. Stereotypes:**
+- `<<interface>>` : cho Repository interfaces
+- `<<enumeration>>` : cho Enum types
+- `<<abstract>>` : cho abstract classes
+
+**4. Relationships:**
+| Symbol | Meaning |
+|--------|---------|
+| `-->` | Dependency (Controller --> Service, Service --> Repository) |
+| `--o` | Aggregation |
+| `--*` | Composition |
+| `--|>` | Inheritance |
+| `..|>` | Implementation |
+
+**5. Field & Method Naming:**
+- Fields viết camelCase, Type viết sau field: `+UUID userId`
+- Generic types dùng `~`: `Optional~User~`, `List~Pet~`
+- Method format: `+methodName(paramType) ReturnType`
+- Nhiều params: `+method(String, UUID) ResponseEntity`
+- Không có return: `+method(param) void`
+
+**6. Classes bắt buộc cho mỗi module:**
+- 1 Controller
+- 1+ Services
+- 1+ Repositories
+- 1+ Entities
+- 1+ Enums (nếu có)
+
+**7. Naming Convention:**
+| Type | Pattern |
+|------|---------|
+| Controller | `[Feature]Controller` |
+| Service | `[Feature]Service` |
+| Repository | `[Entity]Repository` |
+| Entity | `[EntityName]` (singular) |
+
+---
+
+### Sequence Diagram Rules
+
+**1. Participants bắt buộc:**
+```mermaid
+actor User as [Tên Role]           %% Pet Owner, Vet, Clinic Manager
+participant UI as [Tên Screen]     %% Mobile/Web
+participant [Abbrev] as [ControllerName]
+participant [Abbrev] as [ServiceName]
+participant [Abbrev] as [RepositoryName]
+participant DB as Database          %% BẮT BUỘC có
+```
+
+**2. Message Numbering:**
+- Đánh số thứ tự liên tục trước mỗi message: `1.`, `2.`, `3....`
+- Số bắt đầu từ 1, liên tục đến hết sequence
+- **KHÔNG dùng `autonumber`**
+
+**3. SQL Operations:**
+Khi Repository gọi Database, phải ghi rõ câu SQL:
+```
+SELECT COUNT(*) FROM users WHERE email = ?
+INSERT INTO users (username, email, password, ...)
+UPDATE ... SET ... WHERE id = ?
+DELETE FROM ... WHERE ...
+```
+
+**4. Activation Boxes:**
+- Mỗi `activate` phải có `deactivate` tương ứng
+- Activate khi bắt đầu xử lý, deactivate khi trả về
+
+**5. Arrow Types:**
+| Arrow | Meaning |
+|-------|---------|
+| `->>` | Synchronous request (gọi method) |
+| `-->>` | Response (trả về kết quả) |
+| `->` | Async message (không đợi response) |
+
+**6. Flow Pattern chuẩn:**
+```
+User → UI → Controller → Service → Repository → Database
+(Response ngược lại cùng thứ tự)
+```
+
+**7. Error Handling:** Dùng `alt`/`else` block cho success/error cases
+
+**8. Naming Convention viết tắt:**
+| Abbreviation | Full Name |
+|--------------|-----------|
+| AC | AuthController |
+| AS | AuthService |
+| UR | UserRepository |
+| CR | ClinicRepository |
+| DB | Database |
+| ES | EmailService |
+| JTP | JwtTokenProvider |
+
+**9. Role Abbreviations:**
+| Abbrev | Role |
+|--------|------|
+| PO | Pet Owner |
+| V | Vet |
+| CM | Clinic Manager |
+| CO | Clinic Owner |
+| A | Admin |
+
+---
 
 ## Quick Context Skills
 

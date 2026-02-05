@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-01-10  
-> **Current Sprint:** Sprint 10 (06/01 - 12/01/2026)  
-> **Overall Progress:** 55%
+> **Last Updated:** 2026-02-02
+> **Current Sprint:** Sprint 8 (03/02 - 09/02/2026) - EMR + Patient Management
+> **Overall Progress:** 83%
 
 ---
 
@@ -13,12 +13,36 @@
 | Authentication | ✅ Done | 100% |
 | Pet Management | ✅ Done | 100% |
 | Clinic System | ✅ Done | 100% |
-| Vet Scheduling | ✅ Done | 100% |
-| Notifications | 🔄 Active | 60% |
-| AI Assistant | 🔄 Active | 40% |
-| EMR (Medical Records) | ⏳ Pending | 20% |
-| Booking Flow | ⏳ Pending | 10% |
-| SOS Emergency | 💡 Planned | 0% |
+| Staff Scheduling | ✅ Done | 100% |
+| Notifications | ✅ Done | 100% |
+| AI Assistant | ✅ Done | 100% |
+| Booking Flow | ✅ Done | 95% |
+| EMR (Medical Records) | ✅ Done | 100% |
+| Vaccination System | ✅ Done | 100% |
+| Payment System | ✅ Done | 90% |
+| SOS Emergency | ❌ Not Started | 0% |
+
+---
+
+## 📋 Use Case Implementation Status
+
+### Summary by Boundary (69 UCs Total)
+
+| # | Boundary | UCs | Status | Progress |
+|---|----------|-----|--------|----------|
+| 1 | Authentication & Onboarding | 7 | ✅ Done | 100% |
+| 2 | User Profile & Account Setup | 4 | ✅ Done | 100% |
+| 3 | Pet Records & Health Hub | 6 | ✅ Done | 100% |
+| 4 | Clinic Discovery & Search | 2 | ✅ Done | 100% |
+| 5 | Booking & Appointment Lifecycle | 16 | 🔄 Active | 88% |
+| 6 | Staffing & Scheduling | 8 | ✅ Done | 100% |
+| 7 | Clinical Operations & Service Setup | 10 | ✅ Done | 100% |
+| 8 | Electronic Medical Records (EMR) | 6 | ✅ Done | 100% |
+| 9 | SOS Emergency Services | 8 | ❌ Not Started | 0% |
+| 10 | AI Assistance & Agents | 8 | ✅ Done | 100% |
+| 11 | Platform Administration & Governance | 8 | 🔄 Active | 75% |
+
+**Total: 57/69 UCs Implemented (83%)**
 
 ---
 
@@ -35,82 +59,90 @@
 - Master/Custom Services
 - Geocoding Integration (Goong)
 - Nearby Clinic Search (Haversine)
-- VetShift & Slot Generation
+- StaffShift & Slot Generation
 - Overnight Shift Support
 - SSE Real-time Events
 - FCM Push Notifications
+- Smart Availability API (Optimal Slot Finding)
+- Standardized Controller Unit Tests (Auth, Booking, EMR)
+- **Payment System (SePay QR Integration)** ✅ NEW
+- **Vaccination System** ✅ NEW
+- **EMR SOAP Notes (MongoDB)** ✅ NEW
 
-### Web (Next.js)
+### Web (React 19 + Vite)
 - Admin Dashboard
 - Clinic Owner Dashboard
 - Clinic Manager Dashboard
-- Vet Schedule Page
+- Staff Schedule Page
 - Staff Management (CRUD)
-- VetShift Management (Calendar, Picker, Conflict Detection)
+- StaffShift Management (Calendar, Picker, Conflict Detection)
 - SSE Notification Integration
 - AI Playground
+- **Booking Management Dashboard** ✅ NEW
+- **Patient Management Dashboard** ✅ NEW
+- **EMR Creation/Edit Forms** ✅ NEW
 
 ### Mobile (Flutter)
 - Google Sign-In
 - Pet Management
 - Clinic Search with Map
-- Vet Schedule View
+- Staff Schedule View
 - FCM Push Notifications
 - Deep Link Navigation
+- **Booking Flow (Multi-step)** ✅ NEW
+- **EMR Viewer** ✅ NEW
+- **Vaccination Records** ✅ NEW
 
 ---
 
-## 🔄 In Progress (Sprint 10)
+## 🔄 In Progress (Sprint 8)
 
-### Current Focus
-1. **VetShift Refinements**
-   - [x] Calendar Picker Component
-   - [x] Shift Conflict Detection
+### Current Focus: EMR + Patient Management
+1. **EMR Finalization**
+   - [x] SOAP Notes Backend (MongoDB)
+   - [x] Prescription management
+   - [x] Vaccination Record tracking
+   - [x] EMR form Web
+   - [x] View Mobile
+   - [ ] Cross-clinic EMR History (Verification pending)
 
-2. **Notification System**
-   - [x] FCM Backend Integration
-   - [x] Mobile Push Handling
-   - [x] SSE Web Integration
-   - [ ] Scheduled Reminders (Cron)
-
-3. **Booking Foundation**
-   - [x] Distance-based Pricing
-   - [ ] Booking Wizard (Mobile)
-   - [ ] Slot Locking Logic
-
----
-
-## ⏳ Upcoming (Sprint 11-12)
-
-### EMR & Medical Records
-- [ ] Cross-clinic EMR History API
-- [ ] SOAP Note Entry (Vet)
-- [ ] Vaccination Card
-- [ ] Electronic Prescription (Rx)
-
-### Booking Workflow
-- [ ] Multi-step Booking Wizard
-- [ ] Vet Check-in Button (click to start examination)
-- [ ] Vet Checkout Button (complete appointment)
-- [ ] State Machine (PENDING → CONFIRMED → IN_PROGRESS → COMPLETED)
-- [ ] Cancellation & Refund Policy
+2. **Payment Flow Completion**
+   - [x] SePay QR Backend API
+   - [x] Payment Controller
+   - [ ] Mobile Payment Screen
+   - [ ] Webhook handling
 
 ---
 
-## 💡 Planned (Sprint 13-14)
+## ⏳ Upcoming (Sprint 9-10)
 
-### SOS Emergency System
+### Sprint 9: Reviews & Rating System (10/02 - 16/02)
+- [ ] Rate Clinic after Visit
+- [ ] Rate Staff after Service
+- [ ] Review listing & moderation
+
+### Sprint 10: SOS Emergency + GPS Tracking (17/02 - 23/02)
 - [ ] Emergency Clinic Filter
 - [ ] Live GPS Tracking (WebSocket)
 - [ ] SOS Tracking Map UI
+- [ ] Staff location sharing
+
+---
+
+## 💡 Planned (Sprint 11-12)
 
 ### AI Enhancements
-- [ ] Booking via Chat (Function Calling)
+- [ ] Booking via Chat (Function Calling) - đã có tool nhưng chưa test full
+
+### Platform Admin
+- [ ] User Report Moderation
+- [ ] Advanced Analytics Dashboard
 
 ---
 
 ## 🐛 Known Issues
-- None currently tracked
+- Payment webhook cần verify kỹ trước khi production
+- Cross-clinic EMR cần test với nhiều clinic data
 
 ---
 
@@ -130,6 +162,7 @@
 | Module Overview | `docs-references/documentation/PETTIES_MODULE_OVERVIEW.md` |
 | BPMN Workflows | `docs-references/documentation/BUSINESS_WORKFLOW_BPMN.md` |
 | URD (User Requirements) | `docs-references/documentation/URD_USER_REQUIREMENTS.md` |
+| **Payment API Spec** | `docs-references/documentation/SEPAY_QR_PAYMENT_API.md` |
 
 ---
 
@@ -137,11 +170,11 @@
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Spring Boot 3, PostgreSQL, Redis |
-| Web Frontend | Next.js 15, TypeScript, TailwindCSS |
-| Mobile | Flutter 3, Riverpod, GoRouter |
-| AI Service | Python, LlamaIndex, Qdrant |
-| Cloud | AWS EC2, Cloudinary, Firebase |
+| Backend | Spring Boot 3.4, Java 21, PostgreSQL, MongoDB, Redis |
+| Web Frontend | React 19, Vite, TypeScript, TailwindCSS (Neobrutalism) |
+| Mobile | Flutter 3.5, Riverpod, GoRouter |
+| AI Service | Python 3.12, FastAPI, LangGraph, LlamaIndex, Qdrant |
+| Cloud | AWS EC2, Cloudinary, Firebase, OpenRouter |
 
 ---
 

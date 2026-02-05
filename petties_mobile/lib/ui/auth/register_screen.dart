@@ -132,6 +132,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: 'PET_OWNER',
       );
 
+      // DEV MODE: Backend trả về AuthResponse (skip OTP) → user đã đăng ký xong
+      if (response is Map && response.containsKey('accessToken')) {
+        // Auth data đã được lưu trong auth_service.dart
+        // Gọi getCurrentUser để cập nhật user trong AuthProvider
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        await authProvider.getCurrentUser();
+
+        if (mounted) {
+          _showSuccessToast('Đăng ký thành công!');
+          context.go(AppRoutes.home);
+        }
+        return;
+      }
+
+      // Normal mode: Chuyển sang step OTP
       setState(() {
         _step = 'otp';
         _registrationEmail = _emailController.text.trim();

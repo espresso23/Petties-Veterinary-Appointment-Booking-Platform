@@ -1,30 +1,30 @@
-# Vet Scheduling & Dispatching Strategy
+# Staff Scheduling & Dispatching Strategy
 
-Hướng dẫn thực tế về cách sắp xếp lịch và điều phối bác sĩ thú y.
-
----
+**Version:** 1.6.0
+**Last Updated:** 2026-01-27
+**Update Note:** Đổi Role.STAFF → Role.STAFF để phù hợp với kiến trúc mới (StaffSpecialty: VET_GENERAL, GROOMER, etc.)
 
 ## 1. Nguyên Tắc Cốt Lõi
 
-1. **VET luôn thuộc về 1 CLINIC** (không freelance)
+1. **STAFF luôn thuộc về 1 CLINIC** (không freelance)
 
-2. **VET có lịch làm việc cố định tại Clinic**
+2. **STAFF có lịch làm việc cố định tại Clinic**
    - Được Manager tạo/import lịch
    - Mỗi ngày có ca làm (shift) với giờ bắt đầu/kết thúc
 
-3. **Trong ca làm, Vet có thể được assign:**
+3. **Trong ca làm, Staff có thể được assign:**
    - `IN_CLINIC`: Khám tại phòng khám (mặc định)
    - `HOME_VISIT`: Đi khám tại nhà khách (khi được assign)
 
-4. **Manager quyết định ai đi Home Visit**, không phải Vet tự chọn
+4. **Manager quyết định ai đi Home Visit**, không phải Staff tự chọn
 
 5. **Mỗi Service có thời gian khác nhau** → cần số slot khác nhau
 
 ```mermaid
 flowchart TB
     subgraph PRINCIPLES["NGUYÊN TẮC CỐT LÕI"]
-        P1["1. VET thuộc 1 CLINIC<br/>(không freelance)"]
-        P2["2. VET có lịch làm cố định<br/>(Manager tạo/import)"]
+        P1["1. STAFF thuộc 1 CLINIC<br/>(không freelance)"]
+        P2["2. STAFF có lịch làm cố định<br/>(Manager tạo/import)"]
         P3["3. Trong ca: IN_CLINIC hoặc HOME_VISIT"]
         P4["4. MANAGER quyết định<br/>ai đi Home Visit"]
         P5["5. Mỗi Service cần số slot khác nhau"]
@@ -85,7 +85,7 @@ Khi tạo Service, Clinic Owner cần định nghĩa:
 
 **Lý do chọn phương án này:**
 
-1. **Buffer Time cho Vet:**
+1. **Buffer Time cho Staff:**
    - Chuẩn bị dụng cụ trước khi khám
    - Ghi chú EMR, vaccination record sau khi khám
    - Vệ sinh, khử trùng thiết bị
@@ -98,12 +98,12 @@ Khi tạo Service, Clinic Owner cần định nghĩa:
 
 3. **Đơn giản hóa hệ thống:**
    - Không cần thêm entity SUB_SLOT
-   - Logic assign Vet đơn giản
+   - Logic assign Staff đơn giản
    - Calendar UI dễ render
    - Dễ debug và maintain
 
 4. **Chất lượng dịch vụ:**
-   - Không áp lực thời gian cho Vet
+   - Không áp lực thời gian cho Staff
    - Pet owner không phải chờ đợi
    - Trải nghiệm tốt hơn rushed service
 
@@ -191,43 +191,49 @@ sequenceDiagram
     PO->>SYS: 7. Xác nhận đặt lịch
     SYS->>SYS: 8. Tạo Booking (PENDING)
     SYS-->>PO: 9. Đặt lịch thành công!
-    SYS->>MGR: 10. Notify: Booking cần gán Vet
+    SYS->>MGR: 10. Notify: Booking cần gán Staff
 ```
 
 ---
 
 ## 5. Flow Điều Phối (Manager)
 
-### 5.1 Manager gán Vet
+### 5.1 Manager gán Staff
 
 **Khi có Booking mới (PENDING):**
 
 1. Manager xem danh sách Booking cần gán
-2. Click "Gán Vet" → System hiển thị danh sách Vet có đủ slot liên tiếp
-3. Manager chọn Vet phù hợp
+2. Click "Gán Staff" → System hiển thị danh sách Staff có đủ slot liên tiếp
+3. Manager chọn Staff phù hợp
 
-**System xử lý sau khi Manager chọn Vet:**
+**System xử lý sau khi Manager chọn Staff:**
 1. Lock tất cả slots cần thiết
 2. Đánh dấu slots = BOOKED
 3. Gắn booking_id vào các slots
 4. Update booking: `vet_id`, `status = ASSIGNED`
-5. Notify Vet
+5. Notify Staff
 
 ```mermaid
 flowchart TB
-    A["Booking cần gán<br/>Service: 3 slots"] --> B["Manager click Gán Vet"]
-    B --> C["System hiển thị Vet khả dụng"]
+    A["Booking cần gán<br/>Service: 3 slots"] --> B["Manager click Gán Staff"]
+    B --> C["System hiển thị Staff khả dụng"]
     
     C --> D["Dr. Minh ✅<br/>3 slot trống"]
     C --> E["Dr. Hùng ✅<br/>3 slot trống"]
     C --> F["Dr. Lan ❌<br/>Thiếu slot"]
     
-    D --> G["Manager chọn Vet"]
+    D --> G["Manager chọn Staff"]
     E --> G
     
     G --> H["Lock 3 slots"]
     H --> I["Status = ASSIGNED"]
-    I --> J["Notify Vet"]
+    I --> J["Notify Staff"]
+
+    subgraph REASSIGN["GÁN LẠI STAFF (v1.5.0)"]
+        K["Staff bận / khẩn cấp"] --> L["Manager chọn Reassign Staff"]
+        L --> M["Kiểm tra tính khả dụng (BookingController)"]
+        M --> N["Auto-unlock cũ → Lock mới"]
+    end
 ```
 
 ### 5.2 Dashboard Timeline cho Manager
@@ -235,35 +241,35 @@ flowchart TB
 **Legend:**
 - ████ Confirmed (In-Clinic)
 - ▓▓▓▓ Confirmed (Home Visit)
-- ░░░░ Pending (chờ Vet confirm)
+- ░░░░ Pending (chờ Staff confirm)
 - FREE Slot trống
 
 > 💡 Booking dài sẽ hiển thị gộp nhiều slot thành 1 block
 
 ---
 
-## 6. Vet Receives Assignment
+## 6. Staff Receives Assignment
 
-**Flow khi Vet nhận notification:**
+**Flow khi Staff nhận notification:**
 
-1. Vet nhận notification về booking mới được assign
-2. Vet xem chi tiết Booking (Pet, Service, Thời gian, Loại)
-3. Vet tiến hành thực hiện dịch vụ (không cần accept/reject)
+1. Staff nhận notification về booking mới được assign
+2. Staff xem chi tiết Booking (Pet, Service, Thời gian, Loại)
+3. Staff tiến hành thực hiện dịch vụ (không cần accept/reject)
 
 **System xử lý sau khi Manager assign:**
 - `status = CONFIRMED` (tự động sau khi assign)
 - Notify Pet Owner: "Lịch hẹn đã xác nhận"
-- Notify Vet: "Bạn có lịch hẹn mới"
+- Notify Staff: "Bạn có lịch hẹn mới"
 
-> 💡 **Lưu ý:** Vet KHÔNG có quyền Accept/Reject. Manager quyết định assign Vet nào.
+> 💡 **Lưu ý:** Staff KHÔNG có quyền Accept/Reject. Manager quyết định assign Staff nào.
 
 ```mermaid
 flowchart TB
-    A["Manager assign Vet"] --> B["Status = CONFIRMED"]
+    A["Manager assign Staff"] --> B["Status = CONFIRMED"]
     B --> C["Notify Pet Owner"]
-    B --> D["Notify Vet"]
-    D --> E["Vet xem chi tiết booking"]
-    E --> F["Vet thực hiện dịch vụ"]
+    B --> D["Notify Staff"]
+    D --> E["Staff xem chi tiết booking"]
+    E --> F["Staff thực hiện dịch vụ"]
 ```
 
 ---
@@ -296,7 +302,17 @@ flowchart TB
 2. Restore TẤT CẢ slots về AVAILABLE
 3. Update booking `status = CANCELLED`
 4. Xử lý hoàn tiền (nếu có)
-5. Notify Vet và Manager
+5. Notify Staff và Manager
+
+### 7.4 Block/Unblock Slot thủ công (Manual Slot Control) ✅
+**Tính năng mới v1.5.0:** Manager có thể block từng slot cụ thể của Staff (ví dụ nghỉ đột xuất 30p) mà không cần xóa cả ca trực.
+- Tác vụ: `BlockSlot` / `UnblockSlot`
+- Status: `BLOCKED` (không hiển thị cho khách)
+
+### 7.5 Xóa ca trực hàng loạt (Bulk Shift Delete) ✅
+**Tính năng mới v1.5.0:** Xóa toàn bộ shifts của Staff trong 1 khoảng thời gian (ví dụ Staff xin nghỉ phép 1 tuần).
+- Tác vụ: `DeleteShiftsByRange`
+- System: Tự động xóa các Slots chưa được Booked. Booking đã Booked cần Manager Reassign trước.
 
 → Các slots giờ lại trống, có thể nhận booking mới
 
@@ -304,7 +320,7 @@ flowchart TB
 
 **Cùng logic với In-Clinic:**
 - System tìm slot liên tiếp trống
-- Manager gán Vet
+- Manager gán Staff
 - Book tất cả slot
 
 **Khác biệt:**
@@ -313,15 +329,15 @@ flowchart TB
 - Giá = `base_price + (distance_km × price_per_km)`
 
 **Lưu ý cho Manager:**
-- Slot TRƯỚC Home Visit: Vet cần thời gian di chuyển đi
-- Slot SAU Home Visit: Vet cần thời gian di chuyển về
+- Slot TRƯỚC Home Visit: Staff cần thời gian di chuyển đi
+- Slot SAU Home Visit: Staff cần thời gian di chuyển về
 - → Đây là **QUYẾT ĐỊNH CỦA MANAGER**, system không tự động block
 
 ### 7.4 No-Show handling
 
 **Khi Pet Owner không đến sau 30 phút:**
 
-1. Vet hoặc Manager đánh dấu NO_SHOW (hoặc System tự động)
+1. Staff hoặc Manager đánh dấu NO_SHOW (hoặc System tự động)
 2. Booking `status = NO_SHOW`
 3. **2 lựa chọn cho slots:**
    - **Option A (mặc định):** Giữ slots để thống kê
@@ -334,11 +350,11 @@ flowchart TB
 
 ### 8.1 Mô hình Clinic 24/7
 
-Clinic hoạt động 24/7 nhưng bác sĩ **làm theo ca** (không làm 24h liên tục).
+Clinic hoạt động 24/7 nhưng nhân viên **làm theo ca** (không làm 24h liên tục).
 
 **Ví dụ chia ca:**
 
-| Ca | Giờ | Bác sĩ |
+| Ca | Giờ | Nhân viên |
 |----|-----|--------|
 | Ca sáng | 06:00 - 14:00 | Dr. Minh |
 | Ca chiều | 14:00 - 22:00 | Dr. Lan |
@@ -350,7 +366,7 @@ Clinic hoạt động 24/7 nhưng bác sĩ **làm theo ca** (không làm 24h li�
 
 **Ví dụ VET_SHIFT:**
 
-| Vet | work_date | start_time | end_time | Ý nghĩa |
+| Staff | work_date | start_time | end_time | Ý nghĩa |
 |-----|-----------|------------|----------|---------|
 | Dr. Hùng | 17/12 | 22:00 | 06:00 | Ca đêm 17/12 22:00 → 18/12 06:00 |
 
@@ -385,8 +401,8 @@ if (isNightShift) {
 | Role | Làm gì |
 |------|--------|
 | **Clinic Owner** | Tạo Service, định nghĩa `slots_required` cho mỗi service |
-| **Manager** | Tạo/Import lịch Vet, Gán Vet cho booking, Xử lý cancel |
-| **Vet** | Nhận assignment, Thực hiện dịch vụ, Check-in/out |
+| **Manager** | Tạo/Import lịch Staff, Gán Staff cho booking, Xử lý cancel |
+| **Staff** | Nhận assignment, Thực hiện dịch vụ, Check-in/out |
 | **Pet Owner** | Chọn Service → Chọn giờ (từ list available) → Đặt lịch |
 | **System** | Tạo slots từ shift, Tìm slot liên tiếp, Lock/Restore slots |
 
@@ -408,7 +424,7 @@ if (isNightShift) {
    - Khi reject: Restore tất cả slot
 
 4. **MANAGER QUYẾT ĐỊNH**
-   - Manager chọn Vet (không auto-assign)
+   - Manager chọn Staff (không auto-assign)
    - Manager quyết định ai đi Home Visit
    - Manager cân nhắc thời gian di chuyển (không tự động)
 
@@ -429,9 +445,9 @@ flowchart LR
         B1["Pet Owner<br/>chọn Service"] --> B2["System tìm<br/>slot liên tiếp"]
         B2 --> B3["Chọn giờ"]
         B3 --> B4["PENDING"]
-        B4 --> B5["Manager<br/>gán Vet"]
+        B4 --> B5["Manager<br/>gán Staff"]
         B5 --> B6["CONFIRMED"]
-        B6 --> B7["Vet nhận<br/>notification"]
+        B6 --> B7["Staff nhận<br/>notification"]
         B7 --> B8["Check-in → Khám<br/>→ COMPLETED"]
     end
     
@@ -440,5 +456,7 @@ flowchart LR
 
 ---
 
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-27
 **Author:** Petties Team
+**Change Log:**
+- 2026-01-27: Đổi Role.STAFF → Role.STAFF, cập nhật thuật ngữ trong toàn bộ document

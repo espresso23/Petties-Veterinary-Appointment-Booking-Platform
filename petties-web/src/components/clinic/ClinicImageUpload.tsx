@@ -94,13 +94,13 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
       console.error('Failed to upload image:', err)
       console.error('Error response:', err.response?.data)
       console.error('Error status:', err.response?.status)
-      
+
       // Extract error message from response
-      const errorMessage = err.response?.data?.message 
-        || err.response?.data?.error 
-        || err.message 
+      const errorMessage = err.response?.data?.message
+        || err.response?.data?.error
+        || err.message
         || 'Không thể upload ảnh. Vui lòng thử lại.'
-      
+
       setError(errorMessage)
     } finally {
       setUploading(false)
@@ -134,7 +134,7 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
       onImageUploaded?.()
     } catch (err: any) {
       const errorMessage =
-        err.response?.data?.message || err.message || 'Không thể đặt ảnh làm primary.'
+        err.response?.data?.message || err.message || 'Không thể đặt ảnh làm ảnh đại diện.'
       setError(errorMessage)
     }
   }
@@ -155,11 +155,10 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
         />
         <label
           htmlFor="clinic-image-upload"
-          className={`btn-brutal-outline cursor-pointer inline-block ${
-            uploading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+          className={`btn-brutal-outline cursor-pointer inline-block ${uploading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
         >
-          {uploading ? 'UPLOADING...' : '+ UPLOAD ẢNH'}
+          {uploading ? 'ĐANG TẢI LÊN...' : '+ TẢI ẢNH LÊN'}
         </label>
         {error && (
           <p className="text-red-600 text-sm mt-1 font-bold">{error}</p>
@@ -180,7 +179,7 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
               </div>
               {image.isPrimary && (
                 <div className="absolute bottom-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                  PRIMARY
+                  ẢNH ĐẠI DIỆN
                 </div>
               )}
               <div className="absolute top-2 right-2 flex flex-col gap-2">
@@ -188,9 +187,8 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
                   type="button"
                   disabled={!image.imageId || image.isPrimary}
                   onClick={() => handleSetPrimary(image)}
-                  className={`px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${
-                    image.isPrimary ? 'opacity-60 cursor-default' : 'hover:bg-amber-50'
-                  }`}
+                  className={`px-2 py-1 text-xs font-bold uppercase border-2 border-stone-900 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] ${image.isPrimary ? 'opacity-60 cursor-default' : 'hover:bg-amber-50'
+                    }`}
                 >
                   Chọn làm chính
                 </button>
@@ -211,7 +209,7 @@ export function ClinicImageUpload({ clinicId, initialImages = [], onImageUploade
 
       {images.length === 0 && (
         <div className="text-stone-500 text-sm font-bold uppercase text-center py-8 border-2 border-dashed border-stone-300">
-          Chưa có ảnh nào. Click "UPLOAD ẢNH" để thêm ảnh.
+          Chưa có ảnh nào. Nhấn "+ TẢI ẢNH LÊN" để thêm ảnh.
         </div>
       )}
     </div>

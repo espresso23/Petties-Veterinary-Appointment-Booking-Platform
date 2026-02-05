@@ -2,6 +2,7 @@ package com.petties.petties.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Pet {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -42,6 +44,12 @@ public class Pet {
 
     @Column(nullable = false)
     private String gender;
+
+    @Column(length = 100)
+    private String color;
+
+    @Column(columnDefinition = "TEXT")
+    private String allergies;
 
     @Column(name = "image_url")
     private String imageUrl;

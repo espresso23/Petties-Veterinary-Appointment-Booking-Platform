@@ -4,25 +4,38 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/user_provider.dart';
+import 'providers/notification_provider.dart';
+import 'providers/booking_wizard_provider.dart';
+import 'providers/clinic_provider.dart';
 import 'routing/router_config.dart' as app_router;
 import 'config/theme/app_theme.dart';
 import 'utils/storage_service.dart';
 import 'core/services/sentry_service.dart';
 import 'utils/fcm_service.dart';
-import 'providers/notification_provider.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'config/env/environment.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Global error handling
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('CRASH ERROR: ${details.exception}');
+    debugPrint('CRASH STACK: ${details.stack}');
+  };
 
-  // 🔍 Debug: Log environment configuration on startup
-  Environment.printConfig();
+  // Load environment variables from .env file
+  try {
+    await dotenv.load(fileName: '.env');
+    debugPrint('✅ Loaded .env file');
+  } catch (e) {
+    debugPrint('⚠️ Could not load .env file: $e');
+  }
 
   // Initialize date formatting for Vietnamese (fast, synchronous)
   await initializeDateFormatting('vi', null);
@@ -31,7 +44,8 @@ void main() async {
   // Initialize local storage first (needed for auth)
   await StorageService().init();
 
-  // Initialize Firebase (required before runApp for FCM background handler)
+  // Initialize Firebase WITHOUT background handler first
+  // Background handler will be set up after first frame to avoid 20s freeze
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -44,9 +58,11 @@ void main() async {
   final authProvider = AuthProvider();
   final userProvider = UserProvider();
   final notificationProvider = NotificationProvider();
+  final clinicProvider = ClinicProvider();
+  final bookingWizardProvider = BookingWizardProvider();
 
   // Initialize Sentry and run app immediately
-  // FCM will be initialized AFTER first frame renders
+  // FCM and background handler will be initialized AFTER first frame renders
   await SentryService.init(() {
     runApp(
       MultiProvider(
@@ -54,14 +70,20 @@ void main() async {
           ChangeNotifierProvider.value(value: authProvider),
           ChangeNotifierProvider.value(value: userProvider),
           ChangeNotifierProvider.value(value: notificationProvider),
+          ChangeNotifierProvider.value(value: clinicProvider),
+          ChangeNotifierProvider.value(value: bookingWizardProvider),
         ],
         child: PettiesApp(authProvider: authProvider),
       ),
     );
 
-    // Defer FCM initialization to after first frame
+    // Defer FCM initialization AND background handler setup to after first frame
     // This prevents blocking the main thread during startup
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Set up Firebase background message handler AFTER UI renders
+      // This avoids creating background Flutter Engine during startup (saves 20s)
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      
       try {
         await FcmService().initialize();
       } catch (e) {

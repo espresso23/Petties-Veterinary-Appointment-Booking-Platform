@@ -31,11 +31,11 @@ export function DistanceCalculator({
             calculateDistance(position.coords.latitude, position.coords.longitude)
           },
           () => {
-            setError('Unable to get your location')
+            setError('Không thể lấy vị trí hiện tại của bạn')
           },
         )
       } else {
-        setError('Geolocation is not supported by your browser')
+        setError('Trình duyệt không hỗ trợ Geolocation')
       }
       return
     }
@@ -53,7 +53,7 @@ export function DistanceCalculator({
         onDistanceCalculated(result)
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to calculate distance')
+      setError(err.response?.data?.message || err.message || 'Không thể tính khoảng cách')
     } finally {
       setIsLoading(false)
     }
@@ -62,7 +62,7 @@ export function DistanceCalculator({
   if (isLoading) {
     return (
       <div className="card-brutal p-4">
-        <div className="text-stone-600 font-bold uppercase text-sm">Calculating distance...</div>
+        <div className="text-stone-600 font-bold uppercase text-sm">Đang tính khoảng cách...</div>
       </div>
     )
   }
@@ -70,7 +70,7 @@ export function DistanceCalculator({
   if (error) {
     return (
       <div className="card-brutal p-4 bg-red-50 border-red-600">
-        <div className="text-red-800 font-bold uppercase text-sm mb-1">Error</div>
+        <div className="text-red-800 font-bold uppercase text-sm mb-1">Lỗi</div>
         <div className="text-red-700 text-xs">{error}</div>
       </div>
     )
@@ -82,10 +82,10 @@ export function DistanceCalculator({
 
   return (
     <div className="card-brutal p-4">
-      <div className="text-sm font-bold uppercase text-stone-600 mb-2">DISTANCE</div>
+      <div className="text-sm font-bold uppercase text-stone-600 mb-2">QUÃNG ĐƯỜNG</div>
       <div className="space-y-1">
         <div className="text-lg font-bold text-stone-900">{distance.distanceText}</div>
-        <div className="text-sm text-stone-600">Duration: {distance.durationText}</div>
+        <div className="text-sm text-stone-600">Thời gian dự kiến: {distance.durationText}</div>
       </div>
     </div>
   )

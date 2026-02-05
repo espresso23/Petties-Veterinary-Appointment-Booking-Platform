@@ -15,8 +15,74 @@ import 'package:go_router/go_router.dart';
 
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('Background message: ${message.notification?.title}');
+
+  // Initialize local notifications for background
+  final FlutterLocalNotificationsPlugin localNotifications =
+      FlutterLocalNotificationsPlugin();
+
+  // Initialize settings
+  const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const iosSettings = DarwinInitializationSettings();
+  const initSettings = InitializationSettings(
+    android: androidSettings,
+    iOS: iosSettings,
+  );
+
+  await localNotifications.initialize(initSettings);
+
+  // Create notification channel for Android
+  if (Platform.isAndroid) {
+    const channel = AndroidNotificationChannel(
+      'petties_notifications',
+      'Petties Notifications',
+      description: 'Thông báo từ Petties',
+      importance: Importance.high,
+    );
+
+    await localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
+  // Show local notification
+  // Show local notification
+  // FIXED: Commented out to prevent double notifications on Android.
+  // When 'notification' key is present in FCM payload, Android System automatically shows notification.
+  // Manual display here causes duplicates.
+  /*
+  if (message.notification != null) {
+    const androidDetails = AndroidNotificationDetails(
+      'petties_notifications',
+      'Petties Notifications',
+      channelDescription: 'Thông báo từ Petties',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await localNotifications.show(
+      message.hashCode,
+      message.notification!.title,
+      message.notification!.body,
+      details,
+      payload: message.data.isNotEmpty ? jsonEncode(message.data) : null,
+    );
+  }
+  */
 }
 
 /// FCM Service for handling push notifications
@@ -48,8 +114,8 @@ class FcmService {
     // Initialize local notifications
     await _initLocalNotifications();
 
-    // Set up background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Background handler is now set up in main.dart before initialize() is called
+    // No need to set it here again
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -147,7 +213,14 @@ class FcmService {
     await _registerTokenWithBackend(token);
   }
 
+  // Fire-and-forget pattern: Start token registration without blocking
   Future<void> _registerTokenWithBackend(String fcmToken) async {
+    // Don't await - let it run in background without blocking UI
+    _sendTokenToBackend(fcmToken);
+  }
+
+  // Async worker method that actually sends token to backend
+  void _sendTokenToBackend(String fcmToken) async {
     try {
       final accessToken = await _storage.getString(AppConstants.accessTokenKey);
       if (accessToken == null) {
@@ -155,6 +228,7 @@ class FcmService {
         return;
       }
 
+      // Add timeout to prevent hanging if backend is slow
       final response = await http.post(
         Uri.parse('${Environment.baseUrl}/fcm/token'),
         headers: {
@@ -162,6 +236,12 @@ class FcmService {
           'Authorization': 'Bearer $accessToken',
         },
         body: jsonEncode({'fcmToken': fcmToken}),
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('FCM token registration timeout');
+          throw TimeoutException('FCM registration took too long');
+        },
       );
 
       if (response.statusCode == 200) {
@@ -263,10 +343,10 @@ class FcmService {
     }
 
     switch (type) {
-      case 'VET_SHIFT_ASSIGNED':
-      case 'VET_SHIFT_UPDATED':
-      case 'VET_SHIFT_DELETED':
-        context.push(AppRoutes.vetSchedule);
+      case 'STAFF_SHIFT_ASSIGNED':
+      case 'STAFF_SHIFT_UPDATED':
+      case 'STAFF_SHIFT_DELETED':
+        context.push(AppRoutes.staffSchedule);
         break;
       case 'BOOKING_CREATED':
       case 'BOOKING_CONFIRMED':
@@ -283,6 +363,14 @@ class FcmService {
       case 'APPROVED':
       case 'REJECTED':
         context.push(AppRoutes.petOwnerHome);
+        break;
+      case 'chat_message':
+        final conversationId = data['conversationId'];
+        if (conversationId != null) {
+          context.push('${AppRoutes.chatDetail}?conversationId=$conversationId');
+        } else {
+          context.push(AppRoutes.petOwnerHome);
+        }
         break;
       default:
         context.push(AppRoutes.notifications);
@@ -339,8 +427,41 @@ class FcmService {
     );
   }
 
-  /// Get current FCM token
-  String? get token => _fcmToken;
+  /// Show local notification for chat messages
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'petties_notifications',
+      'Petties Notifications',
+      channelDescription: 'Thông báo từ Petties',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      fullScreenIntent: true,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000, // Unique ID
+      title,
+      body,
+      details,
+      payload: data != null ? jsonEncode(data) : null,
+    );
+  }
 
   /// Re-register token (call after login)
   Future<void> registerAfterLogin() async {

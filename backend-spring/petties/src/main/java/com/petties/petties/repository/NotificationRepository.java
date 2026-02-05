@@ -17,10 +17,10 @@ import java.util.UUID;
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
     /**
-     * Find all notifications for a user (including VetShift notifications without clinic)
+     * Find all notifications for a user (including StaffShift notifications without clinic)
      * Load notifications for non-deleted clinics OR notifications without clinic
      */
-    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c WHERE n.user.userId = :userId AND (c IS NULL OR c.deletedAt IS NULL) ORDER BY n.createdAt DESC")
+    @Query("SELECT n FROM Notification n LEFT JOIN n.clinic c WHERE n.user.userId = :userId AND (c IS NULL OR c.deletedAt IS NULL)")
     Page<Notification> findByUserUserIdOrderByCreatedAtDesc(@Param("userId") UUID userId, Pageable pageable);
 
     /**

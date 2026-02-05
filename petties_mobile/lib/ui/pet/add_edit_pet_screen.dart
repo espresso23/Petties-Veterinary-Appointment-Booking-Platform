@@ -28,6 +28,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
   final _speciesController = TextEditingController();
   final _breedController = TextEditingController();
   final _weightController = TextEditingController();
+  final _colorController = TextEditingController();
+  final _allergiesController = TextEditingController();
 
   DateTime? _selectedDateOfBirth;
   String _selectedGender = 'MALE';
@@ -52,6 +54,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
       _weightController.text = pet.weight.toString();
       _selectedDateOfBirth = pet.dateOfBirth;
       _selectedGender = pet.gender;
+      _colorController.text = pet.color ?? '';
+      _allergiesController.text = pet.allergies ?? '';
       _currentImageUrl = pet.imageUrl;
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,6 +122,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
           gender: _selectedGender,
+          color: _colorController.text.isEmpty ? null : _colorController.text,
+          allergies: _allergiesController.text.isEmpty ? null : _allergiesController.text,
           image: _selectedImage,
         );
       } else {
@@ -130,6 +136,8 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
           gender: _selectedGender,
+          color: _colorController.text.isEmpty ? null : _colorController.text,
+          allergies: _allergiesController.text.isEmpty ? null : _allergiesController.text,
           image: _selectedImage,
         );
       }
@@ -315,6 +323,23 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                         const SizedBox(width: 16),
                         _buildGenderOption('FEMALE', 'Cái'),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Color (optional)
+                    CustomTextField(
+                      controller: _colorController,
+                      label: 'Màu lông (tùy chọn)',
+                      hint: 'VD: Nâu, Đen, Trắng, Vàng...',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Allergies (optional)
+                    CustomTextField(
+                      controller: _allergiesController,
+                      label: 'Dị ứng (nếu có)',
+                      hint: 'Để trống nếu không có dị ứng',
+                      maxLines: 2,
                     ),
                     const SizedBox(height: 32),
 

@@ -4,12 +4,12 @@ export interface ClinicNotification {
   notificationId: string
   clinicId?: string
   clinicName?: string
-  type: 'APPROVED' | 'REJECTED' | 'PENDING' | 'CLINIC_PENDING_APPROVAL' | 'VET_SHIFT_ASSIGNED' | 'VET_SHIFT_UPDATED' | 'VET_SHIFT_DELETED'
+  type: 'APPROVED' | 'REJECTED' | 'PENDING' | 'CLINIC_PENDING_APPROVAL' | 'STAFF_SHIFT_ASSIGNED' | 'STAFF_SHIFT_UPDATED' | 'STAFF_SHIFT_DELETED' | 'BOOKING_CREATED' | 'BOOKING_CONFIRMED' | 'BOOKING_CANCELLED' | 'BOOKING_CHECKIN' | 'BOOKING_COMPLETED' | 'STAFF_ON_WAY' | 'CLINIC_VERIFIED'
   message: string
   reason?: string
   read: boolean
   createdAt: string
-  // VetShift-related fields
+  // StaffShift-related fields
   shiftId?: string
   shiftDate?: string
   shiftStartTime?: string

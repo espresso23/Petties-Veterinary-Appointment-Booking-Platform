@@ -17,17 +17,17 @@ const AUTH_BASE = `${env.API_BASE_URL}/auth`
 // ===== TYPES =====
 
 export interface User {
-    userId: number
+    userId: string
     username: string
     email: string
     fullName: string
     phoneNumber?: string
-    role: 'ADMIN' | 'VET' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'PET_OWNER'
+    role: 'ADMIN' | 'STAFF' | 'CLINIC_MANAGER' | 'CLINIC_OWNER' | 'PET_OWNER'
     enabled: boolean
-    workingClinicId?: string    // For CLINIC_MANAGER and VET
+    workingClinicId?: string    // For CLINIC_MANAGER and STAFF
     workingClinicName?: string  // Clinic name for display
     avatar?: string             // Profile picture URL
-    specialty?: string          // For VET (VET_GENERAL, VET_SURGERY, etc.)
+    specialty?: string          // For STAFF (VET_GENERAL, VET_SURGERY, etc.)
     createdAt?: string
 }
 

@@ -100,16 +100,6 @@ export async function updateHomeVisitStatus(
 }
 
 /**
- * Update price per km for all home visit services
- * PATCH /api/services/bulk/price-per-km?pricePerKm={value}
- */
-export async function updateBulkPricePerKm(pricePerKm: number): Promise<void> {
-  await apiClient.patch('/services/bulk/price-per-km', null, {
-    params: { pricePerKm: pricePerKm.toString() },
-  })
-}
-
-/**
  * NEW: Inherit service from Master Service
  * POST /api/services/inherit/{masterServiceId}?clinicId={clinicId}&clinicPrice={price}&clinicPricePerKm={pricePerKm}
  */

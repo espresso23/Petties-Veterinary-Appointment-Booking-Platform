@@ -1,8 +1,8 @@
 # SOFTWARE DESIGN DOCUMENT (SDD)
 # PETTIES AI AGENT SERVICE
 
-**Document Version:** 1.0.0
-**Last Updated:** 2025-12-27
+**Document Version:** 1.6.0
+**Last Updated:** 2026-02-02
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Component:** AI Agent Service (FastAPI + LangGraph + ReAct Pattern)
 
@@ -25,7 +25,7 @@
 
 ### 1.1 High-Level Architecture
 
-Petties AI Agent Service được xây dựng theo kiến trúc **Single Agent với ReAct Pattern**, sử dụng **LangGraph** để orchestrate agent workflow và **FastMCP** để quản lý tools.
+Petties AI Agent Service được xây dựng theo kiến trúc **Single Agent với ReAct Pattern**, sử dụng **LangGraph** để orchestrate agent workflow và **FastMCP** để quản lý tools. Hệ thống không chỉ là chatbot đơn thuần mà là **trợ lý AI toàn diện** phục vụ Pet Owners (Mobile), Clinic Staff & Managers (Web), và Administrators.
 
 ```mermaid
 flowchart TB
@@ -218,6 +218,7 @@ stateDiagram-v2
         - search_clinics
         - check_slots
         - create_booking
+        - analyze_pet_image (Vision)
     end note
 
     note right of Observe
@@ -261,10 +262,11 @@ class AgentConfig:
     - search_clinics: Tìm phòng khám gần đây
     - check_slots: Kiểm tra slot trống
     - create_booking: Đặt lịch khám
+    - analyze_pet_image: Phân tích hình ảnh sức khỏe thú cưng (Vision)
 
     Luôn:
     - Trích dẫn nguồn khi dùng RAG
-    - Khuyên người dùng đến bác sĩ thú y nếu triệu chứng nghiêm trọng
+    - Khuyên người dùng đến nhân viên thú y nếu triệu chứng nghiêm trọng
     - Sử dụng tool khi cần (không tự bịa thông tin)
     """
 
@@ -971,7 +973,7 @@ ws://localhost:8000/ws/chat/abc-123?token=eyJhbGciOiJIUzI1NiIs...
 ```json
 {
   "type": "done",
-  "content": "Dựa trên triệu chứng nôn, chó nhà bạn có thể bị viêm dạ dày. Nên đặt lịch khám trong 24-48 giờ để bác sĩ thú y chẩn đoán chính xác.",
+  "content": "Dựa trên triệu chứng nôn, chó nhà bạn có thể bị viêm dạ dày. Nên đặt lịch khám trong 24-48 giờ để nhân viên thú y chẩn đoán chính xác.",
   "sources": [
     {
       "type": "knowledge_base",
@@ -1980,4 +1982,5 @@ JWT_SECRET=${JWT_SECRET}
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0.0 | 2025-12-27 | AI Documentation Team | Initial SDD for AI Agent Service |
+| 1.4.0 | 2026-01-22 | Petties Development Team | Bổ sung thiết kế cho AI Vision Analysis và đồng bộ Version |
 

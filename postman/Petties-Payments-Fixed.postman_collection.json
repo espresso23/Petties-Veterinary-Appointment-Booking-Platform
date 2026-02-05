@@ -1,0 +1,319 @@
+{
+    "info": {
+        "_postman_id": "petties-payments-v2",
+        "name": "Petties - Payments API (Fixed Auth)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "0. Login Admin",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test('Login OK', () => pm.response.to.have.status(200));",
+                            "const json = pm.response.json();",
+                            "if (json?.accessToken) {",
+                            "    pm.collectionVariables.set('accessToken', json.accessToken);",
+                            "    console.log('✓ Token saved');",
+                            "}"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "auth": {
+                    "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\"username\":\"{{adminUsername}}\",\"password\":\"{{adminPassword}}\"}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/api/auth/login",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "login"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "1. Get Payment Method",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                            "pm.test('Has paymentMethod', () => {",
+                            "    const json = pm.response.json();",
+                            "    pm.expect(json).to.have.property('paymentMethod');",
+                            "    pm.expect(json.paymentMethod).to.match(/^(QR|CASH|CARD)$/);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/method",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "{{qrBookingId}}",
+                        "method"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "2. Get Payment Description",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/description",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "{{qrBookingId}}",
+                        "description"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "3. Get Booking Total",
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/total",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "{{qrBookingId}}",
+                        "total"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "4. Check Payment Status",
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/{{qrBookingId}}/status",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "{{qrBookingId}}",
+                        "status"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "5. Get Payment History",
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/history/petowner/{{petOwnerId}}?limit=50",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "history",
+                        "petowner",
+                        "{{petOwnerId}}"
+                    ],
+                    "query": [
+                        {
+                            "key": "limit",
+                            "value": "50"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "6. List SePay Transactions",
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/sepay/transactions?limit=200",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "sepay",
+                        "transactions"
+                    ],
+                    "query": [
+                        {
+                            "key": "limit",
+                            "value": "200"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "7. Get All Bookings",
+            "request": {
+                "auth": {
+                    "type": "bearer",
+                    "bearer": [
+                        {
+                            "key": "token",
+                            "value": "{{accessToken}}",
+                            "type": "string"
+                        }
+                    ]
+                },
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/api/payments/admin/all-bookings",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "api",
+                        "payments",
+                        "admin",
+                        "all-bookings"
+                    ]
+                }
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8080"
+        },
+        {
+            "key": "adminUsername",
+            "value": "admin"
+        },
+        {
+            "key": "adminPassword",
+            "value": "admin123"
+        },
+        {
+            "key": "accessToken",
+            "value": ""
+        },
+        {
+            " key": "qrBookingId",
+            "value": "123e4567-e89b-12d3-a456-426614174001"
+        },
+        {
+            "key": "petOwnerId",
+            "value": "00000000-0000-0000-0000-000000000000"
+        }
+    ]
+}
