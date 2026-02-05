@@ -25,7 +25,7 @@ public class StaffHomeSummaryResponse {
 
     // ========== TODAY'S STATS ==========
     private int todayBookingsCount; // Total unique bookings assigned to staff today
-    private int pendingCount; // Bookings with status CONFIRMED/ASSIGNED waiting to be checked-in
+    private int pendingCount; // Bookings with status CONFIRMED waiting to be checked-in
     private int inProgressCount; // Bookings currently in IN_PROGRESS status
 
     // ========== UPCOMING BOOKINGS ==========

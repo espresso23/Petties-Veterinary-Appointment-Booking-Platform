@@ -10,6 +10,7 @@ import '../ui/pet_owner/pet_owner_home_screen.dart';
 import '../ui/staff/staff_home_screen.dart';
 import '../ui/staff/staff_schedule_screen.dart';
 import '../ui/staff/booking/staff_bookings_screen.dart';
+import '../ui/staff/booking/staff_add_service_screen.dart';
 import '../ui/staff/staff_booking_detail_screen.dart';
 import '../ui/staff/patient/patient_screens.dart';
 import '../ui/staff/patient/vaccination_form_screen.dart';
@@ -200,7 +201,8 @@ class AppRouterConfig {
           path: AppRoutes.petOwnerHome,
           builder: (context, state) {
             final tabStr = state.uri.queryParameters['tab'];
-            final initialTabIndex = tabStr != null ? int.tryParse(tabStr) ?? 0 : 0;
+            final initialTabIndex =
+                tabStr != null ? int.tryParse(tabStr) ?? 0 : 0;
             return PetOwnerHomeScreen(initialTabIndex: initialTabIndex);
           },
         ),
@@ -224,6 +226,18 @@ class AppRouterConfig {
           builder: (context, state) {
             final bookingId = state.pathParameters['bookingId']!;
             return StaffBookingDetailScreen(bookingId: bookingId);
+          },
+        ),
+
+        GoRoute(
+          path: AppRoutes.staffAddService,
+          builder: (context, state) {
+            final bookingId = state.pathParameters['bookingId']!;
+            final clinicId = state.uri.queryParameters['clinicId'] ?? '';
+            return StaffAddServiceScreen(
+              bookingId: bookingId,
+              clinicId: clinicId,
+            );
           },
         ),
 
@@ -343,7 +357,7 @@ class AppRouterConfig {
             return _getHomeRouteForRole(userRole);
           },
         ),
-        
+
         GoRoute(
           path: '/bookings/detail',
           builder: (context, state) {

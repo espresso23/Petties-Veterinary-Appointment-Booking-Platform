@@ -314,8 +314,15 @@ public class GlobalExceptionHandler {
                                 message = "Số điện thoại này đã được sử dụng.";
                         } else if (rootCause.contains("clinics_") && rootCause.contains("_key")) {
                                 message = "Thông tin phòng khám đã tồn tại trong hệ thống.";
+                        } else if (rootCause.contains("unique_active_booking_per_pet_time")) {
+                                message = "Bạn đã có lịch hẹn đang hoạt động cho thú cưng này vào thời gian này. " +
+                                                "Vui lòng hủy lịch cũ trước hoặc chọn thời gian khác.";
+                        } else if (rootCause.contains("booking_code_key")) {
+                                message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
+                        } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
+                                message = "Lỗi trùng lặp dữ liệu booking. Vui lòng thử lại.";
                         } else if (rootCause.contains("_key") || rootCause.contains("unique")) {
-                                message = "Dữ liệu trùng lặp. Thông tin này đã tồn tại trong hệ thống.";
+                                message = "Dữ liệu trùng lặp. Vui lòng kiểm tra và thử lại.";
                         }
                 }
 

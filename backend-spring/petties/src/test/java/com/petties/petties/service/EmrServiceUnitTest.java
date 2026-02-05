@@ -70,7 +70,7 @@ class EmrServiceUnitTest {
         pet.setName("Pet Name");
 
         when(userRepository.findById(vetId)).thenReturn(Optional.of(vet));
-        when(emrRecordRepository.existsByBookingId(bookingId)).thenReturn(false);
+        // Note: existsByBookingId check removed - multiple EMRs per booking allowed
         when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
         when(emrRecordRepository.save(any(EmrRecord.class))).thenAnswer(i -> {
             EmrRecord r = i.getArgument(0);

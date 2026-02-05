@@ -17,7 +17,8 @@ class StaffBookingDetailScreen extends StatefulWidget {
   const StaffBookingDetailScreen({super.key, required this.bookingId});
 
   @override
-  State<StaffBookingDetailScreen> createState() => _StaffBookingDetailScreenState();
+  State<StaffBookingDetailScreen> createState() =>
+      _StaffBookingDetailScreenState();
 }
 
 class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
@@ -46,7 +47,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     setState(() => _isLoading = true);
     try {
       final booking = await _bookingService.getBookingById(widget.bookingId);
-      
+
       EmrRecord? emr;
       try {
         // Check if EMR exists for this booking
@@ -55,7 +56,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         // EMR might not exist yet, ignore error
         emr = null;
       }
-      
+
       setState(() {
         _booking = booking;
         _existingEmr = emr;
@@ -116,6 +117,55 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     }
   }
 
+  Future<void> _handleRemoveService(String serviceId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: const Text(
+            'Bạn có chắc chắn muốn xóa dịch vụ phát sinh này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _bookingService.removeServiceFromBooking(
+          widget.bookingId, serviceId);
+      await _fetchBookingDetail();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa dịch vụ thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi xóa dịch vụ: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,12 +208,46 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         .where((s) => s.assignedStaffId == currentUserId)
         .toList();
 
+    // Filter services assigned to other staff (Shared Visibility)
+    final otherServices = _booking!.services
+        .where((s) => s.assignedStaffId != currentUserId && s.isAddOn != true)
+        .toList();
+
+    // Check if this is my booking or colleague's booking
+    final isMyBooking = myServices.isNotEmpty;
+
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Shared Visibility: Info banner for colleague's booking
+          if (!isMyBooking && _booking!.status == 'IN_PROGRESS')
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200, width: 2),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      color: Colors.blue.shade600, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Đây là lịch hẹn của đồng nghiệp đang được khám. Bạn có thể thêm bệnh án nếu cần hỗ trợ.',
+                      style:
+                          TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Status Badge
           _buildStatusBadge(),
           const SizedBox(height: 16),
@@ -249,65 +333,157 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           const SizedBox(height: 12),
 
           // My Services Card
-          _buildInfoCard(
-            title: 'Dịch vụ bạn phụ trách (${myServices.length})',
-            child: Column(
-              children: myServices.isEmpty
-                  ? [
-                      const Text('Không có dịch vụ nào được gán cho bạn',
-                          style: TextStyle(color: AppColors.stone400))
-                    ]
-                  : myServices.map((service) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primarySurface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: AppColors.primary.withOpacity(0.3)),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(service.serviceName ?? 'N/A',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600)),
-                                  if (service.scheduledStartTime != null &&
-                                      service.scheduledEndTime != null)
-                                    Row(
-                                      children: [
-                                        Icon(Icons.access_time,
-                                            size: 14,
-                                            color: AppColors.stone500),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${service.scheduledStartTime?.substring(0, 5)} - ${service.scheduledEndTime?.substring(0, 5)}',
-                                          style: TextStyle(
-                                              color: AppColors.stone500,
-                                              fontSize: 12),
-                                        ),
-                                      ],
+          if (myServices.isNotEmpty)
+            _buildInfoCard(
+              title: 'Dịch vụ bạn phụ trách (${myServices.length})',
+              child: Column(
+                children: myServices.map((service) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(10),
+                      border:
+                          Border.all(color: AppColors.primary.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(service.serviceName ?? 'N/A',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              if (service.scheduledStartTime != null &&
+                                  service.scheduledEndTime != null)
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time,
+                                        size: 14, color: AppColors.stone500),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${service.scheduledStartTime?.substring(0, 5)} - ${service.scheduledEndTime?.substring(0, 5)}',
+                                      style: TextStyle(
+                                          color: AppColors.stone500,
+                                          fontSize: 12),
                                     ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              _currencyFormat.format(service.price ?? 0),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.primary),
-                            ),
-                          ],
+                                  ],
+                                ),
+                            ],
+                          ),
                         ),
-                      );
-                    }).toList(),
+                        Text(
+                          _currencyFormat.format(service.price ?? 0),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
+          if (myServices.isNotEmpty) const SizedBox(height: 12),
+
+          // Other Staff's Services Card (Shared Visibility)
+          if (otherServices.isNotEmpty)
+            _buildInfoCard(
+              title: 'Dịch vụ của đồng nghiệp (${otherServices.length})',
+              child: Column(
+                children: otherServices.map((service) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.stone50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.stone200),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(service.serviceName ?? 'N/A',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              if (service.assignedStaffName != null)
+                                Text(
+                                  'Phụ trách: ${service.assignedStaffName}',
+                                  style: TextStyle(
+                                      color: AppColors.stone500, fontSize: 12),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          _currencyFormat.format(service.price ?? 0),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.stone500),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          if (otherServices.isNotEmpty) const SizedBox(height: 12),
+
+          // Arising Services Card (Add-ons)
+          if (_booking!.services.any((s) => s.isAddOn == true))
+            _buildInfoCard(
+              title: 'Dịch vụ phát sinh',
+              child: Column(
+                children: _booking!.services
+                    .where((s) => s.isAddOn == true)
+                    .map((service) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.stone50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.stone200),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(service.serviceName ?? 'N/A',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                _currencyFormat.format(service.price ?? 0),
+                                style: const TextStyle(
+                                    color: AppColors.primary, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          onPressed: () =>
+                              _handleRemoveService(service.bookingServiceId!),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          if (_booking!.services.any((s) => s.isAddOn == true))
+            const SizedBox(height: 12),
           const SizedBox(height: 12),
 
           // Notes
@@ -467,11 +643,19 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
   }
 
   Widget _buildActionBar() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUserId = authProvider.user?.userId;
+
     final status = _booking!.status;
+    final myServices = _booking!.services
+        .where((s) => s.assignedStaffId == currentUserId)
+        .toList();
+    final isMyBooking = myServices.isNotEmpty;
+
     Widget? actionButton;
 
-    // ASSIGNED or ARRIVED -> Check-in (start examination)
-    if (status == 'ASSIGNED' || status == 'ARRIVED') {
+    // ASSIGNED or ARRIVED -> Check-in (start examination) - only for assigned staff
+    if ((status == 'ASSIGNED' || status == 'ARRIVED') && isMyBooking) {
       actionButton = _buildActionButton(
         label: 'Bắt đầu khám',
         icon: Icons.play_arrow,
@@ -479,7 +663,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         onPressed: _handleCheckIn,
       );
     }
-    // IN_PROGRESS -> Show EMR and Vaccination buttons
+    // IN_PROGRESS -> Show EMR and Vaccination buttons for ALL staff (Shared Visibility)
     else if (status == 'IN_PROGRESS') {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -492,32 +676,29 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Shared Visibility: Always show EMR button for IN_PROGRESS bookings
               _buildActionButton(
-                label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
-                icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
-                color: _existingEmr != null ? Colors.green : Colors.blue,
+                label: 'TẠO BỆNH ÁN',
+                icon: Icons.assignment_outlined,
+                color: Colors.blue,
                 onPressed: () {
-                  if (_existingEmr != null) {
-                    // Navigate to view EMR
-                    context.push('/staff/emr/${_existingEmr!.id}');
-                  } else {
-                    // Navigate to create EMR
-                    final petId = _booking!.petId;
-                    if (petId != null) {
-                      final petName = _booking!.petName ?? '';
-                      final petSpecies = _booking!.petSpecies ?? '';
-                      context.push(
-                        Uri(
-                          path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
-                          queryParameters: {
-                            'petName': petName,
-                            'petSpecies': petSpecies,
-                            'bookingId': _booking!.bookingId,
-                            'bookingCode': _booking!.bookingCode,
-                          },
-                        ).toString(),
-                      );
-                    }
+                  // Navigate to create EMR - any staff can create for IN_PROGRESS booking
+                  final petId = _booking!.petId;
+                  if (petId != null) {
+                    final petName = _booking!.petName ?? '';
+                    final petSpecies = _booking!.petSpecies ?? '';
+                    context.push(
+                      Uri(
+                        path: AppRoutes.staffCreateEmr
+                            .replaceAll(':petId', petId),
+                        queryParameters: {
+                          'petName': petName,
+                          'petSpecies': petSpecies,
+                          'bookingId': _booking!.bookingId,
+                          'bookingCode': _booking!.bookingCode,
+                        },
+                      ).toString(),
+                    );
                   }
                 },
               ),
@@ -532,7 +713,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                     final petName = _booking!.petName ?? 'Thú cưng';
                     context.push(
                       Uri(
-                        path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                        path: AppRoutes.staffVaccinationForm
+                            .replaceAll(':petId', petId),
                         queryParameters: {
                           'petName': petName,
                           'bookingId': _booking!.bookingId,
@@ -543,6 +725,29 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                   }
                 },
               ),
+              if (_booking!.type == 'HOME_VISIT') ...[
+                const SizedBox(height: 12),
+                _buildActionButton(
+                  label: 'THÊM DỊCH VỤ',
+                  icon: Icons.add_circle_outline,
+                  color: Colors.teal,
+                  onPressed: () async {
+                    final result = await context.push(
+                      Uri(
+                        path: AppRoutes.staffAddService
+                            .replaceAll(':bookingId', _booking!.bookingId!),
+                        queryParameters: {
+                          'clinicId': _booking!.clinicId,
+                        },
+                      ).toString(),
+                    );
+
+                    if (result == true) {
+                      _fetchBookingDetail();
+                    }
+                  },
+                ),
+              ],
               // Note: Checkout removed - staff doesn't have checkout permission for IN_CLINIC
             ],
           ),

@@ -24,11 +24,13 @@ class AppRoutes {
   static const String staffSchedule = '/staff/schedule';
   static const String staffBookings = '/staff/bookings';
   static const String staffBookingDetail = '/staff/booking/:bookingId';
+  static const String staffAddService = '/staff/booking/:bookingId/add-service';
 
   // STAFF Patient Routes
   static const String staffPatients = '/staff/patients';
   static const String staffPatientDetail = '/staff/patients/:petId';
-  static const String staffVaccinationForm = '/staff/patients/:petId/vaccination/add';
+  static const String staffVaccinationForm =
+      '/staff/patients/:petId/vaccination/add';
 
   // STAFF EMR Routes
   static const String staffCreateEmr = '/staff/emr/create/:petId';
@@ -72,4 +74,3 @@ class AppRoutes {
   static const String privacyPolicy = '/privacy';
   static const String help = '/help';
 }
-

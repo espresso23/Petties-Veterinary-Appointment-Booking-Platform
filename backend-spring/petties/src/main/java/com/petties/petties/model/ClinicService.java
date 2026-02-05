@@ -70,9 +70,6 @@ public class ClinicService {
     @Column(name = "reminder_unit", length = 50)
     private String reminderUnit; // DAYS, WEEKS, MONTHS, YEARS
 
-    @Column(name = "price_per_km", precision = 19, scale = 2)
-    private BigDecimal pricePerKm;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "service_category", length = 100)
     private com.petties.petties.model.enums.ServiceCategory serviceCategory;

@@ -24,6 +24,7 @@
     - [4.9 SOS Emergency Flow](#49-sos-emergency-flow)
     - [4.10 AI Assistance Flow](#410-ai-assistance-flow)
     - [4.11 Governance & Reporting Flow](#411-governance--reporting-flow)
+    - [4.12 Clinic Setup AI Agent](#412-clinic-setup-ai-agent)
 - [5. Technology Stack Summary](#5-technology-stack-summary)
 
 ## 1. System Design
@@ -5613,6 +5614,348 @@ sequenceDiagram
     deactivate RC
     UI-->>A: 21. Refresh list
     deactivate UI
+ ```
+
+---
+
+### 4.12 Clinic Setup AI Agent (UC-CO-14, UC-CO-15, UC-CO-16)
+
+#### 4.12.1 Overview
+
+**Feature Description:**
+
+Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết lập nhanh chóng và chuyên nghiệp thông tin phòng khám trên nền tảng Petties. Agent sử dụng ReAct pattern để:
+- Generate danh sách services phù hợp với loại hình phòng khám.
+- Tạo mô tả chi tiết, chuyên nghiệp cho từng service.
+- Đề xuất giá cả dựa trên phân tích thị trường.
+- Cấu hình weight-based pricing tiers.
+- Hỗ trợ đa ngôn ngữ (Vietnamese/English).
+
+#### 4.12.2 Class Diagram
+
+```mermaid
+classDiagram
+    class ClinicSetupController {
+        <<REST Controller>>
+        +initSetup(clinicId)
+        +generateServices(request)
+        +updateService(serviceData)
+        +saveServices(clinicId, services)
+        +getPricingSuggestions(request)
+        +translateDescriptions(request)
+    }
+
+    class ClinicSetupService {
+        <<Business Logic>>
+        -agentService: AgentService
+        -clinicService: ClinicService
+        -clinicServiceRepository: ClinicServiceRepository
+        -masterServiceRepository: MasterServiceRepository
+        
+        +initSetup(clinicId)
+        +generateClinicServices(request)
+        +saveGeneratedServices(clinicId, services)
+        +getMarketPricingAnalysis(request)
+        +translateServiceContent(request)
+    }
+
+    class AgentService {
+        <<AI Service>>
+        -agent: CompiledStateGraph
+        -chatHistoryService: ChatHistoryService
+        
+        +executeClinicSetupTask(taskType, params)
+        +generateServices(params)
+        +analyzePricing(params)
+        +translateContent(params)
+    }
+
+    class ClinicSetupAgentTools {
+        <<FastMCP Tools>>
+        +generate_clinic_services()
+        +generate_service_description()
+        +analyze_market_pricing()
+        +suggest_weight_tiers()
+        +translate_service_descriptions()
+        +import_master_services()
+    }
+
+    class ClinicService {
+        <<Entity>>
+        -clinicServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -duration: Integer
+        -category: ServiceCategory
+        -isAiGenerated: Boolean
+        -aiConfidenceScore: Float
+    }
+
+    class ServicePricingTier {
+        <<Entity>>
+        -tierId: UUID
+        -weightRange: String
+        -multiplier: Float
+        -finalPrice: BigDecimal
+    }
+
+    class MasterService {
+        <<Entity>>
+        -masterServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -category: ServiceCategory
+    }
+
+    ClinicSetupController --> ClinicSetupService
+    ClinicSetupService --> AgentService
+    ClinicSetupService --> ClinicService
+    ClinicSetupService --> MasterService
+    
+    AgentService --> ClinicSetupAgentTools
+    AgentService --> ChatHistoryService
+    
+    ClinicService "1" --> "*" ServicePricingTier
+```
+
+#### 4.12.3 Class Specifications
+
+**1. ClinicSetupController**
+
+- **Responsibility:** REST API endpoints cho AI-assisted clinic setup wizard.
+- **Key Methods:**
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+| `initSetup` | POST | `/api/ai/clinic-setup/init` | Khởi tạo setup session cho clinic |
+| `generateServices` | POST | `/api/ai/clinic-setup/services` | Generate services theo loại hình |
+| `updateService` | PUT | `/api/ai/clinic-setup/services/{id}` | Update một service |
+| `saveServices` | POST | `/api/ai/clinic-setup/save` | Lưu tất cả services đã approve |
+| `getPricingSuggestions` | POST | `/api/ai/clinic-setup/pricing` | Lấy gợi ý pricing |
+| `translateDescriptions` | POST | `/api/ai/clinic-setup/translate` | Dịch service descriptions |
+
+**2. ClinicSetupService**
+
+- **Responsibility:** Business logic cho clinic setup workflow.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `initSetup(clinicId)` | Khởi tạo session, lấy clinic profile |
+| `generateClinicServices(request)` | Gọi AI Agent để generate services |
+| `saveGeneratedServices(clinicId, services)` | Save services với metadata (ai_generated=true) |
+| `getMarketPricingAnalysis(request)` | Phân tích market pricing |
+| `translateServiceContent(request)` | Translate descriptions |
+
+**3. AgentService (Clinic Setup Methods)**
+
+- **Responsibility:** Handle AI operations cho clinic setup.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `executeClinicSetupTask(taskType, params)` | Execute clinic setup task via ReAct agent |
+| `generateServices(params)` | Generate services list |
+| `analyzePricing(params)` | Analyze market pricing |
+| `translateContent(params)` | Translate content |
+
+**4. ClinicSetupAgentTools**
+
+- **Responsibility:** FastMCP tools cho clinic setup operations.
+
+| Tool Name | Description |
+|-----------|-------------|
+| `generate_clinic_services` | Generate services based on clinic type |
+| `generate_service_description` | Generate professional descriptions |
+| `analyze_market_pricing` | Analyze regional pricing data |
+| `suggest_weight_tiers` | Suggest weight-based pricing tiers |
+| `translate_service_descriptions` | Translate to target language |
+| `import_master_services` | Import from master service templates |
+
+#### 4.12.4 Sequence Diagram: AI Clinic Setup Flow
+
+```mermaid
+sequenceDiagram
+    participant CO as Clinic Owner
+    participant UI as Web Dashboard
+    participant CSC as ClinicSetupController
+    participant CSS as ClinicSetupService
+    participant AS as AgentService
+    participant KB as Knowledge Base (Qdrant)
+    participant DB as PostgreSQL
+    participant MR as MasterServiceRepository
+
+    CO->>UI: 1. Click "Start AI Setup"
+    UI->>CSC: 2. POST /api/ai/clinic-setup/init {clinicId}
+    activate CSC
+    CSC->>CSS: 3. initSetup(clinicId)
+    activate CSS
+    CSS->>DB: 4. getClinicById(clinicId)
+    DB-->>CSS: 5. Clinic entity
+    CSS-->>CSC: 6. SetupResponse
+    CSC-->>UI: 7. 200 OK
+    UI-->>CO: 8. Display wizard step 1
+    
+    CO->>UI: 9. Select clinic type & pets
+    UI->>CSC: 10. POST /api/ai/clinic-setup/services {clinicType, pets, location}
+    CSC->>CSS: 11. generateClinicServices(request)
+    activate CSS
+    CSS->>AS: 12. generateServices(params)
+    activate AS
+    
+    AS->>KB: 13. Query standard services by type
+    KB-->>AS: 14. Service templates
+    
+    AS->>AS: 15. Generate descriptions (LLM)
+    AS->>KB: 16. Query pricing data (optional)
+    KB-->>AS: 17. Market pricing ranges
+    
+    AS-->>CSS: 18. Generated services array
+    CSS-->>CSC: 19. ServicesResponse
+    CSC-->>UI: 20. 200 OK
+    
+    UI-->>CO: 21. Display service cards
+    
+    loop Review Loop
+        CO->>UI: 22. Edit/Regenerate service
+        UI->>CSC: 23. PUT /api/ai/clinic-setup/services/{id}
+        CSC->>CSS: 24. updateService(data)
+        CSS->>AS: 25. generateServiceDescription()
+        AS-->>CSS: 26. Regenerated content
+        CSS-->>CSC: 27. Updated service
+        CSC-->>UI: 28. 200 OK
+        UI-->>CO: 29. Updated card
+    end
+    
+    CO->>UI: 30. Click "Save All"
+    UI->>CSC: 31. POST /api/ai/clinic-setup/save {services[]}
+    CSC->>CSS: 32. saveGeneratedServices(clinicId, services)
+    activate CSS
+    
+    loop Each Service
+        CSS->>DB: 33a. save(service with ai_metadata)
+    end
+    
+    DB-->>CSS: 34. Saved confirmations
+    CSS-->>CSC: 35. SaveResult
+    CSC-->>UI: 36. 200 OK
+    UI-->>CO: 37. Success message
+    
+    deactivate CSS
+    deactivate CSC
+```
+
+#### 4.12.5 API Endpoints
+
+**Clinic Setup API**
+
+| Method | Endpoint | Description | Request | Response |
+|--------|----------|-------------|---------|----------|
+| `POST` | `/api/ai/clinic-setup/init` | Initialize setup session | `{clinicId}` | `{sessionId, clinicInfo, steps[]}` |
+| `POST` | `/api/ai/clinic-setup/services` | Generate services | `{clinicType, petTypes[], location, language}` | `{services: [{name, description, category, price, duration, aiConfidence}]}` |
+| `PUT` | `/api/ai/clinic-setup/services/{id}` | Update service | `{name, description, price, duration}` | `{updated}` |
+| `POST` | `/api/ai/clinic-setup/save` | Save all services | `{services[], pricingTiers[]}` | `{savedCount, serviceIds[]}` |
+| `POST` | `/api/ai/clinic-setup/pricing` | Get pricing suggestions | `{serviceCategory, region}` | `{marketAvg, priceRange, suggestion}` |
+| `POST` | `/api/ai/clinic-setup/translate` | Translate descriptions | `{serviceIds[], targetLang}` | `{translations: [{serviceId, name, description}]}` |
+| `GET` | `/api/ai/clinic-setup/{sessionId}` | Get session status | - | `{step, services[], progress}` |
+
+**Request/Response Objects**
+
+```typescript
+// Generate Services Request
+interface GenerateServicesRequest {
+    clinicType: 'GENERAL_PRACTICE' | 'SPECIALTY' | 'EMERGENCY' | 'MULTI_SPECIALTY' | 'MOBILE_CLINIC';
+    petTypes: ('DOG' | 'CAT' | 'EXOTIC')[];
+    location: string;  // e.g., "Ho Chi Minh City, District 7"
+    language: 'VI' | 'EN';
+    operatingHours?: string;
+}
+
+// Generated Service
+interface GeneratedService {
+    id?: UUID;
+    name: string;
+    description: string;
+    category: ServiceCategory;
+    basePrice: number;  // VND
+    duration: number;   // minutes
+    weightTiers?: WeightTier[];
+    aiConfidence: number;  // 0.0 - 1.0
+    isAiGenerated: boolean;
+}
+
+// Weight Tier
+interface WeightTier {
+    weightRange: string;      // "<5kg", "5-15kg", ">15kg"
+    multiplier: number;       // 1.0, 1.2, 1.5
+    finalPrice: number;
+}
+
+// Pricing Suggestion
+interface PricingSuggestion {
+    serviceCategory: string;
+    marketAverage: number;
+    priceRangeLow: number;
+    priceRangeHigh: number;
+    recommendation: string;
+    confidence: number;
+}
+
+// Save Request
+interface SaveServicesRequest {
+    clinicId: UUID;
+    services: GeneratedService[];
+    pricingTiers: ServicePricingTier[];
+}
+```
+
+#### 4.12.6 Database Schema Additions
+
+**New/Modified Tables:**
+
+| Table | Type | Description |
+|-------|------|-------------|
+| `clinic_services` | Modified | Add `is_ai_generated`, `ai_confidence_score`, `ai_prompt_version` columns |
+| `service_pricing_tiers` | Existing | Already exists, used for weight-based pricing |
+| `ai_setup_sessions` | New | Track setup wizard sessions |
+| `ai_generated_content_log` | New | Audit log for AI-generated content |
+
+**AI Setup Session Table:**
+
+```sql
+CREATE TABLE ai_setup_sessions (
+    session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clinic_id UUID NOT NULL REFERENCES clinics(clinic_id),
+    step VARCHAR(50) NOT NULL,
+    clinic_type VARCHAR(50),
+    pet_types JSONB,
+    language VARCHAR(10) DEFAULT 'VI',
+    status VARCHAR(20) DEFAULT 'IN_PROGRESS',
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP,
+    metadata JSONB
+);
+```
+
+**AI Content Audit Log:**
+
+```sql
+CREATE TABLE ai_generated_content_log (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id UUID NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    original_content TEXT,
+    generated_content TEXT,
+    ai_prompt TEXT,
+    confidence_score FLOAT,
+    owner_approved BOOLEAN DEFAULT FALSE,
+    approved_by UUID,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---
@@ -5675,5 +6018,5 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 1.4.0
-**Last Updated:** 2026-01-22
+**Document Version:** 1.5.0 (Added Clinic Setup AI Agent)
+**Last Updated:** 2026-02-04

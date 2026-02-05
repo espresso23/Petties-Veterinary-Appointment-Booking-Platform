@@ -185,7 +185,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   const mockConfirmedBooking: Booking = {
     ...mockCreatedBooking,
-    status: 'ASSIGNED',
+    status: 'CONFIRMED',
     assignedStaffId: 'staff-001',
     assignedStaffName: 'Bác sĩ Trần Văn B',
     assignedStaffSpecialty: 'VET_GENERAL',
@@ -303,7 +303,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
     // Assert
     expect(confirmBooking).toHaveBeenCalledWith('booking-001', confirmRequest)
-    expect(result.status).toBe('ASSIGNED') // Đã gán bác sĩ
+    expect(result.status).toBe('CONFIRMED') // Đã gán bác sĩ
     expect(result.assignedStaffId).toBe('staff-001')
     expect(result.assignedStaffName).toBe('Bác sĩ Trần Văn B')
     expect(result.services[0].assignedStaffId).toBe('staff-001')
@@ -384,7 +384,7 @@ describe('Booking Happy Flow - End-to-End', () => {
     // Step 5: Manager confirms
     vi.mocked(confirmBooking).mockResolvedValue(mockConfirmedBooking)
     const confirmed = await confirmBooking('booking-001')
-    expect(confirmed.status).toBe('ASSIGNED')
+    expect(confirmed.status).toBe('CONFIRMED')
     expect(confirmed.assignedStaffId).toBe('staff-001')
 
     // Step 6: Staff check-in
@@ -412,7 +412,7 @@ describe('Booking Happy Flow - End-to-End', () => {
   it('[VALIDATION] Booking status transitions are correct', () => {
     const statusFlow: BookingStatus[] = [
       'PENDING', // After create
-      'ASSIGNED', // After confirm
+      'CONFIRMED', // After confirm
       'IN_PROGRESS', // After check-in
       'COMPLETED', // After checkout
     ]
@@ -440,7 +440,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[BUSINESS RULES] Verify staff assignment after confirm', () => {
     // Sau khi confirm, booking phải có staff được gán
-    expect(mockConfirmedBooking.status).toBe('ASSIGNED')
+    expect(mockConfirmedBooking.status).toBe('CONFIRMED')
     expect(mockConfirmedBooking.assignedStaffId).toBe('staff-001')
     expect(mockConfirmedBooking.assignedStaffName).toBe('Bác sĩ Trần Văn B')
 

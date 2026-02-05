@@ -438,7 +438,7 @@ public class NotificationService {
                 Notification notification = Notification.builder()
                                 .user(staff)
                                 .clinic(booking.getClinic())
-                                .type(NotificationType.BOOKING_ASSIGNED)
+                                .type(NotificationType.BOOKING_CONFIRMED)
                                 .message(message)
                                 .read(false)
                                 .build();
@@ -481,7 +481,7 @@ public class NotificationService {
                         Notification newStaffNotification = Notification.builder()
                                         .user(newStaff)
                                         .clinic(booking.getClinic())
-                                        .type(NotificationType.BOOKING_ASSIGNED)
+                                        .type(NotificationType.BOOKING_CONFIRMED)
                                         .message(newStaffMessage)
                                         .read(false)
                                         .build();
@@ -668,7 +668,6 @@ public class NotificationService {
                         case STAFF_SHIFT_DELETED -> "Lịch trực đã bị xóa";
                         case BOOKING_CREATED -> "Lịch hẹn mới";
                         case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
-                        case BOOKING_ASSIGNED -> "Bạn được gán lịch hẹn mới";
                         case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
                         case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
                         case REJECTED -> "Phòng khám bị từ chối";

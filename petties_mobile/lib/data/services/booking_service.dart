@@ -1,7 +1,7 @@
 import 'api_client.dart';
 import '../models/booking.dart';
+import '../models/clinic_service.dart';
 import 'auth_service.dart';
-import 'dart:convert';
 
 /// BookingService - Handles booking-related API calls for mobile Staff
 class BookingService {
@@ -43,9 +43,10 @@ class BookingService {
       'page': page,
       'size': size,
     };
-    
-    final response = await _apiClient.get('/bookings/my', queryParameters: queryParams);
-    
+
+    final response =
+        await _apiClient.get('/bookings/my', queryParameters: queryParams);
+
     if (response.data['content'] != null) {
       return (response.data['content'] as List)
           .map((json) => BookingResponse.fromJson(json))
@@ -53,6 +54,7 @@ class BookingService {
     }
     return [];
   }
+
   /// Cancel booking (Pet Owner)
   Future<BookingResponse> cancelBooking(String bookingId, String reason) async {
     final response = await _apiClient.patch(
@@ -82,6 +84,63 @@ class BookingService {
         },
       );
       return response.data;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Remove service from booking (Only if isAddOn = true)
+  Future<BookingResponse> removeServiceFromBooking(
+      String bookingId, String serviceId) async {
+    final response = await _apiClient.delete(
+      '/bookings/$bookingId/services/$serviceId',
+    );
+    return BookingResponse.fromJson(response.data);
+  }
+
+  // ========== SHARED VISIBILITY ==========
+
+  /// Get available services for add-on in a clinic
+  Future<List<ClinicServiceModel>> getAvailableServicesForAddOn(
+      String clinicId) async {
+    try {
+      final response =
+          await _apiClient.get('/clinic-services/clinic/$clinicId/available');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((json) => ClinicServiceModel.fromJson(json))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Add service to booking (Add-on service)
+  Future<BookingResponse> addServiceToBooking(
+      String bookingId, String serviceId) async {
+    final response = await _apiClient.post(
+      '/bookings/$bookingId/services/$serviceId',
+    );
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Get all clinic bookings for today - Shared Visibility for Staff
+  /// All staff in the clinic can see ALL bookings, with isMyAssignment flag
+  /// to identify their own assignments.
+  ///
+  /// @param clinicId Clinic ID
+  /// @returns List of ClinicTodayBooking with isMyAssignment flag
+  Future<List<BookingResponse>> getClinicTodayBookings(String clinicId) async {
+    try {
+      final response = await _apiClient.get('/bookings/clinic/$clinicId/today');
+      if (response.data is List) {
+        return (response.data as List)
+            .map((json) => BookingResponse.fromJson(json))
+            .toList();
+      }
+      return [];
     } catch (e) {
       rethrow;
     }

@@ -46,6 +46,10 @@ class BookingServiceUnitTest {
     private StaffAssignmentService staffAssignmentService;
     @Mock
     private EmrRecordRepository emrRecordRepository;
+    @Mock
+    private com.petties.petties.mapper.BookingMapper bookingMapper;
+    @Mock
+    private BookingNotificationService bookingNotificationService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -120,6 +124,7 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(BigDecimal.valueOf(100000));
+            when(bookingMapper.mapToResponse(any())).thenReturn(BookingResponse.builder().bookingId(bookingId).build());
 
             BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, manager);
 
@@ -137,6 +142,7 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(BigDecimal.valueOf(100000));
+            when(bookingMapper.mapToResponse(any())).thenReturn(BookingResponse.builder().bookingId(bookingId).build());
 
             BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, staff);
 
@@ -171,6 +177,7 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(BigDecimal.valueOf(100000));
+            when(bookingMapper.mapToResponse(any())).thenReturn(BookingResponse.builder().bookingId(bookingId).build());
 
             BookingResponse response = bookingService.addServiceToBooking(bookingId, serviceId, staff);
 
@@ -203,6 +210,8 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
                     .thenReturn(Arrays.asList(surgeryService, dentalService));
+            when(bookingMapper.mapServiceToResponse(surgeryService))
+                    .thenReturn(ClinicServiceResponse.builder().name("Surgery").build());
 
             List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, staff);
 
@@ -232,6 +241,8 @@ class BookingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
                     .thenReturn(Arrays.asList(service1, service2));
+            when(bookingMapper.mapServiceToResponse(service2))
+                    .thenReturn(ClinicServiceResponse.builder().name("New").build());
 
             List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, manager);
 

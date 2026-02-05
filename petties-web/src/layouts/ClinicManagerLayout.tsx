@@ -44,7 +44,7 @@ export const ClinicManagerLayout = () => {
         onBookingUpdate: (data) => {
             console.log('[ClinicManagerLayout] Booking update received:', data)
             // Refresh pending count on booking events
-            if (data.action === 'ASSIGNED' || data.action === 'CANCELLED' || data.action === 'COMPLETED') {
+            if (data.action === 'CONFIRMED' || data.action === 'CANCELLED' || data.action === 'COMPLETED') {
                 if (user?.workingClinicId) {
                     refreshPendingBookingCount(user.workingClinicId)
                 }

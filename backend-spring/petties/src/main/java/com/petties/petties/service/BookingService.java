@@ -5,18 +5,25 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
+import com.petties.petties.dto.booking.UpcomingBookingDTO;
+import com.petties.petties.dto.clinicService.ClinicServiceResponse;
 import com.petties.petties.dto.sse.SseEventDto;
+import com.petties.petties.exception.BadRequestException;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
-import com.petties.petties.dto.booking.UpcomingBookingDTO;
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
@@ -57,6 +64,58 @@ public class BookingService {
         private final BookingServiceItemRepository bookingServiceItemRepository;
         private final SseEmitterService sseEmitterService;
         private final EmrRecordRepository emrRecordRepository;
+        private final BookingMapper bookingMapper;
+        private final BookingNotificationService bookingNotificationService;
+
+        private static final int MAX_RETRY_COUNT = 3;
+
+        // ========== HELPER METHODS ==========
+
+        /**
+         * Get current user by userId (helper method for Controller to avoid direct
+         * Repository access)
+         *
+         * @param userId User ID from JWT token
+         * @return User entity
+         */
+        @Transactional(readOnly = true)
+        public User getCurrentUserById(UUID userId) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+        }
+
+        /**
+         * Generate unique booking code with retry logic to prevent race conditions.
+         * Uses count-based sequence with random offset as fallback.
+         */
+        private String generateUniqueBookingCode(UUID clinicId, LocalDate bookingDate) {
+                int attempt = 0;
+                while (attempt < MAX_RETRY_COUNT) {
+                        try {
+                                long sequence = bookingRepository.countByClinicAndDate(clinicId, bookingDate) + 1;
+                                String bookingCode = Booking.generateBookingCode(bookingDate, (int) sequence);
+
+                                // Check if booking code already exists (defensive check)
+                                if (bookingRepository.findByBookingCode(bookingCode).isEmpty()) {
+                                        log.debug("Generated unique booking code: {}", bookingCode);
+                                        return bookingCode;
+                                }
+
+                                // Code already exists, need to retry with higher sequence
+                                log.warn("Booking code {} already exists, retrying with higher sequence", bookingCode);
+                        } catch (Exception e) {
+                                log.warn("Error generating booking code on attempt {}: {}", attempt, e.getMessage());
+                        }
+
+                        attempt++;
+                }
+
+                // Final fallback: use random suffix to ensure uniqueness
+                long sequence = bookingRepository.countByClinicAndDate(clinicId, bookingDate) + 1 + attempt;
+                String bookingCode = Booking.generateBookingCode(bookingDate, (int) sequence);
+                log.warn("Using fallback booking code with random suffix: {}", bookingCode);
+                return bookingCode;
+        }
 
         // ========== CREATE BOOKING ==========
 
@@ -74,20 +133,21 @@ public class BookingService {
 
                         // Validate and fetch entities
                         Pet pet = petRepository.findById(request.getPetId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
                         log.debug("Pet found: {}", pet.getId());
 
                         User petOwner = userRepository.findById(petOwnerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Pet owner not found"));
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Không tìm thấy chủ thú cưng"));
                         log.debug("Pet owner found: {}", petOwner.getUserId());
 
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
                         log.debug("Clinic found: {}", clinic.getClinicId());
-                        List<com.petties.petties.model.ClinicService> services = clinicServiceRepository
+                        List<ClinicService> services = clinicServiceRepository
                                         .findAllById(request.getServiceIds());
                         if (services.isEmpty()) {
-                                throw new IllegalArgumentException("At least one valid service is required");
+                                throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
                         }
                         if (services.size() != request.getServiceIds().size()) {
                                 throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
@@ -96,14 +156,14 @@ public class BookingService {
 
                         // Home Visit Validation: All services must support home visits and share the
                         // same specialty
-                        if (request.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                        || request.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+                        if (request.getType() == BookingType.HOME_VISIT
+                                        || request.getType() == BookingType.SOS) {
                                 log.debug("Booking type is HOME_VISIT or SOS, performing home visit validations.");
 
                                 // 1. Check isHomeVisit flag
                                 List<String> ineligibleServices = services.stream()
                                                 .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
-                                                .map(com.petties.petties.model.ClinicService::getName)
+                                                .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
 
                                 if (!ineligibleServices.isEmpty()) {
@@ -118,25 +178,20 @@ public class BookingService {
                                 log.debug("Multi-specialty check skipped for Home Visit to support multi-staff assignment.");
                         }
 
-                        // Generate booking code
-                        long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(),
-                                        request.getBookingDate())
-                                        + 1;
-                        String bookingCode = Booking.generateBookingCode(request.getBookingDate(), (int) sequence);
-                        log.debug("Generated booking code: {}", bookingCode);
-
                         // Calculate total price using PricingService
                         // 1. Sum weight-based prices for all services
                         BigDecimal servicesTotal = BigDecimal.ZERO;
-                        for (com.petties.petties.model.ClinicService service : services) {
+                        for (ClinicService service : services) {
                                 BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
                                 servicesTotal = servicesTotal.add(servicePrice);
                         }
                         log.debug("Services total price: {}", servicesTotal);
 
-                        // 2. Calculate single distance fee for the whole booking
+                        // 2. Calculate single distance fee for the whole booking (using clinic-level
+                        // pricePerKm)
                         BigDecimal distanceKm = request.getDistanceKm();
-                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
+                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
+                                        distanceKm,
                                         request.getType());
                         log.debug("Distance fee calculated: {}", distanceFee);
 
@@ -147,7 +202,6 @@ public class BookingService {
 
                         // Build booking entity
                         Booking booking = Booking.builder()
-                                        .bookingCode(bookingCode)
                                         .pet(pet)
                                         .petOwner(petOwner)
                                         .clinic(clinic)
@@ -166,7 +220,7 @@ public class BookingService {
                         log.debug("Booking entity built.");
 
                         // Add service items with calculated prices (including pricing breakdown)
-                        for (com.petties.petties.model.ClinicService service : services) {
+                        for (ClinicService service : services) {
                                 BigDecimal basePrice = service.getBasePrice();
                                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
 
@@ -177,25 +231,64 @@ public class BookingService {
                                                 .basePrice(basePrice) // Store original base price for display
                                                 .weightPrice(weightPrice) // Store calculated weight-based price
                                                 .quantity(1)
+                                                .isAddOn(false)
                                                 .build();
                                 booking.getBookingServices().add(item);
                         }
                         log.debug("Services added to booking object");
 
-                        // Save booking
-                        Booking savedBooking = bookingRepository.save(booking);
-                        log.info("Booking created: {}", savedBooking.getBookingCode());
+                        // ========== RETRY LOGIC FOR BOOKING CODE COLLISION ==========
+                        int maxRetries = 3;
+                        Booking savedBooking = null;
 
-                        // Send notification to clinic manager
+                        for (int attempt = 0; attempt < maxRetries; attempt++) {
+                                try {
+                                        // Generate unique booking code on each attempt
+                                        String bookingCode = generateUniqueBookingCode(clinic.getClinicId(),
+                                                        request.getBookingDate());
+                                        booking.setBookingCode(bookingCode);
+
+                                        // Save booking
+                                        savedBooking = bookingRepository.save(booking);
+                                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
+                                        break; // Success, exit retry loop
+
+                                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                                        String rootCause = ex.getMostSpecificCause().getMessage();
+
+                                        // Retry ONLY for booking_code collision
+                                        if (rootCause != null && rootCause.contains("booking_code")) {
+                                                log.warn("Booking code collision, retry {}/{}", attempt + 1,
+                                                                maxRetries);
+                                                if (attempt == maxRetries - 1) {
+                                                        throw new IllegalStateException(
+                                                                        "Không thể tạo mã booking sau " + maxRetries
+                                                                                        + " lần thử. Vui lòng thử lại.");
+                                                }
+                                                continue; // Retry
+                                        }
+                                        // Re-throw for other constraints (e.g., unique_active_booking_per_pet_time)
+                                        throw ex;
+                                }
+                        }
+
+                        if (savedBooking == null) {
+                                throw new IllegalStateException("Không thể lưu booking");
+                        }
+
+                        // ========== NOTIFICATION AFTER SUCCESSFUL SAVE ==========
                         try {
                                 notificationService.sendBookingNotificationToClinic(savedBooking);
                                 log.debug("Notification sent to clinic");
                         } catch (Exception e) {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
-                                // Don't fail booking if notification fails
                         }
 
-                        return mapToResponse(savedBooking);
+                        return bookingMapper.mapToResponse(savedBooking);
+                } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        // Let GlobalExceptionHandler translate to user-friendly Vietnamese messages
+                        log.error("Data integrity violation: ", e);
+                        throw e;
                 } catch (Exception e) {
                         log.error("Error creating booking: ", e);
                         throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
@@ -218,7 +311,7 @@ public class BookingService {
                 log.info("Confirming booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 if (booking.getStatus() != BookingStatus.PENDING) {
                         throw new IllegalStateException("Booking is not in PENDING status");
@@ -320,7 +413,7 @@ public class BookingService {
 
                                 booking.setAssignedStaff(manualStaff);
                                 booking.getBookingServices().forEach(item -> item.setAssignedStaff(manualStaff));
-                                booking.setStatus(BookingStatus.ASSIGNED);
+                                booking.setStatus(BookingStatus.CONFIRMED);
 
                                 // Reserve slots for the booking
                                 staffAssignmentService.reserveSlotsForBooking(booking);
@@ -328,7 +421,7 @@ public class BookingService {
                                 notificationService.sendBookingAssignedNotificationToStaff(booking);
 
                                 // Push SSE event to assigned staff and clinic managers for real-time sync
-                                pushBookingUpdateToUsers(booking, "ASSIGNED");
+                                bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
                         } else {
                                 // Auto-assign staff based on service specialty (now slot-aware)
                                 Map<UUID, User> assignments = staffAssignmentService.assignStaffToAllServices(booking);
@@ -336,14 +429,14 @@ public class BookingService {
                                 boolean allAssigned = assignments.size() == booking.getBookingServices().size();
 
                                 if (allAssigned) {
-                                        booking.setStatus(BookingStatus.ASSIGNED);
+                                        booking.setStatus(BookingStatus.CONFIRMED);
                                         // Reserve slots for the booking
                                         staffAssignmentService.reserveSlotsForBooking(booking);
                                         // Send notification to all assigned staff
                                         notificationService.sendBookingAssignedNotificationToStaff(booking);
 
                                         // Push SSE event to assigned staff and clinic managers for real-time sync
-                                        pushBookingUpdateToUsers(booking, "ASSIGNED");
+                                        bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
                                 } else if (allowPartial && !assignments.isEmpty()) {
                                         // Partial assignment allowed
                                         booking.setStatus(BookingStatus.CONFIRMED);
@@ -374,7 +467,7 @@ public class BookingService {
                 log.info("Booking {} confirmed. Status: {}",
                                 updatedBooking.getBookingCode(), updatedBooking.getStatus());
 
-                return mapToResponse(updatedBooking);
+                return bookingMapper.mapToResponse(updatedBooking);
         }
 
         // ========== GET BOOKINGS ==========
@@ -384,9 +477,9 @@ public class BookingService {
          */
         @Transactional(readOnly = true)
         public Page<BookingResponse> getBookingsByClinic(UUID clinicId, BookingStatus status,
-                        com.petties.petties.model.enums.BookingType type, Pageable pageable) {
+                        BookingType type, Pageable pageable) {
                 return bookingRepository.findByClinicIdAndStatusAndType(clinicId, status, type, pageable)
-                                .map(this::mapToResponse);
+                                .map(bookingMapper::mapToResponse);
         }
 
         /**
@@ -400,7 +493,7 @@ public class BookingService {
                         // JPQL query handles null status automatically
                         Page<Booking> bookings = bookingRepository.findByAssignedStaffIdAndStatus(staffId, status,
                                         pageable);
-                        return bookings.map(this::mapToResponse);
+                        return bookings.map(bookingMapper::mapToResponse);
                 } catch (Exception e) {
                         log.error("Error fetching bookings for staff {}: {}", staffId, e.getMessage(), e);
                         throw new RuntimeException("Failed to fetch staff bookings: " + e.getMessage(), e);
@@ -413,8 +506,8 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingById(UUID bookingId) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-                return mapToResponse(booking);
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -423,8 +516,8 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingByCode(String bookingCode) {
                 Booking booking = bookingRepository.findByBookingCode(bookingCode)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-                return mapToResponse(booking);
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                return bookingMapper.mapToResponse(booking);
         }
 
         // ========== CANCEL BOOKING ==========
@@ -435,7 +528,7 @@ public class BookingService {
         @Transactional
         public BookingResponse cancelBooking(UUID bookingId, String reason, UUID cancelledBy) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 if (!booking.canBeCancelled()) {
                         throw new IllegalStateException("Booking cannot be cancelled in current status");
@@ -452,153 +545,9 @@ public class BookingService {
                 log.info("Booking {} cancelled", savedBooking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(savedBooking, "CANCELLED");
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
 
-                return mapToResponse(savedBooking);
-        }
-
-        // ========== HELPER METHODS ==========
-
-        /**
-         * Map Booking entity to BookingResponse DTO
-         */
-        private BookingResponse mapToResponse(Booking booking) {
-                try {
-                        Pet pet = booking.getPet();
-                        User owner = booking.getPetOwner();
-                        Clinic clinic = booking.getClinic();
-                        User staff = booking.getAssignedStaff();
-
-                        // Check if EMR already exists for this booking
-                        // Use list to safely handle duplicates without exception
-                        java.util.List<com.petties.petties.model.EmrRecord> emrs = emrRecordRepository
-                                        .findByBookingId(booking.getBookingId());
-                        String emrId = !emrs.isEmpty() ? emrs.get(0).getId() : null;
-
-                        // Calculate pet age
-                        String petAge = "N/A";
-                        if (pet.getDateOfBirth() != null) {
-                                Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
-                                petAge = age.getYears() > 0
-                                                ? age.getYears() + " tuổi"
-                                                : age.getMonths() + " tháng";
-                        }
-
-                        // Map services with assigned staff info and calculate scheduled times
-                        // Use slotsRequired * 30 minutes (slot duration) for consistency with schedule
-                        LocalTime currentTime = booking.getBookingTime();
-                        List<BookingResponse.BookingServiceItemResponse> serviceResponses = new java.util.ArrayList<>();
-
-                        for (BookingServiceItem item : booking.getBookingServices()) {
-                                User itemStaff = item.getAssignedStaff();
-                                int durationMinutes = item.getService().getDurationTime() != null
-                                                ? item.getService().getDurationTime()
-                                                : 30; // Default 30 minutes
-
-                                // Calculate slots from duration: ceil(duration / 30)
-                                // This ensures consistency with slot reservation logic
-                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
-                                int slotDurationMinutes = slotsRequired * 30; // Each slot is 30 min
-
-                                LocalTime startTime = currentTime;
-                                LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
-
-                                serviceResponses.add(BookingResponse.BookingServiceItemResponse.builder()
-                                                .bookingServiceId(item.getBookingServiceId()) // BookingServiceItem ID
-                                                .serviceId(item.getService().getServiceId())
-                                                .serviceName(item.getService().getName())
-                                                .serviceCategory(item.getService().getServiceCategory() != null
-                                                                ? item.getService().getServiceCategory().name()
-                                                                : null)
-                                                .price(item.getUnitPrice())
-                                                .slotsRequired(slotsRequired)
-                                                .durationMinutes(durationMinutes)
-                                                // Pricing breakdown fields
-                                                .basePrice(item.getBasePrice())
-                                                .weightPrice(item.getWeightPrice())
-                                                // Staff info for this specific service
-                                                .assignedStaffId(itemStaff != null ? itemStaff.getUserId() : null)
-                                                .assignedStaffName(itemStaff != null ? itemStaff.getFullName() : null)
-                                                .assignedStaffAvatarUrl(
-                                                                itemStaff != null ? itemStaff.getAvatar() : null)
-                                                .assignedStaffSpecialty(
-                                                                itemStaff != null && itemStaff.getSpecialty() != null
-                                                                                ? itemStaff.getSpecialty().name()
-                                                                                : null)
-                                                // Scheduled time (based on slot allocation, not service duration)
-                                                .scheduledStartTime(startTime)
-                                                .scheduledEndTime(endTime)
-                                                .build());
-
-                                // Move to next time slot
-                                currentTime = endTime;
-                        }
-
-                        return BookingResponse.builder()
-                                        .bookingId(booking.getBookingId())
-                                        .bookingCode(booking.getBookingCode())
-                                        .emrId(emrId)
-                                        // Pet info
-                                        .petId(pet.getId())
-                                        .petName(pet.getName())
-                                        .petSpecies(pet.getSpecies())
-                                        .petBreed(pet.getBreed())
-                                        .petAge(petAge)
-                                        .petPhotoUrl(pet.getImageUrl())
-                                        .petWeight(pet.getWeight())
-                                        // Owner info
-                                        .ownerId(owner.getUserId())
-                                        .ownerName(owner.getFullName())
-                                        .ownerPhone(owner.getPhone())
-                                        .ownerEmail(owner.getEmail())
-                                        .ownerAvatarUrl(owner.getAvatar())
-                                        .ownerAddress(owner.getAddress())
-                                        // Clinic info
-                                        .clinicId(clinic.getClinicId())
-                                        .clinicName(clinic.getName())
-                                        .clinicAddress(clinic.getAddress())
-                                        .clinicPhone(clinic.getPhone())
-                                        // Staff info
-                                        .assignedStaffId(staff != null ? staff.getUserId() : null)
-                                        .assignedStaffName(staff != null ? staff.getFullName() : null)
-                                        .assignedStaffSpecialty(
-                                                        staff != null && staff.getSpecialty() != null
-                                                                        ? staff.getSpecialty().name()
-                                                                        : null)
-                                        .assignedStaffAvatarUrl(staff != null ? staff.getAvatar() : null)
-                                        // Payment info
-                                        .paymentStatus(booking.getPayment() != null
-                                                        ? booking.getPayment().getStatus().name()
-                                                        : "PENDING")
-                                        .paymentMethod(booking.getPayment() != null
-                                                        && booking.getPayment().getMethod() != null
-                                                                        ? booking.getPayment().getMethod().name()
-                                                                        : null)
-                                        // Booking info
-                                        .bookingDate(booking.getBookingDate())
-                                        .bookingTime(booking.getBookingTime())
-                                        .type(booking.getType())
-                                        .status(booking.getStatus())
-                                        .totalPrice(booking.getTotalPrice())
-                                        .notes(booking.getNotes())
-                                        .services(serviceResponses)
-                                        // Home visit info
-                                        .homeAddress(booking.getHomeAddress())
-                                        .homeLat(booking.getHomeLat())
-                                        .homeLong(booking.getHomeLong())
-                                        .distanceKm(booking.getDistanceKm())
-                                        .distanceFee(booking.getDistanceFee())
-                                        // Timestamps
-                                        .createdAt(booking.getCreatedAt())
-                                        .build();
-                } catch (Exception e) {
-                        log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(),
-                                        e);
-                        // Return a minimal valid response or rethrow depending on severity.
-                        // We'll throw RuntimeException to see the error in logs, but arguably we could
-                        // return null and filter it out upstream if we wanted partial success.
-                        throw new RuntimeException("Error mapping booking " + booking.getBookingCode(), e);
-                }
+                return bookingMapper.mapToResponse(savedBooking);
         }
 
         // ========== STAFF AVAILABILITY CHECK ==========
@@ -735,9 +684,10 @@ public class BookingService {
                 notificationService.sendStaffReassignedNotification(booking, newStaff, oldStaff, serviceName);
 
                 // Push SSE event to BOTH old and new staff for real-time sync
-                pushBookingUpdateToStaff(booking, "STAFF_REASSIGNED", oldStaffId, newStaffId);
+                bookingNotificationService.pushBookingUpdateToStaff(booking, "STAFF_REASSIGNED", oldStaffId,
+                                newStaffId);
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -780,7 +730,7 @@ public class BookingService {
                 log.info("Adding service {} to booking {} by user {}", serviceId, bookingId, currentUser.getUserId());
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status - only allow for active bookings
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS
@@ -790,8 +740,8 @@ public class BookingService {
                 }
 
                 // Fetch service
-                com.petties.petties.model.ClinicService service = clinicServiceRepository.findById(serviceId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+                ClinicService service = clinicServiceRepository.findById(serviceId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ"));
 
                 // Validate service belongs to the same clinic
                 if (!service.getClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
@@ -808,8 +758,8 @@ public class BookingService {
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
                 // If booking is HOME_VISIT and current user is STAFF,
                 // they can only add services within their specialty
-                if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
+                if (booking.getType() == BookingType.HOME_VISIT
+                                && currentUser.getRole() == Role.STAFF) {
 
                         StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                         StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
@@ -846,7 +796,8 @@ public class BookingService {
                                 .basePrice(basePrice)
                                 .weightPrice(weightPrice)
                                 .quantity(1)
-                                .assignedStaff(booking.getAssignedStaff()) // Same staff as booking
+                                .assignedStaff(null) // Arising services are not auto-assigned
+                                .isAddOn(true)
                                 .build();
 
                 booking.getBookingServices().add(newItem);
@@ -861,9 +812,49 @@ public class BookingService {
                                 service.getName(), booking.getBookingCode(), newTotal, weightPrice);
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Remove a service from booking
+         * ONLY allowed for add-on services (isAddOn = true)
+         */
+        @Transactional
+        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId) {
+                log.info("Removing service {} from booking {}", bookingServiceId, bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                BookingServiceItem itemToRemove = booking.getBookingServices().stream()
+                                .filter(item -> item.getBookingServiceId().equals(bookingServiceId))
+                                .findFirst()
+                                .orElseThrow(() -> new ResourceNotFoundException("Service item not found in booking"));
+
+                // Validate: Only allow removing add-on services
+                if (!Boolean.TRUE.equals(itemToRemove.getIsAddOn())) {
+                        throw new IllegalStateException(
+                                        "Không thể xóa dịch vụ gốc của booking. Chỉ có thể xóa dịch vụ phát sinh.");
+                }
+
+                // Update total price
+                BigDecimal priceToRemove = itemToRemove.getWeightPrice(); // Or unitPrice * quantity if > 1
+                BigDecimal newTotal = booking.getTotalPrice().subtract(priceToRemove);
+                booking.setTotalPrice(newTotal);
+
+                // Remove from list and delete entity
+                booking.getBookingServices().remove(itemToRemove);
+                bookingServiceItemRepository.delete(itemToRemove);
+
+                Booking updatedBooking = bookingRepository.save(booking);
+                log.info("Removed service '{}'. New total: {}", itemToRemove.getService().getName(), newTotal);
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(updatedBooking, "SERVICE_REMOVED");
+
+                return bookingMapper.mapToResponse(updatedBooking);
         }
 
         /**
@@ -877,13 +868,13 @@ public class BookingService {
          * @return List of available services
          */
         @Transactional(readOnly = true)
-        public List<com.petties.petties.dto.clinicService.ClinicServiceResponse> getAvailableServicesForAddOn(
+        public List<ClinicServiceResponse> getAvailableServicesForAddOn(
                         UUID bookingId, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Get all active services for the clinic
-                List<com.petties.petties.model.ClinicService> allActiveServices = clinicServiceRepository
+                List<ClinicService> allActiveServices = clinicServiceRepository
                                 .findByClinicClinicIdAndIsActiveTrue(booking.getClinic().getClinicId());
 
                 // IDs of services already in the booking
@@ -896,9 +887,16 @@ public class BookingService {
                         return allActiveServices.stream()
                                         .filter(service -> !existingServiceIds.contains(service.getServiceId()))
                                         .filter(service -> {
-                                                // Specialty filtering for Staff in Home Visit
-                                                if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                                                && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
+                                                // 1. IN_CLINIC: Only show services with isHomeVisit = false
+                                                if (booking.getType() == BookingType.IN_CLINIC) {
+                                                        if (Boolean.TRUE.equals(service.getIsHomeVisit())) {
+                                                                return false;
+                                                        }
+                                                }
+
+                                                // 2. Specialty filtering for Staff in Home Visit
+                                                if (booking.getType() == BookingType.HOME_VISIT
+                                                                && currentUser.getRole() == Role.STAFF) {
 
                                                         StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                                                         StaffSpecialty requiredSpecialty = service
@@ -910,30 +908,15 @@ public class BookingService {
                                                         return staffSpecialty == StaffSpecialty.VET_GENERAL
                                                                         || staffSpecialty == requiredSpecialty;
                                                 }
-                                                return true; // Managers or In-Clinic bookings see all
+                                                return true; // Managers or In-Clinic bookings see all (subject to above
+                                                             // filter)
                                         })
-                                        .map(this::mapServiceToResponse)
+                                        .map(bookingMapper::mapServiceToResponse)
                                         .collect(Collectors.toList());
                 } catch (Exception e) {
                         log.error("Error filtering/mapping services for booking {}: {}", bookingId, e.getMessage(), e);
                         throw e; // Controller will catch this
                 }
-        }
-
-        private com.petties.petties.dto.clinicService.ClinicServiceResponse mapServiceToResponse(
-                        com.petties.petties.model.ClinicService service) {
-                return com.petties.petties.dto.clinicService.ClinicServiceResponse.builder()
-                                .serviceId(service.getServiceId())
-                                .name(service.getName())
-                                .description(service.getDescription())
-                                .basePrice(service.getBasePrice())
-                                .durationTime(service.getDurationTime())
-                                .slotsRequired(service.getSlotsRequired())
-                                .serviceCategory(service.getServiceCategory())
-                                .isHomeVisit(service.getIsHomeVisit())
-                                .pricePerKm(service.getPricePerKm())
-                                .isActive(service.getIsActive())
-                                .build();
         }
 
         // ========== SMART AVAILABILITY ==========
@@ -966,8 +949,8 @@ public class BookingService {
 
         /**
          * Check-in booking (Staff action)
-         * Transitions: ASSIGNED → IN_PROGRESS
-         * 
+         * Transitions: CONFIRMED → IN_PROGRESS
+         *
          * @param bookingId Booking ID
          * @return Updated booking response
          */
@@ -976,12 +959,12 @@ public class BookingService {
                 log.info("Check-in booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - allow ASSIGNED or ARRIVED
-                if (booking.getStatus() != BookingStatus.ASSIGNED && booking.getStatus() != BookingStatus.ARRIVED) {
+                // Validate status - allow CONFIRMED or ARRIVED
+                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.ARRIVED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái ASSIGNED hoặc ARRIVED. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc ARRIVED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -992,7 +975,7 @@ public class BookingService {
                 log.info("Booking {} checked in successfully. Status: IN_PROGRESS", booking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "CHECK_IN");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECK_IN");
 
                 // Notify pet owner
                 try {
@@ -1001,7 +984,7 @@ public class BookingService {
                         log.warn("Failed to send check-in notification: {}", e.getMessage());
                 }
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -1016,7 +999,7 @@ public class BookingService {
                 log.info("Completing booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1032,7 +1015,7 @@ public class BookingService {
                 log.info("Booking {} completed successfully", booking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "COMPLETED");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
 
                 // Notify pet owner
                 try {
@@ -1041,7 +1024,7 @@ public class BookingService {
                         log.warn("Failed to send completed notification: {}", e.getMessage());
                 }
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -1056,18 +1039,18 @@ public class BookingService {
                 log.info("Sending 'staff on the way' notification for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - should be ASSIGNED (staff assigned but not yet started)
-                if (booking.getStatus() != BookingStatus.ASSIGNED) {
+                // Validate status - should be CONFIRMED (staff assigned but not yet started)
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể gửi thông báo khi booking ở trạng thái ASSIGNED. Trạng thái hiện tại: "
+                                        "Chỉ có thể gửi thông báo khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
                 // Validate booking type - only for HOME_VISIT or SOS
-                if (booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                && booking.getType() != com.petties.petties.model.enums.BookingType.SOS) {
+                if (booking.getType() != BookingType.HOME_VISIT
+                                && booking.getType() != BookingType.SOS) {
                         throw new IllegalStateException("Chỉ áp dụng cho lịch hẹn tại nhà hoặc SOS");
                 }
 
@@ -1080,99 +1063,7 @@ public class BookingService {
                         throw new RuntimeException("Không thể gửi thông báo: " + e.getMessage());
                 }
 
-                return mapToResponse(booking);
-        }
-
-        // ========== PRIVATE HELPER METHODS ==========
-
-        /**
-         * Push SSE event when reassigning staff
-         * Notifies BOTH old staff (to remove from schedule) and new staff (to add to
-         * schedule)
-         *
-         * @param booking    The updated booking
-         * @param action     Action type (STAFF_REASSIGNED)
-         * @param oldStaffId Old staff ID (who is being removed from booking)
-         * @param newStaffId New staff ID (who is being assigned)
-         */
-        private void pushBookingUpdateToStaff(Booking booking, String action, UUID oldStaffId, UUID newStaffId) {
-                try {
-                        java.util.Map<String, Object> eventData = new java.util.HashMap<>();
-                        eventData.put("bookingId", booking.getBookingId().toString());
-                        eventData.put("bookingCode", booking.getBookingCode());
-                        eventData.put("action", action);
-                        eventData.put("status", booking.getStatus().name());
-                        eventData.put("oldStaffId", oldStaffId != null ? oldStaffId.toString() : "");
-                        eventData.put("newStaffId", newStaffId != null ? newStaffId.toString() : "");
-
-                        SseEventDto event = SseEventDto.bookingUpdate(eventData);
-
-                        // Push to OLD staff (so they can remove from their schedule)
-                        if (oldStaffId != null) {
-                                sseEmitterService.pushToUser(oldStaffId, event);
-                                log.debug("Pushed BOOKING_UPDATE to OLD staff: {}", oldStaffId);
-                        }
-
-                        // Push to NEW staff (so they can add to their schedule)
-                        if (newStaffId != null) {
-                                sseEmitterService.pushToUser(newStaffId, event);
-                                log.debug("Pushed BOOKING_UPDATE to NEW staff: {}", newStaffId);
-                        }
-
-                        // Push to all managers of the clinic
-                        List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
-                        for (User manager : managers) {
-                                sseEmitterService.pushToUser(manager.getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
-                        }
-
-                        log.info("STAFF_REASSIGN event pushed for booking {}: oldStaff={}, newStaff={}",
-                                        booking.getBookingCode(), oldStaffId, newStaffId);
-                } catch (Exception e) {
-                        log.warn("Failed to push SSE event for staff reassign {}: {}",
-                                        booking.getBookingCode(), e.getMessage());
-                }
-        }
-
-        /**
-         * Push SSE event to all relevant users when booking changes
-         * - Assigned staff (if any)
-         * - All managers of the clinic
-         *
-         * @param booking The updated booking
-         * @param action  Action type: ASSIGNED, STATUS_CHANGED, CANCELLED, etc.
-         */
-        private void pushBookingUpdateToUsers(Booking booking, String action) {
-                try {
-                        java.util.Map<String, Object> eventData = java.util.Map.of(
-                                        "bookingId", booking.getBookingId().toString(),
-                                        "bookingCode", booking.getBookingCode(),
-                                        "action", action,
-                                        "status", booking.getStatus().name());
-
-                        SseEventDto event = SseEventDto.bookingUpdate(eventData);
-
-                        // Push to assigned staff
-                        if (booking.getAssignedStaff() != null) {
-                                sseEmitterService.pushToUser(booking.getAssignedStaff().getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to staff: {}", booking.getAssignedStaff().getUserId());
-                        }
-
-                        // Push to all managers of the clinic
-                        List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
-                        for (User manager : managers) {
-                                sseEmitterService.pushToUser(manager.getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
-                        }
-
-                        log.info("BOOKING_UPDATE event pushed for booking {} action {}", booking.getBookingCode(),
-                                        action);
-                } catch (Exception e) {
-                        log.warn("Failed to push SSE event for booking {}: {}", booking.getBookingCode(),
-                                        e.getMessage());
-                }
+                return bookingMapper.mapToResponse(booking);
         }
 
         // ========== STAFF HOME SUMMARY ==========
@@ -1200,7 +1091,6 @@ public class BookingService {
                         LocalDate endDate = today.plusDays(7);
                         List<BookingStatus> activeStatuses = List.of(
                                         BookingStatus.CONFIRMED,
-                                        BookingStatus.ASSIGNED,
                                         BookingStatus.PENDING,
                                         BookingStatus.IN_PROGRESS);
                         List<Booking> upcomingBookings = bookingRepository
@@ -1211,7 +1101,6 @@ public class BookingService {
                         int todayCount = todayBookings != null ? todayBookings.size() : 0;
                         int pendingCount = todayBookings != null ? (int) todayBookings.stream()
                                         .filter(b -> b.getStatus() == BookingStatus.CONFIRMED
-                                                        || b.getStatus() == BookingStatus.ASSIGNED
                                                         || b.getStatus() == BookingStatus.PENDING)
                                         .count() : 0;
                         int inProgressCount = todayBookings != null ? (int) todayBookings.stream()
@@ -1230,7 +1119,7 @@ public class BookingService {
                                                         return a.getBookingTime().compareTo(b.getBookingTime());
                                                 })
                                                 .limit(5)
-                                                .map(this::mapToUpcomingDTO)
+                                                .map(bookingMapper::mapToUpcomingDTO)
                                                 .collect(Collectors.toList());
                         }
 
@@ -1247,79 +1136,45 @@ public class BookingService {
         }
 
         /**
-         * Map Booking entity to UpcomingBookingDTO for home screen display
-         * Note: bookingServices may not be fetched, so we use default values
-         */
-        private UpcomingBookingDTO mapToUpcomingDTO(Booking booking) {
-                Pet pet = booking.getPet();
-                User owner = booking.getPetOwner();
-
-                // Null safety for pet and owner
-                String petName = pet != null ? pet.getName() : "N/A";
-                String petSpecies = pet != null ? pet.getSpecies() : null;
-                String petPhotoUrl = pet != null ? pet.getImageUrl() : null;
-                String ownerName = owner != null ? owner.getFullName() : "N/A";
-                String ownerPhone = owner != null ? owner.getPhone() : null;
-
-                // Default values for service info (bookingServices not eager-fetched to avoid
-                // MultipleBagFetchException)
-                int totalMinutes = 30;
-                String primaryService = "Dịch vụ khám";
-                int servicesCount = 0;
-
-                // Try to get service info if available (within transaction)
-                try {
-                        List<BookingServiceItem> services = booking.getBookingServices();
-                        if (services != null && !services.isEmpty()) {
-                                servicesCount = services.size();
-                                totalMinutes = services.stream()
-                                                .mapToInt(item -> {
-                                                        if (item.getService() == null)
-                                                                return 30;
-                                                        Integer duration = item.getService().getDurationTime();
-                                                        return duration != null ? duration : 30;
-                                                })
-                                                .sum();
-                                BookingServiceItem firstItem = services.get(0);
-                                if (firstItem.getService() != null && firstItem.getService().getName() != null) {
-                                        primaryService = firstItem.getService().getName();
-                                }
-                        }
-                } catch (Exception e) {
-                        // LazyInitializationException - use defaults
-                        log.debug("Could not load booking services for booking {}, using defaults",
-                                        booking.getBookingId());
-                }
-
-                LocalTime endTime = booking.getBookingTime().plusMinutes(totalMinutes);
-
-                return UpcomingBookingDTO.builder()
-                                .bookingId(booking.getBookingId())
-                                .bookingCode(booking.getBookingCode())
-                                .petName(petName)
-                                .petSpecies(petSpecies)
-                                .petPhotoUrl(petPhotoUrl)
-                                .ownerName(ownerName)
-                                .ownerPhone(ownerPhone)
-                                .bookingDate(booking.getBookingDate())
-                                .bookingTime(booking.getBookingTime())
-                                .endTime(endTime)
-                                .type(booking.getType())
-                                .status(booking.getStatus())
-                                .totalPrice(booking.getTotalPrice())
-                                .primaryServiceName(primaryService)
-                                .servicesCount(servicesCount)
-                                .homeAddress(booking.getHomeAddress())
-                                .build();
-        }
-
-        /**
          * Get bookings by pet owner
          */
+
         @Transactional(readOnly = true)
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
                 log.info("Fetching bookings for user: {}", petOwnerId);
                 Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
-                return bookings.map(this::mapToResponse);
+                return bookings.map(bookingMapper::mapToResponse);
+        }
+
+        // ========== SHARED VISIBILITY ==========
+
+        /**
+         * Get all bookings for a clinic today - Shared Visibility for Staff
+         * All staff in the clinic can see ALL bookings, with isMyAssignment flag
+         * to identify their own assignments
+         *
+         * @param clinicId     Clinic ID
+         * @param currentStaff Current logged-in staff
+         * @return List of ClinicTodayBookingResponse with isMyAssignment flag
+         */
+        @Transactional(readOnly = true)
+        public List<ClinicTodayBookingResponse> getClinicTodayBookings(
+                        UUID clinicId, User currentStaff) {
+                log.info("Getting today's bookings for clinic {} by staff {}", clinicId, currentStaff.getUserId());
+
+                // Validate: Staff must belong to the clinic
+                if (currentStaff.getWorkingClinic() == null ||
+                                !currentStaff.getWorkingClinic().getClinicId().equals(clinicId)) {
+                        throw new ForbiddenException(
+                                        "Bạn không có quyền xem lịch hẹn của phòng khám này");
+                }
+
+                LocalDate today = LocalDate.now();
+                List<Booking> bookings = bookingRepository.findByClinicIdAndDateWithDetails(clinicId, today);
+
+                return bookings.stream()
+                                .map(booking -> bookingMapper.mapToClinicTodayResponse(booking,
+                                                currentStaff.getUserId()))
+                                .collect(Collectors.toList());
         }
 }

@@ -371,17 +371,17 @@ class BookingControllerUnitTest {
                 // Arrange
                 UUID staffId = UUID.randomUUID();
                 BookingResponse booking = createMockBookingResponse();
-                booking.setStatus(BookingStatus.ASSIGNED);
+                booking.setStatus(BookingStatus.CONFIRMED);
                 Page<BookingResponse> bookingPage = new PageImpl<>(List.of(booking));
 
-                when(bookingService.getBookingsByStaff(eq(staffId), eq(BookingStatus.ASSIGNED), any(Pageable.class)))
+                when(bookingService.getBookingsByStaff(eq(staffId), eq(BookingStatus.CONFIRMED), any(Pageable.class)))
                                 .thenReturn(bookingPage);
 
                 // Act & Assert
                 mockMvc.perform(get("/bookings/staff/{staffId}", staffId)
-                                .param("status", "ASSIGNED"))
+                                .param("status", "CONFIRMED"))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.content[0].status").value("ASSIGNED"));
+                                .andExpect(jsonPath("$.content[0].status").value("CONFIRMED"));
         }
 
         // ==================== GET BOOKING BY ID TESTS ====================
@@ -570,7 +570,7 @@ class BookingControllerUnitTest {
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.setStatus(BookingStatus.ASSIGNED);
+                response.setStatus(BookingStatus.CONFIRMED);
 
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
@@ -580,7 +580,7 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.status").value("ASSIGNED"));
+                                .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
                 verify(bookingService).confirmBooking(eq(bookingId), any(BookingConfirmRequest.class));
         }
@@ -598,7 +598,7 @@ class BookingControllerUnitTest {
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.setStatus(BookingStatus.ASSIGNED);
+                response.setStatus(BookingStatus.CONFIRMED);
                 response.setAssignedStaffId(staffId);
                 response.setAssignedStaffName("BS. Trần Văn B");
 
@@ -610,7 +610,7 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.status").value("ASSIGNED"))
+                                .andExpect(jsonPath("$.status").value("CONFIRMED"))
                                 .andExpect(jsonPath("$.assignedStaffName").value("BS. Trần Văn B"));
         }
 
@@ -625,7 +625,7 @@ class BookingControllerUnitTest {
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.setStatus(BookingStatus.CONFIRMED); // Partial = CONFIRMED, not ASSIGNED
+                response.setStatus(BookingStatus.CONFIRMED); // Partial = CONFIRMED
 
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
@@ -649,7 +649,7 @@ class BookingControllerUnitTest {
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.setStatus(BookingStatus.ASSIGNED);
+                response.setStatus(BookingStatus.CONFIRMED);
                 response.setTotalPrice(new BigDecimal("200000")); // Reduced price
 
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
@@ -948,6 +948,81 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.message")
                                                 .value("Không có đủ slot liên tiếp tại thời gian yêu cầu"));
+        }
+
+        // ==================== ADD SERVICE TO BOOKING TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-ADD-SERVICE-001: Add service to booking - Valid request - Returns 200")
+        @WithMockUser(roles = "STAFF")
+        void addServiceToBooking_validRequest_returns200() throws Exception {
+                // Arrange
+                UUID bookingId = UUID.randomUUID();
+                UUID serviceId = UUID.randomUUID();
+                AddServiceRequest request = new AddServiceRequest();
+                request.setServiceId(serviceId);
+
+                // Mock response
+                BookingResponse response = createMockBookingResponse();
+                BookingResponse.BookingServiceItemResponse newService = BookingResponse.BookingServiceItemResponse
+                                .builder()
+                                .bookingServiceId(UUID.randomUUID())
+                                .serviceId(serviceId)
+                                .serviceName("New Service")
+                                .price(new BigDecimal("100000"))
+                                .isAddOn(true)
+                                .assignedStaffName(null) // Arising service has no staff initially
+                                .build();
+
+                List<BookingResponse.BookingServiceItemResponse> updatedServices = new java.util.ArrayList<>(
+                                response.getServices());
+                updatedServices.add(newService);
+                response.setServices(updatedServices);
+
+                // Mock User (since controller resolves current user)
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+                // Note: user lookup is done in controller via userRepository, but
+                // setupUserPrincipalAuth mocks the context.
+                // We also need valid user in repository for the controller to find it.
+                com.petties.petties.model.User mockUser = new com.petties.petties.model.User();
+                mockUser.setUserId(userId);
+                when(userRepository.findById(userId)).thenReturn(java.util.Optional.of(mockUser));
+
+                when(bookingService.addServiceToBooking(eq(bookingId), eq(serviceId),
+                                any(com.petties.petties.model.User.class)))
+                                .thenReturn(response);
+
+                // Act & Assert
+                mockMvc.perform(post("/bookings/{bookingId}/add-service", bookingId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.services[-1].serviceName").value("New Service"))
+                                .andExpect(jsonPath("$.services[-1].isAddOn").value(true));
+        }
+
+        // ==================== REMOVE SERVICE FROM BOOKING TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-REMOVE-SERVICE-001: Remove service from booking - Returns 200")
+        @WithMockUser(roles = "CLINIC_MANAGER")
+        void removeServiceFromBooking_validRequest_returns200() throws Exception {
+                // Arrange
+                UUID bookingId = UUID.randomUUID();
+                UUID serviceId = UUID.randomUUID();
+
+                BookingResponse response = createMockBookingResponse(); // Has 1 service initially
+                response.setServices(Collections.emptyList()); // Service removed
+
+                when(bookingService.removeServiceFromBooking(bookingId, serviceId)).thenReturn(response);
+
+                // Act & Assert
+                mockMvc.perform(delete("/bookings/{bookingId}/services/{serviceId}", bookingId, serviceId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.services").isEmpty());
+
+                verify(bookingService).removeServiceFromBooking(bookingId, serviceId);
         }
         // ==================== GET AVAILABLE SLOTS TESTS ====================
 

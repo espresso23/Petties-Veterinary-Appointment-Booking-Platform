@@ -89,7 +89,7 @@ export const NotificationsPage = () => {
       case 'STAFF_SHIFT_UPDATED':
       case 'STAFF_SHIFT_DELETED':
         return '/staff/schedule'
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
       case 'BOOKING_CANCELLED':
         return '/staff/bookings'
       default:
@@ -132,7 +132,7 @@ export const NotificationsPage = () => {
         return 'bg-blue-100 border-blue-600'
       case 'STAFF_SHIFT_DELETED':
         return 'bg-orange-100 border-orange-600'
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
         return 'bg-blue-100 border-blue-600'
       case 'BOOKING_CANCELLED':
         return 'bg-red-100 border-red-600'
@@ -153,8 +153,8 @@ export const NotificationsPage = () => {
         return 'CA LÀM VIỆC ĐÃ ĐƯỢC CẬP NHẬT'
       case 'STAFF_SHIFT_DELETED':
         return 'CA LÀM VIỆC ĐÃ BỊ XÓA'
-      case 'BOOKING_ASSIGNED':
-        return 'BẠN CÓ LỊCH HẸN MỚI'
+      case 'BOOKING_CONFIRMED':
+        return 'LỊCH HẸN ĐÃ XÁC NHẬN'
       case 'BOOKING_CANCELLED':
         return 'LỊCH HẸN ĐÃ HỦY'
       default:
@@ -205,7 +205,7 @@ export const NotificationsPage = () => {
             </svg>
           </div>
         )
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
         return (
           <div className="w-10 h-10 bg-blue-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

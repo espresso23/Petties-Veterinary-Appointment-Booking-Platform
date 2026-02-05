@@ -92,7 +92,6 @@ class ClinicServiceControllerUnitTest {
                 testServiceRequest.setSlotsRequired(1);
                 testServiceRequest.setIsActive(true);
                 testServiceRequest.setIsHomeVisit(false);
-                testServiceRequest.setPricePerKm(new BigDecimal("10000.0"));
                 testServiceRequest.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.CHECK_UP);
                 testServiceRequest.setPetType("Chó");
                 testServiceRequest.setClinicId(testClinicId);
@@ -107,7 +106,6 @@ class ClinicServiceControllerUnitTest {
                                 .slotsRequired(1)
                                 .isActive(true)
                                 .isHomeVisit(false)
-                                .pricePerKm(new BigDecimal("10000.0"))
                                 .serviceCategory(com.petties.petties.model.enums.ServiceCategory.CHECK_UP)
                                 .petType("Chó")
                                 .weightPrices(weightPrices)

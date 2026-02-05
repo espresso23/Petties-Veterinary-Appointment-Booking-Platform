@@ -102,6 +102,7 @@ class BookingServiceItem {
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
+  final bool? isAddOn;
 
   BookingServiceItem({
     this.bookingServiceId,
@@ -114,6 +115,7 @@ class BookingServiceItem {
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
+    this.isAddOn,
   });
 
   factory BookingServiceItem.fromJson(Map<String, dynamic> json) {
@@ -128,6 +130,7 @@ class BookingServiceItem {
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],
+      isAddOn: json['isAddOn'],
     );
   }
 }

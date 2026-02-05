@@ -144,8 +144,7 @@ public class Booking {
      */
     public boolean canBeCancelled() {
         return status == BookingStatus.PENDING ||
-                status == BookingStatus.CONFIRMED ||
-                status == BookingStatus.ASSIGNED;
+                status == BookingStatus.CONFIRMED;
     }
 
     /**

@@ -23,27 +23,27 @@ import java.util.UUID;
 @AllArgsConstructor
 public class BookingRequest {
 
-    @NotNull(message = "Pet ID is required")
+    @NotNull(message = "Mã thú cưng không được để trống")
     private UUID petId;
 
-    @NotNull(message = "Clinic ID is required")
+    @NotNull(message = "Mã phòng khám không được để trống")
     private UUID clinicId;
 
-    @NotNull(message = "Booking date is required")
+    @NotNull(message = "Ngày đặt lịch không được để trống")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate bookingDate;
 
-    @NotNull(message = "Booking time is required")
+    @NotNull(message = "Giờ đặt lịch không được để trống")
     @JsonFormat(pattern = "HH:mm")
     private LocalTime bookingTime;
 
-    @NotNull(message = "Booking type is required")
+    @NotNull(message = "Loại lịch hẹn không được để trống")
     private BookingType type;
 
     /**
      * List of service IDs to book
      */
-    @NotNull(message = "At least one service is required")
+    @NotNull(message = "Vui lòng chọn ít nhất một dịch vụ")
     private List<UUID> serviceIds;
 
     /**

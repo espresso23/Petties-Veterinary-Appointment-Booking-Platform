@@ -3,7 +3,7 @@
  */
 
 // Booking Status enum
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ASSIGNED' | 'ON_THE_WAY' | 'ARRIVED' | 'CHECK_IN' | 'IN_PROGRESS' | 'CHECK_OUT' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ON_THE_WAY' | 'ARRIVED' | 'CHECK_IN' | 'IN_PROGRESS' | 'CHECK_OUT' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 // Booking Type enum
 export type BookingType = 'IN_CLINIC' | 'HOME_VISIT' | 'SOS';
@@ -29,8 +29,9 @@ export interface BookingServiceItem {
     assignedStaffSpecialty?: string;
 
     // Scheduled time for this service
-    scheduledStartTime?: string; // HH:mm:ss format
-    scheduledEndTime?: string;   // HH:mm:ss format
+    scheduledStartTime?: string; // For display
+    scheduledEndTime?: string;   // For display
+    isAddOn?: boolean;           // Arising service
 }
 
 // Main Booking interface
@@ -116,7 +117,6 @@ export interface ConfirmBookingRequest {
 export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; bgColor: string; textColor: string }> = {
     PENDING: { label: 'Chờ xác nhận', bgColor: '#F5F5F4', textColor: '#44403C' }, // stone-100 / stone-700
     CONFIRMED: { label: 'Đã xác nhận', bgColor: '#FFFBEB', textColor: '#B45309' }, // amber-50 / amber-700
-    ASSIGNED: { label: 'Đã gán BS', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     ON_THE_WAY: { label: 'Đang đến', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     ARRIVED: { label: 'Đã đến nơi', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     CHECK_IN: { label: 'Check-in', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600

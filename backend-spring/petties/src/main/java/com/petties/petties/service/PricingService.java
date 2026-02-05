@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * PricingService - Calculate service prices based on pet weight and distance
@@ -20,7 +21,7 @@ import java.util.List;
  * - If found: use weight-specific price
  * - If not found: use basePrice
  * 
- * 2. Home visit fee: distanceKm × pricePerKm
+ * 2. Home visit fee: distanceKm × pricePerKm (from clinic-level setting)
  * - Only applies when booking type is HOME_VISIT
  */
 @Service
@@ -29,6 +30,9 @@ import java.util.List;
 public class PricingService {
 
     private final ServiceWeightPriceRepository weightPriceRepository;
+    private final ClinicPriceService clinicPriceService;
+
+    private static final BigDecimal DEFAULT_PRICE_PER_KM = new BigDecimal("5000");
 
     /**
      * Calculate total price for a service based on pet weight
@@ -71,29 +75,27 @@ public class PricingService {
 
     /**
      * Calculate home visit fee for the entire booking based on distance
-     * Picks the highest pricePerKm from the list of services as the booking fee
+     * Uses clinic-level pricePerKm setting
      *
-     * @param services    List of services in the booking
+     * @param clinicId    The clinic ID to get pricePerKm from
      * @param distanceKm  The distance in kilometers
      * @param bookingType The booking type
      * @return The home visit fee (calculated once for the entire booking)
      */
-    public BigDecimal calculateBookingDistanceFee(List<ClinicService> services, BigDecimal distanceKm,
+    public BigDecimal calculateBookingDistanceFee(UUID clinicId, BigDecimal distanceKm,
             BookingType bookingType) {
         if (bookingType != BookingType.HOME_VISIT || distanceKm == null || distanceKm.compareTo(BigDecimal.ZERO) <= 0
-                || services == null || services.isEmpty()) {
+                || clinicId == null) {
             return BigDecimal.ZERO;
         }
 
-        // Use the highest pricePerKm among selected services
-        BigDecimal maxPricePerKm = services.stream()
-                .map(ClinicService::getPricePerKm)
-                .filter(p -> p != null)
-                .max(BigDecimal::compareTo)
-                .orElse(BigDecimal.ZERO);
+        // Get pricePerKm from clinic-level setting, fallback to default
+        BigDecimal pricePerKm = clinicPriceService.getPricePerKm(clinicId)
+                .orElse(DEFAULT_PRICE_PER_KM);
 
-        BigDecimal fee = distanceKm.multiply(maxPricePerKm);
-        log.info("Calculated booking distance fee: {} ({} km × {} đ/km)", fee, distanceKm, maxPricePerKm);
+        BigDecimal fee = distanceKm.multiply(pricePerKm);
+        log.info("Calculated booking distance fee: {} ({} km × {} đ/km) [clinic: {}]",
+                fee, distanceKm, pricePerKm, clinicId);
         return fee;
     }
 }

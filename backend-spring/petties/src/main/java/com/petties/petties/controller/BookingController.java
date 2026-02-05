@@ -37,7 +37,6 @@ import java.util.UUID;
 public class BookingController {
 
     private final BookingService bookingService;
-    private final com.petties.petties.repository.UserRepository userRepository;
 
     // ========== SMART AVAILABILITY ==========
 
@@ -109,6 +108,7 @@ public class BookingController {
     /**
      * Get booking by ID (Get detailed booking information)
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{bookingId}")
     public ResponseEntity<BookingResponse> getBookingById(@PathVariable UUID bookingId) {
         BookingResponse response = bookingService.getBookingById(bookingId);
@@ -118,6 +118,7 @@ public class BookingController {
     /**
      * Get booking by code (Get booking by its unique code)
      */
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/code/{bookingCode}")
     public ResponseEntity<BookingResponse> getBookingByCode(@PathVariable String bookingCode) {
         BookingResponse response = bookingService.getBookingByCode(bookingCode);
@@ -173,6 +174,7 @@ public class BookingController {
     /**
      * Cancel booking (Cancel a booking with reason)
      */
+    @PreAuthorize("isAuthenticated()")
     @PatchMapping("/{bookingId}/cancel")
     public ResponseEntity<BookingResponse> cancelBooking(
             @PathVariable UUID bookingId,
@@ -251,8 +253,7 @@ public class BookingController {
 
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         UUID userId = userPrincipal.getUserId();
-        com.petties.petties.model.User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException("User not found"));
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userId);
 
         BookingResponse response = bookingService.addServiceToBooking(bookingId, request.getServiceId(), currentUser);
         return ResponseEntity.ok(response);
@@ -270,8 +271,7 @@ public class BookingController {
 
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         UUID userId = userPrincipal.getUserId();
-        com.petties.petties.model.User currentUser = userRepository.findById(userId)
-                .orElseThrow(() -> new com.petties.petties.exception.ResourceNotFoundException("User not found"));
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userId);
 
         try {
             List<com.petties.petties.dto.clinicService.ClinicServiceResponse> services = bookingService
@@ -287,7 +287,7 @@ public class BookingController {
 
     /**
      * Check-in booking (Staff action)
-     * Transitions: ASSIGNED → IN_PROGRESS
+     * Transitions: CONFIRMED → IN_PROGRESS
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/check-in")
@@ -337,4 +337,43 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Remove a service from booking (Only add-on services)
+     */
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'STAFF', 'ADMIN')")
+    @DeleteMapping("/{bookingId}/services/{serviceId}")
+    public ResponseEntity<BookingResponse> removeServiceFromBooking(
+            @PathVariable UUID bookingId,
+            @PathVariable UUID serviceId) {
+        BookingResponse response = bookingService.removeServiceFromBooking(bookingId, serviceId);
+        return ResponseEntity.ok(response);
+    }
+
+    // ========== SHARED VISIBILITY (STAFF) ==========
+
+    /**
+     * Get all bookings for a clinic today - Shared Visibility for Staff
+     * All staff in the clinic can see ALL bookings, with isMyAssignment flag
+     * to identify their own assignments.
+     *
+     * This enables collaborative care: any staff can view booking details
+     * and add EMR for IN_PROGRESS bookings at the same clinic.
+     *
+     * @param clinicId Clinic ID
+     * @return List of ClinicTodayBookingResponse with isMyAssignment flag
+     */
+    @PreAuthorize("hasRole('STAFF')")
+    @GetMapping("/clinic/{clinicId}/today")
+    public ResponseEntity<List<com.petties.petties.dto.booking.ClinicTodayBookingResponse>> getClinicTodayBookings(
+            @PathVariable UUID clinicId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        UUID userId = userPrincipal.getUserId();
+        com.petties.petties.model.User currentStaff = bookingService.getCurrentUserById(userId);
+
+        List<com.petties.petties.dto.booking.ClinicTodayBookingResponse> response = bookingService
+                .getClinicTodayBookings(clinicId, currentStaff);
+        return ResponseEntity.ok(response);
+    }
 }

@@ -13,7 +13,6 @@ class ClinicServiceModel {
   final int slotsRequired;
   final bool isActive;
   final bool isHomeVisit;
-  final double? pricePerKm;
   final String? serviceCategory;
   final String? petType;
   final List<WeightPrice> weightPrices;
@@ -30,7 +29,6 @@ class ClinicServiceModel {
     this.slotsRequired = 1,
     this.isActive = true,
     this.isHomeVisit = false,
-    this.pricePerKm,
     this.serviceCategory,
     this.petType,
     this.weightPrices = const [],
@@ -49,7 +47,6 @@ class ClinicServiceModel {
       slotsRequired: json['slotsRequired'] ?? 1,
       isActive: json['isActive'] ?? true,
       isHomeVisit: json['isHomeVisit'] ?? false,
-      pricePerKm: (json['pricePerKm'] as num?)?.toDouble(),
       serviceCategory: json['serviceCategory'],
       petType: json['petType'],
       weightPrices: (json['weightPrices'] as List<dynamic>?)

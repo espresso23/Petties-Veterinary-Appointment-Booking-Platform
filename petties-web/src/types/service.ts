@@ -56,7 +56,6 @@ export interface ClinicServiceResponse {
   slotsRequired: number
   isActive: boolean
   isHomeVisit: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]
@@ -72,7 +71,6 @@ export interface ClinicServiceRequest {
   slotsRequired: number
   isActive?: boolean
   isHomeVisit?: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]

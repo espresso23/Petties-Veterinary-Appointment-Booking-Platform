@@ -59,6 +59,15 @@ public class BookingServiceItem {
     @Builder.Default
     private Integer quantity = 1;
 
+    /**
+     * Flag to indicate if this service was added after initial booking (Arising
+     * Service)
+     * If true, it may not have an assigned staff initially
+     */
+    @Column(name = "is_add_on")
+    @Builder.Default
+    private Boolean isAddOn = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

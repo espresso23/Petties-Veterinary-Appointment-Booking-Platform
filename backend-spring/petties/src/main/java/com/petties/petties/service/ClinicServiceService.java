@@ -99,18 +99,6 @@ public class ClinicServiceService {
         service.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
         service.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
 
-        // Auto-set pricePerKm for home visit services
-        if (service.getIsHomeVisit()) {
-            // If request has pricePerKm > 0, use it; otherwise use common price
-            if (request.getPricePerKm() != null && request.getPricePerKm().compareTo(BigDecimal.ZERO) > 0) {
-                service.setPricePerKm(request.getPricePerKm());
-            } else {
-                service.setPricePerKm(getCommonPricePerKm(clinic));
-            }
-        } else {
-            service.setPricePerKm(BigDecimal.ZERO);
-        }
-
         service.setServiceCategory(request.getServiceCategory());
         service.setPetType(request.getPetType());
 
@@ -183,9 +171,6 @@ public class ClinicServiceService {
         }
         if (request.getIsHomeVisit() != null) {
             service.setIsHomeVisit(request.getIsHomeVisit());
-        }
-        if (request.getPricePerKm() != null) {
-            service.setPricePerKm(request.getPricePerKm());
         }
         if (request.getServiceCategory() != null) {
             service.setServiceCategory(request.getServiceCategory());
@@ -275,71 +260,13 @@ public class ClinicServiceService {
     @Transactional
     public ClinicServiceResponse updateHomeVisitStatus(UUID serviceId, Boolean isHomeVisit) {
         ClinicService service = getServiceAndValidateOwnership(serviceId);
-        Clinic clinic = service.getClinic();
 
         service.setIsHomeVisit(isHomeVisit);
-        // If enabling home-visit and pricePerKm is null or <= 0, set a common price
-        if (isHomeVisit != null && isHomeVisit) {
-            if (service.getPricePerKm() == null || service.getPricePerKm().compareTo(BigDecimal.ZERO) <= 0) {
-                service.setPricePerKm(getCommonPricePerKm(clinic));
-            }
-        } else {
-            // If disabling home-visit, reset pricePerKm to zero
-            service.setPricePerKm(BigDecimal.ZERO);
-        }
         ClinicService updatedService = clinicServiceRepository.save(service);
         log.info("Service home visit status updated: {} to {} by user: {}",
                 serviceId, isHomeVisit, getCurrentUser().getUserId());
 
         return mapToResponse(updatedService);
-    }
-
-    /**
-     * Update price per km
-     */
-    @Transactional
-    public ClinicServiceResponse updatePricePerKm(UUID serviceId, BigDecimal pricePerKm) {
-        ClinicService service = getServiceAndValidateOwnership(serviceId);
-
-        service.setPricePerKm(pricePerKm);
-        ClinicService updatedService = clinicServiceRepository.save(service);
-        log.info("Service price per km updated: {} to {} by user: {}",
-                serviceId, pricePerKm, getCurrentUser().getUserId());
-
-        return mapToResponse(updatedService);
-    }
-
-    /**
-     * Update price per km for all home visit services
-     */
-    @Transactional
-    public void updateBulkPricePerKm(BigDecimal pricePerKm) {
-        Clinic clinic = getCurrentUserClinic();
-
-        List<ClinicService> homeVisitServices = clinicServiceRepository
-                .findByClinicAndIsHomeVisit(clinic, true);
-
-        for (ClinicService service : homeVisitServices) {
-            service.setPricePerKm(pricePerKm);
-        }
-
-        clinicServiceRepository.saveAll(homeVisitServices);
-
-        log.info("Bulk updated price per km for {} home visit services. New price: {} by user: {}",
-                homeVisitServices.size(), pricePerKm, getCurrentUser().getUserId());
-    }
-
-    /**
-     * Get common price per km from existing home visit services
-     * Returns the first found pricePerKm > 0, or default 5000 VND if none exists
-     */
-    private BigDecimal getCommonPricePerKm(Clinic clinic) {
-        return clinicServiceRepository.findByClinicAndIsHomeVisit(clinic, true)
-                .stream()
-                .filter(s -> s.getPricePerKm() != null && s.getPricePerKm().compareTo(BigDecimal.ZERO) > 0)
-                .findFirst()
-                .map(ClinicService::getPricePerKm)
-                .orElse(BigDecimal.valueOf(5000)); // Default 5000 VND
     }
 
     @Transactional
@@ -394,7 +321,7 @@ public class ClinicServiceService {
         clinicService.setSlotsRequired(masterService.getSlotsRequired());
         clinicService.setIsActive(true); // Mặc định active khi inherit
         clinicService.setIsHomeVisit(masterService.getIsHomeVisit());
-        clinicService.setPricePerKm(clinicPricePerKm != null ? clinicPricePerKm : masterService.getDefaultPricePerKm());
+        // pricePerKm is now managed at clinic level via ClinicPriceService
         // Convert string to enum for serviceCategory
         if (masterService.getServiceCategory() != null) {
             try {
@@ -499,7 +426,6 @@ public class ClinicServiceService {
                 .slotsRequired(service.getSlotsRequired())
                 .isActive(service.getIsActive())
                 .isHomeVisit(service.getIsHomeVisit())
-                .pricePerKm(service.getPricePerKm())
                 .serviceCategory(service.getServiceCategory())
                 .petType(service.getPetType())
                 .reminderInterval(service.getReminderInterval())

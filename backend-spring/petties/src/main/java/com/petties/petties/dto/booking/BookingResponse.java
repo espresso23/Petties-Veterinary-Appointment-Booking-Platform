@@ -118,5 +118,7 @@ public class BookingResponse {
 
         @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm:ss")
         private LocalTime scheduledEndTime;
+
+        private Boolean isAddOn;
     }
 }

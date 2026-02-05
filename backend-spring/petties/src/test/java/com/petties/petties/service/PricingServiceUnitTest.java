@@ -17,10 +17,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for PricingService
@@ -35,6 +37,9 @@ class PricingServiceUnitTest {
 
     @Mock
     private ServiceWeightPriceRepository weightPriceRepository;
+
+    @Mock
+    private ClinicPriceService clinicPriceService;
 
     @InjectMocks
     private PricingService pricingService;
@@ -67,13 +72,7 @@ class PricingServiceUnitTest {
         return wp;
     }
 
-    private ClinicService createServiceWithPricePerKm(String pricePerKm) {
-        ClinicService svc = new ClinicService();
-        svc.setName("Test Service");
-        svc.setBasePrice(new BigDecimal("100000"));
-        svc.setPricePerKm(pricePerKm != null ? new BigDecimal(pricePerKm) : null);
-        return svc;
-    }
+    private UUID clinicId = UUID.randomUUID();
 
     // ========== calculateServicePrice TESTS ==========
 
@@ -237,10 +236,9 @@ class PricingServiceUnitTest {
         @Test
         @DisplayName("12. Not HOME_VISIT → should return ZERO")
         void whenNotHomeVisit_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
             BigDecimal distance = new BigDecimal("10");
 
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.IN_CLINIC);
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, distance, BookingType.IN_CLINIC);
 
             assertEquals(BigDecimal.ZERO, result);
         }
@@ -248,9 +246,7 @@ class PricingServiceUnitTest {
         @Test
         @DisplayName("13. Distance null → should return ZERO")
         void whenDistanceIsNull_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
-
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, null, BookingType.HOME_VISIT);
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, null, BookingType.HOME_VISIT);
 
             assertEquals(BigDecimal.ZERO, result);
         }
@@ -258,9 +254,7 @@ class PricingServiceUnitTest {
         @Test
         @DisplayName("14. Distance zero → should return ZERO")
         void whenDistanceIsZero_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
-
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, BigDecimal.ZERO,
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, BigDecimal.ZERO,
                     BookingType.HOME_VISIT);
 
             assertEquals(BigDecimal.ZERO, result);
@@ -269,17 +263,15 @@ class PricingServiceUnitTest {
         @Test
         @DisplayName("15. Distance negative → should return ZERO")
         void whenDistanceIsNegative_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
-
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, new BigDecimal("-5"),
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, new BigDecimal("-5"),
                     BookingType.HOME_VISIT);
 
             assertEquals(BigDecimal.ZERO, result);
         }
 
         @Test
-        @DisplayName("16. Services null → should return ZERO")
-        void whenServicesIsNull_shouldReturnZero() {
+        @DisplayName("16. ClinicId null → should return ZERO")
+        void whenClinicIdIsNull_shouldReturnZero() {
             BigDecimal result = pricingService.calculateBookingDistanceFee(null, new BigDecimal("10"),
                     BookingType.HOME_VISIT);
 
@@ -287,71 +279,34 @@ class PricingServiceUnitTest {
         }
 
         @Test
-        @DisplayName("17. Services empty → should return ZERO")
-        void whenServicesIsEmpty_shouldReturnZero() {
-            BigDecimal result = pricingService.calculateBookingDistanceFee(Collections.emptyList(),
-                    new BigDecimal("10"), BookingType.HOME_VISIT);
-
-            assertEquals(BigDecimal.ZERO, result);
-        }
-
-        @Test
-        @DisplayName("18. Single service → should return distance × pricePerKm")
-        void whenSingleService_shouldCalculateCorrectFee() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
+        @DisplayName("17. Valid params → should return distance × pricePerKm")
+        void whenValidParams_shouldCalculateCorrectFee() {
+            when(clinicPriceService.getPricePerKm(clinicId)).thenReturn(Optional.of(new BigDecimal("20000")));
             BigDecimal distance = new BigDecimal("10");
 
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.HOME_VISIT);
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, distance, BookingType.HOME_VISIT);
 
             assertEquals(new BigDecimal("200000"), result);
         }
 
         @Test
-        @DisplayName("19. Multiple services - should use max pricePerKm")
-        void whenMultipleServices_shouldUseMaxPricePerKm() {
-            List<ClinicService> services = Arrays.asList(
-                    createServiceWithPricePerKm("20000"),
-                    createServiceWithPricePerKm("30000"));
+        @DisplayName("18. Clinic has no pricePerKm → should use default (5000)")
+        void whenNoPricePerKm_shouldUseDefault() {
+            when(clinicPriceService.getPricePerKm(clinicId)).thenReturn(Optional.empty());
             BigDecimal distance = new BigDecimal("10");
 
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.HOME_VISIT);
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, distance, BookingType.HOME_VISIT);
 
-            assertEquals(new BigDecimal("300000"), result);
+            // 10 km × 5000 (default) = 50,000
+            assertEquals(new BigDecimal("50000"), result);
         }
 
         @Test
-        @DisplayName("20. Service with null pricePerKm → should skip and use non-null")
-        void whenServiceHasNullPricePerKm_shouldUseNonNull() {
-            List<ClinicService> services = Arrays.asList(
-                    createServiceWithPricePerKm(null),
-                    createServiceWithPricePerKm("20000"));
-            BigDecimal distance = new BigDecimal("10");
-
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.HOME_VISIT);
-
-            assertEquals(new BigDecimal("200000"), result);
-        }
-
-        @Test
-        @DisplayName("21. All services have null pricePerKm → should return ZERO")
-        void whenAllServicesHaveNullPricePerKm_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(
-                    createServiceWithPricePerKm(null),
-                    createServiceWithPricePerKm(null));
-            BigDecimal distance = new BigDecimal("10");
-
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.HOME_VISIT);
-
-            assertEquals(BigDecimal.ZERO, result);
-        }
-
-        @Test
-        @DisplayName("22. SOS booking type → should return ZERO (only HOME_VISIT charges fee)")
+        @DisplayName("19. SOS booking type → should return ZERO (only HOME_VISIT charges fee)")
         void whenSosBookingType_shouldReturnZero() {
-            List<ClinicService> services = Arrays.asList(createServiceWithPricePerKm("20000"));
             BigDecimal distance = new BigDecimal("10");
 
-            BigDecimal result = pricingService.calculateBookingDistanceFee(services, distance, BookingType.SOS);
+            BigDecimal result = pricingService.calculateBookingDistanceFee(clinicId, distance, BookingType.SOS);
 
             assertEquals(BigDecimal.ZERO, result);
         }

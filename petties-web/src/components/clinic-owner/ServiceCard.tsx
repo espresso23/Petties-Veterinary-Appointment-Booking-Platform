@@ -20,7 +20,6 @@ export interface ClinicService {
   duration: number // in minutes
   isActive: boolean
   isHomeVisit: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   description?: string
@@ -33,7 +32,6 @@ interface ServiceCardProps {
   onDelete: (e: React.MouseEvent) => void
   onToggleStatus: (e: React.MouseEvent) => void
   onToggleHomeVisit?: (e: React.MouseEvent) => void
-  onConfigPricePerKm?: (e: React.MouseEvent) => void
   onClick: () => void
 }
 
@@ -43,7 +41,6 @@ export function ServiceCard({
   onDelete,
   onToggleStatus,
   onToggleHomeVisit,
-  onConfigPricePerKm,
   onClick,
 }: ServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
@@ -153,31 +150,6 @@ export function ServiceCard({
                 <span className="font-black text-lg text-[#FF6B35]">
                   {formattedPrice}
                 </span>
-                {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0 && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="text-[10px] font-black text-green-600 uppercase">
-                      +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                    </div>
-                    {onConfigPricePerKm && (
-                      <button
-                        onClick={onConfigPricePerKm}
-                        style={{
-                          marginLeft: 'auto',
-                          fontSize: '10px',
-                          fontWeight: '900',
-                          backgroundColor: 'rgb(231 229 228)',
-                          padding: '2px 8px',
-                          border: '2px solid black',
-                          textTransform: 'uppercase',
-                          color: 'black'
-                        }}
-                        title="Config giá per km"
-                      >
-                        Sửa
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -292,21 +264,6 @@ export function ServiceCard({
               </div>
             </div>
 
-            {/* Price Per KM (only for home visit services) */}
-            {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0 && (
-              <div className="bg-blue-50 border-b-2 border-black p-3">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="w-5 h-5 text-blue-600" />
-                    <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
-                  </div>
-                  <span className="text-lg font-black text-green-600">
-                    +{service.pricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Weight Price Tiers */}
             <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
               <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Phụ phí theo cân nặng</p>
@@ -339,9 +296,7 @@ export function ServiceCard({
             {/* Footer Note */}
             <div className="bg-gray-100 border-t-2 border-black p-3">
               <p className="text-xs font-bold text-gray-600">
-                {service.isHomeVisit && service.pricePerKm !== undefined && service.pricePerKm > 0
-                  ? 'Giá cuối cùng = Giá cơ bản + Phụ phí cân nặng + Phụ phí di chuyển (KM x giá/KM)'
-                  : 'Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng'}
+                Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng
               </p>
             </div>
           </div>

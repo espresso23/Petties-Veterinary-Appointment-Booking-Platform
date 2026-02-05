@@ -23,7 +23,6 @@ type NotificationType =
   // Booking notifications
   | 'BOOKING_CREATED'
   | 'BOOKING_CONFIRMED'
-  | 'BOOKING_ASSIGNED'
   | 'BOOKING_CANCELLED'
   | 'BOOKING_CHECKIN'
   | 'BOOKING_COMPLETED'
@@ -80,7 +79,7 @@ interface UseSseNotificationOptions {
 interface BookingUpdateData {
   bookingId: string
   bookingCode: string
-  action: 'ASSIGNED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'STAFF_REASSIGNED' | 'SERVICE_ADDED'
+  action: 'CONFIRMED' | 'CHECK_IN' | 'COMPLETED' | 'CANCELLED' | 'STAFF_REASSIGNED' | 'SERVICE_ADDED'
   status: string
   oldStaffId?: string  // For STAFF_REASSIGNED action - the staff being removed
   newStaffId?: string  // For STAFF_REASSIGNED action - the staff being assigned
@@ -188,9 +187,7 @@ export function useSseNotification(
         case 'BOOKING_CREATED':
           showToast('info', message || 'Có lịch hẹn mới cần xác nhận')
           break
-        case 'BOOKING_ASSIGNED':
-          showToast('success', message || 'Bạn được gán lịch hẹn mới')
-          break
+
         case 'BOOKING_CONFIRMED':
           showToast('success', message || 'Lịch hẹn đã được xác nhận')
           break

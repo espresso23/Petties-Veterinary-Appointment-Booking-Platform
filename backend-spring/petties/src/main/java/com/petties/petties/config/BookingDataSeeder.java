@@ -235,7 +235,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                                                 || category == ServiceCategory.GROOMING_SPA
                                                 || category == ServiceCategory.CHECK_UP;
 
-                                service.setPricePerKm(supportsHomeVisit ? BigDecimal.valueOf(5000) : BigDecimal.ZERO);
+                                // pricePerKm is now managed at clinic level via ClinicPriceService
 
                                 // Add weight-based pricing for GROOMING_SPA
                                 if (category == ServiceCategory.GROOMING_SPA) {
@@ -313,9 +313,9 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 // Check if bookings already exist for today to avoid resetting user's work
                 long todayBookingsCount = bookingRepository.countByClinicAndDate(clinic.getClinicId(), today);
-                if (todayBookingsCount > 50) { // Much higher threshold to be sure it seeds
-                        log.info("   🔒 Rich bookings already exist for today ({}), skipping mock booking generation.",
-                                        today);
+                if (todayBookingsCount > 5) { // Skip if already has bookings
+                        log.info("   🔒 Bookings already exist for today ({} bookings), skipping mock booking generation.",
+                                        todayBookingsCount);
                         return;
                 }
 
@@ -609,8 +609,9 @@ public class BookingDataSeeder implements CommandLineRunner {
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
-                // Calculate single distance fee for the whole booking
-                BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
+                // Calculate single distance fee for the whole booking (using clinic-level
+                // pricePerKm)
+                BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,
                                 BookingType.HOME_VISIT);
 
                 // Total price = sum of weight-based service prices + distance fee
@@ -665,7 +666,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
         /**
          * Create a home visit booking with custom status (for testing IN_PROGRESS)
-         * Also assigns staff for ASSIGNED/IN_PROGRESS statuses
+         * Also assigns staff for CONFIRMED/IN_PROGRESS statuses
          */
         private void createBookingWithStatus(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
@@ -678,8 +679,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
-                // Calculate distance fee
-                BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
+                // Calculate distance fee (using clinic-level pricePerKm)
+                BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,
                                 type);
 
                 // Calculate service prices
@@ -690,10 +691,10 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 BigDecimal totalPrice = servicesTotal.add(distanceFee);
 
-                // Find a staff to assign for ASSIGNED/IN_PROGRESS/CONFIRMED/COMPLETED statuses
+                // Find a staff to assign for CONFIRMED/IN_PROGRESS/COMPLETED statuses
                 User assignedStaff = null;
-                if (status == BookingStatus.ASSIGNED || status == BookingStatus.IN_PROGRESS
-                                || status == BookingStatus.CONFIRMED || status == BookingStatus.COMPLETED) {
+                if (status == BookingStatus.CONFIRMED || status == BookingStatus.IN_PROGRESS
+                                || status == BookingStatus.COMPLETED) {
                         String username = (staffUsername != null && !staffUsername.isEmpty()) ? staffUsername : "vet";
                         assignedStaff = userRepository.findByUsername(username).orElse(null);
                         if (assignedStaff == null) {

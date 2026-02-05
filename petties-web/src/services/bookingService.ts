@@ -65,7 +65,6 @@ export const getBookingsByStaff = async (
     if (status) params.append('status', status);
 
     const url = `${BOOKING_API}/staff/${staffId}?${params.toString()}`;
-    console.log(`[API] getBookingsByStaff url=${url}`);
     const response = await axios.get(url);
     return response.data;
 };
@@ -202,7 +201,7 @@ export const getAvailableStaffForConfirm = async (
 
 /**
  * Check-in booking (Staff or Manager)
- * Transitions: ASSIGNED → IN_PROGRESS
+ * Transitions: CONFIRMED → IN_PROGRESS
  */
 export const checkInBooking = async (bookingId: string): Promise<Booking> => {
     const response = await axios.post(`${BOOKING_API}/${bookingId}/check-in`);
@@ -217,3 +216,39 @@ export const completeBooking = async (bookingId: string): Promise<Booking> => {
     const response = await axios.post(`${BOOKING_API}/${bookingId}/complete`);
     return response.data;
 };
+
+/**
+ * Remove an add-on service from booking
+ */
+export const removeServiceFromBooking = async (
+    bookingId: string,
+    serviceId: string
+): Promise<Booking> => {
+    const response = await axios.delete(`${BOOKING_API}/${bookingId}/services/${serviceId}`);
+    return response.data;
+};
+
+// ========== SHARED VISIBILITY ==========
+
+/**
+ * Clinic Today Booking Response - extends Booking with isMyAssignment flag
+ */
+export interface ClinicTodayBooking extends Booking {
+    isMyAssignment: boolean;
+}
+
+/**
+ * Get all bookings for a clinic today - Shared Visibility for Staff
+ * All staff in the clinic can see ALL bookings, with isMyAssignment flag
+ * to identify their own assignments.
+ *
+ * @param clinicId Clinic ID
+ * @returns List of ClinicTodayBooking with isMyAssignment flag
+ */
+export const getClinicTodayBookings = async (
+    clinicId: string
+): Promise<ClinicTodayBooking[]> => {
+    const response = await axios.get(`${BOOKING_API}/clinic/${clinicId}/today`);
+    return response.data;
+};
+

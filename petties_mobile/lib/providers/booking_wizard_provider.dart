@@ -31,7 +31,8 @@ class BookingWizardProvider extends ChangeNotifier {
   // Step 3: Date & Time
   DateTime? _selectedDate;
   String? _selectedTime; // Start time of the booking
-  List<String> _selectedTimeSlots = []; // All selected time slots (for multi-slot bookings)
+  List<String> _selectedTimeSlots =
+      []; // All selected time slots (for multi-slot bookings)
   List<AvailableSlot> _availableSlots = [];
   String? _bookingError;
 
@@ -84,24 +85,19 @@ class BookingWizardProvider extends ChangeNotifier {
   }
 
   /// Calculate distance fee for home visit booking
+  /// Note: Actual distance fee is calculated by backend using clinic-level pricePerKm
+  /// This is an estimate for display purposes only
   double get distanceFee {
     if (_bookingType != BookingType.homeVisit) return 0;
 
-    // Get distance from clinic (in km) - use clinic.distance or calculate
+    // Get distance from clinic (in km)
     final distance = _getDistanceToClinic();
     if (distance <= 0) return 0;
 
-    // Get max pricePerKm from selected home visit services
-    double maxPricePerKm = 0;
-    for (final service in _selectedServices) {
-      if (service.isHomeVisit && service.pricePerKm != null) {
-        if (service.pricePerKm! > maxPricePerKm) {
-          maxPricePerKm = service.pricePerKm!;
-        }
-      }
-    }
-
-    return distance * maxPricePerKm;
+    // Use default rate for display estimate (actual fee calculated by backend)
+    // Backend uses ClinicPriceService.getPricePerKm() for the actual calculation
+    const double defaultPricePerKm = 5000; // VND/km estimate
+    return distance * defaultPricePerKm;
   }
 
   /// Get distance to clinic in km
@@ -224,7 +220,6 @@ class BookingWizardProvider extends ChangeNotifier {
     _userLongitude = longitude;
     notifyListeners();
   }
-
 
   /// Load user's pets
   Future<void> loadMyPets() async {
@@ -454,62 +449,69 @@ class BookingWizardProvider extends ChangeNotifier {
   void selectTime(String time) {
     // Calculate number of slots needed (each slot is 30 minutes)
     final int slotsNeeded = (totalDuration / 30).ceil();
-    
+
     // Find the index of the selected slot
-    final int startIndex = _availableSlots.indexWhere((slot) => slot.startTime == time);
+    final int startIndex =
+        _availableSlots.indexWhere((slot) => slot.startTime == time);
     if (startIndex == -1) {
       debugPrint('Selected slot not found in available slots');
       return;
     }
-    
+
     // Check if we have enough consecutive available slots
     final List<String> requiredSlots = [];
     for (int i = 0; i < slotsNeeded; i++) {
       final int slotIndex = startIndex + i;
-      
+
       // Check if slot exists
       if (slotIndex >= _availableSlots.length) {
-        _bookingError = 'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
+        _bookingError =
+            'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
         notifyListeners();
         // Auto-clear error after 2 seconds
         Future.delayed(const Duration(seconds: 2), () {
-          if (_bookingError == 'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.') {
+          if (_bookingError ==
+              'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.') {
             _bookingError = null;
             notifyListeners();
           }
         });
         return;
       }
-      
+
       final slot = _availableSlots[slotIndex];
-      
+
       // Check if slot is available
       if (!slot.available) {
         if (slot.isBreakTime) {
-          _bookingError = 'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
+          _bookingError =
+              'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
         } else {
-          _bookingError = 'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.';
+          _bookingError =
+              'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.';
         }
         notifyListeners();
         // Auto-clear error after 2 seconds
         Future.delayed(const Duration(seconds: 2), () {
-          if (_bookingError == 'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.' || 
-              _bookingError == 'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.') {
+          if (_bookingError ==
+                  'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.' ||
+              _bookingError ==
+                  'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.') {
             _bookingError = null;
             notifyListeners();
           }
         });
         return;
       }
-      
+
       requiredSlots.add(slot.startTime);
     }
-    
+
     // All slots are available, proceed with selection
     _selectedTime = time;
     _selectedTimeSlots = requiredSlots;
     _bookingError = null;
-    
+
     debugPrint('Auto-selected $slotsNeeded slots: $requiredSlots');
     notifyListeners();
   }

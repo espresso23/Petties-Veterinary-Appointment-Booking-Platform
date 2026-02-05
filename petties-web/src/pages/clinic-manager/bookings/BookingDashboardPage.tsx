@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking } from '../../../services/bookingService';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking } from '../../../services/bookingService';
 import type { StaffOption } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import type { ClinicServiceResponse } from '../../../types/service';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
+import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { useToast } from '../../../components/Toast';
-import { TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, ScaleIcon, TrashIcon } from '@heroicons/react/24/outline';
 import '../../../styles/brutalist.css';
 
 type TabFilter = 'PENDING' | 'CONFIRMED' | 'HISTORY' | 'ALL';
@@ -51,7 +52,6 @@ export const BookingDashboardPage = () => {
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
-    const [selectedServiceToAdd, setSelectedServiceToAdd] = useState<string>('');
     const [addingService, setAddingService] = useState(false);
 
     // Handle bookingId from URL query params (e.g., from schedule page click)
@@ -108,12 +108,12 @@ export const BookingDashboardPage = () => {
                 // Should already be filtered by API, but double check
                 filtered = filtered.filter(b => b.status === 'PENDING');
             } else if (activeTab === 'CONFIRMED') {
-                // Show active bookings: ASSIGNED, IN_PROGRESS, ARRIVED
+                // Show active bookings: CONFIRMED, IN_PROGRESS, ARRIVED
                 // STRICTLY EXCLUDE PENDING
                 filtered = filtered.filter(b =>
-                    b.status === 'ASSIGNED' ||
                     b.status === 'IN_PROGRESS' ||
-                    b.status === 'ARRIVED'
+                    b.status === 'ARRIVED' ||
+                    b.status === 'CONFIRMED'
                 );
             } else if (activeTab === 'HISTORY') {
                 // Show completed/cancelled bookings
@@ -239,7 +239,6 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(updatedBooking);
             await fetchBookings();
             setAddServiceModalOpen(false);
-            setSelectedServiceToAdd('');
             showToast('success', 'Đã thêm dịch vụ thành công');
         } catch (error: any) {
             console.error('Failed to add service:', error);
@@ -410,7 +409,7 @@ export const BookingDashboardPage = () => {
                                     </td>
                                     <td className="p-4 text-center">
                                         {getStatusBadge(booking.status)}
-{/* Show all unique assigned staff from services with avatar */}
+                                        {/* Show all unique assigned staff from services with avatar */}
                                         {(() => {
                                             const staffMembers = new Map<string, { name: string; avatar?: string }>();
 
@@ -504,68 +503,13 @@ export const BookingDashboardPage = () => {
                 />
             )}
             {/* Add-on Service Modal */}
-            {addServiceModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/50 backdrop-blur-sm">
-                    <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] w-full max-w-md overflow-hidden">
-                        <div className="p-4 border-b-4 border-stone-900 bg-stone-50 flex justify-between items-center">
-                            <h2 className="text-xl font-bold uppercase tracking-tight">Thêm dịch vụ phát sinh</h2>
-                            <button onClick={() => setAddServiceModalOpen(false)} className="text-2xl font-bold">&times;</button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-sm text-stone-600 mb-4">
-                                Chọn dịch vụ bổ sung cho đơn hàng. Giá sẽ được tính dựa trên cân nặng của thú cưng hiện tại.
-                            </p>
-
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                {availableServices.length === 0 ? (
-                                    <div className="p-4 text-center text-stone-500 italic border-2 border-dashed border-stone-300">
-                                        Không còn dịch vụ nào khả dụng để thêm
-                                    </div>
-                                ) : (
-                                    availableServices.map((service) => (
-                                        <div
-                                            key={service.serviceId}
-                                            onClick={() => setSelectedServiceToAdd(service.serviceId)}
-                                            className={`p-4 border-2 cursor-pointer transition-all ${selectedServiceToAdd === service.serviceId
-                                                ? 'border-stone-900 bg-amber-50 shadow-[4px_4px_0_#1c1917]'
-                                                : 'border-stone-200 hover:border-stone-400 bg-white'
-                                                }`}
-                                        >
-                                            <div className="flex justify-between items-start mb-1">
-                                                <div className="font-bold">{service.name}</div>
-                                                <div className="font-mono font-bold text-coral-600">
-                                                    {service.basePrice.toLocaleString()}đ
-                                                </div>
-                                            </div>
-                                            <div className="text-xs text-stone-500">
-                                                {service.durationTime} phút - {service.slotsRequired} slot(s)
-                                            </div>
-                                            <div className="mt-2 text-xs font-bold uppercase text-stone-400">
-                                                [{service.serviceCategory ? (SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory) : 'Khác'}]
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                        <div className="p-4 border-t-4 border-stone-900 bg-stone-50 flex justify-end gap-3">
-                            <button
-                                onClick={() => setAddServiceModalOpen(false)}
-                                className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                onClick={() => handleAddService(selectedServiceToAdd)}
-                                disabled={!selectedServiceToAdd || addingService}
-                                className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50"
-                            >
-                                {addingService ? 'Đang thêm...' : 'Xác nhận thêm'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <AddServiceModal
+                isOpen={addServiceModalOpen}
+                onClose={() => setAddServiceModalOpen(false)}
+                availableServices={availableServices}
+                onAddService={handleAddService}
+                isAdding={addingService}
+            />
         </div>
     );
 };
@@ -580,6 +524,7 @@ interface BookingDetailModalProps {
 }
 
 const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+    const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
@@ -676,6 +621,27 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
             }
         } catch (error) {
             console.error('Failed to refresh booking:', error);
+        }
+    };
+
+    const handleRemoveService = async (bookingId: string, serviceId: string) => {
+        if (!window.confirm('Bạn có chắc chắn muốn xóa dịch vụ phát sinh này không?')) {
+            return;
+        }
+
+        try {
+            await removeServiceFromBooking(bookingId, serviceId);
+            showToast('success', 'Đã xóa dịch vụ thành công');
+
+            // Refresh booking
+            const updatedBooking = await getBookingById(bookingId);
+            setBooking(updatedBooking);
+            if (onBookingUpdated) {
+                onBookingUpdated();
+            }
+        } catch (error) {
+            console.error('Failed to remove service:', error);
+            showToast('error', 'Không thể xóa dịch vụ');
         }
     };
 
@@ -779,7 +745,18 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="font-bold">{formatCurrency(service.price)}</div>
+                                        <div className="flex justify-end items-center gap-2">
+                                            <div className="font-bold">{formatCurrency(service.price)}</div>
+                                            {service.isAddOn && (
+                                                <button
+                                                    onClick={() => handleRemoveService(booking.bookingId, service.bookingServiceId!)}
+                                                    className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                                    title="Xóa dịch vụ phát sinh"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                         {/* Pricing Breakdown - always show */}
                                         <div className="text-xs text-stone-500 mt-1">
                                             <div className="flex justify-end items-center gap-1">
@@ -975,8 +952,8 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                         <span className="text-xs text-stone-400 italic">
                                             Chưa phân công bác sĩ
                                         </span>
-                                        {/* Assign button for unassigned services in CONFIRMED/ASSIGNED status */}
-                                        {(booking.status === 'CONFIRMED' || booking.status === 'ASSIGNED') && (
+                                        {/* Assign button for unassigned services in CONFIRMED status */}
+                                        {booking.status === 'CONFIRMED' && (
                                             <button
                                                 onClick={() => handleOpenReassignModal(service)}
                                                 className="px-3 py-1 text-xs font-bold bg-coral-400 text-stone-900 border border-stone-900 hover:bg-coral-500 transition-colors"

@@ -33,8 +33,8 @@ export const StaffLayout = () => {
         onBookingUpdate: (data) => {
             console.log('[StaffLayout] Booking update received:', data)
             // Refresh booking count when booking is assigned to this staff
-            if (data.action === 'ASSIGNED') {
-                // For ASSIGNED action, just refresh the count (the staff received this because they were assigned)
+            if (data.action === 'CONFIRMED') {
+                // For CONFIRMED action, just refresh the count (the staff received this because they were assigned)
                 if (user?.userId) {
                     refreshAssignedBookingCount(user.userId)
                 }
