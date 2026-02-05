@@ -4,6 +4,7 @@ import com.petties.petties.dto.emr.CreateEmrRequest;
 import com.petties.petties.dto.emr.EmrResponse;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
@@ -61,15 +62,28 @@ class EmrServiceUnitTest {
         request.setAssessment("A");
         request.setPlan("P");
 
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(UUID.randomUUID());
+        clinic.setName("Test Clinic");
+
         User vet = new User();
         vet.setUserId(vetId);
         vet.setFullName("Dr. Vet");
+        vet.setWorkingClinic(clinic);
 
         Pet pet = new Pet();
         pet.setId(petId);
         pet.setName("Pet Name");
 
         when(userRepository.findById(vetId)).thenReturn(Optional.of(vet));
+
+        // Mock booking for Shared Visibility validation
+        com.petties.petties.model.Booking booking = new com.petties.petties.model.Booking();
+        booking.setBookingId(bookingId);
+        booking.setStatus(com.petties.petties.model.enums.BookingStatus.IN_PROGRESS);
+        booking.setClinic(clinic);
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
         // Note: existsByBookingId check removed - multiple EMRs per booking allowed
         when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
         when(emrRecordRepository.save(any(EmrRecord.class))).thenAnswer(i -> {

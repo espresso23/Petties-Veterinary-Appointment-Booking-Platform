@@ -982,12 +982,10 @@ class BookingControllerUnitTest {
                 // Mock User (since controller resolves current user)
                 UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
                 setupUserPrincipalAuth(userId);
-                // Note: user lookup is done in controller via userRepository, but
-                // setupUserPrincipalAuth mocks the context.
-                // We also need valid user in repository for the controller to find it.
+                // Note: controller calls bookingService.getCurrentUserById(userId) to get User
                 com.petties.petties.model.User mockUser = new com.petties.petties.model.User();
                 mockUser.setUserId(userId);
-                when(userRepository.findById(userId)).thenReturn(java.util.Optional.of(mockUser));
+                when(bookingService.getCurrentUserById(userId)).thenReturn(mockUser);
 
                 when(bookingService.addServiceToBooking(eq(bookingId), eq(serviceId),
                                 any(com.petties.petties.model.User.class)))
@@ -998,8 +996,8 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.services[-1].serviceName").value("New Service"))
-                                .andExpect(jsonPath("$.services[-1].isAddOn").value(true));
+                                .andExpect(jsonPath("$.services[1].serviceName").value("New Service"))
+                                .andExpect(jsonPath("$.services[1].isAddOn").value(true));
         }
 
         // ==================== REMOVE SERVICE FROM BOOKING TESTS ====================

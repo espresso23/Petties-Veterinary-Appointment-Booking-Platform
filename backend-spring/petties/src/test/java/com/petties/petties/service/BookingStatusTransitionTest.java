@@ -2,6 +2,7 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Pet;
@@ -54,6 +55,12 @@ class BookingStatusTransitionTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private BookingMapper bookingMapper;
+
+    @Mock
+    private BookingNotificationService bookingNotificationService;
+
     @InjectMocks
     private BookingService bookingService;
 
@@ -97,6 +104,18 @@ class BookingStatusTransitionTest {
         testBooking.setType(BookingType.HOME_VISIT);
         testBooking.setStatus(BookingStatus.CONFIRMED);
         testBooking.setBookingServices(new ArrayList<>());
+
+        // Mock bookingMapper to return non-null response (lenient to avoid
+        // UnnecessaryStubbingException)
+        lenient().when(bookingMapper.mapToResponse(any(Booking.class))).thenAnswer(invocation -> {
+            Booking b = invocation.getArgument(0);
+            return BookingResponse.builder()
+                    .bookingId(b.getBookingId())
+                    .bookingCode(b.getBookingCode())
+                    .status(b.getStatus())
+                    .type(b.getType())
+                    .build();
+        });
     }
 
     // ========== CHECK-IN TESTS ==========
