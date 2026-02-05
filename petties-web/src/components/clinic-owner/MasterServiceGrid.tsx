@@ -16,7 +16,6 @@ import {
   deleteMasterService,
 } from '../../services/endpoints/masterService'
 import { inheritFromMasterService } from '../../services/endpoints/service'
-import { getServicesByClinicId } from '../../services/endpoints/service'
 import { useToast } from '../Toast'
 import { ClinicSelectModal } from './ClinicSelectModal'
 import type { ClinicApplyItem } from './ClinicSelectModal'
@@ -319,14 +318,8 @@ export function MasterServiceGrid() {
                             fetchedPriceMap[c.clinicId] = p
                             return
                           }
-                          // fallback: try to infer from existing services
-                          try {
-                            const existingServices = await getServicesByClinicId(c.clinicId)
-                            const hv = existingServices.find(s => s.isHomeVisit && s.pricePerKm && Number(s.pricePerKm) > 0)
-                            if (hv && hv.pricePerKm) fetchedPriceMap[c.clinicId] = hv.pricePerKm
-                          } catch (err2) {
-                            console.warn('Failed to fetch existing services for clinic', c.clinicId, err2)
-                          }
+                          // Note: pricePerKm has been removed from ClinicServiceResponse
+                          // Fallback is no longer available - use clinic-level setting only
                         } catch (err) {
                           console.warn('Failed to fetch price-per-km for clinic', c.clinicId, err)
                         }

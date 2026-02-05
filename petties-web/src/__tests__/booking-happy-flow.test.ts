@@ -61,7 +61,8 @@ describe('Booking Happy Flow - End-to-End', () => {
   const mockClinicSearchResponse: ClinicListResponse = {
     content: [
       {
-        id: 'clinic-001',
+        clinicId: 'clinic-001',
+        ownerId: 'owner-001',
         name: 'Phòng Khám Thú Y Petties',
         address: '123 Đường ABC, Quận 1, TP.HCM',
         phone: '0901234567',
@@ -70,20 +71,23 @@ describe('Booking Happy Flow - End-to-End', () => {
         latitude: 10.762622,
         longitude: 106.660172,
         status: 'APPROVED',
-        logoUrl: 'https://example.com/logo.png',
+        ratingAvg: 4.5,
+        ratingCount: 100,
         images: [],
         createdAt: '2024-01-01T00:00:00',
-        updatedAt: '2024-01-01T00:00:00',
       },
     ],
     totalElements: 1,
     totalPages: 1,
     size: 20,
     number: 0,
+    first: true,
+    last: true,
   }
 
   const mockClinicDetail: ClinicResponse = {
-    id: 'clinic-001',
+    clinicId: 'clinic-001',
+    ownerId: 'owner-001',
     name: 'Phòng Khám Thú Y Petties',
     address: '123 Đường ABC, Quận 1, TP.HCM',
     phone: '0901234567',
@@ -92,10 +96,10 @@ describe('Booking Happy Flow - End-to-End', () => {
     latitude: 10.762622,
     longitude: 106.660172,
     status: 'APPROVED',
-    logoUrl: 'https://example.com/logo.png',
+    ratingAvg: 4.5,
+    ratingCount: 100,
     images: [],
     createdAt: '2024-01-01T00:00:00',
-    updatedAt: '2024-01-01T00:00:00',
   }
 
   const mockPets: Pet[] = [
@@ -242,7 +246,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
     // Assert
     expect(clinicService.getClinicById).toHaveBeenCalledWith('clinic-001')
-    expect(result.id).toBe('clinic-001')
+    expect(result.clinicId).toBe('clinic-001')
     expect(result.name).toBe('Phòng Khám Thú Y Petties')
     expect(result.phone).toBe('0901234567')
   })
@@ -364,7 +368,7 @@ describe('Booking Happy Flow - End-to-End', () => {
     // Step 1: Search clinic
     vi.mocked(clinicService.searchClinics).mockResolvedValue(mockClinicSearchResponse)
     const clinics = await clinicService.searchClinics('Petties')
-    expect(clinics.content[0].id).toBe('clinic-001')
+    expect(clinics.content[0].clinicId).toBe('clinic-001')
 
     // Step 2: Get clinic details
     vi.mocked(clinicService.getClinicById).mockResolvedValue(mockClinicDetail)

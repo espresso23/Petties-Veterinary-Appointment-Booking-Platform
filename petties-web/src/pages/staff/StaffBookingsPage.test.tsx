@@ -53,9 +53,12 @@ describe('StaffBookingsPage - Add Service Feature', () => {
         petName: 'Mimi',
         petSpecies: 'CAT',
         petBreed: 'Persian',
+        petAge: 'N/A',
         petPhotoUrl: '',
+        ownerId: 'owner-001',
         ownerName: 'Nguyễn Văn A',
         ownerPhone: '0909123456',
+        ownerEmail: 'owner@example.com',
         clinicId: 'clinic-001',
         clinicName: 'Petties Clinic',
         services: [
@@ -70,6 +73,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             }
         ],
         totalPrice: 200000,
+        createdAt: '2025-02-03T09:00:00',
         ...overrides
     })
 

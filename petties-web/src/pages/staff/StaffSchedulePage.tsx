@@ -9,7 +9,6 @@ import {
     CalendarIcon,
     MoonIcon,
     ArrowRightIcon,
-    ArrowLeftIcon,
     LockClosedIcon,
     ChevronLeftIcon,
     ChevronRightIcon,

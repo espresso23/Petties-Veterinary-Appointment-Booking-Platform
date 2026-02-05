@@ -270,19 +270,7 @@ export const ServicesViewPage = () => {
                                 </div>
                             </div>
 
-                            {/* Price Per KM */}
-                            {selectedService.isHomeVisit && selectedService.pricePerKm && selectedService.pricePerKm > 0 && (
-                                <div className="bg-stone-900 border-2 border-stone-900 rounded-xl p-4 shadow-[3px_3px_0_#d97706]">
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-bold text-stone-400 uppercase text-xs flex items-center gap-1">
-                                            <HomeIcon className="w-4 h-4" /> Phí di chuyển
-                                        </span>
-                                        <span className="text-xl font-bold text-amber-400">
-                                            +{new Intl.NumberFormat('vi-VN').format(selectedService.pricePerKm)}đ/km
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Price Per KM - Removed: pricePerKm no longer exists on ClinicServiceResponse */}
 
                             {/* Weight Prices */}
                             {selectedService.weightPrices && selectedService.weightPrices.length > 0 && (
