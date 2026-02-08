@@ -24,6 +24,25 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "bookings")
+@NamedEntityGraph(
+        name = "Booking.withDetails",
+        attributeNodes = {
+                @NamedAttributeNode("pet"),
+                @NamedAttributeNode("petOwner"),
+                @NamedAttributeNode("clinic"),
+                @NamedAttributeNode("assignedStaff"),
+                @NamedAttributeNode(value = "bookingServices", subgraph = "bsItem")
+        },
+        subgraphs = @NamedSubgraph(
+                name = "bsItem",
+                type = BookingServiceItem.class,
+                attributeNodes = {
+                        @NamedAttributeNode("pet"),
+                        @NamedAttributeNode("service"),
+                        @NamedAttributeNode("assignedStaff")
+                }
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor

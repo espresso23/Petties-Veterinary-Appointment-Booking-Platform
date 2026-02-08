@@ -6,12 +6,12 @@ import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
+import com.petties.petties.dto.booking.PetServiceItemRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
 import com.petties.petties.dto.booking.UpcomingBookingDTO;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
-import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
@@ -37,7 +37,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +61,6 @@ public class BookingService {
         private final NotificationService notificationService;
         private final PricingService pricingService;
         private final BookingServiceItemRepository bookingServiceItemRepository;
-        private final SseEmitterService sseEmitterService;
-        private final EmrRecordRepository emrRecordRepository;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
 
@@ -120,89 +117,122 @@ public class BookingService {
         // ========== CREATE BOOKING ==========
 
         /**
-         * Create a new booking (from pet owner)
+         * Create a new booking (from pet owner).
+         * Supports single-pet (petId + serviceIds) and multi-pet (items: list of petId + serviceIds).
          */
         @Transactional
         public BookingResponse createBooking(BookingRequest request, UUID petOwnerId) {
-                log.info("Creating booking for pet {} at clinic {}", request.getPetId(), request.getClinicId());
+                log.info("Creating booking at clinic {}", request.getClinicId());
 
-                // Fetch services
                 try {
-                        log.info("Starting createBooking for clinic: {}, pet: {}", request.getClinicId(),
-                                        request.getPetId());
+                        // Resolve (primaryPet, list of (pet, service)) and validate
+                        List<PetServiceItemRequest> items = request.getItems();
+                        boolean multiPet = items != null && !items.isEmpty();
 
-                        // Validate and fetch entities
-                        Pet pet = petRepository.findById(request.getPetId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
-                        log.debug("Pet found: {}", pet.getId());
+                        if (multiPet) {
+                                if (items.stream().anyMatch(
+                                                it -> it.getPetId() == null || it.getServiceIds() == null
+                                                                || it.getServiceIds().isEmpty())) {
+                                        throw new BadRequestException(
+                                                        "Mỗi mục phải có mã thú cưng và ít nhất một dịch vụ");
+                                }
+                        } else {
+                                if (request.getPetId() == null || request.getServiceIds() == null
+                                                || request.getServiceIds().isEmpty()) {
+                                        throw new BadRequestException(
+                                                        "Vui lòng gửi mã thú cưng và danh sách dịch vụ, hoặc dùng items cho đặt nhiều thú cưng");
+                                }
+                        }
 
                         User petOwner = userRepository.findById(petOwnerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException(
-                                                        "Không tìm thấy chủ thú cưng"));
-                        log.debug("Pet owner found: {}", petOwner.getUserId());
-
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
-                        log.debug("Clinic found: {}", clinic.getClinicId());
-                        List<ClinicService> services = clinicServiceRepository
-                                        .findAllById(request.getServiceIds());
-                        if (services.isEmpty()) {
-                                throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
-                        }
-                        if (services.size() != request.getServiceIds().size()) {
-                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
-                        }
-                        log.debug("Found {} services", services.size());
 
-                        // Home Visit Validation: All services must support home visits and share the
-                        // same specialty
-                        if (request.getType() == BookingType.HOME_VISIT
-                                        || request.getType() == BookingType.SOS) {
-                                log.debug("Booking type is HOME_VISIT or SOS, performing home visit validations.");
+                        List<Pet> petsToUse = new ArrayList<>();
+                        List<ClinicService> servicesToUse = new ArrayList<>();
+                        UUID primaryPetId;
 
-                                // 1. Check isHomeVisit flag
-                                List<String> ineligibleServices = services.stream()
+                        if (multiPet) {
+                                primaryPetId = items.get(0).getPetId();
+                                Set<UUID> allServiceIds = new java.util.HashSet<>();
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId())
+                                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                                        "Không tìm thấy thú cưng: " + it.getPetId()));
+                                        if (!p.getUser().getUserId().equals(petOwnerId)) {
+                                                throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                        }
+                                        allServiceIds.addAll(it.getServiceIds());
+                                }
+                                List<ClinicService> clinicServices = clinicServiceRepository.findAllById(allServiceIds);
+                                Map<UUID, ClinicService> serviceMap = clinicServices.stream()
+                                                .collect(Collectors.toMap(ClinicService::getServiceId, s -> s));
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId()).orElseThrow();
+                                        for (UUID sid : it.getServiceIds()) {
+                                                ClinicService svc = serviceMap.get(sid);
+                                                if (svc == null) {
+                                                        throw new ResourceNotFoundException("Dịch vụ không tồn tại: " + sid);
+                                                }
+                                                if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                        throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                                }
+                                                petsToUse.add(p);
+                                                servicesToUse.add(svc);
+                                        }
+                                }
+                        } else {
+                                Pet pet = petRepository.findById(request.getPetId())
+                                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
+                                if (!pet.getUser().getUserId().equals(petOwnerId)) {
+                                        throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                }
+                                primaryPetId = pet.getId();
+                                List<ClinicService> services = clinicServiceRepository.findAllById(request.getServiceIds());
+                                if (services.isEmpty()) {
+                                        throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
+                                }
+                                if (services.size() != request.getServiceIds().size()) {
+                                        throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                                }
+                                for (ClinicService s : services) {
+                                        if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                        }
+                                        petsToUse.add(pet);
+                                        servicesToUse.add(s);
+                                }
+                        }
+
+                        Pet primaryPet = petRepository.findById(primaryPetId).orElseThrow();
+
+                        // Home Visit Validation
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = servicesToUse.stream()
                                                 .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
                                                 .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
-
                                 if (!ineligibleServices.isEmpty()) {
-                                        throw new IllegalArgumentException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
                                                         + String.join(", ", ineligibleServices));
                                 }
-                                log.debug("All services support home visits.");
-
-                                // 2. Check specialty consistency
-                                // REMOVED: Allow multi-specialty for Home Visit as requested.
-                                // StaffAssignmentService will handle assigning multiple staff if needed.
-                                log.debug("Multi-specialty check skipped for Home Visit to support multi-staff assignment.");
                         }
 
-                        // Calculate total price using PricingService
-                        // 1. Sum weight-based prices for all services
+                        // Calculate total price: sum over (pet, service) with weight-based price
                         BigDecimal servicesTotal = BigDecimal.ZERO;
-                        for (ClinicService service : services) {
-                                BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
-                                servicesTotal = servicesTotal.add(servicePrice);
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService svc = servicesToUse.get(i);
+                                servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, p));
                         }
-                        log.debug("Services total price: {}", servicesTotal);
-
-                        // 2. Calculate single distance fee for the whole booking (using clinic-level
-                        // pricePerKm)
                         BigDecimal distanceKm = request.getDistanceKm();
                         BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
-                                        distanceKm,
-                                        request.getType());
-                        log.debug("Distance fee calculated: {}", distanceFee);
-
-                        // 3. Final total
+                                        distanceKm, request.getType());
                         BigDecimal totalPrice = servicesTotal.add(distanceFee);
-                        log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
-                                        distanceFee);
 
-                        // Build booking entity
                         Booking booking = Booking.builder()
-                                        .pet(pet)
+                                        .pet(primaryPet)
                                         .petOwner(petOwner)
                                         .clinic(clinic)
                                         .bookingDate(request.getBookingDate())
@@ -217,19 +247,19 @@ public class BookingService {
                                         .homeLong(request.getHomeLong())
                                         .distanceKm(distanceKm)
                                         .build();
-                        log.debug("Booking entity built.");
 
-                        // Add service items with calculated prices (including pricing breakdown)
-                        for (ClinicService service : services) {
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService service = servicesToUse.get(i);
                                 BigDecimal basePrice = service.getBasePrice();
-                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
-
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, p);
                                 BookingServiceItem item = BookingServiceItem.builder()
                                                 .booking(booking)
+                                                .pet(p)
                                                 .service(service)
-                                                .unitPrice(weightPrice) // Use weight-based price as unit price
-                                                .basePrice(basePrice) // Store original base price for display
-                                                .weightPrice(weightPrice) // Store calculated weight-based price
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
                                                 .quantity(1)
                                                 .isAddOn(false)
                                                 .build();

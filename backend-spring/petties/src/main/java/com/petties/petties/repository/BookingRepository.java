@@ -5,6 +5,7 @@ import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -129,8 +130,10 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         // ========== FIND BY OWNER ==========
 
         /**
-         * Find all bookings for a pet owner with pagination
+         * Find all bookings for a pet owner with pagination.
+         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
          */
+        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
         @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
         Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
 

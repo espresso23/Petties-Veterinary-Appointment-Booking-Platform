@@ -72,8 +72,11 @@ public class BookingResponse {
     private BigDecimal totalPrice;
     private String notes;
 
-    // ========== SERVICES ==========
-    private List<BookingServiceItemResponse> services;
+    /**
+     * Danh sách thú cưng trong booking (multi-pet), mỗi pet kèm danh sách dịch vụ của pet đó.
+     * Thuận tiện cho màn "Lịch của tôi" khi hiển thị nhiều pet với nhiều dịch vụ khác nhau.
+     */
+    private List<PetInBookingSummary> pets;
 
     // ========== HOME VISIT INFO ==========
     private String homeAddress;
@@ -112,6 +115,10 @@ public class BookingResponse {
         private String assignedStaffAvatarUrl;
         private String assignedStaffSpecialty;
 
+        // Pet this service is for (multi-pet booking)
+        private UUID petId;
+        private String petName;
+
         // Scheduled time for this service
         @com.fasterxml.jackson.annotation.JsonFormat(pattern = "HH:mm:ss")
         private LocalTime scheduledStartTime;
@@ -120,5 +127,18 @@ public class BookingResponse {
         private LocalTime scheduledEndTime;
 
         private Boolean isAddOn;
+    }
+
+    /**
+     * Tóm tắt một thú cưng trong booking (multi-pet) kèm danh sách dịch vụ của pet đó.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PetInBookingSummary {
+        private UUID petId;
+        private String petName;
+        private List<BookingServiceItemResponse> services;
     }
 }

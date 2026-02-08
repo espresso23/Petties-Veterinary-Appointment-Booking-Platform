@@ -97,6 +97,17 @@ class BookingControllerUnitTest {
         // ==================== HELPER METHODS ====================
 
         private BookingResponse createMockBookingResponse() {
+                List<BookingResponse.BookingServiceItemResponse> oneService = List.of(
+                                BookingResponse.BookingServiceItemResponse.builder()
+                                                .bookingServiceId(UUID.randomUUID())
+                                                .serviceId(UUID.randomUUID())
+                                                .serviceName("Khám tổng quát")
+                                                .price(new BigDecimal("200000"))
+                                                .slotsRequired(2)
+                                                .durationMinutes(30)
+                                                .scheduledStartTime(LocalTime.of(9, 30))
+                                                .scheduledEndTime(LocalTime.of(10, 30))
+                                                .build());
                 return BookingResponse.builder()
                                 .bookingId(UUID.randomUUID())
                                 .bookingCode("B-20250115-001")
@@ -117,17 +128,13 @@ class BookingControllerUnitTest {
                                 .type(BookingType.IN_CLINIC)
                                 .status(BookingStatus.PENDING)
                                 .totalPrice(new BigDecimal("500000"))
-                                .services(List.of(
-                                                BookingResponse.BookingServiceItemResponse.builder()
-                                                                .bookingServiceId(UUID.randomUUID())
-                                                                .serviceId(UUID.randomUUID())
-                                                                .serviceName("Khám tổng quát")
-                                                                .price(new BigDecimal("200000"))
-                                                                .slotsRequired(2)
-                                                                .durationMinutes(30)
-                                                                .scheduledStartTime(LocalTime.of(9, 30))
-                                                                .scheduledEndTime(LocalTime.of(10, 30))
-                                                                .build()))
+                                .pets(List.of(
+                                                BookingResponse.PetInBookingSummary.builder()
+                                                                .petId(UUID.randomUUID())
+                                                                .petName("Buddy")
+                                                                .services(oneService)
+                                                                .build())
+                                )
                                 .createdAt(LocalDateTime.now())
                                 .build();
         }
@@ -191,10 +198,12 @@ class BookingControllerUnitTest {
         }
 
         @Test
-        @DisplayName("TC-BOOKING-CREATE-002: Create booking without petId - Returns 400")
+        @DisplayName("TC-BOOKING-CREATE-002: Create booking without petId and without items - Returns 400")
         @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
         void createBooking_missingPetId_returns400() throws Exception {
-                // Arrange - Request without petId
+                // Arrange - Request without petId and without items (single-pet requires petId)
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
                 BookingRequest request = BookingRequest.builder()
                                 .clinicId(UUID.randomUUID())
                                 .bookingDate(LocalDate.of(2025, 1, 20))
@@ -203,13 +212,17 @@ class BookingControllerUnitTest {
                                 .serviceIds(List.of(UUID.randomUUID()))
                                 .build();
 
+                when(bookingService.createBooking(any(BookingRequest.class), eq(userId)))
+                                .thenThrow(new com.petties.petties.exception.BadRequestException(
+                                                "Vui lòng gửi mã thú cưng và danh sách dịch vụ, hoặc dùng items cho đặt nhiều thú cưng"));
+
                 // Act & Assert
                 mockMvc.perform(post("/bookings")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isBadRequest());
 
-                verify(bookingService, never()).createBooking(any(), any());
+                verify(bookingService).createBooking(any(BookingRequest.class), eq(userId));
         }
 
         @Test
@@ -401,7 +414,7 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.bookingCode").value("B-20250115-001"))
                                 .andExpect(jsonPath("$.petName").value("Buddy"))
-                                .andExpect(jsonPath("$.services").isArray());
+                                .andExpect(jsonPath("$.pets").isArray());
 
                 verify(bookingService).getBookingById(bookingId);
         }
@@ -863,8 +876,8 @@ class BookingControllerUnitTest {
                                 .build();
 
                 BookingResponse response = createMockBookingResponse();
-                response.getServices().get(0).setAssignedStaffId(newStaffId);
-                response.getServices().get(0).setAssignedStaffName("BS. Nguyễn Văn D");
+                response.getPets().get(0).getServices().get(0).setAssignedStaffId(newStaffId);
+                response.getPets().get(0).getServices().get(0).setAssignedStaffName("BS. Nguyễn Văn D");
 
                 when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenReturn(response);
@@ -874,7 +887,7 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.services[0].assignedStaffName").value("BS. Nguyễn Văn D"));
+                                .andExpect(jsonPath("$.pets[0].services[0].assignedStaffName").value("BS. Nguyễn Văn D"));
 
                 verify(bookingService).reassignStaffForService(bookingId, serviceId, newStaffId);
         }
@@ -975,9 +988,14 @@ class BookingControllerUnitTest {
                                 .build();
 
                 List<BookingResponse.BookingServiceItemResponse> updatedServices = new java.util.ArrayList<>(
-                                response.getServices());
+                                response.getPets().get(0).getServices());
                 updatedServices.add(newService);
-                response.setServices(updatedServices);
+                response.setPets(List.of(
+                                BookingResponse.PetInBookingSummary.builder()
+                                                .petId(response.getPets().get(0).getPetId())
+                                                .petName(response.getPets().get(0).getPetName())
+                                                .services(updatedServices)
+                                                .build()));
 
                 // Mock User (since controller resolves current user)
                 UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -996,8 +1014,8 @@ class BookingControllerUnitTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.services[1].serviceName").value("New Service"))
-                                .andExpect(jsonPath("$.services[1].isAddOn").value(true));
+                                .andExpect(jsonPath("$.pets[0].services[1].serviceName").value("New Service"))
+                                .andExpect(jsonPath("$.pets[0].services[1].isAddOn").value(true));
         }
 
         // ==================== REMOVE SERVICE FROM BOOKING TESTS ====================
@@ -1011,14 +1029,19 @@ class BookingControllerUnitTest {
                 UUID serviceId = UUID.randomUUID();
 
                 BookingResponse response = createMockBookingResponse(); // Has 1 service initially
-                response.setServices(Collections.emptyList()); // Service removed
+                response.setPets(List.of(
+                                BookingResponse.PetInBookingSummary.builder()
+                                                .petId(response.getPets().get(0).getPetId())
+                                                .petName(response.getPets().get(0).getPetName())
+                                                .services(Collections.emptyList())
+                                                .build())); // Service removed
 
                 when(bookingService.removeServiceFromBooking(bookingId, serviceId)).thenReturn(response);
 
                 // Act & Assert
                 mockMvc.perform(delete("/bookings/{bookingId}/services/{serviceId}", bookingId, serviceId))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.services").isEmpty());
+                                .andExpect(jsonPath("$.pets[0].services").isEmpty());
 
                 verify(bookingService).removeServiceFromBooking(bookingId, serviceId);
         }

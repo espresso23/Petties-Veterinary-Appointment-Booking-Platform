@@ -2,6 +2,7 @@ package com.petties.petties.dto.booking;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petties.petties.model.enums.BookingType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Request DTO for creating a new booking
+ * Request DTO for creating a new booking.
+ * Supports single-pet (petId + serviceIds) and multi-pet (items: list of pet + serviceIds).
  */
 @Data
 @Builder
@@ -23,7 +25,9 @@ import java.util.UUID;
 @AllArgsConstructor
 public class BookingRequest {
 
-    @NotNull(message = "Mã thú cưng không được để trống")
+    /**
+     * Single-pet mode: one pet for the whole booking. Required when items is null or empty.
+     */
     private UUID petId;
 
     @NotNull(message = "Mã phòng khám không được để trống")
@@ -41,10 +45,16 @@ public class BookingRequest {
     private BookingType type;
 
     /**
-     * List of service IDs to book
+     * Single-pet mode: list of service IDs. Required when items is null or empty.
      */
-    @NotNull(message = "Vui lòng chọn ít nhất một dịch vụ")
     private List<UUID> serviceIds;
+
+    /**
+     * Multi-pet mode: each item = one pet + list of service IDs.
+     * When non-null and non-empty, items is used and petId/serviceIds are ignored.
+     */
+    @Valid
+    private List<PetServiceItemRequest> items;
 
     /**
      * For Home Visit / SOS bookings

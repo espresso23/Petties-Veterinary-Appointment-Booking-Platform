@@ -2,6 +2,7 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.PetServiceItemRequest;
 import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -78,6 +80,7 @@ class BookingServiceRetryLogicTest {
         petOwner = new User();
         petOwner.setUserId(UUID.randomUUID());
         petOwner.setRole(Role.PET_OWNER);
+        pet.setUser(petOwner);
 
         clinic = new Clinic();
         clinic.setClinicId(UUID.randomUUID());
@@ -87,6 +90,7 @@ class BookingServiceRetryLogicTest {
         service.setName("Vaccination");
         service.setBasePrice(new BigDecimal("100000"));
         service.setServiceCategory(ServiceCategory.VACCINATION);
+        service.setClinic(clinic);
 
         // Mock bookingMapper to return non-null response (lenient to avoid
         // UnnecessaryStubbingException)
@@ -266,6 +270,59 @@ class BookingServiceRetryLogicTest {
             var inOrder = inOrder(bookingRepository, notificationService);
             inOrder.verify(bookingRepository).save(any(Booking.class));
             inOrder.verify(notificationService).sendBookingNotificationToClinic(any());
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-14: Multi-pet booking - each BookingServiceItem has correct pet")
+        void createBooking_multiPet_setsPetOnEachItem() {
+            // Arrange: two pets, two services (pet1 -> svc1, pet2 -> svc2)
+            Pet pet2 = new Pet();
+            pet2.setId(UUID.randomUUID());
+            pet2.setWeight(3.0);
+            pet2.setUser(petOwner);
+
+            com.petties.petties.model.ClinicService service2 = new com.petties.petties.model.ClinicService();
+            service2.setServiceId(UUID.randomUUID());
+            service2.setName("Khám tổng quát");
+            service2.setClinic(clinic);
+
+            when(petRepository.findById(pet.getId())).thenReturn(Optional.of(pet));
+            when(petRepository.findById(pet2.getId())).thenReturn(Optional.of(pet2));
+            when(userRepository.findById(any())).thenReturn(Optional.of(petOwner));
+            when(clinicRepository.findById(any())).thenReturn(Optional.of(clinic));
+            when(clinicServiceRepository.findAllById(any())).thenReturn(List.of(service, service2));
+            when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("150000"));
+            when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+            when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
+            when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());
+
+            Booking savedBooking = Booking.builder()
+                    .bookingCode("BK-20260208-0001")
+                    .build();
+            when(bookingRepository.save(any(Booking.class))).thenReturn(savedBooking);
+
+            BookingRequest request = new BookingRequest();
+            request.setClinicId(clinic.getClinicId());
+            request.setBookingDate(LocalDate.of(2026, 2, 8));
+            request.setBookingTime(LocalTime.of(9, 0));
+            request.setType(BookingType.IN_CLINIC);
+            request.setItems(List.of(
+                    PetServiceItemRequest.builder().petId(pet.getId()).serviceIds(List.of(service.getServiceId())).build(),
+                    PetServiceItemRequest.builder().petId(pet2.getId()).serviceIds(List.of(service2.getServiceId())).build()
+            ));
+
+            // Act
+            bookingService.createBooking(request, petOwner.getUserId());
+
+            // Assert: captured booking has 2 items, first item has pet, second has pet2
+            ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
+            verify(bookingRepository).save(captor.capture());
+            Booking saved = captor.getValue();
+            assertNotNull(saved.getBookingServices());
+            assertEquals(2, saved.getBookingServices().size());
+            assertEquals(pet.getId(), saved.getBookingServices().get(0).getPet().getId());
+            assertEquals(pet2.getId(), saved.getBookingServices().get(1).getPet().getId());
+            assertEquals(pet.getId(), saved.getPet().getId()); // primary pet = first in items
         }
     }
 }

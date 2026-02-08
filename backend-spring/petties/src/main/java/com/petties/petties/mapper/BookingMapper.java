@@ -21,7 +21,9 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -64,6 +66,7 @@ public class BookingMapper {
             List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
             for (BookingServiceItem item : booking.getBookingServices()) {
+                Pet itemPet = item.getPet() != null ? item.getPet() : booking.getPet();
                 User itemStaff = item.getAssignedStaff();
                 int durationMinutes = item.getService().getDurationTime() != null
                         ? item.getService().getDurationTime()
@@ -96,12 +99,32 @@ public class BookingMapper {
                                 itemStaff != null && itemStaff.getSpecialty() != null
                                         ? itemStaff.getSpecialty().name()
                                         : null)
+                        .petId(itemPet != null ? itemPet.getId() : null)
+                        .petName(itemPet != null ? itemPet.getName() : null)
                         .scheduledStartTime(startTime)
                         .scheduledEndTime(endTime)
                         .isAddOn(isAddOn)
                         .build());
 
                 currentTime = endTime;
+            }
+
+            // Nhóm dịch vụ theo pet cho multi-pet (pets list)
+            Map<UUID, List<BookingResponse.BookingServiceItemResponse>> byPet = new LinkedHashMap<>();
+            for (BookingResponse.BookingServiceItemResponse sr : serviceResponses) {
+                UUID key = sr.getPetId() != null ? sr.getPetId() : UUID.fromString("00000000-0000-0000-0000-000000000000");
+                byPet.computeIfAbsent(key, k -> new ArrayList<>()).add(sr);
+            }
+            List<BookingResponse.PetInBookingSummary> pets = new ArrayList<>();
+            for (Map.Entry<UUID, List<BookingResponse.BookingServiceItemResponse>> e : byPet.entrySet()) {
+                List<BookingResponse.BookingServiceItemResponse> svcList = e.getValue();
+                UUID pid = svcList.get(0).getPetId();
+                String pname = svcList.get(0).getPetName();
+                pets.add(BookingResponse.PetInBookingSummary.builder()
+                        .petId(pid)
+                        .petName(pname != null ? pname : "N/A")
+                        .services(svcList)
+                        .build());
             }
 
             return BookingResponse.builder()
@@ -151,7 +174,7 @@ public class BookingMapper {
                     .status(booking.getStatus())
                     .totalPrice(booking.getTotalPrice())
                     .notes(booking.getNotes())
-                    .services(serviceResponses)
+                    .pets(pets)
                     // Home visit info
                     .homeAddress(booking.getHomeAddress())
                     .homeLat(booking.getHomeLat())

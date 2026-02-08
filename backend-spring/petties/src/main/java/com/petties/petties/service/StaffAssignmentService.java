@@ -217,11 +217,10 @@ public class StaffAssignmentService {
     }
 
     /**
-     * Determine required specialty from booking services
+     * Determine required specialty from booking services.
      * Priority: highest specialty requirement wins
      */
     private StaffSpecialty determineRequiredSpecialty(Booking booking) {
-        // Priority order (higher index = higher priority)
         List<StaffSpecialty> priorityOrder = Arrays.asList(
                 StaffSpecialty.GROOMER,
                 StaffSpecialty.VET_GENERAL,
@@ -235,8 +234,6 @@ public class StaffAssignmentService {
             ServiceCategory category = item.getService().getServiceCategory();
             if (category != null) {
                 StaffSpecialty required = category.getRequiredSpecialty();
-
-                // Compare priority
                 if (priorityOrder.indexOf(required) > priorityOrder.indexOf(highestPriority)) {
                     highestPriority = required;
                 }
@@ -1134,43 +1131,34 @@ public class StaffAssignmentService {
             boolean isValid = true;
             LocalTime currentTime = startTime;
 
-            // Check EACH service in sequence (consecutive slots)
             for (com.petties.petties.model.ClinicService service : services) {
-                // Calculate end time for this service
-                int durationMinutes = service.getDurationTime();
+                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
                 LocalTime endTime = currentTime.plusMinutes(durationMinutes);
-                final LocalTime slotStart = currentTime; // Effective final for lambda
+                final LocalTime slotStart = currentTime;
 
-                // Check if ANY staff with required specialty is free
                 List<User> staffForService = matchingStaff.get(service);
                 boolean hasAvailableStaff = false;
 
                 for (User member : staffForService) {
-                    // Check if staff has shift covering this time range
                     boolean hasShift = shifts.stream()
-                            .anyMatch(shift -> shift.getStaff().getUserId().equals(member.getUserId()) &&
-                                    !shift.getStartTime().isAfter(slotStart) && // Use slotStart here
-                                    !shift.getEndTime().isBefore(endTime));
+                            .anyMatch(shift -> shift.getStaff().getUserId().equals(member.getUserId())
+                                    && !shift.getStartTime().isAfter(slotStart)
+                                    && !shift.getEndTime().isBefore(endTime));
 
                     if (!hasShift) {
                         continue;
                     }
-
-                    // Check if staff is free (no bookings in this time range)
                     boolean isStaffFree = !hasBookingInTimeRange(member.getUserId(), date, currentTime, endTime);
-
                     if (isStaffFree) {
                         hasAvailableStaff = true;
-                        break; // Found one available staff, that's enough
+                        break;
                     }
                 }
 
                 if (!hasAvailableStaff) {
                     isValid = false;
-                    break; // This service can't be fulfilled at this time
+                    break;
                 }
-
-                // Move time cursor to next service
                 currentTime = endTime;
             }
 
@@ -1188,23 +1176,17 @@ public class StaffAssignmentService {
      */
     private boolean hasBookingInTimeRange(UUID staffId, LocalDate date, LocalTime startTime, LocalTime endTime) {
         List<Booking> staffBookings = bookingRepository.findByStaffIdAndDate(staffId, date);
-
         for (Booking booking : staffBookings) {
             LocalTime bookingStart = booking.getBookingTime();
-
-            // Calculate total duration from all booking services
             int totalDuration = booking.getBookingServices().stream()
-                    .mapToInt(item -> item.getService().getDurationTime())
+                    .mapToInt(item -> item.getService().getDurationTime() != null ? item.getService().getDurationTime() : 30)
                     .sum();
             LocalTime bookingEnd = bookingStart.plusMinutes(totalDuration);
-
-            // Check for overlap
             boolean overlaps = !bookingEnd.isBefore(startTime) && !bookingStart.isAfter(endTime);
             if (overlaps) {
                 return true;
             }
         }
-
         return false;
     }
 }
