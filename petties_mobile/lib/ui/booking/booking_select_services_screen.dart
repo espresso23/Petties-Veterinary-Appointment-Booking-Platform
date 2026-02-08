@@ -25,6 +25,12 @@ class _BookingSelectServicesScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<BookingWizardProvider>();
       _notesController.text = provider.notes;
+      // Ensure a pet is selected for view if available
+      if (provider.currentPetIdForServiceSelection == null &&
+          provider.selectedPets.isNotEmpty) {
+        provider
+            .setCurrentPetForServiceSelection(provider.selectedPets.first.id);
+      }
     });
   }
 
@@ -53,12 +59,13 @@ class _BookingSelectServicesScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Selected pet info
-                      _buildSelectedPetInfo(provider),
+                      // Pet Tabs (replacing single pet info)
+                      _buildPetTabs(provider),
                       const SizedBox(height: 20),
 
                       // Services list
-                      _buildServicesSection(provider),
+                      if (provider.currentPetIdForServiceSelection != null)
+                        _buildServicesSection(provider),
                       const SizedBox(height: 24),
 
                       // Notes input
@@ -66,8 +73,7 @@ class _BookingSelectServicesScreenState
                       const SizedBox(height: 24),
 
                       // Summary
-                      if (provider.selectedServices.isNotEmpty)
-                        _buildSummaryCard(provider),
+                      if (provider.totalPrice > 0) _buildSummaryCard(provider),
                     ],
                   ),
                 ),
@@ -77,7 +83,8 @@ class _BookingSelectServicesScreenState
               if (provider.bookingError != null)
                 Container(
                   padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.errorLight,
                     borderRadius: BorderRadius.circular(8),
@@ -85,7 +92,8 @@ class _BookingSelectServicesScreenState
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                      const Icon(Icons.error_outline,
+                          color: AppColors.error, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -204,98 +212,133 @@ class _BookingSelectServicesScreenState
     );
   }
 
-  Widget _buildSelectedPetInfo(BookingWizardProvider provider) {
-    final pet = provider.selectedPet;
-    if (pet == null) return const SizedBox.shrink();
+  Widget _buildPetTabs(BookingWizardProvider provider) {
+    if (provider.selectedPets.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.stone200,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: pet.imageUrl != null
-                  ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
-                  : const Icon(Icons.pets, color: AppColors.stone400),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Chọn dịch vụ cho thú cưng:',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.stone500,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  pet.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: provider.selectedPets.map((pet) {
+              final isSelected =
+                  provider.currentPetIdForServiceSelection == pet.id;
+              final serviceCount =
+                  provider.getSelectedServicesForPet(pet.id).length;
+
+              return GestureDetector(
+                onTap: () => provider.setCurrentPetForServiceSelection(pet.id),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primary : AppColors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color:
+                          isSelected ? AppColors.primary : AppColors.stone300,
+                      width: 1.5,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            const BoxShadow(
+                                color: AppColors.stone900, offset: Offset(2, 2))
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Pet Avatar
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: AppColors.stone200,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: pet.imageUrl != null
+                              ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
+                              : const Icon(Icons.pets,
+                                  color: AppColors.stone400, size: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pet.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? AppColors.white
+                                  : AppColors.stone900,
+                            ),
+                          ),
+                          if (serviceCount > 0)
+                            Text(
+                              '$serviceCount dịch vụ',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isSelected
+                                    ? AppColors.white.withValues(alpha: 0.9)
+                                    : AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  '${pet.species} • ${pet.breed} • ${pet.weight} kg',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.stone500,
-                  ),
-                ),
-              ],
-            ),
+              );
+            }).toList(),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: provider.bookingType == BookingType.atClinic
-                  ? AppColors.blue100
-                  : AppColors.teal100,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              provider.bookingType == BookingType.atClinic
-                  ? 'Tại phòng khám'
-                  : 'Tại nhà',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: provider.bookingType == BookingType.atClinic
-                    ? AppColors.blue600
-                    : AppColors.teal600,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildServicesSection(BookingWizardProvider provider) {
+    // Determine which pet we are viewing
+    final petId = provider.currentPetIdForServiceSelection;
+    if (petId == null) return const SizedBox.shrink();
+
+    final pet = provider.selectedPets.firstWhere((p) => p.id == petId,
+        orElse: () => provider.selectedPets.first);
+    final selectedServiceCount =
+        provider.getSelectedServicesForPet(petId).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Dịch vụ có sẵn',
-              style: TextStyle(
+            Text(
+              'Dịch vụ cho ${pet.name}', // Dynamic header
+              style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: AppColors.stone900,
               ),
             ),
-            if (provider.selectedServices.isNotEmpty)
+            if (selectedServiceCount > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -303,7 +346,7 @@ class _BookingSelectServicesScreenState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${provider.selectedServices.length} đã chọn',
+                  '$selectedServiceCount đã chọn',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -344,18 +387,17 @@ class _BookingSelectServicesScreenState
           )
         else
           ...provider.availableServices
-              .map((s) => _buildServiceCard(provider, s)),
+              .map((s) => _buildServiceCard(provider, s, petId, pet.weight)),
       ],
     );
   }
 
-  Widget _buildServiceCard(
-      BookingWizardProvider provider, ClinicServiceModel service) {
-    final isSelected = provider.isServiceSelected(service.serviceId);
-    final petWeight = provider.selectedPet?.weight ?? 0;
+  Widget _buildServiceCard(BookingWizardProvider provider,
+      ClinicServiceModel service, String petId, double petWeight) {
+    final isSelected = provider.isServiceSelected(petId, service.serviceId);
 
     return GestureDetector(
-      onTap: () => provider.toggleService(service),
+      onTap: () => provider.toggleService(petId, service),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
@@ -512,32 +554,6 @@ class _BookingSelectServicesScreenState
                     ],
                   ),
                 ),
-                if (service.isHomeVisit) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.teal100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.home, size: 12, color: AppColors.teal600),
-                        SizedBox(width: 4),
-                        Text(
-                          'Tại nhà',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.teal600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ],
             ),
             // Show surcharge info if applicable
@@ -660,109 +676,127 @@ class _BookingSelectServicesScreenState
             ),
           ),
           const Divider(height: 16),
-          ...provider.selectedServices.map((s) {
-            final petWeight = provider.selectedPet?.weight ?? 0;
-            final surcharge = s.getSurchargeForWeight(petWeight);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          s.name,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.stone700,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        FormatUtils.formatCurrency(
-                            s.getPriceForWeight(petWeight)),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.stone900,
-                        ),
-                      ),
-                    ],
+
+          // Loop through selected pets and their services
+          ...provider.selectedPets.expand((pet) {
+            final services = provider.getSelectedServicesForPet(pet.id);
+            if (services.isEmpty) return <Widget>[];
+
+            return [
+              // Pet Header within Summary
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8, top: 4),
+                child: Text(
+                  '• ${pet.name} (${services.length} dịch vụ)',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.stone700,
                   ),
-                  if (surcharge != null) ...[
-                    const SizedBox(height: 2),
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
-                          color: AppColors.stone500,
-                        ),
+                ),
+              ),
+              ...services.map((s) {
+                final petWeight = pet.weight;
+                final surcharge = s.getSurchargeForWeight(petWeight);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6, left: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const TextSpan(text: '  └ Giá gốc '),
-                          TextSpan(
-                            text: FormatUtils.formatCurrency(s.basePrice),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.stone600,
+                          Expanded(
+                            child: Text(
+                              s.name,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.stone700,
+                              ),
                             ),
                           ),
-                          const TextSpan(text: ' + phụ phí '),
-                          TextSpan(
-                            text:
-                                '+${FormatUtils.formatCurrency(surcharge.price)}',
+                          Text(
+                            FormatUtils.formatCurrency(
+                                s.getPriceForWeight(petWeight)),
                             style: const TextStyle(
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.warning,
+                              color: AppColors.stone900,
                             ),
                           ),
-                          TextSpan(
-                              text:
-                                  ' (${surcharge.minWeight.toStringAsFixed(0)}-${surcharge.maxWeight.toStringAsFixed(0)}kg)'),
                         ],
                       ),
-                    ),
-                  ],
-                ],
-              ),
-            );
+                      if (surcharge != null) ...[
+                        const SizedBox(height: 2),
+                        RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.stone500,
+                            ),
+                            children: [
+                              const TextSpan(text: '  └ Giá gốc '),
+                              TextSpan(
+                                text: FormatUtils.formatCurrency(s.basePrice),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.stone600,
+                                ),
+                              ),
+                              const TextSpan(text: ' + phụ phí '),
+                              TextSpan(
+                                text:
+                                    '+${FormatUtils.formatCurrency(surcharge.price)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ];
           }),
+
           // Show distance fee for home visit
           if (provider.bookingType == BookingType.homeVisit &&
               provider.distanceFee > 0) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.directions_car,
-                          size: 14, color: AppColors.teal600),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Phí di chuyển (${provider.distanceToClinic.toStringAsFixed(1)}km)',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.teal700,
-                        ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.directions_car,
+                        size: 14, color: AppColors.teal600),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Phí di chuyển (${provider.distanceToClinic.toStringAsFixed(1)}km)',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.teal700,
                       ),
-                    ],
-                  ),
-                  Text(
-                    '+${FormatUtils.formatCurrency(provider.distanceFee)}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.teal700,
                     ),
+                  ],
+                ),
+                Text(
+                  '+${FormatUtils.formatCurrency(provider.distanceFee)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.teal700,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
+
           const Divider(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -798,7 +832,7 @@ class _BookingSelectServicesScreenState
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.stone700,
+                  color: AppColors.stone900,
                 ),
               ),
             ],

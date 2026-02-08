@@ -51,14 +51,14 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
         // Fetch from API
         // Note: Creating service instance locally for now as it's not exposed
         // Ideally ClinicProvider should expose this or getById
-        final clinicService = ClinicService(); 
+        final clinicService = ClinicService();
         clinic = await clinicService.getClinicById(widget.clinicId);
       } catch (e) {
         debugPrint('Error fetching clinic details: $e');
         if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('Lỗi tải thông tin phòng khám: $e')),
-           );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi tải thông tin phòng khám: $e')),
+          );
         }
       }
     }
@@ -93,7 +93,8 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Location info
-                      if (provider.userAddress != null) _buildLocationCard(provider),
+                      if (provider.userAddress != null)
+                        _buildLocationCard(provider),
                       const SizedBox(height: 20),
 
                       // Booking type selection
@@ -128,7 +129,8 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
             border: Border.all(color: AppColors.stone300),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.arrow_back, color: AppColors.stone900, size: 20),
+          child:
+              const Icon(Icons.arrow_back, color: AppColors.stone900, size: 20),
         ),
       ),
       title: Consumer<BookingWizardProvider>(
@@ -266,7 +268,8 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.edit_location_alt, color: AppColors.primary, size: 18),
+            const Icon(Icons.edit_location_alt,
+                color: AppColors.primary, size: 18),
           ],
         ),
       ),
@@ -275,7 +278,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
 
   void _showLocationPicker(BookingWizardProvider provider) {
     final clinicProvider = context.read<ClinicProvider>();
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -363,7 +366,10 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
             width: 2,
           ),
           boxShadow: isSelected
-              ? [const BoxShadow(color: AppColors.stone900, offset: Offset(3, 3))]
+              ? [
+                  const BoxShadow(
+                      color: AppColors.stone900, offset: Offset(3, 3))
+                ]
               : null,
         ),
         child: Column(
@@ -387,7 +393,9 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
               subtitle,
               style: TextStyle(
                 fontSize: 11,
-                color: isSelected ? AppColors.white.withValues(alpha: 0.8) : AppColors.stone500,
+                color: isSelected
+                    ? AppColors.white.withValues(alpha: 0.8)
+                    : AppColors.stone500,
               ),
               textAlign: TextAlign.center,
             ),
@@ -410,7 +418,6 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
         if (provider.isLoadingPets)
           const Center(
             child: Padding(
@@ -419,7 +426,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
             ),
           )
         else if (provider.error != null)
-           Container(
+          Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.errorLight,
@@ -428,7 +435,8 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
             child: Center(
               child: Column(
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                  const Icon(Icons.error_outline,
+                      size: 48, color: AppColors.error),
                   const SizedBox(height: 8),
                   Text(
                     provider.error!,
@@ -438,15 +446,15 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                   const SizedBox(height: 12),
-                   ElevatedButton(
-                     onPressed: () => provider.loadMyPets(),
-                     style: ElevatedButton.styleFrom(
-                       backgroundColor: AppColors.white,
-                       foregroundColor: AppColors.error,
-                     ),
-                     child: const Text('Thử lại'),
-                   ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () => provider.loadMyPets(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.white,
+                      foregroundColor: AppColors.error,
+                    ),
+                    child: const Text('Thử lại'),
+                  ),
                 ],
               ),
             ),
@@ -481,10 +489,10 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
   }
 
   Widget _buildPetCard(BookingWizardProvider provider, pet) {
-    final isSelected = provider.selectedPet?.id == pet.id;
+    final isSelected = provider.selectedPets.any((p) => p.id == pet.id);
 
     return GestureDetector(
-      onTap: () => provider.selectPet(pet),
+      onTap: () => provider.togglePetSelection(pet),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
@@ -498,6 +506,24 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
         ),
         child: Row(
           children: [
+            // Selection Checkbox
+            Container(
+              width: 24,
+              height: 24,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : AppColors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.stone300,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, color: AppColors.white, size: 16)
+                  : null,
+            ),
+
             // Pet image
             Container(
               width: 56,
@@ -511,7 +537,8 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                 borderRadius: BorderRadius.circular(6),
                 child: pet.imageUrl != null
                     ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
-                    : const Icon(Icons.pets, color: AppColors.stone400, size: 28),
+                    : const Icon(Icons.pets,
+                        color: AppColors.stone400, size: 28),
               ),
             ),
             const SizedBox(width: 12),
@@ -531,14 +558,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${pet.species} • ${pet.breed}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone500,
-                    ),
-                  ),
-                  Text(
-                    '${pet.weight} kg',
+                    '${pet.species} • ${pet.breed} • ${pet.weight} kg',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.stone500,
@@ -546,23 +566,6 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                   ),
                 ],
               ),
-            ),
-
-            // Selection indicator
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : AppColors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected ? AppColors.primary : AppColors.stone300,
-                  width: 2,
-                ),
-              ),
-              child: isSelected
-                  ? const Icon(Icons.check, color: AppColors.white, size: 14)
-                  : null,
             ),
           ],
         ),
@@ -578,11 +581,17 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
         border: Border(top: BorderSide(color: AppColors.stone200)),
       ),
       child: SafeArea(
+        top: false,
         child: GestureDetector(
           onTap: provider.canProceedToServices
               ? () {
+                  // Ensure current pet is set for service selection
+                  if (provider.selectedPets.isNotEmpty) {
+                    provider.setCurrentPetForServiceSelection(
+                        provider.selectedPets.first.id);
+                  }
                   provider.loadServices();
-                  context.push('/booking/services');
+                  context.push('/booking/${widget.clinicId}/services');
                 }
               : null,
           child: Container(
@@ -594,7 +603,9 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.stone900, width: 2),
               boxShadow: provider.canProceedToServices
-                  ? const [BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))]
+                  ? const [
+                      BoxShadow(color: AppColors.stone900, offset: Offset(4, 4))
+                    ]
                   : null,
             ),
             child: const Center(

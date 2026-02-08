@@ -25,6 +25,7 @@ class BookingResponse {
   final String? notes;
   final String? emrId;
   final List<BookingServiceItem> services;
+  final List<BookingPet> pets;
   // Staff info
   final String? assignedStaffName;
   final String? assignedStaffAvatarUrl;
@@ -53,11 +54,32 @@ class BookingResponse {
     this.notes,
     this.emrId,
     this.services = const [],
+    this.pets = const [],
     this.assignedStaffName,
     this.assignedStaffAvatarUrl,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
+    // Parse pets list
+    final petsList = (json['pets'] as List<dynamic>?)
+            ?.map((e) => BookingPet.fromJson(e))
+            .toList() ??
+        [];
+
+    // Flatten services from all pets if services is not directly provided or empty
+    // But since the new API provides services inside pets, we should flatten them to maintain compatibility
+    // with existing UI that uses `services` field.
+    List<BookingServiceItem> allServices = [];
+    if (json['services'] != null) {
+      allServices = (json['services'] as List<dynamic>)
+          .map((e) => BookingServiceItem.fromJson(e))
+          .toList();
+    } else {
+      for (final pet in petsList) {
+        allServices.addAll(pet.services);
+      }
+    }
+
     return BookingResponse(
       bookingId: json['bookingId'],
       bookingCode: json['bookingCode'],
@@ -81,12 +103,33 @@ class BookingResponse {
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
       notes: json['notes'],
       emrId: json['emrId'],
+      services: allServices,
+      pets: petsList,
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+    );
+  }
+}
+
+class BookingPet {
+  final String? petId;
+  final String? petName;
+  final List<BookingServiceItem> services;
+
+  BookingPet({
+    this.petId,
+    this.petName,
+    this.services = const [],
+  });
+
+  factory BookingPet.fromJson(Map<String, dynamic> json) {
+    return BookingPet(
+      petId: json['petId'],
+      petName: json['petName'],
       services: (json['services'] as List<dynamic>?)
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??
           [],
-      assignedStaffName: json['assignedStaffName'],
-      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
     );
   }
 }
@@ -95,10 +138,17 @@ class BookingServiceItem {
   final String? bookingServiceId;
   final String? serviceId;
   final String? serviceName;
+  final String? serviceCategory;
   final double? price;
+  final double? basePrice;
+  final double? weightPrice;
+  final int? slotsRequired;
   final String? assignedStaffId;
   final String? assignedStaffName;
   final String? assignedStaffAvatarUrl;
+  final String? assignedStaffSpecialty;
+  final String? petId;
+  final String? petName;
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
@@ -108,10 +158,17 @@ class BookingServiceItem {
     this.bookingServiceId,
     this.serviceId,
     this.serviceName,
+    this.serviceCategory,
     this.price,
+    this.basePrice,
+    this.weightPrice,
+    this.slotsRequired,
     this.assignedStaffId,
     this.assignedStaffName,
     this.assignedStaffAvatarUrl,
+    this.assignedStaffSpecialty,
+    this.petId,
+    this.petName,
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
@@ -123,10 +180,17 @@ class BookingServiceItem {
       bookingServiceId: json['bookingServiceId'],
       serviceId: json['serviceId'],
       serviceName: json['serviceName'],
+      serviceCategory: json['serviceCategory'],
       price: (json['price'] as num?)?.toDouble(),
+      basePrice: (json['basePrice'] as num?)?.toDouble(),
+      weightPrice: (json['weightPrice'] as num?)?.toDouble(),
+      slotsRequired: json['slotsRequired'],
       assignedStaffId: json['assignedStaffId'],
       assignedStaffName: json['assignedStaffName'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
+      petId: json['petId'],
+      petName: json['petName'],
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],

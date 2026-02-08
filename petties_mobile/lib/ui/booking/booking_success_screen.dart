@@ -57,7 +57,7 @@ class BookingSuccessScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   Text(
                     'Lịch hẹn của bạn tại ${provider.clinic?.name ?? "phòng khám"} đã được ghi nhận.',
                     style: const TextStyle(
@@ -91,7 +91,11 @@ class BookingSuccessScreen extends StatelessWidget {
                         _buildInfoRow(
                           Icons.pets,
                           'Thú cưng',
-                          provider.selectedPet?.name ?? '-',
+                          provider.selectedPets.isNotEmpty
+                              ? provider.selectedPets
+                                  .map((p) => p.name)
+                                  .join(', ')
+                              : '-',
                         ),
                         const Divider(height: 16),
                         _buildInfoRow(
@@ -111,7 +115,7 @@ class BookingSuccessScreen extends StatelessWidget {
                         _buildInfoRow(
                           Icons.medical_services,
                           'Số dịch vụ',
-                          '${provider.selectedServices.length} dịch vụ',
+                          '${provider.selectedPets.fold(0, (sum, pet) => sum + provider.getSelectedServicesForPet(pet.id).length)} dịch vụ',
                         ),
                       ],
                     ),
@@ -154,7 +158,7 @@ class BookingSuccessScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   GestureDetector(
                     onTap: () {
                       provider.resetBooking();
@@ -217,7 +221,15 @@ class BookingSuccessScreen extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    const weekdays = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN'];
+    const weekdays = [
+      'Thứ 2',
+      'Thứ 3',
+      'Thứ 4',
+      'Thứ 5',
+      'Thứ 6',
+      'Thứ 7',
+      'CN'
+    ];
     final weekday = weekdays[date.weekday - 1];
     return '$weekday, ${date.day}/${date.month}/${date.year}';
   }

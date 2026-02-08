@@ -20,13 +20,17 @@ class BookingWizardProvider extends ChangeNotifier {
 
   // Step 1: Pet & Booking Type
   List<Pet> _myPets = [];
-  Pet? _selectedPet;
+  final List<Pet> _selectedPets = []; // Multi-pet selection
   BookingType _bookingType = BookingType.atClinic;
 
   // Step 2: Services
   List<ClinicServiceModel> _availableServices = [];
-  List<ClinicServiceModel> _selectedServices = [];
+  // Key: petId, Value: List of services for that pet
+  final Map<String, List<ClinicServiceModel>> _petServices = {};
   String _notes = '';
+
+  // Track which pet is currently being selected for services
+  String? _currentPetIdForServiceSelection;
 
   // Step 3: Date & Time
   DateTime? _selectedDate;
@@ -53,12 +57,15 @@ class BookingWizardProvider extends ChangeNotifier {
   double? get userLongitude => _userLongitude;
 
   List<Pet> get myPets => _myPets;
-  Pet? get selectedPet => _selectedPet;
+  List<Pet> get selectedPets => _selectedPets;
   BookingType get bookingType => _bookingType;
 
   List<ClinicServiceModel> get availableServices => _availableServices;
-  List<ClinicServiceModel> get selectedServices => _selectedServices;
+  Map<String, List<ClinicServiceModel>> get petServices => _petServices;
   String get notes => _notes;
+
+  String? get currentPetIdForServiceSelection =>
+      _currentPetIdForServiceSelection;
 
   DateTime? get selectedDate => _selectedDate;
   String? get selectedTime => _selectedTime;
@@ -72,21 +79,23 @@ class BookingWizardProvider extends ChangeNotifier {
   bool get isCreatingBooking => _isCreatingBooking;
   String? get error => _error;
 
-  /// Calculate total price (with weight-based surcharge)
+  /// Calculate total price (sum of all pets' services + distance fee)
   double get totalPrice {
     double total = 0;
-    final petWeight = _selectedPet?.weight ?? 0;
-    for (final service in _selectedServices) {
-      total += service.getPriceForWeight(petWeight);
+
+    for (final pet in _selectedPets) {
+      final services = _petServices[pet.id] ?? [];
+      for (final service in services) {
+        total += service.getPriceForWeight(pet.weight);
+      }
     }
+
     // Add distance fee for home visit
     total += distanceFee;
     return total;
   }
 
   /// Calculate distance fee for home visit booking
-  /// Note: Actual distance fee is calculated by backend using clinic-level pricePerKm
-  /// This is an estimate for display purposes only
   double get distanceFee {
     if (_bookingType != BookingType.homeVisit) return 0;
 
@@ -94,20 +103,16 @@ class BookingWizardProvider extends ChangeNotifier {
     final distance = _getDistanceToClinic();
     if (distance <= 0) return 0;
 
-    // Use default rate for display estimate (actual fee calculated by backend)
-    // Backend uses ClinicPriceService.getPricePerKm() for the actual calculation
     const double defaultPricePerKm = 5000; // VND/km estimate
     return distance * defaultPricePerKm;
   }
 
   /// Get distance to clinic in km
   double _getDistanceToClinic() {
-    // Try clinic.distance first (from API)
     if (_clinic?.distance != null && _clinic!.distance! > 0) {
       return _clinic!.distance!;
     }
 
-    // Calculate distance if we have both user and clinic coordinates
     if (_userLatitude != null &&
         _userLongitude != null &&
         _clinic?.latitude != null &&
@@ -143,28 +148,43 @@ class BookingWizardProvider extends ChangeNotifier {
   /// Get calculated distance for display
   double get distanceToClinic => _getDistanceToClinic();
 
-  /// Check if booking has home visit services
+  /// Check if booking has home visit services (in ANY pet)
   bool get hasHomeVisitServices {
-    return _selectedServices.any((s) => s.isHomeVisit);
+    for (final services in _petServices.values) {
+      if (services.any((s) => s.isHomeVisit)) return true;
+    }
+    return false;
   }
 
-  /// Calculate total duration
+  /// Calculate total duration (sum of all services from all pets)
   int get totalDuration {
     int total = 0;
-    for (final service in _selectedServices) {
-      total += service.durationMinutes;
+    for (final services in _petServices.values) {
+      for (final service in services) {
+        total += service.durationMinutes;
+      }
     }
     return total;
   }
 
   /// Check if can proceed to next step
-  bool get canProceedToServices => _selectedPet != null;
-  bool get canProceedToDateTime => _selectedServices.isNotEmpty;
+  bool get canProceedToServices => _selectedPets.isNotEmpty;
+
+  // Proceed to datetime if AT LEAST one service is selected (across all pets)
+  // Or should we enforce at least one service PER PET?
+  // User req: "Mỗi thú cưng trong đơn có thể chọn một hoặc nhiều dịch vụ." -> Implies > 0.
+  // Let's enforce: Every selected pet must have at least one service.
+  bool get canProceedToDateTime {
+    if (_selectedPets.isEmpty) return false;
+    for (final pet in _selectedPets) {
+      final services = _petServices[pet.id];
+      if (services == null || services.isEmpty) return false;
+    }
+    return true;
+  }
+
   bool get canConfirmBooking =>
-      _selectedPet != null &&
-      _selectedServices.isNotEmpty &&
-      _selectedDate != null &&
-      _selectedTime != null;
+      canProceedToDateTime && _selectedDate != null && _selectedTime != null;
 
   /// Initialize booking with clinic info
   void initBooking({
@@ -195,8 +215,10 @@ class BookingWizardProvider extends ChangeNotifier {
     _userAddress = userAddress;
     _userLatitude = userLatitude;
     _userLongitude = userLongitude;
-    _selectedPet = pet;
-    _selectedServices = List.from(preselectedServices);
+    _selectedPets.clear();
+    _selectedPets.add(pet);
+    _petServices.clear();
+    _petServices[pet.id] = List.from(preselectedServices);
     _bookingType = bookingType ?? BookingType.atClinic;
     _notes = '';
     _selectedDate = null;
@@ -204,6 +226,10 @@ class BookingWizardProvider extends ChangeNotifier {
     _availableSlots = [];
     _error = null;
     _bookingError = null;
+
+    // Set current pet for service selection
+    _currentPetIdForServiceSelection = pet.id;
+
     notifyListeners();
     // Load all available services for clinic (to show in services screen)
     loadServices();
@@ -240,17 +266,51 @@ class BookingWizardProvider extends ChangeNotifier {
     }
   }
 
-  /// Select pet
-  void selectPet(Pet pet) {
-    _selectedPet = pet;
+  /// Toggle pet selection (Multi-select)
+  void togglePetSelection(Pet pet) {
+    // Check if exists
+    final index = _selectedPets.indexWhere((p) => p.id == pet.id);
+    if (index >= 0) {
+      // Remove
+      _selectedPets.removeAt(index);
+      _petServices.remove(pet.id);
+
+      // If we removed the currently viewed pet, switch view to another
+      if (_currentPetIdForServiceSelection == pet.id) {
+        _currentPetIdForServiceSelection =
+            _selectedPets.isNotEmpty ? _selectedPets.first.id : null;
+      }
+    } else {
+      // Add
+      _selectedPets.add(pet);
+      _petServices[pet.id] = []; // Init empty service list
+
+      // If first pet, set as current view
+      if (_selectedPets.length == 1) {
+        _currentPetIdForServiceSelection = pet.id;
+      }
+    }
     notifyListeners();
+  }
+
+  /// Set current pet for service selection UI
+  void setCurrentPetForServiceSelection(String petId) {
+    if (_selectedPets.any((p) => p.id == petId)) {
+      _currentPetIdForServiceSelection = petId;
+      notifyListeners();
+    }
   }
 
   /// Set booking type
   void setBookingType(BookingType type) {
     _bookingType = type;
-    // Reset services when type changes
-    _selectedServices = [];
+    // Reset ALL services when type changes
+    _petServices.clear();
+    // Re-init empty lists for selected pets
+    for (final pet in _selectedPets) {
+      _petServices[pet.id] = [];
+    }
+
     notifyListeners();
     // Reload services filtered by type
     loadServices();
@@ -283,20 +343,34 @@ class BookingWizardProvider extends ChangeNotifier {
     }
   }
 
-  /// Toggle service selection
-  void toggleService(ClinicServiceModel service) {
-    if (_selectedServices.any((s) => s.serviceId == service.serviceId)) {
-      _selectedServices.removeWhere((s) => s.serviceId == service.serviceId);
+  /// Toggle service selection for a SPECIFIC PET
+  void toggleService(String petId, ClinicServiceModel service) {
+    if (!_petServices.containsKey(petId)) {
+      _petServices[petId] = [];
+    }
+
+    final services = _petServices[petId]!;
+
+    if (services.any((s) => s.serviceId == service.serviceId)) {
+      services.removeWhere((s) => s.serviceId == service.serviceId);
     } else {
-      _selectedServices.add(service);
+      // Check duplicate rule? Assuming standard toggle
+      services.add(service);
     }
     _bookingError = null;
     notifyListeners();
   }
 
-  /// Check if service is selected
-  bool isServiceSelected(String serviceId) {
-    return _selectedServices.any((s) => s.serviceId == serviceId);
+  /// Check if service is selected for a SPECIFIC PET
+  bool isServiceSelected(String petId, String serviceId) {
+    final services = _petServices[petId];
+    if (services == null) return false;
+    return services.any((s) => s.serviceId == serviceId);
+  }
+
+  /// Helper to get selected services list for current pet (safe)
+  List<ClinicServiceModel> getSelectedServicesForPet(String petId) {
+    return _petServices[petId] ?? [];
   }
 
   /// Set notes
@@ -319,9 +393,16 @@ class BookingWizardProvider extends ChangeNotifier {
 
   /// Load available slots for selected date
   Future<void> loadAvailableSlots() async {
+    // Collect ALL service IDs from ALL pets
+    final List<String> allServiceIds = [];
+    for (final services in _petServices.values) {
+      allServiceIds.addAll(services.map((s) => s.serviceId));
+    }
+
     debugPrint(
-        'DEBUG loadAvailableSlots: clinic=${_clinic?.clinicId}, date=$_selectedDate, services=${_selectedServices.length}');
-    if (_clinic == null || _selectedDate == null || _selectedServices.isEmpty) {
+        'DEBUG loadAvailableSlots: clinic=${_clinic?.clinicId}, date=$_selectedDate, total_services=${allServiceIds.length}');
+
+    if (_clinic == null || _selectedDate == null || allServiceIds.isEmpty) {
       debugPrint('DEBUG loadAvailableSlots: Early return - missing data');
       return;
     }
@@ -332,13 +413,11 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final serviceIds = _selectedServices.map((s) => s.serviceId).toList();
-
-      // Get available slots from API
+      // Get available slots from API (sending all service IDs)
       final apiSlots = await _bookingService.getAvailableSlots(
         clinicId: _clinic!.clinicId,
         date: _selectedDate!,
-        serviceIds: serviceIds,
+        serviceIds: allServiceIds,
       );
 
       // Generate all slots for the day and merge with API response
@@ -352,8 +431,6 @@ class BookingWizardProvider extends ChangeNotifier {
       debugPrint('Error loading slots: $e');
       // Still generate slots with default schedule on error
       _availableSlots = _generateDaySlots([]);
-      debugPrint(
-          'DEBUG: Generated ${_availableSlots.length} slots on error, available: ${_availableSlots.where((s) => s.available).length}');
     } finally {
       _isLoadingSlots = false;
       notifyListeners();
@@ -532,14 +609,25 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Build items list
+      final List<Map<String, dynamic>> itemsPayload = [];
+      for (final pet in _selectedPets) {
+        final services = _petServices[pet.id];
+        if (services != null && services.isNotEmpty) {
+          itemsPayload.add({
+            'petId': pet.id,
+            'serviceIds': services.map((s) => s.serviceId).toList(),
+          });
+        }
+      }
+
       await _bookingService.createBooking(
-        petId: _selectedPet!.id,
         clinicId: _clinic!.clinicId,
         bookingDate: _selectedDate!,
         bookingTime: _selectedTime!,
         bookingType:
             _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC',
-        serviceIds: _selectedServices.map((s) => s.serviceId).toList(),
+        items: itemsPayload,
         notes: _notes.isNotEmpty ? _notes : null,
         homeAddress:
             _bookingType == BookingType.homeVisit ? _userAddress : null,
@@ -562,10 +650,11 @@ class BookingWizardProvider extends ChangeNotifier {
 
   /// Reset all state
   void _reset() {
-    _selectedPet = null;
+    _selectedPets.clear();
+    _petServices.clear();
+    _currentPetIdForServiceSelection = null;
     _bookingType = BookingType.atClinic;
     _availableServices = [];
-    _selectedServices = [];
     _notes = '';
     _selectedDate = null;
     _selectedTime = null;

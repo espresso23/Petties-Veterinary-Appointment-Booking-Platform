@@ -37,12 +37,8 @@ class BookingConfirmScreen extends StatelessWidget {
                       _buildBookingDetailsCard(provider),
                       const SizedBox(height: 16),
 
-                      // Pet info
-                      _buildPetCard(provider),
-                      const SizedBox(height: 16),
-
-                      // Services
-                      _buildServicesCard(provider),
+                      // Pets and Services
+                      _buildPetsAndServicesCard(provider),
                       const SizedBox(height: 16),
 
                       // Notes
@@ -112,8 +108,7 @@ class BookingConfirmScreen extends StatelessWidget {
               color: AppColors.teal600,
               shape: BoxShape.circle,
             ),
-            child:
-                const Icon(Icons.pets, color: AppColors.white, size: 28),
+            child: const Icon(Icons.pets, color: AppColors.white, size: 28),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -196,7 +191,9 @@ class BookingConfirmScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  clinic.address.isNotEmpty ? clinic.address : 'Chưa có địa chỉ',
+                  clinic.address.isNotEmpty
+                      ? clinic.address
+                      : 'Chưa có địa chỉ',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.stone500,
@@ -306,75 +303,9 @@ class BookingConfirmScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPetCard(BookingWizardProvider provider) {
-    final pet = provider.selectedPet;
-    if (pet == null) return const SizedBox.shrink();
-
+  Widget _buildPetsAndServicesCard(BookingWizardProvider provider) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.stone200,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: pet.imageUrl != null
-                  ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
-                  : const Icon(Icons.pets, color: AppColors.stone400),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'THÚ CƯNG',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.stone500,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  pet.name,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${pet.species} • ${pet.breed} • ${pet.weight} kg',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.stone500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildServicesCard(BookingWizardProvider provider) {
-    return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -383,85 +314,179 @@ class BookingConfirmScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row(
             children: [
-              const Text(
-                'DỊCH VỤ ĐÃ CHỌN',
+              Icon(Icons.pets, size: 16, color: AppColors.stone500),
+              SizedBox(width: 8),
+              Text(
+                'THÚ CƯNG & DỊCH VỤ',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: AppColors.stone500,
                   letterSpacing: 0.5,
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${provider.selectedServices.length} dịch vụ',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.white,
-                  ),
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 12),
-          ...provider.selectedServices.map((service) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        service.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.stone700,
+          const SizedBox(height: 16),
+          ...provider.selectedPets.map((pet) {
+            final services = provider.getSelectedServicesForPet(pet.id);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.stone50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.stone200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Pet Header
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.stone200,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: pet.imageUrl != null
+                              ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
+                              : const Icon(Icons.pets,
+                                  color: AppColors.stone400, size: 20),
                         ),
                       ),
-                    ),
-                    Text(
-                      FormatUtils.formatCurrency(service.getPriceForWeight(
-                          provider.selectedPet?.weight ?? 0)),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.stone900,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pet.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                            Text(
+                              '${pet.weight} kg • ${pet.breed}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.stone500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.schedule, size: 14, color: AppColors.stone400),
-              const SizedBox(width: 6),
-              Text(
-                'Thời gian dự kiến: ${provider.totalDuration} phút',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.stone500,
-                ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  // Services
+                  if (services.isEmpty)
+                    const Text(
+                      'Chưa chọn dịch vụ',
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: AppColors.stone400,
+                        fontSize: 13,
+                      ),
+                    )
+                  else
+                    ...services.map((service) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      service.name,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.stone700,
+                                      ),
+                                    ),
+                                    // Surcharge info
+                                    if (service
+                                        .hasSurchargeForWeight(pet.weight))
+                                      Text(
+                                        '(Phụ phí cân nặng: +${FormatUtils.formatCurrency(service.getSurchargeForWeight(pet.weight)!.price)})',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontStyle: FontStyle.italic,
+                                          color: AppColors.stone500,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                FormatUtils.formatCurrency(
+                                    service.getPriceForWeight(pet.weight)),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.stone900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                ],
               ),
-            ],
-          ),
+            );
+          }),
+
+          // Distance fee if applicable
+          if (provider.bookingType == BookingType.homeVisit &&
+              provider.distanceFee > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.directions_car,
+                    size: 16, color: AppColors.teal600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Phí di chuyển (${provider.distanceToClinic.toStringAsFixed(1)}km)',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.teal700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                Text(
+                  FormatUtils.formatCurrency(provider.distanceFee),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.teal700,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -546,7 +571,8 @@ class BookingConfirmScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomButton(BuildContext context, BookingWizardProvider provider) {
+  Widget _buildBottomButton(
+      BuildContext context, BookingWizardProvider provider) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -564,7 +590,8 @@ class BookingConfirmScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.coral.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: AppColors.coral.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -583,7 +610,6 @@ class BookingConfirmScreen extends StatelessWidget {
                   ],
                 ),
               ),
-
             GestureDetector(
               onTap: provider.isCreatingBooking
                   ? null

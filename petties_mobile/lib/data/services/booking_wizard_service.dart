@@ -82,12 +82,11 @@ class BookingWizardService {
 
   /// Create booking
   Future<String> createBooking({
-    required String petId,
     required String clinicId,
     required DateTime bookingDate,
     required String bookingTime,
     required String bookingType,
-    required List<String> serviceIds,
+    required List<Map<String, dynamic>> items,
     String? notes,
     String? homeAddress,
     double? homeLat,
@@ -99,12 +98,11 @@ class BookingWizardService {
           '${bookingDate.year}-${bookingDate.month.toString().padLeft(2, '0')}-${bookingDate.day.toString().padLeft(2, '0')}';
 
       final body = {
-        'petId': petId,
         'clinicId': clinicId,
         'bookingDate': dateStr,
         'bookingTime': bookingTime,
         'type': bookingType,
-        'serviceIds': serviceIds,
+        'items': items, // List of {petId, serviceIds}
         if (notes != null) 'notes': notes,
         if (homeAddress != null) 'homeAddress': homeAddress,
         if (homeLat != null) 'homeLat': homeLat,

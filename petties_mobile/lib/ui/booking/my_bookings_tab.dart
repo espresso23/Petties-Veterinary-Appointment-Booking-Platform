@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/constants/app_colors.dart';
@@ -15,7 +14,8 @@ class MyBookingsTab extends StatefulWidget {
   State<MyBookingsTab> createState() => _MyBookingsTabState();
 }
 
-class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProviderStateMixin {
+class _MyBookingsTabState extends State<MyBookingsTab>
+    with SingleTickerProviderStateMixin {
   final BookingService _bookingService = BookingService();
   List<BookingResponse> _bookings = [];
   bool _isLoading = true;
@@ -28,7 +28,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
     _tabController = TabController(length: 5, vsync: this);
     _fetchBookings();
   }
-  
+
   @override
   void dispose() {
     _tabController?.dispose();
@@ -65,10 +65,12 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
             labelColor: AppColors.primary,
             unselectedLabelColor: AppColors.stone500,
             indicatorColor: AppColors.primary,
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            labelStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             labelPadding: const EdgeInsets.symmetric(horizontal: 12),
             isScrollable: true,
-            tabAlignment: TabAlignment.start, // Align tabs to start, no leading space
+            tabAlignment:
+                TabAlignment.start, // Align tabs to start, no leading space
             tabs: const [
               Tab(text: 'Chờ duyệt'),
               Tab(text: 'Đã duyệt'),
@@ -78,7 +80,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
             ],
           ),
         ),
-        
+
         // Content
         Expanded(
           child: _isLoading
@@ -87,28 +89,30 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                   controller: _tabController,
                   children: [
                     // Tab 1: Chờ xác nhận
-                    _buildBookingList(_bookings
-                        .where((b) => b.status == 'PENDING')
-                        .toList()),
-                    
+                    _buildBookingList(
+                        _bookings.where((b) => b.status == 'PENDING').toList()),
+
                     // Tab 2: Đã duyệt (CONFIRMED, ASSIGNED)
                     _buildBookingList(_bookings
-                        .where((b) => ['CONFIRMED', 'ASSIGNED'].contains(b.status))
+                        .where(
+                            (b) => ['CONFIRMED', 'ASSIGNED'].contains(b.status))
                         .toList()),
 
                     // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
                     _buildBookingList(_bookings
-                        .where((b) => ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN'].contains(b.status))
+                        .where((b) => ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']
+                            .contains(b.status))
                         .toList()),
-                        
+
                     // Tab 4: Hoàn thành
                     _buildBookingList(_bookings
                         .where((b) => b.status == 'COMPLETED')
                         .toList()),
-                        
+
                     // Tab 5: Đã hủy (CANCELLED, REJECTED, NO_SHOW)
                     _buildBookingList(_bookings
-                        .where((b) => ['CANCELLED', 'REJECTED', 'NO_SHOW'].contains(b.status))
+                        .where((b) => ['CANCELLED', 'REJECTED', 'NO_SHOW']
+                            .contains(b.status))
                         .toList()),
                   ],
                 ),
@@ -123,7 +127,8 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.calendar_today_outlined, size: 64, color: AppColors.stone300),
+            Icon(Icons.calendar_today_outlined,
+                size: 64, color: AppColors.stone300),
             const SizedBox(height: 16),
             const Text(
               'Chưa có lịch hẹn nào',
@@ -137,7 +142,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
             ElevatedButton(
               onPressed: () {
                 // Sẽ được handle bởi parent hoặc context.go
-                // Ở đây chúng ta có thể gọi callback nếu cần, 
+                // Ở đây chúng ta có thể gọi callback nếu cần,
                 // nhưng đơn giản nhất là bảo user qua tab Khám phá
               },
               style: ElevatedButton.styleFrom(
@@ -196,7 +201,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
         // Navigate to booking detail and wait for result (in case cancellation happened there)
         final result = await context.push('/bookings/detail', extra: booking);
         if (result == 'CANCEL' && context.mounted) {
-           _showCancelDialog(context, booking);
+          _showCancelDialog(context, booking);
         } else if (result != null && context.mounted) {
           // Refresh list if any changes
           _fetchBookings();
@@ -273,7 +278,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                               color: AppColors.stone500, size: 24),
                         ),
                         const SizedBox(width: 12),
-                        
+
                         // Details
                         Expanded(
                           child: Column(
@@ -291,7 +296,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 4),
-                              
+
                               // Date & Time
                               Row(
                                 children: [
@@ -313,7 +318,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 16),
                     const Divider(height: 1, color: AppColors.stone200),
                     const SizedBox(height: 12),
@@ -322,21 +327,28 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                     Row(
                       children: [
                         // Pet
-                        Expanded(child: _buildCompactInfo(
+                        Expanded(
+                            child: _buildCompactInfo(
                           Icons.pets_rounded,
-                          booking.petName ?? 'Thú cưng',
+                          booking.pets.length > 1
+                              ? '${booking.petName ?? booking.pets.first.petName} (+${booking.pets.length - 1})'
+                              : (booking.petName ??
+                                  (booking.pets.isNotEmpty
+                                      ? booking.pets.first.petName ?? 'Thú cưng'
+                                      : 'Thú cưng')),
                           AppColors.primary,
                         )),
-                        
+
                         // Services count
-                        Expanded(child: _buildCompactInfo(
+                        Expanded(
+                            child: _buildCompactInfo(
                           Icons.medical_services_rounded,
                           '${booking.services?.length ?? 0} dịch vụ',
                           AppColors.teal600,
                         )),
                       ],
                     ),
-                    
+
                     // Assigned Staff (if any)
                     if (booking.assignedStaffName != null) ...[
                       const SizedBox(height: 12),
@@ -351,11 +363,14 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                             child: CircleAvatar(
                               radius: 10,
                               backgroundColor: AppColors.white,
-                              backgroundImage: booking.assignedStaffAvatarUrl != null
-                                  ? NetworkImage(booking.assignedStaffAvatarUrl!)
-                                  : null,
+                              backgroundImage:
+                                  booking.assignedStaffAvatarUrl != null
+                                      ? NetworkImage(
+                                          booking.assignedStaffAvatarUrl!)
+                                      : null,
                               child: booking.assignedStaffAvatarUrl == null
-                                  ? const Icon(Icons.person, size: 14, color: AppColors.stone400)
+                                  ? const Icon(Icons.person,
+                                      size: 14, color: AppColors.stone400)
                                   : null,
                             ),
                           ),
@@ -377,10 +392,12 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
 
               // Footer: Action Buttons
               if (booking.status == 'PENDING' ||
-                  ['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED'].contains(booking.status))
+                  ['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED']
+                      .contains(booking.status))
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: const BoxDecoration(
                     color: AppColors.stone50,
                     border: Border(top: BorderSide(color: AppColors.stone200)),
@@ -390,37 +407,45 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                     children: [
                       if (booking.status == 'PENDING')
                         Row(
-                          mainAxisSize: MainAxisSize.min, // Ensure Row takes minimum necessary width
+                          mainAxisSize: MainAxisSize
+                              .min, // Ensure Row takes minimum necessary width
                           children: [
-                             // Contact Button - Always show
-                             Padding(
-                               padding: const EdgeInsets.only(right: 8.0),
-                               child: _buildActionButton(
-                                 label: 'LIÊN HỆ',
-                                 color: AppColors.stone500,
-                                 isOutlined: true,
-                                 onTap: () {
-                                   if (booking.clinicId != null) {
-                                     context.push(Uri(path: '/chat/detail', queryParameters: {'clinicId': booking.clinicId}).toString());
-                                   } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                       const SnackBar(content: Text('Không tìm thấy thông tin phòng khám')),
-                                     );
-                                   }
-                                 },
-                               ),
-                             ),
-                             
-                             _buildActionButton(
-                               label: 'HỦY LỊCH',
-                               color: AppColors.coral,
-                               isOutlined: true, // Keep Cancel outlined or make it filled if highly encouraged? User said "bên cạnh nút Hủy đơn" so matching style is safer.
-                               onTap: () => _showCancelDialog(context, booking),
-                             ),
+                            // Contact Button - Always show
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: _buildActionButton(
+                                label: 'LIÊN HỆ',
+                                color: AppColors.stone500,
+                                isOutlined: true,
+                                onTap: () {
+                                  if (booking.clinicId != null) {
+                                    context.push(Uri(
+                                        path: '/chat/detail',
+                                        queryParameters: {
+                                          'clinicId': booking.clinicId
+                                        }).toString());
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Không tìm thấy thông tin phòng khám')),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
+
+                            _buildActionButton(
+                              label: 'HỦY LỊCH',
+                              color: AppColors.coral,
+                              isOutlined:
+                                  true, // Keep Cancel outlined or make it filled if highly encouraged? User said "bên cạnh nút Hủy đơn" so matching style is safer.
+                              onTap: () => _showCancelDialog(context, booking),
+                            ),
                           ],
                         ),
-                      
-                      if (['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED'].contains(booking.status))
+                      if (['CANCELLED', 'REJECTED', 'NO_SHOW', 'COMPLETED']
+                          .contains(booking.status))
                         _buildActionButton(
                           label: 'ĐẶT LẠI',
                           color: AppColors.primary,
@@ -526,14 +551,16 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
     }
   }
 
-  Future<void> _showCancelDialog(BuildContext context, BookingResponse booking) async {
+  Future<void> _showCancelDialog(
+      BuildContext context, BookingResponse booking) async {
     final reasonController = TextEditingController();
     final formKey = GlobalKey<FormState>(); // To validate
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hủy lịch hẹn?', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Hủy lịch hẹn?',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: Form(
           key: formKey,
           child: Column(
@@ -562,16 +589,18 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('QUAY LẠI', style: TextStyle(color: AppColors.stone500)),
+            child: const Text('QUAY LẠI',
+                style: TextStyle(color: AppColors.stone500)),
           ),
           ElevatedButton(
             onPressed: () {
-               if (formKey.currentState!.validate()) {
-                 Navigator.pop(context, true);
-               }
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('HỦY LỊCH', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('HỦY LỊCH', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -580,16 +609,17 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
     if (confirmed == true && context.mounted) {
       // Show loading
       _showLoadingDialog(context);
-      
+
       try {
         // Double check mounted before async work if needed, but here we just showed dialog
-        await _bookingService.cancelBooking(booking.bookingId!, reasonController.text);
+        await _bookingService.cancelBooking(
+            booking.bookingId!, reasonController.text);
         if (context.mounted) Navigator.pop(context); // Hide loading
-        
+
         await _fetchBookings(); // Refresh list - await to ensure list updates before UI feedback
-        
+
         if (context.mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Đã hủy lịch hẹn thành công'),
               backgroundColor: AppColors.success,
@@ -601,7 +631,8 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Lỗi: ${e.toString().replaceAll("Exception:", "").trim()}'),
+              content: Text(
+                  'Lỗi: ${e.toString().replaceAll("Exception:", "").trim()}'),
               backgroundColor: AppColors.error,
             ),
           );
@@ -622,7 +653,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
   void _handleRebook(BuildContext context, BookingResponse booking) {
     // Navigate to booking wizard (Step 1: Select Pet)
     if (booking.clinicId != null) {
-       context.push('/booking/${booking.clinicId}/pet');
+      context.push('/booking/${booking.clinicId}/pet');
     }
   }
 
