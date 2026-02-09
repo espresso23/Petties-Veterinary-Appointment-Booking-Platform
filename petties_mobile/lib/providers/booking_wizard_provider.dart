@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import '../data/models/beneficiary_info.dart';
 import '../data/models/clinic.dart';
 import '../data/models/clinic_service.dart';
 import '../data/models/pet.dart';
@@ -23,6 +24,10 @@ class BookingWizardProvider extends ChangeNotifier {
   final List<Pet> _selectedPets = []; // Multi-pet selection
   BookingType _bookingType = BookingType.atClinic;
 
+  // Đặt hộ: thông tin người được đặt hộ và danh sách thú cưng (tạo mới cho họ)
+  BeneficiaryInfo? _beneficiary;
+  final List<Pet> _beneficiaryPets = [];
+
   // Step 2: Services
   List<ClinicServiceModel> _availableServices = [];
   // Key: petId, Value: List of services for that pet
@@ -39,6 +44,10 @@ class BookingWizardProvider extends ChangeNotifier {
       []; // All selected time slots (for multi-slot bookings)
   List<AvailableSlot> _availableSlots = [];
   String? _bookingError;
+
+  // Expected pickup (computed on confirm screen)
+  DateTime? _expectedPickupTime;
+  bool _isLoadingExpectedPickup = false;
 
   // Loading states
   bool _isLoadingPets = false;
@@ -60,6 +69,13 @@ class BookingWizardProvider extends ChangeNotifier {
   List<Pet> get selectedPets => _selectedPets;
   BookingType get bookingType => _bookingType;
 
+  BeneficiaryInfo? get beneficiary => _beneficiary;
+  bool get isBookingForOthers => _beneficiary != null;
+  List<Pet> get beneficiaryPets => List.unmodifiable(_beneficiaryPets);
+
+  /// Danh sách thú cưng hiển thị ở Bước 1: đặt hộ thì dùng beneficiaryPets, không thì myPets
+  List<Pet> get petsToShow => isBookingForOthers ? _beneficiaryPets : _myPets;
+
   List<ClinicServiceModel> get availableServices => _availableServices;
   Map<String, List<ClinicServiceModel>> get petServices => _petServices;
   String get notes => _notes;
@@ -72,6 +88,9 @@ class BookingWizardProvider extends ChangeNotifier {
   List<String> get selectedTimeSlots => _selectedTimeSlots;
   List<AvailableSlot> get availableSlots => _availableSlots;
   String? get bookingError => _bookingError;
+
+  DateTime? get expectedPickupTime => _expectedPickupTime;
+  bool get isLoadingExpectedPickup => _isLoadingExpectedPickup;
 
   bool get isLoadingPets => _isLoadingPets;
   bool get isLoadingServices => _isLoadingServices;
@@ -247,6 +266,62 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Đặt hộ: lưu thông tin người được đặt hộ và áp dụng địa chỉ + hình thức khám
+  void setBeneficiary(BeneficiaryInfo info) {
+    _beneficiary = info;
+    _userAddress = info.address;
+    _userLatitude = info.latitude;
+    _userLongitude = info.longitude;
+    _bookingType = info.bookingTypeApi == 'HOME_VISIT'
+        ? BookingType.homeVisit
+        : BookingType.atClinic;
+    notifyListeners();
+  }
+
+  /// Cập nhật từng phần thông tin người được đặt hộ (ví dụ: tên, SĐT)
+  void updateBeneficiary({
+    String? fullName,
+    String? phone,
+  }) {
+    if (_beneficiary == null) return;
+
+    _beneficiary = BeneficiaryInfo(
+      fullName: fullName ?? _beneficiary!.fullName,
+      phone: phone ?? _beneficiary!.phone,
+      address: _beneficiary!.address,
+      latitude: _beneficiary!.latitude,
+      longitude: _beneficiary!.longitude,
+      bookingTypeApi: _beneficiary!.bookingTypeApi,
+    );
+    notifyListeners();
+  }
+
+  /// Hủy chế độ đặt hộ
+  void clearBeneficiary() {
+    _beneficiary = null;
+    _beneficiaryPets.clear();
+    _selectedPets.clear();
+    _petServices.clear();
+    notifyListeners();
+  }
+
+  /// Thêm thú cưng cho người được đặt hộ (tạo mới)
+  void addBeneficiaryPet(Pet pet) {
+    if (!_beneficiaryPets.any((p) => p.id == pet.id)) {
+      _beneficiaryPets.add(pet);
+      _petServices[pet.id] = [];
+      notifyListeners();
+    }
+  }
+
+  /// Xóa thú cưng khỏi danh sách đặt hộ
+  void removeBeneficiaryPet(String petId) {
+    _beneficiaryPets.removeWhere((p) => p.id == petId);
+    _selectedPets.removeWhere((p) => p.id == petId);
+    _petServices.remove(petId);
+    notifyListeners();
+  }
+
   /// Load user's pets
   Future<void> loadMyPets() async {
     if (_isLoadingPets) return;
@@ -386,6 +461,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _selectedTimeSlots = [];
     _availableSlots = [];
     _bookingError = null;
+    _expectedPickupTime = null;
     notifyListeners();
     // Load available slots for selected date
     loadAvailableSlots();
@@ -522,75 +598,110 @@ class BookingWizardProvider extends ChangeNotifier {
     return timeInMinutes >= startInMinutes && timeInMinutes < endInMinutes;
   }
 
-  /// Select time slot and auto-select consecutive slots based on total duration
+  /// Select a single time slot (drop-off time). Calls estimated-completion API.
   void selectTime(String time) {
-    // Calculate number of slots needed (each slot is 30 minutes)
-    final int slotsNeeded = (totalDuration / 30).ceil();
-
-    // Find the index of the selected slot
-    final int startIndex =
+    final int index =
         _availableSlots.indexWhere((slot) => slot.startTime == time);
-    if (startIndex == -1) {
+    if (index == -1) {
       debugPrint('Selected slot not found in available slots');
       return;
     }
-
-    // Check if we have enough consecutive available slots
-    final List<String> requiredSlots = [];
-    for (int i = 0; i < slotsNeeded; i++) {
-      final int slotIndex = startIndex + i;
-
-      // Check if slot exists
-      if (slotIndex >= _availableSlots.length) {
-        _bookingError =
-            'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
-        notifyListeners();
-        // Auto-clear error after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (_bookingError ==
-              'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.') {
-            _bookingError = null;
-            notifyListeners();
-          }
-        });
-        return;
-      }
-
-      final slot = _availableSlots[slotIndex];
-
-      // Check if slot is available
-      if (!slot.available) {
-        if (slot.isBreakTime) {
-          _bookingError =
-              'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.';
-        } else {
-          _bookingError =
-              'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.';
-        }
-        notifyListeners();
-        // Auto-clear error after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (_bookingError ==
-                  'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.' ||
-              _bookingError ==
-                  'Một số khung giờ cần thiết đã được đặt. Vui lòng chọn khung giờ khác.') {
-            _bookingError = null;
-            notifyListeners();
-          }
-        });
-        return;
-      }
-
-      requiredSlots.add(slot.startTime);
+    final slot = _availableSlots[index];
+    if (!slot.available) {
+      _bookingError = slot.isBreakTime
+          ? 'Không đủ khung giờ liên tiếp. Vui lòng chọn khung giờ sớm hơn.'
+          : 'Khung giờ đã được đặt. Vui lòng chọn khung giờ khác.';
+      notifyListeners();
+      return;
     }
 
-    // All slots are available, proceed with selection
     _selectedTime = time;
-    _selectedTimeSlots = requiredSlots;
+    _selectedTimeSlots = [time];
     _bookingError = null;
-
-    debugPrint('Auto-selected $slotsNeeded slots: $requiredSlots');
+    _expectedPickupTime = null;
     notifyListeners();
+    loadEstimatedCompletion();
+  }
+
+  /// Load estimated completion (expected pickup time). Called when user selects a slot.
+  Future<void> loadEstimatedCompletion() async {
+    if (_clinic == null || _selectedDate == null || _selectedTime == null) {
+      return;
+    }
+    if (_isLoadingExpectedPickup) return;
+
+    _isLoadingExpectedPickup = true;
+    _expectedPickupTime = null;
+    notifyListeners();
+
+    try {
+      final pets = <Map<String, dynamic>>[];
+      for (final pet in _selectedPets) {
+        final services = _petServices[pet.id];
+        if (services != null && services.isNotEmpty) {
+          // Khi đặt cho chính mình: gửi cả petId
+          // Khi đặt hộ: backend không cần petId, chỉ cần cân nặng + serviceIds
+          if (isBookingForOthers) {
+            pets.add({
+              'petWeight': pet.weight,
+              'serviceIds': services.map((s) => s.serviceId).toList(),
+            });
+          } else {
+            pets.add({
+              'petId': pet.id,
+              'petWeight': pet.weight,
+              'serviceIds': services.map((s) => s.serviceId).toList(),
+            });
+          }
+        }
+      }
+      if (pets.isEmpty) return;
+
+      final dateStr =
+          '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}';
+      final timeStr =
+          _selectedTime!.length == 5 ? '${_selectedTime!}:00' : _selectedTime!;
+      final startDateTime = '${dateStr}T$timeStr';
+      final type =
+          _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC';
+      final response = await _bookingService.getEstimatedCompletion(
+        clinicId: _clinic!.clinicId,
+        startDateTime: startDateTime,
+        type: type,
+        pets: pets,
+      );
+
+      final endTime = response.estimatedEndTime.trim();
+      if (endTime.isEmpty) return;
+
+      // Hỗ trợ cả ISO datetime (2026-02-09T10:30:00) và time-only (10:30 hoặc 10:30:00)
+      int hour = 0;
+      int minute = 0;
+      if (endTime.contains('T')) {
+        final parsed = DateTime.tryParse(endTime);
+        if (parsed != null) {
+          hour = parsed.hour;
+          minute = parsed.minute;
+        }
+      } else {
+        final parts = endTime.split(':');
+        if (parts.isNotEmpty) hour = int.tryParse(parts[0].trim()) ?? 0;
+        if (parts.length > 1) minute = int.tryParse(parts[1].trim()) ?? 0;
+      }
+
+      _expectedPickupTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        hour,
+        minute,
+      );
+    } catch (e) {
+      debugPrint('Error loading estimated completion: $e');
+    } finally {
+      _isLoadingExpectedPickup = false;
+      notifyListeners();
+    }
   }
 
   /// Clear booking error
@@ -609,33 +720,66 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Build items list
-      final List<Map<String, dynamic>> itemsPayload = [];
-      for (final pet in _selectedPets) {
-        final services = _petServices[pet.id];
-        if (services != null && services.isNotEmpty) {
+      final String bookingTypeApi =
+          _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC';
+
+      if (isBookingForOthers && _beneficiary != null) {
+        // Đặt hộ: build items payload theo schema /bookings/proxy
+        final List<Map<String, dynamic>> itemsPayload = [];
+        for (final pet in _selectedPets) {
+          final services = _petServices[pet.id] ?? [];
+          if (services.isEmpty) continue;
+
           itemsPayload.add({
-            'petId': pet.id,
+            'pet': {
+              'name': pet.name,
+              'species': pet.species,
+              'breed': pet.breed,
+              'gender': pet.gender,
+              'weight': pet.weight,
+            },
             'serviceIds': services.map((s) => s.serviceId).toList(),
           });
         }
-      }
 
-      await _bookingService.createBooking(
-        clinicId: _clinic!.clinicId,
-        bookingDate: _selectedDate!,
-        bookingTime: _selectedTime!,
-        bookingType:
-            _bookingType == BookingType.homeVisit ? 'HOME_VISIT' : 'IN_CLINIC',
-        items: itemsPayload,
-        notes: _notes.isNotEmpty ? _notes : null,
-        homeAddress:
-            _bookingType == BookingType.homeVisit ? _userAddress : null,
-        homeLat: _bookingType == BookingType.homeVisit ? _userLatitude : null,
-        homeLong: _bookingType == BookingType.homeVisit ? _userLongitude : null,
-        distanceKm:
-            _bookingType == BookingType.homeVisit ? distanceToClinic : null,
-      );
+        await _bookingService.createBookingForOthers(
+          clinicId: _clinic!.clinicId,
+          beneficiary: _beneficiary!,
+          bookingDate: _selectedDate!,
+          bookingTime: _selectedTime!,
+          bookingType: bookingTypeApi,
+          items: itemsPayload,
+          notes: _notes.isNotEmpty ? _notes : null,
+        );
+      } else {
+        // Đặt cho chính mình: dùng API đặt lịch hiện tại
+        final List<Map<String, dynamic>> itemsPayload = [];
+        for (final pet in _selectedPets) {
+          final services = _petServices[pet.id];
+          if (services != null && services.isNotEmpty) {
+            itemsPayload.add({
+              'petId': pet.id,
+              'serviceIds': services.map((s) => s.serviceId).toList(),
+            });
+          }
+        }
+
+        await _bookingService.createBooking(
+          clinicId: _clinic!.clinicId,
+          bookingDate: _selectedDate!,
+          bookingTime: _selectedTime!,
+          bookingType: bookingTypeApi,
+          items: itemsPayload,
+          notes: _notes.isNotEmpty ? _notes : null,
+          homeAddress:
+              _bookingType == BookingType.homeVisit ? _userAddress : null,
+          homeLat: _bookingType == BookingType.homeVisit ? _userLatitude : null,
+          homeLong:
+              _bookingType == BookingType.homeVisit ? _userLongitude : null,
+          distanceKm:
+              _bookingType == BookingType.homeVisit ? distanceToClinic : null,
+        );
+      }
       return true;
     } catch (e) {
       // Hiển thị message lỗi từ backend nếu có
@@ -654,12 +798,15 @@ class BookingWizardProvider extends ChangeNotifier {
     _petServices.clear();
     _currentPetIdForServiceSelection = null;
     _bookingType = BookingType.atClinic;
+    _beneficiary = null;
+    _beneficiaryPets.clear();
     _availableServices = [];
     _notes = '';
     _selectedDate = null;
     _selectedTime = null;
     _selectedTimeSlots = [];
     _availableSlots = [];
+    _expectedPickupTime = null;
     _error = null;
     _bookingError = null;
   }

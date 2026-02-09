@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'api_client.dart';
 import '../models/booking.dart';
 import '../models/clinic_service.dart';
@@ -46,6 +48,33 @@ class BookingService {
 
     final response =
         await _apiClient.get('/bookings/my', queryParameters: queryParams);
+
+    if (response.data['content'] != null) {
+      return (response.data['content'] as List)
+          .map((json) => BookingResponse.fromJson(json))
+          .toList();
+    }
+    return [];
+  }
+
+  /// Get my proxy bookings (Đặt hộ) - Pet Owner là người đặt thay
+  Future<List<BookingResponse>> getMyProxyBookings({
+    String? status,
+    int page = 0,
+    int size = 10,
+  }) async {
+    final queryParams = {
+      if (status != null) 'status': status,
+      'page': page,
+      'size': size,
+    };
+
+    final response = await _apiClient.get(
+      '/bookings/my/proxy',
+      queryParameters: queryParams,
+    );
+    debugPrint('queryParams: $queryParams');
+    debugPrint('response: ${response.data}');
 
     if (response.data['content'] != null) {
       return (response.data['content'] as List)

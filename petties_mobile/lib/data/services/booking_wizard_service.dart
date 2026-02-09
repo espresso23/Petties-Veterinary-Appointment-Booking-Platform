@@ -1,4 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../models/clinic_service.dart';
+import '../models/beneficiary_info.dart';
+import '../models/estimated_completion_response.dart';
 import '../models/pet.dart';
 import 'api_client.dart';
 
@@ -102,7 +106,7 @@ class BookingWizardService {
         'bookingDate': dateStr,
         'bookingTime': bookingTime,
         'type': bookingType,
-        'items': items, // List of {petId, serviceIds}
+        'items': items,
         if (notes != null) 'notes': notes,
         if (homeAddress != null) 'homeAddress': homeAddress,
         if (homeLat != null) 'homeLat': homeLat,
@@ -116,5 +120,71 @@ class BookingWizardService {
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Create booking for others (Đặt hộ)
+  Future<String> createBookingForOthers({
+    required String clinicId,
+    required BeneficiaryInfo beneficiary,
+    required DateTime bookingDate,
+    required String bookingTime,
+    required String bookingType,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+  }) async {
+    try {
+      final dateStr =
+          '${bookingDate.year}-${bookingDate.month.toString().padLeft(2, '0')}-${bookingDate.day.toString().padLeft(2, '0')}';
+
+      final body = {
+        'recipient': {
+          'fullName': beneficiary.fullName,
+          'phone': beneficiary.phone,
+          'address': beneficiary.address,
+        },
+        'items': items,
+        'clinicId': clinicId,
+        'bookingDate': dateStr,
+        'bookingTime': bookingTime,
+        'type': bookingType,
+        if (notes != null) 'notes': notes,
+      };
+
+      debugPrint('body booking proxy: $body');
+
+      final response =
+          await _apiClient.post('/bookings/proxy', data: body);
+      return response.data['bookingId'] ?? '';
+    } catch (e) {
+      rethrow;
+    }
+  }
+  /// Get estimated completion time.
+  /// POST /bookings/public/estimated-completion?clinicId={clinicId}
+  /// Body: startDateTime (yyyy-MM-ddTHH:mm:ss), type, pets: [{ petId, petWeight, serviceIds }]
+  Future<EstimatedCompletionResponse> getEstimatedCompletion({
+    required String clinicId,
+    required String startDateTime,
+    required String type,
+    required List<Map<String, dynamic>> pets,
+  }) async {
+    final body = <String, dynamic>{
+      'startDateTime': startDateTime,
+      'type': type,
+      'pets': pets,
+    };
+    debugPrint('body: $body');
+    debugPrint('clinicId: $clinicId');
+    final response = await _apiClient.post(
+      '/bookings/public/estimated-completion',
+      data: body,
+      queryParameters: {'clinicId': clinicId},
+    );
+    if (response.data is! Map<String, dynamic>) {
+      throw Exception('Invalid estimated-completion response');
+    }
+    return EstimatedCompletionResponse.fromJson(
+      response.data as Map<String, dynamic>,
+    );
   }
 }

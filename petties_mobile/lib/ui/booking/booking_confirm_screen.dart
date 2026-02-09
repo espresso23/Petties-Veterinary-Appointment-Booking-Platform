@@ -6,9 +6,14 @@ import '../../providers/booking_wizard_provider.dart';
 import '../../utils/format_utils.dart';
 
 /// Step 4: Booking Confirmation
-class BookingConfirmScreen extends StatelessWidget {
+class BookingConfirmScreen extends StatefulWidget {
   const BookingConfirmScreen({super.key});
 
+  @override
+  State<BookingConfirmScreen> createState() => _BookingConfirmScreenState();
+}
+
+class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -240,8 +245,16 @@ class BookingConfirmScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _buildDetailRow(
             Icons.schedule,
-            'Giờ khám',
+            'Giờ đưa pet tới',
             provider.selectedTime ?? '-',
+          ),
+          const SizedBox(height: 10),
+          _buildDetailRow(
+            Icons.pets,
+            'Giờ nhận pet dự kiến',
+            provider.expectedPickupTime != null
+                ? FormatUtils.formatDateTime(provider.expectedPickupTime!)
+                : '-',
           ),
           const SizedBox(height: 10),
           _buildDetailRow(

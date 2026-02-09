@@ -43,6 +43,8 @@ class AppRoutes {
 
   // Booking Flow (Pet Owner)
   static const String bookingSelectPet = '/booking/:clinicId/pet';
+  static const String bookingForOthersInfo =
+      '/booking/:clinicId/for-others-info';
   static const String bookingSelectServices = '/booking/:clinicId/services';
   static const String bookingSelectDateTime = '/booking/datetime';
   static const String bookingConfirm = '/booking/confirm';

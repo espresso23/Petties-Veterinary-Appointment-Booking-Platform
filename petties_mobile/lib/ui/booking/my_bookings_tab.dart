@@ -17,7 +17,8 @@ class MyBookingsTab extends StatefulWidget {
 class _MyBookingsTabState extends State<MyBookingsTab>
     with SingleTickerProviderStateMixin {
   final BookingService _bookingService = BookingService();
-  List<BookingResponse> _bookings = [];
+  List<BookingResponse> _bookings = []; // Lịch hẹn của tôi
+  List<BookingResponse> _proxyBookings = []; // Lịch hẹn đặt hộ
   bool _isLoading = true;
   TabController? _tabController;
 
@@ -38,11 +39,15 @@ class _MyBookingsTabState extends State<MyBookingsTab>
   Future<void> _fetchBookings() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch all bookings for now, can be optimized to fetch by status tabs
-      final bookings = await _bookingService.getMyBookings(size: 20);
+      // Fetch cả lịch hẹn của tôi và lịch hẹn đặt hộ
+      final results = await Future.wait<List<BookingResponse>>([
+        _bookingService.getMyBookings(size: 20),
+        _bookingService.getMyProxyBookings(size: 20),
+      ]);
       if (mounted) {
         setState(() {
-          _bookings = bookings;
+          _bookings = results[0];
+          _proxyBookings = results[1];
           _isLoading = false;
         });
       }
@@ -89,35 +94,90 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                   controller: _tabController,
                   children: [
                     // Tab 1: Chờ xác nhận
-                    _buildBookingList(
-                        _bookings.where((b) => b.status == 'PENDING').toList()),
+                    _buildStatusSection(
+                      myBookings:
+                          _filterByStatuses(_bookings, const ['PENDING']),
+                      proxyBookings:
+                          _filterByStatuses(_proxyBookings, const ['PENDING']),
+                    ),
 
                     // Tab 2: Đã duyệt (CONFIRMED, ASSIGNED)
-                    _buildBookingList(_bookings
-                        .where(
-                            (b) => ['CONFIRMED', 'ASSIGNED'].contains(b.status))
-                        .toList()),
+                    _buildStatusSection(
+                      myBookings: _filterByStatuses(
+                          _bookings, const ['CONFIRMED', 'ASSIGNED']),
+                      proxyBookings: _filterByStatuses(
+                          _proxyBookings, const ['CONFIRMED', 'ASSIGNED']),
+                    ),
 
                     // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
-                    _buildBookingList(_bookings
-                        .where((b) => ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']
-                            .contains(b.status))
-                        .toList()),
+                    _buildStatusSection(
+                      myBookings: _filterByStatuses(_bookings,
+                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                      proxyBookings: _filterByStatuses(_proxyBookings,
+                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                    ),
 
                     // Tab 4: Hoàn thành
-                    _buildBookingList(_bookings
-                        .where((b) => b.status == 'COMPLETED')
-                        .toList()),
+                    _buildStatusSection(
+                      myBookings:
+                          _filterByStatuses(_bookings, const ['COMPLETED']),
+                      proxyBookings:
+                          _filterByStatuses(_proxyBookings, const ['COMPLETED']),
+                    ),
 
                     // Tab 5: Đã hủy (CANCELLED, REJECTED, NO_SHOW)
-                    _buildBookingList(_bookings
-                        .where((b) => ['CANCELLED', 'REJECTED', 'NO_SHOW']
-                            .contains(b.status))
-                        .toList()),
+                    _buildStatusSection(
+                      myBookings: _filterByStatuses(_bookings,
+                          const ['CANCELLED', 'REJECTED', 'NO_SHOW']),
+                      proxyBookings: _filterByStatuses(_proxyBookings,
+                          const ['CANCELLED', 'REJECTED', 'NO_SHOW']),
+                    ),
                   ],
                 ),
         ),
       ],
+    );
+  }
+
+  /// Lọc danh sách booking theo nhiều trạng thái
+  List<BookingResponse> _filterByStatuses(
+      List<BookingResponse> source, List<String> statuses) {
+    return source.where((b) => statuses.contains(b.status)).toList();
+  }
+
+  /// Mỗi tab trạng thái gồm 2 tab con: Lịch hẹn của tôi / Lịch hẹn đặt hộ
+  Widget _buildStatusSection({
+    required List<BookingResponse> myBookings,
+    required List<BookingResponse> proxyBookings,
+  }) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            color: AppColors.white,
+            child: const TabBar(
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.stone500,
+              indicatorColor: AppColors.primary,
+              labelStyle:
+                  TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              tabs: [
+                Tab(text: 'Lịch hẹn của tôi'),
+                Tab(text: 'Lịch hẹn đặt hộ'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildBookingList(myBookings),
+                _buildBookingList(proxyBookings),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
