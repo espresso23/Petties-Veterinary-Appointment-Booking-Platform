@@ -6,6 +6,7 @@ class BookingResponse {
   final String? bookingCode;
   final String? clinicId;
   final String? clinicName;
+  final String? clinicLogo;
   final String? clinicPhone;
   final String? petId;
   final String? petName;
@@ -28,12 +29,17 @@ class BookingResponse {
   // Staff info
   final String? assignedStaffName;
   final String? assignedStaffAvatarUrl;
+  final bool? isReviewed;
+  final String? reviewId;
+  final int? rating;
+  final String? reviewComment;
 
   BookingResponse({
     this.bookingId,
     this.bookingCode,
     this.clinicId,
     this.clinicName,
+    this.clinicLogo,
     this.clinicPhone,
     this.petId,
     this.petName,
@@ -55,6 +61,10 @@ class BookingResponse {
     this.services = const [],
     this.assignedStaffName,
     this.assignedStaffAvatarUrl,
+    this.isReviewed,
+    this.reviewId,
+    this.rating,
+    this.reviewComment,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -63,6 +73,7 @@ class BookingResponse {
       bookingCode: json['bookingCode'],
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
+      clinicLogo: json['clinicLogo'],
       clinicPhone: json['clinicPhone'],
       petId: json['petId'],
       petName: json['petName'],
@@ -87,6 +98,10 @@ class BookingResponse {
           [],
       assignedStaffName: json['assignedStaffName'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      isReviewed: json['isReviewed'],
+      reviewId: json['reviewId'],
+      rating: json['rating'],
+      reviewComment: json['reviewComment'],
     );
   }
 }
