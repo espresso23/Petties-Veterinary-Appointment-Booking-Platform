@@ -68,4 +68,37 @@ public class Pet {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // Manual Getters/Setters for Lombok workaround
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setSpecies(String species) {
+        this.species = species;
+    }
+
+    public void setBreed(String breed) {
+        this.breed = breed;
+    }
+
+    public void setDateOfBirth(java.time.LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 }

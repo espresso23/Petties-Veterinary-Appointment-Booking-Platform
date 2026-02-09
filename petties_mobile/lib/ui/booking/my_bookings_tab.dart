@@ -6,6 +6,7 @@ import '../../data/models/booking.dart';
 import '../../data/services/booking_service.dart';
 import '../../utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'write_review_screen.dart';
 
 /// Tab hiển thị lịch sử đặt lịch của Pet Owner
 class MyBookingsTab extends StatefulWidget {
@@ -386,13 +387,104 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                     border: Border(top: BorderSide(color: AppColors.stone200)),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      // Review Button or Rating Display (Left)
+                      if (booking.status == 'COMPLETED')
+                        if (booking.isReviewed != true)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => WriteReviewScreen(booking: booking),
+                                ),
+                              ).then((value) {
+                                if (value == true) {
+                                  _fetchBookings();
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.amber, width: 1.5),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.star_rounded, size: 16, color: Colors.amber),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'ĐÁNH GIÁ',
+                                    style: TextStyle(
+                                      color: Colors.amber, 
+                                      fontWeight: FontWeight.w800, 
+                                      fontSize: 12,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else if (booking.rating != null)
+                           Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.stone100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text(
+                                  'Đã đánh giá:',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.stone500,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(Icons.star_rounded, size: 18, color: Colors.amber),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${booking.rating}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.stone900,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  InkWell(
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => WriteReviewScreen(booking: booking, isEditMode: true),
+                                        ),
+                                      ).then((value) {
+                                        if (value == true) {
+                                          _fetchBookings();
+                                        }
+                                      });
+                                    },
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(4.0),
+                                      child: Icon(Icons.edit, size: 16, color: AppColors.stone500),
+                                    ),
+                                  ),
+                                ],
+                            ),
+                          ),
+
+                      // Spacer to push everything else to the right
+                      const Spacer(),
+
+                      // Actions (Right)
                       if (booking.status == 'PENDING')
                         Row(
-                          mainAxisSize: MainAxisSize.min, // Ensure Row takes minimum necessary width
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                             // Contact Button - Always show
                              Padding(
                                padding: const EdgeInsets.only(right: 8.0),
                                child: _buildActionButton(
@@ -414,7 +506,7 @@ class _MyBookingsTabState extends State<MyBookingsTab> with SingleTickerProvider
                              _buildActionButton(
                                label: 'HỦY LỊCH',
                                color: AppColors.coral,
-                               isOutlined: true, // Keep Cancel outlined or make it filled if highly encouraged? User said "bên cạnh nút Hủy đơn" so matching style is safer.
+                               isOutlined: true,
                                onTap: () => _showCancelDialog(context, booking),
                              ),
                           ],
