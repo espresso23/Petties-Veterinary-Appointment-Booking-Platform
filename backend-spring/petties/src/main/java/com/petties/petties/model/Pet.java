@@ -2,6 +2,7 @@ package com.petties.petties.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Pet {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -43,6 +45,12 @@ public class Pet {
     @Column(nullable = false)
     private String gender;
 
+    @Column(length = 100)
+    private String color;
+
+    @Column(columnDefinition = "TEXT")
+    private String allergies;
+
     @Column(name = "image_url")
     private String imageUrl;
 
@@ -60,4 +68,37 @@ public class Pet {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // Manual Getters/Setters for Lombok workaround
+    public String getName() {
+        return this.name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setSpecies(String species) {
+        this.species = species;
+    }
+
+    public void setBreed(String breed) {
+        this.breed = breed;
+    }
+
+    public void setDateOfBirth(java.time.LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 }

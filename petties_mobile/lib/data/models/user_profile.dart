@@ -140,8 +140,8 @@ class UserProfile extends BaseModel {
     switch (role) {
       case 'PET_OWNER':
         return 'Chủ nuôi thú cưng';
-      case 'VET':
-        return 'Bác sĩ thú y';
+      case 'STAFF':
+        return 'Nhân viên phòng khám';
       case 'CLINIC_OWNER':
         return 'Chủ phòng khám';
       case 'CLINIC_MANAGER':

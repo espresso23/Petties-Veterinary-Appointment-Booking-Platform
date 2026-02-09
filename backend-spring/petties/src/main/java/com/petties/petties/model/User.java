@@ -3,6 +3,7 @@ package com.petties.petties.model;
 import com.petties.petties.model.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,11 +14,13 @@ import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import com.petties.petties.model.Clinic;
+import com.petties.petties.model.enums.StaffSpecialty;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.List;
 import java.util.ArrayList;
-import com.petties.petties.model.Clinic;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -30,6 +33,7 @@ import com.petties.petties.model.Clinic;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -75,16 +79,16 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // ========== VET-SPECIFIC FIELDS ==========
+    // ========== STAFF-SPECIFIC FIELDS ==========
 
     // Chuyên môn của Staff (VET hoặc GROOMER)
     @Enumerated(EnumType.STRING)
     @Column(name = "specialty", length = 100)
-    private com.petties.petties.model.enums.StaffSpecialty specialty;
+    private StaffSpecialty specialty;
 
-    // Rating trung bình của Vet (1.0 - 5.0)
+    // Rating trung bình của Staff (1.0 - 5.0)
     @Column(name = "rating_avg", precision = 2, scale = 1)
-    private java.math.BigDecimal ratingAvg;
+    private BigDecimal ratingAvg;
 
     // Số lượt đánh giá
     @Column(name = "rating_count")
@@ -94,13 +98,25 @@ public class User {
     @Column(name = "fcm_token", length = 500)
     private String fcmToken;
 
+    // Address for Pet Owner (used in bookings)
+    @Column(name = "address", length = 500)
+    private String address;
+
     // For Clinic Owners: The clinics they own (1 owner can have multiple clinics)
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
-    private java.util.List<Clinic> ownedClinics = new java.util.ArrayList<>();
+    private List<Clinic> ownedClinics = new ArrayList<>();
 
-    // For Managers and Vets: The clinic they belong to
+    // For Managers and Staff: The clinic they belong to
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "working_clinic_id")
     private Clinic workingClinic;
 
+    // Manual Getter for Lombok issue workaround
+    public UUID getUserId() {
+        return this.userId;
+    }
+
+    public Clinic getWorkingClinic() {
+        return this.workingClinic;
+    }
 }

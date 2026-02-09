@@ -18,7 +18,6 @@ import {
   deleteService,
   toggleServiceStatus,
   updateHomeVisitStatus,
-  updateBulkPricePerKm,
   inheritFromMasterService,
   getServicesByClinicId,
 } from '../../services/endpoints/service'
@@ -37,9 +36,9 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
     duration: response.durationTime,
     isActive: response.isActive,
     isHomeVisit: response.isHomeVisit,
-    pricePerKm: response.pricePerKm,
     serviceCategory: response.serviceCategory,
     petType: response.petType,
+    description: response.description,
     weightPrices: response.weightPrices,
   }
 }
@@ -52,9 +51,9 @@ function mapServiceToRequest(service: any, clinicId: string): ClinicServiceReque
     slotsRequired: service.slotsRequired || 1,
     isActive: service.isActive ?? true,
     isHomeVisit: service.isHomeVisit ?? false,
-    pricePerKm: 0,
     serviceCategory: service.serviceCategory,
     petType: service.petType,
+    description: service.description,
     weightPrices: service.weightPrices,
   }
 }
@@ -205,12 +204,8 @@ export function ServiceGrid() {
       const requestData = mapServiceToRequest(serviceData, selectedClinic!.clinicId)
 
       if (selectedService) {
-        // Update existing service - preserve pricePerKm
-        const updatePayload = {
-          ...requestData,
-          pricePerKm: selectedService.pricePerKm, // Keep existing pricePerKm
-        }
-        const updated = await updateService(selectedService.serviceId, updatePayload)
+        // Update existing service
+        const updated = await updateService(selectedService.serviceId, requestData)
         setServices((prev) =>
           prev.map((s) =>
             s.id === selectedService.serviceId ? mapResponseToService(updated) : s,
@@ -240,24 +235,13 @@ export function ServiceGrid() {
   const handleSavePricing = async (data: PricingData) => {
     try {
       setIsSubmitting(true)
-      await updateBulkPricePerKm(data.pricePerKm)
-      // Persist clinic-level default price-per-km when a clinic is selected
+      // Update clinic-level price-per-km (no longer service-level)
       if (selectedClinic) {
-        try {
-          await updateClinicPricePerKm(selectedClinic.clinicId, data.pricePerKm)
-        } catch (err) {
-          // non-fatal: show a warning but continue
-          console.warn('Failed to persist clinic price-per-km:', err)
-          showToast('error', 'Không thể lưu đơn giá KM vào cơ sở dữ liệu')
-        }
+        await updateClinicPricePerKm(selectedClinic.clinicId, data.pricePerKm)
       }
       setPricingData(data)
       setIsPricingModalOpen(false)
       showToast('success', 'Đã cập nhật đơn giá di chuyển (KM)')
-      // Reload services to show updated prices on cards
-      if (selectedClinic) {
-        await loadServicesForClinic(selectedClinic.clinicId)
-      }
     } catch (error) {
       console.error('Failed to update pricing:', error)
       showToast('error', 'Không thể cập nhật đơn giá di chuyển')

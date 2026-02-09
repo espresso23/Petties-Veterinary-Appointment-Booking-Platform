@@ -34,7 +34,7 @@
 
 **English:** Petties: Veterinary Appointment Booking Platform using Flutter, React Vite, Spring boot, Python, Postgres.
 
-**Vietnamese:** Petties: Hệ thống đặt lịch bác sĩ thú y sử dụng công nghệ Flutter, React Vite, Spring boot, Python, Postgres.
+**Vietnamese:** Petties: Hệ thống đặt lịch nhân viên thú y sử dụng công nghệ Flutter, React Vite, Spring boot, Python, Postgres.
 
 **Abbreviation:** PVABP
 

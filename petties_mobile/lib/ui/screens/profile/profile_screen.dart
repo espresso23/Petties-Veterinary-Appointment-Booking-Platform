@@ -11,7 +11,7 @@ import '../../widgets/profile/profile_info_card.dart';
 
 /// Profile Screen - Main profile view
 /// Displays user profile with Neobrutalism style
-/// Available for PET_OWNER and VET roles
+/// Available for PET_OWNER and STAFF roles
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -312,8 +312,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        child: profile?.role == 'VET'
-            ? _buildVetProfile(profile!, userProvider)
+        child: profile?.role == 'STAFF'
+            ? _buildStaffProfile(profile!, userProvider)
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -394,11 +394,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Vet Profile Layout - Uses same structure as regular profile
+  /// Staff Profile Layout - Uses same structure as regular profile
   /// Only displays data available in UserProfile model
-  Widget _buildVetProfile(UserProfile profile, UserProvider userProvider) {
-    // VET profile uses the SAME layout as regular profile
-    // The only difference is the role badge shows "Bác sĩ thú y"
+  Widget _buildStaffProfile(UserProfile profile, UserProvider userProvider) {
+    // STAFF profile uses the SAME layout as regular profile
+    // The only difference is the role badge shows "Nhân viên phòng khám"
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -447,7 +447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
 
-        // Vet-specific info section (specialty + rating)
+        // Staff-specific info section (specialty + rating)
         const ProfileSectionHeader(title: 'Thông tin chuyên môn'),
         ProfileInfoGroup(
           children: [
@@ -493,7 +493,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Build rating card for VET profile with star icon
+  /// Build rating card for STAFF profile with star icon
   Widget _buildRatingCard(UserProfile profile) {
     final rating = profile.ratingAvg ?? 0.0;
     final count = profile.ratingCount ?? 0;

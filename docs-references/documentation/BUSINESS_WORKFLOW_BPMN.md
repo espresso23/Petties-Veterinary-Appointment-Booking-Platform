@@ -11,17 +11,17 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 **PETTIES** là nền tảng đặt lịch khám thú y trực tuyến, kết nối:
 - **Pet Owner** (Chủ thú cưng) - đặt lịch khám, theo dõi hồ sơ sức khỏe
 - **Veterinary Clinics** (Phòng khám thú y) - quản lý dịch vụ, lịch hẹn, nhân sự
-- **Vets** (Bác sĩ thú y) - thực hiện khám, ghi hồ sơ bệnh án
+- **Staff** (Nhân viên thú y) - thực hiện khám, ghi hồ sơ bệnh án
 
 ### 0.2 Core Business Flows (Luồng nghiệp vụ cốt lõi)
 
 | # | Core Flow | Actor(s) | Mô tả |
 |---|-----------|----------|-------|
 | **BP-001** | Clinic Onboarding | Clinic Owner → Admin | Đăng ký phòng khám, Admin phê duyệt |
-| **BP-002** | Booking Management | Pet Owner → Manager → Vet | Đặt lịch → Gán bác sĩ → Xác nhận |
-| **BP-003** | Medical Service | Vet → Pet Owner | Check-in → Khám → EMR → Check-out |
+| **BP-002** | Booking Management | Pet Owner → Manager → Staff | Đặt lịch → Gán nhân viên → Xác nhận |
+| **BP-003** | Medical Service | Staff → Pet Owner | Check-in → Khám → EMR → Check-out |
 | **BP-004** | Payment Processing | Pet Owner → System | Thanh toán Online/Cash |
-| **BP-005** | Review & Feedback | Pet Owner | Đánh giá Vet + Clinic |
+| **BP-005** | Review & Feedback | Pet Owner | Đánh giá Staff + Clinic |
 
 ### 0.3 Supporting Flows (Luồng hỗ trợ)
 
@@ -29,7 +29,7 @@ Tài liệu mô tả luồng nghiệp vụ tổng quan theo chuẩn BPMN 2.0.
 |---|-----------------|----------|-------|
 | **BP-006** | AI Assistance | Pet Owner → AI | Chat với AI về sức khỏe thú cưng |
 | **BP-007** | SOS Emergency | Pet Owner | Tìm phòng khám gần nhất khi khẩn cấp |
-| **BP-008** | Staff Management | Clinic Owner/Manager | Thêm/xóa Manager, Vet |
+| **BP-008** | Staff Management | Clinic Owner/Manager | Thêm/xóa Manager, Staff |
 
 ### 0.4 Business Flow Dependencies
 
@@ -55,10 +55,10 @@ flowchart LR
 | Rule ID | Business Rule | Impact |
 |---------|---------------|--------|
 | **BR-001** | Mỗi Clinic chỉ có 1 Manager | Staff Management |
-| **BR-002** | Manager chỉ thêm được Vet | Authorization |
+| **BR-002** | Manager chỉ thêm được Staff | Authorization |
 | **BR-003** | Mỗi slot = 30 phút | Scheduling |
-| **BR-004** | Booking cần Manager gán Vet | Workflow |
-| **BR-005** | Manager assign Vet và booking tự động CONFIRMED | Workflow |
+| **BR-004** | Booking cần Manager gán Staff | Workflow |
+| **BR-005** | Manager assign Staff và booking tự động CONFIRMED | Workflow |
 | **BR-006** | Payment trước khi COMPLETED | Checkout |
 
 ---
@@ -113,12 +113,12 @@ flowchart LR
 | Status | Trigger | Actions | Next Status |
 |--------|---------|---------|-------------|
 | PENDING | Pet Owner submits booking (payment method: Online/Cash) | Reduce slot, Notify Clinic, store payment_method + payment_status | ASSIGNED |
-| ASSIGNED | Clinic Manager assigns vet | Notify Vet, auto CONFIRMED | CONFIRMED |
-| CONFIRMED | Vet assigned | Notify Pet Owner | CHECK_IN |
-| CHECK_IN | Pet arrives, Vet checks in | Update status | IN_PROGRESS |
+| ASSIGNED | Clinic Manager assigns vet | Notify Staff, auto CONFIRMED | CONFIRMED |
+| CONFIRMED | Staff assigned | Notify Pet Owner | CHECK_IN |
+| CHECK_IN | Pet arrives, Staff checks in | Update status | IN_PROGRESS |
 | IN_PROGRESS | Service starts | - | CHECK_OUT |
 | CHECK_OUT | Service ends | - | COMPLETED |
-| COMPLETED | Vet completes EMR | Enable rating workflow | RATING |
+| COMPLETED | Staff completes EMR | Enable rating workflow | RATING |
 | RATING | Pet Owner submits rating | Store rating & comment, update vet rating average | End |
 
 <img width="3686" height="5375" alt="Booking Status State Machine" src="https://github.com/user-attachments/assets/a9659b5f-c9cd-42eb-ac00-3533c84b4545" />
@@ -137,15 +137,15 @@ flowchart LR
 
 | Bước | Actor | Mô tả | Ghi chú |
 |------|-------|-------|---------|
-| 1 | VET | Check-in Patient | Status: CHECKIN |
-| 2 | VET | View Pet Profile + EMR History | Xem tiền sử bệnh |
-| 3 | VET | Examine Pet | Status: IN_PROGRESS |
-| 4 | VET | Diagnose | Chẩn đoán |
-| 5 | VET | Create Treatment Plan | Kế hoạch điều trị |
-| 6 | VET | Write Prescription | **Lưu trong EMR** |
-| 7 | VET | Update Vaccination (optional) | **Lưu trong Vaccination Book riêng** |
-| 8 | VET | Save/Update EMR | Lưu diagnosis + treatment + prescription |
-| 9 | VET | Checkout Patient | Status: CHECKOUT |
+| 1 | STAFF | Check-in Patient | Status: CHECKIN |
+| 2 | STAFF | View Pet Profile + EMR History | Xem tiền sử bệnh |
+| 3 | STAFF | Examine Pet | Status: IN_PROGRESS |
+| 4 | STAFF | Diagnose | Chẩn đoán |
+| 5 | STAFF | Create Treatment Plan | Kế hoạch điều trị |
+| 6 | STAFF | Write Prescription | **Lưu trong EMR** |
+| 7 | STAFF | Update Vaccination (optional) | **Lưu trong Vaccination Book riêng** |
+| 8 | STAFF | Save/Update EMR | Lưu diagnosis + treatment + prescription |
+| 9 | STAFF | Checkout Patient | Status: CHECKOUT |
 | 10 | SYSTEM | Check Payment Status | PAID (Online) vs UNPAID (Cash) |
 | 11 | SYSTEM | Collect Cash (if UNPAID) | Chỉ khi payment_status = UNPAID |
 | 12 | SYSTEM | Generate Receipt | Hóa đơn theo dịch vụ đã book |
@@ -191,12 +191,12 @@ flowchart LR
 ## 7. BP-005: Review & Feedback Process
 
 > **Note:** Có 2 loại review:
-> - **Vet Review**: Đánh giá ngay sau khi COMPLETED (như Grab)
+> - **Staff Review**: Đánh giá ngay sau khi COMPLETED (như Grab)
 > - **Clinic Review**: Có thể đánh giá sau, qua notification hoặc trong app
 
-### 7.1 BPMN Diagram - Vet Review (Immediate)
+### 7.1 BPMN Diagram - Staff Review (Immediate)
 
-<img width="13755" height="1615" alt="Vet Review" src="https://github.com/user-attachments/assets/048cd143-de68-4dce-9504-11c99eeb4fcc" />
+<img width="13755" height="1615" alt="Staff Review" src="https://github.com/user-attachments/assets/048cd143-de68-4dce-9504-11c99eeb4fcc" />
 
 
 ### 7.2 BPMN Diagram - Clinic Review (Later)
@@ -206,7 +206,7 @@ flowchart LR
 
 ### 7.3 Review Types Comparison
 
-| Aspect | Vet Review | Clinic Review |
+| Aspect | Staff Review | Clinic Review |
 |--------|------------|---------------|
 | **Timing** | Ngay sau COMPLETED | Có thể sau 24h+ |
 | **Trigger** | Popup tự động | Push notification |
@@ -304,7 +304,7 @@ flowchart LR
 |---------|-----|--------|
 | Clinic Onboarding | Approval Time | < 48 hours |
 | Booking Creation | Completion Rate | > 90% |
-| Booking Confirmation | Vet Response Time | < 2 hours |
+| Booking Confirmation | Staff Response Time | < 2 hours |
 | Medical Service | Check-in to Check-out | < 60 minutes |
 | Payment | Success Rate | > 98% |
 | Review Collection | Submission Rate | > 30% |
@@ -355,7 +355,7 @@ flowchart LR
 
 ---
 
-**Document Version:** 3.0  
-**Last Updated:** 2025-12-25  
+**Document Version:** 1.5.0  
+**Last Updated:** 2026-01-22  
 **Author:** Petties Team  
 **Standard:** BPMN 2.0 Compliant (Mermaid Visualization)

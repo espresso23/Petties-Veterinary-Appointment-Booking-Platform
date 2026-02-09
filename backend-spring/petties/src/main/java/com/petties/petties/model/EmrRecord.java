@@ -36,12 +36,12 @@ public class EmrRecord {
     @Indexed
     private UUID bookingId;
 
-    private UUID vetId;
+    private UUID staffId;
     private UUID clinicId;
 
     // Denormalized for display
     private String clinicName;
-    private String vetName;
+    private String staffName;
 
     // ========== SOAP NOTES ==========
     private String subjective; // S - Triệu chứng do chủ nuôi mô tả
@@ -53,6 +53,8 @@ public class EmrRecord {
     // ========== VITALS ==========
     private BigDecimal weightKg;
     private BigDecimal temperatureC;
+    private Integer heartRate; // bpm
+    private Integer bcs; // Body Condition Score (1-9)
 
     // ========== EMBEDDED COLLECTIONS ==========
     @Builder.Default
@@ -62,6 +64,7 @@ public class EmrRecord {
     private List<com.petties.petties.model.Prescription> prescriptions = List.of();
 
     private LocalDateTime examinationDate;
+    private LocalDateTime reExaminationDate;
 
     @CreatedDate
     private LocalDateTime createdAt;

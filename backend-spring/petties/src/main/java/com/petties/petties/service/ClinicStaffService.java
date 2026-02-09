@@ -1,5 +1,6 @@
 package com.petties.petties.service;
 
+import com.petties.petties.dto.clinic.PublicStaffResponse;
 import com.petties.petties.dto.clinic.StaffResponse;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Clinic;
@@ -39,6 +40,23 @@ public class ClinicStaffService {
     }
 
     /**
+     * Get public staff list for Pet Owners (no sensitive data)
+     * Only returns STAFF role (staff members), excludes CLINIC_MANAGER
+     */
+    @Transactional(readOnly = true)
+    public List<PublicStaffResponse> getPublicClinicStaff(UUID clinicId) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+        return clinic.getStaff().stream()
+                .filter(user -> user.getRole() != Role.CLINIC_MANAGER && user.getRole() != Role.CLINIC_OWNER) // Exclude
+                                                                                                              // Manager
+                                                                                                              // & Owner
+                .map(this::mapToPublicStaffResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Check if clinic already has a manager
      */
     @Transactional(readOnly = true)
@@ -69,8 +87,8 @@ public class ClinicStaffService {
         }
 
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
-            if (request.getRole() != Role.VET) {
-                throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Bác sĩ");
+            if (request.getRole() != Role.STAFF) {
+                throw new ForbiddenException("Quản lý phòng khám chỉ có quyền thêm Nhân viên");
             }
             if (currentUser.getWorkingClinic() == null
                     || !currentUser.getWorkingClinic().getClinicId().equals(clinicId)) {
@@ -94,7 +112,7 @@ public class ClinicStaffService {
             // Assign to this clinic
             existingUser.setRole(request.getRole());
             existingUser.setWorkingClinic(clinic);
-            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+            if (request.getRole() == Role.STAFF && request.getSpecialty() != null) {
                 existingUser.setSpecialty(request.getSpecialty());
             }
             userRepository.save(existingUser);
@@ -106,7 +124,7 @@ public class ClinicStaffService {
             newUser.setUsername(request.getEmail()); // Use email as username
             newUser.setRole(request.getRole());
             newUser.setWorkingClinic(clinic);
-            if (request.getRole() == Role.VET && request.getSpecialty() != null) {
+            if (request.getRole() == Role.STAFF && request.getSpecialty() != null) {
                 newUser.setSpecialty(request.getSpecialty());
             }
             // Set random password - user must login via Google OAuth
@@ -133,14 +151,21 @@ public class ClinicStaffService {
             throw new IllegalArgumentException("User must have CLINIC_MANAGER role");
         }
 
+        // Check if user already assigned to another clinic
+        if (user.getWorkingClinic() != null
+                && !user.getWorkingClinic().getClinicId().equals(clinicId)) {
+            throw new ResourceAlreadyExistsException(
+                    "Quản lý này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại.");
+        }
+
         assignToClinic(clinicId, user);
     }
 
     /**
-     * Clinic Owner or Clinic Manager assigns a Vet
+     * Clinic Owner or Clinic Manager assigns a Staff member
      */
     @Transactional
-    public void assignVet(UUID clinicId, String usernameOrEmail) {
+    public void assignStaff(UUID clinicId, String usernameOrEmail) {
         User currentUser = authService.getCurrentUser();
 
         // Security Check: If current user is a MANAGER, they must belong to this clinic
@@ -153,8 +178,15 @@ public class ClinicStaffService {
 
         User user = findUserByUsernameOrEmail(usernameOrEmail);
 
-        if (user.getRole() != Role.VET) {
-            throw new IllegalArgumentException("User must have VET role");
+        if (user.getRole() != Role.STAFF) {
+            throw new IllegalArgumentException("User must have STAFF role");
+        }
+
+        // Check if user already assigned to another clinic
+        if (user.getWorkingClinic() != null
+                && !user.getWorkingClinic().getClinicId().equals(clinicId)) {
+            throw new ResourceAlreadyExistsException(
+                    "Nhân viên này đã được gán cho phòng khám khác. Vui lòng xóa liên kết trước khi gán lại.");
         }
 
         assignToClinic(clinicId, user);
@@ -182,7 +214,7 @@ public class ClinicStaffService {
             }
         }
 
-        // Authorization: CLINIC_MANAGER can only remove VETs, not other managers
+        // Authorization: CLINIC_MANAGER can only remove Staff, not other managers
         if (currentUser.getRole() == Role.CLINIC_MANAGER) {
             // Must belong to this clinic
             if (currentUser.getWorkingClinic() == null
@@ -200,7 +232,7 @@ public class ClinicStaffService {
     }
 
     /**
-     * Update staff specialty (VET only)
+     * Update staff specialty (STAFF only)
      */
     @Transactional
     public void updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) {
@@ -217,9 +249,9 @@ public class ClinicStaffService {
             throw new IllegalArgumentException("User does not belong to this clinic");
         }
 
-        // Only VETs have specialty
-        if (staff.getRole() != Role.VET) {
-            throw new IllegalArgumentException("Only VET staff can have specialty");
+        // Only STAFFs have specialty
+        if (staff.getRole() != Role.STAFF) {
+            throw new IllegalArgumentException("Only STAFF can have specialty");
         }
 
         // Authorization: CLINIC_OWNER must own the clinic
@@ -266,6 +298,21 @@ public class ClinicStaffService {
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
                 .specialty(user.getSpecialty())
+                .build();
+    }
+
+    private PublicStaffResponse mapToPublicStaffResponse(User user) {
+        String specialtyLabel = user.getSpecialty() != null
+                ? user.getSpecialty().getVietnameseLabel()
+                : "Nhân viên";
+
+        return PublicStaffResponse.builder()
+                .userId(user.getUserId())
+                .fullName(user.getFullName())
+                .avatar(user.getAvatar())
+                .specialty(user.getSpecialty())
+                .specialtyLabel(specialtyLabel)
+                .role(user.getRole())
                 .build();
     }
 }

@@ -91,6 +91,7 @@ public class ClinicServiceService {
         ClinicService service = new ClinicService();
         service.setClinic(clinic);
         service.setName(request.getName());
+        service.setDescription(request.getDescription());
         service.setBasePrice(request.getBasePrice());
         service.setSlotsRequired(request.getSlotsRequired());
         // Auto-calculate durationTime: 1 slot = 30 minutes
@@ -98,20 +99,12 @@ public class ClinicServiceService {
         service.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
         service.setIsHomeVisit(request.getIsHomeVisit() != null ? request.getIsHomeVisit() : false);
 
-        // Auto-set pricePerKm for home visit services
-        if (service.getIsHomeVisit()) {
-            // If request has pricePerKm > 0, use it; otherwise use common price
-            if (request.getPricePerKm() != null && request.getPricePerKm().compareTo(BigDecimal.ZERO) > 0) {
-                service.setPricePerKm(request.getPricePerKm());
-            } else {
-                service.setPricePerKm(getCommonPricePerKm(clinic));
-            }
-        } else {
-            service.setPricePerKm(BigDecimal.ZERO);
-        }
-
         service.setServiceCategory(request.getServiceCategory());
         service.setPetType(request.getPetType());
+
+        // Handle reminder schedule
+        service.setReminderInterval(request.getReminderInterval());
+        service.setReminderUnit(request.getReminderUnit());
 
         // Handle weight prices
         if (request.getWeightPrices() != null && !request.getWeightPrices().isEmpty()) {
@@ -162,6 +155,9 @@ public class ClinicServiceService {
         if (request.getName() != null) {
             service.setName(request.getName());
         }
+        if (request.getDescription() != null) {
+            service.setDescription(request.getDescription());
+        }
         if (request.getBasePrice() != null) {
             service.setBasePrice(request.getBasePrice());
         }
@@ -176,14 +172,17 @@ public class ClinicServiceService {
         if (request.getIsHomeVisit() != null) {
             service.setIsHomeVisit(request.getIsHomeVisit());
         }
-        if (request.getPricePerKm() != null) {
-            service.setPricePerKm(request.getPricePerKm());
-        }
         if (request.getServiceCategory() != null) {
             service.setServiceCategory(request.getServiceCategory());
         }
         if (request.getPetType() != null) {
             service.setPetType(request.getPetType());
+        }
+        if (request.getReminderInterval() != null) {
+            service.setReminderInterval(request.getReminderInterval());
+        }
+        if (request.getReminderUnit() != null) {
+            service.setReminderUnit(request.getReminderUnit());
         }
 
         // Handle weight prices update
@@ -261,71 +260,13 @@ public class ClinicServiceService {
     @Transactional
     public ClinicServiceResponse updateHomeVisitStatus(UUID serviceId, Boolean isHomeVisit) {
         ClinicService service = getServiceAndValidateOwnership(serviceId);
-        Clinic clinic = service.getClinic();
 
         service.setIsHomeVisit(isHomeVisit);
-        // If enabling home-visit and pricePerKm is null or <= 0, set a common price
-        if (isHomeVisit != null && isHomeVisit) {
-            if (service.getPricePerKm() == null || service.getPricePerKm().compareTo(BigDecimal.ZERO) <= 0) {
-                service.setPricePerKm(getCommonPricePerKm(clinic));
-            }
-        } else {
-            // If disabling home-visit, reset pricePerKm to zero
-            service.setPricePerKm(BigDecimal.ZERO);
-        }
         ClinicService updatedService = clinicServiceRepository.save(service);
         log.info("Service home visit status updated: {} to {} by user: {}",
                 serviceId, isHomeVisit, getCurrentUser().getUserId());
 
         return mapToResponse(updatedService);
-    }
-
-    /**
-     * Update price per km
-     */
-    @Transactional
-    public ClinicServiceResponse updatePricePerKm(UUID serviceId, BigDecimal pricePerKm) {
-        ClinicService service = getServiceAndValidateOwnership(serviceId);
-
-        service.setPricePerKm(pricePerKm);
-        ClinicService updatedService = clinicServiceRepository.save(service);
-        log.info("Service price per km updated: {} to {} by user: {}",
-                serviceId, pricePerKm, getCurrentUser().getUserId());
-
-        return mapToResponse(updatedService);
-    }
-
-    /**
-     * Update price per km for all home visit services
-     */
-    @Transactional
-    public void updateBulkPricePerKm(BigDecimal pricePerKm) {
-        Clinic clinic = getCurrentUserClinic();
-
-        List<ClinicService> homeVisitServices = clinicServiceRepository
-                .findByClinicAndIsHomeVisit(clinic, true);
-
-        for (ClinicService service : homeVisitServices) {
-            service.setPricePerKm(pricePerKm);
-        }
-
-        clinicServiceRepository.saveAll(homeVisitServices);
-
-        log.info("Bulk updated price per km for {} home visit services. New price: {} by user: {}",
-                homeVisitServices.size(), pricePerKm, getCurrentUser().getUserId());
-    }
-
-    /**
-     * Get common price per km from existing home visit services
-     * Returns the first found pricePerKm > 0, or default 5000 VND if none exists
-     */
-    private BigDecimal getCommonPricePerKm(Clinic clinic) {
-        return clinicServiceRepository.findByClinicAndIsHomeVisit(clinic, true)
-                .stream()
-                .filter(s -> s.getPricePerKm() != null && s.getPricePerKm().compareTo(BigDecimal.ZERO) > 0)
-                .findFirst()
-                .map(ClinicService::getPricePerKm)
-                .orElse(BigDecimal.valueOf(5000)); // Default 5000 VND
     }
 
     @Transactional
@@ -371,6 +312,7 @@ public class ClinicServiceService {
         clinicService.setMasterService(masterService);
         clinicService.setIsCustom(false); // Inherited
         clinicService.setName(masterService.getName());
+        clinicService.setDescription(masterService.getDescription());
 
         // Sử dụng giá clinic nếu được cung cấp, ngược lại dùng giá mặc định từ master
         clinicService.setBasePrice(clinicPrice != null ? clinicPrice : masterService.getDefaultPrice());
@@ -379,8 +321,16 @@ public class ClinicServiceService {
         clinicService.setSlotsRequired(masterService.getSlotsRequired());
         clinicService.setIsActive(true); // Mặc định active khi inherit
         clinicService.setIsHomeVisit(masterService.getIsHomeVisit());
-        clinicService.setPricePerKm(clinicPricePerKm != null ? clinicPricePerKm : masterService.getDefaultPricePerKm());
-        clinicService.setServiceCategory(masterService.getServiceCategory());
+        // pricePerKm is now managed at clinic level via ClinicPriceService
+        // Convert string to enum for serviceCategory
+        if (masterService.getServiceCategory() != null) {
+            try {
+                clinicService.setServiceCategory(
+                        com.petties.petties.model.enums.ServiceCategory.valueOf(masterService.getServiceCategory()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown service category from master: {}", masterService.getServiceCategory());
+            }
+        }
         clinicService.setPetType(masterService.getPetType());
 
         // Sửa: Copy weightPrices từ master service sang clinic service, set đúng quan
@@ -409,18 +359,39 @@ public class ClinicServiceService {
     }
 
     /**
-     * NEW: Get all services for a specific clinic
-     * Admin hoặc Clinic Owner có thể xem services của bất kỳ clinic nào
+     * PUBLIC: Get all ACTIVE services for a specific clinic
+     * Pet Owner cần xem services để đặt lịch
+     * Chỉ trả về services đang active
+     */
+    @Transactional(readOnly = true)
+    public List<ClinicServiceResponse> getPublicServicesByClinicId(UUID clinicId) {
+        // Verify clinic exists
+        if (!clinicRepository.existsById(clinicId)) {
+            throw new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId);
+        }
+
+        // Only return active services for public view
+        List<ClinicService> services = clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId);
+        return services.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * INTERNAL: Get all services for a specific clinic (including inactive)
+     * Admin hoặc Clinic Owner/Manager có thể xem tất cả services
      */
     @Transactional(readOnly = true)
     public List<ClinicServiceResponse> getServicesByClinicId(UUID clinicId) {
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId));
 
-        // Validate user has permission: strictly the clinic owner
+        // Validate user has permission: owner OR manager of this clinic
         User currentUser = getCurrentUser();
         boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
-        if (!isOwner) {
+        boolean isManager = currentUser.getWorkingClinic() != null
+                && currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+        if (!isOwner && !isManager) {
             throw new ForbiddenException("Bạn không có quyền xem dịch vụ của clinic này");
         }
 
@@ -449,14 +420,16 @@ public class ClinicServiceService {
                         service.getMasterService() != null ? service.getMasterService().getMasterServiceId() : null) // NEW
                 .isCustom(service.getIsCustom()) // NEW
                 .name(service.getName())
+                .description(service.getDescription())
                 .basePrice(service.getBasePrice())
                 .durationTime(service.getDurationTime())
                 .slotsRequired(service.getSlotsRequired())
                 .isActive(service.getIsActive())
                 .isHomeVisit(service.getIsHomeVisit())
-                .pricePerKm(service.getPricePerKm())
                 .serviceCategory(service.getServiceCategory())
                 .petType(service.getPetType())
+                .reminderInterval(service.getReminderInterval())
+                .reminderUnit(service.getReminderUnit())
                 .weightPrices(weightPriceDtos)
                 .createdAt(service.getCreatedAt())
                 .updatedAt(service.getUpdatedAt())

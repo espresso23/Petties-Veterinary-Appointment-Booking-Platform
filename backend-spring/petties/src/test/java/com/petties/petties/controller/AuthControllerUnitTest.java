@@ -82,7 +82,7 @@ class AuthControllerUnitTest {
         // ==================== LOGIN TESTS ====================
 
         @Test
-        @DisplayName("login_validCredentials_returns200")
+        @DisplayName("TC-AUTH-LOGIN-001: Login with valid credentials - Returns 200")
         void login_validCredentials_returns200() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest();
@@ -116,7 +116,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_asPetOwner_returns200WithRolePetOwner")
+        @DisplayName("TC-AUTH-LOGIN-002: Login as Pet Owner - Returns 200")
         void login_asPetOwner_returns200WithRolePetOwner() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest("owner_user", "Password123");
@@ -139,7 +139,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_asVet_returns200WithRoleVet")
+        @DisplayName("TC-AUTH-LOGIN-003: Login as Vet - Returns 200")
         void login_asVet_returns200WithRoleVet() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest("vet_user", "Password123");
@@ -162,7 +162,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_asClinicManager_returns200WithRoleClinicManager")
+        @DisplayName("TC-AUTH-LOGIN-004: Login as Clinic Manager - Returns 200")
         void login_asClinicManager_returns200WithRoleClinicManager() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest("manager_user", "Password123");
@@ -185,7 +185,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_blankUsername_returns400")
+        @DisplayName("TC-AUTH-LOGIN-005: Login with blank username - Returns 400")
         void login_blankUsername_returns400() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest();
@@ -202,7 +202,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_nullUsername_returns400")
+        @DisplayName("TC-AUTH-LOGIN-006: Login with null username - Returns 400")
         void login_nullUsername_returns400() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest();
@@ -219,7 +219,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_blankPassword_returns400")
+        @DisplayName("TC-AUTH-LOGIN-007: Login with blank password - Returns 400")
         void login_blankPassword_returns400() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest();
@@ -236,7 +236,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_nullPassword_returns400")
+        @DisplayName("TC-AUTH-LOGIN-008: Login with null password - Returns 400")
         void login_nullPassword_returns400() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest();
@@ -253,7 +253,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("login_invalidCredentials_returns401")
+        @DisplayName("TC-AUTH-LOGIN-009: Login with invalid credentials - Returns 401")
         void login_invalidCredentials_returns401() throws Exception {
                 // Arrange
                 LoginRequest request = new LoginRequest("testuser", "wrongpassword");
@@ -273,7 +273,7 @@ class AuthControllerUnitTest {
         // ==================== REGISTRATION OTP TESTS ====================
 
         @Test
-        @DisplayName("sendRegistrationOtp_validRequest_returns200")
+        @DisplayName("TC-AUTH-REG-OTP-001: Send registration OTP with valid request - Returns 200")
         void sendRegistrationOtp_validRequest_returns200() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -307,7 +307,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_blankUsername_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-002: Send registration OTP with blank username - Returns 400")
         void sendRegistrationOtp_blankUsername_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -327,7 +327,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_usernameTooShort_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-003: Send registration OTP with username too short - Returns 400")
         void sendRegistrationOtp_usernameTooShort_returns400() throws Exception {
                 // Arrange - username min is 3 characters
                 SendOtpRequest request = new SendOtpRequest();
@@ -347,7 +347,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_blankEmail_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-004: Send registration OTP with blank email - Returns 400")
         void sendRegistrationOtp_blankEmail_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -367,7 +367,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_invalidEmailFormat_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-005: Send registration OTP with invalid email format - Returns 400")
         void sendRegistrationOtp_invalidEmailFormat_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -387,7 +387,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_blankPassword_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-006: Send registration OTP with blank password - Returns 400")
         void sendRegistrationOtp_blankPassword_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -407,7 +407,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_passwordTooShort_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-007: Send registration OTP with password too short - Returns 400")
         void sendRegistrationOtp_passwordTooShort_returns400() throws Exception {
                 // Arrange - password min is 6 characters
                 SendOtpRequest request = new SendOtpRequest();
@@ -427,7 +427,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_blankFullName_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-008: Send registration OTP with blank full name - Returns 400")
         void sendRegistrationOtp_blankFullName_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -447,7 +447,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_nullRole_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-009: Send registration OTP with null role - Returns 400")
         void sendRegistrationOtp_nullRole_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -467,7 +467,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("sendRegistrationOtp_emailAlreadyExists_returns400")
+        @DisplayName("TC-AUTH-REG-OTP-010: Send registration OTP with email already exists - Returns 400")
         void sendRegistrationOtp_emailAlreadyExists_returns400() throws Exception {
                 // Arrange
                 SendOtpRequest request = new SendOtpRequest();
@@ -490,7 +490,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_validRequest_returns201")
+        @DisplayName("TC-AUTH-VERIFY-OTP-001: Verify OTP and register with valid request - Returns 201")
         void verifyOtpAndRegister_validRequest_returns201() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -522,7 +522,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_blankEmail_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-002: Verify OTP with blank email - Returns 400")
         void verifyOtpAndRegister_blankEmail_returns400() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -539,7 +539,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_invalidEmailFormat_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-003: Verify OTP with invalid email format - Returns 400")
         void verifyOtpAndRegister_invalidEmailFormat_returns400() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -556,7 +556,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_blankOtpCode_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-004: Verify OTP with blank code - Returns 400")
         void verifyOtpAndRegister_blankOtpCode_returns400() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -573,7 +573,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_otpCodeTooShort_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-005: Verify OTP with code too short - Returns 400")
         void verifyOtpAndRegister_otpCodeTooShort_returns400() throws Exception {
                 // Arrange - OTP must be exactly 6 digits
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -590,7 +590,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_otpCodeTooLong_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-006: Verify OTP with code too long - Returns 400")
         void verifyOtpAndRegister_otpCodeTooLong_returns400() throws Exception {
                 // Arrange - OTP must be exactly 6 digits
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -607,7 +607,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_invalidOtpCode_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-007: Verify OTP with invalid code - Returns 400")
         void verifyOtpAndRegister_invalidOtpCode_returns400() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -627,7 +627,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("verifyOtpAndRegister_expiredOtpCode_returns400")
+        @DisplayName("TC-AUTH-VERIFY-OTP-008: Verify OTP with expired code - Returns 400")
         void verifyOtpAndRegister_expiredOtpCode_returns400() throws Exception {
                 // Arrange
                 VerifyOtpRequest request = new VerifyOtpRequest();
@@ -647,7 +647,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendOtp_validEmail_returns200")
+        @DisplayName("TC-AUTH-RESEND-OTP-001: Resend registration OTP with valid email - Returns 200")
         void resendOtp_validEmail_returns200() throws Exception {
                 // Arrange
                 String email = "test@example.com";
@@ -672,7 +672,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendOtp_noPendingRegistration_returns400")
+        @DisplayName("TC-AUTH-RESEND-OTP-002: Resend registration OTP - No pending registration - Returns 400")
         void resendOtp_noPendingRegistration_returns400() throws Exception {
                 // Arrange
                 String email = "nonexistent@example.com";
@@ -689,7 +689,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendOtp_cooldownNotExpired_returns400")
+        @DisplayName("TC-AUTH-RESEND-OTP-003: Resend registration OTP - Cooldown not expired - Returns 400")
         void resendOtp_cooldownNotExpired_returns400() throws Exception {
                 // Arrange
                 String email = "test@example.com";
@@ -708,7 +708,7 @@ class AuthControllerUnitTest {
         // ==================== GOOGLE SIGN-IN TESTS ====================
 
         @Test
-        @DisplayName("googleSignIn_validTokenMobile_returns200WithPetOwnerRole")
+        @DisplayName("TC-AUTH-GOOGLE-001: Google Sign-In with valid mobile token - Returns 200")
         void googleSignIn_validTokenMobile_returns200WithPetOwnerRole() throws Exception {
                 // Arrange
                 GoogleSignInRequest request = new GoogleSignInRequest();
@@ -737,7 +737,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("googleSignIn_validTokenWeb_returns200WithClinicOwnerRole")
+        @DisplayName("TC-AUTH-GOOGLE-002: Google Sign-In with valid web token - Returns 200")
         void googleSignIn_validTokenWeb_returns200WithClinicOwnerRole() throws Exception {
                 // Arrange
                 GoogleSignInRequest request = new GoogleSignInRequest();
@@ -766,7 +766,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("googleSignIn_blankIdToken_returns400")
+        @DisplayName("TC-AUTH-GOOGLE-003: Google Sign-In with blank ID token - Returns 400")
         void googleSignIn_blankIdToken_returns400() throws Exception {
                 // Arrange
                 GoogleSignInRequest request = new GoogleSignInRequest();
@@ -783,7 +783,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("googleSignIn_blankPlatform_returns400")
+        @DisplayName("TC-AUTH-GOOGLE-004: Google Sign-In with blank platform - Returns 400")
         void googleSignIn_blankPlatform_returns400() throws Exception {
                 // Arrange
                 GoogleSignInRequest request = new GoogleSignInRequest();
@@ -800,7 +800,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("googleSignIn_invalidIdToken_returns401")
+        @DisplayName("TC-AUTH-GOOGLE-005: Google Sign-In with invalid ID token - Returns 401")
         void googleSignIn_invalidIdToken_returns401() throws Exception {
                 // Arrange
                 GoogleSignInRequest request = new GoogleSignInRequest();
@@ -822,7 +822,7 @@ class AuthControllerUnitTest {
         // ==================== PASSWORD RESET TESTS ====================
 
         @Test
-        @DisplayName("forgotPassword_validEmail_returns200")
+        @DisplayName("TC-AUTH-FORGOT-PW-001: Forgot password - Send OTP to valid email - Returns 200")
         void forgotPassword_validEmail_returns200() throws Exception {
                 // Arrange
                 ForgotPasswordRequest request = ForgotPasswordRequest.builder()
@@ -853,7 +853,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("forgotPassword_blankEmail_returns400")
+        @DisplayName("TC-AUTH-FORGOT-PW-002: Forgot password - Blank email - Returns 400")
         void forgotPassword_blankEmail_returns400() throws Exception {
                 // Arrange
                 ForgotPasswordRequest request = ForgotPasswordRequest.builder()
@@ -870,7 +870,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("forgotPassword_invalidEmailFormat_returns400")
+        @DisplayName("TC-AUTH-FORGOT-PW-003: Forgot password - Invalid email format - Returns 400")
         void forgotPassword_invalidEmailFormat_returns400() throws Exception {
                 // Arrange
                 ForgotPasswordRequest request = ForgotPasswordRequest.builder()
@@ -887,7 +887,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("forgotPassword_emailNotFound_returns400")
+        @DisplayName("TC-AUTH-FORGOT-PW-004: Forgot password - Email not found - Returns 400")
         void forgotPassword_emailNotFound_returns400() throws Exception {
                 // Arrange
                 ForgotPasswordRequest request = ForgotPasswordRequest.builder()
@@ -907,7 +907,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_validRequest_returns200")
+        @DisplayName("TC-AUTH-RESET-PW-001: Reset password with valid request - Returns 200")
         void resetPassword_validRequest_returns200() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -935,7 +935,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_blankEmail_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-002: Reset password - Blank email - Returns 400")
         void resetPassword_blankEmail_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -955,7 +955,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_invalidEmailFormat_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-003: Reset password - Invalid email format - Returns 400")
         void resetPassword_invalidEmailFormat_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -975,7 +975,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_blankOtpCode_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-004: Reset password - Blank OTP code - Returns 400")
         void resetPassword_blankOtpCode_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -995,7 +995,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_invalidOtpCodeFormat_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-005: Reset password - Invalid OTP code format - Returns 400")
         void resetPassword_invalidOtpCodeFormat_returns400() throws Exception {
                 // Arrange - OTP must be 6 digits
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1015,7 +1015,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_blankNewPassword_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-006: Reset password - Blank new password - Returns 400")
         void resetPassword_blankNewPassword_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1035,7 +1035,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_newPasswordTooShort_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-007: Reset password - New password too short - Returns 400")
         void resetPassword_newPasswordTooShort_returns400() throws Exception {
                 // Arrange - password min is 8 characters
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1055,7 +1055,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_blankConfirmPassword_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-008: Reset password - Blank confirm password - Returns 400")
         void resetPassword_blankConfirmPassword_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1075,7 +1075,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_passwordMismatch_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-009: Reset password - Passwords mismatch - Returns 400")
         void resetPassword_passwordMismatch_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1098,7 +1098,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_invalidOtpCode_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-010: Reset password - Invalid OTP code - Returns 400")
         void resetPassword_invalidOtpCode_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1121,7 +1121,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resetPassword_expiredOtpCode_returns400")
+        @DisplayName("TC-AUTH-RESET-PW-011: Reset password - Expired OTP code - Returns 400")
         void resetPassword_expiredOtpCode_returns400() throws Exception {
                 // Arrange
                 ResetPasswordRequest request = ResetPasswordRequest.builder()
@@ -1144,7 +1144,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendPasswordResetOtp_validEmail_returns200")
+        @DisplayName("TC-AUTH-RESEND-PW-OTP-001: Resend password reset OTP with valid email - Returns 200")
         void resendPasswordResetOtp_validEmail_returns200() throws Exception {
                 // Arrange
                 String email = "test@example.com";
@@ -1169,7 +1169,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendPasswordResetOtp_noPendingReset_returns400")
+        @DisplayName("TC-AUTH-RESEND-PW-OTP-002: Resend password reset OTP - No pending reset - Returns 400")
         void resendPasswordResetOtp_noPendingReset_returns400() throws Exception {
                 // Arrange
                 String email = "nonexistent@example.com";
@@ -1186,7 +1186,7 @@ class AuthControllerUnitTest {
         }
 
         @Test
-        @DisplayName("resendPasswordResetOtp_cooldownNotExpired_returns400")
+        @DisplayName("TC-AUTH-RESEND-PW-OTP-003: Resend password reset OTP - Cooldown not expired - Returns 400")
         void resendPasswordResetOtp_cooldownNotExpired_returns400() throws Exception {
                 // Arrange
                 String email = "test@example.com";

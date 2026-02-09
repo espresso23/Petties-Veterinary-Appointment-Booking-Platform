@@ -1,0 +1,576 @@
+{
+	"info": {
+		"_postman_id": "petties-transactions",
+		"name": "Petties - Transaction Service API",
+		"description": "API endpoints cho Transaction Service - Tạo payment description và kiểm tra payment method",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Transaction Service",
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{accessToken}}",
+						"type": "string"
+					}
+				]
+			},
+			"item": [
+				{
+					"name": "0. Đăng nhập Admin",
+					"auth": {
+						"type": "noauth"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Đăng nhập thành công', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const jsonData = pm.response.json();",
+									"",
+									"if (jsonData && jsonData.accessToken) {",
+									"    pm.environment.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"}",
+									"",
+									"if (jsonData && jsonData.refreshToken) {",
+									"    pm.environment.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"}",
+									"",
+									"if (jsonData && jsonData.role) {",
+									"    pm.environment.set('role', jsonData.role);",
+									"    pm.collectionVariables.set('role', jsonData.role);",
+									"}",
+									"",
+									"console.log('Đã lưu accessToken vào biến môi trường/collection');"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Đăng nhập bằng tài khoản admin để lấy accessToken"
+					},
+					"response": []
+				},
+				{
+					"name": "1. Generate Payment Description (QR)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Log response for debugging",
+									"console.log('Response:', pm.response.json());",
+									"",
+									"// Validate response structure",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has required fields', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('bookingId');",
+									"    pm.expect(jsonData).to.have.property('paymentDescription');",
+									"    pm.expect(jsonData).to.have.property('message');",
+									"});",
+									"",
+									"pm.test('Payment description format is correct', function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.success && jsonData.paymentDescription) {",
+									"        // Format: 10 ký tự chữ+số (A-Z0-9)",
+									"        pm.expect(jsonData.paymentDescription).to.match(/^[A-Z0-9]{10}$/);",
+									"    }",
+									"});",
+									"",
+									"// Save payment description for next request",
+									"if (pm.response.json().success && pm.response.json().paymentDescription) {",
+									"    pm.globals.set('paymentDescription', pm.response.json().paymentDescription);",
+									"    pm.globals.set('qrBookingId', pm.response.json().bookingId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/payment-description/{{qrBookingId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "payment-description", "{{qrBookingId}}"]
+						},
+						"description": "Tạo payment description cho booking có payment method là QR\\n\\n**Expected Response:**\\n```json\\n{\\n  \"success\": true,\\n  \"bookingId\": \"uuid\",\\n  \"paymentDescription\": \"A1B2C3D4E5\",\\n  \"message\": \"Tạo payment description thành công\"\\n}\\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "2. Check if QR Payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('QR Check Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has QR payment info', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('isQrPayment');",
+									"    pm.expect(jsonData).to.have.property('paymentMethod');",
+									"});",
+									"",
+									"// Log payment method",
+									"if (pm.response.json().success) {",
+									"    console.log('Payment Method:', pm.response.json().paymentMethod);",
+									"    console.log('Is QR:', pm.response.json().isQrPayment);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/is-qr/{{qrBookingId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "is-qr", "{{qrBookingId}}"]
+						},
+						"description": "Kiểm tra xem booking có sử dụng payment method QR không\\n\\n**Expected Response:**\\n```json\\n{\\n  \"success\": true,\\n  \"bookingId\": \"uuid\",\\n  \"isQrPayment\": true,\\n  \"paymentMethod\": \"QR\",\\n  \"message\": \"Kiểm tra phương thức thanh toán thành công\"\\n}\\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "3. Get Total Price",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('Total Price Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has total price', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('totalPrice');",
+									"    pm.expect(jsonData.success).to.be.true;",
+									"});",
+									"",
+									"// Save total price for reference",
+									"if (pm.response.json().success) {",
+									"    pm.globals.set('totalPrice', pm.response.json().totalPrice);",
+									"    console.log('Total Price:', pm.response.json().totalPrice);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/total-price/{{qrBookingId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "total-price", "{{qrBookingId}}"]
+						},
+						"description": "Lấy total price của booking\\n\\n**Expected Response:**\\n```json\\n{\\n  \"success\": true,\\n  \"bookingId\": \"uuid\",\\n  \"totalPrice\": 500000,\\n  \"message\": \"Lấy total price thành công\"\\n}\\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "4. Test Non-QR Payment (Should Return Null)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('Non-QR Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 400 for non-QR', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Payment description is null for non-QR', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.false;",
+									"    pm.expect(jsonData.paymentDescription).to.be.null;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/payment-description/{{cashBookingId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "payment-description", "{{cashBookingId}}"]
+						},
+						"description": "Test với booking có payment method là CASH - nên trả về null\\n\\n**Expected Response:**\\n```json\\n{\\n  \"success\": false,\\n  \"bookingId\": \"uuid\",\\n  \"paymentDescription\": null,\\n  \"message\": \"Booking không sử dụng phương thức thanh toán QR\"\\n}\\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "5. Test Invalid Booking ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('Invalid ID Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 400 for invalid ID', function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test('Error message is appropriate', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.be.false;",
+									"    pm.expect(jsonData.error).to.include('Không tìm thấy booking');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/payment-description/invalid-uuid",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "payment-description", "invalid-uuid"]
+						},
+						"description": "Test với booking ID không hợp lệ\\n\\n**Expected Response:**\\n```json\\n{\\n  \"success\": false,\\n  \"error\": \"Không tìm thấy booking với ID: invalid-uuid\"\\n}\\n```"
+					},
+					"response": []
+				},
+				{
+					"name": "6. Get All Bookings",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('All Bookings Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has bookings array', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('count');",
+									"    pm.expect(jsonData).to.have.property('bookings');",
+									"    pm.expect(jsonData.bookings).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Bookings count matches array length', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.count).to.equal(jsonData.bookings.length);",
+									"});",
+									"",
+									"// Log booking details",
+									"if (pm.response.json().success && pm.response.json().bookings) {",
+									"    console.log('Total bookings:', pm.response.json().count);",
+									"    pm.response.json().bookings.forEach(function(booking, index) {",
+									"        console.log(`Booking ${index + 1}: ${booking.bookingCode} - ${booking.totalPrice} VND`);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/all",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "all"]
+						},
+						"description": "Lấy tất cả bookings trong hệ thống"
+					},
+					"response": []
+				},
+				{
+					"name": "7. SePay - Lấy 200 giao dịch gần nhất",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"console.log('SePay Transactions Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has transactions array', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('transactions');",
+									"    pm.expect(jsonData.transactions).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/sepay/transactions?limit=200",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "sepay", "transactions"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "200"
+								}
+							]
+						},
+						"description": "Lấy 200 giao dịch gần nhất từ SePay (phục vụ kiểm tra nội dung chuyển khoản và số tiền)"
+					},
+					"response": []
+				},
+				{
+					"name": "8. Payment - Lịch sử theo PetOwnerId (petowner)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"console.log('Payment History Response:', pm.response.json());",
+									"",
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has payments array', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"    pm.expect(jsonData).to.have.property('payments');",
+									"    pm.expect(jsonData.payments).to.be.an('array');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/petowner/{{petOwnerId}}/history?limit=50&status={{paymentStatus}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "petowner", "{{petOwnerId}}", "history"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "status",
+									"value": "{{paymentStatus}}"
+								}
+							]
+						},
+						"description": "Lấy lịch sử thanh toán theo petOwnerId (dành cho ADMIN/test). Có thể lọc theo status: PENDING/PAID/REFUNDED"
+					},
+					"response": []
+				},
+				{
+					"name": "9. Payment - Lịch sử theo PetOwnerId (PAID)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/petowner/{{petOwnerId}}/history?limit=50&status=PAID",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "petowner", "{{petOwnerId}}", "history"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "status",
+									"value": "PAID"
+								}
+							]
+						},
+						"description": "Lấy lịch sử thanh toán theo petOwnerId và lọc status=PAID"
+					},
+					"response": []
+				}
+			],
+			"description": "API endpoints cho Transaction Service"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set default values if not exists",
+					"if (!pm.globals.get('baseUrl')) {",
+					"    pm.globals.set('baseUrl', 'http://localhost:8080');",
+					"}",
+					"",
+					"if (!pm.globals.get('qrBookingId')) {",
+					"    pm.globals.set('qrBookingId', '123e4567-e89b-12d3-a456-426614174001');",
+					"}",
+					"",
+					"if (!pm.globals.get('cashBookingId')) {",
+					"    pm.globals.set('cashBookingId', '123e4567-e89b-12d3-a456-426614174002');",
+					"}",
+					"",
+					"if (!pm.globals.get('petOwnerId')) {",
+					"    pm.globals.set('petOwnerId', '00000000-0000-0000-0000-000000000000');",
+					"}",
+					"",
+					"console.log('=== Transaction Service API Test ===');",
+					"console.log('Base URL:', pm.globals.get('baseUrl'));",
+					"console.log('QR Booking ID:', pm.globals.get('qrBookingId'));",
+					"console.log('Cash Booking ID:', pm.globals.get('cashBookingId'));",
+					"console.log('PetOwner ID:', pm.globals.get('petOwnerId'));"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"console.log('=== Test Completed ===');",
+					"console.log('Response Time:', pm.response.responseTime + 'ms');",
+					"console.log('Status Code:', pm.response.code);"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "adminUsername",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "adminPassword",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "role",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "qrBookingId",
+			"value": "123e4567-e89b-12d3-a456-426614174001",
+			"type": "string"
+		},
+		{
+			"key": "cashBookingId",
+			"value": "123e4567-e89b-12d3-a456-426614174002",
+			"type": "string"
+		},
+		{
+			"key": "petOwnerId",
+			"value": "00000000-0000-0000-0000-000000000000",
+			"type": "string"
+		},
+		{
+			"key": "paymentStatus",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

@@ -1,3 +1,3 @@
 export { ClinicManagerDashboardPage } from './DashboardPage'
-export { VetShiftPage } from './shifts/VetShiftPage'
+export { StaffShiftPage } from './shifts/StaffShiftPage'
 export { ChatPage } from './ChatPage'

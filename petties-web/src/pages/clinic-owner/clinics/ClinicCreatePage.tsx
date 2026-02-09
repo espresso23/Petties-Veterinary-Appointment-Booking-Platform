@@ -52,7 +52,7 @@ export function ClinicCreatePage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="mb-8 border-b-[3px] border-black pb-4">
           <div className="inline-block bg-black text-white px-3 py-1 text-xs font-black uppercase tracking-widest">
-            New Clinic
+            Tạo mới
           </div>
           <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mt-3 leading-tight">
             Tạo phòng khám
@@ -64,7 +64,7 @@ export function ClinicCreatePage() {
 
         {error && (
           <div className="card-brutal p-4 mb-6 bg-red-50 border-red-600">
-            <div className="text-red-800 font-bold uppercase mb-1">Error</div>
+            <div className="text-red-800 font-bold uppercase mb-1">Lỗi</div>
             <div className="text-red-700">{error}</div>
           </div>
         )}
@@ -78,15 +78,15 @@ export function ClinicCreatePage() {
         ) : displayClinic ? (
           <div className="space-y-6">
             <div className="card-brutal p-6 bg-green-50 border-green-600">
-              <div className="text-green-800 font-bold uppercase mb-2">CLINIC CREATED SUCCESSFULLY!</div>
+              <div className="text-green-800 font-bold uppercase mb-2">Đăng kí phòng khám thành công!</div>
               <div className="text-green-700">
-                Clinic "{displayClinic.name}" has been created. You can now upload images below.
+                Phòng khám "{displayClinic.name}" đã được đăng kí. Bạn có thể tải ảnh phòng khám dưới đây.
               </div>
             </div>
 
             {/* Image Upload Section */}
             <div className="card-brutal p-6">
-              <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">UPLOAD ẢNH PHÒNG KHÁM</h3>
+              <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">TẢI LÊN ẢNH PHÒNG KHÁM</h3>
               <ClinicImageUpload
                 clinicId={displayClinic.clinicId}
                 initialImages={displayClinic.imageDetails || []}
@@ -99,13 +99,13 @@ export function ClinicCreatePage() {
                 onClick={handleContinue}
                 className="btn-brutal flex-1"
               >
-                VIEW CLINIC DETAIL
+                XEM CHI TIẾT
               </button>
               <button
                 onClick={() => navigate(ROUTES.clinicOwner.clinics)}
                 className="btn-brutal-outline flex-1"
               >
-                BACK TO LIST
+                QUAY LẠI DANH SÁCH
               </button>
             </div>
           </div>

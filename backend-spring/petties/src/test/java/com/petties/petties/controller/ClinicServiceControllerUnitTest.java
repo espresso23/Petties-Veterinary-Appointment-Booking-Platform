@@ -92,8 +92,7 @@ class ClinicServiceControllerUnitTest {
                 testServiceRequest.setSlotsRequired(1);
                 testServiceRequest.setIsActive(true);
                 testServiceRequest.setIsHomeVisit(false);
-                testServiceRequest.setPricePerKm(new BigDecimal("10000.0"));
-                testServiceRequest.setServiceCategory("Khám bệnh");
+                testServiceRequest.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.CHECK_UP);
                 testServiceRequest.setPetType("Chó");
                 testServiceRequest.setClinicId(testClinicId);
                 testServiceRequest.setWeightPrices(weightPrices);
@@ -107,8 +106,7 @@ class ClinicServiceControllerUnitTest {
                                 .slotsRequired(1)
                                 .isActive(true)
                                 .isHomeVisit(false)
-                                .pricePerKm(new BigDecimal("10000.0"))
-                                .serviceCategory("Khám bệnh")
+                                .serviceCategory(com.petties.petties.model.enums.ServiceCategory.CHECK_UP)
                                 .petType("Chó")
                                 .weightPrices(weightPrices)
                                 .build();
@@ -248,7 +246,8 @@ class ClinicServiceControllerUnitTest {
         @Test
         @DisplayName("TC-UNIT-SERVICE-051: Success - get services by clinic id")
         void getServicesByClinicId_returns200() throws Exception {
-                when(clinicServiceService.getServicesByClinicId(testClinicId)).thenReturn(List.of(testServiceResponse));
+                when(clinicServiceService.getPublicServicesByClinicId(testClinicId))
+                                .thenReturn(List.of(testServiceResponse));
 
                 mockMvc.perform(get("/services/by-clinic/{clinicId}", testClinicId))
                                 .andExpect(status().isOk())

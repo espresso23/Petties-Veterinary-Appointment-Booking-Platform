@@ -16,14 +16,14 @@ import java.util.UUID;
 
 /**
  * Entity representing a bookable time slot
- * 
- * Slots are auto-generated when a VetShift is created
+ *
+ * Slots are auto-generated when a StaffShift is created
  * Each slot is 30 minutes by default
- * 
+ *
  * Status:
  * - AVAILABLE: Can be booked
  * - BOOKED: Already has a booking
- * - BLOCKED: Manually blocked by vet/manager
+ * - BLOCKED: Manually blocked by staff/manager
  */
 @Entity
 @Table(name = "slots", indexes = {
@@ -45,7 +45,7 @@ public class Slot {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id", nullable = false)
-    private VetShift shift;
+    private StaffShift shift;
 
     @Column(name = "start_time", nullable = false)
     private LocalTime startTime;

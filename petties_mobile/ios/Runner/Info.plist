@@ -46,6 +46,21 @@
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true />
 
+		<!-- Image Picker Permissions -->
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Ứng dụng cần truy cập thư viện ảnh để tải lên hình ảnh bệnh án.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>Ứng dụng cần truy cập camera để chụp ảnh bệnh án.</string>
+
+		<!-- App Transport Security - Allow HTTP for development -->
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true />
+			<key>NSAllowsLocalNetworking</key>
+			<true />
+		</dict>
+
 		<!-- Firebase Configuration -->
 		<key>FirebaseAppDelegateProxyEnabled</key>
 		<true />
@@ -72,5 +87,9 @@
 		</array>
 		<key>GIDClientID</key>
 		<string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
+		<key>UIBackgroundModes</key>
+		<array>
+		<string>location</string>
+		</array>
 	</dict>
 </plist>

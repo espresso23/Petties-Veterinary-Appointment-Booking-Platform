@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { sendRegistrationOtp, verifyOtpAndRegister, resendOtp } from '../../services/endpoints/auth'
+import { sendRegistrationOtp, verifyOtpAndRegister, resendOtp, isAuthResponse } from '../../services/endpoints/auth'
 import type { SendOtpRequest } from '../../services/endpoints/auth'
 import { useAuthStore } from '../../store/authStore'
 import { useToast } from '../../components/Toast'
@@ -13,7 +13,7 @@ import '../../styles/brutalist.css'
 function getRoleDashboard(role: string): string {
     const dashboards: Record<string, string> = {
         'ADMIN': '/admin',
-        'VET': '/vet',
+        'STAFF': '/staff',
         'CLINIC_MANAGER': '/clinic-manager',
         'CLINIC_OWNER': '/clinic-owner',
     }
@@ -121,6 +121,31 @@ export function RegisterPage() {
 
             const response = await sendRegistrationOtp(payload)
 
+            // DEV MODE: Backend trả về AuthResponse (skip OTP) → user đã đăng ký xong
+            if (isAuthResponse(response)) {
+                // PET_OWNER chỉ có thể sử dụng mobile app
+                if (response.role === 'PET_OWNER') {
+                    const msg = 'Đăng ký thành công! Vui lòng tải ứng dụng Petties trên điện thoại để sử dụng.'
+                    setSuccessMessage(msg)
+                    showToast('success', msg)
+                    useAuthStore.getState().clearAuth()
+                    return
+                }
+
+                // CLINIC_OWNER - redirect to clinic-owner dashboard
+                if (response.role === 'CLINIC_OWNER') {
+                    showToast('success', 'Đăng ký thành công! Chào mừng bạn đến với Petties.')
+                    navigate('/clinic-owner', { replace: true })
+                    return
+                }
+
+                // Redirect to role-based dashboard
+                const dashboardPath = getRoleDashboard(response.role)
+                navigate(dashboardPath, { replace: true })
+                return
+            }
+
+            // Normal mode: Backend trả về SendOtpResponse → chuyển sang step nhập OTP
             showToast('success', response.message)
             startResendCountdown(response.resendCooldownSeconds)
             setStep('otp')

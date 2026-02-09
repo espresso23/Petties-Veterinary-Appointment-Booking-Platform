@@ -9,6 +9,7 @@ import {
   TrashIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
@@ -100,13 +101,13 @@ export function ClinicDetailPage() {
         <div className="max-w-4xl mx-auto">
           <div className="card-brutal p-12 text-center">
             <div className="text-stone-600 font-bold uppercase text-lg mb-2">
-              {error || 'Clinic Not Found'}
+              {error || 'Không tìm thấy phòng khám'}
             </div>
             <button
               onClick={() => navigate(ROUTES.clinicOwner.clinics)}
               className="btn-brutal-outline mt-4"
             >
-              BACK TO LIST
+              QUAY LẠI DANH SÁCH
             </button>
           </div>
         </div>
@@ -122,10 +123,20 @@ export function ClinicDetailPage() {
   }
 
   const statusLabels: Record<string, string> = {
-    PENDING: 'PENDING',
-    APPROVED: 'APPROVED',
-    REJECTED: 'REJECTED',
-    SUSPENDED: 'SUSPENDED',
+    PENDING: 'CHỜ DUYỆT',
+    APPROVED: 'ĐÃ DUYỆT',
+    REJECTED: 'TỪ CHỐI',
+    SUSPENDED: 'TẠM NGƯNG',
+  }
+
+  const DAY_LABELS: Record<string, string> = {
+    MONDAY: 'THỨ HAI',
+    TUESDAY: 'THỨ BA',
+    WEDNESDAY: 'THỨ TƯ',
+    THURSDAY: 'THỨ NĂM',
+    FRIDAY: 'THỨ SÁU',
+    SATURDAY: 'THỨ BẢY',
+    SUNDAY: 'CHỦ NHẬT',
   }
 
   const DAYS_OF_WEEK = [
@@ -150,7 +161,7 @@ export function ClinicDetailPage() {
                   to={ROUTES.clinicOwner.clinics}
                   className="btn-brutal-outline px-3 py-2 text-sm shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
                 >
-                  ← BACK TO LIST
+                  ← QUAY LẠI DANH SÁCH
                 </Link>
                 <div className="flex gap-2">
                   <Link
@@ -158,14 +169,14 @@ export function ClinicDetailPage() {
                     className="btn-brutal-outline"
                   >
                     <PencilIcon className="w-4 h-4 mr-2" />
-                    EDIT
+                    SỬA
                   </Link>
                   <button
                     onClick={handleDeleteClick}
                     className="btn-brutal-outline text-red-600 border-red-600 hover:bg-red-50"
                   >
                     <TrashIcon className="w-4 h-4 mr-2" />
-                    DELETE
+                    XÓA
                   </button>
                 </div>
               </div>
@@ -227,7 +238,7 @@ export function ClinicDetailPage() {
                       />
                     </div>
                     <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                      PRIMARY
+                      ẢNH ĐẠI DIỆN
                     </div>
                   </div>
                 ) : (
@@ -249,7 +260,7 @@ export function ClinicDetailPage() {
                           </div>
                           {(image.isPrimary || index === 0) && (
                             <div className="absolute top-2 left-2 bg-amber-600 text-white font-bold uppercase text-xs px-2 py-1 border-2 border-stone-900 shadow-brutal">
-                              PRIMARY
+                              ẢNH ĐẠI DIỆN
                             </div>
                           )}
                         </div>
@@ -351,6 +362,44 @@ export function ClinicDetailPage() {
             </div>
           </div>
 
+          {/* Bank Payment Info - VietQR */}
+          {currentClinic.bankName && currentClinic.accountNumber && (
+            <div className="card-brutal p-6 mb-6">
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THONG TIN CHUYEN KHOAN</h2>
+              <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                {/* QR Code */}
+                <div className="flex-shrink-0">
+                  <div className="w-48 h-48 border-4 border-stone-900 shadow-brutal overflow-hidden bg-white">
+                    <img
+                      src={`https://img.vietqr.io/image/${currentClinic.bankName}-${currentClinic.accountNumber}-compact2.jpg`}
+                      alt="VietQR Code"
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                </div>
+                {/* Bank Details */}
+                <div className="flex-1 text-center md:text-left">
+                  <div className="mb-3">
+                    <div className="text-sm font-bold uppercase text-stone-600 mb-1">NGAN HANG</div>
+                    <div className="text-lg font-bold text-stone-900">{currentClinic.bankName}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold uppercase text-stone-600 mb-1">SO TAI KHOAN</div>
+                    <div className="text-xl font-mono font-bold text-stone-900 tracking-wider">
+                      {currentClinic.accountNumber}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs text-stone-500 italic">
+                    Quet ma QR bang ung dung ngan hang de chuyen khoan nhanh
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Operating Hours */}
           {currentClinic.operatingHours && Object.keys(currentClinic.operatingHours).length > 0 && (
             <div className="card-brutal p-6 mb-6">
@@ -389,7 +438,7 @@ export function ClinicDetailPage() {
                     return (
                       <div key={day} className="border-2 border-stone-900 p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-bold uppercase text-stone-900">{day}</div>
+                          <div className="text-sm font-bold uppercase text-stone-900">{DAY_LABELS[day]}</div>
                           {is24h && (
                             <span className="text-xs bg-amber-600 text-white px-2 py-1 border-2 border-stone-900 font-bold uppercase">
                               24/7
@@ -397,7 +446,7 @@ export function ClinicDetailPage() {
                           )}
                         </div>
                         {hours.isClosed ? (
-                          <div className="text-stone-600 font-bold uppercase text-xs">CLOSED</div>
+                          <div className="text-stone-600 font-bold uppercase text-xs">ĐÓNG CỬA</div>
                         ) : (
                           <>
                             <div className="text-stone-900 border-b border-stone-200 pb-1 mb-1">
@@ -419,10 +468,54 @@ export function ClinicDetailPage() {
             </div>
           )}
 
+          {/* Business License */}
+          {currentClinic.businessLicenseUrl && (
+            <div className="card-brutal p-6 mb-6">
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4 flex items-center gap-2">
+                <DocumentTextIcon className="w-6 h-6" />
+                GIẤY PHÉP KINH DOANH
+              </h2>
+              <div className="border-2 border-stone-900 p-4 bg-amber-50">
+                {currentClinic.businessLicenseUrl.toLowerCase().endsWith('.pdf') ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <DocumentTextIcon className="w-16 h-16 text-stone-600" />
+                    <div className="text-center">
+                      <p className="font-bold text-stone-900 mb-2">Giấy phép kinh doanh (PDF)</p>
+                      <a
+                        href={currentClinic.businessLicenseUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-brutal inline-flex items-center gap-2"
+                      >
+                        XEM TÀI LIỆU
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <img
+                      src={currentClinic.businessLicenseUrl}
+                      alt="Giấy phép kinh doanh"
+                      className="max-w-full max-h-96 object-contain border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917]"
+                    />
+                    <a
+                      href={currentClinic.businessLicenseUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-brutal-outline text-sm"
+                    >
+                      XEM ẢNH GỐC
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Map */}
           {currentClinic.latitude && currentClinic.longitude && (
             <div className="card-brutal p-6 mb-6">
-              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">LOCATION</h2>
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">VỊ TRÍ</h2>
               <ClinicMapOSM clinic={currentClinic} />
               <div className="mt-4">
                 <DistanceCalculator clinicId={currentClinic.clinicId} />
@@ -442,14 +535,14 @@ export function ClinicDetailPage() {
           <div className="card-brutal p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-stone-600 font-bold uppercase mb-1">CREATED AT</div>
+                <div className="text-stone-600 font-bold uppercase mb-1">NGÀY TẠO</div>
                 <div className="text-stone-900">
                   {new Date(currentClinic.createdAt).toLocaleString('vi-VN')}
                 </div>
               </div>
               {currentClinic.updatedAt && (
                 <div>
-                  <div className="text-stone-600 font-bold uppercase mb-1">UPDATED AT</div>
+                  <div className="text-stone-600 font-bold uppercase mb-1">CẬP NHẬT LÚC</div>
                   <div className="text-stone-900">
                     {new Date(currentClinic.updatedAt).toLocaleString('vi-VN')}
                   </div>
@@ -457,7 +550,7 @@ export function ClinicDetailPage() {
               )}
               {currentClinic.approvedAt && (
                 <div>
-                  <div className="text-stone-600 font-bold uppercase mb-1">APPROVED AT</div>
+                  <div className="text-stone-600 font-bold uppercase mb-1">DUYỆT LÚC</div>
                   <div className="text-stone-900">
                     {new Date(currentClinic.approvedAt).toLocaleString('vi-VN')}
                   </div>

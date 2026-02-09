@@ -1,7 +1,145 @@
 import { useState, useEffect, useRef } from 'react'
-import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, ArrowDownTrayIcon, MagnifyingGlassPlusIcon, MagnifyingGlassMinusIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline'
 import type { ClinicResponse } from '../../types/clinic'
 import { ClinicMapOSM } from '../clinic/ClinicMapOSM'
+
+/**
+ * ImageViewer Component - Neobrutalism Design
+ * Shows image with zoom controls, fullscreen, and download
+ */
+const ImageViewer = ({ src, alt }: { src: string; alt: string }) => {
+  const [zoom, setZoom] = useState(1)
+  const [showFullscreen, setShowFullscreen] = useState(false)
+  const MIN_ZOOM = 0.5
+  const MAX_ZOOM = 3
+
+  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.25, MAX_ZOOM))
+  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.25, MIN_ZOOM))
+  const handleResetZoom = () => setZoom(1)
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(src)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `giay-phep-kinh-doanh-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch {
+      window.open(src, '_blank')
+    }
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              disabled={zoom <= MIN_ZOOM}
+              className="w-9 h-9 flex items-center justify-center bg-white border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Thu nhỏ"
+            >
+              <MagnifyingGlassMinusIcon className="w-5 h-5" />
+            </button>
+            <span className="font-bold text-sm min-w-[60px] text-center">{Math.round(zoom * 100)}%</span>
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              disabled={zoom >= MAX_ZOOM}
+              className="w-9 h-9 flex items-center justify-center bg-white border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Phóng to"
+            >
+              <MagnifyingGlassPlusIcon className="w-5 h-5" />
+            </button>
+            {zoom !== 1 && (
+              <button
+                type="button"
+                onClick={handleResetZoom}
+                className="px-3 h-9 flex items-center justify-center bg-stone-100 border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-xs font-bold"
+              >
+                RESET
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFullscreen(true)}
+              className="h-9 px-3 flex items-center gap-2 bg-stone-100 border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-xs font-bold uppercase"
+              title="Xem toàn màn hình"
+            >
+              <ArrowsPointingOutIcon className="w-4 h-4" />
+              Mở rộng
+            </button>
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="h-9 px-3 flex items-center gap-2 bg-amber-500 border-2 border-black shadow-[2px_2px_0_#000] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all text-xs font-bold uppercase"
+              title="Tải xuống"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4" />
+              Tải về
+            </button>
+          </div>
+        </div>
+
+        {/* Image Container */}
+        <div className="border-4 border-black bg-stone-100 overflow-auto max-h-[400px]">
+          <div
+            className="min-h-[200px] flex items-center justify-center p-4 transition-transform duration-200"
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+          >
+            <img
+              src={src}
+              alt={alt}
+              className="max-w-full h-auto object-contain"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Fullscreen Modal */}
+      {showFullscreen && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setShowFullscreen(false)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+              className="h-10 px-4 flex items-center gap-2 bg-amber-500 border-2 border-black shadow-[3px_3px_0_#000] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all text-sm font-bold uppercase"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Tải về
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFullscreen(false)}
+              className="w-10 h-10 flex items-center justify-center bg-white border-2 border-black shadow-[3px_3px_0_#000] hover:shadow-none hover:translate-x-[3px] hover:translate-y-[3px] transition-all"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+          <img
+            src={src}
+            alt={alt}
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
+  )
+}
 
 interface ClinicDetailModalProps {
   isOpen: boolean
@@ -235,6 +373,19 @@ export const ClinicDetailModal = ({ isOpen, onClose, clinic }: ClinicDetailModal
               <pre className="text-sm font-bold text-black whitespace-pre-wrap">{formatOperatingHours()}</pre>
             </div>
           )}
+
+          {/* Business License */}
+          <div className="border-4 border-black p-4 bg-amber-50">
+            <h3 className="text-lg font-black uppercase text-black mb-4">Giấy phép kinh doanh</h3>
+            {clinic.businessLicenseUrl ? (
+              <ImageViewer src={clinic.businessLicenseUrl} alt="Giấy phép kinh doanh" />
+            ) : (
+              <div className="flex items-center gap-3 p-4 bg-red-100 border-2 border-red-600">
+                <DocumentTextIcon className="w-6 h-6 text-red-600" />
+                <p className="font-bold text-red-700">Chưa tải lên giấy phép kinh doanh</p>
+              </div>
+            )}
+          </div>
 
           {/* Images Gallery */}
           {images.length > 0 && (

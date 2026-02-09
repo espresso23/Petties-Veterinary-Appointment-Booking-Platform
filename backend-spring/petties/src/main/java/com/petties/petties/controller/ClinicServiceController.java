@@ -108,33 +108,10 @@ public class ClinicServiceController {
     }
 
     /**
-     * Update price per km
-     * PATCH /api/services/{serviceId}/price-per-km
-     */
-    @PatchMapping("/{serviceId}/price-per-km")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<ClinicServiceResponse> updatePricePerKm(
-            @PathVariable UUID serviceId,
-            @RequestParam BigDecimal pricePerKm) {
-        ClinicServiceResponse response = serviceService.updatePricePerKm(serviceId, pricePerKm);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Update price per km for all home visit services
-     * PATCH /api/services/bulk/price-per-km
-     */
-    @PatchMapping("/bulk/price-per-km")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<Void> updateBulkPricePerKm(@RequestParam BigDecimal pricePerKm) {
-        serviceService.updateBulkPricePerKm(pricePerKm);
-        return ResponseEntity.ok().build();
-    }
-
-    /**
      * NEW: Inherit service from Master Service
      * POST /api/services/inherit/{masterServiceId}
-     * Body: { "clinicId": "uuid" (optional), "clinicPrice": 100000 (optional), "clinicPricePerKm": 5000 (optional) }
+     * Body: { "clinicId": "uuid" (optional), "clinicPrice": 100000 (optional),
+     * "clinicPricePerKm": 5000 (optional) }
      */
     @PostMapping("/inherit/{masterServiceId}")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
@@ -143,18 +120,20 @@ public class ClinicServiceController {
             @RequestParam(required = false) UUID clinicId,
             @RequestParam(required = false) BigDecimal clinicPrice,
             @RequestParam(required = false) BigDecimal clinicPricePerKm) {
-        ClinicServiceResponse response = serviceService.inheritFromMasterService(masterServiceId, clinicId, clinicPrice, clinicPricePerKm);
+        ClinicServiceResponse response = serviceService.inheritFromMasterService(masterServiceId, clinicId, clinicPrice,
+                clinicPricePerKm);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     /**
-     * NEW: Get all services for a specific clinic
+     * PUBLIC: Get all active services for a specific clinic
      * GET /api/services/by-clinic/{clinicId}
+     * Pet Owner uses this to view services when booking
      */
     @GetMapping("/by-clinic/{clinicId}")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<List<ClinicServiceResponse>> getServicesByClinicId(@PathVariable UUID clinicId) {
-        List<ClinicServiceResponse> services = serviceService.getServicesByClinicId(clinicId);
+        List<ClinicServiceResponse> services = serviceService.getPublicServicesByClinicId(clinicId);
         return ResponseEntity.ok(services);
     }
 }

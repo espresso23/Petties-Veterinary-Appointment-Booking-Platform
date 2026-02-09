@@ -42,13 +42,43 @@ public class BookingServiceItem {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    // ========== PRICING BREAKDOWN FIELDS ==========
+    /**
+     * Base price of the service (before weight-based pricing)
+     */
+    @Column(name = "base_price", precision = 12, scale = 2)
+    private BigDecimal basePrice;
+
+    /**
+     * Weight-based price (may differ from basePrice based on pet weight tier)
+     */
+    @Column(name = "weight_price", precision = 12, scale = 2)
+    private BigDecimal weightPrice;
+
     @Column(name = "quantity", nullable = false)
     @Builder.Default
     private Integer quantity = 1;
 
+    /**
+     * Flag to indicate if this service was added after initial booking (Arising
+     * Service)
+     * If true, it may not have an assigned staff initially
+     */
+    @Column(name = "is_add_on")
+    @Builder.Default
+    private Boolean isAddOn = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Assigned staff for this specific service
+     * Different services in the same booking can have different staff members
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_staff_id")
+    private User assignedStaff;
 
     // ========== HELPER METHODS ==========
 

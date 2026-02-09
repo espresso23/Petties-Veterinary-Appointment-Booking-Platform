@@ -15,7 +15,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Roles that can edit their profile on web
-const EDITABLE_ROLES = ['VET', 'CLINIC_OWNER', 'CLINIC_MANAGER']
+const EDITABLE_ROLES = ['STAFF', 'CLINIC_OWNER', 'CLINIC_MANAGER']
 
 export function ProfilePage() {
   const { user } = useAuthStore()
@@ -112,8 +112,8 @@ export function ProfilePage() {
     switch (role) {
       case 'ADMIN':
         return 'Quản Trị Viên'
-      case 'VET':
-        return 'Bác Sĩ Thú Y'
+      case 'STAFF':
+        return 'Nhân Viên Phòng Khám'
       case 'CLINIC_OWNER':
         return 'Chủ Phòng Khám'
       case 'CLINIC_MANAGER':

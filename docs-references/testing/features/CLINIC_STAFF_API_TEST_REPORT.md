@@ -14,15 +14,15 @@
 Hệ thống quản lý nhân sự phòng khám cho Clinic Owner và Clinic Manager:
 - **Xem danh sách nhân viên**: Lấy tất cả staff của một phòng khám
 - **Thêm nhanh nhân viên (Quick Add)**: Tạo tài khoản mới và gán vào phòng khám
-- **Gán nhân viên có sẵn**: Assign Manager hoặc Vet từ tài khoản đã tồn tại
+- **Gán nhân viên có sẵn**: Assign Manager hoặc Staff từ tài khoản đã tồn tại
 - **Xóa nhân viên**: Gỡ staff khỏi phòng khám
 
 ### 1.2 Applicable Roles
 
 | Role | Access | Note |
 |------|--------|------|
-| CLINIC_OWNER | Full | Thêm/Xóa cả VET và CLINIC_MANAGER |
-| CLINIC_MANAGER | Limited | Chỉ thêm/xóa VET |
+| CLINIC_OWNER | Full | Thêm/Xóa cả STAFF và CLINIC_MANAGER |
+| CLINIC_MANAGER | Limited | Chỉ thêm/xóa STAFF |
 | ADMIN | Read Only | Xem danh sách |
 
 ### 1.3 API Endpoints
@@ -33,7 +33,7 @@ Hệ thống quản lý nhân sự phòng khám cho Clinic Owner và Clinic Mana
 | GET | `/clinics/{clinicId}/staff/has-manager` | Kiểm tra đã có Manager chưa |
 | POST | `/clinics/{clinicId}/staff/quick-add` | Tạo tài khoản mới và gán vào clinic |
 | POST | `/clinics/{clinicId}/staff/manager/{usernameOrEmail}` | Gán user có sẵn làm Manager |
-| POST | `/clinics/{clinicId}/staff/vet/{usernameOrEmail}` | Gán user có sẵn làm Vet |
+| POST | `/clinics/{clinicId}/staff/vet/{usernameOrEmail}` | Gán user có sẵn làm Staff |
 | DELETE | `/clinics/{clinicId}/staff/{userId}` | Xóa nhân viên khỏi clinic |
 
 ---
@@ -78,7 +78,7 @@ backend-spring/petties/src/test/java/com/petties/petties/controller/
 
 ### TC-UNIT-STF-002: Quick Add Staff Success
 - **Method**: `quickAddStaff_Success`
-- **Scenario**: Tạo tài khoản mới (VET hoặc MANAGER) và gán vào clinic
+- **Scenario**: Tạo tài khoản mới (STAFF hoặc MANAGER) và gán vào clinic
 - **Input**: `{ fullName: "New Manager", phone: "0912345678", role: "CLINIC_MANAGER" }`
 - **Expected**: Status 200, message "Staff account created and assigned successfully"
 - **Status**: ✅ PASSED
@@ -119,7 +119,7 @@ backend-spring/petties/src/test/java/com/petties/petties/controller/
 
 ### TC-UNIT-STF-008: Quick Add Staff - Invalid Role Fail
 - **Method**: `quickAddStaff_InvalidRole_Fail`
-- **Scenario**: Role không hợp lệ (không phải VET/CLINIC_MANAGER)
+- **Scenario**: Role không hợp lệ (không phải STAFF/CLINIC_MANAGER)
 - **Expected**: Status 400 Bad Request
 - **Status**: ✅ PASSED
 
@@ -136,10 +136,10 @@ backend-spring/petties/src/test/java/com/petties/petties/controller/
 ### TC-UNIT-STF-010: Quick Add Staff - Manager Add Manager Forbidden Fail
 - **Method**: `quickAddStaff_ManagerAddManager_Forbidden_Fail`
 - **Scenario**: Clinic Manager cố gắng thêm CLINIC_MANAGER khác
-- **Expected**: Status 403 Forbidden, message "Quản lý phòng khám chỉ có quyền thêm Bác sĩ"
+- **Expected**: Status 403 Forbidden, message "Quản lý phòng khám chỉ có quyền thêm Nhân viên"
 - **Status**: ✅ PASSED
 
-### TC-UNIT-STF-011: Assign Vet - Forbidden Access Fail
+### TC-UNIT-STF-011: Assign Staff - Forbidden Access Fail
 - **Method**: `assignVet_Forbidden_Fail`
 - **Scenario**: User không có quyền quản lý phòng khám này
 - **Expected**: Status 403 Forbidden, message "Bạn không có quyền quản lý phòng khám này"
@@ -185,7 +185,7 @@ mvn test -Dtest=ClinicStaffControllerUnitTest
 | Rule ID | Description | Covered |
 |---------|-------------|:-------:|
 | BR-008-01 | Quick Add: Chỉ yêu cầu Họ tên, SĐT, Vai trò | ✅ |
-| BR-008-03 | Owner thêm VET + MANAGER; Manager chỉ thêm VET | ✅ |
+| BR-008-03 | Owner thêm STAFF + MANAGER; Manager chỉ thêm STAFF | ✅ |
 | BR-008-04 | Nhân viên chỉ thuộc 1 phòng khám | ✅ |
 | BR-008-07 | Mỗi phòng khám chỉ có 1 Manager | ⏳ (Service layer) |
 

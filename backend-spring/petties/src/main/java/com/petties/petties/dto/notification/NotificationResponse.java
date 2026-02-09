@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * DTO for notification response
  *
- * Supports both clinic notifications and VetShift notifications
+ * Supports both clinic notifications and StaffShift notifications
  */
 @Getter
 @Setter
@@ -35,10 +35,13 @@ public class NotificationResponse {
     private UUID clinicId;
     private String clinicName;
 
-    // VetShift-related fields (for VET_SHIFT_* types)
+    // StaffShift-related fields (for STAFF_SHIFT_* types)
     private UUID shiftId;
     private LocalDate shiftDate;
     private LocalTime shiftStartTime;
     private LocalTime shiftEndTime;
-}
 
+    // Actionable Notification fields
+    private String actionType;
+    private String actionData;
+}

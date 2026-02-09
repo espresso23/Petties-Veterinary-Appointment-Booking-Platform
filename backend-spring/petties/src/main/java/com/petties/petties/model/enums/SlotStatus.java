@@ -6,5 +6,5 @@ package com.petties.petties.model.enums;
 public enum SlotStatus {
     AVAILABLE, // Open for booking
     BOOKED, // Already booked by a customer
-    BLOCKED // Manually blocked by Vet/Manager
+    BLOCKED // Manually blocked by Staff/Manager
 }

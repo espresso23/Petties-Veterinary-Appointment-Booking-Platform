@@ -5,7 +5,7 @@ import { parseApiError } from '../../utils/errorHandler'
 
 export const apiClient = axios.create({
   baseURL: env.API_BASE_URL,
-  timeout: 30_000,
+  timeout: 60_000, // Increased for image uploads
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,12 +21,12 @@ apiClient.interceptors.request.use(
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`
     }
-    
+
     // If data is FormData, remove Content-Type to let browser set it with boundary
     if (config.data instanceof FormData && config.headers) {
       delete config.headers['Content-Type']
     }
-    
+
     return config
   },
   (error) => {
@@ -47,7 +47,7 @@ apiClient.interceptors.response.use(
       !(originalRequest as any)._retry &&
       !originalRequest.url?.includes('/auth/')
     ) {
-      ;(originalRequest as any)._retry = true
+      ; (originalRequest as any)._retry = true
 
       try {
         const refreshToken = useAuthStore.getState().refreshToken
@@ -91,7 +91,7 @@ apiClient.interceptors.response.use(
 
     // Parse error và attach userMessage vào error object
     const userMessage = parseApiError(error)
-    ;(error as any).userMessage = userMessage
+      ; (error as any).userMessage = userMessage
 
     // Log error trong dev mode
     if (import.meta.env.DEV) {

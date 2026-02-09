@@ -17,9 +17,9 @@ class ApiClient {
       BaseOptions(
         baseUrl: Environment.baseUrl,
         connectTimeout:
-            const Duration(milliseconds: AppConstants.connectTimeout),
+            const Duration(milliseconds: 30000), // Increased to 30s
         receiveTimeout:
-            const Duration(milliseconds: AppConstants.receiveTimeout),
+            const Duration(milliseconds: 30000), // Increased to 30s
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -144,7 +144,14 @@ class ApiClient {
 
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
-        final message = error.response?.data?['message'] ?? 'Server error';
+        
+        // Safely extract message from response data
+        String message = 'Server error';
+        if (error.response?.data is Map<String, dynamic>) {
+          message = error.response?.data['message'] ?? 'Server error';
+        } else if (error.response?.data is String) {
+          message = error.response?.data;
+        }
 
         if (statusCode == 401 || statusCode == 403) {
           return AuthException(message, statusCode.toString());

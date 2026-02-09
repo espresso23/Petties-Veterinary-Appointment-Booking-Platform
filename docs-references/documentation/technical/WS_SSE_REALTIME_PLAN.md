@@ -11,7 +11,7 @@ Tài liệu này định hướng cách phối hợp hai công nghệ này để
 Hệ thống hiện đã tích hợp hoàn tất các luồng thông báo chính qua **SSE**:
 
 *   **Thông báo Phòng khám (Clinic Notifications):** `APPROVED`, `REJECTED`, `CLINIC_PENDING_APPROVAL`.
-*   **Thông báo Lịch làm việc (Vet Shift Notifications):** `VET_SHIFT_ASSIGNED`, `VET_SHIFT_UPDATED`, `VET_SHIFT_DELETED`.
+*   **Thông báo Lịch làm việc (Staff Shift Notifications):** `VET_SHIFT_ASSIGNED`, `VET_SHIFT_UPDATED`, `VET_SHIFT_DELETED`.
 *   **Sidebar Badge Count:** Cập nhật số lượng thông báo chưa đọc thời gian thực cho tất cả các Role.
 *   **Real-time Pending Clinic Counter (Admin):** Tự động cập nhật số lượng phòng khám chờ duyệt trên Sidebar Admin ngay khi có yêu cầu mới hoặc có thay đổi trạng thái. ✅
 
@@ -28,16 +28,16 @@ Hệ thống hiện đã tích hợp hoàn tất các luồng thông báo chính
 *   **New Message Alert (SSE):** Thông báo đẩy khi có tin nhắn mới dù người dùng đang ở trang khác.
 *   **Streaming AI (SSE):** Đẩy kết quả AI Agent theo kiểu "typing" từng từ.
 
-### Phân hệ C: Dịch vụ Khám tại nhà - Vet Routing (WebSocket - Cực kỳ quan trọng)
-*   **Live GPS Tracking (WS):** Bác sĩ liên tục gửi tọa độ GPS lên Server và Server đẩy ngay lập tức xuống bản đồ của Khách hàng.
-*   **Distance Calculation:** Tự động tính toán lại khoảng cách và thời gian dự kiến đến (ETA) theo vị trí thực tế của Bác sĩ.
+### Phân hệ C: Dịch vụ Khám tại nhà - Staff Routing (WebSocket - Cực kỳ quan trọng)
+*   **Live GPS Tracking (WS):** Nhân viên liên tục gửi tọa độ GPS lên Server và Server đẩy ngay lập tức xuống bản đồ của Khách hàng.
+*   **Distance Calculation:** Tự động tính toán lại khoảng cách và thời gian dự kiến đến (ETA) theo vị trí thực tế của Nhân viên.
 
 ### Phân hệ D: Tài chính & Thao tác nghiệp vụ (SSE)
 *   **Payment Success (SSE/Webhook):** Tự động đóng cửa sổ thanh toán ngay khi giao dịch thành công.
 *   **Data Change Alert (SSE):** Thông báo cho nhân viên khi có thay đổi lớn trong hệ thống (Ví dụ: Cập nhật bảng giá dịch vụ).
 
 ### Phân hệ E: Quản lý hiện diện & Cộng tác (WebSocket - Nâng cao)
-*   **User Presence (WS):** Hiển thị trạng thái Online/Offline của nhân viên và bác sĩ trong thời gian thực.
+*   **User Presence (WS):** Hiển thị trạng thái Online/Offline của nhân viên và nhân viên trong thời gian thực.
 *   **EMR Editing Lock (WS):** Cảnh báo khi có hai nhân viên cùng truy cập/chỉnh sửa một hồ sơ bệnh án (EMR) để tránh ghi đè dữ liệu.
 
 ---

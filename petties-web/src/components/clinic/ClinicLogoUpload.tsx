@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { clinicService } from '../../services/api/clinicService'
 import { ClinicLogoDisplay } from './ClinicLogoDisplay'
+import { ImageCropper } from '../common/ImageCropper'
 
 interface ClinicLogoUploadProps {
   clinicId: string
@@ -12,6 +13,11 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState<string | undefined>(currentLogo)
+
+  // Cropper state
+  const [showCropper, setShowCropper] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,15 +36,35 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
       return
     }
 
+    // Read file as Data URL for preview/cropper
+    const reader = new FileReader()
+    reader.onload = () => {
+      setSelectedImage(reader.result as string)
+      setShowCropper(true)
+      // Reset file input so same file can be selected again if cancelled
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCropSave = async (blob: Blob) => {
+    setShowCropper(false)
     setUploading(true)
     setError(null)
+
+    // Convert blob to file
+    const file = new File([blob], "logo-cropped.png", { type: "image/png" })
 
     try {
       const response = await clinicService.uploadClinicLogo(clinicId, file)
       if (response.logo) {
-        setLogoUrl(response.logo)
+        // Appending timestamp to force image refresh (cache busting)
+        const newLogoUrl = `${response.logo}?t=${new Date().getTime()}`
+        setLogoUrl(newLogoUrl)
         if (onLogoUploaded) {
-          onLogoUploaded(response.logo)
+          onLogoUploaded(newLogoUrl)
         }
       }
     } catch (err: any) {
@@ -47,10 +73,12 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
       setError(errorMessage)
     } finally {
       setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  const handleCropCancel = () => {
+    setShowCropper(false)
+    setSelectedImage(null)
   }
 
   return (
@@ -74,7 +102,7 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
             htmlFor={`logo-upload-${clinicId}`}
             className={`btn-brutal inline-block cursor-pointer ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            {uploading ? 'ĐANG UPLOAD...' : 'CHỌN LOGO'}
+            {uploading ? 'ĐANG TẢI LÊN...' : 'CHỌN LOGO'}
           </label>
           <p className="text-xs text-stone-500 mt-1">
             {logoUrl ? 'Logo đã được tải lên' : 'Chưa có logo, sẽ sử dụng logo mặc định'}
@@ -84,6 +112,16 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
 
       {error && (
         <p className="text-red-600 text-sm font-bold">{error}</p>
+      )}
+
+      {/* Cropper Modal */}
+      {showCropper && selectedImage && (
+        <ImageCropper
+          imageUrl={selectedImage}
+          aspectRatio={1} // Square logo
+          onCancel={handleCropCancel}
+          onSave={handleCropSave}
+        />
       )}
     </div>
   )

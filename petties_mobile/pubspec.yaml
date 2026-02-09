@@ -37,17 +37,20 @@ dependencies:
   # Utilities
   intl: ^0.20.0
   uuid: ^4.5.1
+  flutter_dotenv: ^5.1.0
   
   # UI Components
   flutter_svg: ^2.0.14
   cached_network_image: ^3.4.1
   
   # Location & Maps
-  google_maps_flutter: ^2.10.0
-  geolocator: ^13.0.2  # Downgrade for Dart 3.6.0 compatibility
+  google_maps_flutter: ^2.5.0
+  geolocator: ^14.0.2
+  latlong_to_place: ^0.0.7
   
   # Media
   image_picker: ^1.1.2
+  camera: ^0.11.0+2
   video_player: ^2.9.2
   
   # Permissions
@@ -66,12 +69,20 @@ dependencies:
   sentry_flutter: ^9.9.0
   flutter_localizations:
     sdk: flutter
+  table_calendar: ^3.2.0
+  url_launcher: ^6.3.2
+  flutter_rating_bar: ^4.0.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   build_runner: ^2.4.13
+  mockito: ^5.6.3
 
 flutter:
   uses-material-design: true
+  assets:
+    - .env
+    - assets/images/
+    - assets/images/logo/

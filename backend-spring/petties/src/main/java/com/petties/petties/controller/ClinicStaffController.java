@@ -61,15 +61,15 @@ public class ClinicStaffController {
     }
 
     /**
-     * Both Clinic Owner and Clinic Manager can assign Vets
+     * Both Clinic Owner and Clinic Manager can assign Staff
      */
-    @PostMapping("/vet/{usernameOrEmail}")
+    @PostMapping("/assign/{usernameOrEmail}")
     @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
-    public ResponseEntity<String> assignVet(
+    public ResponseEntity<String> assignStaff(
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
-        staffService.assignVet(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Vet assigned successfully");
+        staffService.assignStaff(clinicId, usernameOrEmail);
+        return ResponseEntity.ok("Nhân viên được gán thành công");
     }
 
     @DeleteMapping("/{userId}")

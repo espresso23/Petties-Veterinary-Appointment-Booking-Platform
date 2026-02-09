@@ -35,15 +35,19 @@ export interface ChatMessage {
   senderName: string
   senderAvatar: string | null
   content: string
+  messageType: 'TEXT' | 'IMAGE' | 'IMAGE_TEXT'
+  imageUrl: string | null
   status: 'SENT' | 'DELIVERED' | 'SEEN'
   isRead: boolean
   readAt: string | null
   createdAt: string
   isMe: boolean
+  isUploading?: boolean // Used for optimistic UI during upload
 }
 
 export interface SendMessageRequest {
   content: string
+  imageUrl?: string
 }
 
 // ======================== WEBSOCKET ========================

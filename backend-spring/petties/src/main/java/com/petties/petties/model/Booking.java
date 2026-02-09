@@ -16,9 +16,9 @@ import java.util.UUID;
 
 /**
  * Booking entity - Lịch hẹn khám bệnh
- * 
+ *
  * Relationships:
- * - ManyToOne: Pet, User (petOwner), Clinic, User (assignedVet)
+ * - ManyToOne: Pet, User (petOwner), Clinic, User (assignedStaff)
  * - OneToMany: BookingSlot (slots used), BookingService (services)
  * - OneToOne: Payment
  */
@@ -54,8 +54,8 @@ public class Booking {
     private Clinic clinic;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_vet_id")
-    private User assignedVet;
+    @JoinColumn(name = "assigned_staff_id")
+    private User assignedStaff;
 
     // ========== BOOKING INFO ==========
 
@@ -82,6 +82,9 @@ public class Booking {
 
     @Column(name = "distance_km", precision = 5, scale = 2)
     private BigDecimal distanceKm;
+
+    @Column(name = "distance_fee", precision = 12, scale = 2)
+    private BigDecimal distanceFee;
 
     // ========== PRICING ==========
 
@@ -125,6 +128,9 @@ public class Booking {
     @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL)
     private Payment payment;
 
+    @OneToOne(mappedBy = "booking")
+    private Review review;
+
     // ========== HELPER METHODS ==========
 
     /**
@@ -141,8 +147,7 @@ public class Booking {
      */
     public boolean canBeCancelled() {
         return status == BookingStatus.PENDING ||
-                status == BookingStatus.CONFIRMED ||
-                status == BookingStatus.ASSIGNED;
+                status == BookingStatus.CONFIRMED;
     }
 
     /**

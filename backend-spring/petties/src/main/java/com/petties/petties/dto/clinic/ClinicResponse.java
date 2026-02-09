@@ -35,9 +35,12 @@ public class ClinicResponse {
     private String specificLocation; // Vị trí chính xác
     private String phone;
     private String email;
+    private String bankName; // Tên ngân hàng
+    private String accountNumber; // Số tài khoản ngân hàng
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String logo; // URL to clinic logo
+    private String businessLicenseUrl; // URL to business license/veterinary practice certificate
     private Map<String, OperatingHours> operatingHours;
     private ClinicStatus status;
     private String rejectionReason;

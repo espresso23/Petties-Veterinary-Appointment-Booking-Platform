@@ -26,6 +26,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.petties.petties.model.OperatingHours;
+import java.time.LocalTime;
+import java.util.Map;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -84,8 +88,11 @@ public class ClinicService {
                 clinic.setProvince(request.getProvince());
                 clinic.setSpecificLocation(request.getSpecificLocation());
                 clinic.setLogo(request.getLogo());
+                clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
                 clinic.setStatus(ClinicStatus.PENDING);
 
@@ -136,6 +143,9 @@ public class ClinicService {
                         throw new ForbiddenException("Bạn chỉ có thể cập nhật phòng khám của mình");
                 }
 
+                // !! FIX: Capture old address BEFORE updating to detect changes
+                String oldAddress = clinic.getAddress();
+
                 // Update fields
                 clinic.setName(request.getName());
                 clinic.setDescription(request.getDescription());
@@ -145,8 +155,11 @@ public class ClinicService {
                 clinic.setProvince(request.getProvince());
                 clinic.setSpecificLocation(request.getSpecificLocation());
                 clinic.setLogo(request.getLogo());
+                clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
 
                 // Update coordinates: prioritize provided coordinates, otherwise geocode if
@@ -156,7 +169,7 @@ public class ClinicService {
                         clinic.setLongitude(request.getLongitude());
                         log.info("Using provided coordinates for update: lat={}, lng={}", request.getLatitude(),
                                         request.getLongitude());
-                } else if (request.getAddress() != null && !request.getAddress().equals(clinic.getAddress())) {
+                } else if (request.getAddress() != null && !request.getAddress().equals(oldAddress)) {
                         // Re-geocode if address changed and no coordinates provided
                         try {
                                 GeocodeResponse geocode = locationService.geocode(request.getAddress());
@@ -189,9 +202,115 @@ public class ClinicService {
         }
 
         @Transactional(readOnly = true)
-        public Page<ClinicResponse> searchClinics(String name, Pageable pageable) {
-                Page<Clinic> clinics = clinicRepository.searchByName(name, pageable);
-                return clinics.map(this::mapToResponse);
+        public Page<ClinicResponse> searchClinics(
+                        BigDecimal latitude, BigDecimal longitude, Double radiusKm,
+                        String query, Boolean isOpenNow,
+                        String province, String district,
+                        BigDecimal minPrice, BigDecimal maxPrice,
+                        String service,
+                        Boolean sortByRating, Boolean sortByDistance,
+                        Pageable pageable) {
+
+                // 1. Fetch from repository with text and distance filters
+                List<Clinic> clinics = clinicRepository.searchClinicsInternal(
+                                query, latitude, longitude, radiusKm,
+                                province, district, minPrice, maxPrice, service);
+
+                // 2. Map and calculate distances
+                List<ClinicResponse> responses = clinics.stream()
+                                .map(clinic -> {
+                                        ClinicResponse response = mapToResponse(clinic);
+                                        if (latitude != null && longitude != null && clinic.getLatitude() != null
+                                                        && clinic.getLongitude() != null) {
+                                                double distance = locationService.calculateDistance(
+                                                                latitude, longitude,
+                                                                clinic.getLatitude(), clinic.getLongitude());
+                                                response.setDistance(distance);
+                                        }
+                                        return response;
+                                })
+                                .collect(Collectors.toList());
+
+                // 3. Filter by open status if requested
+                if (Boolean.TRUE.equals(isOpenNow)) {
+                        log.info("Filtering by isOpenNow. Before filter: {} clinics", responses.size());
+                        responses = responses.stream()
+                                        .filter(resp -> {
+                                                boolean isOpen = isClinicOpen(resp.getOperatingHours());
+                                                log.debug("Clinic '{}' isOpen: {}", resp.getName(), isOpen);
+                                                return isOpen;
+                                        })
+                                        .collect(Collectors.toList());
+                        log.info("After isOpenNow filter: {} clinics", responses.size());
+                }
+
+                // 4. Sort
+                if (Boolean.TRUE.equals(sortByRating)) {
+                        responses.sort((a, b) -> {
+                                BigDecimal rA = a.getRatingAvg() != null ? a.getRatingAvg() : BigDecimal.ZERO;
+                                BigDecimal rB = b.getRatingAvg() != null ? b.getRatingAvg() : BigDecimal.ZERO;
+                                return rB.compareTo(rA);
+                        });
+                } else if (Boolean.TRUE.equals(sortByDistance)) {
+                        responses.sort((a, b) -> {
+                                Double dA = a.getDistance() != null ? a.getDistance() : Double.MAX_VALUE;
+                                Double dB = b.getDistance() != null ? b.getDistance() : Double.MAX_VALUE;
+                                return dA.compareTo(dB);
+                        });
+                }
+
+                // 5. Paginate
+                int start = (int) pageable.getOffset();
+                int end = Math.min(start + pageable.getPageSize(), responses.size());
+                List<ClinicResponse> pagedResponses = start < responses.size()
+                                ? responses.subList(start, end)
+                                : List.of();
+
+                return new PageImpl<>(pagedResponses, pageable, responses.size());
+        }
+
+        private boolean isClinicOpen(Map<String, OperatingHours> hoursMap) {
+                if (hoursMap == null || hoursMap.isEmpty()) {
+                        log.debug("hoursMap is null or empty");
+                        return false;
+                }
+
+                // Use Vietnam timezone (GMT+7) for accurate open/close status
+                java.time.ZoneId vietnamZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+                java.time.ZonedDateTime nowVietnam = java.time.ZonedDateTime.now(vietnamZone);
+                LocalDateTime now = nowVietnam.toLocalDateTime();
+                String day = now.getDayOfWeek().name().toLowerCase(); // e.g., monday
+                log.debug("Checking isOpen for day: {}, currentTime: {}", day, now.toLocalTime());
+
+                OperatingHours hours = hoursMap.entrySet().stream()
+                                .filter(e -> e.getKey().equalsIgnoreCase(day))
+                                .map(Map.Entry::getValue)
+                                .findFirst()
+                                .orElse(null);
+
+                if (hours == null || Boolean.TRUE.equals(hours.getIsClosed())) {
+                        log.debug("No hours found for day {} or clinic is closed", day);
+                        return false;
+                }
+
+                LocalTime currentTime = now.toLocalTime();
+                log.debug("Operating hours: {} - {}, current: {}", hours.getOpenTime(), hours.getCloseTime(), currentTime);
+
+                if (hours.getOpenTime() != null && hours.getCloseTime() != null) {
+                        if (currentTime.isBefore(hours.getOpenTime()) || currentTime.isAfter(hours.getCloseTime())) {
+                                return false;
+                        }
+                } else {
+                        return false;
+                }
+
+                if (hours.getBreakStart() != null && hours.getBreakEnd() != null) {
+                        if (currentTime.isAfter(hours.getBreakStart()) && currentTime.isBefore(hours.getBreakEnd())) {
+                                return false;
+                        }
+                }
+
+                return true;
         }
 
         @Transactional(readOnly = true)
@@ -526,8 +645,11 @@ public class ClinicService {
                                 .province(clinic.getProvince())
                                 .specificLocation(clinic.getSpecificLocation())
                                 .logo(clinic.getLogo())
+                                .businessLicenseUrl(clinic.getBusinessLicenseUrl())
                                 .phone(clinic.getPhone())
                                 .email(clinic.getEmail())
+                                .bankName(clinic.getBankName())
+                                .accountNumber(clinic.getAccountNumber())
                                 .latitude(clinic.getLatitude())
                                 .longitude(clinic.getLongitude())
                                 .operatingHours(clinic.getOperatingHours())

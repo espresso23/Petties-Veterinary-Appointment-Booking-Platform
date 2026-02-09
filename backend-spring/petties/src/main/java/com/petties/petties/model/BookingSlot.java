@@ -34,6 +34,14 @@ public class BookingSlot {
     @JoinColumn(name = "slot_id", nullable = false)
     private Slot slot;
 
+    /**
+     * Link to the specific service this slot belongs to
+     * Allows us to know which service a slot is allocated for
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booking_service_id")
+    private BookingServiceItem bookingServiceItem;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

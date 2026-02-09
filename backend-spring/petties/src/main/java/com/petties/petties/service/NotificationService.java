@@ -5,7 +5,7 @@ import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Notification;
 import com.petties.petties.model.User;
-import com.petties.petties.model.VetShift;
+import com.petties.petties.model.StaffShift;
 import com.petties.petties.model.enums.NotificationType;
 import com.petties.petties.repository.NotificationRepository;
 import com.petties.petties.repository.UserRepository;
@@ -32,8 +32,8 @@ import com.petties.petties.model.enums.Role;
  * Handles:
  * - Clinic status notifications (APPROVED, REJECTED, PENDING)
  * - Clinic registration notifications (CLINIC_PENDING_APPROVAL for Admin)
- * - VetShift notifications (VET_SHIFT_ASSIGNED, VET_SHIFT_UPDATED,
- * VET_SHIFT_DELETED)
+ * - StaffShift notifications (STAFF_SHIFT_ASSIGNED, STAFF_SHIFT_UPDATED,
+ * STAFF_SHIFT_DELETED)
  * - SSE push for real-time delivery
  */
 @Service
@@ -166,13 +166,13 @@ public class NotificationService {
                 }
         }
 
-        // ======================== VET SHIFT NOTIFICATIONS ========================
+        // ======================== STAFF SHIFT NOTIFICATIONS ========================
 
         /**
-         * Notify Vet when a new shift is assigned (single shift)
+         * Notify Staff when a new shift is assigned (single shift)
          */
         @Transactional
-        public Notification notifyVetShiftAssigned(User vet, VetShift shift) {
+        public Notification notifyStaffShiftAssigned(User staff, StaffShift shift) {
                 String message = String.format(
                                 "Bạn được gán ca làm việc ngày %s (%s - %s) tại %s",
                                 shift.getWorkDate().format(DATE_FORMATTER),
@@ -181,47 +181,47 @@ public class NotificationService {
                                 shift.getClinic().getName());
 
                 Notification notification = Notification.builder()
-                                .user(vet)
+                                .user(staff)
                                 .shift(shift)
                                 .clinic(shift.getClinic())
-                                .type(NotificationType.VET_SHIFT_ASSIGNED)
+                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
                                 .message(message)
                                 .read(false)
                                 .build();
 
                 notification = notificationRepository.save(notification);
-                log.info("VetShift notification created: {} for vet: {} shift: {}",
-                                notification.getNotificationId(), vet.getUserId(), shift.getShiftId());
+                log.info("StaffShift notification created: {} for staff: {} shift: {}",
+                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
 
                 // Push via SSE
-                pushNotificationToUser(vet.getUserId(), notification);
+                pushNotificationToUser(staff.getUserId(), notification);
 
                 return notification;
         }
 
         /**
-         * Notify Vet when multiple shifts are assigned in batch
+         * Notify Staff when multiple shifts are assigned in batch
          * Creates ONE notification summarizing all shifts instead of N individual
          * notifications
          *
-         * @param vet    The vet being notified
+         * @param staff  The staff being notified
          * @param shifts List of shifts assigned (must not be empty)
          * @param clinic The clinic where shifts are assigned
          */
         @Transactional
-        public Notification notifyVetShiftsBatchAssigned(User vet, List<VetShift> shifts, Clinic clinic) {
+        public Notification notifyStaffShiftsBatchAssigned(User staff, List<StaffShift> shifts, Clinic clinic) {
                 if (shifts == null || shifts.isEmpty()) {
-                        log.warn("notifyVetShiftsBatchAssigned called with empty shifts list");
+                        log.warn("notifyStaffShiftsBatchAssigned called with empty shifts list");
                         return null;
                 }
 
                 // If only 1 shift, use the single notification method
                 if (shifts.size() == 1) {
-                        return notifyVetShiftAssigned(vet, shifts.get(0));
+                        return notifyStaffShiftAssigned(staff, shifts.get(0));
                 }
 
                 // Sort shifts by workDate to get date range
-                List<VetShift> sortedShifts = shifts.stream()
+                List<StaffShift> sortedShifts = shifts.stream()
                                 .sorted((a, b) -> a.getWorkDate().compareTo(b.getWorkDate()))
                                 .toList();
 
@@ -237,32 +237,32 @@ public class NotificationService {
                                 clinic.getName());
 
                 // Link to the first shift for navigation purposes
-                VetShift firstShift = sortedShifts.get(0);
+                StaffShift firstShift = sortedShifts.get(0);
 
                 Notification notification = Notification.builder()
-                                .user(vet)
+                                .user(staff)
                                 .shift(firstShift)
                                 .clinic(clinic)
-                                .type(NotificationType.VET_SHIFT_ASSIGNED)
+                                .type(NotificationType.STAFF_SHIFT_ASSIGNED)
                                 .message(message)
                                 .read(false)
                                 .build();
 
                 notification = notificationRepository.save(notification);
-                log.info("Batch VetShift notification created: {} for vet: {} ({} shifts from {} to {})",
-                                notification.getNotificationId(), vet.getUserId(), shiftCount, startDate, endDate);
+                log.info("Batch StaffShift notification created: {} for staff: {} ({} shifts from {} to {})",
+                                notification.getNotificationId(), staff.getUserId(), shiftCount, startDate, endDate);
 
                 // Push via SSE
-                pushNotificationToUser(vet.getUserId(), notification);
+                pushNotificationToUser(staff.getUserId(), notification);
 
                 return notification;
         }
 
         /**
-         * Notify Vet when their shift is updated (single shift)
+         * Notify Staff when their shift is updated (single shift)
          */
         @Transactional
-        public Notification notifyVetShiftUpdated(User vet, VetShift shift) {
+        public Notification notifyStaffShiftUpdated(User staff, StaffShift shift) {
                 String message = String.format(
                                 "Ca làm việc ngày %s đã được cập nhật (%s - %s) tại %s",
                                 shift.getWorkDate().format(DATE_FORMATTER),
@@ -271,43 +271,43 @@ public class NotificationService {
                                 shift.getClinic().getName());
 
                 Notification notification = Notification.builder()
-                                .user(vet)
+                                .user(staff)
                                 .shift(shift)
                                 .clinic(shift.getClinic())
-                                .type(NotificationType.VET_SHIFT_UPDATED)
+                                .type(NotificationType.STAFF_SHIFT_UPDATED)
                                 .message(message)
                                 .read(false)
                                 .build();
 
                 notification = notificationRepository.save(notification);
-                log.info("VetShift update notification created: {} for vet: {} shift: {}",
-                                notification.getNotificationId(), vet.getUserId(), shift.getShiftId());
+                log.info("StaffShift update notification created: {} for staff: {} shift: {}",
+                                notification.getNotificationId(), staff.getUserId(), shift.getShiftId());
 
                 // Push via SSE
-                pushNotificationToUser(vet.getUserId(), notification);
+                pushNotificationToUser(staff.getUserId(), notification);
 
                 return notification;
         }
 
         /**
-         * Notify Vet when multiple shifts are updated in batch
+         * Notify Staff when multiple shifts are updated in batch
          * Creates ONE notification summarizing all shifts instead of N individual
          * notifications
          */
         @Transactional
-        public Notification notifyVetShiftsBatchUpdated(User vet, List<VetShift> shifts, Clinic clinic) {
+        public Notification notifyStaffShiftsBatchUpdated(User staff, List<StaffShift> shifts, Clinic clinic) {
                 if (shifts == null || shifts.isEmpty()) {
-                        log.warn("notifyVetShiftsBatchUpdated called with empty shifts list");
+                        log.warn("notifyStaffShiftsBatchUpdated called with empty shifts list");
                         return null;
                 }
 
                 // If only 1 shift, use the single notification method
                 if (shifts.size() == 1) {
-                        return notifyVetShiftUpdated(vet, shifts.get(0));
+                        return notifyStaffShiftUpdated(staff, shifts.get(0));
                 }
 
                 // Sort shifts by workDate to get date range
-                List<VetShift> sortedShifts = shifts.stream()
+                List<StaffShift> sortedShifts = shifts.stream()
                                 .sorted((a, b) -> a.getWorkDate().compareTo(b.getWorkDate()))
                                 .toList();
 
@@ -323,52 +323,300 @@ public class NotificationService {
                                 clinic.getName());
 
                 // Link to the first shift for navigation purposes
-                VetShift firstShift = sortedShifts.get(0);
+                StaffShift firstShift = sortedShifts.get(0);
 
                 Notification notification = Notification.builder()
-                                .user(vet)
+                                .user(staff)
                                 .shift(firstShift)
                                 .clinic(clinic)
-                                .type(NotificationType.VET_SHIFT_UPDATED)
+                                .type(NotificationType.STAFF_SHIFT_UPDATED)
                                 .message(message)
                                 .read(false)
                                 .build();
 
                 notification = notificationRepository.save(notification);
-                log.info("Batch VetShift update notification created: {} for vet: {} ({} shifts)",
-                                notification.getNotificationId(), vet.getUserId(), shiftCount);
+                log.info("Batch StaffShift update notification created: {} for staff: {} ({} shifts)",
+                                notification.getNotificationId(), staff.getUserId(), shiftCount);
 
                 // Push via SSE
-                pushNotificationToUser(vet.getUserId(), notification);
+                pushNotificationToUser(staff.getUserId(), notification);
 
                 return notification;
         }
 
         /**
-         * Notify Vet when their shift is deleted
+         * Notify Staff when their shift is deleted
          */
         @Transactional
-        public Notification notifyVetShiftDeleted(User vet, LocalDate workDate, String clinicName) {
+        public Notification notifyStaffShiftDeleted(User staff, LocalDate workDate, String clinicName) {
                 String message = String.format(
                                 "Ca làm việc ngày %s tại %s đã bị xóa",
                                 workDate.format(DATE_FORMATTER),
                                 clinicName);
 
                 Notification notification = Notification.builder()
-                                .user(vet)
-                                .type(NotificationType.VET_SHIFT_DELETED)
+                                .user(staff)
+                                .type(NotificationType.STAFF_SHIFT_DELETED)
                                 .message(message)
                                 .read(false)
                                 .build();
 
                 notification = notificationRepository.save(notification);
-                log.info("VetShift delete notification created: {} for vet: {}",
-                                notification.getNotificationId(), vet.getUserId());
+                log.info("StaffShift delete notification created: {} for staff: {}",
+                                notification.getNotificationId(), staff.getUserId());
 
                 // Push via SSE
-                pushNotificationToUser(vet.getUserId(), notification);
+                pushNotificationToUser(staff.getUserId(), notification);
 
                 return notification;
+        }
+
+        // ======================== BOOKING NOTIFICATIONS ========================
+
+        /**
+         * Notify clinic managers when a new booking is created
+         */
+        @Transactional
+        public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
+                // Find all managers of this clinic
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+
+                if (managers.isEmpty()) {
+                        log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String ownerName = booking.getPetOwner().getFullName();
+                String message = String.format(
+                                "Đơn đặt lịch mới #%s từ %s cho thú cưng %s cần xác nhận",
+                                booking.getBookingCode(),
+                                ownerName,
+                                petName);
+
+                for (User manager : managers) {
+                        Notification notification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CREATED)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Booking notification created: {} for manager: {}",
+                                        notification.getNotificationId(), manager.getUserId());
+
+                        pushNotificationToUser(manager.getUserId(), notification);
+                }
+        }
+
+        /**
+         * Notify staff when they are assigned to a booking
+         */
+        @Transactional
+        public void sendBookingAssignedNotificationToStaff(com.petties.petties.model.Booking booking) {
+                User staff = booking.getAssignedStaff();
+                if (staff == null) {
+                        log.warn("No staff assigned for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String petName = booking.getPet().getName();
+                String serviceName = booking.getBookingServices().isEmpty()
+                                ? "Dịch vụ"
+                                : booking.getBookingServices().get(0).getService().getName();
+                String message = String.format(
+                                "Bạn được gán cho booking #%s - %s cho %s vào lúc %s ngày %s",
+                                booking.getBookingCode(),
+                                serviceName,
+                                petName,
+                                booking.getBookingTime().format(TIME_FORMATTER),
+                                booking.getBookingDate().format(DATE_FORMATTER));
+
+                Notification notification = Notification.builder()
+                                .user(staff)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CONFIRMED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Booking assigned notification created: {} for staff: {}",
+                                notification.getNotificationId(), staff.getUserId());
+
+                pushNotificationToUser(staff.getUserId(), notification);
+        }
+
+        /**
+         * Notify new staff when reassigned to a booking service
+         * Also optionally notify old staff that they were removed
+         *
+         * @param booking     The booking
+         * @param newStaff    The newly assigned staff
+         * @param oldStaff    The previously assigned staff (can be null)
+         * @param serviceName The service being reassigned
+         */
+        @Transactional
+        public void sendStaffReassignedNotification(
+                        com.petties.petties.model.Booking booking,
+                        User newStaff,
+                        User oldStaff,
+                        String serviceName) {
+
+                String petName = booking.getPet().getName();
+
+                // 1. Notify NEW staff - they are now assigned
+                if (newStaff != null) {
+                        String newStaffMessage = String.format(
+                                        "Bạn được gán thực hiện dịch vụ \"%s\" cho booking #%s - %s vào lúc %s ngày %s",
+                                        serviceName,
+                                        booking.getBookingCode(),
+                                        petName,
+                                        booking.getBookingTime().format(TIME_FORMATTER),
+                                        booking.getBookingDate().format(DATE_FORMATTER));
+
+                        Notification newStaffNotification = Notification.builder()
+                                        .user(newStaff)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CONFIRMED)
+                                        .message(newStaffMessage)
+                                        .read(false)
+                                        .build();
+
+                        newStaffNotification = notificationRepository.save(newStaffNotification);
+                        log.info("Staff reassigned notification created: {} for new staff: {}",
+                                        newStaffNotification.getNotificationId(), newStaff.getUserId());
+
+                        pushNotificationToUser(newStaff.getUserId(), newStaffNotification);
+                }
+
+                // 2. Notify OLD staff - they were removed from this service
+                if (oldStaff != null && !oldStaff.getUserId().equals(newStaff != null ? newStaff.getUserId() : null)) {
+                        String oldStaffMessage = String.format(
+                                        "Bạn đã được gỡ khỏi dịch vụ \"%s\" trong booking #%s. Dịch vụ này đã được gán cho nhân viên khác.",
+                                        serviceName,
+                                        booking.getBookingCode());
+
+                        Notification oldStaffNotification = Notification.builder()
+                                        .user(oldStaff)
+                                        .clinic(booking.getClinic())
+                                        .type(NotificationType.BOOKING_CANCELLED) // Use CANCELLED to indicate removal
+                                        .message(oldStaffMessage)
+                                        .read(false)
+                                        .build();
+
+                        oldStaffNotification = notificationRepository.save(oldStaffNotification);
+                        log.info("Staff removed notification created: {} for old staff: {}",
+                                        oldStaffNotification.getNotificationId(), oldStaff.getUserId());
+
+                        pushNotificationToUser(oldStaff.getUserId(), oldStaffNotification);
+                }
+        }
+
+        /**
+         * Notify pet owner when staff checks in (starts the service)
+         */
+        @Transactional
+        public void sendCheckinNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đã bắt đầu khám cho %s (Booking #%s)",
+                                staffName,
+                                booking.getPet().getName(),
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CHECKIN)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Check-in notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        /**
+         * Notify pet owner when booking is completed
+         */
+        @Transactional
+        public void sendCompletedNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String message = String.format(
+                                "Lịch hẹn #%s cho %s đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ!",
+                                booking.getBookingCode(),
+                                booking.getPet().getName());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_COMPLETED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Completed notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
+        @Transactional
+        public void sendStaffOnWayNotification(com.petties.petties.model.Booking booking) {
+                // Only send for SOS bookings
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS) {
+                        log.debug("STAFF_ON_WAY notification skipped - only applicable for SOS bookings");
+                        return;
+                }
+
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đang trên đường đến địa chỉ của bạn (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.STAFF_ON_WAY)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Staff on way notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
         }
 
         // ======================== COMMON OPERATIONS ========================
@@ -415,9 +663,9 @@ public class NotificationService {
 
         private String getNotificationTitle(NotificationType type) {
                 return switch (type) {
-                        case VET_SHIFT_ASSIGNED -> "Lịch trực mới đã được gán";
-                        case VET_SHIFT_UPDATED -> "Lịch trực đã thay đổi";
-                        case VET_SHIFT_DELETED -> "Lịch trực đã bị xóa";
+                        case STAFF_SHIFT_ASSIGNED -> "Lịch trực mới đã được gán";
+                        case STAFF_SHIFT_UPDATED -> "Lịch trực đã thay đổi";
+                        case STAFF_SHIFT_DELETED -> "Lịch trực đã bị xóa";
                         case BOOKING_CREATED -> "Lịch hẹn mới";
                         case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
                         case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
@@ -481,6 +729,8 @@ public class NotificationService {
                                 .message(notification.getMessage())
                                 .reason(notification.getReason())
                                 .read(notification.getRead())
+                                .actionType(notification.getActionType())
+                                .actionData(notification.getActionData())
                                 .createdAt(notification.getCreatedAt());
 
                 // Add clinic fields if present
@@ -491,7 +741,7 @@ public class NotificationService {
 
                 // Add shift fields if present
                 if (notification.getShift() != null) {
-                        VetShift shift = notification.getShift();
+                        StaffShift shift = notification.getShift();
                         builder.shiftId(shift.getShiftId())
                                         .shiftDate(shift.getWorkDate())
                                         .shiftStartTime(shift.getStartTime())

@@ -23,7 +23,7 @@ User Profile APIs cho phép người dùng quản lý thông tin cá nhân, bao 
 | Role | Platform | Access |
 |------|----------|--------|
 | PET_OWNER | Mobile | Full access |
-| VET | Web + Mobile | Full access |
+| STAFF | Web + Mobile | Full access |
 | CLINIC_OWNER | Web | Full access |
 | CLINIC_MANAGER | Web | Full access |
 | ADMIN | Web | Full access |
