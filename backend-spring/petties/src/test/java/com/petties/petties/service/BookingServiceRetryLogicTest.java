@@ -165,6 +165,8 @@ class BookingServiceRetryLogicTest {
             when(clinicServiceRepository.findAllById(any())).thenReturn(List.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("100000"));
             when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
+            when(staffAssignmentService.findAvailableSlots(any(), any(), any()))
+                    .thenReturn(List.of(LocalTime.of(9, 0)));
 
             when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
             when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());

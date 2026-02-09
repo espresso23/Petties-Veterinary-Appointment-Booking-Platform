@@ -160,4 +160,29 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
         List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
+
+        /**
+         * Check if booking exists for a specific pet, clinic, date and time.
+         * Used by BookingDataSeeder to avoid duplicate key violations.
+         */
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.id = :petId " +
+                        "AND b.clinic.clinicId = :clinicId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.bookingTime = :time")
+        boolean existsByPetAndClinicAndDateAndTime(
+                        @Param("petId") UUID petId,
+                        @Param("clinicId") UUID clinicId,
+                        @Param("date") LocalDate date,
+                        @Param("time") java.time.LocalTime time);
+
+        // ========== AUTO-CANCELLATION ==========
+
+        /**
+         * Find PENDING bookings created before the cutoff time.
+         * Used by BookingAutoCancellationScheduler to auto-cancel stale bookings.
+         */
+        @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.createdAt < :cutoff")
+        List<Booking> findByStatusAndCreatedAtBefore(
+                        @Param("status") BookingStatus status,
+                        @Param("cutoff") java.time.LocalDateTime cutoff);
 }

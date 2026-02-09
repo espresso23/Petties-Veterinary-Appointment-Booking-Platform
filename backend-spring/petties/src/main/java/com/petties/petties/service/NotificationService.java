@@ -619,6 +619,39 @@ public class NotificationService {
                 pushNotificationToUser(petOwner.getUserId(), notification);
         }
 
+        /**
+         * Notify pet owner when their booking is auto-cancelled
+         * due to clinic not confirming within the timeout period.
+         */
+        @Transactional
+        public void sendBookingAutoCancelledNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for auto-cancelled booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String clinicName = booking.getClinic() != null ? booking.getClinic().getName() : "Phòng khám";
+                String message = String.format(
+                                "Lịch hẹn #%s tại %s đã bị hủy tự động do không được xác nhận trong thời gian quy định. Vui lòng đặt lịch lại hoặc liên hệ phòng khám.",
+                                booking.getBookingCode(),
+                                clinicName);
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CANCELLED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Auto-cancellation notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+        }
+
         // ======================== COMMON OPERATIONS ========================
 
         /**

@@ -6,11 +6,13 @@ import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest;
 import com.petties.petties.dto.booking.PetServiceItemRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
 import com.petties.petties.dto.booking.UpcomingBookingDTO;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest.PetEstimation;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
@@ -29,19 +31,20 @@ import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.petties.petties.dto.booking.EstimatedCompletionResponse;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import com.petties.petties.model.OperatingHours;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -318,6 +321,9 @@ public class BookingService {
                 } catch (org.springframework.dao.DataIntegrityViolationException e) {
                         // Let GlobalExceptionHandler translate to user-friendly Vietnamese messages
                         log.error("Data integrity violation: ", e);
+                        throw e;
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during booking creation: {}", e.getMessage());
                         throw e;
                 } catch (Exception e) {
                         log.error("Error creating booking: ", e);
@@ -1207,4 +1213,142 @@ public class BookingService {
                                                 currentStaff.getUserId()))
                                 .collect(Collectors.toList());
         }
+
+        // ========== ESTIMATED COMPLETION TIME ==========
+
+        /**
+         * Calculate estimated completion time based on pet info, services, and start time
+         * Supports multi-pet format: pets: [{ petId, petWeight, serviceIds: [...] }]
+         *
+         * @param clinicId Clinic ID to fetch services from
+         * @param request  EstimatedCompletionRequest with pets array
+         * @return EstimatedCompletionResponse with total duration and breakdown by pet
+         */
+        @Transactional(readOnly = true)
+        public EstimatedCompletionResponse calculateEstimatedCompletion(
+                        UUID clinicId,
+                        EstimatedCompletionRequest request) {
+                log.info("Calculating estimated completion for clinic={}, pets={}, type={}, startDateTime={}",
+                                clinicId, request.getPets().size(), request.getType(), request.getStartDateTime());
+
+                Clinic clinic = clinicRepository.findById(clinicId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                // Get operating hours for the specific day
+                String dayOfWeek = request.getStartDateTime().getDayOfWeek().name();
+                OperatingHours oh = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek) : null;
+
+                if (oh != null && Boolean.TRUE.equals(oh.getIsClosed())) {
+                        throw new com.petties.petties.exception.BadRequestException("Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
+                }
+
+                LocalDateTime currentStartDateTime = request.getStartDateTime();
+                int grandTotalDurationMinutes = 0;
+                int grandTotalSlotsRequired = 0;
+                List<EstimatedCompletionResponse.PetDuration> petDurations = new ArrayList<>();
+
+                for (PetEstimation petEst : request.getPets()) {
+                        // Fetch services for this pet
+                        List<ClinicService> services = clinicServiceRepository.findAllById(petEst.getServiceIds());
+
+                        if (services.isEmpty()) {
+                                throw new ResourceNotFoundException("Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
+                        }
+
+                        // Validate all services belong to the same clinic
+                        boolean allBelongToClinic = services.stream()
+                                        .allMatch(s -> s.getClinic().getClinicId().equals(clinicId));
+                        if (!allBelongToClinic) {
+                                throw new BadRequestException("Một số dịch vụ không thuộc phòng khám này");
+                        }
+
+                        // Calculate durations for this pet's services
+                        List<EstimatedCompletionResponse.ServiceDuration> serviceDurations = new ArrayList<>();
+                        int petTotalDuration = 0;
+
+                        for (ClinicService service : services) {
+                                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
+                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
+
+                                // Logic for Clinic Breaks (only if IN_CLINIC)
+                                if (request.getType() == BookingType.IN_CLINIC && oh != null
+                                                && oh.getBreakStart() != null && oh.getBreakEnd() != null) {
+
+                                        LocalTime currentStartTime = currentStartDateTime.toLocalTime();
+
+                                        // 1. If currentStart is during break, push to breakEnd
+                                        if (!currentStartTime.isBefore(oh.getBreakStart())
+                                                        && currentStartTime.isBefore(oh.getBreakEnd())) {
+                                                currentStartDateTime = currentStartDateTime.with(oh.getBreakEnd());
+                                        }
+
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+                                        LocalTime endStartTime = serviceEndDateTime.toLocalTime();
+
+                                        // 2. If service starts before break but finishes after break starts
+                                        // (Push the whole service end time by break duration)
+                                        if (currentStartDateTime.toLocalTime().isBefore(oh.getBreakStart())
+                                                        && endStartTime.isAfter(oh.getBreakStart())) {
+                                                long breakDuration = Duration.between(oh.getBreakStart(),
+                                                                oh.getBreakEnd()).toMinutes();
+                                                serviceEndDateTime = serviceEndDateTime.plusMinutes(breakDuration);
+                                        }
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                } else {
+                                        // HOME_VISIT, SOS or no operating hours/breaks defined
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                }
+                        }
+
+                        grandTotalDurationMinutes += petTotalDuration;
+
+                        petDurations.add(EstimatedCompletionResponse.PetDuration.builder()
+                                        .petId(petEst.getPetId() != null ? petEst.getPetId().toString() : null)
+                                        .petWeight(petEst.getPetWeight())
+                                        .totalDurationMinutes(petTotalDuration)
+                                        .services(serviceDurations)
+                                        .build());
+                }
+
+                // Final grand estimated end time is just the last currentStartDateTime
+                LocalDateTime estimatedEndDateTime = currentStartDateTime;
+
+                log.info("Estimated completion: startDateTime={}, endDateTime={}, totalDuration={}min, pets={}",
+                                request.getStartDateTime(), estimatedEndDateTime, grandTotalDurationMinutes,
+                                petDurations.size());
+
+                return EstimatedCompletionResponse.builder()
+                                .startTime(request.getStartDateTime())
+                                .estimatedEndTime(estimatedEndDateTime)
+                                .totalDurationMinutes(grandTotalDurationMinutes)
+                                .totalSlotsRequired(grandTotalSlotsRequired)
+                                .pets(petDurations)
+                                .build();
+        }
 }
+

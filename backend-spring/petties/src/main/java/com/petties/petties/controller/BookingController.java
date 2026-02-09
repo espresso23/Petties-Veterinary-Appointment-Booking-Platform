@@ -6,6 +6,8 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest;
+import com.petties.petties.dto.booking.EstimatedCompletionResponse;
 import com.petties.petties.dto.booking.ReassignStaffRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
@@ -55,6 +57,25 @@ public class BookingController {
                 clinicId, date, serviceIds);
 
         AvailableSlotsResponse response = bookingService.getAvailableSlots(clinicId, date, serviceIds);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Calculate estimated completion time (Public endpoint)
+     * Returns total duration and estimated end time based on pets with services and start time
+     * Request format: { startTime, pets: [{ petId, petWeight, serviceIds: [...] }] }
+     */
+    @PostMapping("/public/estimated-completion")
+    public ResponseEntity<EstimatedCompletionResponse> getEstimatedCompletion(
+            @RequestParam UUID clinicId,
+            @Valid @RequestBody EstimatedCompletionRequest request) {
+
+        log.info("POST /bookings/public/estimated-completion - clinicId: {}, startDateTime: {}, pets: {}",
+                clinicId, request.getStartDateTime(), request.getPets().size());
+
+        EstimatedCompletionResponse response = bookingService.calculateEstimatedCompletion(
+                clinicId, request);
+
         return ResponseEntity.ok(response);
     }
 

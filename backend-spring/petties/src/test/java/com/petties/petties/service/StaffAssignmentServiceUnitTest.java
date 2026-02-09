@@ -570,6 +570,43 @@ class StaffAssignmentServiceUnitTest {
                         assertNotNull(result);
                         assertEquals(1, result.size());
                         assertTrue(result.get(0).isHasAvailableSlots());
+                        assertEquals(2, result.get(0).getAvailableServiceItemIds().size());
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-017: Should mark staff available for partial services")
+                void shouldMarkStaffAvailableForPartialServices() {
+                        // Arrange
+                        Booking booking = createMockBooking();
+                        BookingServiceItem service1 = createMockServiceItem(booking, "Khám tổng quát", 30);
+                        BookingServiceItem service2 = createMockServiceItem(booking, "Tiêm vaccine", 30);
+                        booking.setBookingServices(List.of(service1, service2));
+
+                        when(userRepository.findByWorkingClinicIdAndRole(eq(clinicId), eq(Role.STAFF)))
+                                        .thenReturn(List.of(staff1));
+
+                        StaffShift shift1 = createMockShift(staff1, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff1Id, testDate))
+                                        .thenReturn(List.of(shift1));
+
+                        // Only 1 slot available (enough for service1, but service2 starts at 9:30 and 9:30 slot is missing)
+                        List<Slot> availableSlots = List.of(
+                                        createMockSlot(null, LocalTime.of(9, 0), LocalTime.of(9, 30),
+                                                        SlotStatus.AVAILABLE));
+
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(any(),
+                                        eq(SlotStatus.AVAILABLE)))
+                                        .thenReturn(availableSlots);
+
+                        // Act
+                        var result = staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
+
+                        // Assert
+                        assertNotNull(result);
+                        assertEquals(1, result.size());
+                        assertTrue(result.get(0).isHasAvailableSlots(), "Should be available if at least one service fits");
+                        assertEquals(1, result.get(0).getAvailableServiceItemIds().size());
+                        assertEquals(service1.getBookingServiceId(), result.get(0).getAvailableServiceItemIds().get(0));
                 }
 
                 @Test

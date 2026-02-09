@@ -921,29 +921,21 @@ public class StaffAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime bookingTime = booking.getBookingTime();
+        LocalTime bookingStartTime = booking.getBookingTime();
 
-        // Step 1: Get all required specialties from services
+        // Step 1: Get all services in booking
+        List<BookingServiceItem> services = booking.getBookingServices();
         Set<StaffSpecialty> requiredSpecialties = new HashSet<>();
-        int totalSlotsNeeded = 0;
 
-        log.info("Getting available staff for booking confirmation {}. Services categories: {}",
+        log.info("Getting available staff for booking confirmation {}. Services: {}",
                 booking.getBookingCode(),
-                booking.getBookingServices().stream().map(s -> s.getService().getServiceCategory())
-                        .collect(Collectors.toList()));
+                services.stream().map(s -> s.getService().getName()).collect(Collectors.toList()));
 
-        for (BookingServiceItem item : booking.getBookingServices()) {
-            StaffSpecialty specialty = getSpecialtyForService(item);
-            requiredSpecialties.add(specialty);
-
-            Integer duration = item.getService().getDurationTime();
-            int slotsNeeded = (duration != null && duration > 0)
-                    ? (int) Math.ceil(duration / 30.0)
-                    : 1;
-            totalSlotsNeeded += slotsNeeded;
+        for (BookingServiceItem item : services) {
+            requiredSpecialties.add(getSpecialtyForService(item));
         }
 
-        log.info("Required specialties for booking: {}, total slots needed: {}", requiredSpecialties, totalSlotsNeeded);
+        log.info("Required specialties for booking: {}", requiredSpecialties);
 
         // Step 2: Find all staff that can handle ANY of the required specialties
         Set<User> allMatchingStaff = new HashSet<>();
@@ -964,7 +956,6 @@ public class StaffAssignmentService {
         UUID suggestedStaffId = null;
         StaffAvailabilityCheckResponse availabilityCheck = checkStaffAvailabilityForBooking(booking);
         if (availabilityCheck.isAllServicesHaveStaff() && !availabilityCheck.getServices().isEmpty()) {
-            // Get the first service's suggested staff as the primary suggested staff
             suggestedStaffId = availabilityCheck.getServices().get(0).getSuggestedStaffId();
         }
         final UUID finalSuggestedStaffId = suggestedStaffId;
@@ -973,59 +964,60 @@ public class StaffAssignmentService {
         List<StaffOptionDTO> result = new ArrayList<>();
 
         for (User member : allMatchingStaff) {
+            List<UUID> availableServiceItemIds = new ArrayList<>();
+            LocalTime currentServiceStartTime = bookingStartTime;
+
+            // Check if staff has shift on booking date
+            List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
+                    bookingDate);
+            StaffShift matchingShift = shifts.stream()
+                    .filter(s -> s.getClinic().getClinicId().equals(clinicId) && isTimeWithinShift(bookingStartTime, s))
+                    .findFirst()
+                    .orElse(null);
+
+            // Count bookings for this staff on booking date
+            long bookingCount = bookingRepository.countActiveBookingsByStaffAndDate(member.getUserId(),
+                    bookingDate);
+
+            if (matchingShift != null) {
+                // Get available slots for this shift
+                List<Slot> availableSlots = slotRepository
+                        .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(), SlotStatus.AVAILABLE);
+
+                // Check availability for EACH service at its specific start time
+                for (BookingServiceItem item : services) {
+                    Integer duration = item.getService().getDurationTime();
+                    int slotsNeeded = (duration != null && duration > 0)
+                            ? (int) Math.ceil(duration / 30.0)
+                            : 1;
+
+                    // Check if staff has consecutive slots starting at THIS service's start time
+                    if (hasEnoughConsecutiveSlots(availableSlots, currentServiceStartTime, slotsNeeded)) {
+                        availableServiceItemIds.add(item.getBookingServiceId());
+                    }
+
+                    // Advance time for the next service check
+                    currentServiceStartTime = currentServiceStartTime.plusMinutes(slotsNeeded * 30L);
+                }
+            }
+
             StaffOptionDTO.StaffOptionDTOBuilder builder = StaffOptionDTO.builder()
                     .staffId(member.getUserId())
                     .fullName(member.getFullName())
                     .avatarUrl(member.getAvatar())
                     .specialty(member.getSpecialty() != null ? member.getSpecialty().name() : null)
                     .specialtyLabel(member.getSpecialty() != null ? member.getSpecialty().getVietnameseLabel() : null)
-                    .isSuggested(member.getUserId().equals(finalSuggestedStaffId));
-
-            // Check if staff has shift on booking date
-            List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
-                    bookingDate);
-            StaffShift matchingShift = shifts.stream()
-                    .filter(s -> s.getClinic().getClinicId().equals(clinicId) && isTimeWithinShift(bookingTime, s))
-                    .findFirst()
-                    .orElse(null);
+                    .isSuggested(member.getUserId().equals(finalSuggestedStaffId))
+                    .bookingCount((int) bookingCount)
+                    .availableServiceItemIds(availableServiceItemIds)
+                    .hasAvailableSlots(!availableServiceItemIds.isEmpty());
 
             if (matchingShift == null) {
-                builder.hasAvailableSlots(false)
-                        .unavailableReason("Không có ca làm việc vào thời gian này")
-                        .bookingCount(0);
-            } else {
-                // Count available slots at exact booking time
-                List<Slot> availableSlots = slotRepository
-                        .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(), SlotStatus.AVAILABLE);
-
-                // Find consecutive slots starting at booking time
-                List<Slot> consecutiveSlots = new ArrayList<>();
-                LocalTime expectedStart = bookingTime;
-
-                for (Slot slot : availableSlots) {
-                    if (slot.getStartTime().equals(expectedStart)) {
-                        consecutiveSlots.add(slot);
-                        expectedStart = slot.getEndTime();
-                        if (consecutiveSlots.size() >= totalSlotsNeeded)
-                            break;
-                    } else if (!consecutiveSlots.isEmpty() && !slot.getStartTime().equals(expectedStart)) {
-                        break; // Gap in consecutive slots
-                    }
-                }
-
-                boolean hasEnoughSlots = consecutiveSlots.size() >= totalSlotsNeeded;
-
-                // Count bookings for this staff on booking date
-                long bookingCount = bookingRepository.countActiveBookingsByStaffAndDate(member.getUserId(),
-                        bookingDate);
-
-                builder.hasAvailableSlots(hasEnoughSlots)
-                        .bookingCount((int) bookingCount);
-
-                if (!hasEnoughSlots) {
-                    builder.unavailableReason(
-                            "Không đủ slot trống (cần " + totalSlotsNeeded + ", có " + consecutiveSlots.size() + ")");
-                }
+                builder.unavailableReason("Không có ca làm việc vào thời gian này")
+                        .hasAvailableSlots(false);
+            } else if (availableServiceItemIds.isEmpty()) {
+                builder.unavailableReason("Nhân viên đã hết slot trống cho các dịch vụ này")
+                        .hasAvailableSlots(false);
             }
 
             result.add(builder.build());
@@ -1033,20 +1025,43 @@ public class StaffAssignmentService {
 
         // Step 5: Sort by: suggested first, then available, then by booking count
         result.sort((a, b) -> {
-            // Suggested staff first
             if (a.isSuggested() != b.isSuggested()) {
                 return a.isSuggested() ? -1 : 1;
             }
-            // Available staff before unavailable
             if (a.isHasAvailableSlots() != b.isHasAvailableSlots()) {
                 return a.isHasAvailableSlots() ? -1 : 1;
             }
-            // Lower booking count first (load balancing)
             return Integer.compare(a.getBookingCount(), b.getBookingCount());
         });
 
         log.info("Returning {} staff options for booking {}", result.size(), booking.getBookingCode());
         return result;
+    }
+
+    /**
+     * Check if a list of available slots contains enough consecutive slots starting at a specific time
+     */
+    private boolean hasEnoughConsecutiveSlots(List<Slot> availableSlots, LocalTime startTime, int slotsNeeded) {
+        int count = 0;
+        LocalTime expectedTime = startTime;
+
+        for (Slot slot : availableSlots) {
+            if (slot.getStartTime().equals(expectedTime)) {
+                count++;
+                expectedTime = slot.getEndTime();
+                if (count >= slotsNeeded) {
+                    return true;
+                }
+            } else if (slot.getStartTime().isAfter(expectedTime)) {
+                // Gap in sequence or start time missed
+                if (count == 0) {
+                    // We haven't even found the first slot yet, keep looking
+                    continue;
+                }
+                return false;
+            }
+        }
+        return false;
     }
 
     /**

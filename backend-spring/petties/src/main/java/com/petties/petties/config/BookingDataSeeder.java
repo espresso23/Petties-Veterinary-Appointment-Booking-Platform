@@ -534,10 +534,24 @@ public class BookingDataSeeder implements CommandLineRunner {
         }
 
         /**
+         * Check if booking already exists to avoid duplicate key violation
+         */
+        private boolean bookingExists(Pet pet, Clinic clinic, LocalDate date, LocalTime time) {
+                return bookingRepository.existsByPetAndClinicAndDateAndTime(
+                        pet.getId(), clinic.getClinicId(), date, time);
+        }
+
+        /**
          * Create a booking with services
          */
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
+
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
 
                 log.info("   >> createBooking called with {} services for: {}", services.size(), notes);
                 if (services.isEmpty()) {
@@ -605,6 +619,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 if (services.isEmpty())
                         return;
+
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing home visit booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
 
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
@@ -675,6 +695,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 if (services.isEmpty())
                         return;
+
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing status booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
 
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
