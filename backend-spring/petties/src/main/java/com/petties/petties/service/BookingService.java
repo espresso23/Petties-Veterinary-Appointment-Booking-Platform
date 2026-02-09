@@ -8,6 +8,10 @@ import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.EstimatedCompletionRequest;
 import com.petties.petties.dto.booking.PetServiceItemRequest;
+import com.petties.petties.dto.booking.ProxyBookingRequest;
+import com.petties.petties.dto.booking.ProxyPetInfo;
+import com.petties.petties.dto.booking.ProxyPetServiceItem;
+import com.petties.petties.dto.booking.ProxyRecipientInfo;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
@@ -329,6 +333,214 @@ public class BookingService {
                         log.error("Error creating booking: ", e);
                         throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
                 }
+        }
+
+        // ========== PROXY BOOKING (ĐẶT HỘ) ==========
+
+        /**
+         * Create a proxy booking on behalf of someone else.
+         * The logged-in user (proxyBooker) creates a booking for a recipient who may not have an account.
+         *
+         * @param request      ProxyBookingRequest with recipient info, pet info, and booking details
+         * @param proxyBookerId UUID of the logged-in user who is booking on behalf of the recipient
+         * @return BookingResponse
+         */
+        @Transactional
+        public BookingResponse createProxyBooking(ProxyBookingRequest request, UUID proxyBookerId) {
+                log.info("Creating proxy booking by user {} for recipient {}",
+                                proxyBookerId, request.getRecipient().getPhone());
+
+                try {
+                        // Get the proxy booker (the person making the booking on behalf of someone)
+                        User proxyBooker = userRepository.findById(proxyBookerId)
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                        // Step 1: Create a new guest user for the recipient
+                        ProxyRecipientInfo recipientInfo = request.getRecipient();
+                        User recipient = createRecipientUser(recipientInfo);
+
+                        // Step 2: Validate clinic
+                        Clinic clinic = clinicRepository.findById(request.getClinicId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        // Step 3: Collect all service IDs and create pets
+                        List<Pet> createdPets = new ArrayList<>();
+                        List<UUID> allServiceIds = new ArrayList<>();
+                        Map<UUID, Pet> serviceIdToPetMap = new java.util.HashMap<>();
+
+                        for (ProxyPetServiceItem item : request.getItems()) {
+                                // Create pet for recipient
+                                Pet pet = createPetForRecipient(item.getPet(), recipient);
+                                createdPets.add(pet);
+                                log.info("Created new pet {} for recipient", pet.getName());
+
+                                // Map each service ID to this pet
+                                for (UUID serviceId : item.getServiceIds()) {
+                                        allServiceIds.add(serviceId);
+                                        serviceIdToPetMap.put(serviceId, pet);
+                                }
+                        }
+
+                        // Step 4: Validate services
+                        List<ClinicService> services = clinicServiceRepository.findAllById(allServiceIds)
+                                        .stream()
+                                        .filter(ClinicService::getIsActive)
+                                        .collect(Collectors.toList());
+
+                        if (services.isEmpty()) {
+                                throw new BadRequestException("Không tìm thấy dịch vụ hợp lệ");
+                        }
+
+                        // Step 5: Validate home visit services if applicable
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = services.stream()
+                                                .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
+                                                .map(ClinicService::getName)
+                                                .collect(Collectors.toList());
+                                if (!ineligibleServices.isEmpty()) {
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                                        + String.join(", ", ineligibleServices));
+                                }
+                        }
+
+                        // Step 6: Calculate pricing (use first pet for distance calculation)
+                        Pet firstPet = createdPets.get(0);
+                        BigDecimal servicesTotal = BigDecimal.ZERO;
+                        for (ClinicService svc : services) {
+                                Pet petForService = serviceIdToPetMap.get(svc.getServiceId());
+                                servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, petForService));
+                        }
+                        BigDecimal distanceKm = request.getDistanceKm();
+                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(
+                                        clinic.getClinicId(), distanceKm, request.getType());
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
+
+                        // Step 7: Build the booking
+                        Booking booking = Booking.builder()
+                                        .pet(firstPet) // Primary pet
+                                        .petOwner(recipient)
+                                        .proxyBooker(proxyBooker)
+                                        .clinic(clinic)
+                                        .bookingDate(request.getBookingDate())
+                                        .bookingTime(request.getBookingTime())
+                                        .type(request.getType())
+                                        .totalPrice(totalPrice)
+                                        .distanceFee(distanceFee)
+                                        .status(BookingStatus.PENDING)
+                                        .notes(request.getNotes())
+                                        .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress() : recipientInfo.getAddress())
+                                        .homeLat(request.getHomeLat() != null ? request.getHomeLat() : recipientInfo.getLat())
+                                        .homeLong(request.getHomeLong() != null ? request.getHomeLong() : recipientInfo.getLng())
+                                        .distanceKm(distanceKm)
+                                        .build();
+
+                        // Step 8: Add services to booking with proper pet assignment
+                        for (ClinicService service : services) {
+                                Pet petForService = serviceIdToPetMap.get(service.getServiceId());
+                                BigDecimal basePrice = service.getBasePrice();
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, petForService);
+                                BookingServiceItem bookingItem = BookingServiceItem.builder()
+                                                .booking(booking)
+                                                .pet(petForService)
+                                                .service(service)
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
+                                                .quantity(1)
+                                                .isAddOn(false)
+                                                .build();
+                                booking.getBookingServices().add(bookingItem);
+                        }
+
+                        // Step 9: Save with retry for booking code collision
+                        int maxRetries = 3;
+                        Booking savedBooking = null;
+
+                        for (int attempt = 0; attempt < maxRetries; attempt++) {
+                                try {
+                                        String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), request.getBookingDate());
+                                        booking.setBookingCode(bookingCode);
+                                        savedBooking = bookingRepository.save(booking);
+                                        log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
+                                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
+                                        break;
+                                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                                        String rootCause = ex.getMostSpecificCause().getMessage();
+                                        if (rootCause != null && rootCause.contains("booking_code")) {
+                                                log.warn("Booking code collision, retry {}/{}", attempt + 1, maxRetries);
+                                                if (attempt == maxRetries - 1) {
+                                                        throw new IllegalStateException(
+                                                                        "Không thể tạo mã booking sau " + maxRetries + " lần thử. Vui lòng thử lại.");
+                                                }
+                                                continue;
+                                        }
+                                        throw ex;
+                                }
+                        }
+
+                        if (savedBooking == null) {
+                                throw new IllegalStateException("Không thể lưu booking");
+                        }
+
+                        // Step 10: Send notification to clinic
+                        try {
+                                notificationService.sendBookingNotificationToClinic(savedBooking);
+                        } catch (Exception e) {
+                                log.error("Failed to send notification (non-blocking): {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(savedBooking);
+
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during proxy booking creation: {}", e.getMessage());
+                        throw e;
+                } catch (Exception e) {
+                        log.error("Error creating proxy booking: ", e);
+                        throw new RuntimeException("Lỗi tạo proxy booking: " + e.getMessage());
+                }
+        }
+
+        /**
+         * Create a new guest user for proxy booking.
+         * In proxy booking flow, we always create a new guest user without checking existing records.
+         */
+        private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Generate a unique username using phone + timestamp to avoid conflicts
+                String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
+                
+                User newUser = new User();
+                newUser.setFullName(recipientInfo.getFullName());
+                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setAddress(recipientInfo.getAddress());
+                newUser.setRole(Role.PET_OWNER);
+                newUser.setUsername(uniqueUsername);
+                newUser.setPassword(""); // No password for guest users
+
+                newUser = userRepository.save(newUser);
+                log.info("Created new guest user for proxy booking: {} ({})", newUser.getUserId(), recipientInfo.getPhone());
+                return newUser;
+        }
+
+        /**
+         * Create a new pet for the recipient during proxy booking.
+         */
+        private Pet createPetForRecipient(ProxyPetInfo petInfo, User owner) {
+                // Set default dateOfBirth to today if not provided (required field in DB)
+                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null 
+                                ? petInfo.getDateOfBirth() 
+                                : LocalDate.now();
+
+                Pet pet = Pet.builder()
+                                .name(petInfo.getName())
+                                .species(petInfo.getSpecies()) // String type
+                                .breed(petInfo.getBreed())
+                                .gender(petInfo.getGender()) // String type
+                                .dateOfBirth(dateOfBirth)
+                                .weight(petInfo.getWeight() != null ? petInfo.getWeight().doubleValue() : 0.0)
+                                .user(owner)
+                                .build();
+
+                return petRepository.save(pet);
         }
 
         // ========== CONFIRM BOOKING ==========
@@ -1179,6 +1391,16 @@ public class BookingService {
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
                 log.info("Fetching bookings for user: {}", petOwnerId);
                 Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
+                return bookings.map(bookingMapper::mapToResponse);
+        }
+
+        /**
+         * Get bookings created by user on behalf of others (proxy bookings)
+         */
+        @Transactional(readOnly = true)
+        public Page<BookingResponse> getMyProxyBookings(UUID proxyBookerId, Pageable pageable) {
+                log.info("Fetching proxy bookings created by user: {}", proxyBookerId);
+                Page<Booking> bookings = bookingRepository.findByProxyBookerId(proxyBookerId, pageable);
                 return bookings.map(bookingMapper::mapToResponse);
         }
 

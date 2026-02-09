@@ -137,6 +137,16 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
         Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
 
+        // ========== FIND BY PROXY BOOKER ==========
+
+        /**
+         * Find all bookings created by a user on behalf of others (proxy bookings).
+         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
+         */
+        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
+        @Query("SELECT b FROM Booking b WHERE b.proxyBooker.userId = :proxyBookerId ORDER BY b.createdAt DESC")
+        Page<Booking> findByProxyBookerId(@Param("proxyBookerId") UUID proxyBookerId, Pageable pageable);
+
         @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId AND b.bookingDate = :date")
         long countByClinicAndDate(@Param("clinicId") UUID clinicId, @Param("date") LocalDate date);
 

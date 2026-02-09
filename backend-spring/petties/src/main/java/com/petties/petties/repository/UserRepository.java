@@ -43,6 +43,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByPhone(String phone);
 
     /**
+     * Find user by phone number.
+     * Used for proxy booking to check if recipient already exists.
+     */
+    Optional<User> findByPhone(String phone);
+
+    /**
      * Find user by ID with workingClinic eager loaded.
      * Used in login to return clinic info.
      */

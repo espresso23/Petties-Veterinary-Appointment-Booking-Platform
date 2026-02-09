@@ -32,7 +32,7 @@ public class BookingAutoCancellationScheduler {
      * If a PENDING booking was created more than 30 minutes ago without confirmation,
      * it will be automatically cancelled.
      */
-    @Scheduled(fixedRate = 10000) // Every 1 minute
+    @Scheduled(fixedRate = 60000) // Every 1 minute
     @Transactional
     public void autoCancelStalePendingBookings() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(PENDING_TIMEOUT_MINUTES);

@@ -76,6 +76,14 @@ public class Booking {
     @JoinColumn(name = "assigned_staff_id")
     private User assignedStaff;
 
+    /**
+     * User who created this booking on behalf of petOwner (for proxy booking).
+     * NULL if booking was created by pet owner themselves.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proxy_booker_id")
+    private User proxyBooker;
+
     // ========== BOOKING INFO ==========
 
     @Column(name = "booking_date", nullable = false)
