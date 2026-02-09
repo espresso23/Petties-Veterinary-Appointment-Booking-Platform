@@ -25,6 +25,7 @@ export interface StaffOption {
     isSuggested: boolean;
     bookingCount: number;
     hasAvailableSlots: boolean;
+    availableServiceItemIds: string[];
     unavailableReason?: string;
 }
 

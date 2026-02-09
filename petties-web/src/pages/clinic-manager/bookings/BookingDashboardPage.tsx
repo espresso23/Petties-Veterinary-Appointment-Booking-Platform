@@ -29,6 +29,13 @@ const TYPE_FILTER_OPTIONS = [
     { key: 'SOS', label: 'Cấp cứu' },
 ];
 
+const getAllServices = (booking: Booking): BookingServiceItem[] => {
+    if (booking.pets && booking.pets.length > 0) {
+        return booking.pets.flatMap(pet => pet.services || []);
+    }
+    return booking.services || [];
+};
+
 /**
  * Booking Dashboard Page - Manager view
  * Shows list of bookings with filter tabs and confirm action
@@ -167,7 +174,7 @@ export const BookingDashboardPage = () => {
             }
         } catch (error) {
             console.error('Failed to confirm booking:', error);
-            showToast('error', 'Không thể xác nhận booking. Vui lòng thử lại.');
+            showToast('error', (error as any).response.data.message || 'Không thể xác nhận booking. Vui lòng thử lại.');
         } finally {
             setConfirming(null);
         }
@@ -383,7 +390,7 @@ export const BookingDashboardPage = () => {
                                         <div className="text-xs text-stone-500">{booking.ownerPhone}</div>
                                     </td>
                                     <td className="p-4">
-                                        {booking.services.map((s, idx) => (
+                                        {getAllServices(booking).map((s, idx) => (
                                             <div key={idx} className="text-sm">
                                                 {s.serviceName}
                                                 <span className="ml-1 text-xs text-stone-500">
@@ -414,7 +421,7 @@ export const BookingDashboardPage = () => {
                                             const staffMembers = new Map<string, { name: string; avatar?: string }>();
 
                                             // 1. Add staff from individual services
-                                            booking.services.forEach(service => {
+                                            getAllServices(booking).forEach((service: BookingServiceItem) => {
                                                 if (service.assignedStaffId && service.assignedStaffName) {
                                                     staffMembers.set(service.assignedStaffId, {
                                                         name: service.assignedStaffName,
@@ -547,7 +554,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     const staffByService: Record<string, StaffOption[]> = {};
                     const selectedByService: Record<string, string> = {};
 
-                    booking.services.forEach(service => {
+                    getAllServices(booking).forEach((service: BookingServiceItem) => {
                         const serviceId = service.bookingServiceId || service.serviceId;
 
                         // Filter staff for this specific service category
@@ -578,10 +585,10 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         staffByService[serviceId] = filteredStaff;
 
                         // Auto-select staff for this service:
-                        // Priority 1: Suggested staff from backend (if they pass our filter)
-                        // Priority 2: First staff with available slots in the filtered list
-                        const suggested = filteredStaff.find(s => s.isSuggested && s.hasAvailableSlots);
-                        const firstAvailable = filteredStaff.find(s => s.hasAvailableSlots);
+                        // Priority 1: Suggested staff from backend (if they pass our specialty filter AND are available for this specific service)
+                        // Priority 2: First staff with available slots for THIS specific service in the filtered list
+                        const suggested = filteredStaff.find(s => s.isSuggested && s.availableServiceItemIds?.includes(serviceId));
+                        const firstAvailable = filteredStaff.find(s => s.availableServiceItemIds?.includes(serviceId));
 
                         if (suggested) {
                             selectedByService[serviceId] = suggested.staffId;
@@ -727,7 +734,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     {/* Services */}
                     <div className="border-2 border-stone-900 p-4">
                         <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Dịch vụ đặt</h3>
-                        {booking.services.map((service, idx) => (
+                        {getAllServices(booking).map((service: BookingServiceItem, idx: number) => (
                             <div key={idx} className="py-3 border-b border-stone-200 last:border-0">
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
@@ -892,25 +899,28 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                 {/* Dropdown Options */}
                                                 {isDropdownOpen && (
                                                     <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
-                                                        {serviceStaff.map((staff) => (
-                                                            <button
-                                                                key={staff.staffId}
-                                                                type="button"
-                                                                disabled={!staff.hasAvailableSlots}
-                                                                onClick={() => {
-                                                                    setSelectedStaffByService(prev => ({
-                                                                        ...prev,
-                                                                        [serviceId]: staff.staffId
-                                                                    }));
-                                                                    setOpenDropdownServiceId(null);
-                                                                }}
-                                                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedStaffId === staff.staffId
-                                                                    ? 'bg-mint-100 border-l-4 border-l-mint-600'
-                                                                    : staff.hasAvailableSlots
-                                                                        ? 'hover:bg-stone-50'
-                                                                        : 'opacity-50 cursor-not-allowed bg-stone-100'
-                                                                    }`}
-                                                            >
+                                                        {serviceStaff.map((staff) => {
+                                                            const isAvailableForThisService = staff.availableServiceItemIds?.includes(serviceId);
+
+                                                            return (
+                                                                <button
+                                                                    key={staff.staffId}
+                                                                    type="button"
+                                                                    disabled={!isAvailableForThisService}
+                                                                    onClick={() => {
+                                                                        setSelectedStaffByService(prev => ({
+                                                                            ...prev,
+                                                                            [serviceId]: staff.staffId
+                                                                        }));
+                                                                        setOpenDropdownServiceId(null);
+                                                                    }}
+                                                                    className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedStaffId === staff.staffId
+                                                                        ? 'bg-mint-100 border-l-4 border-l-mint-600'
+                                                                        : isAvailableForThisService
+                                                                            ? 'hover:bg-stone-50'
+                                                                            : 'opacity-50 cursor-not-allowed bg-stone-100'
+                                                                        }`}
+                                                                >
                                                                 {/* Avatar */}
                                                                 <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
                                                                     {staff.avatarUrl ? (
@@ -931,8 +941,10 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                     <div className="text-[10px] text-stone-500 truncate">
                                                                         {staff.specialtyLabel || staff.specialty}
                                                                     </div>
-                                                                    {!staff.hasAvailableSlots && staff.unavailableReason && (
-                                                                        <div className="text-[10px] text-red-600">{staff.unavailableReason}</div>
+                                                                    {!isAvailableForThisService && (
+                                                                        <div className="text-[10px] text-red-600 font-medium italic">
+                                                                            {staff.unavailableReason || "Không đủ slot trống cho khung giờ này"}
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                                 {selectedStaffId === staff.staffId && (
@@ -941,7 +953,8 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                     </svg>
                                                                 )}
                                                             </button>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </div>
@@ -989,7 +1002,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                 {(() => {
                                     // Weight pricing is ALWAYS a surcharge (never discount)
                                     // weightPrice = basePrice + surcharge, so difference should be >= 0
-                                    const weightSurcharge = booking.services?.reduce((sum, svc) => {
+                                    const weightSurcharge = getAllServices(booking)?.reduce((sum: number, svc: BookingServiceItem) => {
                                         if (svc.weightPrice && svc.basePrice && svc.weightPrice > svc.basePrice) {
                                             return sum + (svc.weightPrice - svc.basePrice);
                                         }
@@ -1008,11 +1021,11 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         <div className="mt-2 py-2 px-2 bg-stone-100 border border-stone-200 rounded text-xs space-y-1">
                             <div className="flex justify-between text-stone-500">
                                 <span>Giá dịch vụ gốc</span>
-                                <span>{formatCurrency(booking.services?.reduce((sum, svc) => sum + (svc.basePrice || svc.price || 0), 0) || 0)}</span>
+                                <span>{formatCurrency(getAllServices(booking)?.reduce((sum: number, svc: BookingServiceItem) => sum + (svc.basePrice || svc.price || 0), 0) || 0)}</span>
                             </div>
                             {(() => {
                                 // Weight pricing is ALWAYS a surcharge (never discount)
-                                const weightSurcharge = booking.services?.reduce((sum, svc) => {
+                                const weightSurcharge = getAllServices(booking)?.reduce((sum: number, svc: BookingServiceItem) => {
                                     if (svc.weightPrice && svc.basePrice && svc.weightPrice > svc.basePrice) {
                                         return sum + (svc.weightPrice - svc.basePrice);
                                     }
@@ -1070,7 +1083,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                             const uniqueStaff = new Map<string, { id: string; name: string; avatarUrl?: string; specialty?: string }>();
 
                             // 1. Add staff from individual services
-                            booking.services.forEach(service => {
+                            getAllServices(booking).forEach((service: BookingServiceItem) => {
                                 if (service.assignedStaffId && service.assignedStaffName) {
                                     uniqueStaff.set(service.assignedStaffId, {
                                         id: service.assignedStaffId,
@@ -1157,7 +1170,8 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         <button
                             onClick={() => {
                                 // Get first selected staff from per-service selection
-                                const firstServiceId = booking.services[0]?.bookingServiceId || booking.services[0]?.serviceId;
+                                const services = getAllServices(booking);
+                                const firstServiceId = services[0]?.bookingServiceId || services[0]?.serviceId;
                                 const selectedStaffId = firstServiceId ? selectedStaffByService[firstServiceId] : undefined;
                                 onConfirm(booking.bookingId, selectedStaffId);
                                 onClose();
