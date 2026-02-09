@@ -7,6 +7,9 @@ import '../../data/models/clinic.dart';
 import '../../data/models/staff_member.dart';
 import '../../data/services/clinic_service.dart';
 import '../../providers/clinic_provider.dart';
+import '../../data/services/review_service.dart';
+import '../../data/models/review.dart';
+import 'package:intl/intl.dart';
 
 /// Clinic Detail View - Neobrutalism Style
 class ClinicDetailView extends StatefulWidget {
@@ -33,12 +36,48 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   List<StaffMember> _staffList = [];
   final ClinicService _clinicService = ClinicService();
 
+  // Reviews state
+  final ReviewService _reviewService = ReviewService();
+  List<Review> _reviews = [];
+  bool _isLoadingReviews = true;
+  // Local calculated stats
+  double? _localRatingAvg;
+  int? _localRatingCount;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // TODO: Fetch clinic detail by ID from provider
+      _fetchReviews();
     });
+  }
+
+  Future<void> _fetchReviews() async {
+    try {
+      final reviews = await _reviewService.getClinicReviews(widget.clinicId);
+      if (mounted) {
+        double? localAvg;
+        if (reviews.isNotEmpty) {
+           double total = 0;
+           for (var r in reviews) total += r.rating;
+           localAvg = total / reviews.length;
+        }
+
+        setState(() {
+          _reviews = reviews;
+          _localRatingAvg = localAvg;
+          _localRatingCount = reviews.length;
+          _isLoadingReviews = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reviews: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingReviews = false;
+        });
+      }
+    }
   }
 
   @override
@@ -331,8 +370,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           // Rating & Open Status
           Row(
             children: [
-              // Rating
-              if (clinic.ratingAvg != null) ...[
+              // Rating logic
+              if (clinic.ratingAvg != null && clinic.ratingAvg! > 0) ...[
                 const Icon(Icons.star, color: AppColors.warning, size: 18),
                 const SizedBox(width: 4),
                 Text(
@@ -353,8 +392,27 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                     ),
                   ),
                 ],
-                const SizedBox(width: 16),
+              ] else ...[
+                 const Icon(Icons.star_border, color: AppColors.stone400, size: 18),
+                 const SizedBox(width: 4),
+                 const Text(
+                   '0.0',
+                    style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.stone500,
+                  ),
+                 ),
+                 const SizedBox(width: 4),
+                 const Text(
+                    '(Chưa có đánh giá)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                    ),
+                  ),
               ],
+              const SizedBox(width: 16),
 
               // Open Status
               Container(
@@ -1156,6 +1214,16 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   }
 
   Widget _buildReviewSection(Clinic clinic) {
+    if (_isLoadingReviews) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
+    // Only show latest 3 reviews
+    final displayReviews = _reviews.take(3).toList();
+    
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1175,76 +1243,189 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Đánh giá gần đây',
-                  style: TextStyle(
+                Text(
+                  'Đánh giá (${_reviews.length})',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: AppColors.stone900,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () {
-                    // TODO: View all reviews
-                  },
-                  child: Text(
-                    'Xem tất cả',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                if (_reviews.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => Scaffold(
+                            backgroundColor: AppColors.stone50,
+                            appBar: AppBar(
+                              title: const Text('Tất cả đánh giá', style: TextStyle(fontWeight: FontWeight.bold)),
+                              backgroundColor: AppColors.white,
+                              elevation: 0,
+                              iconTheme: const IconThemeData(color: AppColors.stone900),
+                            ),
+                            body: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _reviews.length,
+                              itemBuilder: (context, index) => _buildReviewItem(_reviews[index]),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Xem tất cả',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
 
-            // Rating stars
-            Row(
-              children: List.generate(5, (index) {
-                return Icon(
-                  Icons.star,
-                  color: index < 5 ? AppColors.warning : AppColors.stone300,
-                  size: 18,
-                );
-              }),
-            ),
-            const SizedBox(height: 12),
-
-            // Review content
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.stone50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.stone200, width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '"Phòng khám tuyệt vời! Bác sĩ rất tận tâm và chuyên nghiệp. Thú cưng của tôi được chăm sóc rất tốt. Rất khuyến khích mọi người đến đây!"',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                      color: AppColors.stone700,
-                      height: 1.5,
+            // Rating stars summary
+            if (_localRatingAvg != null || clinic.ratingAvg != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    Text(
+                      (_localRatingAvg ?? clinic.ratingAvg ?? 0).toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.stone900,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: List.generate(5, (index) {
+                            return Icon(
+                              Icons.star,
+                              color: index < ((_localRatingAvg ?? clinic.ratingAvg ?? 0)).round() 
+                                  ? AppColors.warning 
+                                  : AppColors.stone300,
+                              size: 16,
+                            );
+                          }),
                         ),
-                        child: const Center(
+                        Text(
+                          '${_localRatingCount ?? clinic.ratingCount ?? 0} lượt đánh giá',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                          ),
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+              ),
+
+            // Empty State
+            if (_reviews.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: AppColors.stone50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(Icons.rate_review_outlined, color: AppColors.stone400, size: 32),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Chưa có đánh giá nào',
+                      style: TextStyle(color: AppColors.stone500, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              )
+            else
+              // Review List
+              Column(
+                children: displayReviews.map((review) => _buildReviewItem(review)).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(Review review) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.stone50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.stone200, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Rating row
+          Row(
+            children: List.generate(5, (index) {
+              return Icon(
+                Icons.star,
+                color: index < review.rating ? AppColors.warning : AppColors.stone300,
+                size: 14,
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          
+          // Comment
+          if (review.comment.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                '"${review.comment}"',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.stone700,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            
+          // User info
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: ClipOval(
+                  child: review.userAvatar != null
+                      ? Image.network(
+                          review.userAvatar!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Center(
+                              child: Text(
+                            review.userName.isNotEmpty ? review.userName[0].toUpperCase() : 'U',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          )),
+                        )
+                      : Center(
                           child: Text(
-                            'N',
+                            review.userName.isNotEmpty ? review.userName[0].toUpperCase() : 'U',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -1252,35 +1433,32 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Nguyễn Văn A',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.stone900,
-                            ),
-                          ),
-                          Text(
-                            '2 ngày trước',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.stone500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    review.userName,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('dd/MM/yyyy').format(review.createdAt),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.stone500,
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

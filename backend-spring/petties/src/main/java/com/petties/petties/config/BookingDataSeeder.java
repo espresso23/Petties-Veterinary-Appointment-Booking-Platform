@@ -26,11 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
  * - Mock pets for pet owner
  * - Mock bookings with different service categories
  */
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Component
 @RequiredArgsConstructor
-@Slf4j
 @Order(2) // Run after DataInitializer (default order 0)
 public class BookingDataSeeder implements CommandLineRunner {
+
+        private static final Logger log = LoggerFactory.getLogger(BookingDataSeeder.class);
 
         private final UserRepository userRepository;
         private final PetRepository petRepository;
@@ -539,6 +543,17 @@ public class BookingDataSeeder implements CommandLineRunner {
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
 
+                // Check for duplicate booking
+                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
+                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
+                                                && b.getBookingTime().equals(time)
+                                                && b.getStatus() != BookingStatus.CANCELLED);
+                if (exists) {
+                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
+                                        time);
+                        return;
+                }
+
                 log.info("   >> createBooking called with {} services for: {}", services.size(), notes);
                 if (services.isEmpty()) {
                         log.warn("No services provided for booking '{}', using first available", notes);
@@ -602,6 +617,17 @@ public class BookingDataSeeder implements CommandLineRunner {
         private void createBookingWithHomeVisit(Clinic clinic, Pet pet, User petOwner,
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
                         String address, double lat, double lng, BigDecimal distanceKm) {
+
+                // Check for duplicate booking
+                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
+                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
+                                                && b.getBookingTime().equals(time)
+                                                && b.getStatus() != BookingStatus.CANCELLED);
+                if (exists) {
+                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
+                                        time);
+                        return;
+                }
 
                 if (services.isEmpty())
                         return;
@@ -672,6 +698,17 @@ public class BookingDataSeeder implements CommandLineRunner {
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
                         String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
                         String staffUsername, BookingType type) {
+
+                // Check for duplicate booking
+                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
+                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
+                                                && b.getBookingTime().equals(time)
+                                                && b.getStatus() != BookingStatus.CANCELLED);
+                if (exists) {
+                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
+                                        time);
+                        return;
+                }
 
                 if (services.isEmpty())
                         return;
