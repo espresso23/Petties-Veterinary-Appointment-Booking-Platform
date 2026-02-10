@@ -25,17 +25,18 @@ public class ClinicPriceController {
     private final AuthService authService;
     private final ClinicRepository clinicRepository;
 
-    @GetMapping("/{id}/price-per-km")
-    public ResponseEntity<ClinicPriceResponse> getPricePerKm(@PathVariable UUID id) {
-        var priceOpt = clinicPriceService.getPricePerKm(id);
-        return ResponseEntity.ok(new ClinicPriceResponse(id, priceOpt.orElse(null)));
+    @GetMapping("/{id}/pricing")
+    public ResponseEntity<ClinicPriceResponse> getPricing(@PathVariable UUID id) {
+        var pricingOpt = clinicPriceService.getPricing(id);
+        return pricingOpt.map(p -> ResponseEntity.ok(new ClinicPriceResponse(id, p.getPricePerKm(), p.getSosFee())))
+                .orElseGet(() -> ResponseEntity.ok(new ClinicPriceResponse(id, null, null)));
     }
 
-    @PatchMapping("/{id}/price-per-km")
+    @PatchMapping("/{id}/pricing")
     @PreAuthorize("hasRole('CLINIC_OWNER')")
-        public ResponseEntity<ClinicPriceResponse> updatePricePerKm(
+    public ResponseEntity<ClinicPriceResponse> updatePricing(
             @PathVariable UUID id,
-            @Valid @RequestBody(required = false) ClinicPriceRequest request) {
+            @Valid @RequestBody ClinicPriceRequest request) {
 
         var currentUser = authService.getCurrentUser();
         // verify ownership
@@ -44,19 +45,33 @@ public class ClinicPriceController {
         }
 
         try {
-            if (request == null) {
-                log.warn("Empty request body for updatePricePerKm for clinic {}", id);
-                return ResponseEntity.badRequest().body(null);
-            }
-            var updated = clinicPriceService.upsertPricePerKm(id, request.getPricePerKm());
-            return ResponseEntity.ok(new ClinicPriceResponse(id, updated));
+            var updated = clinicPriceService.updatePricing(id, request.getPricePerKm(), request.getSosFee());
+            return ResponseEntity.ok(new ClinicPriceResponse(id, updated.getPricePerKm(), updated.getSosFee()));
         } catch (IllegalArgumentException iae) {
-            log.warn("Clinic not found when updating price per km: {}", id, iae);
+            log.warn("Clinic not found when updating pricing: {}", id, iae);
             return ResponseEntity.status(404).body(null);
         } catch (Exception ex) {
-            log.error("Failed to update price per km for clinic {}", id, ex);
+            log.error("Failed to update pricing for clinic {}", id, ex);
             return ResponseEntity.status(500).body(null);
         }
+    }
+
+    // Keep legacy endpoint for backward compatibility if needed, but update it to
+    // use the new constructor
+    @GetMapping("/{id}/price-per-km")
+    public ResponseEntity<ClinicPriceResponse> getPricePerKm(@PathVariable UUID id) {
+        var pricingOpt = clinicPriceService.getPricing(id);
+        return pricingOpt.map(p -> ResponseEntity.ok(new ClinicPriceResponse(id, p.getPricePerKm(), p.getSosFee())))
+                .orElseGet(() -> ResponseEntity.ok(new ClinicPriceResponse(id, null, null)));
+    }
+
+    @PatchMapping("/{id}/price-per-km")
+    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    public ResponseEntity<ClinicPriceResponse> updatePricePerKm(
+            @PathVariable UUID id,
+            @Valid @RequestBody ClinicPriceRequest request) {
+
+        return updatePricing(id, request);
     }
 
     @DeleteMapping("/{id}/price-per-km")

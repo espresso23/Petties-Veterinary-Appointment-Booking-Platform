@@ -563,7 +563,7 @@ export function ServiceModal({
                 paddingRight: '8px'
               }}
             >
-              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu.
+              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá di chuyển và phí SOS được thiết lập chung cho toàn phòng khám trong phần "Cấu hình chung".
             </p>
           </div>
 

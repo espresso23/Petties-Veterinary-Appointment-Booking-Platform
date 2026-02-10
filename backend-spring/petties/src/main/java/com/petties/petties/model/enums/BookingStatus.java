@@ -3,8 +3,12 @@ package com.petties.petties.model.enums;
 /**
  * Booking status state machine
  *
- * Flow:
+ * Regular Flow:
  * PENDING → CONFIRMED → [ON_THE_WAY → ARRIVED] → IN_PROGRESS → COMPLETED
+ *
+ * SOS Flow:
+ * SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → ON_THE_WAY → ARRIVED →
+ * IN_PROGRESS → COMPLETED
  *
  * ON_THE_WAY, ARRIVED: Only for HOME_VISIT and SOS bookings
  *
@@ -13,7 +17,9 @@ package com.petties.petties.model.enums;
  * - checkout(): IN_PROGRESS → COMPLETED
  */
 public enum BookingStatus {
-    PENDING, // Pet Owner tạờ Clinic xáco, ch nhận
+    SEARCHING, // SOS: Đang tìm clinic phù hợp
+    PENDING_CLINIC_CONFIRM, // SOS: Chờ clinic xác nhận
+    PENDING, // Pet Owner tạo, chờ Clinic xác nhận
     CONFIRMED, // Clinic đã xác nhận + Staff đã được phân công
     ON_THE_WAY, // Staff đang đến (HOME_VISIT/SOS)
     ARRIVED, // Staff đã đến (HOME_VISIT/SOS)

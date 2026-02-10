@@ -1,9 +1,11 @@
 package com.petties.petties.service;
 
+import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicPricePerKm;
 import com.petties.petties.repository.ClinicPricePerKmRepository;
 import com.petties.petties.repository.ClinicRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,38 +15,73 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClinicPriceService {
 
-    private final ClinicPricePerKmRepository repository;
+    private final ClinicPricePerKmRepository clinicPriceRepository;
     private final ClinicRepository clinicRepository;
 
     public Optional<BigDecimal> getPricePerKm(UUID clinicId) {
-        return repository.findByClinicId(clinicId).map(ClinicPricePerKm::getPricePerKm);
+        return clinicPriceRepository.findById(clinicId)
+                .map(ClinicPricePerKm::getPricePerKm);
+    }
+
+    public Optional<BigDecimal> getSosFee(UUID clinicId) {
+        return clinicPriceRepository.findById(clinicId)
+                .map(ClinicPricePerKm::getSosFee);
+    }
+
+    public Optional<ClinicPricePerKm> getPricing(UUID clinicId) {
+        return clinicPriceRepository.findById(clinicId);
     }
 
     @Transactional
-    public BigDecimal upsertPricePerKm(UUID clinicId, BigDecimal pricePerKm) {
-        // ensure clinic exists
-        var clinicOpt = clinicRepository.findByIdAndNotDeleted(clinicId);
-        if (clinicOpt.isEmpty()) throw new IllegalArgumentException("Clinic not found: " + clinicId);
-        if (pricePerKm == null) {
-            // remove existing record if any
-            repository.findByClinicId(clinicId).ifPresent(repository::delete);
-            return null;
-        }
+    public ClinicPricePerKm updatePricing(UUID clinicId, BigDecimal pricePerKm, BigDecimal sosFee) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("Clinic not found: " + clinicId));
 
-        ClinicPricePerKm entity = repository.findByClinicId(clinicId)
+        ClinicPricePerKm priceEntity = clinicPriceRepository.findById(clinicId)
                 .orElseGet(() -> {
-                    ClinicPricePerKm cp = new ClinicPricePerKm();
-                    // Do not set clinicId manually. With @MapsId, setting the clinic is enough
-                    // Setting clinicId before persisting can mark the entity as detached and
-                    // cause Hibernate to attempt a merge on a detached instance.
-                    cp.setClinic(clinicOpt.get());
-                    return cp;
+                    ClinicPricePerKm newEntity = new ClinicPricePerKm();
+                    newEntity.setClinic(clinic);
+                    return newEntity;
                 });
 
-        entity.setPricePerKm(pricePerKm);
-        repository.save(entity);
-        return entity.getPricePerKm();
+        if (pricePerKm != null)
+            priceEntity.setPricePerKm(pricePerKm);
+        if (sosFee != null)
+            priceEntity.setSosFee(sosFee);
+
+        return clinicPriceRepository.save(priceEntity);
+    }
+
+    @Transactional
+    public BigDecimal upsertPricePerKm(UUID clinicId, BigDecimal price) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("Clinic not found: " + clinicId));
+
+        ClinicPricePerKm priceEntity = clinicPriceRepository.findById(clinicId)
+                .orElseGet(() -> {
+                    ClinicPricePerKm newEntity = new ClinicPricePerKm();
+                    newEntity.setClinic(clinic);
+                    return newEntity;
+                });
+        priceEntity.setPricePerKm(price);
+        return clinicPriceRepository.save(priceEntity).getPricePerKm();
+    }
+
+    @Transactional
+    public BigDecimal upsertSosFee(UUID clinicId, BigDecimal fee) {
+        Clinic clinic = clinicRepository.findById(clinicId)
+                .orElseThrow(() -> new IllegalArgumentException("Clinic not found: " + clinicId));
+
+        ClinicPricePerKm priceEntity = clinicPriceRepository.findById(clinicId)
+                .orElseGet(() -> {
+                    ClinicPricePerKm newEntity = new ClinicPricePerKm();
+                    newEntity.setClinic(clinic);
+                    return newEntity;
+                });
+        priceEntity.setSosFee(fee);
+        return clinicPriceRepository.save(priceEntity).getSosFee();
     }
 }

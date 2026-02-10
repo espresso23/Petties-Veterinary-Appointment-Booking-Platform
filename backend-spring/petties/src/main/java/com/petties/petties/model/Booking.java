@@ -50,7 +50,7 @@ public class Booking {
     private User petOwner;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "clinic_id", nullable = false)
+    @JoinColumn(name = "clinic_id")
     private Clinic clinic;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -86,6 +86,12 @@ public class Booking {
     @Column(name = "distance_fee", precision = 12, scale = 2)
     private BigDecimal distanceFee;
 
+    @Column(name = "sos_fee", precision = 12, scale = 2)
+    private BigDecimal sosFee;
+
+    @Column(name = "symptoms", columnDefinition = "TEXT")
+    private String symptoms;
+
     // ========== PRICING ==========
 
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
@@ -114,6 +120,9 @@ public class Booking {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
 
     // ========== CHILD RELATIONSHIPS ==========
 

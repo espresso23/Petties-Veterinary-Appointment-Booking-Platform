@@ -732,6 +732,11 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
                                         <span className="font-bold">{service.serviceName}</span>
+                                        {service.isAddOn && (
+                                            <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 border border-red-500 font-bold uppercase">
+                                                Phát sinh
+                                            </span>
+                                        )}
                                         <span className="ml-2 text-xs bg-stone-200 px-2 py-0.5">
                                             {SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory}
                                         </span>
@@ -778,8 +783,12 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                     </div>
                                 </div>
 
-                                {/* Assigned Staff for this service */}
-                                {service.assignedStaffName ? (
+                                {/* Assigned Staff for this service - SKIP for add-on services */}
+                                {service.isAddOn ? (
+                                    <div className="mt-2 flex items-center gap-2 px-2 py-1 bg-stone-50 rounded">
+                                        <span className="text-xs text-stone-500 italic">Phụ trách bởi bác sĩ đã phân công</span>
+                                    </div>
+                                ) : service.assignedStaffName ? (
                                     <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
                                         <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
                                             {service.assignedStaffAvatarUrl ? (

@@ -9,8 +9,9 @@ export interface ClinicResponse {
   description?: string
   latitude?: number
   longitude?: number
-  // Optional per-clinic configured price per km for home visits
+  // Optional per-clinic configured prices
   pricePerKm?: number | null
+  sosFee?: number | null
   clinicStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
   isActive: boolean
   createdAt: string
@@ -67,25 +68,45 @@ export async function getMyClinics(): Promise<ClinicResponse[]> {
 }
 
 /**
- * Get stored price per km for a clinic
+ * Get stored pricing info for a clinic (pricePerKm and sosFee)
  */
-export async function getClinicPricePerKm(clinicId: string): Promise<number | null> {
+export async function getClinicPricing(clinicId: string): Promise<{ pricePerKm: number | null, sosFee: number | null }> {
   try {
-    const { data } = await apiClient.get<any>(`/clinics/${clinicId}/price-per-km`)
-    // data expected: { clinicId: ..., pricePerKm: <number|null> }
+    const { data } = await apiClient.get<any>(`/clinics/${clinicId}/pricing`)
     if (data && typeof data === 'object') {
-      return data.pricePerKm ?? null
+      return {
+        pricePerKm: data.pricePerKm ?? null,
+        sosFee: data.sosFee ?? null
+      }
     }
   } catch (e) {
-    console.warn('getClinicPricePerKm failed', clinicId, e)
+    console.warn('getClinicPricing failed', clinicId, e)
   }
-  return null
+  return { pricePerKm: null, sosFee: null }
+}
+
+/**
+ * Update stored pricing for a clinic (owner only)
+ */
+export async function updateClinicPricing(clinicId: string, pricing: { pricePerKm?: number, sosFee?: number }): Promise<any> {
+  const { data } = await apiClient.patch(`/clinics/${clinicId}/pricing`, pricing)
+  return data
+}
+
+/**
+ * Get stored price per km for a clinic
+ * @deprecated Use getClinicPricing instead
+ */
+export async function getClinicPricePerKm(clinicId: string): Promise<number | null> {
+  const pricing = await getClinicPricing(clinicId)
+  return pricing.pricePerKm
 }
 
 /**
  * Update stored price per km for a clinic (owner only)
+ * @deprecated Use updateClinicPricing instead
  */
 export async function updateClinicPricePerKm(clinicId: string, pricePerKm: number): Promise<number> {
-  const { data } = await apiClient.patch(`/clinics/${clinicId}/price-per-km`, { pricePerKm })
+  const data = await updateClinicPricing(clinicId, { pricePerKm })
   return data.pricePerKm
 }

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -35,6 +36,9 @@ class SosBookingUnitTest {
     private PricingService pricingService;
 
     @Mock
+    private PricingService pricingServiceMock;
+
+    @Mock
     private BookingRepository bookingRepository;
     @Mock
     private UserRepository userRepository;
@@ -47,6 +51,9 @@ class SosBookingUnitTest {
     private StaffAssignmentService staffAssignmentService;
 
     @Mock
+    private StaffAssignmentService staffAssignmentServiceMock;
+
+    @Mock
     private ClinicServiceRepository clinicServiceRepository;
     @Mock
     private BookingMapper bookingMapper;
@@ -54,7 +61,6 @@ class SosBookingUnitTest {
     private BookingNotificationService bookingNotificationService;
     @Mock
     private NotificationService notificationService;
-
     @InjectMocks
     private BookingService bookingService;
 
@@ -72,7 +78,6 @@ class SosBookingUnitTest {
         staffId = UUID.randomUUID();
         bookingId = UUID.randomUUID();
 
-        clinicId = UUID.randomUUID();
         Clinic clinic = new Clinic();
         clinic.setClinicId(clinicId);
 
@@ -103,7 +108,6 @@ class SosBookingUnitTest {
             when(clinicPriceService.getSosFee(clinicId)).thenReturn(Optional.of(expectedFee));
 
             BigDecimal actualFee = pricingService.calculateSOSFee(clinicId);
-
             assertEquals(expectedFee, actualFee);
         }
 
@@ -123,8 +127,6 @@ class SosBookingUnitTest {
         @Test
         @DisplayName("TC-SOS-ASGN-01: autoAssignStaff should pick available staff regardless of specialty")
         void autoAssignStaff_BypassesSpecialty() {
-            // Staff is VET_GENERAL, but SOS might need SURGERY.
-            // The logic should pick any available staff for SOS.
             when(userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF))
                     .thenReturn(List.of(staff));
 
@@ -153,9 +155,6 @@ class SosBookingUnitTest {
         @Test
         @DisplayName("TC-SOS-CKOUT-01: processCheckout should allow overriding SOS Fee")
         void processCheckout_SupportsFeeOverride() {
-            sosBooking.setSosFee(new BigDecimal("500000"));
-            sosBooking.setTotalPrice(new BigDecimal("500000")); // Only fee for now
-
             CheckoutRequest request = new CheckoutRequest();
             BigDecimal overriddenFee = new BigDecimal("300000");
             request.setOverriddenSosFee(overriddenFee);
@@ -175,7 +174,32 @@ class SosBookingUnitTest {
 
             assertNotNull(response);
             assertEquals(overriddenFee, response.getSosFee());
-            assertEquals(overriddenFee, response.getTotalPrice()); // Since no services
+            assertEquals(overriddenFee, response.getTotalPrice());
+            assertEquals(BookingStatus.COMPLETED, response.getStatus());
+            verify(bookingRepository).save(sosBooking);
+        }
+
+        @Test
+        @DisplayName("TC-SOS-CKOUT-02: processCheckout should use automated fee if not overridden")
+        void processCheckout_UsesAutomatedFee() {
+            BigDecimal automatedFee = new BigDecimal("500000");
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(sosBooking));
+            when(pricingServiceMock.calculateSOSFee(clinicId)).thenReturn(automatedFee);
+            when(bookingMapper.mapToResponse(any())).thenAnswer(inv -> {
+                Booking b = inv.getArgument(0);
+                return BookingResponse.builder()
+                        .bookingId(b.getBookingId())
+                        .sosFee(b.getSosFee())
+                        .totalPrice(b.getTotalPrice())
+                        .status(b.getStatus())
+                        .build();
+            });
+
+            BookingResponse response = bookingService.processCheckout(bookingId, null, staff);
+
+            assertNotNull(response);
+            assertEquals(automatedFee, response.getSosFee());
+            assertEquals(automatedFee, response.getTotalPrice());
             assertEquals(BookingStatus.COMPLETED, response.getStatus());
             verify(bookingRepository).save(sosBooking);
         }

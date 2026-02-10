@@ -77,6 +77,7 @@ export interface ClinicRequest {
   businessLicenseUrl?: string // URL to business license
   bankName?: string // Tên ngân hàng
   accountNumber?: string // Số tài khoản ngân hàng
+  sosFee?: number // Phí dịch vụ SOS cấp cứu
 }
 
 export interface ClinicResponse {
@@ -103,6 +104,7 @@ export interface ClinicResponse {
   businessLicenseUrl?: string // URL to business license
   bankName?: string // Tên ngân hàng
   accountNumber?: string // Số tài khoản ngân hàng
+  sosFee?: number // Phí dịch vụ SOS cấp cứu
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string

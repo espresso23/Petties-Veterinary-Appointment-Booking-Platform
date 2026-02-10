@@ -130,9 +130,26 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
 
         /**
          * Find all bookings for a pet owner with pagination
+         * JOIN FETCH all relations to avoid LazyInitializationException
          */
-        @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
-        Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "LEFT JOIN FETCH b.clinic " +
+                        "LEFT JOIN FETCH b.assignedStaff " +
+                        "LEFT JOIN FETCH b.review " +
+                        "LEFT JOIN FETCH b.bookingServices bs " +
+                        "LEFT JOIN FETCH bs.service " +
+                        "LEFT JOIN FETCH bs.assignedStaff " +
+                        "WHERE b.petOwner.userId = :petOwnerId " +
+                        "ORDER BY b.createdAt DESC")
+        List<Booking> findByPetOwnerIdWithRelations(@Param("petOwnerId") UUID petOwnerId);
+
+        /**
+         * Count bookings for a pet owner (used for pagination)
+         */
+        @Query("SELECT COUNT(b) FROM Booking b WHERE b.petOwner.userId = :petOwnerId")
+        long countByPetOwnerId(@Param("petOwnerId") UUID petOwnerId);
 
         @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId AND b.bookingDate = :date")
         long countByClinicAndDate(@Param("clinicId") UUID clinicId, @Param("date") LocalDate date);
@@ -157,4 +174,29 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
         List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
+
+        // ========== SOS BOOKING METHODS ==========
+
+        /**
+         * Check if booking code already exists
+         */
+        boolean existsByBookingCode(String bookingCode);
+
+        /**
+         * Find active SOS bookings by pet owner
+         * Active = SEARCHING or PENDING_CLINIC_CONFIRM status
+         */
+        @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId " +
+                        "AND b.type = com.petties.petties.model.enums.BookingType.SOS " +
+                        "AND b.status IN (com.petties.petties.model.enums.BookingStatus.SEARCHING, " +
+                        "com.petties.petties.model.enums.BookingStatus.PENDING_CLINIC_CONFIRM)")
+        List<Booking> findActiveSosBookingsByPetOwner(@Param("petOwnerId") UUID petOwnerId);
+
+        /**
+         * Find bookings by status and type
+         */
+        @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.type = :type")
+        List<Booking> findByStatusAndBookingType(
+                        @Param("status") BookingStatus status,
+                        @Param("type") BookingType type);
 }

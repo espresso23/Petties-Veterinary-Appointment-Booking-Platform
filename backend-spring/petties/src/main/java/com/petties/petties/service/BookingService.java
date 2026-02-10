@@ -5,6 +5,7 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
@@ -1028,6 +1029,62 @@ public class BookingService {
         }
 
         /**
+         * Process checkout for SOS booking (Manager action)
+         * Allows overriding SOS fee and transitions to COMPLETED
+         */
+        @Transactional
+        public BookingResponse processCheckout(UUID bookingId, CheckoutRequest request, User currentUser) {
+                log.info("Processing checkout for SOS booking {} by user {}", bookingId, currentUser.getUserId());
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate: Must be SOS
+                if (booking.getType() != BookingType.SOS) {
+                        throw new BadRequestException("Phương thức này chỉ dành cho khách hàng SOS");
+                }
+
+                // Validate: Status - allow IN_PROGRESS or ARRIVED or ON_THE_WAY
+                if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
+                        throw new IllegalStateException("Lịch hẹn đã kết thúc hoặc đã bị hủy");
+                }
+
+                // Handle SOS fee override or automated calculation
+                BigDecimal sosFee = BigDecimal.ZERO;
+                if (request != null && request.getOverriddenSosFee() != null) {
+                        sosFee = request.getOverriddenSosFee();
+                        log.info("Using overridden SOS fee: {}", sosFee);
+                } else {
+                        sosFee = pricingService.calculateSOSFee(booking.getClinic().getClinicId());
+                        log.info("Using automated SOS fee calculation: {}", sosFee);
+                }
+
+                // Update booking
+                booking.setSosFee(sosFee);
+
+                // Recalculate total price: Sum of services + sosFee (distance fee is usually 0
+                // for SOS)
+                BigDecimal servicesTotal = booking.getBookingServices().stream()
+                                .map(item -> item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal totalAmount = servicesTotal.add(sosFee);
+                booking.setTotalPrice(totalAmount);
+
+                // Finalize the booking
+                booking.setStatus(BookingStatus.COMPLETED);
+                bookingRepository.save(booking);
+
+                log.info("SOS Booking {} checked out successfully. Final price: {}", booking.getBookingCode(),
+                                totalAmount);
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECKOUT_COMPLETED");
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
          * Notify pet owner that staff is on the way (Manager action)
          * Does NOT change booking status - just sends notification
          * 
@@ -1136,14 +1193,30 @@ public class BookingService {
         }
 
         /**
-         * Get bookings by pet owner
+         * Get bookings by pet owner with eager loading to avoid LazyInitializationException
          */
-
         @Transactional(readOnly = true)
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
-                log.info("Fetching bookings for user: {}", petOwnerId);
-                Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
-                return bookings.map(bookingMapper::mapToResponse);
+                log.info("Fetching bookings for pet owner: {}", petOwnerId);
+
+                // Fetch all bookings with eager loading to avoid LazyInitializationException
+                List<Booking> allBookings = bookingRepository.findByPetOwnerIdWithRelations(petOwnerId);
+                long total = allBookings.size();
+
+                // Apply pagination manually
+                int start = (int) pageable.getOffset();
+                int end = Math.min(start + pageable.getPageSize(), allBookings.size());
+
+                List<Booking> pagedBookings = start >= allBookings.size()
+                        ? List.of()
+                        : allBookings.subList(start, end);
+
+                // Map to response
+                List<BookingResponse> responses = pagedBookings.stream()
+                        .map(bookingMapper::mapToResponse)
+                        .collect(Collectors.toList());
+
+                return new org.springframework.data.domain.PageImpl<>(responses, pageable, total);
         }
 
         // ========== SHARED VISIBILITY ==========

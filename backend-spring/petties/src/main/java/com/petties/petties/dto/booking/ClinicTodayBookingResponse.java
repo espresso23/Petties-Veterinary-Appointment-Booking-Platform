@@ -89,6 +89,8 @@ public class ClinicTodayBookingResponse {
     private BigDecimal homeLong;
     private BigDecimal distanceKm;
     private BigDecimal distanceFee;
+    private BigDecimal sosFee;
+    private String symptoms;
 
     // ========== TIMESTAMPS ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

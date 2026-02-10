@@ -252,3 +252,34 @@ export const getClinicTodayBookings = async (
     return response.data;
 };
 
+// ========== SOS BOOKING ==========
+
+/**
+ * Confirm SOS emergency booking request (Clinic Manager)
+ * Called when clinic accepts an SOS request from pet owner
+ */
+export const confirmSosRequest = async (
+    bookingId: string,
+    staffId?: string
+): Promise<Booking> => {
+    const response = await axios.post(`/sos/${bookingId}/confirm`, {
+        accepted: true,
+        staffId
+    });
+    return response.data;
+};
+
+/**
+ * Decline SOS emergency booking request (Clinic Manager)
+ * Called when clinic cannot accept an SOS request
+ */
+export const declineSosRequest = async (
+    bookingId: string,
+    reason?: string
+): Promise<void> => {
+    await axios.post(`/sos/${bookingId}/decline`, {
+        accepted: false,
+        reason
+    });
+};
+

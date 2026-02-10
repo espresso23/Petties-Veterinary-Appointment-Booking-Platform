@@ -18,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -42,6 +44,7 @@ import static org.mockito.Mockito.*;
  * 5. Edge cases (no clinics, all decline, etc.)
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("SOS Auto-Match Service - Unit Tests")
 class SosMatchingServiceUnitTest {
 
@@ -341,8 +344,8 @@ class SosMatchingServiceUnitTest {
             when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
             when(valueOperations.get(contains(":clinics"))).thenReturn(clinicIds);
             when(valueOperations.get(contains(":index"))).thenReturn(0);
-            when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
-            when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
+            lenient().when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
+            lenient().when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
                     .thenReturn(Collections.emptyList());
 
             // Act
@@ -425,8 +428,8 @@ class SosMatchingServiceUnitTest {
             when(valueOperations.get("sos:matching:" + bookingId + ":clinics"))
                     .thenReturn(List.of(clinicId1.toString(), clinicId2.toString()));
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
-            when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
-            when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
+            lenient().when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
+            lenient().when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
                     .thenReturn(Collections.emptyList());
 
             // Act

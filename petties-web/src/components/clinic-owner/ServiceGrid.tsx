@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
+import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon, ChevronDownIcon, CurrencyDollarIcon } from '@heroicons/react/24/solid'
 import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
@@ -21,7 +21,7 @@ import {
   inheritFromMasterService,
   getServicesByClinicId,
 } from '../../services/endpoints/service'
-import { getMyClinics, updateClinicPricePerKm } from '../../services/endpoints/clinic'
+import { getMyClinics, getClinicPricing, updateClinicPricing } from '../../services/endpoints/clinic'
 import type { ClinicResponse } from '../../services/endpoints/clinic'
 import { useToast } from '../../components/Toast'
 import type { ClinicServiceResponse, ClinicServiceRequest } from '../../types/service'
@@ -72,6 +72,7 @@ export function ServiceGrid() {
   const [isInheritModalOpen, setIsInheritModalOpen] = useState(false)
   const [pricingData, setPricingData] = useState<PricingData>({
     pricePerKm: 5000,
+    sosFee: 100000,
   })
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null)
@@ -82,12 +83,25 @@ export function ServiceGrid() {
     loadClinics()
   }, [])
 
-  // Load services when clinic changes
+  // Load services and pricing when clinic changes
   useEffect(() => {
     if (selectedClinic) {
       loadServicesForClinic(selectedClinic.clinicId)
+      loadClinicPricing(selectedClinic.clinicId)
     }
   }, [selectedClinic])
+
+  const loadClinicPricing = async (clinicId: string) => {
+    try {
+      const data = await getClinicPricing(clinicId)
+      setPricingData({
+        pricePerKm: data.pricePerKm || 5000,
+        sosFee: data.sosFee || 100000
+      })
+    } catch (err) {
+      console.error('Failed to load clinic pricing:', err)
+    }
+  }
 
   const loadClinics = async () => {
     try {
@@ -235,16 +249,18 @@ export function ServiceGrid() {
   const handleSavePricing = async (data: PricingData) => {
     try {
       setIsSubmitting(true)
-      // Update clinic-level price-per-km (no longer service-level)
       if (selectedClinic) {
-        await updateClinicPricePerKm(selectedClinic.clinicId, data.pricePerKm)
+        await updateClinicPricing(selectedClinic.clinicId, {
+          pricePerKm: data.pricePerKm,
+          sosFee: data.sosFee
+        })
       }
       setPricingData(data)
       setIsPricingModalOpen(false)
-      showToast('success', 'Đã cập nhật đơn giá di chuyển (KM)')
+      showToast('success', 'Đã cập nhật đơn giá di chuyển (KM) và phí SOS')
     } catch (error) {
       console.error('Failed to update pricing:', error)
-      showToast('error', 'Không thể cập nhật đơn giá di chuyển')
+      showToast('error', 'Không thể cập nhật đơn giá di chuyển và phí SOS')
     } finally {
       setIsSubmitting(false)
     }
@@ -346,11 +362,11 @@ export function ServiceGrid() {
               className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
               <div className="w-9 h-9 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl flex-shrink-0">
-                $
+                <CurrencyDollarIcon className="w-6 h-6" />
               </div>
               <div className="flex flex-col items-start leading-[1.1]">
-                <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập đơn giá</span>
-                <span className="font-black text-sm uppercase whitespace-nowrap">Kilômét (KM)</span>
+                <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập chung</span>
+                <span className="font-black text-sm uppercase whitespace-nowrap">Giá di chuyển & SOS</span>
               </div>
             </button>
           </div>

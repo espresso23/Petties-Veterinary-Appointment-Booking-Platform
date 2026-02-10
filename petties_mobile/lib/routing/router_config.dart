@@ -37,6 +37,9 @@ import '../ui/booking/booking_select_datetime_screen.dart';
 import '../ui/booking/booking_confirm_screen.dart';
 import '../ui/booking/booking_success_screen.dart';
 import '../ui/booking/booking_detail_screen.dart';
+import '../ui/booking/sos_request_screen.dart';
+import '../ui/booking/sos_matching_screen.dart';
+import '../ui/booking/sos_tracking_screen.dart';
 
 import 'app_routes.dart';
 
@@ -431,6 +434,32 @@ class AppRouterConfig {
               conversationId: conversationId,
               clinicId: clinicId,
             );
+          },
+        ),
+
+        // SOS Emergency Routes (Pet Owner)
+        GoRoute(
+          path: AppRoutes.sosRequest,
+          builder: (context, state) => const SosRequestScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.sosMatching,
+          builder: (context, state) {
+            final petId = state.uri.queryParameters['petId'] ?? '';
+            final petName = state.uri.queryParameters['petName'] ?? '';
+            final symptoms = state.uri.queryParameters['symptoms'];
+            return SosMatchingScreen(
+              petId: petId,
+              petName: petName,
+              symptoms: symptoms,
+            );
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.sosTracking,
+          builder: (context, state) {
+            final bookingId = state.uri.queryParameters['bookingId'];
+            return SosTrackingScreen(bookingId: bookingId);
           },
         ),
       ],

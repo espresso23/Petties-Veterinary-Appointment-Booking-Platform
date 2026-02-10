@@ -23,6 +23,7 @@ import {
     UserCircleIcon,
     ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline'
+import SosAlertModal from '../components/booking/SosAlertModal'
 import '../styles/brutalist.css'
 
 export const ClinicManagerLayout = () => {
@@ -183,6 +184,11 @@ export const ClinicManagerLayout = () => {
                 <div className="p-0 h-full">
                     <Outlet />
                 </div>
+
+                {/* SOS Alert Modal - Global listener */}
+                {user?.workingClinicId && (
+                    <SosAlertModal clinicId={user.workingClinicId} />
+                )}
             </main>
         </div>
     )

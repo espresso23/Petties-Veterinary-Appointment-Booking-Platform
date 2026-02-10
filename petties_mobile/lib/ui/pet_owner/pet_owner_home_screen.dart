@@ -239,33 +239,71 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       children: [
-        Expanded(
-            child: _buildActionCard(
-                Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: _buildActionCard(
-                Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: GestureDetector(
-          onTap: () async {
-            await context.push(AppRoutes.addPet);
-            _fetchPets(); // Refresh after returning
-          },
-          child:
-              _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
-        )),
-        const SizedBox(width: 12),
-        Expanded(
-            child: GestureDetector(
-          onTap: () => context.push(AppRoutes.myPets),
-          child: _buildActionCard(
-              Icons.medical_services, 'Sổ\ntiêm', AppColors.primary),
-        )),
+        // SOS Emergency Button - Prominent full width
+        GestureDetector(
+          onTap: () => context.push(AppRoutes.sosRequest),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626), // red-600
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.stone900, width: 2),
+              boxShadow: const [
+                BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.emergency, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'CẤP CỨU SOS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Original 4 quick action buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+                child: _buildActionCard(
+                    Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildActionCard(
+                    Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: GestureDetector(
+              onTap: () async {
+                await context.push(AppRoutes.addPet);
+                _fetchPets(); // Refresh after returning
+              },
+              child:
+                  _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
+            )),
+            const SizedBox(width: 12),
+            Expanded(
+                child: GestureDetector(
+              onTap: () => context.push(AppRoutes.myPets),
+              child: _buildActionCard(
+                  Icons.medical_services, 'Sổ\ntiêm', AppColors.primary),
+            )),
+          ],
+        ),
       ],
     );
   }

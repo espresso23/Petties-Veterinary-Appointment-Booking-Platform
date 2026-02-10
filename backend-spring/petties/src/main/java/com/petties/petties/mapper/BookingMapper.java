@@ -59,9 +59,9 @@ public class BookingMapper {
                                 log.info("Booking {} is NOT reviewed", booking.getBookingCode());
                         }
 
-                        // Calculate pet age
+                        // Calculate pet age - with null safety
                         String petAge = "N/A";
-                        if (pet.getDateOfBirth() != null) {
+                        if (pet != null && pet.getDateOfBirth() != null) {
                                 Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
                                 petAge = age.getYears() > 0
                                                 ? age.getYears() + " tuổi"
@@ -69,10 +69,24 @@ public class BookingMapper {
                         }
 
                         // Map services with assigned staff info and calculate scheduled times
-                        LocalTime currentTime = booking.getBookingTime();
+                        LocalTime currentTime = booking.getBookingTime() != null
+                                        ? booking.getBookingTime()
+                                        : LocalTime.of(9, 0);
                         List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
-                        for (BookingServiceItem item : booking.getBookingServices()) {
+                        // Safely handle null bookingServices
+                        List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
+                                        ? booking.getBookingServices()
+                                        : new ArrayList<>();
+
+                        for (BookingServiceItem item : bookingServices) {
+                                // Skip if service is null (data integrity issue)
+                                if (item.getService() == null) {
+                                        log.warn("BookingServiceItem {} has null service, skipping",
+                                                        item.getBookingServiceId());
+                                        continue;
+                                }
+
                                 User itemStaff = item.getAssignedStaff();
                                 int durationMinutes = item.getService().getDurationTime() != null
                                                 ? item.getService().getDurationTime()
@@ -122,27 +136,27 @@ public class BookingMapper {
                                         .reviewId(isReviewed ? booking.getReview().getReviewId() : null)
                                         .rating(isReviewed ? booking.getReview().getRating() : null)
                                         .reviewComment(isReviewed ? booking.getReview().getComment() : null)
-                                        // Pet info
-                                        .petId(pet.getId())
-                                        .petName(pet.getName())
-                                        .petSpecies(pet.getSpecies())
-                                        .petBreed(pet.getBreed())
+                                        // Pet info - with null safety
+                                        .petId(pet != null ? pet.getId() : null)
+                                        .petName(pet != null ? pet.getName() : "N/A")
+                                        .petSpecies(pet != null ? pet.getSpecies() : null)
+                                        .petBreed(pet != null ? pet.getBreed() : null)
                                         .petAge(petAge)
-                                        .petPhotoUrl(pet.getImageUrl())
-                                        .petWeight(pet.getWeight())
-                                        // Owner info
-                                        .ownerId(owner.getUserId())
-                                        .ownerName(owner.getFullName())
-                                        .ownerPhone(owner.getPhone())
-                                        .ownerEmail(owner.getEmail())
-                                        .ownerAvatarUrl(owner.getAvatar())
-                                        .ownerAddress(owner.getAddress())
+                                        .petPhotoUrl(pet != null ? pet.getImageUrl() : null)
+                                        .petWeight(pet != null ? pet.getWeight() : null)
+                                        // Owner info - with null safety
+                                        .ownerId(owner != null ? owner.getUserId() : null)
+                                        .ownerName(owner != null ? owner.getFullName() : "N/A")
+                                        .ownerPhone(owner != null ? owner.getPhone() : null)
+                                        .ownerEmail(owner != null ? owner.getEmail() : null)
+                                        .ownerAvatarUrl(owner != null ? owner.getAvatar() : null)
+                                        .ownerAddress(owner != null ? owner.getAddress() : null)
                                         // Clinic info
-                                        .clinicId(clinic.getClinicId())
-                                        .clinicName(clinic.getName())
-                                        .clinicLogo(clinic.getLogo())
-                                        .clinicAddress(clinic.getAddress())
-                                        .clinicPhone(clinic.getPhone())
+                                        .clinicId(clinic != null ? clinic.getClinicId() : null)
+                                        .clinicName(clinic != null ? clinic.getName() : "Đang tìm kiếm...")
+                                        .clinicLogo(clinic != null ? clinic.getLogo() : null)
+                                        .clinicAddress(clinic != null ? clinic.getAddress() : null)
+                                        .clinicPhone(clinic != null ? clinic.getPhone() : null)
                                         // Staff info
                                         .assignedStaffId(staff != null ? staff.getUserId() : null)
                                         .assignedStaffName(staff != null ? staff.getFullName() : null)
@@ -173,9 +187,12 @@ public class BookingMapper {
                                         .homeLong(booking.getHomeLong())
                                         .distanceKm(booking.getDistanceKm())
                                         .distanceFee(booking.getDistanceFee())
+                                        .sosFee(booking.getSosFee())
+                                        .symptoms(booking.getSymptoms())
                                         // Timestamps
                                         .createdAt(booking.getCreatedAt())
                                         .build();
+
                 } catch (Exception e) {
                         log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(),
                                         e);
@@ -386,9 +403,12 @@ public class BookingMapper {
                                         .homeLong(booking.getHomeLong())
                                         .distanceKm(booking.getDistanceKm())
                                         .distanceFee(booking.getDistanceFee())
+                                        .sosFee(booking.getSosFee())
+                                        .symptoms(booking.getSymptoms())
                                         // Timestamps
                                         .createdAt(booking.getCreatedAt())
                                         .build();
+
                 } catch (Exception e) {
                         log.error("Error mapping booking {} to ClinicTodayResponse: {}",
                                         booking.getBookingId(), e.getMessage(), e);

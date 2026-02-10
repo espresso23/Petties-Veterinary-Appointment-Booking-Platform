@@ -82,6 +82,8 @@ public class BookingResponse {
     private BigDecimal homeLong;
     private BigDecimal distanceKm;
     private BigDecimal distanceFee; // Home visit fee (pricePerKm × distanceKm) applied once
+    private BigDecimal sosFee; // SOS emergency fee
+    private String symptoms; // SOS symptoms description
 
     // ========== TIMESTAMPS ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
