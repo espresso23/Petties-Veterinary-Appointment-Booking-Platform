@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
@@ -61,6 +62,17 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   List<Prescription> _prescriptions = [];
   List<EmrImage> _images = [];
   bool _isSubmitting = false;
+  bool _isEditingPrescription = false;
+
+  static const List<String> _medicineSuggestions = [
+    'Amoxicillin 500mg',
+    'Amoxicillin 250mg',
+    'Metronidazole 250mg',
+    'Doxycycline 100mg',
+    'Prednisone 5mg',
+    'Cephalexin 500mg',
+    'Enrofloxacin 50mg',
+  ];
 
   @override
   void initState() {
@@ -170,6 +182,120 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     }
   }
 
+  Future<void> _pickPetImage(Pet pet, ImageSource source) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (image != null) {
+      try {
+        await _petService.updatePet(
+          id: pet.id,
+          name: pet.name,
+          species: pet.species,
+          breed: pet.breed,
+          dateOfBirth: pet.dateOfBirth,
+          weight: pet.weight,
+          gender: pet.gender,
+          color: pet.color,
+          allergies: pet.allergies,
+          image: image,
+        );
+        // Refresh local state by fetching booking again (which contains the pet)
+        _loadPetInfo();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi cập nhật ảnh: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _showPetImagePickerSheet(Pet pet) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.stone300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Ảnh đại diện cho ${pet.name}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPickerOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Chụp ảnh',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickPetImage(pet, ImageSource.camera);
+                  },
+                ),
+                _buildPickerOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Thư viện',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickPetImage(pet, ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _subjectiveController.dispose();
@@ -258,27 +384,48 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  color: AppColors.stone100,
-                  borderRadius: BorderRadius.circular(35),
-                  image: pet.imageUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(pet.imageUrl!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: pet.imageUrl == null
-                    ? Center(
-                        child: Text(
-                          pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              Stack(
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: AppColors.stone100,
+                      borderRadius: BorderRadius.circular(35),
+                      border: Border.all(color: AppColors.stone200),
+                      image: pet.imageUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(pet.imageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: pet.imageUrl == null
+                        ? Center(
+                            child: Text(
+                              pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.stone400),
+                            ),
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: () => _showPetImagePickerSheet(pet),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
                         ),
-                      )
-                    : null,
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -831,71 +978,684 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Kê đơn Thuốc',
+              'ĐƠN THUỐC ĐIỀU TRỊ',
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
                 color: AppColors.stone900,
+                letterSpacing: 1,
               ),
             ),
-            TextButton.icon(
-              onPressed: () => _showAddPrescriptionDialog(),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Thêm thuốc'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _addNewPrescriptionRow();
+                  setState(() => _isEditingPrescription = true);
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 20),
+                label: const Text('KÊ ĐƠN', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
               ),
             ),
           ],
         ),
-        if (_prescriptions.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.stone50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: Text(
-                'Chưa có thuốc nào',
-                style: TextStyle(color: AppColors.stone400),
+        if (_isEditingPrescription) ...[
+          const SizedBox(height: 24),
+          _buildPrescriptionEditForm(),
+        ],
+        const SizedBox(height: 16),
+        const Divider(height: 1, color: AppColors.stone100),
+        const SizedBox(height: 16),
+        _buildPrescriptionSummary(),
+      ],
+    );
+  }
+
+  // Renamed from _buildNeobrutalistButton to reflect the new style
+  Widget _buildPremiumConfirmButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return SizedBox(
+      height: 44,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(
+          label.toUpperCase(),
+          style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: AppColors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrescriptionSummary() {
+    if (_prescriptions.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.stone50,
+          border: Border.all(color: AppColors.stone200),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: const [
+            Icon(Icons.medication_liquid_outlined, size: 40, color: AppColors.stone300),
+            SizedBox(height: 12),
+            Text(
+              'Chưa có đơn thuốc nào được kê.',
+              style: TextStyle(
+                color: AppColors.stone400,
+                fontStyle: FontStyle.italic,
+                fontSize: 13,
               ),
             ),
-          )
-        else
-          ...(_prescriptions.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final p = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: AppColors.stone50,
-                borderRadius: BorderRadius.circular(12),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ..._prescriptions.map((p) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.stone200),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4)
               ),
-              child: ListTile(
-                title: Text(p.medicineName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (p.dosage != null && p.dosage!.isNotEmpty)
-                      Text('Hàm lượng: ${p.dosage}', style: const TextStyle(color: AppColors.stone500, fontSize: 13)),
-                    Text('${p.frequency} - ${p.durationDays ?? 0} ngày', style: const TextStyle(color: AppColors.stone600, fontSize: 13)),
-                    if (p.instructions != null && p.instructions!.isNotEmpty)
+            ],
+          ),
+          child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Medicine Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'HDSD: ${p.instructions}',
-                        style: const TextStyle(color: AppColors.stone500, fontStyle: FontStyle.italic, fontSize: 13),
+                        p.medicineName.toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          color: AppColors.stone900,
+                        ),
                       ),
-                  ],
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          _buildDetailLabel('${p.dosage ?? "0"} viên/lần'),
+                          _buildDetailLabel('${p.frequency} lần/ngày'),
+                          _buildDetailLabel('${p.durationDays ?? "0"} ngày', isHighlight: true),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  onPressed: () => setState(() => _prescriptions.removeAt(idx)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                onTap: () => _showAddPrescriptionDialog(item: p, index: idx),
+                
+                // Instructions box (if any)
+                if (p.instructions != null && p.instructions!.isNotEmpty) ...[
+                  const VerticalDivider(width: 24, thickness: 1, color: AppColors.stone200),
+                  Container(
+                    width: 80,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.stone50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.stone200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Hướng dẫn:',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.stone400,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          p.instructions!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.stone600,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+        )).toList(),
+      ],
+    );
+  }
+
+  Widget _buildDetailLabel(String text, {bool isHighlight = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 4,
+          height: 4,
+          decoration: BoxDecoration(
+            color: isHighlight ? Colors.orange : AppColors.stone300,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: isHighlight ? Colors.orange.shade800 : AppColors.stone500,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrescriptionEditForm() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.stone200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'DANH SÁCH THUỐC',
+                style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone500, fontSize: 13),
               ),
-            );
-          })),
+              _buildPremiumConfirmButton(
+                label: 'Xong',
+                icon: Icons.check_circle_outline,
+                onPressed: () => setState(() => _isEditingPrescription = false),
+                color: AppColors.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 32, color: AppColors.stone100),
+          ..._prescriptions.asMap().entries.map((entry) => _buildInlinePrescriptionCard(entry.key)),
+          
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _addNewPrescriptionRow(),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('THÊM THUỐC'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.stone700,
+                side: BorderSide(color: AppColors.stone300),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          if (_prescriptions.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _showDeleteAllPrescriptionsDialog(),
+                child: const Text('XÓA TẤT CẢ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 11)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteAllPrescriptionsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.transparent,
+        contentPadding: EdgeInsets.zero,
+        content: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_sweep_outlined, color: Colors.red, size: 32),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'XÓA TẤT CẢ THUỐC?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: AppColors.stone900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Hành động này sẽ xóa toàn bộ danh sách thuốc hiện tại. Bạn có chắc chắn muốn thực hiện?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.stone500,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'HỦY',
+                            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone600),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _prescriptions.clear();
+                          _isEditingPrescription = false;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'XÓA HẾT',
+                            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Placeholder for old section if we ever need to refer back, but now removed.
+
+  void _addNewPrescriptionRow() {
+    setState(() {
+      _prescriptions.add(Prescription(
+        medicineName: '',
+        frequency: '',
+        durationDays: null,
+        dosage: null,
+        instructions: null,
+      ));
+    });
+  }
+
+  void _updatePrescriptionField(int index, String field, dynamic value) {
+    setState(() {
+      final p = _prescriptions[index];
+      switch (field) {
+        case 'medicineName':
+          _prescriptions[index] = Prescription(
+            medicineName: value as String,
+            dosage: p.dosage,
+            frequency: p.frequency,
+            durationDays: p.durationDays,
+            instructions: p.instructions,
+          );
+          break;
+        case 'dosage':
+          _prescriptions[index] = Prescription(
+            medicineName: p.medicineName,
+            dosage: value as String?,
+            frequency: p.frequency,
+            durationDays: p.durationDays,
+            instructions: p.instructions,
+          );
+          break;
+        case 'frequency':
+          _prescriptions[index] = Prescription(
+            medicineName: p.medicineName,
+            dosage: p.dosage,
+            frequency: value as String,
+            durationDays: p.durationDays,
+            instructions: p.instructions,
+          );
+          break;
+        case 'durationDays':
+          _prescriptions[index] = Prescription(
+            medicineName: p.medicineName,
+            dosage: p.dosage,
+            frequency: p.frequency,
+            durationDays: value as int?,
+            instructions: p.instructions,
+          );
+          break;
+        case 'instructions':
+          _prescriptions[index] = Prescription(
+            medicineName: p.medicineName,
+            dosage: p.dosage,
+            frequency: p.frequency,
+            durationDays: p.durationDays,
+            instructions: value as String?,
+          );
+          break;
+      }
+    });
+  }
+
+  Widget _buildInlinePrescriptionCard(int index) {
+    final p = _prescriptions[index];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.stone200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with medicine name and delete button
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.medication_outlined, size: 18, color: AppColors.primary),
+              ),
+              const SizedBox(width: 8),
+              Text('Thuốc ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.stone600)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 20, color: Colors.red),
+                onPressed: () => setState(() => _prescriptions.removeAt(index)),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // Medicine Name (required)
+          // Medicine Name (required) with Autocomplete
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tên thuốc *',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
+                  ),
+                  const SizedBox(height: 4),
+                  Autocomplete<String>(
+                    initialValue: TextEditingValue(text: p.medicineName),
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text == '') {
+                        return const Iterable<String>.empty();
+                      }
+                      return _medicineSuggestions.where((String option) {
+                        return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (String selection) {
+                      _updatePrescriptionField(index, 'medicineName', selection);
+                    },
+                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                      // Sync controller with state if needed, though initialValue handles start
+                      // We need to ensure onChanged updates state
+                      return TextFormField(
+                        controller: textEditingController,
+                        focusNode: focusNode,
+                        style: const TextStyle(fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Amoxicillin 500mg',
+                          hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.stone50,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.stone200),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.stone200),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+                          ),
+                        ),
+                        onChanged: (v) => _updatePrescriptionField(index, 'medicineName', v),
+                      );
+                    },
+                    optionsViewBuilder: (context, onSelected, options) {
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: Material(
+                          elevation: 4.0,
+                          child: SizedBox(
+                            width: constraints.maxWidth,
+                            child: ListView.builder(
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemCount: options.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                final String option = options.elementAt(index);
+                                return InkWell(
+                                  onTap: () {
+                                    onSelected(option);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Text(option),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              );
+            }
+          ),
+          const SizedBox(height: 10),
+          
+          // Dosage and Frequency row
+          Row(
+            children: [
+              Expanded(
+                child: _buildInlineField(
+                  label: 'Liều lượng',
+                  value: p.dosage ?? '',
+                  hint: '1 viên',
+                  onChanged: (v) => _updatePrescriptionField(index, 'dosage', v.isEmpty ? null : v),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildInlineField(
+                  label: 'Tần suất *',
+                  value: p.frequency,
+                  hint: '2 lần/ngày',
+                  onChanged: (v) => _updatePrescriptionField(index, 'frequency', v),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          
+          // Duration and Instructions row
+          Row(
+            children: [
+              SizedBox(
+                width: 80,
+                child: _buildInlineField(
+                  label: 'Số ngày',
+                  value: p.durationDays?.toString() ?? '',
+                  hint: '7',
+                  isNumber: true,
+                  onChanged: (v) => _updatePrescriptionField(index, 'durationDays', int.tryParse(v)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildInlineField(
+                  label: 'Hướng dẫn',
+                  value: p.instructions ?? '',
+                  hint: 'Uống sau ăn',
+                  onChanged: (v) => _updatePrescriptionField(index, 'instructions', v.isEmpty ? null : v),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineField({
+    required String label,
+    required String value,
+    required String hint,
+    required ValueChanged<String> onChanged,
+    bool isNumber = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
+        ),
+        const SizedBox(height: 4),
+        TextFormField(
+          initialValue: value,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            isDense: true,
+            filled: true,
+            fillColor: AppColors.stone50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.stone200),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.stone200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+            ),
+          ),
+          onChanged: onChanged,
+        ),
       ],
     );
   }
@@ -941,125 +1701,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     });
   }
 
-  void _showAddPrescriptionDialog({Prescription? item, int? index}) {
-    final nameController = TextEditingController(text: item?.medicineName ?? '');
-    final contentController = TextEditingController(text: item?.dosage ?? ''); // Dosage (Hàm lượng)
-    final usageController = TextEditingController(text: item?.frequency ?? ''); // Frequency (Liều dùng)
-    final daysController = TextEditingController(text: item?.durationDays?.toString() ?? '');
-    final instructionsController = TextEditingController(text: item?.instructions ?? '');
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(item == null ? 'THÊM ĐƠN THUỐC' : 'CẬP NHẬT THUỐC', style: const TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Row 1: Name and Content
-              _buildDialogField('Tên thuốc *', nameController, 'Amoxicillin 250mg'),
-              const SizedBox(height: 12),
-              _buildDialogField('Hàm lượng', contentController, 'VD: 1 viên'),
-              const SizedBox(height: 12),
-              
-              // Row 2: Usage and Days
-              Row(
-                children: [
-                  Expanded(child: _buildDialogField('Liều dùng *', usageController, 'VD: 2 lần/ngày')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildDialogField('Số ngày dùng', daysController, 'VD: 7', isNumber: true)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              // Instructions
-              _buildDialogField('Hướng dẫn sử dụng', instructionsController, 'Ghi chú, lưu ý đặc biệt...', maxLines: 3),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.stone600,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: AppColors.stone300),
-              ),
-            ),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty && usageController.text.isNotEmpty) {
-                setState(() {
-                  final newItem = Prescription(
-                    medicineName: nameController.text,
-                    dosage: contentController.text.isEmpty ? null : contentController.text,
-                    frequency: usageController.text,
-                    durationDays: int.tryParse(daysController.text),
-                    instructions: instructionsController.text.isEmpty ? null : instructionsController.text,
-                  );
-                  
-                  if (index != null) {
-                    _prescriptions[index] = newItem;
-                  } else {
-                    _prescriptions.add(newItem);
-                  }
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(item == null ? 'Thêm thuốc' : 'Lưu'),
-          ),
-        ],
-        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-
-  Widget _buildDialogField(String label, TextEditingController controller, String hint, {bool isNumber = false, int maxLines = 1}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.stone700),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.stone300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.stone300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.primary, width: 2),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildImagesSection() {
     return Column(
@@ -1077,8 +1719,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
               ),
             ),
             TextButton.icon(
-              onPressed: _pickImage,
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              onPressed: _showImageSourceOptions,
+              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
               label: const Text('Thêm ảnh'),
               style: TextButton.styleFrom(foregroundColor: AppColors.primary),
             ),
@@ -1180,16 +1822,86 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     );
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
     try {
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final XFile? image = await picker.pickImage(source: source, imageQuality: 70);
       if (image != null) {
         _uploadImage(image);
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
     }
+  }
+
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.stone300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Thêm hình ảnh',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.blue100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.camera_alt, color: AppColors.blue600),
+                ),
+                title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.photo_library, color: AppColors.teal600),
+                ),
+                title: const Text('Chọn từ thư viện', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _uploadImage(XFile file) async {

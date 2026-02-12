@@ -57,6 +57,7 @@ public class BookingService {
         private final BookingServiceItemRepository bookingServiceItemRepository;
         private final SseEmitterService sseEmitterService;
         private final EmrRecordRepository emrRecordRepository;
+        private final VaccinationService vaccinationService;
 
         // ========== CREATE BOOKING ==========
 
@@ -374,6 +375,16 @@ public class BookingService {
                 log.info("Booking {} confirmed. Status: {}",
                                 updatedBooking.getBookingCode(), updatedBooking.getStatus());
 
+                // Auto-create draft vaccination records
+                try {
+                        for (BookingServiceItem item : updatedBooking.getBookingServices()) {
+                                vaccinationService.createDraftFromBooking(updatedBooking, item);
+                        }
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination drafts: {}", e.getMessage());
+                        // Don't fail the whole confirmation, just log error
+                }
+
                 return mapToResponse(updatedBooking);
         }
 
@@ -383,7 +394,8 @@ public class BookingService {
          * Get bookings for a clinic with optional status and type filter (Manager view)
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByClinic(UUID clinicId, BookingStatus status,
+        public Page<BookingResponse> getBookingsByClinic(UUID clinicId,
+                        com.petties.petties.model.enums.BookingStatus status,
                         com.petties.petties.model.enums.BookingType type, Pageable pageable) {
                 return bookingRepository.findByClinicIdAndStatusAndType(clinicId, status, type, pageable)
                                 .map(this::mapToResponse);
@@ -393,7 +405,8 @@ public class BookingService {
          * Get bookings assigned to a staff
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByStaff(UUID staffId, BookingStatus status, Pageable pageable) {
+        public Page<BookingResponse> getBookingsByStaff(UUID staffId,
+                        com.petties.petties.model.enums.BookingStatus status, Pageable pageable) {
                 log.info("Fetching booking history for staff ID: {}", staffId);
 
                 try {
@@ -652,7 +665,7 @@ public class BookingService {
          *
          * @param bookingId Booking ID
          * @param serviceId BookingServiceItem ID
-         * @return List of available staff with their status
+         * @return List of AvailableStaffResponse with their status
          */
         @Transactional(readOnly = true)
         public List<AvailableStaffResponse> getAvailableStaffForReassign(UUID bookingId, UUID serviceId) {
@@ -856,9 +869,15 @@ public class BookingService {
                 booking.setTotalPrice(newTotal);
 
                 bookingRepository.save(booking);
-
                 log.info("Added service '{}' to booking {}. New total: {} (added: {})",
                                 service.getName(), booking.getBookingCode(), newTotal, weightPrice);
+
+                // Auto-create draft vaccination record if service is a vaccine
+                try {
+                        vaccinationService.createDraftFromBooking(booking, newItem);
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination draft for add-on service: {}", e.getMessage());
+                }
 
                 // Push SSE event for real-time sync
                 pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
@@ -979,7 +998,8 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
 
                 // Validate status - allow ASSIGNED or ARRIVED
-                if (booking.getStatus() != BookingStatus.ASSIGNED && booking.getStatus() != BookingStatus.ARRIVED) {
+                if (booking.getStatus() != BookingStatus.ASSIGNED
+                                && booking.getStatus() != BookingStatus.ARRIVED) {
                         throw new IllegalStateException(
                                         "Chỉ có thể check-in khi booking ở trạng thái ASSIGNED hoặc ARRIVED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
@@ -999,6 +1019,15 @@ public class BookingService {
                         notificationService.sendCheckinNotification(booking);
                 } catch (Exception e) {
                         log.warn("Failed to send check-in notification: {}", e.getMessage());
+                }
+
+                // Auto-create draft vaccination records if missing
+                try {
+                        for (BookingServiceItem item : booking.getBookingServices()) {
+                                vaccinationService.createDraftFromBooking(booking, item);
+                        }
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination drafts during check-in: {}", e.getMessage());
                 }
 
                 return mapToResponse(booking);
@@ -1121,7 +1150,8 @@ public class BookingService {
 
                         // Push to all managers of the clinic
                         List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+                                        booking.getClinic().getClinicId(),
+                                        com.petties.petties.model.enums.Role.CLINIC_MANAGER);
                         for (User manager : managers) {
                                 sseEmitterService.pushToUser(manager.getUserId(), event);
                                 log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
@@ -1161,7 +1191,8 @@ public class BookingService {
 
                         // Push to all managers of the clinic
                         List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+                                        booking.getClinic().getClinicId(),
+                                        com.petties.petties.model.enums.Role.CLINIC_MANAGER);
                         for (User manager : managers) {
                                 sseEmitterService.pushToUser(manager.getUserId(), event);
                                 log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
@@ -1198,7 +1229,7 @@ public class BookingService {
 
                         // Get upcoming bookings (today and next 7 days) with active statuses
                         LocalDate endDate = today.plusDays(7);
-                        List<BookingStatus> activeStatuses = List.of(
+                        List<com.petties.petties.model.enums.BookingStatus> activeStatuses = List.of(
                                         BookingStatus.CONFIRMED,
                                         BookingStatus.ASSIGNED,
                                         BookingStatus.PENDING,

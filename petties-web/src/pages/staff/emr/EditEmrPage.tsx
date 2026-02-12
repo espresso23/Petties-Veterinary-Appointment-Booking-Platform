@@ -6,9 +6,11 @@ import {
     PlusIcon,
     CalendarDaysIcon,
     CalendarIcon,
-    PhotoIcon
+    PhotoIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline'
 import { useToast } from '../../../components/Toast'
+import { ConfirmModal } from '../../../components/ConfirmModal'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
 import { tokenStorage } from '../../../services/authService'
@@ -16,7 +18,7 @@ import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from 'date-fns/locale';
 import Select from 'react-select';
-import type { CreateEmrRequest, EmrImage } from '../../../services/emrService'
+import type { CreateEmrRequest, EmrImage, Prescription } from '../../../services/emrService'
 
 registerLocale('vi', vi);
 
@@ -54,6 +56,9 @@ export const EditEmrPage = () => {
     const [errors, setErrors] = useState<FieldErrors>({})
     const [isExpired, setIsExpired] = useState(false) // 24-hour edit window expired
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null) // For image preview modal
+    const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
+    const [tempPrescriptions, setTempPrescriptions] = useState<Prescription[]>([])
 
     // Form State (SOAP)
     const [subjective, setSubjective] = useState('')
@@ -79,10 +84,7 @@ export const EditEmrPage = () => {
     const [hasReExam, setHasReExam] = useState(false)
     const [medicalHistory, setMedicalHistory] = useState<{ date: string; diagnosis: string }[]>([])
 
-    // Prescription Modal State
-    const [showAddPrescription, setShowAddPrescription] = useState(false)
-    const [newPrescription, setNewPrescription] = useState<any>({})
-    const [editingPrescriptionIndex, setEditingPrescriptionIndex] = useState<number | null>(null)
+    // Prescription modal (already added showPrescriptionModal above)
 
 
     // Update date from dynamic input
@@ -224,31 +226,30 @@ export const EditEmrPage = () => {
         setImages(images.filter((_, i) => i !== index))
     }
 
-    // Prescription Handlers
-    const handleSavePrescription = () => {
-        if (!newPrescription.medicineName || !newPrescription.frequency) return
-
-        if (editingPrescriptionIndex !== null) {
-            const updated = [...prescriptions]
-            updated[editingPrescriptionIndex] = newPrescription
-            setPrescriptions(updated)
-        } else {
-            setPrescriptions([...prescriptions, newPrescription])
-        }
-
-        setNewPrescription({ medicineName: '', frequency: '', durationDays: 0, instructions: '' })
-        setShowAddPrescription(false)
-        setEditingPrescriptionIndex(null)
+    // Prescription Modal Handlers
+    const handleOpenPrescriptionModal = () => {
+        setTempPrescriptions(prescriptions.length > 0 ? [...prescriptions] : [{ medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setShowPrescriptionModal(true)
     }
 
-    const openEditPrescription = (index: number) => {
-        setNewPrescription(prescriptions[index])
-        setEditingPrescriptionIndex(index)
-        setShowAddPrescription(true)
+    const handleAddPrescriptionRow = () => {
+        setTempPrescriptions([...tempPrescriptions, { medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+    }
+
+    const handleUpdatePrescription = (index: number, field: string, value: string | number) => {
+        const updated = [...tempPrescriptions]
+        updated[index] = { ...updated[index], [field]: value }
+        setTempPrescriptions(updated)
     }
 
     const handleRemovePrescription = (index: number) => {
-        setPrescriptions(prescriptions.filter((_, i) => i !== index))
+        setTempPrescriptions(tempPrescriptions.filter((_, i) => i !== index))
+    }
+
+    const handleSavePrescriptions = () => {
+        const valid = tempPrescriptions.filter(p => p.medicineName.trim() !== '')
+        setPrescriptions(valid)
+        setShowPrescriptionModal(false)
     }
 
 
@@ -447,7 +448,10 @@ export const EditEmrPage = () => {
 
                             {/* S - Subjective */}
                             <div className="mb-6">
-                                <h3 className="font-bold text-amber-700 mb-1">S - Chủ quan (Subjective)</h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - CHỦ QUAN (Subjective)</h2>
+                                </div>
                                 <p className="text-xs text-stone-400 mb-2">Ghi triệu chứng theo lời kể của chủ nuôi</p>
                                 <textarea
                                     value={subjective}
@@ -461,9 +465,10 @@ export const EditEmrPage = () => {
 
                             {/* A - Assessment */}
                             <div className="mb-6">
-                                <h3 className="font-bold text-amber-700 mb-2">
-                                    A - Đánh giá (Assessment) <span className="text-red-500">*</span>
-                                </h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">A - ĐÁNH GIÁ (Assessment) <span className="text-red-500">*</span></h2>
+                                </div>
                                 <textarea
                                     value={assessment}
                                     onChange={e => setAssessment(e.target.value)}
@@ -476,67 +481,230 @@ export const EditEmrPage = () => {
                             </div>
                         </div>
 
-                        {/* Prescription Table */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-4">Kê đơn Thuốc</h3>
+                        {/* Prescription Section */}
+                        <div className="bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">ĐƠN THUỐC ĐIỀU TRỊ</h2>
+                                        <p className="text-stone-400 text-xs mt-1 font-medium uppercase tracking-widest">Danh mục thuốc được chỉ định</p>
+                                    </div>
+                                </div>
+                                {!isExpired && (
+                                    <button
+                                        onClick={handleOpenPrescriptionModal}
+                                        className="px-6 py-2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded-xl hover:bg-orange-100 transition-all flex items-center gap-2 text-sm active:scale-95"
+                                    >
+                                        <PlusIcon className="w-4 h-4" />
+                                        {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
+                                    </button>
+                                )}
+                            </div>
 
                             {prescriptions.length > 0 ? (
-                                <div className="border border-stone-200 rounded-xl overflow-hidden mb-4">
-                                    {/* Table Header */}
-                                    <div className="grid grid-cols-12 gap-2 p-3 bg-stone-50 border-b border-stone-100 text-xs font-bold text-stone-500 uppercase tracking-wide">
-                                        <div className="col-span-4 pl-1">Tên thuốc</div>
-                                        <div className="col-span-2">Liều lượng</div>
-                                        <div className="col-span-2">Tần suất</div>
-                                        <div className="col-span-2 text-center">Thời gian</div>
-                                        <div className="col-span-2 text-right pr-2">Chỉ định</div>
-                                    </div>
-                                    {/* Table Body */}
-                                    <div className="divide-y divide-stone-100 bg-white">
-                                        {prescriptions.map((p, i) => (
-                                            <div
-                                                key={i}
-                                                onClick={() => !isExpired && openEditPrescription(i)}
-                                                className={`grid grid-cols-12 gap-2 p-3 items-center text-xs text-stone-600 group ${isExpired ? '' : 'hover:bg-amber-50 cursor-pointer'}`}
-                                            >
-                                                <div className="col-span-4 font-bold text-stone-700 truncate pl-1" title={p.medicineName}>{p.medicineName}</div>
-                                                <div className="col-span-2 truncate" title={p.dosage}>{p.dosage || '-'}</div>
-                                                <div className="col-span-2 truncate" title={p.frequency}>{p.frequency}</div>
-                                                <div className="col-span-2 text-center whitespace-nowrap">{p.durationDays} ngày</div>
-                                                <div className="col-span-2 text-right pr-2 flex justify-end">
-                                                    {!isExpired && (
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleRemovePrescription(i); }}
-                                                            className="p-1 hover:bg-red-100 text-red-500 rounded transition-colors"
-                                                            title="Xoá thuốc"
-                                                        >
-                                                            <TrashIcon className="w-4 h-4" />
-                                                        </button>
-                                                    )}
+                                <div className="space-y-4">
+                                    {prescriptions.map((p, i) => (
+                                        <div key={i} className="group p-4 bg-white rounded-2xl border border-stone-100 flex flex-col md:flex-row gap-4 items-start md:items-center relative overflow-hidden">
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/30"></div>
+                                            <div className="pl-3 flex-1 min-w-0">
+                                                <div className="font-bold text-stone-800 text-sm tracking-tight">{p.medicineName}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {p.dosage.toLowerCase().includes('viên') ? p.dosage : `${p.dosage} viên/lần`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {p.frequency.toLowerCase().includes('lần') ? p.frequency : `${p.frequency} lần/ngày`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-orange-600 font-bold whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-orange-500"></span>
+                                                        {p.durationDays} NGÀY
+                                                    </span>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
+
+                                            {p.instructions && (
+                                                <div className="md:w-1/3 p-3 bg-stone-50/50 rounded-xl border border-stone-100 text-[11px] text-stone-500 italic">
+                                                    <span className="block not-italic font-bold text-stone-400 text-[9px] uppercase mb-1 tracking-tighter opacity-50">Hướng dẫn sử dụng</span>
+                                                    {p.instructions}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <div className="text-center py-8 bg-stone-50 rounded-xl border-dashed border-2 border-stone-200 mb-4">
-                                    <p className="text-stone-400 text-sm italic mb-2">Chưa có thuốc nào được kê.</p>
+                                <div
+                                    onClick={!isExpired ? handleOpenPrescriptionModal : undefined}
+                                    className={`group py-12 bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center transition-all ${!isExpired ? 'cursor-pointer hover:bg-amber-50/30 hover:border-amber-200' : 'cursor-default'}`}
+                                >
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4 transition-all border border-stone-100">
+                                        <PlusIcon className={`w-6 h-6 text-stone-400 ${!isExpired ? 'group-hover:text-amber-600 group-hover:scale-105' : ''}`} />
+                                    </div>
+                                    <p className="text-stone-400 text-xs font-semibold tracking-widest uppercase">
+                                        {isExpired ? 'CHƯA CÓ THUỐC ĐƯỢC KÊ' : 'BẤM ĐỂ BẮT ĐẦU KÊ ĐƠN'}
+                                    </p>
                                 </div>
                             )}
-
-                            {!isExpired && (
-                                <button
-                                    onClick={() => {
-                                        setNewPrescription({ medicineName: '', frequency: '', durationDays: 0, instructions: '' })
-                                        setEditingPrescriptionIndex(null)
-                                        setShowAddPrescription(true)
-                                    }}
-                                    className="w-full py-3 border-2 border-dashed border-stone-300 rounded-xl text-stone-500 font-bold hover:border-amber-500 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <PlusIcon className="w-5 h-5" />
-                                    Thêm thuốc vào đơn
-                                </button>
-                            )}
                         </div>
+
+                        {/* Prescription Modal */}
+                        {showPrescriptionModal && (
+                            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                                <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-stone-200">
+                                    {/* Modal Header */}
+                                    <div className="px-8 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-stone-800 tracking-tight">
+                                                {isExpired ? 'Thông tin thuốc đã kê' : 'Lập đơn thuốc'}
+                                            </h2>
+                                            <p className="text-stone-400 text-[10px] mt-0.5 font-medium">
+                                                {isExpired ? 'Bệnh án đã khóa, không thể chỉnh sửa thông tin này' : 'Chi tiết liều lượng và phác đồ điều trị tiêu chuẩn'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowPrescriptionModal(false)}
+                                            className="group p-2 hover:bg-white hover:shadow-md rounded-xl transition-all text-stone-300 hover:text-stone-500 border border-transparent hover:border-stone-100"
+                                        >
+                                            <XMarkIcon className="w-6 h-6" />
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-6">
+                                        <div className="space-y-2">
+                                            {/* Table Header */}
+                                            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-orange-50/50 border border-orange-100 rounded-xl text-[11px] font-bold text-orange-800 uppercase tracking-widest text-center">
+                                                <div className="col-span-3">Tên thuốc</div>
+                                                <div className="col-span-1">Liều</div>
+                                                <div className="col-span-1">T.Suất</div>
+                                                <div className="col-span-1">Ngày</div>
+                                                <div className="col-span-5">Hướng dẫn sử dụng</div>
+                                                <div className="col-span-1"></div>
+                                            </div>
+
+                                            {/* Rows */}
+                                            <div className="space-y-2">
+                                                {tempPrescriptions.map((p, i) => (
+                                                    <div key={i} className="grid grid-cols-12 gap-2 items-center p-2 rounded-2xl hover:bg-stone-50 transition-all border border-transparent hover:border-stone-100 group">
+                                                        <div className="col-span-3">
+                                                            <input
+                                                                type="text"
+                                                                list="medicine-list-modal"
+                                                                value={p.medicineName}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'medicineName', e.target.value)}
+                                                                placeholder="Tên thuốc..."
+                                                                disabled={isExpired}
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-bold text-stone-700 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-1">
+                                                            <input
+                                                                type="text"
+                                                                value={p.dosage || ''}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'dosage', e.target.value)}
+                                                                placeholder="1"
+                                                                disabled={isExpired}
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-1">
+                                                            <input
+                                                                type="text"
+                                                                value={p.frequency}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'frequency', e.target.value)}
+                                                                placeholder="2"
+                                                                disabled={isExpired}
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:text-stone-300 disabled:bg-stone-50 disabled:text-stone-400"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-1">
+                                                            <input
+                                                                type="number"
+                                                                value={p.durationDays || ''}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'durationDays', parseInt(e.target.value) || 0)}
+                                                                placeholder="7"
+                                                                disabled={isExpired}
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-2 py-2 text-sm text-center font-bold text-orange-600 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all disabled:bg-stone-50 disabled:text-orange-800/30"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-5">
+                                                            <input
+                                                                type="text"
+                                                                value={p.instructions || ''}
+                                                                onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
+                                                                placeholder="Hướng dẫn sử dụng chi tiết..."
+                                                                disabled={isExpired}
+                                                                className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 italic disabled:bg-stone-50 disabled:text-stone-400"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-1 flex justify-center">
+                                                            {!isExpired && (
+                                                                <button
+                                                                    onClick={() => handleRemovePrescription(i)}
+                                                                    className="p-3 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100 active:scale-90"
+                                                                >
+                                                                    <TrashIcon className="w-5 h-5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <datalist id="medicine-list-modal">
+                                                <option value="Amoxicillin 500mg" />
+                                                <option value="Metronidazole 250mg" />
+                                                <option value="Doxycycline 100mg" />
+                                                <option value="NexGard Spectra" />
+                                                <option value="Bravecto" />
+                                            </datalist>
+
+                                            {!isExpired && (
+                                                <button
+                                                    onClick={handleAddPrescriptionRow}
+                                                    className="w-full py-3 border-2 border-dashed border-stone-100 rounded-2xl text-stone-400 font-semibold hover:border-orange-500 hover:text-orange-700 hover:bg-orange-50/20 transition-all flex items-center justify-center gap-3 mt-4 group"
+                                                >
+                                                    <div className="w-5 h-5 rounded-md bg-stone-50 flex items-center justify-center group-hover:bg-orange-100 group-hover:text-orange-700 transition-all">
+                                                        <PlusIcon className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="uppercase tracking-widest text-[8px]">Thêm loại thuốc mới</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Modal Footer */}
+                                    <div className="px-8 py-4 border-t border-stone-100 flex items-center justify-between bg-stone-50/30">
+                                        {!isExpired ? (
+                                            <button
+                                                onClick={() => setShowResetConfirm(true)}
+                                                className="text-stone-400 hover:text-red-500 font-bold text-xs uppercase tracking-widest transition-colors"
+                                            >
+                                                Xóa toàn bộ
+                                            </button>
+                                        ) : (
+                                            <div />
+                                        )}
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                onClick={() => setShowPrescriptionModal(false)}
+                                                className="px-8 py-3 text-stone-500 font-bold hover:bg-stone-100 rounded-2xl transition-all text-sm"
+                                            >
+                                                {isExpired ? 'ĐÓNG' : 'QUAY LẠI'}
+                                            </button>
+                                            {!isExpired && (
+                                                <button
+                                                    onClick={handleSavePrescriptions}
+                                                    className="px-8 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-xl shadow-orange-100 transition-all active:scale-95 text-sm uppercase tracking-wider"
+                                                >
+                                                    CẬP NHẬT ĐƠN
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Images & Documents */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
@@ -550,7 +718,7 @@ export const EditEmrPage = () => {
                                 </label>
                             )}
 
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 md:grid-3 gap-4">
                                 {images.map((img, i) => (
                                     <div key={i} className="border border-stone-200 rounded-lg p-2">
                                         <div className="relative mb-2">
@@ -593,7 +761,10 @@ export const EditEmrPage = () => {
                     <div className="col-span-12 lg:col-span-4 space-y-4">
                         {/* O - Objective */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-amber-700 mb-1">O - Khách quan (Objective)</h3>
+                            <div className="flex items-center gap-3 mb-2">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
+                            </div>
                             <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
 
                             <div className="grid grid-cols-2 gap-3 mb-4">
@@ -627,11 +798,12 @@ export const EditEmrPage = () => {
                                         <button
                                             key={score}
                                             type="button"
-                                            onClick={() => setObjective({ ...objective, bcs: score })}
-                                            disabled={isExpired}
-                                            className={`w-8 h-8 rounded-full text-sm font-bold transition-colors disabled:opacity-50 ${objective.bcs === score
-                                                ? 'bg-amber-500 text-white'
-                                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                                            onClick={() => !isExpired && setObjective({ ...objective, bcs: score })}
+                                            className={`w-8 h-8 rounded-full text-sm font-bold transition-colors ${objective.bcs === score
+                                                ? 'bg-orange-500 text-white shadow-lg shadow-orange-200'
+                                                : isExpired
+                                                    ? 'bg-stone-50 text-stone-300'
+                                                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                                                 }`}
                                         >
                                             {score}
@@ -653,9 +825,10 @@ export const EditEmrPage = () => {
 
                         {/* P - Plan */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-amber-700 mb-4">
-                                P - Kế hoạch (Plan) <span className="text-red-500">*</span>
-                            </h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">P - KẾ HOẠCH (Plan) <span className="text-red-500">*</span></h2>
+                            </div>
                             <textarea
                                 value={plan}
                                 onChange={e => setPlan(e.target.value)}
@@ -762,145 +935,63 @@ export const EditEmrPage = () => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* Actions */}
-                <div className="flex justify-end gap-4 mt-8 pb-12">
+                < div className="flex justify-end gap-4 mt-8 pb-12" >
                     <button
                         onClick={() => navigate(-1)}
                         className="px-6 py-3 font-bold text-stone-500 hover:bg-stone-200 rounded-xl transition-colors"
                     >
                         {isExpired ? 'Quay lại' : 'Huỷ bỏ'}
                     </button>
-                    {!isExpired && (
-                        <button
-                            onClick={handleSubmit}
-                            disabled={isSaving}
-                            className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 transition-all disabled:opacity-50"
-                        >
-                            {isSaving ? 'ĐANG LƯU...' : 'CẬP NHẬT BỆNH ÁN'}
-                        </button>
-                    )}
-                </div>
+                    {
+                        !isExpired && (
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSaving}
+                                className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 transition-all disabled:opacity-50"
+                            >
+                                {isSaving ? 'ĐANG LƯU...' : 'CẬP NHẬT BỆNH ÁN'}
+                            </button>
+                        )
+                    }
+                </div >
 
                 {/* Image Preview Modal */}
-                {
-                    previewImage && (
-                        <div
-                            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-                            onClick={() => setPreviewImage(null)}
-                        >
-                            <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
-                                <img
-                                    src={previewImage.url}
-                                    alt="Preview"
-                                    className="max-w-full max-h-[85vh] object-contain rounded-lg"
-                                />
-                                {previewImage.description && (
-                                    <div className="mt-4 bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm text-center">
-                                        <p className="text-sm font-medium">{previewImage.description}</p>
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => setPreviewImage(null)}
-                                    className="absolute top-2 right-2 bg-white/90 hover:bg-white text-stone-800 rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg"
-                                >
-                                    ×
-                                </button>
-                            </div>
+                {previewImage && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative">
+                            <button
+                                onClick={() => setPreviewImage(null)}
+                                className="absolute top-4 right-4 bg-stone-900/40 text-white p-2 rounded-full hover:bg-stone-900/60 transition-colors z-10"
+                            >
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                            <img src={previewImage.url} alt="" className="object-contain w-full h-full" />
+                            {previewImage.description && (
+                                <div className="p-4 bg-stone-50 border-t border-stone-100">
+                                    <p className="text-stone-600 italic text-center text-sm">{previewImage.description}</p>
+                                </div>
+                            )}
                         </div>
-                    )
-                }
+                    </div>
+                )}
 
-                {/* Add Prescription Modal */}
-                {
-                    showAddPrescription && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                            <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-                                <div className="flex items-center justify-between mb-6">
-                                    <h3 className="text-xl font-black text-stone-800">THÊM ĐƠN THUỐC</h3>
-                                    <button onClick={() => setShowAddPrescription(false)} className="text-stone-400 hover:text-stone-600">✕</button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <label className="text-sm font-semibold text-stone-700">Tên thuốc*</label>
-                                        <input
-                                            type="text"
-                                            list="medicine-list"
-                                            value={newPrescription.medicineName || ''}
-                                            onChange={(e) => setNewPrescription({ ...newPrescription, medicineName: e.target.value })}
-                                            placeholder="Amoxicillin 250mg"
-                                            className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                        />
-                                        <datalist id="medicine-list">
-                                            <option value="Amoxicillin 500mg" />
-                                            <option value="Metronidazole 250mg" />
-                                            <option value="Doxycycline 100mg" />
-                                            <option value="Prednisone 5mg" />
-                                        </datalist>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-semibold text-stone-700">Liều lượng</label>
-                                        <input
-                                            type="text"
-                                            value={newPrescription.dosage || ''}
-                                            onChange={(e) => setNewPrescription({ ...newPrescription, dosage: e.target.value })}
-                                            placeholder="VD: 1 viên"
-                                            className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-semibold text-stone-700">Số lần/ngày*</label>
-                                        <input
-                                            type="text"
-                                            value={newPrescription.frequency || ''}
-                                            onChange={(e) => setNewPrescription({ ...newPrescription, frequency: e.target.value })}
-                                            placeholder="VD: 2 lần/ngày"
-                                            className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-semibold text-stone-700">Số ngày</label>
-                                        <input
-                                            type="number"
-                                            value={newPrescription.durationDays || ''}
-                                            onChange={(e) => setNewPrescription({ ...newPrescription, durationDays: parseInt(e.target.value) || undefined })}
-                                            placeholder="VD: 7"
-                                            className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mb-6">
-                                    <label className="text-sm font-semibold text-stone-700">Hướng dẫn sử dụng</label>
-                                    <textarea
-                                        value={newPrescription.instructions || ''}
-                                        onChange={(e) => setNewPrescription({ ...newPrescription, instructions: e.target.value })}
-                                        placeholder="Ghi chú, lưu ý đặc biệt..."
-                                        rows={3}
-                                        className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end gap-3">
-                                    <button
-                                        onClick={() => setShowAddPrescription(false)}
-                                        className="px-4 py-2 text-stone-500 font-bold hover:bg-stone-100 rounded-lg"
-                                    >
-                                        Huỷ
-                                    </button>
-                                    <button
-                                        onClick={handleSavePrescription}
-                                        className="px-6 py-2 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 shadow-md"
-                                    >
-                                        {editingPrescriptionIndex !== null ? 'Cập nhật' : 'Thêm'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                {/* Confirm Modal for Reset */}
+                <ConfirmModal
+                    isOpen={showResetConfirm}
+                    title="Xác nhận xóa"
+                    message="Bạn có chắc chắn muốn xóa toàn bộ đơn thuốc này không? Hành động này không thể hoàn tác."
+                    confirmLabel="XÓA TẤT CẢ"
+                    cancelLabel="QUAY LẠI"
+                    onConfirm={() => {
+                        setTempPrescriptions([])
+                        setShowResetConfirm(false)
+                    }}
+                    onCancel={() => setShowResetConfirm(false)}
+                    isDanger={true}
+                />
             </div>
         </div>
     )

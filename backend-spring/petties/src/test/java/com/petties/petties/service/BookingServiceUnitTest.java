@@ -2,10 +2,10 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
-import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
 import com.petties.petties.repository.*;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +49,8 @@ class BookingServiceUnitTest {
     private StaffAssignmentService staffAssignmentService;
     @Mock
     private EmrRecordRepository emrRecordRepository;
+    @Mock
+    private VaccinationService vaccinationService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -237,6 +242,40 @@ class BookingServiceUnitTest {
 
             assertEquals(1, result.size());
             assertEquals("New", result.get(0).getName());
+        }
+    }
+
+    @Nested
+    @DisplayName("confirmBooking Logic")
+    class ConfirmBookingTests {
+
+        @Test
+        @DisplayName("Confirm Booking - Success and Trigger Vaccination Draft")
+        void confirmBooking_Success_TriggersVaccinationDraft() {
+            // Arrange
+            booking.setStatus(BookingStatus.PENDING);
+            booking.setBookingDate(LocalDate.now().plusDays(1)); // Future
+
+            com.petties.petties.model.ClinicService vaccineService = new com.petties.petties.model.ClinicService();
+            vaccineService.setName("Rabies");
+            vaccineService.setServiceCategory(ServiceCategory.VACCINATION);
+
+            BookingServiceItem item = new BookingServiceItem();
+            item.setService(vaccineService);
+            booking.getBookingServices().add(item);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(bookingRepository.save(any())).thenReturn(booking);
+            when(staffAssignmentService.assignStaffToAllServices(any()))
+                    .thenReturn(Map.of(UUID.randomUUID(), new User()));
+
+            // Act
+            bookingService.confirmBooking(bookingId, null);
+
+            // Assert
+            assertEquals(com.petties.petties.model.enums.BookingStatus.ASSIGNED, booking.getStatus());
+            verify(vaccinationService, times(1)).createDraftFromBooking(eq(booking), eq(item));
+            verify(bookingRepository).save(booking);
         }
     }
 }

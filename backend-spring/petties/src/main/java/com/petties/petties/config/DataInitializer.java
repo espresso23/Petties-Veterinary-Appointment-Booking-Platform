@@ -122,7 +122,7 @@ public class DataInitializer implements CommandLineRunner {
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeStaffUser("vet", "123456", "vet@clinic.com", "Dr. Vet User", StaffSpecialty.VET_GENERAL);
+        initializeStaffUser("staff", "123456", "staff@clinic.com", "Dr. Staff User", StaffSpecialty.VET_GENERAL);
 
         // Create more pet owners for testing
         User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
@@ -145,7 +145,7 @@ public class DataInitializer implements CommandLineRunner {
                     log.info("   + Assigned clinicManager to clinic: {}", clinic.getName());
                 }
 
-                User staff = userRepository.findByUsername("vet").orElse(null);
+                User staff = userRepository.findByUsername("staff").orElse(null);
                 if (staff != null && staff.getWorkingClinic() == null) {
                     staff.setWorkingClinic(clinic);
                     userRepository.save(staff);
@@ -190,7 +190,7 @@ public class DataInitializer implements CommandLineRunner {
         // Seed EMR records for pets
         User staffForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
         if (staffForEmr == null) {
-            staffForEmr = userRepository.findByUsername("vet").orElse(null);
+            staffForEmr = userRepository.findByUsername("staff").orElse(null);
         }
 
         if (staffForEmr != null && clinic != null) {
@@ -345,8 +345,8 @@ public class DataInitializer implements CommandLineRunner {
                                         .instructions("Tiếp tục như trước")
                                         .build()))
                         .images(java.util.List.of())
-                        .examinationDate(now)
-                        .createdAt(now)
+                        .examinationDate(now.minusDays(1))
+                        .createdAt(now.minusDays(1))
                         .build();
                 emrRecordRepository.save(emr2);
                 log.info("   + Created EMR for pet 'Bella' - Tái khám");
@@ -512,6 +512,8 @@ public class DataInitializer implements CommandLineRunner {
         clinic.setName(name);
         clinic.setAddress(address);
         clinic.setPhone(phone);
+        clinic.setLatitude(java.math.BigDecimal.valueOf(21.0285)); // Hanoi Lat
+        clinic.setLongitude(java.math.BigDecimal.valueOf(105.8542)); // Hanoi Lng
         clinic.setStatus(ClinicStatus.APPROVED);
 
         try {

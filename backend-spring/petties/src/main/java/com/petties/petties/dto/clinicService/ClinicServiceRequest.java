@@ -56,4 +56,9 @@ public class ClinicServiceRequest {
     private String petType;
 
     private List<WeightPriceDto> weightPrices;
+
+    // Vaccine Specific Fields
+    private UUID vaccineTemplateId;
+
+    private List<VaccineDosePriceDTO> dosePrices;
 }

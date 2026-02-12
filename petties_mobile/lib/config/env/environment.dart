@@ -82,6 +82,7 @@ class Environment {
 
   /// AI Service URL
   static String get _devAiServiceUrl {
+
     if (Platform.isAndroid) {
       return 'http://localhost:8000';
     }

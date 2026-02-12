@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
@@ -29,6 +30,120 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     setState(() {
       _petFuture = _petService.getPet(widget.id);
     });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (image != null) {
+      try {
+        final pet = await _petFuture;
+        await _petService.updatePet(
+          id: pet.id,
+          name: pet.name,
+          species: pet.species,
+          breed: pet.breed,
+          dateOfBirth: pet.dateOfBirth,
+          weight: pet.weight,
+          gender: pet.gender,
+          color: pet.color,
+          allergies: pet.allergies,
+          image: image,
+        );
+        _refreshPet();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi cập nhật ảnh: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  void _showImagePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.stone300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Cập nhật ảnh thú cưng',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPickerOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Chụp ảnh',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                _buildPickerOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Thư viện',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -71,24 +186,40 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header Image
-                Container(
-                  height: 250,
-                  decoration: BoxDecoration(
-                    color: AppColors.stone200,
-                    border: const Border(
-                      bottom: BorderSide(color: AppColors.stone900, width: 2),
+                Stack(
+                  children: [
+                    Container(
+                      height: 250,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.stone200,
+                        image: pet.imageUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(pet.imageUrl!),
+                                fit: BoxFit.cover,
+                                colorFilter: ColorFilter.mode(
+                                  Colors.black.withOpacity(0.1),
+                                  BlendMode.darken,
+                                ),
+                              )
+                            : null,
+                      ),
+                      child: pet.imageUrl == null
+                          ? const Icon(Icons.pets,
+                              size: 80, color: AppColors.stone400)
+                          : null,
                     ),
-                    image: pet.imageUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(pet.imageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: pet.imageUrl == null
-                      ? const Icon(Icons.pets,
-                          size: 80, color: AppColors.stone400)
-                      : null,
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: FloatingActionButton.small(
+                        heroTag: 'change_avatar',
+                        onPressed: _showImagePickerSheet,
+                        backgroundColor: AppColors.primary,
+                        child: const Icon(Icons.camera_alt, color: Colors.white),
+                      ),
+                    ),
+                  ],
                 ),
 
                 // Info
@@ -102,13 +233,14 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
                           color: AppColors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: AppColors.stone900, width: 2),
-                          boxShadow: const [
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.stone200),
+                          boxShadow: [
                             BoxShadow(
-                                color: AppColors.stone900,
-                                offset: Offset(3, 3)),
+                              color: AppColors.stone900.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
                         child: Column(
@@ -125,18 +257,18 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
+                                  horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: AppColors.stone900, width: 2),
+                                color: AppColors.stone50,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.stone200),
                               ),
                               child: Text(
-                                '${pet.species} • ${pet.breed}'.toUpperCase(),
+                                '${pet.species} • ${pet.breed}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.white,
+                                  color: AppColors.stone700,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
@@ -226,8 +358,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.stone900, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone200),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,10 +399,14 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.stone900, width: 2),
-          boxShadow: const [
-            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color == AppColors.primary ? Colors.transparent : AppColors.stone200),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Row(

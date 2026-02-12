@@ -301,7 +301,8 @@ public class PetService {
                 com.petties.petties.model.enums.BookingStatus.CONFIRMED,
                 com.petties.petties.model.enums.BookingStatus.ASSIGNED,
                 com.petties.petties.model.enums.BookingStatus.ARRIVED,
-                com.petties.petties.model.enums.BookingStatus.IN_PROGRESS);
+                com.petties.petties.model.enums.BookingStatus.IN_PROGRESS,
+                com.petties.petties.model.enums.BookingStatus.COMPLETED);
 
         // Fetch bookings assigned to this Staff (Today onwards)
         List<com.petties.petties.model.Booking> myBookings = bookingRepository
@@ -336,6 +337,14 @@ public class PetService {
         List<com.petties.petties.model.Booking> clinicBookingsToday = bookingRepository.findByClinicIdAndDate(clinicId,
                 today).stream()
                 .filter(b -> b.getStatus() != com.petties.petties.model.enums.BookingStatus.PENDING)
+                .filter(b -> b.getAssignedStaff() != null && b.getAssignedStaff().getUserId().equals(staffId)) // Strict
+                                                                                                               // check:
+                                                                                                               // Only
+                                                                                                               // show
+                                                                                                               // status
+                                                                                                               // if
+                                                                                                               // assigned
+                                                                                                               // to ME
                 .collect(java.util.stream.Collectors.toList());
         for (com.petties.petties.model.Booking b : clinicBookingsToday) {
             Pet pet = b.getPet();

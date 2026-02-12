@@ -6,6 +6,8 @@ import com.petties.petties.model.enums.NotificationType;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.NotificationRepository;
 import com.petties.petties.repository.PetRepository;
+import com.petties.petties.service.FcmService;
+import com.petties.petties.service.SseEmitterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +26,8 @@ public class ReExaminationScheduler {
     private final EmrRecordRepository emrRecordRepository;
     private final NotificationRepository notificationRepository;
     private final PetRepository petRepository;
+    private final SseEmitterService sseEmitterService;
+    private final FcmService fcmService;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -103,7 +107,43 @@ public class ReExaminationScheduler {
                 .actionData(actionData)
                 .build();
 
-        notificationRepository.save(notification);
+        notification = notificationRepository.save(notification);
+
+        // Update: Push notification to user
+        pushNotificationToUser(owner.getUserId(), notification);
+
         log.info("Saved {} reminder for pet {} (owner {})", actionSuffix, pet.getName(), owner.getUserId());
+    }
+
+    private void pushNotificationToUser(java.util.UUID userId, Notification notification) {
+        // 1. Push via SSE
+        if (sseEmitterService.isUserConnected(userId)) {
+            var response = com.petties.petties.dto.notification.NotificationResponse.builder()
+                    .notificationId(notification.getNotificationId())
+                    .type(notification.getType())
+                    .message(notification.getMessage())
+                    .read(false)
+                    .createdAt(notification.getCreatedAt())
+                    .build();
+
+            var event = com.petties.petties.dto.sse.SseEventDto.notification(response);
+            sseEmitterService.pushToUser(userId, event);
+        }
+
+        // 2. Push via FCM
+        var user = notification.getUser();
+        if (user.getFcmToken() != null && !user.getFcmToken().isEmpty()) {
+            try {
+                fcmService.sendToUser(
+                        user,
+                        "Nhắc nhở lịch tái khám",
+                        notification.getMessage(),
+                        java.util.Map.of(
+                                "notificationId", notification.getNotificationId().toString(),
+                                "type", notification.getType().name()));
+            } catch (Exception e) {
+                log.error("Failed to send FCM push to user {}", userId, e);
+            }
+        }
     }
 }

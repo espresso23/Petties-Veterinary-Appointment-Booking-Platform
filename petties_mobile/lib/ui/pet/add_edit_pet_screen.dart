@@ -66,14 +66,99 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
     if (image != null) {
       setState(() {
         _selectedImage = image;
       });
     }
+  }
+
+  void _showImagePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.stone300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Chọn ảnh đại diện',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPickerOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Chụp ảnh',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                _buildPickerOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Thư viện',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -174,21 +259,22 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                     // Image Picker
                     Center(
                       child: GestureDetector(
-                        onTap: _pickImage,
+                        onTap: _showImagePickerSheet,
                         child: Stack(
                           children: [
                             Container(
                               width: 120,
                               height: 120,
                               decoration: BoxDecoration(
-                                color: AppColors.stone200,
-                                border: Border.all(
-                                    color: AppColors.stone900, width: 2),
+                                color: AppColors.white,
+                                border: Border.all(color: AppColors.stone200, width: 2),
                                 shape: BoxShape.circle,
-                                boxShadow: const [
+                                boxShadow: [
                                   BoxShadow(
-                                      color: AppColors.stone900,
-                                      offset: Offset(2, 2)),
+                                    color: AppColors.stone900.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
                                 ],
                                 image: _selectedImage != null
                                     ? DecorationImage(
@@ -206,8 +292,10 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                               ),
                               child: (_selectedImage == null &&
                                       _currentImageUrl == null)
-                                  ? const Icon(Icons.add_a_photo,
-                                      size: 40, color: AppColors.stone400)
+                                  ? const Center(
+                                      child: Icon(Icons.pets,
+                                          size: 40, color: AppColors.stone300),
+                                    )
                                   : null,
                             ),
                             Positioned(
@@ -216,15 +304,22 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.stone200,
+                                  color: AppColors.primary,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                      color: AppColors.stone900, width: 2),
+                                      color: AppColors.white, width: 3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                                 child: const Icon(
-                                  Icons.camera_alt,
+                                  Icons.add_a_photo,
                                   size: 18,
-                                  color: AppColors.stone900,
+                                  color: AppColors.white,
                                 ),
                               ),
                             ),

@@ -17,6 +17,9 @@ class ClinicServiceModel {
   final String? serviceCategory;
   final String? petType;
   final List<WeightPrice> weightPrices;
+  // NEW: Vaccine-specific fields
+  final String? vaccineTemplateId;
+  final List<VaccineDosePrice> dosePrices;
 
   ClinicServiceModel({
     required this.serviceId,
@@ -34,6 +37,9 @@ class ClinicServiceModel {
     this.serviceCategory,
     this.petType,
     this.weightPrices = const [],
+    // NEW: Vaccine-specific fields
+    this.vaccineTemplateId,
+    this.dosePrices = const [],
   });
 
   factory ClinicServiceModel.fromJson(Map<String, dynamic> json) {
@@ -54,6 +60,12 @@ class ClinicServiceModel {
       petType: json['petType'],
       weightPrices: (json['weightPrices'] as List<dynamic>?)
               ?.map((e) => WeightPrice.fromJson(e))
+              .toList() ??
+          [],
+      // NEW: Vaccine-specific fields
+      vaccineTemplateId: json['vaccineTemplateId'],
+      dosePrices: (json['dosePrices'] as List<dynamic>?)
+              ?.map((e) => VaccineDosePrice.fromJson(e))
               .toList() ??
           [],
     );
@@ -108,6 +120,55 @@ class ClinicServiceModel {
   bool hasSurchargeForWeight(double weight) {
     return getSurchargeForWeight(weight) != null;
   }
+
+  /// Check if this is a vaccination service
+  bool get isVaccination => serviceCategory == 'VACCINATION';
+
+  /// Get dose price for specific dose number
+  VaccineDosePrice? getDosePrice(int doseNumber) {
+    try {
+      return dosePrices.firstWhere((dp) => dp.doseNumber == doseNumber);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Get min dose price
+  double get minDosePrice {
+    if (dosePrices.isEmpty) return basePrice;
+    return dosePrices.map((e) => e.price).reduce((a, b) => a < b ? a : b);
+  }
+
+  /// Get max dose price
+  double get maxDosePrice {
+    if (dosePrices.isEmpty) return basePrice;
+    return dosePrices.map((e) => e.price).reduce((a, b) => a > b ? a : b);
+  }
+
+  /// Get formatted price range for display
+  String get formattedPriceRange {
+    if (!isVaccination || dosePrices.isEmpty) {
+      return formattedPrice;
+    }
+    
+    final min = minDosePrice;
+    final max = maxDosePrice;
+    
+    if (min == max) {
+      return _formatPrice(min);
+    }
+    
+    return '${_formatPrice(min)} - ${_formatPrice(max)}';
+  }
+
+  String _formatPrice(double price) {
+    if (price >= 1000000) {
+      return '${(price / 1000000).toStringAsFixed(1)}M đ';
+    } else if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(0)}K đ';
+    }
+    return '${price.toStringAsFixed(0)} đ';
+  }
 }
 
 class WeightPrice {
@@ -127,6 +188,43 @@ class WeightPrice {
       maxWeight: (json['maxWeight'] as num?)?.toDouble() ?? 0,
       price: (json['price'] as num?)?.toDouble() ?? 0,
     );
+  }
+}
+
+/// Vaccine Dose Price model - matches backend VaccineDosePriceDTO
+class VaccineDosePrice {
+  final String id;
+  final int doseNumber; // 1, 2, 3, 4 (annual)
+  final String doseLabel; // "Mũi 1", "Nhắc lại hằng năm"
+  final double price;
+  final bool isActive;
+
+  VaccineDosePrice({
+    required this.id,
+    required this.doseNumber,
+    required this.doseLabel,
+    required this.price,
+    this.isActive = true,
+  });
+
+  factory VaccineDosePrice.fromJson(Map<String, dynamic> json) {
+    return VaccineDosePrice(
+      id: json['id'] ?? '',
+      doseNumber: json['doseNumber'] ?? 1,
+      doseLabel: json['doseLabel'] ?? 'Mũi ${json['doseNumber'] ?? 1}',
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      isActive: json['isActive'] ?? true,
+    );
+  }
+
+  /// Format price for display
+  String get formattedPrice {
+    if (price >= 1000000) {
+      return '${(price / 1000000).toStringAsFixed(1)}M đ';
+    } else if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(0)}K đ';
+    }
+    return '${price.toStringAsFixed(0)} đ';
   }
 }
 

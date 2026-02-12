@@ -36,6 +36,10 @@ public class ClinicServiceResponse {
     private String reminderUnit;
     private List<WeightPriceDto> weightPrices;
 
+    // Vaccine-specific fields
+    private UUID vaccineTemplateId;
+    private List<VaccineDosePriceDTO> dosePrices;
+
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 

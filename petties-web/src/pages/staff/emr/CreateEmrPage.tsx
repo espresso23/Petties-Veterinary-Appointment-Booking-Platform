@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { PlusIcon, TrashIcon, PhotoIcon, CalendarDaysIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import {
+    PlusIcon,
+    TrashIcon,
+    PhotoIcon,
+    CalendarDaysIcon,
+    CalendarIcon,
+    XMarkIcon
+} from '@heroicons/react/24/outline'
+import { ConfirmModal } from '../../../components/ConfirmModal'
 import { emrService } from '../../../services/emrService'
 import { petService } from '../../../services/api/petService'
 import DatePicker, { registerLocale } from "react-datepicker";
@@ -114,7 +122,7 @@ export const CreateEmrPage = () => {
     const [reExamAmount, setReExamAmount] = useState(1)
     const [reExamUnit, setReExamUnit] = useState('Tuần')
     const [hasReExam, setHasReExam] = useState(false)
-    const [editingPrescriptionIndex, setEditingPrescriptionIndex] = useState<number | null>(null)
+
 
     // Update date when amount/unit changes
     useEffect(() => {
@@ -135,8 +143,9 @@ export const CreateEmrPage = () => {
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
 
     // Prescription modal
-    const [showAddPrescription, setShowAddPrescription] = useState(false)
-    const [newPrescription, setNewPrescription] = useState<Partial<Prescription>>({})
+    const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
+    const [tempPrescriptions, setTempPrescriptions] = useState<Prescription[]>([])
 
     // Initialize fields when petInfo loads
     useEffect(() => {
@@ -145,31 +154,31 @@ export const CreateEmrPage = () => {
         }
     }, [petInfo])
 
-    // ============= HANDLERS =============
-    const handleSavePrescription = () => {
-        if (!newPrescription.medicineName || !newPrescription.frequency) return
-
-        if (editingPrescriptionIndex !== null) {
-            const updated = [...prescriptions]
-            updated[editingPrescriptionIndex] = newPrescription as Prescription as Prescription
-            setPrescriptions(updated)
-        } else {
-            setPrescriptions([...prescriptions, newPrescription as Prescription])
-        }
-
-        setNewPrescription({ medicineName: '', frequency: '', durationDays: 0 as any, instructions: '' })
-        setShowAddPrescription(false)
-        setEditingPrescriptionIndex(null)
+    // Prescription Modal Handlers (Internal to Modal)
+    const handleOpenPrescriptionModal = () => {
+        setTempPrescriptions(prescriptions.length > 0 ? [...prescriptions] : [{ medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+        setShowPrescriptionModal(true)
     }
 
-    const openEditPrescription = (index: number) => {
-        setNewPrescription(prescriptions[index])
-        setEditingPrescriptionIndex(index)
-        setShowAddPrescription(true)
+    const handleAddPrescriptionRow = () => {
+        setTempPrescriptions([...tempPrescriptions, { medicineName: '', frequency: '', durationDays: 0, dosage: '', instructions: '' }])
+    }
+
+    const handleUpdatePrescription = (index: number, field: keyof Prescription, value: string | number) => {
+        const updated = [...tempPrescriptions]
+        updated[index] = { ...updated[index], [field]: value }
+        setTempPrescriptions(updated)
     }
 
     const handleRemovePrescription = (index: number) => {
-        setPrescriptions(prescriptions.filter((_, i) => i !== index))
+        setTempPrescriptions(tempPrescriptions.filter((_, i) => i !== index))
+    }
+
+    const handleSavePrescriptions = () => {
+        // Filter out empty rows if any
+        const valid = tempPrescriptions.filter(p => p.medicineName.trim() !== '')
+        setPrescriptions(valid)
+        setShowPrescriptionModal(false)
     }
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,7 +190,7 @@ export const CreateEmrPage = () => {
             setImages([...images, { url: result.url }])
         } catch (err: any) {
             console.error('Upload error:', err)
-            setErrors(prev => ({ ...prev, general: `Lỗi upload: ${err.response?.data?.message || err.message}` }))
+            setErrors(prev => ({ ...prev, general: `Lỗi upload: ${err.response?.data?.message || err.message} ` }))
         }
     }
 
@@ -405,7 +414,10 @@ export const CreateEmrPage = () => {
 
                             {/* S - Subjective */}
                             <div className="mb-6">
-                                <h3 className="font-bold text-amber-700 mb-1">S - Chủ quan (Subjective)</h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - CHỦ QUAN (Subjective)</h2>
+                                </div>
                                 <p className="text-xs text-stone-400 mb-2">Ghi triệu chứng theo lời kể của chủ nuôi</p>
                                 <textarea
                                     value={subjective}
@@ -422,9 +434,10 @@ export const CreateEmrPage = () => {
 
                             {/* A - Assessment */}
                             <div className="mb-6">
-                                <h3 className="font-bold text-amber-700 mb-2">
-                                    A - Đánh giá (Assessment) <span className="text-red-500">*</span>
-                                </h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">A - ĐÁNH GIÁ (Assessment) <span className="text-red-500">*</span></h2>
+                                </div>
                                 <textarea
                                     value={assessment}
                                     onChange={(e) => {
@@ -433,8 +446,7 @@ export const CreateEmrPage = () => {
                                     }}
                                     placeholder="Chẩn đoán sơ bộ và đánh giá tình trạng bệnh..."
                                     rows={3}
-                                    className={`w-full border rounded-lg p-3 text-sm focus:outline-none ${errors.assessment ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-amber-500'
-                                        }`}
+                                    className={`w-full border rounded-lg p-3 text-sm focus:outline-none ${errors.assessment ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-amber-500'}`}
                                 />
                                 {errors.assessment && (
                                     <p className="text-red-500 text-sm mt-1">{errors.assessment}</p>
@@ -442,68 +454,224 @@ export const CreateEmrPage = () => {
                             </div>
                         </div>
 
-                        {/* Prescription Table */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-4">Kê đơn Thuốc</h3>
+                        {/* Prescription Section */}
+                        <div className="bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">ĐƠN THUỐC ĐIỀU TRỊ</h2>
+                                        <p className="text-stone-400 text-[10px] mt-0.5 font-medium uppercase tracking-widest">Danh mục thuốc được chỉ định chi tiết</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleOpenPrescriptionModal}
+                                    className="px-6 py-2 bg-orange-50 text-orange-700 font-bold border border-orange-200 rounded-xl hover:bg-orange-100 transition-all flex items-center gap-2 text-sm active:scale-95"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    {prescriptions.length > 0 ? 'CHỈNH SỬA ĐƠN' : 'KÊ ĐƠN NGAY'}
+                                </button>
+                            </div>
 
                             {prescriptions.length > 0 ? (
-                                <div className="border border-stone-200 rounded-xl overflow-hidden mb-4">
-                                    {/* Table Header */}
-                                    <div className="grid grid-cols-12 gap-2 p-3 bg-stone-50 border-b border-stone-100 text-xs font-bold text-stone-500 uppercase tracking-wide">
-                                        <div className="col-span-4 pl-1">Tên thuốc</div>
-                                        <div className="col-span-2">Liều lượng</div>
-                                        <div className="col-span-2">Tần suất</div>
-                                        <div className="col-span-2 text-center">Thời gian</div>
-                                        <div className="col-span-2 text-right pr-2">Chỉ định</div>
-                                    </div>
-
-                                    {/* Table Body */}
-                                    <div className="divide-y divide-stone-100 bg-white">
-                                        {prescriptions.map((p, i) => (
-                                            <div
-                                                key={i}
-                                                onClick={() => openEditPrescription(i)}
-                                                className="grid grid-cols-12 gap-2 p-3 hover:bg-amber-50 cursor-pointer transition-colors items-center text-xs text-stone-600 group"
-                                            >
-                                                <div className="col-span-4 font-bold text-stone-700 truncate pl-1" title={p.medicineName}>{p.medicineName}</div>
-                                                <div className="col-span-2 truncate" title={p.dosage}>{p.dosage || '-'}</div>
-                                                <div className="col-span-2 truncate">{p.frequency}</div>
-                                                <div className="col-span-2 text-center">{p.durationDays} ngày</div>
-                                                <div className="col-span-2 text-right pr-2 italic text-stone-400 truncate relative">
-                                                    <span className="group-hover:opacity-0 transition-opacity text-xs">{p.instructions || '-'}</span>
-                                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex justify-end">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); handleRemovePrescription(i); }}
-                                                            className="p-1.5 hover:bg-red-100 text-red-500 rounded-md transition-colors"
-                                                            title="Xoá thuốc"
-                                                        >
-                                                            <TrashIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
+                                <div className="space-y-4">
+                                    {prescriptions.map((p, i) => (
+                                        <div key={i} className="group p-4 bg-white rounded-2xl border border-stone-100 flex flex-col md:flex-row gap-4 items-start md:items-center relative overflow-hidden">
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/30"></div>
+                                            <div className="pl-3 flex-1 min-w-0">
+                                                <div className="font-bold text-stone-800 text-sm tracking-tight">{p.medicineName}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {(p.dosage || '').toLowerCase().includes('viên') ? p.dosage : `${p.dosage || ''} viên/lần`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {(p.frequency || '').toLowerCase().includes('lần') ? p.frequency : `${p.frequency || ''} lần/ngày`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-orange-600 font-bold whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-orange-500"></span>
+                                                        {p.durationDays} NGÀY
+                                                    </span>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
+
+                                            {p.instructions && (
+                                                <div className="md:w-1/3 p-3 bg-stone-50/50 rounded-xl border border-stone-100 text-[11px] text-stone-500 italic">
+                                                    <span className="block not-italic font-bold text-stone-400 text-[9px] uppercase mb-1 tracking-tighter opacity-50">Hướng dẫn sử dụng</span>
+                                                    {p.instructions}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <div className="text-center py-8 bg-stone-50 rounded-xl border-dashed border-2 border-stone-200 mb-4">
-                                    <p className="text-stone-400 text-sm italic mb-2">Chưa có thuốc nào được kê.</p>
+                                <div
+                                    onClick={handleOpenPrescriptionModal}
+                                    className="group cursor-pointer py-12 bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center transition-all hover:bg-amber-50/30 hover:border-amber-200"
+                                >
+                                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4 group-hover:scale-105 group-hover:shadow-md transition-all border border-stone-100">
+                                        <PlusIcon className="w-6 h-6 text-stone-400 group-hover:text-amber-600" />
+                                    </div>
+                                    <p className="text-stone-400 text-xs font-semibold group-hover:text-stone-600 tracking-widest uppercase">Bấm để bắt đầu kê đơn</p>
                                 </div>
                             )}
+                        </div >
 
-                            <button
-                                onClick={() => {
-                                    setNewPrescription({ medicineName: '', frequency: '', durationDays: 0 as any, instructions: '' })
-                                    setEditingPrescriptionIndex(null)
-                                    setShowAddPrescription(true)
-                                }}
-                                className="w-full py-3 border-2 border-dashed border-stone-300 rounded-xl text-stone-500 font-bold hover:border-amber-500 hover:text-amber-600 hover:bg-amber-50 transition-all flex items-center justify-center gap-2"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                Thêm thuốc vào đơn
-                            </button>
-                        </div>
+                        {/* Prescription Modal */}
+                        {
+                            showPrescriptionModal && (
+                                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                                    <div className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-stone-200">
+                                        {/* Modal Header */}
+                                        <div className="px-8 py-4 border-b border-stone-100 flex items-center justify-between bg-stone-50/50">
+                                            <div>
+                                                <h2 className="text-xl font-bold text-stone-800 tracking-tight">Lập đơn thuốc</h2>
+                                                <p className="text-stone-400 text-[10px] mt-0.5 font-medium">Chi tiết liều lượng và phác đồ điều trị tiêu chuẩn</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowPrescriptionModal(false)}
+                                                className="group p-2 hover:bg-white hover:shadow-md rounded-xl transition-all text-stone-300 hover:text-stone-500 border border-transparent hover:border-stone-100"
+                                            >
+                                                <XMarkIcon className="w-6 h-6" />
+                                            </button>
+                                        </div>
 
+                                        <div className="flex-1 overflow-y-auto p-6 bg-white">
+                                            <div className="space-y-4">
+                                                {/* Table Header */}
+                                                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-orange-50/50 border border-orange-100 rounded-xl text-[11px] font-bold text-orange-800 uppercase tracking-widest text-center">
+                                                    <div className="col-span-3">Tên thuốc</div>
+                                                    <div className="col-span-1">Liều</div>
+                                                    <div className="col-span-1">T.Suất</div>
+                                                    <div className="col-span-1">Ngày</div>
+                                                    <div className="col-span-5">Hướng dẫn sử dụng</div>
+                                                    <div className="col-span-1"></div>
+                                                </div>
+
+                                                {/* Rows */}
+                                                <div className="space-y-2">
+                                                    {tempPrescriptions.map((p, i) => (
+                                                        <div key={i} className="grid grid-cols-12 gap-2 items-center p-2 rounded-2xl hover:bg-stone-50 transition-all border border-transparent hover:border-stone-100 group">
+                                                            <div className="col-span-3">
+                                                                <input
+                                                                    type="text"
+                                                                    list="medicine-list-modal"
+                                                                    value={p.medicineName}
+                                                                    onChange={(e) => handleUpdatePrescription(i, 'medicineName', e.target.value)}
+                                                                    placeholder="Tên thuốc..."
+                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-1.5 text-sm font-semibold text-stone-700 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-1">
+                                                                <input
+                                                                    type="text"
+                                                                    value={p.dosage || ''}
+                                                                    onChange={(e) => handleUpdatePrescription(i, 'dosage', e.target.value)}
+                                                                    placeholder="1"
+                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:text-stone-300"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-1">
+                                                                <input
+                                                                    type="text"
+                                                                    value={p.frequency}
+                                                                    onChange={(e) => handleUpdatePrescription(i, 'frequency', e.target.value)}
+                                                                    placeholder="2"
+                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:text-stone-300"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-1">
+                                                                <input
+                                                                    type="number"
+                                                                    value={p.durationDays || ''}
+                                                                    onChange={(e) => handleUpdatePrescription(i, 'durationDays', parseInt(e.target.value) || 0)}
+                                                                    placeholder="7"
+                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-1 py-1.5 text-sm text-center font-bold text-orange-600 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-600 outline-none transition-all shadow-sm shadow-orange-50"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-5">
+                                                                <input
+                                                                    type="text"
+                                                                    value={p.instructions || ''}
+                                                                    onChange={(e) => handleUpdatePrescription(i, 'instructions', e.target.value)}
+                                                                    placeholder="Hướng dẫn sử dụng chi tiết..."
+                                                                    className="w-full bg-white border border-stone-200 rounded-xl px-4 py-1.5 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-600 outline-none transition-all placeholder:font-normal placeholder:text-stone-300 italic"
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-1 flex justify-center">
+                                                                <button
+                                                                    onClick={() => handleRemovePrescription(i)}
+                                                                    className="p-2 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 active:scale-90"
+                                                                >
+                                                                    <TrashIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <datalist id="medicine-list-modal">
+                                                    <option value="Amoxicillin 500mg" />
+                                                    <option value="Metronidazole 250mg" />
+                                                    <option value="Doxycycline 100mg" />
+                                                    <option value="NexGard Spectra" />
+                                                    <option value="Bravecto" />
+                                                </datalist>
+
+                                                <button
+                                                    onClick={handleAddPrescriptionRow}
+                                                    className="w-full py-3 border-2 border-dashed border-stone-100 rounded-2xl text-stone-400 font-semibold hover:border-orange-500 hover:text-orange-700 hover:bg-orange-50/20 transition-all flex items-center justify-center gap-3 mt-4 group"
+                                                >
+                                                    <div className="w-5 h-5 rounded-md bg-stone-50 flex items-center justify-center group-hover:bg-orange-100 group-hover:text-orange-700 transition-all">
+                                                        <PlusIcon className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <span className="uppercase tracking-widest text-[8px]">Thêm loại thuốc mới</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Modal Footer */}
+                                        <div className="px-8 py-4 border-t border-stone-100 flex items-center justify-between bg-stone-50/30">
+                                            <button
+                                                onClick={() => setShowResetConfirm(true)}
+                                                className="text-stone-400 hover:text-red-500 font-bold text-[10px] uppercase tracking-widest transition-colors"
+                                            >
+                                                Xóa toàn bộ
+                                            </button>
+                                            <div className="flex items-center gap-4">
+                                                <button
+                                                    onClick={() => setShowPrescriptionModal(false)}
+                                                    className="px-6 py-2.5 text-stone-500 font-semibold hover:bg-white hover:shadow-sm rounded-xl transition-all text-sm"
+                                                >
+                                                    QUAY LẠI
+                                                </button>
+                                                <button
+                                                    onClick={handleSavePrescriptions}
+                                                    className="px-8 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 shadow-xl shadow-orange-100 transition-all active:scale-95 text-sm uppercase tracking-wider"
+                                                >
+                                                    Xác nhận đơn
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        }
+
+                        <ConfirmModal
+                            isOpen={showResetConfirm}
+                            title="Xác nhận xóa"
+                            message="Bạn có chắc chắn muốn xóa toàn bộ đơn thuốc này? Hành động này không thể hoàn tác."
+                            confirmLabel="XÓA TẤT CẢ"
+                            cancelLabel="QUAY LẠI"
+                            isDanger={true}
+                            onConfirm={() => {
+                                setTempPrescriptions([])
+                                setShowResetConfirm(false)
+                            }}
+                            onCancel={() => setShowResetConfirm(false)}
+                        />
                         {/* Images & Documents - Moved here from sidebar */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <h3 className="font-bold text-stone-700 mb-4">Hình ảnh & Tài liệu</h3>
@@ -548,14 +716,18 @@ export const CreateEmrPage = () => {
                                     ))}
                                 </div>
                             )}
-                        </div>
-                    </div>
+                        </div >
+
+                    </div >
 
                     {/* ========== RIGHT SIDEBAR ========== */}
-                    <div className="col-span-4 space-y-4">
+                    < div className="col-span-4 space-y-4" >
                         {/* O - Objective */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-amber-700 mb-1">O - Khách quan (Objective)</h3>
+                            <div className="flex items-center gap-3 mb-2">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
+                            </div>
                             <p className="text-xs text-stone-400 mb-4">Kết quả khám lâm sàng, chỉ số sinh tồn</p>
 
                             <div className="grid grid-cols-2 gap-3 mb-4">
@@ -595,9 +767,9 @@ export const CreateEmrPage = () => {
                                             key={score}
                                             type="button"
                                             onClick={() => setBcs(score)}
-                                            className={`w-8 h-8 rounded-full text-sm font-bold transition-colors ${bcs === score
-                                                ? 'bg-amber-500 text-white'
-                                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                                            className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${bcs === score
+                                                ? 'bg-stone-900 text-white shadow-xl shadow-stone-200 scale-110'
+                                                : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
                                                 }`}
                                         >
                                             {score}
@@ -614,13 +786,14 @@ export const CreateEmrPage = () => {
                                 rows={3}
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm"
                             />
-                        </div>
+                        </div >
 
                         {/* P - Plan */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-amber-700 mb-4">
-                                P - Kế hoạch (Plan) <span className="text-red-500">*</span>
-                            </h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">P - KẾ HOẠCH (Plan) <span className="text-red-500">*</span></h2>
+                            </div>
                             <textarea
                                 value={plan}
                                 onChange={(e) => {
@@ -632,13 +805,15 @@ export const CreateEmrPage = () => {
                                 className={`w-full border rounded-lg p-3 text-sm ${errors.plan ? 'border-red-400 focus:border-red-500' : 'border-stone-300 focus:border-amber-500'
                                     } focus:outline-none`}
                             />
-                            {errors.plan && (
-                                <p className="text-red-500 text-sm mt-1">{errors.plan}</p>
-                            )}
-                        </div>
+                            {
+                                errors.plan && (
+                                    <p className="text-red-500 text-sm mt-1">{errors.plan}</p>
+                                )
+                            }
+                        </div >
 
                         {/* Notes */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        < div className="bg-white rounded-2xl p-6 shadow-sm" >
                             <h3 className="font-bold text-stone-700 mb-2">Ghi chú (Tùy chọn)</h3>
                             <textarea
                                 value={notes}
@@ -647,10 +822,10 @@ export const CreateEmrPage = () => {
                                 rows={3}
                                 className="w-full border border-stone-300 rounded-lg p-3 text-sm focus:border-amber-500 focus:outline-none"
                             />
-                        </div>
+                        </div >
 
                         {/* Re-examination Date */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        < div className="bg-white rounded-2xl p-6 shadow-sm" >
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold text-stone-700 flex items-center gap-2">
                                     <CalendarDaysIcon className="w-5 h-5 text-amber-500" />
@@ -668,89 +843,91 @@ export const CreateEmrPage = () => {
                                 </button>
                             </div>
 
-                            {hasReExam && (
-                                <div className="space-y-4">
-                                    {/* Date Picker - FIRST */}
-                                    <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-                                        <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Ngày cụ thể</label>
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-20">
-                                                <CalendarIcon className="h-5 w-5 text-amber-400 group-focus-within:text-amber-600 transition-colors" />
-                                            </div>
-                                            <DatePicker
-                                                selected={reExaminationDate ? new Date(reExaminationDate) : null}
-                                                onChange={(date: Date | null) => setReExaminationDate(date ? date.toLocaleDateString('en-CA') : '')}
-                                                dateFormat="dd/MM/yyyy"
-                                                minDate={new Date()}
-                                                locale="vi"
-                                                placeholderText="Chọn ngày tái khám"
-                                                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-amber-700 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm hover:border-amber-200 cursor-pointer"
-                                                wrapperClassName="w-full block"
-                                                popperClassName="z-[9999]"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Duration Input - with react-select for proper z-index */}
-                                    <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
-                                        <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Hoặc sau khoảng</label>
-                                        <div className="flex gap-2 items-center">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={reExamAmount}
-                                                onChange={(e) => setReExamAmount(parseInt(e.target.value) || 0)}
-                                                className="w-20 py-2.5 px-3 text-center font-bold text-sm text-amber-700 focus:outline-none border border-stone-200 bg-white rounded-xl focus:ring-2 focus:ring-amber-500"
-                                            />
-                                            <div className="flex-1">
-                                                <Select
-                                                    value={{ value: reExamUnit, label: reExamUnit }}
-                                                    onChange={(option) => setReExamUnit(option?.value || 'Tuần')}
-                                                    options={[
-                                                        { value: 'Ngày', label: 'Ngày' },
-                                                        { value: 'Tuần', label: 'Tuần' },
-                                                        { value: 'Tháng', label: 'Tháng' },
-                                                        { value: 'Năm', label: 'Năm' },
-                                                    ]}
-                                                    menuPortalTarget={document.body}
-                                                    menuPosition="fixed"
-                                                    styles={{
-                                                        control: (base) => ({
-                                                            ...base,
-                                                            borderRadius: '0.75rem',
-                                                            borderColor: '#e7e5e4',
-                                                            minHeight: '42px',
-                                                            boxShadow: 'none',
-                                                            '&:hover': { borderColor: '#f59e0b' },
-                                                        }),
-                                                        option: (base, state) => ({
-                                                            ...base,
-                                                            backgroundColor: state.isSelected ? '#f59e0b' : state.isFocused ? '#fef3c7' : 'white',
-                                                            color: state.isSelected ? 'white' : '#78716c',
-                                                            fontWeight: 500,
-                                                        }),
-                                                        singleValue: (base) => ({
-                                                            ...base,
-                                                            color: '#b45309',
-                                                            fontWeight: 500,
-                                                        }),
-                                                        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                                                    }}
-                                                    isSearchable={false}
+                            {
+                                hasReExam && (
+                                    <div className="space-y-4">
+                                        {/* Date Picker - FIRST */}
+                                        <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
+                                            <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Ngày cụ thể</label>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-20">
+                                                    <CalendarIcon className="h-5 w-5 text-amber-400 group-focus-within:text-amber-600 transition-colors" />
+                                                </div>
+                                                <DatePicker
+                                                    selected={reExaminationDate ? new Date(reExaminationDate) : null}
+                                                    onChange={(date: Date | null) => setReExaminationDate(date ? date.toLocaleDateString('en-CA') : '')}
+                                                    dateFormat="dd/MM/yyyy"
+                                                    minDate={new Date()}
+                                                    locale="vi"
+                                                    placeholderText="Chọn ngày tái khám"
+                                                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-amber-700 font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm hover:border-amber-200 cursor-pointer"
+                                                    wrapperClassName="w-full block"
+                                                    popperClassName="z-[9999]"
                                                 />
                                             </div>
                                         </div>
+
+                                        {/* Duration Input - with react-select for proper z-index */}
+                                        <div className="bg-stone-50 rounded-xl p-4 border border-stone-100">
+                                            <label className="text-xs font-bold text-stone-500 uppercase mb-3 block">Hoặc sau khoảng</label>
+                                            <div className="flex gap-2 items-center">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={reExamAmount}
+                                                    onChange={(e) => setReExamAmount(parseInt(e.target.value) || 0)}
+                                                    className="w-20 py-2.5 px-3 text-center font-bold text-sm text-amber-700 focus:outline-none border border-stone-200 bg-white rounded-xl focus:ring-2 focus:ring-amber-500"
+                                                />
+                                                <div className="flex-1">
+                                                    <Select
+                                                        value={{ value: reExamUnit, label: reExamUnit }}
+                                                        onChange={(option) => setReExamUnit(option?.value || 'Tuần')}
+                                                        options={[
+                                                            { value: 'Ngày', label: 'Ngày' },
+                                                            { value: 'Tuần', label: 'Tuần' },
+                                                            { value: 'Tháng', label: 'Tháng' },
+                                                            { value: 'Năm', label: 'Năm' },
+                                                        ]}
+                                                        menuPortalTarget={document.body}
+                                                        menuPosition="fixed"
+                                                        styles={{
+                                                            control: (base) => ({
+                                                                ...base,
+                                                                borderRadius: '0.75rem',
+                                                                borderColor: '#e7e5e4',
+                                                                minHeight: '42px',
+                                                                boxShadow: 'none',
+                                                                '&:hover': { borderColor: '#f59e0b' },
+                                                            }),
+                                                            option: (base, state) => ({
+                                                                ...base,
+                                                                backgroundColor: state.isSelected ? '#f59e0b' : state.isFocused ? '#fef3c7' : 'white',
+                                                                color: state.isSelected ? 'white' : '#78716c',
+                                                                fontWeight: 500,
+                                                            }),
+                                                            singleValue: (base) => ({
+                                                                ...base,
+                                                                color: '#b45309',
+                                                                fontWeight: 500,
+                                                            }),
+                                                            menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+                                                        }}
+                                                        isSearchable={false}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )
+                            }
+                        </div >
 
 
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {/* Submit Button */}
-                <div className="flex justify-end mt-6">
+                < div className="flex justify-end mt-6" >
                     <button
                         onClick={handleSubmit}
                         disabled={isLoading}
@@ -758,124 +935,38 @@ export const CreateEmrPage = () => {
                     >
                         {isLoading ? 'ĐANG LƯU...' : 'LƯU VÀ TIẾP TỤC'}
                     </button>
-                </div>
-            </div>
-
-            {/* ========== ADD PRESCRIPTION MODAL ========== */}
-            {showAddPrescription && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-black text-stone-800">THÊM ĐƠN THUỐC</h3>
-                            <button onClick={() => setShowAddPrescription(false)} className="text-stone-400 hover:text-stone-600">✕</button>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="text-sm font-semibold text-stone-700">Tên thuốc*</label>
-                                <input
-                                    type="text"
-                                    list="medicine-list"
-                                    value={newPrescription.medicineName || ''}
-                                    onChange={(e) => setNewPrescription({ ...newPrescription, medicineName: e.target.value })}
-                                    placeholder="Amoxicillin 250mg"
-                                    className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                />
-                                <datalist id="medicine-list">
-                                    <option value="Amoxicillin 500mg" />
-                                    <option value="Metronidazole 250mg" />
-                                    <option value="Doxycycline 100mg" />
-                                    <option value="Prednisone 5mg" />
-                                </datalist>
-                            </div>
-                            <div>
-                                <label className="text-sm font-semibold text-stone-700">Liều lượng</label>
-                                <input
-                                    type="text"
-                                    value={newPrescription.dosage || ''}
-                                    onChange={(e) => setNewPrescription({ ...newPrescription, dosage: e.target.value })}
-                                    placeholder="VD: 1 viên"
-                                    className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-sm font-semibold text-stone-700">Số lần/ngày*</label>
-                                <input
-                                    type="text"
-                                    value={newPrescription.frequency || ''}
-                                    onChange={(e) => setNewPrescription({ ...newPrescription, frequency: e.target.value })}
-                                    placeholder="VD: 2 lần/ngày"
-                                    className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-sm font-semibold text-stone-700">Số ngày</label>
-                                <input
-                                    type="number"
-                                    value={newPrescription.durationDays || ''}
-                                    onChange={(e) => setNewPrescription({ ...newPrescription, durationDays: parseInt(e.target.value) || undefined })}
-                                    placeholder="VD: 7"
-                                    className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mb-6">
-                            <label className="text-sm font-semibold text-stone-700">Hướng dẫn sử dụng</label>
-                            <textarea
-                                value={newPrescription.instructions || ''}
-                                onChange={(e) => setNewPrescription({ ...newPrescription, instructions: e.target.value })}
-                                placeholder="Ghi chú, lưu ý đặc biệt (VD: Uống sau bữa ăn 30 phút...)"
-                                rows={3}
-                                className="w-full border border-stone-300 rounded-lg p-3 mt-1"
-                            />
-                        </div>
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setShowAddPrescription(false)}
-                                className="flex-1 px-4 py-3 border-2 border-stone-300 text-stone-700 font-bold rounded-lg hover:bg-stone-50"
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                onClick={handleSavePrescription}
-                                className="flex-1 px-4 py-3 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600"
-                            >
-                                Thêm thuốc
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                </div >
+            </div >
 
             {/* Image Preview Modal */}
-            {previewImage && (
-                <div
-                    className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-                    onClick={() => setPreviewImage(null)}
-                >
-                    <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
-                        <img
-                            src={previewImage.url}
-                            alt="Preview"
-                            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-                        />
-                        {previewImage.description && (
-                            <div className="mt-4 bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm text-center">
-                                <p className="text-sm font-medium">{previewImage.description}</p>
-                            </div>
-                        )}
-                        <button
-                            onClick={() => setPreviewImage(null)}
-                            className="absolute top-2 right-2 bg-white/90 hover:bg-white text-stone-800 rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg"
-                        >
-                            ×
-                        </button>
+            {
+                previewImage && (
+                    <div
+                        className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+                        onClick={() => setPreviewImage(null)}
+                    >
+                        <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+                            <img
+                                src={previewImage.url}
+                                alt="Preview"
+                                className="max-w-full max-h-[85vh] object-contain rounded-lg"
+                            />
+                            {previewImage.description && (
+                                <div className="mt-4 bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm text-center">
+                                    <p className="text-sm font-medium">{previewImage.description}</p>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setPreviewImage(null)}
+                                className="absolute top-2 right-2 bg-white/90 hover:bg-white text-stone-800 rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg"
+                            >
+                                ×
+                            </button>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }
 

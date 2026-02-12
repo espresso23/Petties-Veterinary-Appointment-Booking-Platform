@@ -1636,10 +1636,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       child: Container(
         width: 220,
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.orange.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: Colors.orange.withOpacity(0.15)),
         ),
         child: Column(
@@ -1711,10 +1711,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.stone200),
         boxShadow: [
           BoxShadow(
@@ -1856,7 +1856,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             ],
           ),
 
-          if (rec.notes != null && rec.notes!.isNotEmpty) ...[
+          if (rec.notes != null && rec.notes!.isNotEmpty && !rec.notes!.startsWith('Automatically created')) ...[
              const SizedBox(height: 16),
              Container(
                width: double.infinity,
@@ -1917,7 +1917,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: Colors.orange.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 8)),
@@ -1930,10 +1930,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
           children: [
             // Form Header with Booking Badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.orange.withOpacity(0.03),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Row(
                 children: [
@@ -1968,20 +1968,42 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             ),
 
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Section 1: Thông tin mũi tiêm
-                  const Text('THÔNG TIN MŨI TIÊM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400, letterSpacing: 0.8)),
-                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.stone100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.format_list_bulleted, size: 12, color: AppColors.stone500),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'TRÌNH TỰ MŨI TIÊM',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.stone600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   
                   // Dose Selector Tabs
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: AppColors.stone100,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
                       children: [
@@ -1995,15 +2017,15 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   const SizedBox(height: 24),
 
                   // Fields: Vaccine Name + Icon
-                  const Text('LOẠI VACCINE *', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone600)),
+                  const Text('LOẠI VACCINE *', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400, letterSpacing: 0.5)),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: _showVaccineSelectionSheet,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                       decoration: BoxDecoration(
                         color: AppColors.stone50,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.stone200),
                       ),
                       child: Row(
@@ -2072,18 +2094,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   const SizedBox(height: 24),
 
                   // Notes
-                  const Text('GHI CHÚ / PHẢN ỨNG', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone600)),
+                  const Text('GHI CHÚ / PHẢN ỨNG SAU TIÊM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400, letterSpacing: 0.5)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _notesDetailController,
                     maxLines: 2,
                     decoration: InputDecoration(
-                      hintText: 'Ghi chú thêm về phản ứng sau tiêm, số lô thuốc...',
+                      hintText: 'VD: Không có phản ứng phụ, thú cưng khỏe mạnh...',
                       hintStyle: const TextStyle(fontSize: 12, color: AppColors.stone400),
                       filled: true,
                       fillColor: AppColors.stone50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.stone200)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.stone200)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.stone200)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.stone200)),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -2098,7 +2120,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                           backgroundColor: Colors.orange.shade800,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
                         child: _isSubmittingVaccination
@@ -2125,7 +2147,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? AppColors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null,
           ),
           child: Center(
@@ -2156,10 +2178,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       borderRadius: BorderRadius.circular(12),
       child: Container(
         height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
           color: AppColors.stone50,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.stone200),
         ),
         child: Row(

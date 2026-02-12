@@ -239,11 +239,13 @@ class AppRouterConfig {
             final petName = state.uri.queryParameters['petName'] ?? 'Thú cưng';
             final bookingId = state.uri.queryParameters['bookingId'];
             final bookingCode = state.uri.queryParameters['bookingCode'];
+            final initialVaccineName = state.uri.queryParameters['initialVaccineName'];
             return VaccinationFormScreen(
               petId: petId,
               petName: petName,
               bookingId: bookingId,
               bookingCode: bookingCode,
+              initialVaccineName: initialVaccineName,
             );
           },
         ),

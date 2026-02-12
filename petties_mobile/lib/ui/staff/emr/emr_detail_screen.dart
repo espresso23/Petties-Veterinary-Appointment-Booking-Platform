@@ -517,20 +517,58 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                 const SizedBox(height: 4),
                 Row(
                    children: [
-                     if (p.dosage != null) 
-                       Container(
-                         margin: const EdgeInsets.only(right: 8),
-                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
-                         child: Text(p.dosage!, style: const TextStyle(fontSize: 12)),
+                     Container(
+                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                       decoration: BoxDecoration(
+                         color: Colors.white,
+                         borderRadius: BorderRadius.circular(8),
+                         border: Border.all(color: AppColors.stone200),
                        ),
-                     Text('${p.frequency} • ${p.durationDays} ngày', style: const TextStyle(fontSize: 13, color: AppColors.stone600)),
+                       child: Row(
+                         children: [
+                           Text(
+                             '${p.dosage ?? "0"} viên/lần',
+                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.stone800),
+                           ),
+                           const Padding(
+                             padding: EdgeInsets.symmetric(horizontal: 8),
+                             child: Text('•', style: TextStyle(color: AppColors.stone300)),
+                           ),
+                           Text(
+                             '${p.frequency} lần/ngày',
+                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.stone800),
+                           ),
+                           const Padding(
+                             padding: EdgeInsets.symmetric(horizontal: 8),
+                             child: Text('•', style: TextStyle(color: AppColors.stone300)),
+                           ),
+                           Text(
+                             '${p.durationDays} ngày',
+                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange),
+                           ),
+                         ],
+                       ),
+                     ),
                    ],
                 ),
                 if (p.instructions != null && p.instructions!.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('HDSD: ${p.instructions}', style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.stone500, fontSize: 12)),
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Hướng dẫn sử dụng: ',
+                          style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.stone500, fontSize: 12),
+                        ),
+                        Expanded(
+                          child: Text(
+                            p.instructions!,
+                            style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.stone600, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ),

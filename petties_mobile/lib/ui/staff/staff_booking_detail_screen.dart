@@ -530,6 +530,19 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                   final petId = _booking!.petId;
                   if (petId != null) {
                     final petName = _booking!.petName ?? 'Thú cưng';
+                    
+                    // Try to find a vaccination service to pre-fill the name
+                    String? initialVaccineName;
+                    try {
+                      final vaccService = _booking!.services.firstWhere(
+                        (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true || 
+                               s.serviceName?.toLowerCase().contains('vaccine') == true
+                      );
+                      initialVaccineName = vaccService.serviceName;
+                    } catch (_) {
+                      initialVaccineName = null;
+                    }
+
                     context.push(
                       Uri(
                         path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
@@ -537,6 +550,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                           'petName': petName,
                           'bookingId': _booking!.bookingId,
                           'bookingCode': _booking!.bookingCode,
+                          if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
                         },
                       ).toString(),
                     );

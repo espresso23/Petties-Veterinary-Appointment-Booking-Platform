@@ -204,6 +204,10 @@ class VaccinationRoadmapTable extends StatelessWidget {
       icon = Icons.schedule;
     }
 
+    if (!isCompleted && dose.nextDueDate == null) {
+      return const Center(child: Text('-', style: TextStyle(color: AppColors.stone300, fontSize: 12)));
+    }
+
     return Stack(
       clipBehavior: Clip.none,
       children: [

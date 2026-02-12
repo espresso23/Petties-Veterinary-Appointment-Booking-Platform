@@ -453,8 +453,10 @@ class _BookingSelectServicesScreenState
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    FormatUtils.formatCurrency(
-                        service.getPriceForWeight(petWeight)),
+                    service.isVaccination && service.dosePrices.isNotEmpty
+                        ? service.formattedPriceRange
+                        : FormatUtils.formatCurrency(
+                            service.getPriceForWeight(petWeight)),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -558,6 +560,61 @@ class _BookingSelectServicesScreenState
                     ),
                   ),
                 ],
+              ),
+            ],
+            // Show vaccine dose prices if applicable
+            if (service.isVaccination && service.dosePrices.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.blue100.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.blue600.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.vaccines, size: 14, color: AppColors.blue600),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Giá theo mũi tiêm',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.blue600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ...service.dosePrices.map((dp) => Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            dp.doseLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.blue600,
+                            ),
+                          ),
+                          Text(
+                            dp.formattedPrice,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.blue600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
               ),
             ],
           ],

@@ -223,9 +223,9 @@ export const EmrDetailPage = () => {
 
                             {/* S */}
                             <div className="mb-6">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-xs">S</span>
-                                    <h3 className="font-bold text-stone-700">Chủ quan (Subjective)</h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">S - CHỦ QUAN (Subjective)</h2>
                                 </div>
                                 <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-stone-800 whitespace-pre-wrap text-sm">
                                     {emr.subjective || 'Không có thông tin'}
@@ -234,9 +234,9 @@ export const EmrDetailPage = () => {
 
                             {/* A */}
                             <div className="mb-2">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-xs">A</span>
-                                    <h3 className="font-bold text-stone-700">Đánh giá (Assessment)</h3>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">A - ĐÁNH GIÁ (Assessment)</h2>
                                 </div>
                                 <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-stone-800 whitespace-pre-wrap font-medium text-sm">
                                     {emr.assessment || 'Chưa có chẩn đoán'}
@@ -244,36 +244,56 @@ export const EmrDetailPage = () => {
                             </div>
                         </div>
 
-                        {/* Rx */}
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <h3 className="font-bold text-stone-700 mb-4">Đơn thuốc</h3>
-                            {emr.prescriptions && emr.prescriptions.length > 0 ? (
-                                <div className="border border-stone-200 rounded-xl overflow-hidden">
-                                    <div className="grid grid-cols-12 gap-2 p-3 bg-stone-50 border-b border-stone-100 text-xs font-bold text-stone-500 uppercase tracking-wide">
-                                        <div className="col-span-4 pl-1">Tên thuốc</div>
-                                        <div className="col-span-2">Liều lượng</div>
-                                        <div className="col-span-2">Tần suất</div>
-                                        <div className="col-span-2 text-center">Thời gian</div>
-                                        <div className="col-span-2 text-right"></div>
-                                    </div>
-                                    <div className="divide-y divide-stone-100 bg-white">
-                                        {emr.prescriptions.map((p, i) => (
-                                            <div key={i} className="grid grid-cols-12 gap-2 p-3 items-center text-xs text-stone-600">
-                                                <div className="col-span-4 font-bold text-stone-700 truncate pl-1" title={p.medicineName}>{p.medicineName}</div>
-                                                <div className="col-span-2 truncate">{p.dosage}</div>
-                                                <div className="col-span-2 truncate">{p.frequency}</div>
-                                                <div className="col-span-2 text-center">{p.durationDays} ngày</div>
-                                                {p.instructions && (
-                                                    <div className="col-span-12 text-stone-400 italic mt-1 pl-1">
-                                                        HDSD: {p.instructions}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                        {/* Rx Section */}
+                        <div className="bg-white rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                            <div className="flex items-center justify-between mb-8">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">ĐƠN THUỐC ĐIỀU TRỊ</h2>
+                                        <p className="text-stone-400 text-xs mt-1 font-medium uppercase tracking-widest">Danh mục thuốc được chỉ định</p>
                                     </div>
                                 </div>
+                            </div>
+
+                            {emr.prescriptions && emr.prescriptions.length > 0 ? (
+                                <div className="space-y-4">
+                                    {emr.prescriptions.map((p, i) => (
+                                        <div key={i} className="group p-4 bg-white rounded-2xl border border-stone-100 flex flex-col md:flex-row gap-4 items-start md:items-center relative overflow-hidden">
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500/30"></div>
+                                            <div className="pl-3 flex-1 min-w-0">
+                                                <div className="font-bold text-stone-800 text-sm tracking-tight">{p.medicineName}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {(p.dosage || '').toLowerCase().includes('viên') ? p.dosage : `${p.dosage || ''} viên/lần`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-stone-200"></span>
+                                                        {(p.frequency || '').toLowerCase().includes('lần') ? p.frequency : `${p.frequency || ''} lần/ngày`}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5 text-orange-600 font-bold whitespace-nowrap">
+                                                        <span className="w-1 h-1 rounded-full bg-orange-500"></span>
+                                                        {p.durationDays} NGÀY
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {p.instructions && (
+                                                <div className="md:w-1/3 p-3 bg-stone-50/50 rounded-xl border border-stone-100 text-[11px] text-stone-500 italic">
+                                                    <span className="block not-italic font-bold text-stone-400 text-[9px] uppercase mb-1 tracking-tighter opacity-50">Hướng dẫn sử dụng</span>
+                                                    {p.instructions}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
                             ) : (
-                                <p className="text-stone-400 text-sm italic">Không có đơn thuốc</p>
+                                <div className="py-12 bg-stone-50 rounded-3xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center">
+                                    <p className="text-stone-400 text-sm font-bold tracking-wide">
+                                        KHÔNG CÓ ĐƠN THUỐC ĐƯỢC KÊ
+                                    </p>
+                                </div>
                             )}
                         </div>
 
@@ -305,11 +325,10 @@ export const EmrDetailPage = () => {
 
                         {/* O */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-xs">O</span>
-                                <h3 className="font-bold text-stone-700">Khách quan (Objective)</h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">O - KHÁCH QUAN (Objective)</h2>
                             </div>
-
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-stone-50 p-3 rounded-xl border border-stone-100">
                                     <p className="text-xs text-stone-500 uppercase font-bold">Nhiệt độ</p>
@@ -345,9 +364,9 @@ export const EmrDetailPage = () => {
 
                         {/* P */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-xs">P</span>
-                                <h3 className="font-bold text-stone-700">Kế hoạch (Plan)</h3>
+                            <div className="flex items-center gap-3 mb-4">
+                                <span className="w-1 h-6 bg-orange-600 rounded-full"></span>
+                                <h2 className="text-lg font-bold text-orange-800 tracking-tight uppercase">P - KẾ HOẠCH (Plan)</h2>
                             </div>
                             <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-stone-800 whitespace-pre-wrap text-sm">
                                 {emr.plan || 'Chưa có kế hoạch'}

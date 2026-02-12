@@ -80,8 +80,17 @@ public class ClinicService {
     @Column(name = "pet_type", length = 100)
     private String petType;
 
+    // Link to VaccineTemplate for vaccination services
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vaccine_template_id")
+    private VaccineTemplate vaccineTemplate;
+
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
+
+    // Vaccine dose prices - giá theo số mũi tiêm
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<VaccineDosePrice> dosePrices = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -194,6 +194,14 @@ export const ServicesViewPage = () => {
                                     </div>
                                 )}
 
+                                {/* Vaccine Dose Prices Indicator */}
+                                {service.serviceCategory === 'VACCINATION' && service.dosePrices && service.dosePrices.length > 0 && (
+                                    <div className="mt-4 bg-blue-50 border-2 border-blue-600 rounded-lg px-3 py-2 flex items-center gap-2">
+                                        <span className="text-sm">💉</span>
+                                        <span className="text-xs font-bold text-blue-800">{service.dosePrices.length} mức giá theo mũi tiêm</span>
+                                    </div>
+                                )}
+
                                 {/* Inactive Overlay */}
                                 {!service.isActive && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-stone-100/80 rounded-xl">
@@ -309,10 +317,51 @@ export const ServicesViewPage = () => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Vaccine Dose Prices - Only for VACCINATION category */}
+                            {selectedService.serviceCategory === 'VACCINATION' && (
+                                <DosePriceList
+                                    service={selectedService}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
             )}
+        </div>
+    )
+}
+
+// Sub-component for displaying dose prices (Read-only)
+const DosePriceList = ({ service }: { service: ClinicServiceResponse }) => {
+    const dosePrices = service.dosePrices || []
+
+    return (
+        <div className="mt-4 pt-4 border-t-2 border-dashed border-stone-300">
+            <div className="flex justify-between items-center mb-4">
+                <p className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
+                    💉 Giá theo mũi tiêm
+                </p>
+            </div>
+
+            <div className="space-y-3">
+                {dosePrices.length === 0 ? (
+                    <p className="text-sm text-stone-400 italic">Chưa có cấu hình giá mũi tiêm</p>
+                ) : (
+                    dosePrices.map((dp, idx) => (
+                        <div key={dp.id || idx} className="border-2 border-blue-600 rounded-lg p-4 bg-blue-50 shadow-[2px_2px_0_#1c1917]">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-blue-900">
+                                    {dp.doseLabel || `Mũi ${dp.doseNumber}`}
+                                </span>
+                                <span className="font-bold text-blue-600 text-lg">
+                                    {new Intl.NumberFormat('vi-VN').format(dp.price || 0)}đ
+                                </span>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
         </div>
     )
 }

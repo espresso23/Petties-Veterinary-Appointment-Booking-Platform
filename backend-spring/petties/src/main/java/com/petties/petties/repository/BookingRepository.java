@@ -101,6 +101,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("ownerId") UUID ownerId,
                         Pageable pageable);
 
+        /**
+         * Delete all bookings for a pet owner (for cleanup/seeding)
+         */
+        void deleteAllByPetOwner_UserId(UUID userId);
+
         // ========== UTILITY QUERIES ==========
 
         /**

@@ -25,6 +25,8 @@ export interface ClinicService {
   petType?: string
   description?: string
   weightPrices?: WeightPriceDto[]
+  vaccineTemplateId?: string
+  dosePrices?: any[] // Using any array to match DTO loosely or import type
 }
 
 interface ServiceCardProps {
