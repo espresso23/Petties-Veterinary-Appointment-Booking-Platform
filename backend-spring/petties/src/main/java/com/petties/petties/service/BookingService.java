@@ -33,6 +33,7 @@ import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.petties.petties.dto.booking.EstimatedCompletionResponse;
@@ -47,6 +48,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.AbstractMap;
 import com.petties.petties.model.OperatingHours;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -363,10 +365,11 @@ public class BookingService {
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                        // Step 3: Collect all service IDs and create pets
+                        // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
+                        // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
                         List<Pet> createdPets = new ArrayList<>();
-                        List<UUID> allServiceIds = new ArrayList<>();
-                        Map<UUID, Pet> serviceIdToPetMap = new java.util.HashMap<>();
+                        List<AbstractMap.SimpleEntry<UUID, Pet>> servicePetPairs = new ArrayList<>();
+                        java.util.Set<UUID> uniqueServiceIds = new java.util.HashSet<>();
 
                         for (ProxyPetServiceItem item : request.getItems()) {
                                 // Create pet for recipient
@@ -374,15 +377,15 @@ public class BookingService {
                                 createdPets.add(pet);
                                 log.info("Created new pet {} for recipient", pet.getName());
 
-                                // Map each service ID to this pet
+                                // Mỗi (serviceId, pet) là 1 item riêng - cùng service có thể cho nhiều pet
                                 for (UUID serviceId : item.getServiceIds()) {
-                                        allServiceIds.add(serviceId);
-                                        serviceIdToPetMap.put(serviceId, pet);
+                                        servicePetPairs.add(new AbstractMap.SimpleEntry<>(serviceId, pet));
+                                        uniqueServiceIds.add(serviceId);
                                 }
                         }
 
                         // Step 4: Validate services
-                        List<ClinicService> services = clinicServiceRepository.findAllById(allServiceIds)
+                        List<ClinicService> services = clinicServiceRepository.findAllById(uniqueServiceIds)
                                         .stream()
                                         .filter(ClinicService::getIsActive)
                                         .collect(Collectors.toList());
@@ -390,6 +393,9 @@ public class BookingService {
                         if (services.isEmpty()) {
                                 throw new BadRequestException("Không tìm thấy dịch vụ hợp lệ");
                         }
+
+                        Map<UUID, ClinicService> serviceById = services.stream()
+                                        .collect(Collectors.toMap(ClinicService::getServiceId, s -> s, (a, b) -> a));
 
                         // Step 5: Validate home visit services if applicable
                         if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
@@ -403,12 +409,15 @@ public class BookingService {
                                 }
                         }
 
-                        // Step 6: Calculate pricing (use first pet for distance calculation)
+                        // Step 6: Calculate pricing - tổng theo từng (service, pet) pair
                         Pet firstPet = createdPets.get(0);
                         BigDecimal servicesTotal = BigDecimal.ZERO;
-                        for (ClinicService svc : services) {
-                                Pet petForService = serviceIdToPetMap.get(svc.getServiceId());
-                                servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, petForService));
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService svc = serviceById.get(pair.getKey());
+                                if (svc != null) {
+                                        servicesTotal = servicesTotal.add(
+                                                        pricingService.calculateServicePrice(svc, pair.getValue()));
+                                }
                         }
                         BigDecimal distanceKm = request.getDistanceKm();
                         BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(
@@ -434,9 +443,13 @@ public class BookingService {
                                         .distanceKm(distanceKm)
                                         .build();
 
-                        // Step 8: Add services to booking with proper pet assignment
-                        for (ClinicService service : services) {
-                                Pet petForService = serviceIdToPetMap.get(service.getServiceId());
+                        // Step 8: Add services to booking - each (serviceId, pet) creates a BookingServiceItem
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService service = serviceById.get(pair.getKey());
+                                if (service == null) {
+                                        continue;
+                                }
+                                Pet petForService = pair.getValue();
                                 BigDecimal basePrice = service.getBasePrice();
                                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, petForService);
                                 BookingServiceItem bookingItem = BookingServiceItem.builder()
@@ -939,26 +952,13 @@ public class BookingService {
         }
 
         /**
-         * Calculate the start time for a specific service in a booking
-         * Based on the order of services and their durations
+         * Calculate the start time for a specific service in a booking.
+         * Multi-pet: parallel schedule. Single-pet: sequential.
          */
         private LocalTime calculateServiceStartTime(Booking booking, UUID serviceId) {
-                LocalTime startTime = booking.getBookingTime();
-
-                for (BookingServiceItem item : booking.getBookingServices()) {
-                        if (item.getBookingServiceId().equals(serviceId)) {
-                                return startTime;
-                        }
-
-                        // Add duration of previous services
-                        Integer duration = item.getService().getDurationTime();
-                        int slots = (duration != null && duration > 0)
-                                        ? (int) Math.ceil(duration / 30.0)
-                                        : 1;
-                        startTime = startTime.plusMinutes(slots * 30L);
-                }
-
-                return booking.getBookingTime(); // Fallback
+                Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                LocalTime[] range = schedule.get(serviceId);
+                return range != null ? range[0] : booking.getBookingTime();
         }
 
         // ========== ADD-ON SERVICE (During Active Booking) ==========

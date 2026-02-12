@@ -164,25 +164,26 @@ public class StaffShiftService {
                     }
                 }
 
-                // 7. Determine break times - ALWAYS from clinic operating hours
+                // 7. Determine break times - from clinic operating hours, intersect with shift
                 LocalTime breakStart = null;
                 LocalTime breakEnd = null;
 
                 String dayOfWeek = workDate.getDayOfWeek().toString(); // MONDAY, TUESDAY, etc.
-                OperatingHours dayHours = clinic.getOperatingHours().get(dayOfWeek);
+                OperatingHours dayHours = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek) : null;
 
                 if (dayHours != null && dayHours.getBreakStart() != null && dayHours.getBreakEnd() != null) {
                     LocalTime clinicBreakStart = dayHours.getBreakStart();
                     LocalTime clinicBreakEnd = dayHours.getBreakEnd();
 
-                    // Only use clinic break if it falls within the shift time
-                    boolean breakWithinShift = !clinicBreakStart.isBefore(request.getStartTime()) &&
-                            !clinicBreakEnd.isAfter(request.getEndTime());
+                    LocalTime effectiveBreakStart = clinicBreakStart.isBefore(request.getStartTime())
+                            ? request.getStartTime() : clinicBreakStart;
+                    LocalTime effectiveBreakEnd = clinicBreakEnd.isAfter(request.getEndTime())
+                            ? request.getEndTime() : clinicBreakEnd;
 
-                    if (breakWithinShift) {
-                        breakStart = clinicBreakStart;
-                        breakEnd = clinicBreakEnd;
-                        log.info("Using clinic break time for {}: {} - {}", workDate, breakStart, breakEnd);
+                    if (effectiveBreakStart.isBefore(effectiveBreakEnd)) {
+                        breakStart = effectiveBreakStart;
+                        breakEnd = effectiveBreakEnd;
+                        log.info("Using clinic break (intersected with shift) for {}: {} - {}", workDate, breakStart, breakEnd);
                     }
                 }
 

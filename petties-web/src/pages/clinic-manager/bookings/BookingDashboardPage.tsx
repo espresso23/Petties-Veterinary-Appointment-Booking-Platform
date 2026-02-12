@@ -365,39 +365,67 @@ export const BookingDashboardPage = () => {
                                         </span>
                                     </td>
                                     <td className="p-4">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-10 h-10 rounded-lg border-2 border-stone-300 overflow-hidden bg-stone-100 flex-shrink-0">
-                                                {booking.petPhotoUrl ? (
-                                                    <img
-                                                        src={booking.petPhotoUrl}
-                                                        alt={booking.petName}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center font-bold text-stone-500 text-sm">
-                                                        {booking.petName?.charAt(0) || '?'}
+                                        {booking.pets && booking.pets.length > 1 ? (
+                                            <div className="space-y-1">
+                                                {booking.pets.map((pet) => (
+                                                    <div key={pet.petId} className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-lg border-2 border-stone-300 overflow-hidden bg-stone-100 flex-shrink-0 flex items-center justify-center font-bold text-stone-600 text-xs">
+                                                            {pet.petName?.charAt(0) || '?'}
+                                                        </div>
+                                                        <div className="font-bold text-sm">{pet.petName}</div>
                                                     </div>
-                                                )}
+                                                ))}
                                             </div>
-                                            <div>
-                                                <div className="font-bold">{booking.petName}</div>
-                                                <div className="text-xs text-stone-500">{booking.petBreed}</div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-10 h-10 rounded-lg border-2 border-stone-300 overflow-hidden bg-stone-100 flex-shrink-0">
+                                                    {booking.petPhotoUrl ? (
+                                                        <img
+                                                            src={booking.petPhotoUrl}
+                                                            alt={booking.petName}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center font-bold text-stone-500 text-sm">
+                                                            {booking.petName?.charAt(0) || '?'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold">{booking.petName}</div>
+                                                    <div className="text-xs text-stone-500">{booking.petBreed}</div>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </td>
                                     <td className="p-4">
                                         <div className="font-medium">{booking.ownerName}</div>
                                         <div className="text-xs text-stone-500">{booking.ownerPhone}</div>
                                     </td>
                                     <td className="p-4">
-                                        {getAllServices(booking).map((s, idx) => (
-                                            <div key={idx} className="text-sm">
-                                                {s.serviceName}
-                                                <span className="ml-1 text-xs text-stone-500">
-                                                    [{SERVICE_CATEGORY_LABELS[s.serviceCategory] || s.serviceCategory}]
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {booking.pets && booking.pets.length > 0
+                                            ? booking.pets.map((pet) => (
+                                                <div key={pet.petId} className="mb-2 last:mb-0">
+                                                    <div className="text-xs font-bold text-stone-500 uppercase mb-0.5">{pet.petName}</div>
+                                                    {(pet.services || []).map((s, idx) => (
+                                                        <div key={idx} className="text-sm pl-2 border-l-2 border-stone-200 my-0.5">
+                                                            {s.serviceName}
+                                                            <span className="ml-1 text-xs text-stone-500">
+                                                                [{SERVICE_CATEGORY_LABELS[s.serviceCategory] || s.serviceCategory}]
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ))
+                                            : getAllServices(booking).map((s, idx) => (
+                                                <div key={idx} className="text-sm">
+                                                    {s.serviceName}
+                                                    <span className="ml-1 text-xs text-stone-500">
+                                                        [{SERVICE_CATEGORY_LABELS[s.serviceCategory] || s.serviceCategory}]
+                                                    </span>
+                                                </div>
+                                            ))
+                                        }
                                     </td>
                                     <td className="p-4 text-center">
                                         <div
@@ -674,36 +702,46 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     {/* Pet & Owner Info */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="border-2 border-stone-900 p-4">
-                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Thông tin thú cưng</h3>
-                            <div className="flex gap-4 items-start">
-                                {/* Pet Avatar */}
-                                <div className="w-20 h-20 border-2 border-stone-900 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0">
-                                    {booking.petPhotoUrl ? (
-                                        <img
-                                            src={booking.petPhotoUrl}
-                                            alt={booking.petName}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-lg font-bold text-stone-400">
-                                            {booking.petName?.charAt(0) || '?'}
+                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">
+                                Thông tin thú cưng{booking.pets && booking.pets.length > 1 ? ` (${booking.pets.length})` : ''}
+                            </h3>
+                            {booking.pets && booking.pets.length > 1 ? (
+                                <div className="space-y-4">
+                                    {booking.pets.map((pet) => (
+                                        <div key={pet.petId} className="flex gap-4 items-start pb-4 border-b-2 border-stone-200 last:border-0 last:pb-0">
+                                            <div className="w-14 h-14 border-2 border-stone-900 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0 flex items-center justify-center text-xl font-bold text-stone-500">
+                                                {pet.petName?.charAt(0) || '?'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-bold">{pet.petName}</div>
+                                                <div className="text-xs text-stone-500 mt-1">
+                                                    {(pet.services || []).length} dịch vụ
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                                {/* Pet Info */}
-                                <div>
-                                    <div className="text-lg font-bold">{booking.petName}</div>
-                                    <div className="text-sm text-stone-600">
-                                        {booking.petSpecies} - {booking.petBreed}
-                                    </div>
-                                    <div className="text-sm text-stone-500 mt-1">
-                                        {booking.petAge}
-                                        {booking.petWeight && (
-                                            <span className="ml-2 font-medium text-stone-700">• {booking.petWeight} kg</span>
+                            ) : (
+                                <div className="flex gap-4 items-start">
+                                    <div className="w-20 h-20 border-2 border-stone-900 rounded-lg overflow-hidden bg-stone-100 flex-shrink-0">
+                                        {booking.petPhotoUrl ? (
+                                            <img src={booking.petPhotoUrl} alt={booking.petName} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-lg font-bold text-stone-400">
+                                                {booking.petName?.charAt(0) || '?'}
+                                            </div>
                                         )}
                                     </div>
+                                    <div>
+                                        <div className="text-lg font-bold">{booking.petName}</div>
+                                        <div className="text-sm text-stone-600">{booking.petSpecies} - {booking.petBreed}</div>
+                                        <div className="text-sm text-stone-500 mt-1">
+                                            {booking.petAge}
+                                            {booking.petWeight && <span className="ml-2 font-medium text-stone-700">• {booking.petWeight} kg</span>}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                         <div className="border-2 border-stone-900 p-4">
                             <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Thông tin chủ</h3>
@@ -731,62 +769,55 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         </div>
                     )}
 
-                    {/* Services */}
+                    {/* Services - grouped by pet when multi-pet */}
                     <div className="border-2 border-stone-900 p-4">
                         <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Dịch vụ đặt</h3>
-                        {getAllServices(booking).map((service: BookingServiceItem, idx: number) => (
-                            <div key={idx} className="py-3 border-b border-stone-200 last:border-0">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex-1">
-                                        <span className="font-bold">{service.serviceName}</span>
-                                        <span className="ml-2 text-xs bg-stone-200 px-2 py-0.5">
-                                            {SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory}
-                                        </span>
-                                        <div className="text-xs text-stone-500 mt-1">
-                                            {service.durationMinutes} phút - {service.slotsRequired} slot(s)
-                                            {service.scheduledStartTime && service.scheduledEndTime && (
-                                                <span className="ml-2 font-medium text-amber-600">
-                                                    {service.scheduledStartTime.substring(0, 5)} - {service.scheduledEndTime.substring(0, 5)}
-                                                </span>
-                                            )}
-                                        </div>
+                        {booking.pets && booking.pets.length > 0 ? (
+                            booking.pets.map((pet) => (
+                                <div key={pet.petId} className="mb-6 last:mb-0">
+                                    <div className="text-sm font-bold text-stone-700 mb-3 pb-2 border-b-2 border-stone-300">
+                                        {pet.petName}
                                     </div>
-                                    <div className="text-right">
-                                        <div className="flex justify-end items-center gap-2">
-                                            <div className="font-bold">{formatCurrency(service.price)}</div>
-                                            {service.isAddOn && (
-                                                <button
-                                                    onClick={() => handleRemoveService(booking.bookingId, service.bookingServiceId!)}
-                                                    className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
-                                                    title="Xóa dịch vụ phát sinh"
-                                                >
-                                                    <TrashIcon className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </div>
-                                        {/* Pricing Breakdown - always show */}
-                                        <div className="text-xs text-stone-500 mt-1">
-                                            <div className="flex justify-end items-center gap-1">
-                                                {service.basePrice && service.weightPrice && service.weightPrice !== service.basePrice ? (
-                                                    <>
-                                                        <span className="text-stone-400">Giá gốc:</span>
-                                                        <span className="line-through text-stone-400">{formatCurrency(service.basePrice)}</span>
-                                                        <span className="text-mint-600">→ {formatCurrency(service.weightPrice)}</span>
-                                                        <span className="text-stone-400 text-[10px]">(theo cân {booking.petWeight || 0}kg)</span>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span className="text-stone-400">Giá cố định</span>
-                                                        <span className="text-stone-400 text-[10px]">(pet {booking.petWeight || 0}kg)</span>
-                                                    </>
-                                                )}
+                                    {(pet.services || []).map((service: BookingServiceItem, idx: number) => (
+                                        <div key={service.bookingServiceId || idx} className="py-3 border-b border-stone-200 last:border-0 pl-3 border-l-4 border-amber-400">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1">
+                                                    <span className="font-bold">{service.serviceName}</span>
+                                                    <span className="ml-2 text-xs bg-stone-200 px-2 py-0.5">
+                                                        {SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory}
+                                                    </span>
+                                                    <div className="text-xs text-stone-500 mt-1">
+                                                        {service.durationMinutes} phút - {service.slotsRequired} slot(s)
+                                                        {service.scheduledStartTime && service.scheduledEndTime && (
+                                                            <span className="ml-2 font-medium text-amber-600">
+                                                                {String(service.scheduledStartTime).substring(0, 5)} - {String(service.scheduledEndTime).substring(0, 5)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        <div className="font-bold">{formatCurrency(service.price)}</div>
+                                                        {service.isAddOn && (
+                                                            <button
+                                                                onClick={() => handleRemoveService(booking.bookingId, service.bookingServiceId!)}
+                                                                className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                                                title="Xóa dịch vụ phát sinh"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs text-stone-500 mt-1">
+                                                        {service.basePrice && service.weightPrice && service.weightPrice !== service.basePrice ? (
+                                                            <span className="text-stone-400">Giá gốc: <span className="line-through">{formatCurrency(service.basePrice)}</span> → <span className="text-mint-600">{formatCurrency(service.weightPrice)}</span></span>
+                                                        ) : (
+                                                            <span className="text-stone-400">Giá cố định</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Assigned Staff for this service */}
-                                {service.assignedStaffName ? (
+                                            {service.assignedStaffName ? (
                                     <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
                                         <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
                                             {service.assignedStaffAvatarUrl ? (
@@ -976,8 +1007,125 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                         )}
                                     </div>
                                 )}
-                            </div>
-                        ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))
+                        ) : (
+                            getAllServices(booking).map((service: BookingServiceItem, idx: number) => (
+                                <div key={service.bookingServiceId || idx} className="py-3 border-b border-stone-200 last:border-0">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <span className="font-bold">{service.serviceName}</span>
+                                            <span className="ml-2 text-xs bg-stone-200 px-2 py-0.5">
+                                                {SERVICE_CATEGORY_LABELS[service.serviceCategory] || service.serviceCategory}
+                                            </span>
+                                            <div className="text-xs text-stone-500 mt-1">
+                                                {service.durationMinutes} phút - {service.slotsRequired} slot(s)
+                                                {service.scheduledStartTime && service.scheduledEndTime && (
+                                                    <span className="ml-2 font-medium text-amber-600">
+                                                        {String(service.scheduledStartTime).substring(0, 5)} - {String(service.scheduledEndTime).substring(0, 5)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="flex justify-end items-center gap-2">
+                                                <div className="font-bold">{formatCurrency(service.price)}</div>
+                                                {service.isAddOn && (
+                                                    <button
+                                                        onClick={() => handleRemoveService(booking.bookingId, service.bookingServiceId!)}
+                                                        className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                                        title="Xóa dịch vụ phát sinh"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-stone-500 mt-1">
+                                                {service.basePrice && service.weightPrice && service.weightPrice !== service.basePrice ? (
+                                                    <span className="text-stone-400">Giá gốc: <span className="line-through">{formatCurrency(service.basePrice)}</span> → <span className="text-mint-600">{formatCurrency(service.weightPrice)}</span></span>
+                                                ) : (
+                                                    <span className="text-stone-400">Giá cố định</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {service.assignedStaffName ? (
+                                        <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
+                                            <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
+                                                {service.assignedStaffAvatarUrl ? (
+                                                    <img src={service.assignedStaffAvatarUrl} alt={service.assignedStaffName} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
+                                                        {service.assignedStaffName.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-xs flex-1">
+                                                <span className="font-medium">{service.assignedStaffName}</span>
+                                                {service.assignedStaffSpecialty && (
+                                                    <span className="text-stone-500 ml-1">({STAFF_SPECIALTY_LABELS[service.assignedStaffSpecialty] || service.assignedStaffSpecialty})</span>
+                                                )}
+                                            </div>
+                                            {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && booking.status !== 'IN_PROGRESS' && (
+                                                <button onClick={() => handleOpenReassignModal(service)} className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors flex items-center gap-1" title="Đổi nhân viên">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0v2.433l-.31-.31a7 7 0 00-11.712 3.138.75.75 0 001.449.39 5.5 5.5 0 019.201-2.466l.312.311H12.18c-.414 0-.75.336-.75.75s.336.75.75.75h4.242z" clipRule="evenodd" /></svg>
+                                                    Đổi người
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : booking.status === 'PENDING' ? (
+                                        (() => {
+                                            const serviceId = service.bookingServiceId || service.serviceId;
+                                            const serviceStaff = availableStaffByService[serviceId] || [];
+                                            const selectedStaffId = selectedStaffByService[serviceId];
+                                            const isDropdownOpen = openDropdownServiceId === serviceId;
+                                            if (loadingStaff) return (<div className="mt-2 flex items-center gap-2 px-2 py-1"><div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin"></div><span className="text-xs text-stone-400">Đang tải nhân viên...</span></div>);
+                                            if (serviceStaff.length === 0) return (<div className="mt-2 flex items-center gap-2 bg-amber-50 px-2 py-1.5 border-2 border-amber-600"><svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg><span className="text-xs font-bold text-amber-800">Chưa có nhân viên phù hợp</span></div>);
+                                            const selectedStaff = serviceStaff.find(s => s.staffId === selectedStaffId);
+                                            return (
+                                                <div className="mt-2 relative">
+                                                    <button type="button" onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)} className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-green-50 border-2 border-green-600 hover:shadow-[2px_2px_0_#1c1917] transition-all text-left">
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                                                            {selectedStaff ? <><div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-green-700">{selectedStaff.fullName.charAt(0)}</span></div><div className="text-xs flex-1 min-w-0"><span className="font-bold text-green-800">Nhân viên:</span><span className="ml-1 font-medium text-green-700">{selectedStaff.fullName}</span></div></> : <span className="text-xs text-stone-500">Chọn nhân viên...</span>}
+                                                        </div>
+                                                        <svg className={`w-4 h-4 text-green-600 transition-transform flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                    </button>
+                                                    {isDropdownOpen && (
+                                                        <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
+                                                            {serviceStaff.map((staff) => {
+                                                                const isAvailableForThisService = staff.availableServiceItemIds?.includes(serviceId);
+                                                                return (
+                                                                    <button key={staff.staffId} type="button" disabled={!isAvailableForThisService} onClick={() => { setSelectedStaffByService(prev => ({ ...prev, [serviceId]: staff.staffId })); setOpenDropdownServiceId(null); }} className={`w-full flex items-center gap-2 px-2 py-2 text-left ${selectedStaffId === staff.staffId ? 'bg-mint-100 border-l-4 border-l-mint-600' : isAvailableForThisService ? 'hover:bg-stone-50' : 'opacity-50 cursor-not-allowed bg-stone-100'}`}>
+                                                                        <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
+                                                                            {staff.avatarUrl ? <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">{staff.fullName.charAt(0)}</div>}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="text-xs font-bold text-stone-900 truncate">{staff.fullName}</div>
+                                                                            <div className="text-[10px] text-stone-500 truncate">{staff.specialtyLabel || staff.specialty}</div>
+                                                                        </div>
+                                                                        {selectedStaffId === staff.staffId && <svg className="w-4 h-4 text-mint-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()
+                                    ) : (
+                                        <div className="mt-2 flex items-center justify-between">
+                                            <span className="text-xs text-stone-400 italic">Chưa phân công bác sĩ</span>
+                                            {booking.status === 'CONFIRMED' && (
+                                                <button onClick={() => handleOpenReassignModal(service)} className="px-3 py-1 text-xs font-bold bg-coral-400 text-stone-900 border border-stone-900 hover:bg-coral-500 transition-colors">Phân công BS</button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        )}
 
                         {/* Booking-level Fee (Distance) - Always show for HOME_VISIT/SOS */}
                         {(booking.type === 'HOME_VISIT' || booking.type === 'SOS') && (

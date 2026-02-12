@@ -21,6 +21,7 @@ import com.petties.petties.repository.BookingSlotRepository;
 import com.petties.petties.repository.SlotRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.repository.StaffShiftRepository;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -114,39 +115,39 @@ public class StaffAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentTime = booking.getBookingTime();
+
+        // Multi-pet: parallel schedule - each service has its own start time
+        // Single-pet: sequential - compatible with previous logic
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
 
         Map<UUID, User> assignments = new HashMap<>();
         Map<StaffSpecialty, User> specialtyStaffCache = new HashMap<>();
 
-        // Process services sequentially to calculate correct start times for each
         for (BookingServiceItem item : booking.getBookingServices()) {
             StaffSpecialty specialty = getSpecialtyForService(item);
 
-            // Calculate slots needed for this specific service
             Integer duration = item.getService().getDurationTime();
             int slotsNeeded = (duration != null && duration > 0)
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            // Find available staff for this specialty at THIS specific time with ENOUGH slots
-            // This ensures we pick a staff who actually has capacity
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
+
+            // Find available staff at THIS service's scheduled start time (parallel for multi-pet)
             User staff = findAvailableStaffForSpecialtyAtTime(
-                    clinicId, bookingDate, currentTime, specialty, slotsNeeded);
+                    clinicId, bookingDate, slotStartTime, specialty, slotsNeeded);
 
             if (staff != null) {
                 item.setAssignedStaff(staff);
                 assignments.put(item.getBookingServiceId(), staff);
                 specialtyStaffCache.put(specialty, staff);
                 log.info("Assigned staff {} to service {} (specialty: {}) at {}",
-                        staff.getFullName(), item.getService().getName(), specialty, currentTime);
+                        staff.getFullName(), item.getService().getName(), specialty, slotStartTime);
             } else {
                 log.warn("No staff available for service {} (specialty: {}) at {}",
-                        item.getService().getName(), specialty, currentTime);
+                        item.getService().getName(), specialty, slotStartTime);
             }
-
-            // Advance time for next service
-            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
         // Set primary staff on booking (highest specialty priority)
@@ -339,10 +340,9 @@ public class StaffAssignmentService {
         log.info("Reserving slots for booking {}", booking.getBookingCode());
 
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentSlotTime = booking.getBookingTime(); // Track current time position
 
-        // Process services IN ORDER (sequentially, not grouped by staff)
-        // This ensures services are scheduled one after another
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+
         for (BookingServiceItem item : booking.getBookingServices()) {
             if (item.getAssignedStaff() == null) {
                 log.warn("Service '{}' has no assigned staff, skipping", item.getService().getName());
@@ -355,11 +355,11 @@ public class StaffAssignmentService {
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            log.info("Service '{}' (staff {}) duration={}min needs {} slots starting at {}",
-                    item.getService().getName(), staffId, duration, slotsNeeded, currentSlotTime);
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            final LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
 
-            // Create final copy for use in lambdas
-            final LocalTime slotStartTime = currentSlotTime;
+            log.info("Service '{}' (staff {}) duration={}min needs {} slots starting at {}",
+                    item.getService().getName(), staffId, duration, slotsNeeded, slotStartTime);
 
             // Find staff's shift on booking date
             List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(staffId, bookingDate);
@@ -417,11 +417,8 @@ public class StaffAssignmentService {
                         slot.getSlotId(), slot.getStartTime(), slot.getEndTime(), item.getService().getName());
             }
 
-            // Advance current time position to end of last reserved slot
-            Slot lastSlot = consecutiveSlots.get(consecutiveSlots.size() - 1);
-            currentSlotTime = lastSlot.getEndTime();
-            log.info("Advanced time position to {} after service '{}'",
-                    currentSlotTime, item.getService().getName());
+            log.info("Reserved {} slots for service '{}' starting at {}",
+                    consecutiveSlots.size(), item.getService().getName(), slotStartTime);
         }
 
         log.info("Completed slot reservation for booking {}", booking.getBookingCode());
@@ -742,29 +739,31 @@ public class StaffAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentTime = booking.getBookingTime();
+
+        // Multi-pet: parallel schedule - each service has its own start time
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
 
         List<ServiceAvailability> serviceResults = new ArrayList<>();
         Set<StaffSpecialty> missingSpecialties = new HashSet<>();
         BigDecimal priceReduction = BigDecimal.ZERO;
         boolean allHaveStaff = true;
 
-        // Check each service
         for (BookingServiceItem item : booking.getBookingServices()) {
             StaffSpecialty requiredSpecialty = getSpecialtyForService(item);
             String specialtyLabel = requiredSpecialty != null
                     ? requiredSpecialty.getVietnameseLabel()
                     : "Chưa xác định";
 
-            // Calculate slots needed
             Integer duration = item.getService().getDurationTime();
             int slotsNeeded = (duration != null && duration > 0)
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            // Find available staff for this specialty at this time
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
+
             User availableStaff = findAvailableStaffForSpecialtyAtTime(
-                    clinicId, bookingDate, currentTime, requiredSpecialty, slotsNeeded);
+                    clinicId, bookingDate, slotStartTime, requiredSpecialty, slotsNeeded);
 
             ServiceAvailability.ServiceAvailabilityBuilder builder = ServiceAvailability.builder()
                     .bookingServiceId(item.getBookingServiceId())
@@ -794,9 +793,6 @@ public class StaffAssignmentService {
             }
 
             serviceResults.add(builder.build());
-
-            // Advance time for next service
-            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
         // Find alternative time slots for missing specialties
@@ -965,7 +961,8 @@ public class StaffAssignmentService {
 
         for (User member : allMatchingStaff) {
             List<UUID> availableServiceItemIds = new ArrayList<>();
-            LocalTime currentServiceStartTime = bookingStartTime;
+            // Multi-pet: parallel schedule - each service has its own start time
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
 
             // Check if staff has shift on booking date
             List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
@@ -980,24 +977,21 @@ public class StaffAssignmentService {
                     bookingDate);
 
             if (matchingShift != null) {
-                // Get available slots for this shift
                 List<Slot> availableSlots = slotRepository
                         .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(), SlotStatus.AVAILABLE);
 
-                // Check availability for EACH service at its specific start time
                 for (BookingServiceItem item : services) {
                     Integer duration = item.getService().getDurationTime();
                     int slotsNeeded = (duration != null && duration > 0)
                             ? (int) Math.ceil(duration / 30.0)
                             : 1;
 
-                    // Check if staff has consecutive slots starting at THIS service's start time
-                    if (hasEnoughConsecutiveSlots(availableSlots, currentServiceStartTime, slotsNeeded)) {
+                    LocalTime[] range = schedule.get(item.getBookingServiceId());
+                    LocalTime serviceStartTime = range != null ? range[0] : bookingStartTime;
+
+                    if (hasEnoughConsecutiveSlots(availableSlots, serviceStartTime, slotsNeeded)) {
                         availableServiceItemIds.add(item.getBookingServiceId());
                     }
-
-                    // Advance time for the next service check
-                    currentServiceStartTime = currentServiceStartTime.plusMinutes(slotsNeeded * 30L);
                 }
             }
 

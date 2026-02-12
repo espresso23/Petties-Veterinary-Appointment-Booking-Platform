@@ -569,6 +569,12 @@ public class BookingDataSeeder implements CommandLineRunner {
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
+                // Nếu booking_code này đã tồn tại (do user đã tạo booking thật trước đó) thì bỏ qua seeding
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded booking because booking_code already exists: {}", bookingCode);
+                        return;
+                }
+
                 // Calculate total price: sum of service prices
                 BigDecimal totalPrice = BigDecimal.ZERO;
                 for (ClinicService service : services) {
@@ -628,6 +634,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded HOME VISIT booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate single distance fee for the whole booking (using clinic-level
                 // pricePerKm)
@@ -704,6 +716,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded status booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate distance fee (using clinic-level pricePerKm)
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,

@@ -13,6 +13,7 @@ import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -62,7 +63,9 @@ public class BookingMapper {
             }
 
             // Map services with assigned staff info and calculate scheduled times
-            LocalTime currentTime = booking.getBookingTime();
+            // Multi-pet: parallel schedule (cùng thời điểm cho các pet khác nhau)
+            // Single-pet: sequential (giữ tương thích)
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
             List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
             for (BookingServiceItem item : booking.getBookingServices()) {
@@ -75,8 +78,9 @@ public class BookingMapper {
                 int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
                 int slotDurationMinutes = slotsRequired * 30;
 
-                LocalTime startTime = currentTime;
-                LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
+                LocalTime[] range = schedule.get(item.getBookingServiceId());
+                LocalTime startTime = range != null ? range[0] : booking.getBookingTime();
+                LocalTime endTime = range != null ? range[1] : startTime.plusMinutes(slotDurationMinutes);
 
                 Boolean isAddOn = item.getIsAddOn() != null ? item.getIsAddOn() : false;
 
@@ -105,8 +109,6 @@ public class BookingMapper {
                         .scheduledEndTime(endTime)
                         .isAddOn(isAddOn)
                         .build());
-
-                currentTime = endTime;
             }
 
             // Nhóm dịch vụ theo pet cho multi-pet (pets list)
@@ -274,8 +276,8 @@ public class BookingMapper {
             }
 
             boolean isMyAssignment = false;
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
             List<ClinicTodayBookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
-            LocalTime currentTime = booking.getBookingTime();
 
             for (BookingServiceItem item : booking.getBookingServices()) {
                 User itemStaff = item.getAssignedStaff();
@@ -290,8 +292,9 @@ public class BookingMapper {
                 int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
                 int slotDurationMinutes = slotsRequired * 30;
 
-                LocalTime startTime = currentTime;
-                LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
+                LocalTime[] range = schedule.get(item.getBookingServiceId());
+                LocalTime startTime = range != null ? range[0] : booking.getBookingTime();
+                LocalTime endTime = range != null ? range[1] : startTime.plusMinutes(slotDurationMinutes);
 
                 Boolean isAddOn = item.getIsAddOn() != null ? item.getIsAddOn() : false;
 
@@ -319,8 +322,6 @@ public class BookingMapper {
                                 .scheduledEndTime(endTime)
                                 .isAddOn(isAddOn)
                                 .build());
-
-                currentTime = endTime;
             }
 
             if (staff != null && staff.getUserId().equals(currentStaffId)) {

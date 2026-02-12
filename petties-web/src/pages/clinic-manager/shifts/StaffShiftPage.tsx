@@ -3,181 +3,95 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../../store/authStore'
 import { staffShiftService } from '../../../services/api/staffShiftService'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
-import type { StaffShiftResponse, StaffShiftRequest, SlotResponse } from '../../../types/staffshift'
+import { clinicService } from '../../../services/api/clinicService'
+import type { StaffShiftResponse, StaffShiftRequest } from '../../../types/staffshift'
 import type { StaffMember } from '../../../types/clinicStaff'
+import type { ClinicResponse } from '../../../types/clinic'
 import { useToast } from '../../../components/Toast'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 import { CalendarPicker } from '../../../components/CalendarPicker'
 import { TrashIcon, DocumentDuplicateIcon, HandRaisedIcon, UserIcon, ClockIcon, MoonIcon, ArrowRightIcon, LockClosedIcon, LockOpenIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { ShiftTableGridView } from './ShiftTableGridView'
+import { mergeSlots } from './shiftTableUtils'
+import type { MergedSlot } from './shiftTableUtils'
+import {
+    formatDate,
+    formatDisplayDate,
+    formatDisplayDateWithYear,
+    formatWeekRange,
+    getWeekDates,
+    DAYS_VN,
+    getDefaultBreakForDate,
+    timesOverlap,
+    type ConflictItem,
+} from './staffShiftPageUtils'
 import '../../../styles/brutalist.css'
 
-// Helper to get week dates
-const getWeekDates = (date: Date) => {
-    const clone = new Date(date)
-    const day = clone.getDay()
-    const diff = clone.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(clone.setDate(diff))
-    const dates = []
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(monday)
-        d.setDate(monday.getDate() + i)
-        dates.push(d)
-    }
-    return dates
-}
-
-const formatDate = (date: Date) => {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-}
-const formatDisplayDate = (date: Date) => {
-    const day = date.getDate()
-    const month = date.getMonth() + 1
-    return `${day}/${month}`
-}
-const formatDisplayDateWithYear = (date: Date) => {
-    const day = date.getDate()
-    const month = date.getMonth() + 1
-    const year = date.getFullYear()
-    return `${day}/${month}/${year}`
-}
-const formatWeekRange = (startDate: Date, endDate: Date) => {
-    const startYear = startDate.getFullYear()
-    const endYear = endDate.getFullYear()
-    // If crossing year boundary, show both years
-    if (startYear !== endYear) {
-        return `${formatDisplayDateWithYear(startDate)} - ${formatDisplayDateWithYear(endDate)}`
-    }
-    // Otherwise show year once at the end
-    return `${formatDisplayDate(startDate)} - ${formatDisplayDate(endDate)}/${endYear}`
-}
-
-const DAYS_VN = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN']
-
-export interface MergedSlot {
-    id: string;
-    startTime: string;
-    endTime: string;
-    status: 'AVAILABLE' | 'BOOKED' | 'BLOCKED';
-    petName?: string;
-    petOwnerName?: string;
-    bookingId?: string;
-    serviceName?: string;
-    span: number; // Number of original 30-min slots
-}
-
-const mergeSlots = (slots: SlotResponse[] | null): MergedSlot[] => {
-    if (!slots || slots.length === 0) return [];
-
-    const sorted = [...slots].sort((a, b) => a.startTime.localeCompare(b.startTime));
-    const merged: MergedSlot[] = [];
-    let current: MergedSlot | null = null;
-
-    sorted.forEach((slot) => {
-        // Only merge BOOKED slots that belong to the same booking
-        // AVAILABLE and BLOCKED slots remain as individual 30-min slots
-        const shouldMerge = current &&
-            slot.status === 'BOOKED' &&
-            current.status === 'BOOKED' &&
-            current.bookingId === slot.bookingId;
-
-        if (shouldMerge && current) {
-            current.endTime = slot.endTime;
-            current.span += 1;
-        } else {
-            current = {
-                id: slot.slotId,
-                startTime: slot.startTime,
-                endTime: slot.endTime,
-                status: slot.status as any,
-                petName: slot.petName,
-                petOwnerName: slot.petOwnerName,
-                bookingId: slot.bookingId,
-                serviceName: slot.serviceName,
-                span: 1
-            };
-            merged.push(current);
-        }
-    });
-
-    return merged;
-};
-
-/**
- * StaffShift Management Page - Soft Neubrutalism (Consistent Clinic Manager Colors)
- * Colors: bg-stone-50, bg-amber-500, stone-900
- */
 export const StaffShiftPage = () => {
     const { user } = useAuthStore()
     const navigate = useNavigate()
     const clinicId = user?.workingClinicId
     const { showToast } = useToast()
 
+    // --- State: Calendar & view ---
     const [currentWeek, setCurrentWeek] = useState(new Date())
     const [weekDates, setWeekDates] = useState<Date[]>([])
+    const [viewMode, setViewMode] = useState<'week' | 'day' | 'month' | 'table'>('table')
+    const [selectedDay, setSelectedDay] = useState<Date>(new Date())
+    const [tableSlotStart, setTableSlotStart] = useState('08:00')
+    const [tableSlotEnd, setTableSlotEnd] = useState('17:00')
+
+    // --- State: Data ---
     const [shifts, setShifts] = useState<StaffShiftResponse[]>([])
     const [staffMembers, setStaffMembers] = useState<StaffMember[]>([])
+    const [clinicDetail, setClinicDetail] = useState<ClinicResponse | null>(null)
     const [loading, setLoading] = useState(false)
+    const [dayViewShifts, setDayViewShifts] = useState<StaffShiftResponse[]>([])
 
-    // Selection mode
+    // --- State: Selection (delete multiple / drag select) ---
     const [selectionMode, setSelectionMode] = useState(false)
     const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([])
-
-    // Drag selection state
     const [isDragging, setIsDragging] = useState(false)
-    const [hasMoved, setHasMoved] = useState(false) // Distinguish click vs drag
+    const [hasMoved, setHasMoved] = useState(false)
     const [dragStartPos, setDragStartPos] = useState<{ staffId: string; dateIndex: number } | null>(null)
     const [dragEndPos, setDragEndPos] = useState<{ staffId: string; dateIndex: number } | null>(null)
     const [dragType, setDragType] = useState<'create' | 'delete' | null>(null)
-
-    // Ref for immediate drag state access (fixes race condition in click handlers)
     const dragStateRef = useRef({
         isDragging: false,
         hasMoved: false,
         startPos: null as { staffId: string; dateIndex: number } | null,
-        endPos: null as { staffId: string; dateIndex: number } | null
+        endPos: null as { staffId: string; dateIndex: number } | null,
     })
 
-    // Modals
+    // --- State: Modals & UI ---
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
     const [isConflictModalOpen, setIsConflictModalOpen] = useState(false)
-    const [conflictDetails, setConflictDetails] = useState<{ date: string; existingShift: string; newShift: string }[]>([])
+    const [conflictDetails, setConflictDetails] = useState<ConflictItem[]>([])
     const [isStaffSelectorOpen, setIsStaffSelectorOpen] = useState(false)
     const staffSelectorRef = useRef<HTMLDivElement>(null)
 
-    // Form
+    // --- State: Sidebar (form + detail) ---
     const [formData, setFormData] = useState<StaffShiftRequest>({
         staffId: '',
         workDates: [],
         startTime: '08:00',
         endTime: '17:00',
-        // breakStart and breakEnd left undefined to use clinic defaults
         repeatWeeks: 1,
     })
-
     const [selectedShift, setSelectedShift] = useState<StaffShiftResponse | null>(null)
     const [shiftDetail, setShiftDetail] = useState<StaffShiftResponse | null>(null)
     const [loadingSlots, setLoadingSlots] = useState(false)
     const [sidebarMode, setSidebarMode] = useState<'create' | 'detail'>('create')
-    const [viewMode, setViewMode] = useState<'week' | 'day' | 'month'>('week')
-    const [selectedDay, setSelectedDay] = useState<Date>(new Date())
 
-    // Force re-calculate weekDates when currentWeek changes
+    // --- Effects: Derived (weekDates từ currentWeek) ---
     useEffect(() => {
-        console.log('StaffShiftPage: currentWeek changed to:', currentWeek)
         const newWeekDates = getWeekDates(new Date(currentWeek))
-        console.log('StaffShiftPage: new weekDates:', newWeekDates.map(d => d.toDateString()))
         setWeekDates(newWeekDates)
-    }, [currentWeek.getTime()]) // Use getTime() to detect actual date changes
+    }, [currentWeek.getTime()])
 
-    // When switching to Day view, sync selectedDay to be within current week
-    // Constraint logic removed to fix Month->Day navigation bug
-    // selectedDay is managed explicitly by navigation handlers
-
-    // Close dropdown when clicking outside
+    // --- Effects: Data (staff, clinic, shifts) ---
+    // --- Effects: Close dropdown when clicking outside ---
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (staffSelectorRef.current && !staffSelectorRef.current.contains(event.target as Node)) {
@@ -193,8 +107,28 @@ export const StaffShiftPage = () => {
     }, [clinicId])
 
     useEffect(() => {
-        if (clinicId && weekDates.length > 0) fetchShifts()
-    }, [clinicId, weekDates, viewMode])
+        if (!clinicId) return
+        clinicService.getClinicById(clinicId).then(setClinicDetail).catch(() => setClinicDetail(null))
+    }, [clinicId])
+
+    useEffect(() => {
+        if (!clinicDetail || formData.workDates.length === 0 || formData.breakStart != null || formData.breakEnd != null) return
+        const firstDate = new Date(formData.workDates[0])
+        const def = getDefaultBreakForDate(clinicDetail, firstDate)
+        if (def) setFormData(prev => ({ ...prev, breakStart: def.breakStart, breakEnd: def.breakEnd }))
+    }, [clinicDetail, formData.workDates.join(','), formData.breakStart, formData.breakEnd])
+
+    // --- Effects: Fetch shifts (by viewMode) ---
+    useEffect(() => {
+        if (!clinicId || (viewMode !== 'table' && viewMode !== 'day') || !selectedDay) return
+        fetchShifts()
+    }, [clinicId, viewMode, selectedDay.getTime()])
+
+    useEffect(() => {
+        if (!clinicId || viewMode === 'table' || viewMode === 'day') return
+        if (weekDates.length === 0) return
+        fetchShifts()
+    }, [clinicId, viewMode, weekDates])
 
     const fetchStaff = async () => {
         if (!clinicId) return
@@ -208,7 +142,23 @@ export const StaffShiftPage = () => {
     }
 
     const fetchShifts = async () => {
-        if (!clinicId || weekDates.length === 0) return
+        if (!clinicId) return
+        if (viewMode === 'table' || viewMode === 'day') {
+            if (!selectedDay) return
+            setLoading(true)
+            try {
+                const dayStr = formatDate(selectedDay)
+                const data = await staffShiftService.getShiftsByClinic(clinicId, dayStr, dayStr)
+                setShifts(data)
+            } catch (err: any) {
+                showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
+            } finally {
+                setLoading(false)
+            }
+            return
+        }
+        // Week: needs weekDates
+        if (weekDates.length === 0) return
         setLoading(true)
         try {
             let startDate = formatDate(weekDates[0])
@@ -264,12 +214,9 @@ export const StaffShiftPage = () => {
         fetchDetail()
     }, [selectedShift, showToast])
 
-    // State for Day View with slots
-    const [dayViewShifts, setDayViewShifts] = useState<StaffShiftResponse[]>([])
-
-    // Fetch shifts with slots for Day View
+    // --- Fetch shifts with slots for Day View & Table View ---
     useEffect(() => {
-        if (viewMode !== 'day' || !clinicId) return
+        if ((viewMode !== 'day' && viewMode !== 'table') || !clinicId) return
 
         const fetchDayShifts = async () => {
             const dayStr = formatDate(selectedDay)
@@ -325,8 +272,7 @@ export const StaffShiftPage = () => {
         }
     }
 
-    // --- Drag Selection Logic ---
-
+    // --- Handlers: Drag selection (week) ---
     const handleCellMouseDown = (staffId: string, dateIndex: number, hasShift: boolean) => {
         // Sync Ref immediately
         dragStateRef.current = {
@@ -476,32 +422,9 @@ export const StaffShiftPage = () => {
         return () => window.removeEventListener('mouseup', handleDragEndGlobal)
     }, [handleDragEndGlobal])
 
-    // --- Actions ---
-
-    // Helper to check time overlap
-    const timesOverlap = (start1: string, end1: string, start2: string, end2: string, isOvernight1: boolean, isOvernight2: boolean) => {
-        // Convert to minutes for easier comparison
-        const toMinutes = (t: string) => {
-            const [h, m] = t.split(':').map(Number)
-            return h * 60 + m
-        }
-
-        let s1 = toMinutes(start1)
-        let e1 = toMinutes(end1)
-        let s2 = toMinutes(start2)
-        let e2 = toMinutes(end2)
-
-        // Handle overnight shifts (add 24h to end time if it's before start)
-        if (isOvernight1 || e1 < s1) e1 += 24 * 60
-        if (isOvernight2 || e2 < s2) e2 += 24 * 60
-
-        // Check overlap
-        return s1 < e2 && s2 < e1
-    }
-
-    // Check for conflicts with existing shifts
-    const checkForConflicts = () => {
-        const conflicts: { date: string; existingShift: string; newShift: string }[] = []
+    // --- Actions: Check for conflicts ---
+    const checkForConflicts = (): ConflictItem[] => {
+        const conflicts: ConflictItem[] = []
 
         formData.workDates.forEach(date => {
             const existingShiftsOnDate = shifts.filter(s =>
@@ -576,10 +499,11 @@ export const StaffShiftPage = () => {
                 shifts.some(s => s.staffId === formData.staffId && s.workDate === date)
             ))
 
-            const requestData = {
-                ...formData,
+            const { breakStart: _bS, breakEnd: _bE, ...rest } = formData
+            const requestData: StaffShiftRequest = {
+                ...rest,
                 isOvernight: finalIsOvernight,
-                forceUpdate: isEditing // Enable upsert when editing or overriding conflicts
+                forceUpdate: isEditing
             }
             const createdShifts = await staffShiftService.createShift(clinicId, requestData)
 
@@ -596,8 +520,6 @@ export const StaffShiftPage = () => {
                 workDates: [],
                 startTime: '08:00',
                 endTime: '17:00',
-                breakStart: '12:00',
-                breakEnd: '13:00',
                 repeatWeeks: 1,
             })
             setSelectedShift(null) // Clear selected shift
@@ -712,6 +634,15 @@ export const StaffShiftPage = () => {
                     {/* View Mode Toggle */}
                     <div className="flex bg-stone-100 rounded-xl p-1 border-2 border-stone-200">
                         <button
+                            onClick={() => setViewMode('table')}
+                            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'table'
+                                ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
+                                : 'text-stone-500 hover:text-stone-700'
+                                }`}
+                        >
+                            Bảng khung giờ
+                        </button>
+                        <button
                             onClick={() => setViewMode('week')}
                             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${viewMode === 'week'
                                 ? 'bg-amber-500 text-white shadow-[2px_2px_0px_0px_rgba(28,25,23,0.5)]'
@@ -742,23 +673,97 @@ export const StaffShiftPage = () => {
 
                     {/* Date Navigation */}
                     <div className="flex items-center gap-3">
-                        <button onClick={handlePrevWeek} className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">←</button>
+                        <button
+                            onClick={() => {
+                                if (viewMode === 'table') {
+                                    const n = new Date(selectedDay)
+                                    n.setDate(n.getDate() - 1)
+                                    setSelectedDay(n)
+                                    setCurrentWeek(n)
+                                } else {
+                                    handlePrevWeek()
+                                }
+                            }}
+                            className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                        >←</button>
                         <CalendarPicker
-                            value={currentWeek}
+                            value={viewMode === 'table' ? selectedDay : currentWeek}
                             onChange={(date) => {
                                 setCurrentWeek(date)
                                 setSelectedDay(date)
-                                setViewMode('day')
+                                if (viewMode === 'week') setViewMode('day')
                             }}
                             mode="date"
-                            displayFormat={() => weekDates.length > 0 ? formatWeekRange(weekDates[0], weekDates[6]) : ''}
+                            displayFormat={() => viewMode === 'table'
+                                ? formatDisplayDateWithYear(selectedDay)
+                                : weekDates.length > 0 ? formatWeekRange(weekDates[0], weekDates[6]) : ''
+                            }
                         />
-                        <button onClick={handleNextWeek} className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]">→</button>
+                        <button
+                            onClick={() => {
+                                if (viewMode === 'table') {
+                                    const n = new Date(selectedDay)
+                                    n.setDate(n.getDate() + 1)
+                                    setSelectedDay(n)
+                                    setCurrentWeek(n)
+                                } else {
+                                    handleNextWeek()
+                                }
+                            }}
+                            className="w-10 h-10 flex items-center justify-center border-2 border-stone-900 rounded-xl hover:bg-amber-100 transition-colors bg-white shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
+                        >→</button>
                     </div>
                 </div>
 
                 {/* Calendar Content - With overflow for scrolling */}
                 <div className="flex-1 bg-white rounded-2xl border-2 border-stone-900 p-5 shadow-[4px_4px_0px_0px_rgba(28,25,23,0.8)] flex flex-col overflow-hidden">
+
+                    {/* Table View - Bảng khung giờ */}
+                    {viewMode === 'table' && (
+                        <ShiftTableGridView
+                            staffMembers={staffMembers}
+                            dayViewShifts={dayViewShifts}
+                            selectedDay={selectedDay}
+                            loading={loading}
+                            slotStart={tableSlotStart}
+                            slotEnd={tableSlotEnd}
+                            onSlotStartChange={setTableSlotStart}
+                            onSlotEndChange={setTableSlotEnd}
+                            onDayPrev={() => {
+                                const newDate = new Date(selectedDay.getTime() - 86400000)
+                                setSelectedDay(newDate)
+                                setCurrentWeek(newDate)
+                            }}
+                            onDayNext={() => {
+                                const newDate = new Date(selectedDay.getTime() + 86400000)
+                                setSelectedDay(newDate)
+                                setCurrentWeek(newDate)
+                            }}
+                            selectedShift={selectedShift}
+                            formStaffId={formData.staffId || null}
+                            onRowClick={(staffId, staffShift, dateStr) => {
+                                if (staffShift) {
+                                    setSelectedShift(staffShift)
+                                    setSidebarMode('detail')
+                                } else {
+                                    setSelectedShift(null)
+                                    setFormData(prev => ({ ...prev, staffId, workDates: [dateStr] }))
+                                    setSidebarMode('create')
+                                }
+                            }}
+                            onTimeRangeSelect={(staffId, dateStr, startTime, endTime) => {
+                                setSelectedShift(null)
+                                setFormData(prev => ({
+                                    ...prev,
+                                    staffId,
+                                    workDates: [dateStr],
+                                    startTime,
+                                    endTime,
+                                }))
+                                setSidebarMode('create')
+                            }}
+                        />
+                    )}
 
                     {/* Week View Hint */}
                     {viewMode === 'week' && (
@@ -1510,11 +1515,23 @@ export const StaffShiftPage = () => {
                             </div>
                         </div>
 
-                        {/* Break time note - always from clinic */}
+                        {/* Giờ nghỉ trưa: ưu tiên lấy từ clinic, không có thì dùng 12:00 - 13:00 */}
                         {!formData.isOvernight && (
                             <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
                                 <div className="text-xs font-bold text-stone-500">Giờ nghỉ trưa</div>
-                                <div className="text-xs text-stone-400 italic">Tự động theo cài đặt phòng khám</div>
+                                {(() => {
+                                    const refDate = formData.workDates.length > 0 ? new Date(formData.workDates[0]) : selectedDay
+                                    const clinicBreak = getDefaultBreakForDate(clinicDetail, refDate)
+                                    const breakStart = clinicBreak?.breakStart ?? '12:00'
+                                    const breakEnd = clinicBreak?.breakEnd ?? '13:00'
+                                    const willApply = !formData.breakStart && !formData.breakEnd
+                                    return (
+                                        <div className="text-xs text-stone-600 mt-0.5">
+                                            Mặc định phòng khám: <span className="font-bold">{breakStart} - {breakEnd}</span>
+                                            {willApply && ' (sẽ áp dụng khi tạo ca)'}
+                                        </div>
+                                    )
+                                })()}
                             </div>
                         )}
 
@@ -1529,7 +1546,7 @@ export const StaffShiftPage = () => {
                 )}
             </div>
 
-            {/* Confirmation Modals */}
+            {/* --- Modals --- */}
             <ConfirmModal
                 isOpen={isDeleteModalOpen}
                 title="Xóa ca làm việc?"
