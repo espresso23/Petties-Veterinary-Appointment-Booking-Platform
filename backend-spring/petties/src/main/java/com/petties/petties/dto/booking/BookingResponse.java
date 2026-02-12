@@ -47,6 +47,7 @@ public class BookingResponse {
     // ========== CLINIC INFO ==========
     private UUID clinicId;
     private String clinicName;
+    private String clinicLogo;
     private String clinicAddress;
     private String clinicPhone;
 
@@ -88,6 +89,11 @@ public class BookingResponse {
     // ========== TIMESTAMPS ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    private Boolean isReviewed;
+    private UUID reviewId;
+    private Integer rating;
+    private String reviewComment;
 
     /**
      * Nested DTO for booking service items

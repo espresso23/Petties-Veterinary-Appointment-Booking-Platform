@@ -155,6 +155,9 @@ public class Booking {
     @OneToOne(mappedBy = "booking", cascade = CascadeType.ALL)
     private Payment payment;
 
+    @OneToOne(mappedBy = "booking")
+    private Review review;
+
     // ========== HELPER METHODS ==========
 
     /**

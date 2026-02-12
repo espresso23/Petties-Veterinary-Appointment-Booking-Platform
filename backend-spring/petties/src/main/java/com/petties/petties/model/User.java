@@ -3,6 +3,7 @@ package com.petties.petties.model;
 import com.petties.petties.model.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -109,4 +111,12 @@ public class User {
     @JoinColumn(name = "working_clinic_id")
     private Clinic workingClinic;
 
+    // Manual Getter for Lombok issue workaround
+    public UUID getUserId() {
+        return this.userId;
+    }
+
+    public Clinic getWorkingClinic() {
+        return this.workingClinic;
+    }
 }
