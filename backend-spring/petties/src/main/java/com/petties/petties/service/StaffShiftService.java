@@ -155,7 +155,7 @@ public class StaffShiftService {
                     if (forceUpdate) {
                         // Check if new time conflicts with existing bookings
                         StaffShift oldShift = existingShift.get();
-                        List<Slot> bookedSlots = slotRepository.findByShift_ShiftIdAndStatus(
+                        List<Slot> bookedSlots = slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(
                                 oldShift.getShiftId(), SlotStatus.BOOKED);
                         
                         if (!bookedSlots.isEmpty()) {

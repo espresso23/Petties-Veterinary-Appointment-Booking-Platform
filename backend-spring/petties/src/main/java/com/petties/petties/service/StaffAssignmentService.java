@@ -611,9 +611,9 @@ public class StaffAssignmentService {
             String message = String.format(
                 "Nhân viên %s (%s) không có chuyên môn phù hợp với dịch vụ %s (yêu cầu: %s)",
                 newStaff.getFullName(),
-                newStaffSpecialty != null ? newStaffSpecialty.getDisplayName() : "Không xác định",
+                newStaffSpecialty != null ? newStaffSpecialty.getVietnameseLabel() : "Không xác định",
                 serviceItem.getService().getName(),
-                requiredSpecialty.getDisplayName()
+                requiredSpecialty.getVietnameseLabel()
             );
             log.warn("Specialty validation failed: {}", message);
             throw new BadRequestException(message);
