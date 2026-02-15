@@ -423,13 +423,20 @@ export const StaffShiftPage = () => {
     }, [handleDragEndGlobal])
 
     // --- Actions: Check for conflicts ---
-    const checkForConflicts = (): ConflictItem[] => {
+    const checkForConflicts = (isEditingExisting: boolean): ConflictItem[] => {
         const conflicts: ConflictItem[] = []
 
         formData.workDates.forEach(date => {
             const existingShiftsOnDate = shifts.filter(s =>
                 s.staffId === formData.staffId && s.workDate === date && !s.isContinuation
             )
+
+            // ⚠️ FIX: Khi edit mode, CHỈ có 1 shift tại mỗi date đang được edit
+            // Bỏ qua hoàn toàn shift đó vì backend sẽ update/overwrite
+            if (isEditingExisting && existingShiftsOnDate.length === 1) {
+                // Skip validation cho shift đang được edit (sẽ được replace)
+                return
+            }
 
             existingShiftsOnDate.forEach(existing => {
                 if (timesOverlap(
@@ -482,9 +489,67 @@ export const StaffShiftPage = () => {
             return
         }
 
+        // ⚠️ FIX: Detect edit mode TRƯỚC khi check conflicts
+        const isEditingExistingShifts: boolean = !!(formData.staffId && formData.workDates.length > 0 && formData.workDates.every(date =>
+            shifts.some(s => s.staffId === formData.staffId && s.workDate === date)
+        ))
+
+        // ⚠️ CHECK: New time range conflicts with existing bookings?
+        if (isEditingExistingShifts && !forceCreate) {
+            const newStart = formData.startTime
+            const newEnd = formData.endTime
+            
+            // Convert time strings to comparable format (remove colon)
+            const timeToNumber = (timeStr: string) => parseInt(timeStr.replace(':', ''), 10)
+            const newStartNum = timeToNumber(newStart)
+            const newEndNum = timeToNumber(newEnd)
+            
+            const conflictingShifts = formData.workDates
+                .map(date => shifts.find(s => s.staffId === formData.staffId && s.workDate === date))
+                .filter(shift => {
+                    if (!shift || !shift.slots || shift.bookedSlots === 0) return false
+                    
+                    // Check if any booked slot is within new time range
+                    const hasConflict = shift.slots.some(slot => {
+                        if (slot.status !== 'BOOKED') return false
+                        
+                        const slotStartNum = timeToNumber(slot.startTime)
+                        const slotEndNum = timeToNumber(slot.endTime)
+                        
+                        // Booked slot is OUTSIDE new range if:
+                        // - slot ends before/at new start, OR
+                        // - slot starts after/at new end
+                        const isOutside = slotEndNum <= newStartNum || slotStartNum >= newEndNum
+                        return !isOutside // Conflict if NOT outside
+                    })
+                    
+                    return hasConflict
+                })
+            
+            if (conflictingShifts.length > 0) {
+                const conflicts = conflictingShifts.map(shift => {
+                    const conflictSlots = shift!.slots!
+                        .filter(s => {
+                            if (s.status !== 'BOOKED') return false
+                            const slotStartNum = timeToNumber(s.startTime)
+                            const slotEndNum = timeToNumber(s.endTime)
+                            return !(slotEndNum <= newStartNum || slotStartNum >= newEndNum)
+                        })
+                        .map(s => s.startTime)
+                        .join(', ')
+                    return `${shift!.workDate} (lịch hẹn: ${conflictSlots})`
+                }).join('; ')
+                
+                showToast('error', 
+                    `Không thể cập nhật ca vì thời gian mới xung đột với lịch hẹn: ${conflicts}`,
+                    5000)
+                return
+            }
+        }
+
         // Check for conflicts (only if not forcing)
         if (!forceCreate) {
-            const conflicts = checkForConflicts()
+            const conflicts = checkForConflicts(isEditingExistingShifts)
             if (conflicts.length > 0) {
                 setConflictDetails(conflicts)
                 setIsConflictModalOpen(true)
@@ -495,9 +560,7 @@ export const StaffShiftPage = () => {
         setLoading(true)
         try {
             // Check if we're editing existing shifts OR user confirmed to override conflicts
-            const isEditing = forceCreate || (formData.workDates.length > 0 && formData.workDates.every(date =>
-                shifts.some(s => s.staffId === formData.staffId && s.workDate === date)
-            ))
+            const isEditing = forceCreate || isEditingExistingShifts
 
             const { breakStart: _bS, breakEnd: _bE, ...rest } = formData
             const requestData: StaffShiftRequest = {

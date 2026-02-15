@@ -166,6 +166,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                               TextFormField(
                                 initialValue: provider.beneficiary!.phone,
                                 keyboardType: TextInputType.phone,
+                                autovalidateMode: AutovalidateMode.onUserInteraction,
                                 decoration: InputDecoration(
                                   hintText: '0912 345 678',
                                   filled: true,
@@ -175,9 +176,37 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                                     borderSide: const BorderSide(
                                         color: AppColors.stone300),
                                   ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.stone300),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.error, width: 2),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.error, width: 2),
+                                  ),
                                   contentPadding: const EdgeInsets.symmetric(
                                       horizontal: 14, vertical: 12),
                                 ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Vui lòng nhập số điện thoại';
+                                  }
+                                  // Vietnamese phone number validation
+                                  // Format: 0xxxxxxxxx (10 digits) or +84xxxxxxxxx (12 digits)
+                                  final cleanPhone = value.replaceAll(RegExp(r'[\s-]'), '');
+                                  final phoneRegex = RegExp(r'^(0|\+84)[0-9]{9,10}$');
+                                  if (!phoneRegex.hasMatch(cleanPhone)) {
+                                    return 'Số điện thoại không hợp lệ (VD: 0912345678)';
+                                  }
+                                  return null;
+                                },
                                 onChanged: (v) => provider.updateBeneficiary(
                                   phone: v.trim(),
                                 ),
