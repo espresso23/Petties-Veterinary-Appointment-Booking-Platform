@@ -604,6 +604,26 @@ public class StaffAssignmentService {
         User newStaff = userRepository.findById(newStaffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff not found: " + newStaffId));
 
+        // ========== SPECIALTY VALIDATION ==========
+        // Check if new staff has appropriate specialty for this service
+        StaffSpecialty requiredSpecialty = serviceItem.getService().getServiceCategory().getRequiredSpecialty();
+        StaffSpecialty newStaffSpecialty = newStaff.getSpecialty();
+
+        if (!isSpecialtyCompatible(newStaffSpecialty, requiredSpecialty)) {
+            String message = String.format(
+                "Nhân viên %s (%s) không có chuyên môn phù hợp với dịch vụ %s (yêu cầu: %s)",
+                newStaff.getFullName(),
+                newStaffSpecialty != null ? newStaffSpecialty.getVietnameseLabel() : "Không xác định",
+                serviceItem.getService().getName(),
+                requiredSpecialty.getVietnameseLabel()
+            );
+            log.warn("Specialty validation failed: {}", message);
+            throw new BadRequestException(message);
+        }
+
+        log.info("Specialty validation passed: {} ({}) is compatible with required {}",
+                newStaff.getFullName(), newStaffSpecialty, requiredSpecialty);
+
         Booking booking = serviceItem.getBooking();
         User oldStaff = serviceItem.getAssignedStaff();
 
@@ -613,8 +633,8 @@ public class StaffAssignmentService {
                 newStaff.getFullName());
 
         // Validate: service category cannot be changed to groomer
-        StaffSpecialty requiredSpecialty = getSpecialtyForService(serviceItem);
-        if (requiredSpecialty != StaffSpecialty.GROOMER && newStaff.getSpecialty() == StaffSpecialty.GROOMER) {
+        StaffSpecialty serviceCategorySpecialty = getSpecialtyForService(serviceItem);
+        if (serviceCategorySpecialty != StaffSpecialty.GROOMER && newStaff.getSpecialty() == StaffSpecialty.GROOMER) {
             throw new BadRequestException("Dịch vụ chuyên khoa không thể đổi cho nhân viên groomer");
         }
 
@@ -1188,6 +1208,38 @@ public class StaffAssignmentService {
 
         log.info("Found {} available slots for services {}", availableSlots.size(), serviceIds);
         return availableSlots;
+    }
+
+    /**
+     * Check if staff specialty is compatible with required specialty
+     * Rules:
+     * - Exact match: always OK
+     * - VET_GENERAL can handle all VET_* services (but not GROOMER services)
+     * - GROOMER can only handle GROOMER services
+     * - Other VET_* specialties cannot fallback to each other (strict separation)
+     *
+     * @param staffSpecialty    The specialty of the staff member
+     * @param requiredSpecialty The specialty required by the service
+     * @return true if compatible, false otherwise
+     */
+    private boolean isSpecialtyCompatible(StaffSpecialty staffSpecialty, StaffSpecialty requiredSpecialty) {
+        if (staffSpecialty == null || requiredSpecialty == null) {
+            return false;
+        }
+
+        // Exact match - always compatible
+        if (staffSpecialty == requiredSpecialty) {
+            return true;
+        }
+
+        // VET_GENERAL can handle all VET_* services (fallback for all medical services)
+        if (staffSpecialty == StaffSpecialty.VET_GENERAL && requiredSpecialty != StaffSpecialty.GROOMER) {
+            return true;
+        }
+
+        // GROOMER cannot do medical services
+        // Specialized VETs (SURGERY, DENTAL, DERMATOLOGY) cannot do each other's services
+        return false;
     }
 
     /**
