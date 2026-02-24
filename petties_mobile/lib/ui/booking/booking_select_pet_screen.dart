@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../config/constants/app_colors.dart';
@@ -25,6 +26,8 @@ class BookingSelectPetScreen extends StatefulWidget {
 }
 
 class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
+  final _beneficiaryFormKey = GlobalKey<FormState>();
+
   @override
   void initState() {
     super.initState();
@@ -110,78 +113,98 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                             border:
                                 Border.all(color: AppColors.stone300, width: 2),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Thông tin người đặt hộ',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.stone900,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Họ tên
-                              const Text(
-                                'Họ tên',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.stone700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                initialValue: provider.beneficiary!.fullName,
-                                decoration: InputDecoration(
-                                  hintText: 'Nguyễn Văn A',
-                                  filled: true,
-                                  fillColor: AppColors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                        color: AppColors.stone300),
+                          child: Form(
+                            key: _beneficiaryFormKey,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Thông tin người đặt hộ',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.stone900,
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
                                 ),
-                                onChanged: (v) => provider.updateBeneficiary(
-                                  fullName: v.trim(),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
+                                const SizedBox(height: 16),
 
-                              // Số điện thoại
-                              const Text(
-                                'Số điện thoại',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.stone700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                initialValue: provider.beneficiary!.phone,
-                                keyboardType: TextInputType.phone,
-                                decoration: InputDecoration(
-                                  hintText: '0912 345 678',
-                                  filled: true,
-                                  fillColor: AppColors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                        color: AppColors.stone300),
+                                // Họ tên
+                                const Text(
+                                  'Họ tên',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.stone700,
                                   ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 12),
                                 ),
-                                onChanged: (v) => provider.updateBeneficiary(
-                                  phone: v.trim(),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  initialValue: provider.beneficiary!.fullName,
+                                  decoration: InputDecoration(
+                                    hintText: 'Nguyễn Văn A',
+                                    filled: true,
+                                    fillColor: AppColors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(
+                                          color: AppColors.stone300),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 12),
+                                  ),
+                                  onChanged: (v) => provider.updateBeneficiary(
+                                    fullName: v.trim(),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 16),
+
+                                // Số điện thoại
+                                const Text(
+                                  'Số điện thoại',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.stone700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  initialValue: provider.beneficiary!.phone,
+                                  keyboardType: TextInputType.phone,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                        RegExp(r'[0-9+\s]')),
+                                  ],
+                                  decoration: InputDecoration(
+                                    hintText: '0912 345 678',
+                                    filled: true,
+                                    fillColor: AppColors.white,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(
+                                          color: AppColors.stone300),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 12),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Vui lòng nhập số điện thoại';
+                                    }
+                                    final normalized =
+                                        value.replaceAll(RegExp(r'\s'), '');
+                                    final phoneRegex = RegExp(
+                                        r'^(0[0-9]{9,10}|\+84[0-9]{9})$');
+                                    if (!phoneRegex.hasMatch(normalized)) {
+                                      return 'Số điện thoại không đúng định dạng (10-11 số bắt đầu bằng 0, hoặc +84 và 9 số)';
+                                    }
+                                    return null;
+                                  },
+                                  onChanged: (v) => provider.updateBeneficiary(
+                                    phone: v.trim(),
+                                  ),
+                                ),
                               const SizedBox(height: 16),
 
                               // Vị trí của người đặt hộ
@@ -191,6 +214,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                               ),
                             ],
                           ),
+                        ),
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -922,6 +946,11 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
         child: GestureDetector(
           onTap: provider.canProceedToServices
               ? () {
+                  // Validate form đặt hộ trước khi tiếp tục
+                  if (provider.isBookingForOthers &&
+                      _beneficiaryFormKey.currentState?.validate() != true) {
+                    return;
+                  }
                   // Ensure current pet is set for service selection
                   if (provider.selectedPets.isNotEmpty) {
                     provider.setCurrentPetForServiceSelection(

@@ -441,8 +441,16 @@ public class StaffShiftService {
 
             // Part 2: Generate slots from midnight (00:00) to endTime
             currentTime = LocalTime.of(0, 0);
-            while (currentTime.plusMinutes(SLOT_DURATION_MINUTES).compareTo(endTime) <= 0) {
+            while (true) {
                 LocalTime slotEnd = currentTime.plusMinutes(SLOT_DURATION_MINUTES);
+                // Stop when slot wraps past midnight (e.g. 23:30 + 30min = 00:00)
+                // Otherwise infinite loop: 00:00.compareTo(23:00) <= 0 -> true forever
+                if (slotEnd.isBefore(currentTime) || slotEnd.equals(LocalTime.MIDNIGHT)) {
+                    break;
+                }
+                if (slotEnd.compareTo(endTime) > 0) {
+                    break;
+                }
                 if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
                     Slot slot = new Slot();
                     slot.setShift(shift);
@@ -455,8 +463,15 @@ public class StaffShiftService {
             }
         } else {
             // Normal shift: generate slots from startTime to endTime
-            while (currentTime.plusMinutes(SLOT_DURATION_MINUTES).compareTo(endTime) <= 0) {
+            while (true) {
                 LocalTime slotEnd = currentTime.plusMinutes(SLOT_DURATION_MINUTES);
+                // Stop when slot wraps past midnight (23:30 + 30min = 00:00)
+                if (slotEnd.isBefore(currentTime) || slotEnd.equals(LocalTime.MIDNIGHT)) {
+                    break;
+                }
+                if (slotEnd.compareTo(endTime) > 0) {
+                    break;
+                }
                 if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
                     Slot slot = new Slot();
                     slot.setShift(shift);

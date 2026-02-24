@@ -474,7 +474,7 @@ export const BookingDashboardPage = () => {
                                                                     />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-mint-200 text-stone-600">
-                                                                        {staff.name.charAt(0)}
+                                                                        {staff.name?.charAt(0) || '?'}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -828,7 +828,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                 />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
-                                                    {service.assignedStaffName.charAt(0)}
+                                                    {service.assignedStaffName?.charAt(0) || '?'}
                                                 </div>
                                             )}
                                         </div>
@@ -906,7 +906,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                 ) : (
                                                                     <div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0">
                                                                         <span className="text-xs font-bold text-green-700">
-                                                                            {selectedStaff.fullName.charAt(0)}
+                                                                            {selectedStaff.fullName?.charAt(0) || '?'}
                                                                         </span>
                                                                     </div>
                                                                 )}
@@ -958,7 +958,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                         <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" />
                                                                     ) : (
                                                                         <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">
-                                                                            {staff.fullName.charAt(0)}
+                                                                            {staff.fullName?.charAt(0) || '?'}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -1058,7 +1058,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                     <img src={service.assignedStaffAvatarUrl} alt={service.assignedStaffName} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
-                                                        {service.assignedStaffName.charAt(0)}
+                                                        {service.assignedStaffName?.charAt(0) || '?'}
                                                     </div>
                                                 )}
                                             </div>
@@ -1089,7 +1089,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                     <button type="button" onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)} className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-green-50 border-2 border-green-600 hover:shadow-[2px_2px_0_#1c1917] transition-all text-left">
                                                         <div className="flex items-center gap-2 flex-1 min-w-0">
                                                             <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                                                            {selectedStaff ? <><div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-green-700">{selectedStaff.fullName.charAt(0)}</span></div><div className="text-xs flex-1 min-w-0"><span className="font-bold text-green-800">Nhân viên:</span><span className="ml-1 font-medium text-green-700">{selectedStaff.fullName}</span></div></> : <span className="text-xs text-stone-500">Chọn nhân viên...</span>}
+                                                            {selectedStaff ? <><div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0"><span className="text-xs font-bold text-green-700">{selectedStaff.fullName?.charAt(0) || '?'}</span></div><div className="text-xs flex-1 min-w-0"><span className="font-bold text-green-800">Nhân viên:</span><span className="ml-1 font-medium text-green-700">{selectedStaff.fullName}</span></div></> : <span className="text-xs text-stone-500">Chọn nhân viên...</span>}
                                                         </div>
                                                         <svg className={`w-4 h-4 text-green-600 transition-transform flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                                                     </button>
@@ -1100,7 +1100,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                 return (
                                                                     <button key={staff.staffId} type="button" disabled={!isAvailableForThisService} onClick={() => { setSelectedStaffByService(prev => ({ ...prev, [serviceId]: staff.staffId })); setOpenDropdownServiceId(null); }} className={`w-full flex items-center gap-2 px-2 py-2 text-left ${selectedStaffId === staff.staffId ? 'bg-mint-100 border-l-4 border-l-mint-600' : isAvailableForThisService ? 'hover:bg-stone-50' : 'opacity-50 cursor-not-allowed bg-stone-100'}`}>
                                                                         <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
-                                                                            {staff.avatarUrl ? <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">{staff.fullName.charAt(0)}</div>}
+                                                                            {staff.avatarUrl ? <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">{staff.fullName?.charAt(0) || '?'}</div>}
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
                                                                             <div className="text-xs font-bold text-stone-900 truncate">{staff.fullName}</div>
@@ -1263,7 +1263,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center font-bold text-lg">
-                                                        {staff.name.charAt(0)}
+                                                        {staff.name?.charAt(0) || '?'}
                                                     </div>
                                                 )}
                                             </div>

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../models/clinic_service.dart';
@@ -113,6 +115,8 @@ class BookingWizardService {
         if (homeLong != null) 'homeLong': homeLong,
         if (distanceKm != null) 'distanceKm': distanceKm,
       };
+
+      debugPrint('body booking: ${jsonEncode(body)}');
 
       final response = await _apiClient.post('/bookings', data: body);
 

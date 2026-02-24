@@ -5,6 +5,7 @@ import com.petties.petties.dto.booking.AvailableStaffResponse;
 import com.petties.petties.dto.booking.ServiceAvailability;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
+import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
@@ -497,9 +498,11 @@ public class StaffAssignmentService {
         // Find all staff with matching specialty at clinic
         List<User> staff = findStaffWithSpecialty(clinicId, specialty);
 
-        // Also add VET_GENERAL as fallback (they can handle most services except
-        // GROOMER)
-        if (specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
+        // Also add VET_GENERAL as fallback:
+        // - VET specialties (VET_DENTAL, etc.): VET_GENERAL có thể làm thay
+        // - GROOMER: service groomer can be changed to specialty
+        // DO NOT add GROOMER when service requires specialty
+        if (specialty != StaffSpecialty.VET_GENERAL) {
             List<User> generalStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
             staff.addAll(generalStaff);
         }
@@ -608,6 +611,12 @@ public class StaffAssignmentService {
                 serviceItem.getService().getName(),
                 oldStaff != null ? oldStaff.getFullName() : "unassigned",
                 newStaff.getFullName());
+
+        // Validate: service category cannot be changed to groomer
+        StaffSpecialty requiredSpecialty = getSpecialtyForService(serviceItem);
+        if (requiredSpecialty != StaffSpecialty.GROOMER && newStaff.getSpecialty() == StaffSpecialty.GROOMER) {
+            throw new BadRequestException("Dịch vụ chuyên khoa không thể đổi cho nhân viên groomer");
+        }
 
         // Calculate slots needed for this service
         Integer duration = serviceItem.getService().getDurationTime();
@@ -939,8 +948,9 @@ public class StaffAssignmentService {
             List<User> staff = findStaffWithSpecialty(clinicId, specialty);
             allMatchingStaff.addAll(staff);
 
-            // Also add VET_GENERAL as fallback (they can handle most services)
-            if (specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
+            // Also add VET_GENERAL: VET specialties fallback + GROOMER can be changed to specialty
+            // DO NOT add GROOMER when service requires specialty
+            if (specialty != StaffSpecialty.VET_GENERAL) {
                 List<User> generalStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
                 allMatchingStaff.addAll(generalStaff);
             }
