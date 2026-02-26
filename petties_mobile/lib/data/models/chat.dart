@@ -255,6 +255,7 @@ class ChatMessage extends BaseModel {
   final DateTime? readAt;
   final DateTime createdAt;
   final bool isUploading; // Flag for upload state
+  final List<ActionButton>? actionButtons; // Add actionButtons
 
   ChatMessage({
     required this.id,
@@ -271,6 +272,7 @@ class ChatMessage extends BaseModel {
     this.readAt,
     required this.createdAt,
     this.isUploading = false,
+    this.actionButtons,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -296,6 +298,12 @@ class ChatMessage extends BaseModel {
           DateTime.now(),
       isUploading: json['isUploading'] ??
           false, // Default to false when parsing from JSON
+      actionButtons: (json['actionButtons'] ?? json['action_buttons']) != null
+          ? ((json['actionButtons'] ?? json['action_buttons']) as List)
+              .map((e) =>
+                  ActionButton.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList()
+          : null,
     );
   }
 
@@ -328,6 +336,8 @@ class ChatMessage extends BaseModel {
       'isRead': isRead,
       'readAt': readAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      if (actionButtons != null)
+        'actionButtons': actionButtons!.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -370,6 +380,7 @@ class ChatMessage extends BaseModel {
     DateTime? readAt,
     DateTime? createdAt,
     bool? isUploading,
+    List<ActionButton>? actionButtons,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -386,6 +397,7 @@ class ChatMessage extends BaseModel {
       readAt: readAt ?? this.readAt,
       createdAt: createdAt ?? this.createdAt,
       isUploading: isUploading ?? this.isUploading,
+      actionButtons: actionButtons ?? this.actionButtons,
     );
   }
 }
@@ -416,5 +428,34 @@ class UnreadCountResponse {
 
   factory UnreadCountResponse.fromJson(Map<String, dynamic> json) {
     return UnreadCountResponse(count: json['count'] ?? 0);
+  }
+}
+
+/// Model cho Action Button trong tin nhắn
+class ActionButton {
+  final String id;
+  final String label;
+  final String type; // 'MENU', 'OFFER', 'BOOKING', 'CUSTOM'
+
+  ActionButton({
+    required this.id,
+    required this.label,
+    required this.type,
+  });
+
+  factory ActionButton.fromJson(Map<String, dynamic> json) {
+    return ActionButton(
+      id: json['id'] ?? '',
+      label: json['label'] ?? '',
+      type: json['type'] ?? 'CUSTOM',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'label': label,
+      'type': type,
+    };
   }
 }

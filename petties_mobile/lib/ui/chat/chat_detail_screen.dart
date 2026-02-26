@@ -944,6 +944,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   clinicLogo: message.senderType == SenderType.clinic
                       ? _conversation?.clinicLogo
                       : null,
+                  conversation: _conversation,
                   onImageTap: (tappedMessage) {
                     // Always show counter in total conversation images
                     final allImages = _messages

@@ -186,46 +186,11 @@ export function ChatBox({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
-  const [galleryImages, setGalleryImages] = useState<any[]>([])
-  const [galleryPage, setGalleryPage] = useState(0)
-  const [galleryHasMore, setGalleryHasMore] = useState(false)
-  const [galleryLoading, setGalleryLoading] = useState(false)
-  const galleryImagesPerPage = 20
 
   // Image modal state (shared between single images and gallery)
   const [showImageModal, setShowImageModal] = useState(false)
   const [modalImages, setModalImages] = useState<ChatMessage[]>([])
   const [currentModalIndex, setCurrentModalIndex] = useState(0)
-
-  // Get all images from messages
-  const getConversationImages = () => {
-    return messages
-      .filter(message => message.messageType === 'IMAGE' && message.imageUrl)
-      .map(message => ({
-        url: message.imageUrl!,
-        timestamp: message.createdAt,
-        sender: message.senderName,
-        id: message.id
-      }))
-    // Show newest first
-  }
-
-  // Load images for gallery with pagination
-  const loadGalleryImages = (page = 0, append = false) => {
-    const allImages = getConversationImages()
-    const startIndex = page * galleryImagesPerPage
-    const endIndex = startIndex + galleryImagesPerPage
-    const pageImages = allImages.slice(startIndex, endIndex)
-
-    if (append) {
-      setGalleryImages(prev => [...prev, ...pageImages])
-    } else {
-      setGalleryImages(pageImages)
-    }
-
-    setGalleryHasMore(endIndex < allImages.length)
-    setGalleryPage(page)
-  }
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -361,15 +326,6 @@ export function ChatBox({
   }
 
   // Handle gallery scroll for infinite loading
-  const handleGalleryScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
-    if (scrollTop + clientHeight >= scrollHeight - 100 && galleryHasMore && !galleryLoading) {
-      setGalleryLoading(true)
-      loadGalleryImages(galleryPage + 1, true)
-      setGalleryLoading(false)
-    }
-  }
-
   return (
     <div className="flex-1 flex flex-row overflow-hidden bg-stone-100 p-3 gap-3">
       {/* Main Chat Area */}
@@ -417,12 +373,7 @@ export function ChatBox({
           {/* Actions */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                if (!showImageGallery) {
-                  loadGalleryImages(0, false)
-                }
-                setShowImageGallery(!showImageGallery)
-              }}
+              onClick={() => setShowImageGallery(!showImageGallery)}
               className={`p-2 border-2 border-stone-900 rounded-lg font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all ${showImageGallery ? 'bg-amber-600 text-white' : 'bg-white text-stone-900'}`}
               title="Xem ảnh đã gửi"
             >
