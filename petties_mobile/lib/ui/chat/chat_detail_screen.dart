@@ -156,13 +156,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         break;
 
       case WsMessageType.typing:
-        if (wsMessage.senderType == 'CLINIC') {
+        // Partner (Clinic) is typing. Filter out our own events if server loops them back.
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() => _isPartnerTyping = true);
         }
         break;
 
       case WsMessageType.stopTyping:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() => _isPartnerTyping = false);
         }
         break;
@@ -181,7 +184,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         break;
 
       case WsMessageType.online:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() {
             _conversation = _conversation?.copyWith(isClinicOnline: true);
           });
@@ -189,7 +193,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         break;
 
       case WsMessageType.offline:
-        if (wsMessage.senderType == 'CLINIC') {
+        if (wsMessage.senderType == 'CLINIC' &&
+            wsMessage.senderId != _conversation?.petOwnerId) {
           setState(() {
             _conversation = _conversation?.copyWith(isClinicOnline: false);
           });
