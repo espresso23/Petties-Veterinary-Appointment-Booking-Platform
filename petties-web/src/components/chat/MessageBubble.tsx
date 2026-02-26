@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { ChatMessage } from '../../types/chat'
 import { useToast } from '../../hooks/useToast'
-import { useNavigate } from 'react-router-dom'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -82,7 +81,6 @@ export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
 
   const { showToast } = useToast()
-  const navigate = useNavigate()
 
   const isMe = message.isMe
 
