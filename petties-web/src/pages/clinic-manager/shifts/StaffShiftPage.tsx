@@ -134,7 +134,15 @@ export const StaffShiftPage = () => {
         if (!clinicId) return
         try {
             const staffList = await clinicStaffService.getClinicStaff(clinicId)
-            const filteredStaff = staffList.filter(s => s.role === 'STAFF')
+
+            // Đảm bảo luôn nhận được mảng (tránh case backend trả dạng { content: [...] } hoặc object khác)
+            const normalizedStaffList = Array.isArray(staffList)
+                ? staffList
+                : Array.isArray((staffList as any)?.content)
+                    ? (staffList as any).content
+                    : []
+
+            const filteredStaff = normalizedStaffList.filter((s: StaffMember) => s.role === 'STAFF')
             setStaffMembers(filteredStaff)
         } catch (err: any) {
             console.error('fetchStaff error:', err)
@@ -149,7 +157,14 @@ export const StaffShiftPage = () => {
             try {
                 const dayStr = formatDate(selectedDay)
                 const data = await staffShiftService.getShiftsByClinic(clinicId, dayStr, dayStr)
-                setShifts(data)
+
+                const normalizedShifts = Array.isArray(data)
+                    ? data
+                    : Array.isArray((data as any)?.content)
+                        ? (data as any).content
+                        : []
+
+                setShifts(normalizedShifts)
             } catch (err: any) {
                 showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
             } finally {
@@ -174,7 +189,14 @@ export const StaffShiftPage = () => {
             }
 
             const data = await staffShiftService.getShiftsByClinic(clinicId, startDate, endDate)
-            setShifts(data)
+
+            const normalizedShifts = Array.isArray(data)
+                ? data
+                : Array.isArray((data as any)?.content)
+                    ? (data as any).content
+                    : []
+
+            setShifts(normalizedShifts)
         } catch (err: any) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
         } finally {
@@ -637,7 +659,9 @@ export const StaffShiftPage = () => {
         showToast('info', 'Đã nạp mẫu ca làm việc.')
     }
 
-    const shiftsByStaff = shifts.reduce((acc, shift) => {
+    const safeShifts = Array.isArray(shifts) ? shifts : []
+
+    const shiftsByStaff = safeShifts.reduce((acc, shift) => {
         if (!acc[shift.staffId]) {
             acc[shift.staffId] = { name: shift.staffName, avatar: shift.staffAvatar, shifts: [] }
         }
