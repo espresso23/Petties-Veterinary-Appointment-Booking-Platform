@@ -24,6 +24,25 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "bookings")
+@NamedEntityGraph(
+        name = "Booking.withDetails",
+        attributeNodes = {
+                @NamedAttributeNode("pet"),
+                @NamedAttributeNode("petOwner"),
+                @NamedAttributeNode("clinic"),
+                @NamedAttributeNode("assignedStaff"),
+                @NamedAttributeNode(value = "bookingServices", subgraph = "bsItem")
+        },
+        subgraphs = @NamedSubgraph(
+                name = "bsItem",
+                type = BookingServiceItem.class,
+                attributeNodes = {
+                        @NamedAttributeNode("pet"),
+                        @NamedAttributeNode("service"),
+                        @NamedAttributeNode("assignedStaff")
+                }
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -56,6 +75,14 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_staff_id")
     private User assignedStaff;
+
+    /**
+     * User who created this booking on behalf of petOwner (for proxy booking).
+     * NULL if booking was created by pet owner themselves.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proxy_booker_id")
+    private User proxyBooker;
 
     // ========== BOOKING INFO ==========
 

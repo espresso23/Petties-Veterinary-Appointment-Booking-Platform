@@ -5,6 +5,7 @@ import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -129,10 +130,22 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         // ========== FIND BY OWNER ==========
 
         /**
-         * Find all bookings for a pet owner with pagination
+         * Find all bookings for a pet owner with pagination.
+         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
          */
+        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
         @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
         Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
+
+        // ========== FIND BY PROXY BOOKER ==========
+
+        /**
+         * Find all bookings created by a user on behalf of others (proxy bookings).
+         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
+         */
+        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
+        @Query("SELECT b FROM Booking b WHERE b.proxyBooker.userId = :proxyBookerId ORDER BY b.createdAt DESC")
+        Page<Booking> findByProxyBookerId(@Param("proxyBookerId") UUID proxyBookerId, Pageable pageable);
 
         @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId AND b.bookingDate = :date")
         long countByClinicAndDate(@Param("clinicId") UUID clinicId, @Param("date") LocalDate date);
@@ -157,4 +170,29 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
         List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
+
+        /**
+         * Check if booking exists for a specific pet, clinic, date and time.
+         * Used by BookingDataSeeder to avoid duplicate key violations.
+         */
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.id = :petId " +
+                        "AND b.clinic.clinicId = :clinicId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.bookingTime = :time")
+        boolean existsByPetAndClinicAndDateAndTime(
+                        @Param("petId") UUID petId,
+                        @Param("clinicId") UUID clinicId,
+                        @Param("date") LocalDate date,
+                        @Param("time") java.time.LocalTime time);
+
+        // ========== AUTO-CANCELLATION ==========
+
+        /**
+         * Find PENDING bookings created before the cutoff time.
+         * Used by BookingAutoCancellationScheduler to auto-cancel stale bookings.
+         */
+        @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.createdAt < :cutoff")
+        List<Booking> findByStatusAndCreatedAtBefore(
+                        @Param("status") BookingStatus status,
+                        @Param("cutoff") java.time.LocalDateTime cutoff);
 }

@@ -3,6 +3,7 @@ package com.petties.petties.dto.booking;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petties.petties.model.enums.BookingType;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,19 +17,37 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Request DTO for creating a new booking.
- * Supports single-pet (petId + serviceIds) and multi-pet (items: list of pet + serviceIds).
+ * Request DTO for creating a proxy booking (đặt hộ).
+ * Used when a logged-in user books on behalf of someone else.
+ * Supports multi-pet with multi-service like the regular BookingRequest.
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookingRequest {
+public class ProxyBookingRequest {
+
+    // ========== RECIPIENT INFO (REQUIRED) ==========
 
     /**
-     * Single-pet mode: one pet for the whole booking. Required when items is null or empty.
+     * Information about the person for whom the booking is made.
      */
-    private UUID petId;
+    @Valid
+    @NotNull(message = "Thông tin người được đặt hộ không được để trống")
+    private ProxyRecipientInfo recipient;
+
+    // ========== PETS + SERVICES (REQUIRED) ==========
+
+    /**
+     * List of pets with their services.
+     * Each item contains pet info (to create) + list of service IDs.
+     * Supports multiple pets with different services.
+     */
+    @Valid
+    @NotEmpty(message = "Vui lòng thêm ít nhất một thú cưng với dịch vụ")
+    private List<ProxyPetServiceItem> items;
+
+    // ========== BOOKING INFO ==========
 
     @NotNull(message = "Mã phòng khám không được để trống")
     private UUID clinicId;
@@ -44,32 +63,14 @@ public class BookingRequest {
     @NotNull(message = "Loại lịch hẹn không được để trống")
     private BookingType type;
 
-    /**
-     * Single-pet mode: list of service IDs. Required when items is null or empty.
-     */
-    private List<UUID> serviceIds;
+    // ========== HOME VISIT INFO (OPTIONAL) ==========
 
-    /**
-     * Multi-pet mode: each item = one pet + list of service IDs.
-     * When non-null and non-empty, items is used and petId/serviceIds are ignored.
-     */
-    @Valid
-    private List<PetServiceItemRequest> items;
-
-    /**
-     * For Home Visit / SOS bookings
-     */
     private String homeAddress;
     private BigDecimal homeLat;
     private BigDecimal homeLong;
-
-    /**
-     * Distance in kilometers for home visit fee calculation
-     */
     private BigDecimal distanceKm;
 
-    /**
-     * Optional notes from pet owner
-     */
+    // ========== NOTES ==========
+
     private String notes;
 }

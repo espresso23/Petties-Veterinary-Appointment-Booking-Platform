@@ -6,12 +6,18 @@ import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest;
+import com.petties.petties.dto.booking.PetServiceItemRequest;
+import com.petties.petties.dto.booking.ProxyBookingRequest;
+import com.petties.petties.dto.booking.ProxyPetInfo;
+import com.petties.petties.dto.booking.ProxyPetServiceItem;
+import com.petties.petties.dto.booking.ProxyRecipientInfo;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
 import com.petties.petties.dto.booking.UpcomingBookingDTO;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest.PetEstimation;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
-import com.petties.petties.dto.sse.SseEventDto;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
@@ -27,22 +33,24 @@ import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.petties.petties.dto.booking.EstimatedCompletionResponse;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.Period;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.AbstractMap;
+import com.petties.petties.model.OperatingHours;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -62,8 +70,6 @@ public class BookingService {
         private final NotificationService notificationService;
         private final PricingService pricingService;
         private final BookingServiceItemRepository bookingServiceItemRepository;
-        private final SseEmitterService sseEmitterService;
-        private final EmrRecordRepository emrRecordRepository;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
 
@@ -120,89 +126,122 @@ public class BookingService {
         // ========== CREATE BOOKING ==========
 
         /**
-         * Create a new booking (from pet owner)
+         * Create a new booking (from pet owner).
+         * Supports single-pet (petId + serviceIds) and multi-pet (items: list of petId + serviceIds).
          */
         @Transactional
         public BookingResponse createBooking(BookingRequest request, UUID petOwnerId) {
-                log.info("Creating booking for pet {} at clinic {}", request.getPetId(), request.getClinicId());
+                log.info("Creating booking at clinic {}", request.getClinicId());
 
-                // Fetch services
                 try {
-                        log.info("Starting createBooking for clinic: {}, pet: {}", request.getClinicId(),
-                                        request.getPetId());
+                        // Resolve (primaryPet, list of (pet, service)) and validate
+                        List<PetServiceItemRequest> items = request.getItems();
+                        boolean multiPet = items != null && !items.isEmpty();
 
-                        // Validate and fetch entities
-                        Pet pet = petRepository.findById(request.getPetId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
-                        log.debug("Pet found: {}", pet.getId());
+                        if (multiPet) {
+                                if (items.stream().anyMatch(
+                                                it -> it.getPetId() == null || it.getServiceIds() == null
+                                                                || it.getServiceIds().isEmpty())) {
+                                        throw new BadRequestException(
+                                                        "Mỗi mục phải có mã thú cưng và ít nhất một dịch vụ");
+                                }
+                        } else {
+                                if (request.getPetId() == null || request.getServiceIds() == null
+                                                || request.getServiceIds().isEmpty()) {
+                                        throw new BadRequestException(
+                                                        "Vui lòng gửi mã thú cưng và danh sách dịch vụ, hoặc dùng items cho đặt nhiều thú cưng");
+                                }
+                        }
 
                         User petOwner = userRepository.findById(petOwnerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException(
-                                                        "Không tìm thấy chủ thú cưng"));
-                        log.debug("Pet owner found: {}", petOwner.getUserId());
-
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
-                        log.debug("Clinic found: {}", clinic.getClinicId());
-                        List<ClinicService> services = clinicServiceRepository
-                                        .findAllById(request.getServiceIds());
-                        if (services.isEmpty()) {
-                                throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
-                        }
-                        if (services.size() != request.getServiceIds().size()) {
-                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
-                        }
-                        log.debug("Found {} services", services.size());
 
-                        // Home Visit Validation: All services must support home visits and share the
-                        // same specialty
-                        if (request.getType() == BookingType.HOME_VISIT
-                                        || request.getType() == BookingType.SOS) {
-                                log.debug("Booking type is HOME_VISIT or SOS, performing home visit validations.");
+                        List<Pet> petsToUse = new ArrayList<>();
+                        List<ClinicService> servicesToUse = new ArrayList<>();
+                        UUID primaryPetId;
 
-                                // 1. Check isHomeVisit flag
-                                List<String> ineligibleServices = services.stream()
+                        if (multiPet) {
+                                primaryPetId = items.get(0).getPetId();
+                                Set<UUID> allServiceIds = new java.util.HashSet<>();
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId())
+                                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                                        "Không tìm thấy thú cưng: " + it.getPetId()));
+                                        if (!p.getUser().getUserId().equals(petOwnerId)) {
+                                                throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                        }
+                                        allServiceIds.addAll(it.getServiceIds());
+                                }
+                                List<ClinicService> clinicServices = clinicServiceRepository.findAllById(allServiceIds);
+                                Map<UUID, ClinicService> serviceMap = clinicServices.stream()
+                                                .collect(Collectors.toMap(ClinicService::getServiceId, s -> s));
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId()).orElseThrow();
+                                        for (UUID sid : it.getServiceIds()) {
+                                                ClinicService svc = serviceMap.get(sid);
+                                                if (svc == null) {
+                                                        throw new ResourceNotFoundException("Dịch vụ không tồn tại: " + sid);
+                                                }
+                                                if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                        throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                                }
+                                                petsToUse.add(p);
+                                                servicesToUse.add(svc);
+                                        }
+                                }
+                        } else {
+                                Pet pet = petRepository.findById(request.getPetId())
+                                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
+                                if (!pet.getUser().getUserId().equals(petOwnerId)) {
+                                        throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                }
+                                primaryPetId = pet.getId();
+                                List<ClinicService> services = clinicServiceRepository.findAllById(request.getServiceIds());
+                                if (services.isEmpty()) {
+                                        throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
+                                }
+                                if (services.size() != request.getServiceIds().size()) {
+                                        throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                                }
+                                for (ClinicService s : services) {
+                                        if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                        }
+                                        petsToUse.add(pet);
+                                        servicesToUse.add(s);
+                                }
+                        }
+
+                        Pet primaryPet = petRepository.findById(primaryPetId).orElseThrow();
+
+                        // Home Visit Validation
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = servicesToUse.stream()
                                                 .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
                                                 .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
-
                                 if (!ineligibleServices.isEmpty()) {
-                                        throw new IllegalArgumentException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
                                                         + String.join(", ", ineligibleServices));
                                 }
-                                log.debug("All services support home visits.");
-
-                                // 2. Check specialty consistency
-                                // REMOVED: Allow multi-specialty for Home Visit as requested.
-                                // StaffAssignmentService will handle assigning multiple staff if needed.
-                                log.debug("Multi-specialty check skipped for Home Visit to support multi-staff assignment.");
                         }
 
-                        // Calculate total price using PricingService
-                        // 1. Sum weight-based prices for all services
+                        // Calculate total price: sum over (pet, service) with weight-based price
                         BigDecimal servicesTotal = BigDecimal.ZERO;
-                        for (ClinicService service : services) {
-                                BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
-                                servicesTotal = servicesTotal.add(servicePrice);
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService svc = servicesToUse.get(i);
+                                servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, p));
                         }
-                        log.debug("Services total price: {}", servicesTotal);
-
-                        // 2. Calculate single distance fee for the whole booking (using clinic-level
-                        // pricePerKm)
                         BigDecimal distanceKm = request.getDistanceKm();
                         BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
-                                        distanceKm,
-                                        request.getType());
-                        log.debug("Distance fee calculated: {}", distanceFee);
-
-                        // 3. Final total
+                                        distanceKm, request.getType());
                         BigDecimal totalPrice = servicesTotal.add(distanceFee);
-                        log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
-                                        distanceFee);
 
-                        // Build booking entity
                         Booking booking = Booking.builder()
-                                        .pet(pet)
+                                        .pet(primaryPet)
                                         .petOwner(petOwner)
                                         .clinic(clinic)
                                         .bookingDate(request.getBookingDate())
@@ -217,19 +256,19 @@ public class BookingService {
                                         .homeLong(request.getHomeLong())
                                         .distanceKm(distanceKm)
                                         .build();
-                        log.debug("Booking entity built.");
 
-                        // Add service items with calculated prices (including pricing breakdown)
-                        for (ClinicService service : services) {
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService service = servicesToUse.get(i);
                                 BigDecimal basePrice = service.getBasePrice();
-                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
-
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, p);
                                 BookingServiceItem item = BookingServiceItem.builder()
                                                 .booking(booking)
+                                                .pet(p)
                                                 .service(service)
-                                                .unitPrice(weightPrice) // Use weight-based price as unit price
-                                                .basePrice(basePrice) // Store original base price for display
-                                                .weightPrice(weightPrice) // Store calculated weight-based price
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
                                                 .quantity(1)
                                                 .isAddOn(false)
                                                 .build();
@@ -289,10 +328,232 @@ public class BookingService {
                         // Let GlobalExceptionHandler translate to user-friendly Vietnamese messages
                         log.error("Data integrity violation: ", e);
                         throw e;
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during booking creation: {}", e.getMessage());
+                        throw e;
                 } catch (Exception e) {
                         log.error("Error creating booking: ", e);
                         throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
                 }
+        }
+
+        // ========== PROXY BOOKING (ĐẶT HỘ) ==========
+
+        /**
+         * Create a proxy booking on behalf of someone else.
+         * The logged-in user (proxyBooker) creates a booking for a recipient who may not have an account.
+         *
+         * @param request      ProxyBookingRequest with recipient info, pet info, and booking details
+         * @param proxyBookerId UUID of the logged-in user who is booking on behalf of the recipient
+         * @return BookingResponse
+         */
+        @Transactional
+        public BookingResponse createProxyBooking(ProxyBookingRequest request, UUID proxyBookerId) {
+                log.info("Creating proxy booking by user {} for recipient {}",
+                                proxyBookerId, request.getRecipient().getPhone());
+
+                try {
+                        // Get the proxy booker (the person making the booking on behalf of someone)
+                        User proxyBooker = userRepository.findById(proxyBookerId)
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                        // Step 1: Create a new guest user for the recipient
+                        ProxyRecipientInfo recipientInfo = request.getRecipient();
+                        User recipient = createRecipientUser(recipientInfo);
+
+                        // Step 2: Validate clinic
+                        Clinic clinic = clinicRepository.findById(request.getClinicId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
+                        // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
+                        List<Pet> createdPets = new ArrayList<>();
+                        List<AbstractMap.SimpleEntry<UUID, Pet>> servicePetPairs = new ArrayList<>();
+                        java.util.Set<UUID> uniqueServiceIds = new java.util.HashSet<>();
+
+                        for (ProxyPetServiceItem item : request.getItems()) {
+                                // Create pet for recipient
+                                Pet pet = createPetForRecipient(item.getPet(), recipient);
+                                createdPets.add(pet);
+                                log.info("Created new pet {} for recipient", pet.getName());
+
+                                // Mỗi (serviceId, pet) là 1 item riêng - cùng service có thể cho nhiều pet
+                                for (UUID serviceId : item.getServiceIds()) {
+                                        servicePetPairs.add(new AbstractMap.SimpleEntry<>(serviceId, pet));
+                                        uniqueServiceIds.add(serviceId);
+                                }
+                        }
+
+                        // Step 4: Validate services
+                        List<ClinicService> services = clinicServiceRepository.findAllById(uniqueServiceIds)
+                                        .stream()
+                                        .filter(ClinicService::getIsActive)
+                                        .collect(Collectors.toList());
+
+                        if (services.isEmpty()) {
+                                throw new BadRequestException("Không tìm thấy dịch vụ hợp lệ");
+                        }
+
+                        Map<UUID, ClinicService> serviceById = services.stream()
+                                        .collect(Collectors.toMap(ClinicService::getServiceId, s -> s, (a, b) -> a));
+
+                        // Step 5: Validate home visit services if applicable
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = services.stream()
+                                                .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
+                                                .map(ClinicService::getName)
+                                                .collect(Collectors.toList());
+                                if (!ineligibleServices.isEmpty()) {
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                                        + String.join(", ", ineligibleServices));
+                                }
+                        }
+
+                        // Step 6: Calculate pricing - tổng theo từng (service, pet) pair
+                        Pet firstPet = createdPets.get(0);
+                        BigDecimal servicesTotal = BigDecimal.ZERO;
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService svc = serviceById.get(pair.getKey());
+                                if (svc != null) {
+                                        servicesTotal = servicesTotal.add(
+                                                        pricingService.calculateServicePrice(svc, pair.getValue()));
+                                }
+                        }
+                        BigDecimal distanceKm = request.getDistanceKm();
+                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(
+                                        clinic.getClinicId(), distanceKm, request.getType());
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
+
+                        // Step 7: Build the booking
+                        Booking booking = Booking.builder()
+                                        .pet(firstPet) // Primary pet
+                                        .petOwner(recipient)
+                                        .proxyBooker(proxyBooker)
+                                        .clinic(clinic)
+                                        .bookingDate(request.getBookingDate())
+                                        .bookingTime(request.getBookingTime())
+                                        .type(request.getType())
+                                        .totalPrice(totalPrice)
+                                        .distanceFee(distanceFee)
+                                        .status(BookingStatus.PENDING)
+                                        .notes(request.getNotes())
+                                        .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress() : recipientInfo.getAddress())
+                                        .homeLat(request.getHomeLat() != null ? request.getHomeLat() : recipientInfo.getLat())
+                                        .homeLong(request.getHomeLong() != null ? request.getHomeLong() : recipientInfo.getLng())
+                                        .distanceKm(distanceKm)
+                                        .build();
+
+                        // Step 8: Add services to booking - each (serviceId, pet) creates a BookingServiceItem
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService service = serviceById.get(pair.getKey());
+                                if (service == null) {
+                                        continue;
+                                }
+                                Pet petForService = pair.getValue();
+                                BigDecimal basePrice = service.getBasePrice();
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, petForService);
+                                BookingServiceItem bookingItem = BookingServiceItem.builder()
+                                                .booking(booking)
+                                                .pet(petForService)
+                                                .service(service)
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
+                                                .quantity(1)
+                                                .isAddOn(false)
+                                                .build();
+                                booking.getBookingServices().add(bookingItem);
+                        }
+
+                        // Step 9: Save with retry for booking code collision
+                        int maxRetries = 3;
+                        Booking savedBooking = null;
+
+                        for (int attempt = 0; attempt < maxRetries; attempt++) {
+                                try {
+                                        String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), request.getBookingDate());
+                                        booking.setBookingCode(bookingCode);
+                                        savedBooking = bookingRepository.save(booking);
+                                        log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
+                                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
+                                        break;
+                                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                                        String rootCause = ex.getMostSpecificCause().getMessage();
+                                        if (rootCause != null && rootCause.contains("booking_code")) {
+                                                log.warn("Booking code collision, retry {}/{}", attempt + 1, maxRetries);
+                                                if (attempt == maxRetries - 1) {
+                                                        throw new IllegalStateException(
+                                                                        "Không thể tạo mã booking sau " + maxRetries + " lần thử. Vui lòng thử lại.");
+                                                }
+                                                continue;
+                                        }
+                                        throw ex;
+                                }
+                        }
+
+                        if (savedBooking == null) {
+                                throw new IllegalStateException("Không thể lưu booking");
+                        }
+
+                        // Step 10: Send notification to clinic
+                        try {
+                                notificationService.sendBookingNotificationToClinic(savedBooking);
+                        } catch (Exception e) {
+                                log.error("Failed to send notification (non-blocking): {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(savedBooking);
+
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during proxy booking creation: {}", e.getMessage());
+                        throw e;
+                } catch (Exception e) {
+                        log.error("Error creating proxy booking: ", e);
+                        throw new RuntimeException("Lỗi tạo proxy booking: " + e.getMessage());
+                }
+        }
+
+        /**
+         * Create a new guest user for proxy booking.
+         * In proxy booking flow, we always create a new guest user without checking existing records.
+         */
+        private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Generate a unique username using phone + timestamp to avoid conflicts
+                String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
+                
+                User newUser = new User();
+                newUser.setFullName(recipientInfo.getFullName());
+                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setAddress(recipientInfo.getAddress());
+                newUser.setRole(Role.PET_OWNER);
+                newUser.setUsername(uniqueUsername);
+                newUser.setPassword(""); // No password for guest users
+
+                newUser = userRepository.save(newUser);
+                log.info("Created new guest user for proxy booking: {} ({})", newUser.getUserId(), recipientInfo.getPhone());
+                return newUser;
+        }
+
+        /**
+         * Create a new pet for the recipient during proxy booking.
+         */
+        private Pet createPetForRecipient(ProxyPetInfo petInfo, User owner) {
+                // Set default dateOfBirth to today if not provided (required field in DB)
+                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null 
+                                ? petInfo.getDateOfBirth() 
+                                : LocalDate.now();
+
+                Pet pet = Pet.builder()
+                                .name(petInfo.getName())
+                                .species(petInfo.getSpecies()) // String type
+                                .breed(petInfo.getBreed())
+                                .gender(petInfo.getGender()) // String type
+                                .dateOfBirth(dateOfBirth)
+                                .weight(petInfo.getWeight() != null ? petInfo.getWeight().doubleValue() : 0.0)
+                                .user(owner)
+                                .build();
+
+                return petRepository.save(pet);
         }
 
         // ========== CONFIRM BOOKING ==========
@@ -691,26 +952,13 @@ public class BookingService {
         }
 
         /**
-         * Calculate the start time for a specific service in a booking
-         * Based on the order of services and their durations
+         * Calculate the start time for a specific service in a booking.
+         * Multi-pet: parallel schedule. Single-pet: sequential.
          */
         private LocalTime calculateServiceStartTime(Booking booking, UUID serviceId) {
-                LocalTime startTime = booking.getBookingTime();
-
-                for (BookingServiceItem item : booking.getBookingServices()) {
-                        if (item.getBookingServiceId().equals(serviceId)) {
-                                return startTime;
-                        }
-
-                        // Add duration of previous services
-                        Integer duration = item.getService().getDurationTime();
-                        int slots = (duration != null && duration > 0)
-                                        ? (int) Math.ceil(duration / 30.0)
-                                        : 1;
-                        startTime = startTime.plusMinutes(slots * 30L);
-                }
-
-                return booking.getBookingTime(); // Fallback
+                Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                LocalTime[] range = schedule.get(serviceId);
+                return range != null ? range[0] : booking.getBookingTime();
         }
 
         // ========== ADD-ON SERVICE (During Active Booking) ==========
@@ -1146,6 +1394,16 @@ public class BookingService {
                 return bookings.map(bookingMapper::mapToResponse);
         }
 
+        /**
+         * Get bookings created by user on behalf of others (proxy bookings)
+         */
+        @Transactional(readOnly = true)
+        public Page<BookingResponse> getMyProxyBookings(UUID proxyBookerId, Pageable pageable) {
+                log.info("Fetching proxy bookings created by user: {}", proxyBookerId);
+                Page<Booking> bookings = bookingRepository.findByProxyBookerId(proxyBookerId, pageable);
+                return bookings.map(bookingMapper::mapToResponse);
+        }
+
         // ========== SHARED VISIBILITY ==========
 
         /**
@@ -1177,4 +1435,142 @@ public class BookingService {
                                                 currentStaff.getUserId()))
                                 .collect(Collectors.toList());
         }
+
+        // ========== ESTIMATED COMPLETION TIME ==========
+
+        /**
+         * Calculate estimated completion time based on pet info, services, and start time
+         * Supports multi-pet format: pets: [{ petId, petWeight, serviceIds: [...] }]
+         *
+         * @param clinicId Clinic ID to fetch services from
+         * @param request  EstimatedCompletionRequest with pets array
+         * @return EstimatedCompletionResponse with total duration and breakdown by pet
+         */
+        @Transactional(readOnly = true)
+        public EstimatedCompletionResponse calculateEstimatedCompletion(
+                        UUID clinicId,
+                        EstimatedCompletionRequest request) {
+                log.info("Calculating estimated completion for clinic={}, pets={}, type={}, startDateTime={}",
+                                clinicId, request.getPets().size(), request.getType(), request.getStartDateTime());
+
+                Clinic clinic = clinicRepository.findById(clinicId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                // Get operating hours for the specific day
+                String dayOfWeek = request.getStartDateTime().getDayOfWeek().name();
+                OperatingHours oh = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek) : null;
+
+                if (oh != null && Boolean.TRUE.equals(oh.getIsClosed())) {
+                        throw new com.petties.petties.exception.BadRequestException("Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
+                }
+
+                LocalDateTime currentStartDateTime = request.getStartDateTime();
+                int grandTotalDurationMinutes = 0;
+                int grandTotalSlotsRequired = 0;
+                List<EstimatedCompletionResponse.PetDuration> petDurations = new ArrayList<>();
+
+                for (PetEstimation petEst : request.getPets()) {
+                        // Fetch services for this pet
+                        List<ClinicService> services = clinicServiceRepository.findAllById(petEst.getServiceIds());
+
+                        if (services.isEmpty()) {
+                                throw new ResourceNotFoundException("Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
+                        }
+
+                        // Validate all services belong to the same clinic
+                        boolean allBelongToClinic = services.stream()
+                                        .allMatch(s -> s.getClinic().getClinicId().equals(clinicId));
+                        if (!allBelongToClinic) {
+                                throw new BadRequestException("Một số dịch vụ không thuộc phòng khám này");
+                        }
+
+                        // Calculate durations for this pet's services
+                        List<EstimatedCompletionResponse.ServiceDuration> serviceDurations = new ArrayList<>();
+                        int petTotalDuration = 0;
+
+                        for (ClinicService service : services) {
+                                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
+                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
+
+                                // Logic for Clinic Breaks (only if IN_CLINIC)
+                                if (request.getType() == BookingType.IN_CLINIC && oh != null
+                                                && oh.getBreakStart() != null && oh.getBreakEnd() != null) {
+
+                                        LocalTime currentStartTime = currentStartDateTime.toLocalTime();
+
+                                        // 1. If currentStart is during break, push to breakEnd
+                                        if (!currentStartTime.isBefore(oh.getBreakStart())
+                                                        && currentStartTime.isBefore(oh.getBreakEnd())) {
+                                                currentStartDateTime = currentStartDateTime.with(oh.getBreakEnd());
+                                        }
+
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+                                        LocalTime endStartTime = serviceEndDateTime.toLocalTime();
+
+                                        // 2. If service starts before break but finishes after break starts
+                                        // (Push the whole service end time by break duration)
+                                        if (currentStartDateTime.toLocalTime().isBefore(oh.getBreakStart())
+                                                        && endStartTime.isAfter(oh.getBreakStart())) {
+                                                long breakDuration = Duration.between(oh.getBreakStart(),
+                                                                oh.getBreakEnd()).toMinutes();
+                                                serviceEndDateTime = serviceEndDateTime.plusMinutes(breakDuration);
+                                        }
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                } else {
+                                        // HOME_VISIT, SOS or no operating hours/breaks defined
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                }
+                        }
+
+                        grandTotalDurationMinutes += petTotalDuration;
+
+                        petDurations.add(EstimatedCompletionResponse.PetDuration.builder()
+                                        .petId(petEst.getPetId() != null ? petEst.getPetId().toString() : null)
+                                        .petWeight(petEst.getPetWeight())
+                                        .totalDurationMinutes(petTotalDuration)
+                                        .services(serviceDurations)
+                                        .build());
+                }
+
+                // Final grand estimated end time is just the last currentStartDateTime
+                LocalDateTime estimatedEndDateTime = currentStartDateTime;
+
+                log.info("Estimated completion: startDateTime={}, endDateTime={}, totalDuration={}min, pets={}",
+                                request.getStartDateTime(), estimatedEndDateTime, grandTotalDurationMinutes,
+                                petDurations.size());
+
+                return EstimatedCompletionResponse.builder()
+                                .startTime(request.getStartDateTime())
+                                .estimatedEndTime(estimatedEndDateTime)
+                                .totalDurationMinutes(grandTotalDurationMinutes)
+                                .totalSlotsRequired(grandTotalSlotsRequired)
+                                .pets(petDurations)
+                                .build();
+        }
 }
+

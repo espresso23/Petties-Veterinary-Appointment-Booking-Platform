@@ -6,6 +6,9 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest;
+import com.petties.petties.dto.booking.EstimatedCompletionResponse;
+import com.petties.petties.dto.booking.ProxyBookingRequest;
 import com.petties.petties.dto.booking.ReassignStaffRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
@@ -58,6 +61,25 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Calculate estimated completion time (Public endpoint)
+     * Returns total duration and estimated end time based on pets with services and start time
+     * Request format: { startTime, pets: [{ petId, petWeight, serviceIds: [...] }] }
+     */
+    @PostMapping("/public/estimated-completion")
+    public ResponseEntity<EstimatedCompletionResponse> getEstimatedCompletion(
+            @RequestParam UUID clinicId,
+            @Valid @RequestBody EstimatedCompletionRequest request) {
+
+        log.info("POST /bookings/public/estimated-completion - clinicId: {}, startDateTime: {}, pets: {}",
+                clinicId, request.getStartDateTime(), request.getPets().size());
+
+        EstimatedCompletionResponse response = bookingService.calculateEstimatedCompletion(
+                clinicId, request);
+
+        return ResponseEntity.ok(response);
+    }
+
     // ========== CREATE BOOKING ==========
 
     /**
@@ -74,12 +96,30 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Create a proxy booking (Đặt hộ - booking on behalf of someone else)
+     * The logged-in user creates a booking for another person who may not have an account.
+     */
+    @PreAuthorize("hasRole('PET_OWNER')")
+    @PostMapping("/proxy")
+    public ResponseEntity<BookingResponse> createProxyBooking(
+            @Valid @RequestBody ProxyBookingRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        log.info("POST /bookings/proxy - Creating proxy booking for recipient: {}", 
+                request.getRecipient().getFullName());
+        
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        BookingResponse response = bookingService.createProxyBooking(request, userPrincipal.getUserId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     // ========== GET BOOKINGS ==========
 
     /**
-     * Get bookings by clinic (Manager views bookings for their clinic)
+     * Get bookings by clinic (Manager/Owner views bookings for their clinic)
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @GetMapping("/clinic/{clinicId}")
     public ResponseEntity<Page<BookingResponse>> getBookingsByClinic(
             @PathVariable UUID clinicId,
@@ -202,13 +242,27 @@ public class BookingController {
         return ResponseEntity.ok(bookings);
     }
 
+    /**
+     * Get my proxy bookings (Bookings I created on behalf of others)
+     */
+    @PreAuthorize("hasRole('PET_OWNER')")
+    @GetMapping("/my/proxy")
+    public ResponseEntity<Page<BookingResponse>> getMyProxyBookings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PageableDefault(size = 20) Pageable pageable) {
+
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        Page<BookingResponse> bookings = bookingService.getMyProxyBookings(userPrincipal.getUserId(), pageable);
+        return ResponseEntity.ok(bookings);
+    }
+
     // ========== STAFF REASSIGNMENT ==========
 
     /**
      * Get available staff for reassigning a specific service
      * Returns list of staff with matching specialty and availability status
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @GetMapping("/{bookingId}/services/{serviceId}/available-staff")
     public ResponseEntity<List<AvailableStaffResponse>> getAvailableStaffForReassign(
             @PathVariable UUID bookingId,
@@ -222,7 +276,7 @@ public class BookingController {
      * Reassign staff for a specific service in a booking
      * Releases old slots and reserves new slots with the new staff
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
     @PostMapping("/{bookingId}/services/{serviceId}/reassign")
     public ResponseEntity<BookingResponse> reassignStaff(
             @PathVariable UUID bookingId,

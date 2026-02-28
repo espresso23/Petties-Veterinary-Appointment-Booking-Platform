@@ -1,6 +1,7 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.AvailableStaffResponse;
+import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
 import com.petties.petties.repository.*;
@@ -51,6 +52,9 @@ class StaffAssignmentServiceUnitTest {
 
         @Mock
         private BookingSlotRepository bookingSlotRepository;
+
+        @Mock
+        private BookingServiceItemRepository bookingServiceItemRepository;
 
         @InjectMocks
         private StaffAssignmentService staffAssignmentService;
@@ -570,6 +574,43 @@ class StaffAssignmentServiceUnitTest {
                         assertNotNull(result);
                         assertEquals(1, result.size());
                         assertTrue(result.get(0).isHasAvailableSlots());
+                        assertEquals(2, result.get(0).getAvailableServiceItemIds().size());
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-017: Should mark staff available for partial services")
+                void shouldMarkStaffAvailableForPartialServices() {
+                        // Arrange
+                        Booking booking = createMockBooking();
+                        BookingServiceItem service1 = createMockServiceItem(booking, "Khám tổng quát", 30);
+                        BookingServiceItem service2 = createMockServiceItem(booking, "Tiêm vaccine", 30);
+                        booking.setBookingServices(List.of(service1, service2));
+
+                        when(userRepository.findByWorkingClinicIdAndRole(eq(clinicId), eq(Role.STAFF)))
+                                        .thenReturn(List.of(staff1));
+
+                        StaffShift shift1 = createMockShift(staff1, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff1Id, testDate))
+                                        .thenReturn(List.of(shift1));
+
+                        // Only 1 slot available (enough for service1, but service2 starts at 9:30 and 9:30 slot is missing)
+                        List<Slot> availableSlots = List.of(
+                                        createMockSlot(null, LocalTime.of(9, 0), LocalTime.of(9, 30),
+                                                        SlotStatus.AVAILABLE));
+
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(any(),
+                                        eq(SlotStatus.AVAILABLE)))
+                                        .thenReturn(availableSlots);
+
+                        // Act
+                        var result = staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
+
+                        // Assert
+                        assertNotNull(result);
+                        assertEquals(1, result.size());
+                        assertTrue(result.get(0).isHasAvailableSlots(), "Should be available if at least one service fits");
+                        assertEquals(1, result.get(0).getAvailableServiceItemIds().size());
+                        assertEquals(service1.getBookingServiceId(), result.get(0).getAvailableServiceItemIds().get(0));
                 }
 
                 @Test
@@ -724,6 +765,279 @@ class StaffAssignmentServiceUnitTest {
                         assertNotNull(result);
                         assertFalse(result.getServices().isEmpty());
                         assertNotNull(result.getServices().get(0).getSuggestedStaffId(), "Should have suggested staff ID");
+                }
+        }
+
+        // ==================== Specialty Validation Tests ====================
+
+        @Nested
+        @DisplayName("reassignStaffForService - Specialty Validation")
+        class SpecialtyValidationTests {
+
+                private UUID bookingId;
+                private UUID serviceItemId;
+                private UUID groomerId;
+                private UUID vetGeneralId;
+                private UUID vetSurgeryId;
+                private User groomer;
+                private User vetGeneral;
+                private User vetSurgery;
+                private Booking booking;
+                private BookingServiceItem vaccinationItem;
+                private BookingServiceItem groomingItem;
+                private com.petties.petties.model.ClinicService vaccinationService;
+                private com.petties.petties.model.ClinicService groomingService;
+
+                @BeforeEach
+                void setUp() {
+                        bookingId = UUID.randomUUID();
+                        serviceItemId = UUID.randomUUID();
+                        groomerId = UUID.randomUUID();
+                        vetGeneralId = UUID.randomUUID();
+                        vetSurgeryId = UUID.randomUUID();
+
+                        // Create staff with different specialties
+                        groomer = createMockStaff(groomerId, "Nguyễn Văn Groomer", StaffSpecialty.GROOMER);
+                        vetGeneral = createMockStaff(vetGeneralId, "BS. Nguyễn Văn A", StaffSpecialty.VET_GENERAL);
+                        vetSurgery = createMockStaff(vetSurgeryId, "BS. Trịnh Phẫu Thuật", StaffSpecialty.VET_SURGERY);
+
+                        // Create services
+                        vaccinationService = new com.petties.petties.model.ClinicService();
+                        vaccinationService.setServiceId(UUID.randomUUID());
+                        vaccinationService.setName("Tiêm phòng dại");
+                        vaccinationService.setServiceCategory(ServiceCategory.VACCINATION);
+                        vaccinationService.setDurationTime(30);
+
+                        groomingService = new com.petties.petties.model.ClinicService();
+                        groomingService.setServiceId(UUID.randomUUID());
+                        groomingService.setName("Tắm và chăm sóc lông");
+                        groomingService.setServiceCategory(ServiceCategory.GROOMING_SPA);
+                        groomingService.setDurationTime(60);
+
+                        // Create booking
+                        booking = new Booking();
+                        booking.setBookingId(bookingId);
+                        booking.setBookingDate(testDate);
+                        booking.setBookingTime(testTime);
+
+                        Clinic clinic = new Clinic();
+                        clinic.setClinicId(clinicId);
+                        booking.setClinic(clinic);
+
+                        // Create service items
+                        vaccinationItem = BookingServiceItem.builder()
+                                        .bookingServiceId(serviceItemId)
+                                        .booking(booking)
+                                        .service(vaccinationService)
+                                        .build();
+
+                        groomingItem = BookingServiceItem.builder()
+                                        .bookingServiceId(serviceItemId)
+                                        .booking(booking)
+                                        .service(groomingService)
+                                        .build();
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-001: Should reject GROOMER for VACCINATION service")
+                void shouldRejectGroomerForVaccination() {
+                        // Arrange
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(vaccinationItem));
+                        when(userRepository.findById(groomerId))
+                                        .thenReturn(Optional.of(groomer));
+
+                        // Act & Assert
+                        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                groomerId,
+                                                bookingServiceItemRepository);
+                        });
+
+                        // Verify error message
+                        assertTrue(exception.getMessage().contains("không có chuyên môn phù hợp"),
+                                        "Error message should mention specialty incompatibility");
+                        assertTrue(exception.getMessage().contains(groomer.getFullName()),
+                                        "Error message should contain staff name");
+                        assertTrue(exception.getMessage().contains(vaccinationService.getName()),
+                                        "Error message should contain service name");
+
+                        // Verify no changes were saved
+                        verify(bookingServiceItemRepository, never()).save(any());
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-002: Should allow VET_GENERAL for VACCINATION service")
+                void shouldAllowVetGeneralForVaccination() {
+                        // Arrange
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(vaccinationItem));
+                        when(userRepository.findById(vetGeneralId))
+                                        .thenReturn(Optional.of(vetGeneral));
+
+                        // Mock shift and slots for successful reassignment
+                        StaffShift shift = createMockShift(vetGeneral, testDate, LocalTime.of(8, 0),
+                                        LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(vetGeneralId, testDate))
+                                        .thenReturn(List.of(shift));
+
+                        Slot slot1 = createMockSlot(shift.getShiftId(), LocalTime.of(9, 0), LocalTime.of(9, 30),
+                                        SlotStatus.AVAILABLE);
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift.getShiftId(),
+                                        SlotStatus.AVAILABLE))
+                                        .thenReturn(List.of(slot1));
+
+                        when(bookingSlotRepository.findByBookingServiceItem_BookingServiceId(serviceItemId))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Act - Should not throw
+                        assertDoesNotThrow(() -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                vetGeneralId,
+                                                bookingServiceItemRepository);
+                        });
+
+                        // Verify service item was saved with new staff
+                        verify(bookingServiceItemRepository).save(any(BookingServiceItem.class));
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-003: Should reject VET_SURGERY for GROOMING service")
+                void shouldRejectVetSurgeryForGrooming() {
+                        // Arrange
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(groomingItem));
+                        when(userRepository.findById(vetSurgeryId))
+                                        .thenReturn(Optional.of(vetSurgery));
+
+                        // Act & Assert
+                        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                vetSurgeryId,
+                                                bookingServiceItemRepository);
+                        });
+
+                        // Verify error message
+                        assertTrue(exception.getMessage().contains("không có chuyên môn phù hợp"),
+                                        "Error message should mention specialty incompatibility");
+
+                        // Verify no changes were saved
+                        verify(bookingServiceItemRepository, never()).save(any());
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-004: Should allow GROOMER for GROOMING service (exact match)")
+                void shouldAllowGroomerForGrooming() {
+                        // Arrange
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(groomingItem));
+                        when(userRepository.findById(groomerId))
+                                        .thenReturn(Optional.of(groomer));
+
+                        // Mock shift and slots
+                        StaffShift shift = createMockShift(groomer, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(groomerId, testDate))
+                                        .thenReturn(List.of(shift));
+
+                        Slot slot1 = createMockSlot(shift.getShiftId(), LocalTime.of(9, 0), LocalTime.of(9, 30),
+                                        SlotStatus.AVAILABLE);
+                        Slot slot2 = createMockSlot(shift.getShiftId(), LocalTime.of(9, 30), LocalTime.of(10, 0),
+                                        SlotStatus.AVAILABLE);
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift.getShiftId(),
+                                        SlotStatus.AVAILABLE))
+                                        .thenReturn(List.of(slot1, slot2));
+
+                        when(bookingSlotRepository.findByBookingServiceItem_BookingServiceId(serviceItemId))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Act - Should not throw
+                        assertDoesNotThrow(() -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                groomerId,
+                                                bookingServiceItemRepository);
+                        });
+
+                        // Verify service item was saved
+                        verify(bookingServiceItemRepository).save(any(BookingServiceItem.class));
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-005: Should allow VET_GENERAL for all medical services (fallback)")
+                void shouldAllowVetGeneralForAllMedicalServices() {
+                        // Test VET_GENERAL can handle SURGERY service (fallback)
+                        com.petties.petties.model.ClinicService surgeryService = new com.petties.petties.model.ClinicService();
+                        surgeryService.setServiceId(UUID.randomUUID());
+                        surgeryService.setName("Phẫu thuật thiến");
+                        surgeryService.setServiceCategory(ServiceCategory.SURGERY);
+                        surgeryService.setDurationTime(120);
+
+                        BookingServiceItem surgeryItem = BookingServiceItem.builder()
+                                        .bookingServiceId(serviceItemId)
+                                        .booking(booking)
+                                        .service(surgeryService)
+                                        .build();
+
+                        // Arrange
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(surgeryItem));
+                        when(userRepository.findById(vetGeneralId))
+                                        .thenReturn(Optional.of(vetGeneral));
+
+                        // Mock shift and slots
+                        StaffShift shift = createMockShift(vetGeneral, testDate, LocalTime.of(8, 0),
+                                        LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(vetGeneralId, testDate))
+                                        .thenReturn(List.of(shift));
+
+                        List<Slot> slots = new ArrayList<>();
+                        for (int i = 0; i < 4; i++) { // 120 minutes = 4 slots
+                                slots.add(createMockSlot(shift.getShiftId(), testTime.plusMinutes(i * 30),
+                                                testTime.plusMinutes((i + 1) * 30), SlotStatus.AVAILABLE));
+                        }
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift.getShiftId(),
+                                        SlotStatus.AVAILABLE))
+                                        .thenReturn(slots);
+
+                        when(bookingSlotRepository.findByBookingServiceItem_BookingServiceId(serviceItemId))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Act - Should not throw (VET_GENERAL can handle SURGERY as fallback)
+                        assertDoesNotThrow(() -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                vetGeneralId,
+                                                bookingServiceItemRepository);
+                        });
+
+                        // Verify
+                        verify(bookingServiceItemRepository).save(any(BookingServiceItem.class));
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-VAL-006: Should reject staff with null specialty")
+                void shouldRejectStaffWithNullSpecialty() {
+                        // Arrange
+                        User staffWithoutSpecialty = createMockStaff(UUID.randomUUID(), "Nhân viên không chuyên môn",
+                                        null);
+
+                        when(bookingServiceItemRepository.findById(serviceItemId))
+                                        .thenReturn(Optional.of(vaccinationItem));
+                        when(userRepository.findById(staffWithoutSpecialty.getUserId()))
+                                        .thenReturn(Optional.of(staffWithoutSpecialty));
+
+                        // Act & Assert
+                        BadRequestException exception = assertThrows(BadRequestException.class, () -> {
+                                staffAssignmentService.reassignStaffForService(
+                                                serviceItemId,
+                                                staffWithoutSpecialty.getUserId(),
+                                                bookingServiceItemRepository);
+                        });
+
+                        assertTrue(exception.getMessage().contains("không có chuyên môn phù hợp"));
                 }
         }
 }

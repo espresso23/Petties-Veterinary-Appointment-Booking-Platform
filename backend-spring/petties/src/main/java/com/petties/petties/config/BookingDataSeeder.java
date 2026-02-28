@@ -538,19 +538,22 @@ public class BookingDataSeeder implements CommandLineRunner {
         }
 
         /**
+         * Check if booking already exists to avoid duplicate key violation
+         */
+        private boolean bookingExists(Pet pet, Clinic clinic, LocalDate date, LocalTime time) {
+                return bookingRepository.existsByPetAndClinicAndDateAndTime(
+                        pet.getId(), clinic.getClinicId(), date, time);
+        }
+
+        /**
          * Create a booking with services
          */
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing booking: {} at {} {}", pet.getName(), date, time);
                         return;
                 }
 
@@ -569,6 +572,12 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                // Nếu booking_code này đã tồn tại (do user đã tạo booking thật trước đó) thì bỏ qua seeding
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded booking because booking_code already exists: {}", bookingCode);
+                        return;
+                }
 
                 // Calculate total price: sum of service prices
                 BigDecimal totalPrice = BigDecimal.ZERO;
@@ -632,8 +641,20 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing home visit booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
+
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded HOME VISIT booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate single distance fee for the whole booking (using clinic-level
                 // pricePerKm)
@@ -713,8 +734,20 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing status booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
+
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded status booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate distance fee (using clinic-level pricePerKm)
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,

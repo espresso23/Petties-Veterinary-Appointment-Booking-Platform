@@ -32,6 +32,10 @@ export interface BookingServiceItem {
     scheduledStartTime?: string; // For display
     scheduledEndTime?: string;   // For display
     isAddOn?: boolean;           // Arising service
+
+    // Pet this service is for (multi-pet booking)
+    petId?: string;
+    petName?: string;
 }
 
 // Main Booking interface
@@ -81,6 +85,11 @@ export interface Booking {
     notes?: string;
     services: BookingServiceItem[];
 
+    /**
+     * List of pets in booking (multi-pet), each with its own services.
+     */
+    pets?: PetInBookingSummary[];
+
     // Home visit info
     homeAddress?: string;
     homeLat?: number;
@@ -90,6 +99,15 @@ export interface Booking {
 
     // Timestamps
     createdAt: string;
+}
+
+/**
+ * Summary of a pet in a booking (multi-pet) with its services.
+ */
+export interface PetInBookingSummary {
+    petId: string;
+    petName: string;
+    services: BookingServiceItem[];
 }
 
 // Create booking request
