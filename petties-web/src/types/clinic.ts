@@ -40,6 +40,8 @@ export interface Clinic {
   images?: ClinicImage[] | string[]
   imageDetails?: ClinicImage[]
   services?: ClinicService[]
+  sosFee?: number
+  pricePerKm?: number
 }
 
 export interface ClinicImage {
@@ -105,6 +107,7 @@ export interface ClinicResponse {
   bankName?: string // Tên ngân hàng
   accountNumber?: string // Số tài khoản ngân hàng
   sosFee?: number // Phí dịch vụ SOS cấp cứu
+  pricePerKm?: number // Giá di chuyển theo km
   operatingHours?: Record<string, OperatingHours>
   status: ClinicStatus
   rejectionReason?: string

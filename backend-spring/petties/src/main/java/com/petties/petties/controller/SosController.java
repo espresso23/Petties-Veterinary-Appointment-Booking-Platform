@@ -14,7 +14,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import com.petties.petties.dto.sos.SosMatchingStatusMessage;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -134,7 +136,17 @@ public class SosController {
                                     .clinicId(booking.getClinic().getClinicId())
                                     .clinicName(booking.getClinic().getName())
                                     .clinicPhone(booking.getClinic().getPhone())
-                                    .clinicAddress(booking.getClinic().getAddress());
+                                    .clinicAddress(booking.getClinic().getAddress())
+                                    .clinicLat(booking.getClinic().getLatitude() != null ? booking.getClinic().getLatitude().doubleValue() : null)
+                                    .clinicLng(booking.getClinic().getLongitude() != null ? booking.getClinic().getLongitude().doubleValue() : null);
+                        }
+
+                        if (booking.getAssignedStaff() != null) {
+                            responseBuilder
+                                    .staffId(booking.getAssignedStaff().getUserId())
+                                    .staffName(booking.getAssignedStaff().getFullName())
+                                    .staffPhone(booking.getAssignedStaff().getPhone())
+                                    .staffAvatarUrl(booking.getAssignedStaff().getAvatar());
                         }
 
                         return ResponseEntity.ok(responseBuilder.build());
@@ -144,6 +156,26 @@ public class SosController {
             log.error("Error getting active SOS booking for user {}: {}", petOwnerId, e.getMessage(), e);
             throw e;
         }
+    }
+
+    /**
+     * Get active SOS alerts for a clinic
+     * Used by Clinic Manager to sync alerts (catch-up mechanism)
+     */
+    @GetMapping("/alerts")
+    @PreAuthorize("hasRole('CLINIC_MANAGER')")
+    public ResponseEntity<List<SosMatchingStatusMessage>> getActiveSosAlerts(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UserPrincipal userPrincipal = (UserPrincipal) userDetails;
+        UUID managerId = userPrincipal.getUserId();
+
+        log.info("Fetching active SOS alerts for manager {}", managerId);
+
+        // We can just find the clinic from manager in the service
+        // For simplicity, let's update service to handle managerId
+        List<SosMatchingStatusMessage> alerts = sosMatchingService.getActiveSosAlertsForManager(managerId);
+        return ResponseEntity.ok(alerts);
     }
 
     /**

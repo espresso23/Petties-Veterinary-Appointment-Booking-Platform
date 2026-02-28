@@ -55,7 +55,7 @@ export function useNotificationPolling(
               const message = notification.type === 'APPROVED'
                 ? `Phòng khám "${notification.clinicName}" đã được duyệt${notification.reason ? `: ${notification.reason}` : ''}`
                 : `Phòng khám "${notification.clinicName}" không được duyệt${notification.reason ? `: ${notification.reason}` : ''}`
-              
+
               showToast(
                 notification.type === 'APPROVED' ? 'success' : 'error',
                 message
@@ -78,12 +78,15 @@ export function useNotificationPolling(
     // Poll at specified interval
     const pollingInterval = setInterval(checkNotifications, interval)
 
+    // Capture ref value for cleanup
+    const shownIdsRef = shownNotificationIdsRef.current
+
     return () => {
       clearInterval(pollingInterval)
       // Clean up shown notification IDs on unmount
-      shownNotificationIdsRef.current.clear()
+      shownIdsRef.clear()
     }
-  }, [showToast, interval, fetchLimit])
+  }, [showToast, interval, fetchLimit, setUnreadCount])
 
   return {
     unreadCount,

@@ -3,9 +3,8 @@ package com.petties.petties.service;
 import com.petties.petties.dto.sos.SosConfirmRequest;
 import com.petties.petties.dto.sos.SosMatchRequest;
 import com.petties.petties.dto.sos.SosMatchResponse;
-import com.petties.petties.dto.sos.SosMatchingStatusMessage;
-import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.exception.SosMatchingException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
 import com.petties.petties.repository.*;
@@ -20,14 +19,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -57,17 +52,17 @@ class SosMatchingServiceUnitTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private ClinicPricePerKmRepository pricePerKmRepository;
+    private ClinicPriceService clinicPriceService;
     @Mock
     private NotificationService notificationService;
     @Mock
     private LocationService locationService;
     @Mock
-    private SimpMessagingTemplate messagingTemplate;
+    private SosSessionManager sessionManager;
     @Mock
-    private RedisTemplate<String, Object> redisTemplate;
+    private SosNotificationService sosNotificationService;
     @Mock
-    private ValueOperations<String, Object> valueOperations;
+    private BookingNotificationService bookingNotificationService;
 
     @InjectMocks
     private SosMatchingService sosMatchingService;
@@ -148,13 +143,11 @@ class SosMatchingServiceUnitTest {
         booking.setPetOwner(petOwner);
         booking.setBookingServices(new ArrayList<>());
 
-        // Redis mock setup
-        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        // Mock distributed lock acquisition
-        lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any(TimeUnit.class)))
-                .thenReturn(true);
-        // Mock lock release
-        lenient().when(redisTemplate.delete(anyString())).thenReturn(true);
+        // Global config mocks
+        lenient().when(sessionManager.getMaxClinicsToTry()).thenReturn(5);
+        lenient().when(sessionManager.getClinicTimeoutSeconds()).thenReturn(60);
+        lenient().when(sessionManager.acquireUserLock(any())).thenReturn(true);
+        lenient().when(sessionManager.acquireBookingLock(any())).thenReturn(true); // Default to true
     }
 
     @Nested
@@ -199,11 +192,14 @@ class SosMatchingServiceUnitTest {
             assertNotNull(response.getWsTopicUrl());
             assertTrue(response.getWsTopicUrl().contains("/topic/sos-matching/"));
 
-            // Verify Redis storage (4 now: clinics, index, createdAt, notifiedAt)
-            verify(valueOperations, times(4)).set(anyString(), any(), anyLong(), eq(TimeUnit.SECONDS));
+            // Verify session creation
+            verify(sessionManager).acquireUserLock(petOwnerId);
+            verify(sessionManager).createSession(eq(bookingId), anyList());
+            verify(sessionManager).releaseUserLock(petOwnerId);
 
-            // Verify WebSocket broadcast
-            verify(messagingTemplate, atLeastOnce()).convertAndSend(anyString(), any(SosMatchingStatusMessage.class));
+            // Verify notification
+            verify(sosNotificationService).alertClinic(any(), any(), anyInt(), anyInt());
+            verify(sosNotificationService).notifyOwnerClinicContacted(any(), any(), anyInt(), anyInt(), anyDouble());
         }
 
         @Test
@@ -246,7 +242,7 @@ class SosMatchingServiceUnitTest {
             when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
 
             // Act & Assert
-            assertThrows(BadRequestException.class, () -> sosMatchingService.startMatching(request, petOwnerId));
+            assertThrows(SosMatchingException.class, () -> sosMatchingService.startMatching(request, petOwnerId));
         }
 
         @Test
@@ -262,12 +258,12 @@ class SosMatchingServiceUnitTest {
             when(petRepository.findById(petId)).thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThrows(ResourceNotFoundException.class, () -> sosMatchingService.startMatching(request, petOwnerId));
+            assertThrows(SosMatchingException.class, () -> sosMatchingService.startMatching(request, petOwnerId));
         }
 
         @Test
-        @DisplayName("TC-SOS-MATCH-005: Should throw 409 when user has active SOS booking")
-        void startMatching_ActiveBookingExists_ThrowsBadRequest() {
+        @DisplayName("TC-SOS-START-004: Should resume existing active SOS booking")
+        void startMatching_ActiveBookingExists_ReturnsResumeResponse() {
             // Arrange
             SosMatchRequest request = new SosMatchRequest();
             request.setPetId(petId);
@@ -284,11 +280,15 @@ class SosMatchingServiceUnitTest {
             when(bookingRepository.findActiveSosBookingsByPetOwner(petOwnerId))
                     .thenReturn(List.of(existingBooking));
 
-            // Act & Assert
-            BadRequestException exception = assertThrows(BadRequestException.class,
-                    () -> sosMatchingService.startMatching(request, petOwnerId));
-            assertTrue(exception.getMessage().contains("đã có một yêu cầu SOS"));
-            assertTrue(exception.getMessage().contains("SOS-12345"));
+            // Act
+            SosMatchResponse response = sosMatchingService.startMatching(request, petOwnerId);
+
+            // Assert
+            assertNotNull(response);
+            assertEquals(existingBooking.getBookingId(), response.getBookingId());
+            assertEquals(BookingStatus.PENDING_CLINIC_CONFIRM, response.getStatus());
+            assertTrue(response.getMessage().contains("SOS"));
+            verify(bookingRepository, never()).save(any(Booking.class));
         }
     }
 
@@ -305,9 +305,13 @@ class SosMatchingServiceUnitTest {
             request.setAccepted(true);
             request.setAssignedStaffId(staffId);
 
+            // IMPORTANT: Booking must have the same clinic as manager for security check
+            booking.setClinic(clinic1);
+
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
             when(userRepository.findById(staffId)).thenReturn(Optional.of(staff));
+            when(clinicPriceService.getSosFee(clinicId1)).thenReturn(Optional.of(BigDecimal.valueOf(100000)));
             when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -324,9 +328,13 @@ class SosMatchingServiceUnitTest {
             verify(bookingRepository).save(bookingCaptor.capture());
             assertEquals(BookingStatus.CONFIRMED, bookingCaptor.getValue().getStatus());
             assertEquals(clinic1, bookingCaptor.getValue().getClinic());
+            assertEquals(new BigDecimal("100000"), bookingCaptor.getValue().getSosFee());
+            assertEquals(new BigDecimal("100000"), bookingCaptor.getValue().getTotalPrice());
 
-            // Verify Redis cleared (4 keys now: clinics, index, createdAt, notifiedAt)
-            verify(redisTemplate, times(4)).delete(anyString());
+            // Verify session cleared
+            verify(sessionManager).clearSession(bookingId);
+            verify(sosNotificationService)
+                    .notifyOwnerConfirmed(any(), any(), any(), any(), any());
         }
 
         @Test
@@ -338,12 +346,15 @@ class SosMatchingServiceUnitTest {
             request.setAccepted(false);
             request.setDeclineReason("Too busy");
 
+            // IMPORTANT: Booking must have the same clinic as manager for security check
+            booking.setClinic(clinic1);
+
             List<String> clinicIds = List.of(clinicId1.toString(), clinicId2.toString());
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
-            when(valueOperations.get(contains(":clinics"))).thenReturn(clinicIds);
-            when(valueOperations.get(contains(":index"))).thenReturn(0);
+            when(sessionManager.getClinicIds(bookingId)).thenReturn(Optional.of(clinicIds));
+            when(sessionManager.getCurrentIndex(bookingId)).thenReturn(Optional.of(0));
             lenient().when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
             lenient().when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
                     .thenReturn(Collections.emptyList());
@@ -356,10 +367,9 @@ class SosMatchingServiceUnitTest {
             assertEquals(BookingStatus.PENDING_CLINIC_CONFIRM, response.getStatus());
             assertEquals(clinicId2, response.getClinicId());
 
-            // Verify escalation broadcast
-            verify(messagingTemplate, atLeastOnce()).convertAndSend(
-                    contains("/topic/sos-matching/"),
-                    any(SosMatchingStatusMessage.class));
+            // Verify escalation
+            verify(sessionManager).updateIndex(eq(bookingId), eq(1));
+            verify(sosNotificationService).notifyOwnerWaitingNext(any(), any(), anyInt(), anyInt());
         }
 
         @Test
@@ -374,7 +384,45 @@ class SosMatchingServiceUnitTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
 
             // Act & Assert
-            assertThrows(BadRequestException.class, () -> sosMatchingService.processConfirmation(request, managerId));
+            assertThrows(SosMatchingException.class, () -> sosMatchingService.processConfirmation(request, managerId));
+        }
+
+        @Test
+        @DisplayName("TC-SOS-CONF-004: Should throw exception when manager tries to confirm booking from another clinic")
+        void processConfirmation_WrongClinic_ThrowsException() {
+            // Arrange
+            SosConfirmRequest request = new SosConfirmRequest();
+            request.setBookingId(bookingId);
+            request.setAccepted(true);
+
+            // Booking is assigned to clinic2, but manager belongs to clinic1
+            booking.setClinic(clinic2);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(userRepository.findById(managerId)).thenReturn(Optional.of(manager));
+
+            // Act & Assert
+            SosMatchingException exception = assertThrows(SosMatchingException.class,
+                    () -> sosMatchingService.processConfirmation(request, managerId));
+            assertTrue(exception.getMessage().contains("không có quyền xác nhận"));
+        }
+
+        @Test
+        @DisplayName("TC-SOS-CONF-005: Should throw exception when booking lock cannot be acquired")
+        void processConfirmation_LockAcquisitionFailed_ThrowsException() {
+            // Arrange
+            SosConfirmRequest request = new SosConfirmRequest();
+            request.setBookingId(bookingId);
+            request.setAccepted(true);
+
+            // Mock lock failure
+            when(sessionManager.acquireBookingLock(bookingId)).thenReturn(false);
+
+            // Act & Assert
+            SosMatchingException exception = assertThrows(SosMatchingException.class,
+                    () -> sosMatchingService.processConfirmation(request, managerId));
+            assertTrue(exception.getMessage().contains("Yêu cầu đang được xử lý"));
+            verify(bookingRepository, never()).findById(any());
         }
     }
 
@@ -389,8 +437,8 @@ class SosMatchingServiceUnitTest {
             List<String> clinicIds = List.of(clinicId1.toString());
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
-            when(valueOperations.get(contains(":clinics"))).thenReturn(clinicIds);
-            when(valueOperations.get(contains(":index"))).thenReturn(0); // Already at last clinic
+            when(sessionManager.getClinicIds(bookingId)).thenReturn(Optional.of(clinicIds));
+            when(sessionManager.getCurrentIndex(bookingId)).thenReturn(Optional.of(0)); // Already at last clinic
             when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -421,26 +469,20 @@ class SosMatchingServiceUnitTest {
             when(bookingRepository.findByStatusAndBookingType(
                     BookingStatus.PENDING_CLINIC_CONFIRM, BookingType.SOS))
                     .thenReturn(List.of(booking));
-            // Now uses notifiedAt for timeout, fallback to createdAt
-            when(valueOperations.get("sos:matching:" + bookingId + ":notifiedAt")).thenReturn(null);
-            when(valueOperations.get("sos:matching:" + bookingId + ":createdAt")).thenReturn(oldTimestamp);
-            when(valueOperations.get("sos:matching:" + bookingId + ":index")).thenReturn(0);
-            when(valueOperations.get("sos:matching:" + bookingId + ":clinics"))
-                    .thenReturn(List.of(clinicId1.toString(), clinicId2.toString()));
+            when(sessionManager.sessionExists(bookingId)).thenReturn(true);
+            when(sessionManager.hasCurrentClinicTimedOut(bookingId)).thenReturn(true);
+            when(sessionManager.getClinicIds(bookingId))
+                    .thenReturn(Optional.of(List.of(clinicId1.toString(), clinicId2.toString())));
+            when(sessionManager.getCurrentIndex(bookingId)).thenReturn(Optional.of(0));
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             lenient().when(clinicRepository.findById(clinicId2)).thenReturn(Optional.of(clinic2));
-            lenient().when(userRepository.findByWorkingClinicIdAndRole(clinicId2, Role.CLINIC_MANAGER))
-                    .thenReturn(Collections.emptyList());
 
             // Act
             sosMatchingService.checkTimeouts();
 
             // Assert - Should escalate to next clinic
-            verify(valueOperations, atLeastOnce()).set(
-                    eq("sos:matching:" + bookingId + ":index"),
-                    eq(1),
-                    anyLong(),
-                    eq(TimeUnit.SECONDS));
+            verify(sessionManager).updateIndex(eq(bookingId), eq(1));
+            verify(sosNotificationService).notifyOwnerWaitingNext(any(), any(), anyInt(), anyInt());
         }
 
         @Test
@@ -452,15 +494,34 @@ class SosMatchingServiceUnitTest {
             when(bookingRepository.findByStatusAndBookingType(
                     BookingStatus.PENDING_CLINIC_CONFIRM, BookingType.SOS))
                     .thenReturn(List.of(booking));
-            // Use notifiedAt for accurate timeout
-            when(valueOperations.get("sos:matching:" + bookingId + ":notifiedAt")).thenReturn(recentTimestamp);
-            when(valueOperations.get("sos:matching:" + bookingId + ":index")).thenReturn(0);
+            when(sessionManager.hasCurrentClinicTimedOut(bookingId)).thenReturn(false);
 
             // Act
             sosMatchingService.checkTimeouts();
 
             // Assert - Should NOT escalate
-            verify(clinicRepository, never()).findById(any());
+            verify(sessionManager, never()).updateIndex(any(), anyInt());
+        }
+
+        @Test
+        @DisplayName("TC-SOS-TIMEOUT-003: Should skip escalation if booking lock cannot be acquired")
+        void checkTimeouts_LockAcquisitionFailed_SkipsEscalation() {
+            // Arrange
+            when(bookingRepository.findByStatusAndBookingType(
+                    BookingStatus.PENDING_CLINIC_CONFIRM, BookingType.SOS))
+                    .thenReturn(List.of(booking));
+            when(sessionManager.sessionExists(bookingId)).thenReturn(true);
+            when(sessionManager.hasCurrentClinicTimedOut(bookingId)).thenReturn(true);
+
+            // Mock lock failure
+            when(sessionManager.acquireBookingLock(bookingId)).thenReturn(false);
+
+            // Act
+            sosMatchingService.checkTimeouts();
+
+            // Assert - Should NOT call escalateToNextClinic or modify repository
+            verify(bookingRepository, never()).save(any());
+            verify(sessionManager, never()).updateIndex(any(), anyInt());
         }
     }
 
@@ -475,9 +536,9 @@ class SosMatchingServiceUnitTest {
             booking.setClinic(clinic1);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
-            when(valueOperations.get(contains(":index"))).thenReturn(0);
-            when(valueOperations.get(contains(":clinics")))
-                    .thenReturn(List.of(clinicId1.toString()));
+            when(sessionManager.getCurrentIndex(bookingId)).thenReturn(Optional.of(0));
+            when(sessionManager.getClinicIds(bookingId))
+                    .thenReturn(Optional.of(List.of(clinicId1.toString())));
             when(clinicRepository.findById(clinicId1)).thenReturn(Optional.of(clinic1));
 
             // Act

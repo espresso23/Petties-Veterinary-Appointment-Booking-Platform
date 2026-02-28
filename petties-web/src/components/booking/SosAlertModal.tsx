@@ -4,6 +4,12 @@ import { confirmSosRequest, declineSosRequest } from '../../services/bookingServ
 import * as bookingService from '../../services/bookingService'
 import { useToast } from '../Toast'
 
+interface AvailableStaff {
+    staffId: string
+    fullName: string
+    isSuggested?: boolean
+}
+
 interface SosAlertModalProps {
     clinicId: string
 }
@@ -16,82 +22,16 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
     const [pendingAlerts, setPendingAlerts] = useState<SosAlertMessage[]>([])
     const [currentAlert, setCurrentAlert] = useState<SosAlertMessage | null>(null)
     const [isLoading, setIsLoading] = useState(false)
+    const [isLoadingStaff, setIsLoadingStaff] = useState(false)
     const [countdown, setCountdown] = useState(60)
+    const initialCountdownRef = useRef(60)
     const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const currentAlertRef = useRef<SosAlertMessage | null>(null)
     const audioRef = useRef<HTMLAudioElement | null>(null)
     const { showToast } = useToast()
 
-    // Connect to WebSocket on mount
-    useEffect(() => {
-        if (!clinicId) return
-
-        sosWebSocket.connect(clinicId).catch(console.error)
-
-        const removeHandler = sosWebSocket.addAlertHandler((alert: SosAlertMessage) => {
-            // Backend sends 'event: CLINIC_NOTIFIED' when notifying clinic
-            if (alert.event === 'CLINIC_NOTIFIED' || alert.status === 'PENDING_CLINIC_CONFIRM') {
-                console.log('[SOS Modal] Showing alert for booking:', alert.bookingId)
-                setPendingAlerts(prev => [...prev, alert])
-                playAlertSound()
-            }
-        })
-
-        return () => {
-            removeHandler()
-            sosWebSocket.disconnect()
-        }
-    }, [clinicId])
-
-    // Show next alert when current is resolved
-    useEffect(() => {
-        if (!currentAlert && pendingAlerts.length > 0) {
-            setCurrentAlert(pendingAlerts[0])
-            setPendingAlerts(prev => prev.slice(1))
-            setCountdown(60)
-        }
-    }, [currentAlert, pendingAlerts])
-
-    // Countdown timer
-    useEffect(() => {
-        if (!currentAlert) return
-
-        countdownRef.current = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    handleDecline('Hết thời gian phản hồi')
-                    return 0
-                }
-                return prev - 1
-            })
-        }, 1000)
-
-        return () => {
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current)
-            }
-        }
-    }, [currentAlert])
-
-    const [availableStaff, setAvailableStaff] = useState<any[]>([])
+    const [availableStaff, setAvailableStaff] = useState<AvailableStaff[]>([])
     const [selectedStaffId, setSelectedStaffId] = useState<string>('')
-
-    // Fetch staff list when alert appears
-    useEffect(() => {
-        if (currentAlert && clinicId) {
-            bookingService.getAvailableStaffForConfirm(currentAlert.bookingId)
-                .then(staff => {
-                    setAvailableStaff(staff)
-                    // Auto-select suggested staff if any
-                    const suggested = staff.find(s => s.isSuggested)
-                    if (suggested) {
-                        setSelectedStaffId(suggested.staffId)
-                    } else if (staff.length > 0) {
-                        setSelectedStaffId(staff[0].staffId)
-                    }
-                })
-                .catch(err => console.error('Error fetching staff for SOS:', err))
-        }
-    }, [currentAlert, clinicId])
 
     const playAlertSound = useCallback(() => {
         if (!audioRef.current) {
@@ -103,6 +43,80 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         })
     }, [])
 
+    const handleDecline = useCallback(async (reason?: string) => {
+        if (!currentAlert) return
+        setIsLoading(true)
+
+        try {
+            await declineSosRequest(currentAlert.bookingId, reason)
+
+            showToast('warning', 'Đã từ chối yêu cầu SOS')
+            resetAlert()
+        } catch (err) {
+            console.error('Error declining SOS:', err)
+            showToast('error', 'Có lỗi xảy ra. Vui lòng thử lại.')
+        } finally {
+            setIsLoading(false)
+        }
+    }, [currentAlert, showToast])
+
+
+    // Show next alert when current is resolved
+    useEffect(() => {
+        if (!currentAlert && pendingAlerts.length > 0) {
+            const nextAlert = pendingAlerts[0]
+            setCurrentAlert(nextAlert)
+            currentAlertRef.current = nextAlert
+            setPendingAlerts(prev => prev.slice(1))
+            // Initialize countdown from server if available, otherwise default to 60
+            const initial = nextAlert.remainingSeconds || 60
+            initialCountdownRef.current = initial
+            setCountdown(initial)
+        }
+    }, [currentAlert, pendingAlerts])
+
+    // Countdown timer — decrement only, no side effects inside setState
+    useEffect(() => {
+        if (!currentAlert) return
+
+        countdownRef.current = setInterval(() => {
+            setCountdown(prev => (prev <= 0 ? 0 : prev - 1))
+        }, 1000)
+
+        return () => {
+            if (countdownRef.current) {
+                clearInterval(countdownRef.current)
+            }
+        }
+    }, [currentAlert])
+
+    // Auto-decline when countdown reaches 0 (#9: moved out of setState)
+    useEffect(() => {
+        if (countdown === 0 && currentAlert) {
+            handleDecline('Hết thời gian phản hồi')
+        }
+    }, [countdown, currentAlert, handleDecline])
+
+    // Fetch staff list when alert appears (#7: with loading state)
+    useEffect(() => {
+        if (currentAlert && clinicId) {
+            setIsLoadingStaff(true)
+            bookingService.getAvailableStaffForConfirm(currentAlert.bookingId)
+                .then(staff => {
+                    setAvailableStaff(staff)
+                    // Auto-select suggested staff if any
+                    const suggested = staff.find((s: AvailableStaff) => s.isSuggested)
+                    if (suggested) {
+                        setSelectedStaffId(suggested.staffId)
+                    } else if (staff.length > 0) {
+                        setSelectedStaffId(staff[0].staffId)
+                    }
+                })
+                .catch(err => console.error('Error fetching staff for SOS:', err))
+                .finally(() => setIsLoadingStaff(false))
+        }
+    }, [currentAlert, clinicId])
+
     const handleAccept = async () => {
         if (!currentAlert) return
         if (!selectedStaffId) {
@@ -113,50 +127,103 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
 
         try {
             await confirmSosRequest(currentAlert.bookingId, selectedStaffId)
-            sosWebSocket.confirmSos(currentAlert.bookingId)
 
             showToast('success', 'Đã xác nhận yêu cầu SOS! Bạn sẽ được chuyển đến chi tiết booking.')
-            setCurrentAlert(null)
-            setCountdown(60)
-            setSelectedStaffId('')
-        } catch (error) {
-            console.error('Error confirming SOS:', error)
+            resetAlert()
+        } catch (err) {
+            console.error('Error confirming SOS:', err)
             showToast('error', 'Có lỗi xảy ra khi xác nhận. Vui lòng thử lại.')
         } finally {
             setIsLoading(false)
         }
     }
 
-    const handleDecline = async (reason?: string) => {
-        if (!currentAlert) return
-        setIsLoading(true)
+    const resetAlert = useCallback(() => {
+        setCurrentAlert(null)
+        currentAlertRef.current = null
+        setCountdown(60)
+        setSelectedStaffId('')
+    }, [])
 
-        try {
-            await declineSosRequest(currentAlert.bookingId, reason)
-            sosWebSocket.declineSos(currentAlert.bookingId, reason)
+    // Handler for websocket messages
+    const onAlertReceived = useCallback((alert: SosAlertMessage) => {
+        if (alert.event === 'CLINIC_NOTIFIED' || alert.status === 'PENDING_CLINIC_CONFIRM') {
+            console.log('[SOS Modal] Showing alert for booking:', alert.bookingId)
+            setPendingAlerts(prev => [...prev, alert])
+            playAlertSound()
+        } else if (alert.event === 'CONFIRMED' || alert.event === 'CANCELLED' || alert.event === 'WAITING_NEXT' || alert.event === 'NO_CLINIC') {
+            // Check against ref to avoid stale closure
+            if (currentAlertRef.current?.bookingId === alert.bookingId) {
+                console.log('[SOS Modal] Closing current alert as it is no longer valid:', alert.bookingId)
 
-            showToast('warning', 'Đã từ chối yêu cầu SOS')
-            setCurrentAlert(null)
-            setCountdown(60)
-            setSelectedStaffId('')
-        } catch (error) {
-            console.error('Error declining SOS:', error)
-            showToast('error', 'Có lỗi xảy ra. Vui lòng thử lại.')
-        } finally {
-            setIsLoading(false)
+                let message = 'Yêu cầu SOS đã kết thúc'
+                if (alert.event === 'CONFIRMED') {
+                    message = 'Yêu cầu đã được xác nhận tiếp nhận'
+                } else if (alert.event === 'CANCELLED') {
+                    message = 'Yêu cầu đã bị khách hàng hủy'
+                } else if (alert.event === 'WAITING_NEXT') {
+                    message = 'Đã hết thời gian phản hồi'
+                } else if (alert.event === 'NO_CLINIC') {
+                    message = 'Yêu cầu đã bị hủy'
+                }
+
+                showToast('info', message)
+                resetAlert()
+            }
+            // Also remove from pending alerts
+            setPendingAlerts(prev => prev.filter(p => p.bookingId !== alert.bookingId))
         }
-    }
+    }, [playAlertSound, showToast, resetAlert])
+
+    // Sync active alerts on mount + periodic retry (#8)
+    useEffect(() => {
+        if (!clinicId) return
+
+        const syncAlerts = () => {
+            bookingService.getActiveSosAlerts()
+                .then(alerts => {
+                    if (alerts.length > 0) {
+                        console.log('[SOS Modal] Synced active alerts:', alerts.length)
+                        setPendingAlerts(prev => {
+                            const existingIds = new Set(prev.map(p => p.bookingId))
+                            const newAlerts = alerts.filter(a => !existingIds.has(a.bookingId))
+                            return newAlerts.length > 0 ? [...prev, ...newAlerts] : prev
+                        })
+                    }
+                })
+                .catch(err => console.error('Error syncing SOS alerts:', err))
+        }
+
+        syncAlerts()
+        // Retry every 30s to catch missed alerts
+        const retryInterval = setInterval(syncAlerts, 30000)
+        return () => clearInterval(retryInterval)
+    }, [clinicId])
+
+    // Connect to WebSocket on mount
+    useEffect(() => {
+        if (!clinicId) return
+
+        sosWebSocket.connect(clinicId).catch(console.error)
+
+        const removeHandler = sosWebSocket.addAlertHandler(onAlertReceived)
+
+        return () => {
+            removeHandler()
+            sosWebSocket.disconnect()
+        }
+    }, [clinicId, onAlertReceived])
 
     if (!currentAlert) return null
 
     return (
         <>
             {/* Overlay */}
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]" />
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100]" />
 
             {/* Modal */}
             <div className="fixed inset-0 flex items-center justify-center z-[101] p-4">
-                <div className="bg-white dark:bg-stone-800 rounded-2xl shadow-2xl max-w-lg w-full animate-bounce-in overflow-hidden">
+                <div className="bg-white border-2 border-stone-900 rounded-xl shadow-[6px_6px_0_#1c1917] max-w-lg w-full animate-bounce-in overflow-hidden">
                     {/* Header with countdown */}
                     <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-4">
                         <div className="flex items-center justify-between">
@@ -167,7 +234,7 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold">🚨 YÊU CẦU CẤP CỨU SOS</h2>
+                                    <h2 className="text-xl font-bold">YÊU CẦU CẤP CỨU SOS</h2>
                                     <p className="text-sm opacity-90">Cần phản hồi trong {countdown}s</p>
                                 </div>
                             </div>
@@ -179,11 +246,11 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                             </div>
                         </div>
 
-                        {/* Progress bar */}
+                        {/* Progress bar (#2: use dynamic initialCountdown) */}
                         <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-white transition-all duration-1000 ease-linear"
-                                style={{ width: `${(countdown / 60) * 100}%` }}
+                                style={{ width: `${(countdown / initialCountdownRef.current) * 100}%` }}
                             />
                         </div>
                     </div>
@@ -192,78 +259,167 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                     <div className="p-6">
                         {/* Pet & Owner Info */}
                         <div className="space-y-4">
-                            <div className="flex items-center gap-4 p-4 bg-stone-50 dark:bg-stone-700 rounded-xl border border-stone-200 dark:border-stone-600">
-                                <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
-                                    <span className="text-2xl">🐕</span>
+                            <div className="flex items-center gap-4 p-4 bg-stone-50 rounded-xl border-2 border-stone-900">
+                                <div className="p-3 bg-red-100 rounded-full border-2 border-stone-900">
+                                    {currentAlert.petAvatarUrl ? (
+                                        <img
+                                            src={currentAlert.petAvatarUrl}
+                                            alt={currentAlert.petName || 'Thú cưng'}
+                                            className="w-10 h-10 rounded-full border-2 border-stone-900 object-cover"
+                                        />
+                                    ) : (
+                                        <svg
+                                            className="w-6 h-6 text-red-700"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={2}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M5 22v-2a4 4 0 0 1 4-4h2" />
+                                            <path d="M19 22v-2a4 4 0 0 0-4-4h-1" />
+                                            <circle cx="9" cy="7" r="3" />
+                                            <circle cx="17" cy="7" r="3" />
+                                        </svg>
+                                    )}
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-lg text-stone-800 dark:text-stone-100">
+                                    <h3 className="font-semibold text-lg text-stone-800">
                                         {currentAlert.petName || 'Thú cưng'}
                                     </h3>
-                                    <p className="text-stone-600 dark:text-stone-300">
-                                        Chủ: {currentAlert.petOwnerName || 'Khách hàng'}
+                                    <p className="text-stone-600 text-sm">
+                                        {[currentAlert.petSpecies === 'DOG' ? 'Chó' : currentAlert.petSpecies === 'CAT' ? 'Mèo' : currentAlert.petSpecies, currentAlert.petBreed, currentAlert.petWeight ? `${currentAlert.petWeight} kg` : null].filter(Boolean).join(' • ') || ''}
                                     </p>
+                                    <p className="text-stone-500 text-sm">
+                                        Chủ: {currentAlert.petOwnerName || 'Khách hàng'}
+                                        {currentAlert.petOwnerPhone && (
+                                            <> — <a
+                                                href={`tel:${currentAlert.petOwnerPhone}`}
+                                                className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                                            >
+                                                <svg
+                                                    className="w-4 h-4"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth={2}
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                >
+                                                    <path d="M22 16.92V21a1 1 0 0 1-1.09 1A19.79 19.79 0 0 1 3 5.09 1 1 0 0 1 4 4h4.09a1 1 0 0 1 1 .75l1 3.73a1 1 0 0 1-.27.95L8.91 11.91a16 16 0 0 0 5.18 5.18l2.48-1.89a1 1 0 0 1 .95-.27l3.73 1a1 1 0 0 1 .75 1Z" />
+                                                </svg>
+                                                <span>{currentAlert.petOwnerPhone}</span>
+                                            </a></>
+                                        )}
+                                    </p>
+                                    {/* #6: Use distance with distanceKm fallback */}
+                                    {(currentAlert.distance ?? currentAlert.distanceKm) && (
+                                        <p className="text-stone-500 text-sm flex items-center gap-1">
+                                            <svg
+                                                className="w-4 h-4"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth={2}
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <path d="M12 21s-6-5.373-6-10a6 6 0 1 1 12 0c0 4.627-6 10-6 10z" />
+                                                <circle cx="12" cy="11" r="2" />
+                                            </svg>
+                                            <span>Cách {(currentAlert.distance ?? currentAlert.distanceKm)!.toFixed(1)} km</span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
                             {/* Symptoms */}
                             {currentAlert.symptoms && (
-                                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-xl border border-yellow-200 dark:border-yellow-700">
-                                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
-                                        Triệu chứng:
+                                <div className="p-4 bg-yellow-50 rounded-xl border-2 border-stone-900">
+                                    <p className="text-sm font-medium text-stone-900 mb-1 flex items-center gap-1">
+                                        <svg
+                                            className="w-4 h-4 text-yellow-700"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={2}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M10.29 3.86 1.82 18a1 1 0 0 0 .86 1.5h18.64a1 1 0 0 0 .86-1.5L13.71 3.86a1 1 0 0 0-1.72 0z" />
+                                            <line x1="12" y1="9" x2="12" y2="13" />
+                                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                                        </svg>
+                                        <span>Triệu chứng:</span>
                                     </p>
-                                    <p className="text-stone-700 dark:text-stone-200">
+                                    <p className="text-stone-700">
                                         {currentAlert.symptoms}
                                     </p>
                                 </div>
                             )}
 
-                            {/* Staff Selection Dropdown */}
+                            {/* Address */}
+                            {currentAlert.homeAddress && (
+                                <div className="p-4 bg-blue-50 rounded-xl border-2 border-stone-900">
+                                    <p className="text-sm font-medium text-stone-900 mb-1 flex items-center gap-1">
+                                        <svg
+                                            className="w-4 h-4 text-blue-700"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth={2}
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M12 21s-6-5.373-6-10a6 6 0 1 1 12 0c0 4.627-6 10-6 10z" />
+                                            <circle cx="12" cy="11" r="2" />
+                                        </svg>
+                                        <span>Địa chỉ:</span>
+                                    </p>
+                                    <p className="text-stone-700">
+                                        {currentAlert.homeAddress}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Staff Selection Dropdown (#4: better empty state, #7: loading) */}
                             <div className="space-y-2">
-                                <label className="text-sm font-bold text-stone-700 dark:text-stone-300 flex items-center gap-2">
+                                <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
                                     <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
                                     CHỌN NHÂN VIÊN XỬ LÝ:
                                 </label>
-                                <select
-                                    value={selectedStaffId}
-                                    onChange={(e) => setSelectedStaffId(e.target.value)}
-                                    className="w-full p-3 bg-white dark:bg-stone-900 border-2 border-stone-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:ring-0 focus:translate-x-1 focus:translate-y-1 focus:shadow-none transition-all outline-none text-stone-900 dark:text-stone-100"
-                                >
-                                    <option value="" disabled>Chọn bác sĩ/nhân viên...</option>
-                                    {availableStaff.map(staff => (
-                                        <option key={staff.staffId} value={staff.staffId}>
-                                            {staff.fullName} {staff.isSuggested ? '(Gợi ý)' : ''} — {staff.specialtyLabel}
-                                        </option>
-                                    ))}
-                                    {availableStaff.length === 0 && (
-                                        <option disabled>Không tìm thấy nhân viên sẵn sàng</option>
-                                    )}
-                                </select>
+                                {isLoadingStaff ? (
+                                    <div className="flex items-center gap-2 p-3 bg-stone-50 border-2 border-stone-300 rounded-xl text-stone-500">
+                                        <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin" />
+                                        <span>Đang tải danh sách nhân viên...</span>
+                                    </div>
+                                ) : !isLoadingStaff && availableStaff.length === 0 ? (
+                                    <div className="p-3 bg-red-50 border-2 border-red-300 rounded-xl text-red-700 text-sm font-medium flex items-center gap-2">
+                                        <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span>Không có nhân viên rảnh! Vui lòng từ chối và liên hệ trực tiếp.</span>
+                                    </div>
+                                ) : (
+                                    <select
+                                        value={selectedStaffId}
+                                        onChange={(e) => setSelectedStaffId(e.target.value)}
+                                        className="w-full p-3 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:ring-0 focus:translate-x-1 focus:translate-y-1 focus:shadow-none transition-all outline-none text-stone-900"
+                                    >
+                                        <option value="" disabled>Chọn bác sĩ/nhân viên...</option>
+                                        {availableStaff.map(staff => (
+                                            <option key={staff.staffId} value={staff.staffId}>
+                                                {staff.fullName} {staff.isSuggested ? '(Gợi ý)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                             </div>
 
-                            {/* Info Rows */}
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                {currentAlert.distance && (
-                                    <div className="flex items-center gap-2 p-2 bg-stone-50 dark:bg-stone-700 rounded-lg">
-                                        <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                        </svg>
-                                        <span><b>{currentAlert.distance.toFixed(1)} km</b></span>
-                                    </div>
-                                )}
-                                {currentAlert.petOwnerPhone && (
-                                    <div className="flex items-center gap-2 p-2 bg-stone-50 dark:bg-stone-700 rounded-lg">
-                                        <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                        </svg>
-                                        <a href={`tel:${currentAlert.petOwnerPhone}`} className="hover:underline text-blue-600 truncate">
-                                            {currentAlert.petOwnerPhone}
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
+
                         </div>
 
                         {/* Actions */}
@@ -291,7 +447,7 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                     </div>
 
                     {/* Footer */}
-                    <div className="px-6 py-3 bg-stone-50 dark:bg-stone-700/50 rounded-b-2xl text-center text-sm text-stone-500 dark:text-stone-400">
+                    <div className="px-6 py-3 bg-stone-50 rounded-b-xl text-center text-sm text-stone-500 border-t-2 border-stone-900">
                         Nếu không phản hồi, yêu cầu sẽ tự động chuyển sang phòng khám khác
                     </div>
                 </div>

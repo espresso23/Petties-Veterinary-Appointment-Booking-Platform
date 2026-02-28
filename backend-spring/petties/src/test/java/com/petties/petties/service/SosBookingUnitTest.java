@@ -47,6 +47,9 @@ class SosBookingUnitTest {
     @Mock
     private SlotRepository slotRepository;
 
+    @Mock
+    private SosSessionManager sosSessionManagerForStaffAssignment; // Use a distinct name or just another mock
+
     @InjectMocks
     private StaffAssignmentService staffAssignmentService;
 
@@ -61,6 +64,8 @@ class SosBookingUnitTest {
     private BookingNotificationService bookingNotificationService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private SosSessionManager sosSessionManager;
     @InjectMocks
     private BookingService bookingService;
 
@@ -87,10 +92,15 @@ class SosBookingUnitTest {
         staff.setSpecialty(StaffSpecialty.VET_GENERAL);
         staff.setFullName("SOS Staff");
 
+        User petOwner = new User();
+        petOwner.setUserId(UUID.randomUUID());
+        petOwner.setRole(Role.PET_OWNER);
+
         sosBooking = new Booking();
         sosBooking.setBookingId(bookingId);
         sosBooking.setType(BookingType.SOS);
         sosBooking.setClinic(clinic);
+        sosBooking.setPetOwner(petOwner);
         sosBooking.setBookingDate(today);
         sosBooking.setBookingTime(nowTime);
         sosBooking.setStatus(BookingStatus.IN_PROGRESS);
@@ -202,6 +212,53 @@ class SosBookingUnitTest {
             assertEquals(automatedFee, response.getTotalPrice());
             assertEquals(BookingStatus.COMPLETED, response.getStatus());
             verify(bookingRepository).save(sosBooking);
+        }
+    }
+
+    @Nested
+    @DisplayName("4. Cancellation Logic")
+    class CancellationTests {
+
+        @Test
+        @DisplayName("TC-CANCEL-01: canBeCancelled should be true for PENDING or CONFIRMED")
+        void canBeCancelled_PendingOrConfirmed_ReturnsTrue() {
+            sosBooking.setStatus(BookingStatus.PENDING);
+            assertTrue(sosBooking.canBeCancelled());
+
+            sosBooking.setStatus(BookingStatus.CONFIRMED);
+            assertTrue(sosBooking.canBeCancelled());
+        }
+
+        @Test
+        @DisplayName("TC-CANCEL-02: canBeCancelled should be true for SOS IN_PROGRESS without arrivedAt")
+        void canBeCancelled_SosInProgressNoArrivedAt_ReturnsTrue() {
+            sosBooking.setType(BookingType.SOS);
+            sosBooking.setStatus(BookingStatus.IN_PROGRESS);
+            sosBooking.setArrivedAt(null);
+            assertTrue(sosBooking.canBeCancelled());
+        }
+
+        @Test
+        @DisplayName("TC-CANCEL-03: canBeCancelled should be true for SOS IN_PROGRESS even with arrivedAt")
+        void canBeCancelled_SosInProgressWithArrivedAt_ReturnsTrue() {
+            sosBooking.setType(BookingType.SOS);
+            sosBooking.setStatus(BookingStatus.IN_PROGRESS);
+            sosBooking.setArrivedAt(java.time.LocalDateTime.now());
+            assertTrue(sosBooking.canBeCancelled());
+        }
+
+        @Test
+        @DisplayName("TC-CANCEL-04: cancelBooking should transition status to CANCELLED")
+        void cancelBooking_TransitionsToCancelled() {
+            sosBooking.setStatus(BookingStatus.CONFIRMED);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(sosBooking));
+            when(bookingRepository.save(any())).thenReturn(sosBooking);
+            
+            bookingService.cancelBooking(bookingId, "Customer request", UUID.randomUUID());
+            
+            assertEquals(BookingStatus.CANCELLED, sosBooking.getStatus());
+            assertEquals("Customer request", sosBooking.getCancellationReason());
+            verify(bookingNotificationService).pushBookingUpdateToUsers(any(), eq("CANCELLED"));
         }
     }
 }

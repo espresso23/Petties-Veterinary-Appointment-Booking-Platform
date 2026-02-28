@@ -29,7 +29,8 @@
 22. Lưu ảnh, giống, độ tuổi, đặc điểm thú cưng ✅
 23. **[SOS] Xem bản đồ realtime vị trí nhân viên**
 24. **[SOS] Tracking đường di chuyển của nhân viên** (định tuyến cứu hộ)
-25. **[SOS] Nhận thông báo khi nhân viên sắp đến / đã đến nơi**
+25. **[SOS] Nhận thông báo khi nhân viên bắt đầu di chuyển, khi sắp đến & khi đã đến nơi** ✅
+26. **[SOS] Tự động dừng tracking khi nhân viên xác nhận đã tiếp cận bệnh nhân** ✅
 
 ---
 
@@ -45,10 +46,9 @@
 9. **Tra cứu bệnh nhân cũ** (Patient Lookup): Tìm kiếm và xem hồ sơ bệnh nhân cũ của phòng khám ✅
 10. Ghi chú hồ sơ bệnh án (tạo EMR) - **[Bắt buộc gắn với Booking]** ✅
 11. Cập nhật sổ tiêm chủng - **[Bắt buộc gắn với Booking]** ✅
-12. **[SOS] Bắt đầu di chuyển cứu hộ (Start Emergency Travel)**
-13. **[SOS] Tự động cập nhật vị trí GPS realtime** để người dùng theo dõi
-14. **[SOS] Thông báo đến nơi** → Đánh dấu đã tiếp cận ca cấp cứu
-15. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
+12. **[SOS] Start moving / Arrived / Checkout** → Quy trình cứu hộ khép kín với tracking realtime ✅
+13. **[SOS] Detailed Checkout Dialog**: Xác nhận phí SOS, phí di chuyển và dịch vụ phát sinh ✅
+13. **Dashboard Tổng quan lịch hẹn (Summary Dashboard)** ✅
 
 ---
 
@@ -329,7 +329,7 @@
 ✅ **Slot management** (Auto reduce/restore)  
 ✅ **Manual scheduling** (Manager tạo lịch thủ công)  
 ✅ **Multiple appointment types** (IN_CLINIC, HOME_VISIT)  
-✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
+✅ **Quy trình Booking (Booking workflow)**: (PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → **PAID** → **CHECK_OUT / COMPLETED**)
   
 ✅ **Rating system** (Pet owner đánh giá Clinic/Staff)  
 ✅ **SOS Geo-Tracking** (GPS realtime tracking cho cấp cứu)
@@ -366,7 +366,7 @@
 **Version: 1.7.0 - PETTIES MVP SCOPE (VET→STAFF MIGRATION COMPLETE)**
 **Status: ✅ READY FOR DEV**
 **Total Features: 109 Use Cases (Full Coverage)**
-**Last Updated: January 29, 2026**
+**Last Updated: February 24, 2026**
 
 ---
 

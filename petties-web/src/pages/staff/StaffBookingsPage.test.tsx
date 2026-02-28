@@ -1,9 +1,18 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { StaffBookingsPage } from './StaffBookingsPage'
 import * as bookingService from '../../services/bookingService'
 import { useAuthStore } from '../../store/authStore'
 import type { Booking } from '../../types/booking'
+
+// Spring Page response type for mocks
+interface PageResponse<T> {
+    content: T[];
+    totalElements: number;
+    totalPages: number;
+    size: number;
+    number: number;
+}
 
 // Mock react-router-dom
 vi.mock('react-router-dom', () => ({
@@ -79,20 +88,36 @@ describe('StaffBookingsPage - Add Service Feature', () => {
 
     const mockAvailableServices = [
         {
+            serviceId: 'svc-001',
+            name: 'Cắt móng',
+            basePrice: 50000,
+            durationTime: 30,
+            slotsRequired: 1,
+            serviceCategory: 'GROOMING',
+            clinicId: 'clinic-001',
+            isCustom: false,
+            isActive: true,
+            isHomeVisit: false,
+            imageUrl: '',
+            description: 'Cắt móng cho thú cưng',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        },
+        {
             serviceId: 'svc-002',
             name: 'Tắm vệ sinh',
             basePrice: 150000,
-            durationTime: 30,
-            slotsRequired: 1,
-            serviceCategory: 'GROOMING'
-        },
-        {
-            serviceId: 'svc-003',
-            name: 'Cắt tỉa lông',
-            basePrice: 200000,
-            durationTime: 45,
+            durationTime: 60,
             slotsRequired: 2,
-            serviceCategory: 'GROOMING'
+            serviceCategory: 'GROOMING',
+            clinicId: 'clinic-001',
+            isCustom: false,
+            isActive: true,
+            isHomeVisit: false,
+            imageUrl: '',
+            description: 'Tắm và vệ sinh thú cưng',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         }
     ]
 
@@ -101,8 +126,13 @@ describe('StaffBookingsPage - Add Service Feature', () => {
 
         // Mock auth store
         vi.mocked(useAuthStore).mockReturnValue({
-            user: mockStaffUser
-        } as any)
+            user: mockStaffUser,
+            accessToken: null,
+            refreshToken: null,
+            setTokens: vi.fn(),
+            clearAuth: vi.fn(),
+            isAuthenticated: true,
+        })
 
         // Default mock for getBookingsByStaff
         vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -111,11 +141,11 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             totalElements: 0,
             number: 0,
             size: 10
-        } as any)
+        })
     })
 
     describe('Add Service Button Visibility', () => {
-        it('should show "THÊM DỊCH VỤ" button when booking status is IN_PROGRESS', async () => {
+        it('should show "THÊM DỊCH VỤ PHÁT SINH" button when booking status is IN_PROGRESS', async () => {
             const inProgressBooking = createMockBooking({ status: 'IN_PROGRESS' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -124,7 +154,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
 
@@ -139,13 +169,13 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             const bookingCard = screen.getByText('#BK-2025-001').closest('div[class*="cursor-pointer"]')
             fireEvent.click(bookingCard!)
 
-            // Wait for detail modal to open and verify "THÊM DỊCH VỤ" button is visible
+            // Wait for detail modal to open and verify "THÊM DỊCH VỤ PHÁT SINH" button is visible
             await waitFor(() => {
-                expect(screen.getByText('THÊM DỊCH VỤ')).toBeInTheDocument()
+                expect(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0]).toBeInTheDocument()
             })
         })
 
-        it('should NOT show "THÊM DỊCH VỤ" button when booking status is COMPLETED', async () => {
+        it('should NOT show "THÊM DỊCH VỤ PHÁT SINH" button when booking status is COMPLETED', async () => {
             const completedBooking = createMockBooking({ status: 'COMPLETED' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -154,7 +184,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(completedBooking)
 
@@ -174,11 +204,11 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 expect(screen.getByText('Chi tiết lịch hẹn')).toBeInTheDocument()
             })
 
-            // Verify "THÊM DỊCH VỤ" button is NOT visible for completed booking
-            expect(screen.queryByText('THÊM DỊCH VỤ')).not.toBeInTheDocument()
+            // Verify "THÊM DỊCH VỤ PHÁT SINH" button is NOT visible for completed booking
+            expect(screen.queryByRole('button', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
         })
 
-        it('should NOT show "THÊM DỊCH VỤ" button when booking status is CONFIRMED', async () => {
+        it('should NOT show "THÊM DỊCH VỤ PHÁT SINH" button when booking status is CONFIRMED', async () => {
             const confirmedBooking = createMockBooking({ status: 'CONFIRMED' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -187,7 +217,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            } as PageResponse<Booking>)
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(confirmedBooking)
 
@@ -204,11 +234,11 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 expect(screen.getByText('Chi tiết lịch hẹn')).toBeInTheDocument()
             })
 
-            // Should show "BẮT ĐẦU KHÁM" instead of "THÊM DỊCH VỤ"
-            expect(screen.queryByText('THÊM DỊCH VỤ')).not.toBeInTheDocument()
+            // Should show "BẮT ĐẦU KHÁM" instead of "THÊM DỊCH VỤ PHÁT SINH"
+            expect(screen.queryByRole('button', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
         })
 
-        it('should NOT show "THÊM DỊCH VỤ" button when booking status is CANCELLED', async () => {
+        it('should NOT show "THÊM DỊCH VỤ PHÁT SINH" button when booking status is CANCELLED', async () => {
             const cancelledBooking = createMockBooking({ status: 'CANCELLED' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -217,7 +247,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            } as PageResponse<Booking>)
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(cancelledBooking)
 
@@ -234,12 +264,12 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 expect(screen.getByText('Chi tiết lịch hẹn')).toBeInTheDocument()
             })
 
-            expect(screen.queryByText('THÊM DỊCH VỤ')).not.toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
         })
     })
 
     describe('Add Service Modal', () => {
-        it('should open modal with available services when clicking "THÊM DỊCH VỤ"', async () => {
+        it('should open modal with available services when clicking "THÊM DỊCH VỤ PHÁT SINH"', async () => {
             const inProgressBooking = createMockBooking({ status: 'IN_PROGRESS' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -248,10 +278,10 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices as any)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
 
             render(<StaffBookingsPage />)
 
@@ -264,17 +294,17 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(bookingCard!)
 
             await waitFor(() => {
-                expect(screen.getByText('THÊM DỊCH VỤ')).toBeInTheDocument()
+                expect(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0]).toBeInTheDocument()
             })
 
-            // Click "THÊM DỊCH VỤ" button
-            fireEvent.click(screen.getByText('THÊM DỊCH VỤ'))
+            // Click "THÊM DỊCH VỤ PHÁT SINH" button
+            fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             // Verify modal opens with available services
             await waitFor(() => {
-                expect(screen.getByText('Thêm dịch vụ phát sinh')).toBeInTheDocument()
-                expect(screen.getByText('Tắm vệ sinh')).toBeInTheDocument()
-                expect(screen.getByText('Cắt tỉa lông')).toBeInTheDocument()
+                expect(screen.getByRole('heading', { name: /thêm dịch vụ phát sinh/i })).toBeInTheDocument()
+                expect(screen.getByText(/Tắm vệ sinh/i)).toBeInTheDocument()
+                expect(screen.getByText(/Cắt móng/i)).toBeInTheDocument()
             })
         })
 
@@ -287,7 +317,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
             vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue([])
@@ -302,17 +332,18 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(bookingCard!)
 
             await waitFor(() => {
-                expect(screen.getByText('THÊM DỊCH VỤ')).toBeInTheDocument()
+                expect(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0]).toBeInTheDocument()
             })
 
-            fireEvent.click(screen.getByText('THÊM DỊCH VỤ'))
+            // Click "THÊM DỊCH VỤ PHÁT SINH" button
+            fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             await waitFor(() => {
-                expect(screen.getByText('Không còn dịch vụ nào khả dụng để thêm')).toBeInTheDocument()
+                expect(screen.getByText('Không còn dịch vụ khả dụng')).toBeInTheDocument()
             })
         })
 
-        it('should close modal when clicking "HỦY"', async () => {
+        it('should close the "Add Service" modal when clicking "HỦY"', async () => {
             const inProgressBooking = createMockBooking({ status: 'IN_PROGRESS' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -321,10 +352,10 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices as any)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
 
             render(<StaffBookingsPage />)
 
@@ -336,21 +367,23 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(bookingCard!)
 
             await waitFor(() => {
-                expect(screen.getByText('THÊM DỊCH VỤ')).toBeInTheDocument()
+                expect(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0]).toBeInTheDocument()
             })
 
-            fireEvent.click(screen.getByText('THÊM DỊCH VỤ'))
+            // Click "THÊM DỊCH VỤ PHÁT SINH" button
+            fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             await waitFor(() => {
-                expect(screen.getByText('Thêm dịch vụ phát sinh')).toBeInTheDocument()
+                expect(screen.getByRole('heading', { name: /thêm dịch vụ phát sinh/i })).toBeInTheDocument()
             })
 
-            // Click "HỦY" button
-            fireEvent.click(screen.getByText('HỦY'))
+            // Click "Hủy" button inside modal
+            const modal = screen.getByRole('dialog')
+            fireEvent.click(within(modal).getByRole('button', { name: /hủy/i }))
 
             // Modal should close
             await waitFor(() => {
-                expect(screen.queryByText('Thêm dịch vụ phát sinh')).not.toBeInTheDocument()
+                expect(screen.queryByRole('heading', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
             })
         })
 
@@ -371,11 +404,11 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 totalElements: 1,
                 number: 0,
                 size: 10
-            } as any)
+            })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices as any)
-            vi.mocked(bookingService.addServiceToBooking).mockResolvedValue(updatedBooking as any)
+            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
+            vi.mocked(bookingService.addServiceToBooking).mockResolvedValue(updatedBooking as Booking)
 
             render(<StaffBookingsPage />)
 
@@ -387,21 +420,23 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(bookingCard!)
 
             await waitFor(() => {
-                expect(screen.getByText('THÊM DỊCH VỤ')).toBeInTheDocument()
+                expect(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0]).toBeInTheDocument()
             })
 
-            fireEvent.click(screen.getByText('THÊM DỊCH VỤ'))
+            // Click "THÊM DỊCH VỤ PHÁT SINH" button
+            fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             await waitFor(() => {
-                expect(screen.getByText('Tắm vệ sinh')).toBeInTheDocument()
+                expect(screen.getByText(/Tắm vệ sinh/i)).toBeInTheDocument()
             })
 
             // Select the first service
-            const serviceCard = screen.getByText('Tắm vệ sinh').closest('div[class*="cursor-pointer"]')
+            const serviceCard = screen.getByText(/Tắm vệ sinh/i).closest('div[class*="cursor-pointer"]')
             fireEvent.click(serviceCard!)
 
-            // Click confirm button
-            fireEvent.click(screen.getByText('XÁC NHẬN THÊM'))
+            // Click confirm button inside modal
+            const modal = screen.getByRole('dialog')
+            fireEvent.click(within(modal).getByRole('button', { name: /xác nhận thêm/i }))
 
             // Verify API was called
             await waitFor(() => {

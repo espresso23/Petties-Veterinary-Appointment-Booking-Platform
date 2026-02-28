@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { clinicService } from '../../services/api/clinicService'
 import type { DistanceResponse } from '../../types/clinic'
 
@@ -22,6 +22,22 @@ export function DistanceCalculator({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const calculateDistance = useCallback(async (lat: number, lng: number) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await clinicService.calculateDistance(clinicId, lat, lng)
+      setDistance(result)
+      if (onDistanceCalculated) {
+        onDistanceCalculated(result)
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Không thể tính khoảng cách')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [clinicId, onDistanceCalculated])
+
   useEffect(() => {
     if (!userLatitude || !userLongitude) {
       // Try to get user location from browser
@@ -41,23 +57,7 @@ export function DistanceCalculator({
     }
 
     calculateDistance(userLatitude, userLongitude)
-  }, [clinicId, userLatitude, userLongitude])
-
-  const calculateDistance = async (lat: number, lng: number) => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      const result = await clinicService.calculateDistance(clinicId, lat, lng)
-      setDistance(result)
-      if (onDistanceCalculated) {
-        onDistanceCalculated(result)
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Không thể tính khoảng cách')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [clinicId, userLatitude, userLongitude, calculateDistance])
 
   if (isLoading) {
     return (

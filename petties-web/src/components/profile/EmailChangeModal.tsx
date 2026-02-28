@@ -98,12 +98,12 @@ export function EmailChangeModal({
       setStep(Step.VERIFY_OTP)
       setCountdown(60)
       setCanResend(false)
-    } catch (error) {
+    } catch (err: any) {
       let message = 'Không thể gửi mã OTP'
-      if (isAxiosError(error) && error.response?.data?.message) {
-        message = error.response.data.message
-      } else if (error instanceof Error) {
-        message = error.message
+      if (isAxiosError(err) && err.response?.data?.message) {
+        message = err.response.data.message
+      } else if (err instanceof Error) {
+        message = err.message
       }
       setError(message)
     } finally {
@@ -123,12 +123,12 @@ export function EmailChangeModal({
       if (otpInputRefs.current[0]) {
         otpInputRefs.current[0].focus()
       }
-    } catch (error) {
+    } catch (err: any) {
       let message = 'Không thể gửi lại mã OTP'
-      if (isAxiosError(error) && error.response?.data?.message) {
-        message = error.response.data.message
-      } else if (error instanceof Error) {
-        message = error.message
+      if (isAxiosError(err) && err.response?.data?.message) {
+        message = err.response.data.message
+      } else if (err instanceof Error) {
+        message = err.message
       }
       setError(message)
     } finally {
@@ -189,12 +189,12 @@ export function EmailChangeModal({
     try {
       await verifyEmailChange(newEmail, otpCode)
       onSuccess()
-    } catch (error) {
+    } catch (err: any) {
       let message = 'Mã OTP không chính xác'
-      if (isAxiosError(error) && error.response?.data?.message) {
-        message = error.response.data.message
-      } else if (error instanceof Error) {
-        message = error.message
+      if (isAxiosError(err) && err.response?.data?.message) {
+        message = err.response.data.message
+      } else if (err instanceof Error) {
+        message = err.message
       }
       setError(message)
       setOtp(['', '', '', '', '', ''])

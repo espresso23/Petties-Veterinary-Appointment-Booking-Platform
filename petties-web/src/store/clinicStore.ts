@@ -199,7 +199,7 @@ export const useClinicStore = create<ClinicState>((set, get) => ({
     try {
       const pendingCount = await clinicService.getPendingClinicsCount()
       set({ pendingCount })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch pending clinics count:', error)
     }
   },

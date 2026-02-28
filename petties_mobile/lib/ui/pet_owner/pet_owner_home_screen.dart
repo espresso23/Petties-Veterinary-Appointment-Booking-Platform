@@ -83,7 +83,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     // Determine title based on tab
     String title = 'PETTIES';
     bool showActions = true;
-    
+
     if (_currentIndex == 1) {
       title = 'KHÁM PHÁ';
       showActions = false;
@@ -93,7 +93,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context);
-    
+
     // Choose body widget
     Widget bodyContent;
     switch (_currentIndex) {
@@ -111,31 +111,36 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      appBar: _currentIndex == 1 ? null : AppBar( // Hide AppBar for Search Tab (it has its own header)
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2,
-            color: AppColors.white,
-          ),
-        ),
-        actions: showActions ? [
-           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push(AppRoutes.notifications),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              authProvider.logout();
-              context.go(AppRoutes.login);
-            },
-          ),
-        ] : [],
-      ),
+      appBar: _currentIndex == 1
+          ? null
+          : AppBar(
+              // Hide AppBar for Search Tab (it has its own header)
+              backgroundColor: AppColors.primary,
+              elevation: 0,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  color: AppColors.white,
+                ),
+              ),
+              actions: showActions
+                  ? [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () => context.push(AppRoutes.notifications),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout),
+                        onPressed: () {
+                          authProvider.logout();
+                          context.go(AppRoutes.login);
+                        },
+                      ),
+                    ]
+                  : [],
+            ),
       body: bodyContent,
       bottomNavigationBar: _buildBrutalNavBar(context),
     );
@@ -241,40 +246,82 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   Widget _buildQuickActions(BuildContext context) {
     return Column(
       children: [
-        // SOS Emergency Button - Prominent full width
+        // SOS Emergency Button - Prominent position
         GestureDetector(
-          onTap: () => context.push(AppRoutes.sosRequest),
+          onTap: () {
+            // Navigate to SOS Request pre-screen
+            context.push(AppRoutes.sosRequest);
+          },
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFFDC2626), // red-600
+              color: Colors.red.shade600,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone900, width: 2),
+              border: Border.all(color: AppColors.stone900, width: 3),
               boxShadow: const [
                 BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
               ],
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.emergency, color: Colors.white, size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'CẤP CỨU SOS',
-                  style: TextStyle(
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
                     color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+                    border: Border.all(color: AppColors.stone900, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.emergency,
+                    color: Colors.red,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CẤP CỨU SOS',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Gọi bác sĩ đến ngay!',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward,
+                    color: Colors.white,
+                    size: 24,
                   ),
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        // Original 4 quick action buttons
+        // Regular Quick Actions
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -292,8 +339,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                 await context.push(AppRoutes.addPet);
                 _fetchPets(); // Refresh after returning
               },
-              child:
-                  _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
+              child: _buildActionCard(
+                  Icons.pets, 'Thêm\npet', AppColors.primaryLight),
             )),
             const SizedBox(width: 12),
             Expanded(
@@ -545,14 +592,12 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         onTap: _onTabTapped,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
           BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
           BottomNavigationBarItem(
               icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
         ],
       ),
     );

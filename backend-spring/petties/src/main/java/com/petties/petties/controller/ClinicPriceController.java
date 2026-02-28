@@ -5,6 +5,7 @@ import com.petties.petties.dto.clinic.ClinicPriceResponse;
 import com.petties.petties.service.ClinicPriceService;
 import com.petties.petties.service.AuthService;
 import com.petties.petties.repository.ClinicRepository;
+import com.petties.petties.model.enums.Role;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,19 +34,43 @@ public class ClinicPriceController {
     }
 
     @PatchMapping("/{id}/pricing")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicPriceResponse> updatePricing(
             @PathVariable UUID id,
             @Valid @RequestBody ClinicPriceRequest request) {
 
+        log.info("Received pricing update request for clinic {}: pricePerKm={}, sosFee={}",
+                id, request.getPricePerKm(), request.getSosFee());
+
         var currentUser = authService.getCurrentUser();
-        // verify ownership
-        if (!clinicRepository.existsByClinicIdAndOwnerUserId(id, currentUser.getUserId())) {
+        if (currentUser == null || currentUser.getRole() == null) {
+            log.warn("Unauthorized access attempt: No current user or role found");
+            return ResponseEntity.status(401).body(null);
+        }
+
+        // Check permissions based on role
+        boolean isOwner = Role.CLINIC_OWNER.equals(currentUser.getRole());
+        boolean isManager = Role.CLINIC_MANAGER.equals(currentUser.getRole());
+
+        if (isOwner) {
+            // Owner must own the clinic
+            if (!clinicRepository.existsByClinicIdAndOwnerUserId(id, currentUser.getUserId())) {
+                return ResponseEntity.status(403).body(null);
+            }
+        } else if (isManager) {
+            // Manager can only update their working clinic
+            if (currentUser.getWorkingClinic() == null || !currentUser.getWorkingClinic().getClinicId().equals(id)) {
+                return ResponseEntity.status(403).body(null);
+            }
+            // Manager can update both pricePerKm and sosFee for their working clinic
+        } else {
             return ResponseEntity.status(403).body(null);
         }
 
         try {
             var updated = clinicPriceService.updatePricing(id, request.getPricePerKm(), request.getSosFee());
+            log.info("Successfully updated pricing for clinic {}: pricePerKm={}, sosFee={}",
+                    id, updated.getPricePerKm(), updated.getSosFee());
             return ResponseEntity.ok(new ClinicPriceResponse(id, updated.getPricePerKm(), updated.getSosFee()));
         } catch (IllegalArgumentException iae) {
             log.warn("Clinic not found when updating pricing: {}", id, iae);
@@ -78,6 +103,9 @@ public class ClinicPriceController {
     @PreAuthorize("hasRole('CLINIC_OWNER')")
     public ResponseEntity<Map<String, String>> deletePricePerKm(@PathVariable UUID id) {
         var currentUser = authService.getCurrentUser();
+        if (currentUser == null || currentUser.getRole() == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
         if (!clinicRepository.existsByClinicIdAndOwnerUserId(id, currentUser.getUserId())) {
             return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));
         }

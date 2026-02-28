@@ -7,8 +7,10 @@ class QrPaymentService {
 
 
 
+  /// Check QR payment status
+  /// Backend endpoint: GET /payments/{bookingId}/status
   Future<Map<String, dynamic>> checkQrStatus(String bookingId) async {
-    final response = await _apiClient.get('/payments/$bookingId/qr-status');
+    final response = await _apiClient.get('/payments/$bookingId/status');
     return Map<String, dynamic>.from(response.data);
   }
 }

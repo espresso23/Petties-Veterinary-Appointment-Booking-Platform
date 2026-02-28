@@ -92,7 +92,7 @@ const mergeSlots = (slots: SlotResponse[] | null): MergedSlot[] => {
                 id: slot.slotId,
                 startTime: slot.startTime,
                 endTime: slot.endTime,
-                status: slot.status as any,
+                status: slot.status as SlotStatus,
                 petName: slot.petName,
                 petOwnerName: slot.petOwnerName,
                 bookingId: slot.bookingId,
@@ -157,7 +157,7 @@ export const StaffSchedulePage = () => {
             // Sử dụng API lấy lịch riêng của staff
             const data = await staffShiftService.getMyShifts(startDate, endDate)
             setShifts(data)
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
         } finally {
             setLoading(false)
@@ -201,7 +201,7 @@ export const StaffSchedulePage = () => {
             try {
                 const detail = await staffShiftService.getShiftDetail(selectedShift.shiftId)
                 setShiftDetail(detail)
-            } catch (err: any) {
+            } catch (err) {
                 showToast('error', 'Không thể tải chi tiết slots')
             } finally {
                 setLoadingSlots(false)
@@ -234,7 +234,7 @@ export const StaffSchedulePage = () => {
             try {
                 const details = await Promise.all(detailPromises)
                 setDayViewShifts(details)
-            } catch {
+            } catch (err) {
                 setDayViewShifts(myDayShifts)
             }
         }

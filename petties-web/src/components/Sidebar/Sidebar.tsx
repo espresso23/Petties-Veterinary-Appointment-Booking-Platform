@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { type SVGProps, type RefAttributes } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
     ChevronLeftIcon,
@@ -8,10 +8,18 @@ import {
 } from '@heroicons/react/24/outline'
 import type { SidebarState } from '../../hooks/useSidebar'
 
+// SVG Icon component type
+type IconComponent = React.ForwardRefExoticComponent<
+    Omit<SVGProps<SVGSVGElement>, 'ref'> & {
+        title?: string
+        titleId?: string
+    } & RefAttributes<SVGSVGElement>
+>
+
 export interface NavItem {
     path: string
     label: string
-    icon: React.ForwardRefExoticComponent<any>
+    icon: IconComponent
     end?: boolean
     unreadCount?: number
 }
@@ -21,9 +29,17 @@ export interface NavGroup {
     items: NavItem[]
 }
 
+interface User {
+    fullName?: string
+    email?: string
+    avatarUrl?: string
+    avatar?: string
+    specialty?: string
+}
+
 interface SidebarProps {
     groups: NavGroup[]
-    user: any
+    user: User | null
     roleName: string
     state: SidebarState
     toggleSidebar: () => void

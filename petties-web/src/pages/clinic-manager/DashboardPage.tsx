@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
+import { useClinicStore } from '../../store/clinicStore'
 import { DashboardCard, DashboardStatsGrid, DashboardSection } from '../../components/dashboard/DashboardCard'
 import '../../styles/brutalist.css'
 
@@ -8,11 +11,37 @@ import '../../styles/brutalist.css'
  */
 export const ClinicManagerDashboardPage = () => {
     const { user } = useAuthStore()
+    const { clinics, getMyClinics, isLoading: isClinicsLoading } = useClinicStore()
+
+    // Fetch clinics on component mount
+    useEffect(() => {
+        getMyClinics()
+    }, [getMyClinics])
+
+    // Get the first clinic the manager works with
+    const currentClinic = clinics.length > 0 ? clinics[0] : null
 
     return (
         <div className="p-6 bg-stone-50 min-h-screen">
-            {/* Header */}
+            {/* Header with Clinic Name */}
             <header className="mb-8">
+                {/* Clinic Badge */}
+                {currentClinic && (
+                    <Link
+                        to="/clinic-manager/clinic"
+                        className="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-amber-100 border-2 border-stone-900 shadow-[3px_3px_0px_#1c1917] hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_#1c1917] transition-all"
+                    >
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-sm font-bold uppercase text-stone-900 tracking-wide">
+                            {currentClinic.name}
+                        </span>
+                    </Link>
+                )}
+                {isClinicsLoading && (
+                    <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-stone-100 border-2 border-stone-400">
+                        <span className="text-sm text-stone-500">Đang tải...</span>
+                    </div>
+                )}
                 <h1 className="text-2xl font-bold text-stone-900 uppercase tracking-wide">
                     DASHBOARD QUẢN LÝ PHÒNG KHÁM
                 </h1>

@@ -1,5 +1,6 @@
 /// Booking models for mobile app
 /// Matches the backend BookingResponse structure
+library;
 
 class BookingResponse {
   final String? bookingId;
@@ -8,6 +9,7 @@ class BookingResponse {
   final String? clinicName;
   final String? clinicLogo;
   final String? clinicPhone;
+  final String? clinicAddress;
   final String? petId;
   final String? petName;
   final String? petPhotoUrl;
@@ -17,22 +19,34 @@ class BookingResponse {
   final String? ownerId;
   final String? ownerName;
   final String? ownerPhone;
+  final String? ownerAvatarUrl;
   final String? bookingDate;
   final String? bookingTime;
   final String? status;
   final String? type;
   final String? homeAddress;
+  final double? homeLat;
+  final double? homeLong;
+  final double? clinicLat;
+  final double? clinicLong;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
   final double? totalPrice;
+  final String? symptoms;
   final String? notes;
   final String? emrId;
   final List<BookingServiceItem> services;
-  // Staff info
+  final String? assignedStaffId;
   final String? assignedStaffName;
+  final String? assignedStaffPhone;
+  final String? assignedStaffSpecialty;
   final String? assignedStaffAvatarUrl;
   final bool? isReviewed;
   final String? reviewId;
   final int? rating;
   final String? reviewComment;
+  final String? arrivedAt;
 
   BookingResponse({
     this.bookingId,
@@ -41,6 +55,7 @@ class BookingResponse {
     this.clinicName,
     this.clinicLogo,
     this.clinicPhone,
+    this.clinicAddress,
     this.petId,
     this.petName,
     this.petPhotoUrl,
@@ -50,21 +65,34 @@ class BookingResponse {
     this.ownerId,
     this.ownerName,
     this.ownerPhone,
+    this.ownerAvatarUrl,
     this.bookingDate,
     this.bookingTime,
     this.status,
     this.type,
     this.homeAddress,
+    this.homeLat,
+    this.homeLong,
+    this.clinicLat,
+    this.clinicLong,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
     this.totalPrice,
+    this.symptoms,
     this.notes,
     this.emrId,
     this.services = const [],
+    this.assignedStaffId,
     this.assignedStaffName,
+    this.assignedStaffPhone,
+    this.assignedStaffSpecialty,
     this.assignedStaffAvatarUrl,
     this.isReviewed,
     this.reviewId,
     this.rating,
     this.reviewComment,
+    this.arrivedAt,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
@@ -75,6 +103,7 @@ class BookingResponse {
       clinicName: json['clinicName'],
       clinicLogo: json['clinicLogo'],
       clinicPhone: json['clinicPhone'],
+      clinicAddress: json['clinicAddress'],
       petId: json['petId'],
       petName: json['petName'],
       petPhotoUrl: json['petPhotoUrl'],
@@ -84,24 +113,37 @@ class BookingResponse {
       ownerId: json['ownerId'],
       ownerName: json['ownerName'],
       ownerPhone: json['ownerPhone'],
+      ownerAvatarUrl: json['ownerAvatarUrl'],
       bookingDate: json['bookingDate'],
       bookingTime: json['bookingTime'],
       status: json['status'],
       type: json['type'],
       homeAddress: json['homeAddress'],
+      homeLat: (json['homeLat'] as num?)?.toDouble(),
+      homeLong: (json['homeLong'] as num?)?.toDouble(),
+      clinicLat: (json['clinicLat'] as num?)?.toDouble(),
+      clinicLong: (json['clinicLong'] as num?)?.toDouble(),
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+      symptoms: json['symptoms'],
       notes: json['notes'],
       emrId: json['emrId'],
       services: (json['services'] as List<dynamic>?)
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??
           [],
+      assignedStaffId: json['assignedStaffId'],
       assignedStaffName: json['assignedStaffName'],
+      assignedStaffPhone: json['assignedStaffPhone'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
       isReviewed: json['isReviewed'],
       reviewId: json['reviewId'],
       rating: json['rating'],
       reviewComment: json['reviewComment'],
+      arrivedAt: json['arrivedAt'],
     );
   }
 }
@@ -198,6 +240,10 @@ class UpcomingBookingDTO {
   final String? primaryServiceName;
   final int servicesCount;
   final String? homeAddress;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
+  final String? arrivedAt;
 
   UpcomingBookingDTO({
     this.bookingId,
@@ -216,6 +262,10 @@ class UpcomingBookingDTO {
     this.primaryServiceName,
     this.servicesCount = 0,
     this.homeAddress,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
+    this.arrivedAt,
   });
 
   factory UpcomingBookingDTO.fromJson(Map<String, dynamic> json) {
@@ -236,6 +286,10 @@ class UpcomingBookingDTO {
       primaryServiceName: json['primaryServiceName'],
       servicesCount: json['servicesCount'] ?? 0,
       homeAddress: json['homeAddress'],
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
+      arrivedAt: json['arrivedAt'],
     );
   }
 }

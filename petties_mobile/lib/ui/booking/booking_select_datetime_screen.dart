@@ -625,7 +625,7 @@ class _BookingSelectDateTimeScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${FormatUtils.formatDate(provider.selectedDate!)}',
+                            FormatUtils.formatDate(provider.selectedDate!),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,

@@ -22,7 +22,6 @@ public class LocationUpdateResponse {
     private UUID bookingId;
 
     private BigDecimal latitude;
-
     private BigDecimal longitude;
 
     /**
@@ -44,4 +43,11 @@ public class LocationUpdateResponse {
      * Status message for UI display
      */
     private String statusMessage;
+
+    /**
+     * Flag cho biết bác sĩ đã đến nơi (arrival event)
+     * - false/null: đang di chuyển
+     * - true: đã đến nơi
+     */
+    private Boolean arrived;
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { knowledgeApi } from '../../../services/agentService'
-import type { Document, QueryResult } from '../../../services/agentService'
+import type { Document, QueryResult, KnowledgeStatusResult } from '../../../services/agentService'
 import { DocumentUpload } from '../../../components/admin/DocumentUpload'
 import { DocumentCard } from '../../../components/admin/DocumentCard'
 import { RAGQueryTester } from '../../../components/admin/RAGQueryTester'
@@ -39,7 +39,7 @@ interface Setting {
  */
 export const KnowledgePage = () => {
   const [documents, setDocuments] = useState<Document[]>([])
-  const [status, setStatus] = useState<any>(null)
+  const [status, setStatus] = useState<KnowledgeStatusResult | null>(null)
   const [loading, setLoading] = useState(true)
   const { showToast } = useToast()
 
@@ -59,12 +59,7 @@ export const KnowledgePage = () => {
     return token ? { 'Authorization': `Bearer ${token}` } : {}
   }
 
-  useEffect(() => {
-    loadData()
-    loadSettings()
-  }, [])
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
         headers: getAuthHeaders()
@@ -83,12 +78,12 @@ export const KnowledgePage = () => {
       } else {
         console.error('Failed to fetch settings:', response.status)
       }
-    } catch (error) {
-      console.error('Failed to load settings:', error)
+    } catch (err) {
+      console.error('Failed to load settings:', err)
     }
-  }
+  }, [])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [docs, stat] = await Promise.all([
@@ -102,7 +97,12 @@ export const KnowledgePage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    loadSettings()
+  }, [loadData, loadSettings])
 
   const saveSetting = async (key: string, value: string) => {
     const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${key}`, {

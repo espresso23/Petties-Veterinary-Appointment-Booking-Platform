@@ -3,7 +3,7 @@
  */
 
 // Booking Status enum
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ON_THE_WAY' | 'ARRIVED' | 'CHECK_IN' | 'IN_PROGRESS' | 'CHECK_OUT' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type BookingStatus = 'PENDING' | 'SEARCHING' | 'PENDING_CLINIC_CONFIRM' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 // Booking Type enum
 export type BookingType = 'IN_CLINIC' | 'HOME_VISIT' | 'SOS';
@@ -87,6 +87,7 @@ export interface Booking {
     homeLong?: number;
     distanceKm?: number;
     distanceFee?: number; // Home visit fee (pricePerKm × distanceKm) applied once
+    sosFee?: number;      // SOS emergency fee
 
     // Timestamps
     createdAt: string;
@@ -116,12 +117,10 @@ export interface ConfirmBookingRequest {
 // Status badge colors - Petties Amber-Stone Theme
 export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; bgColor: string; textColor: string }> = {
     PENDING: { label: 'Chờ xác nhận', bgColor: '#F5F5F4', textColor: '#44403C' }, // stone-100 / stone-700
+    SEARCHING: { label: 'Đang tìm kiếm', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
+    PENDING_CLINIC_CONFIRM: { label: 'Chờ phòng khám', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     CONFIRMED: { label: 'Đã xác nhận', bgColor: '#FFFBEB', textColor: '#B45309' }, // amber-50 / amber-700
-    ON_THE_WAY: { label: 'Đang đến', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    ARRIVED: { label: 'Đã đến nơi', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    CHECK_IN: { label: 'Check-in', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    IN_PROGRESS: { label: 'Đang khám', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600 (primary)
-    CHECK_OUT: { label: 'Check-out', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
+    IN_PROGRESS: { label: 'Đang thực hiện', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600 (primary)
     COMPLETED: { label: 'Hoàn thành', bgColor: '#DCFCE7', textColor: '#16A34A' }, // green-100 / green-600
     CANCELLED: { label: 'Đã hủy', bgColor: '#F5F5F4', textColor: '#57534E' }, // stone-100 / stone-600
     NO_SHOW: { label: 'Không đến', bgColor: '#F5F5F4', textColor: '#57534E' }, // stone-100 / stone-600

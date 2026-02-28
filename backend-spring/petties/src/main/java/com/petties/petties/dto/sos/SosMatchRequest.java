@@ -36,5 +36,7 @@ public class SosMatchRequest {
 
     private String symptoms;
 
+    private String address;
+
     private String notes;
 }

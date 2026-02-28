@@ -4,7 +4,7 @@ import { ClinicForm } from '../ClinicForm'
 
 // Mock dependencies
 vi.mock('../AddressAutocompleteOSM', () => ({
-    AddressAutocompleteOSM: ({ value, onChange, placeholder }: any) => (
+    AddressAutocompleteOSM: ({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder?: string }) => (
         <input
             data-testid="address-input"
             value={value}

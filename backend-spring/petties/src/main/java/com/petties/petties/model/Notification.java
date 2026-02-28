@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -47,11 +49,13 @@ public class Notification {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "clinic_id")
     @org.hibernate.annotations.SQLRestriction("deleted_at IS NULL")
+    @NotFound(action = NotFoundAction.IGNORE)
     private Clinic clinic;
 
     // For StaffShift-related notifications
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shift_id")
+    @NotFound(action = NotFoundAction.IGNORE)
     private StaffShift shift;
 
     @Enumerated(EnumType.STRING)

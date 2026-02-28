@@ -43,7 +43,7 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
   }
 }
 
-function mapServiceToRequest(service: any, clinicId: string): ClinicServiceRequest {
+function mapServiceToRequest(service: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }, clinicId: string): ClinicServiceRequest {
   return {
     clinicId,
     name: service.name || '',
@@ -211,7 +211,7 @@ export function ServiceGrid() {
   }
 
   const handleSaveService = async (
-    serviceData: any
+    serviceData: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }
   ) => {
     try {
       setIsSubmitting(true)
@@ -235,11 +235,13 @@ export function ServiceGrid() {
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save service:', err)
-      const serverMessage = err.response?.data?.message || (selectedService
-        ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
-        : 'Không thể tạo dịch vụ. Vui lòng thử lại.')
+      const serverMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response !== null && 'data' in err.response && typeof err.response.data === 'object' && err.response.data !== null && 'message' in err.response.data
+        ? String(err.response.data.message)
+        : (selectedService
+          ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
+          : 'Không thể tạo dịch vụ. Vui lòng thử lại.')
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -258,7 +260,7 @@ export function ServiceGrid() {
       setPricingData(data)
       setIsPricingModalOpen(false)
       showToast('success', 'Đã cập nhật đơn giá di chuyển (KM) và phí SOS')
-    } catch (error) {
+    } catch (err) {
       console.error('Failed to update pricing:', error)
       showToast('error', 'Không thể cập nhật đơn giá di chuyển và phí SOS')
     } finally {
@@ -279,9 +281,11 @@ export function ServiceGrid() {
       showToast('success', 'Đã thừa hưởng dịch vụ thành công')
       // Reload services
       await loadServicesForClinic(selectedClinic.clinicId)
-    } catch (error: any) {
+    } catch (err) {
       console.error('Failed to inherit service:', error)
-      const serverMessage = error.response?.data?.message || 'Không thể thừa hưởng dịch vụ. Vui lòng thử lại.'
+      const serverMessage = error instanceof Error && 'response' in error && typeof error.response === 'object' && error.response !== null && 'data' in error.response && typeof error.response.data === 'object' && error.response.data !== null && 'message' in error.response.data
+        ? String(error.response.data.message)
+        : 'Không thể thừa hưởng dịch vụ. Vui lòng thử lại.'
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)

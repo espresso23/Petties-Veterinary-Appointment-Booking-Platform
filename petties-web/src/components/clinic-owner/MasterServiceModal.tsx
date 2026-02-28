@@ -12,13 +12,13 @@ import {
   HomeIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
-import type { MasterServiceResponse, WeightPriceDto } from '../../types/service'
+import type { MasterServiceResponse, MasterServiceRequest, WeightPriceDto } from '../../types/service'
 import { SERVICE_CATEGORIES, getCategoryById } from '../../constants/serviceCategory'
 
 interface MasterServiceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (service: any) => void
+  onSave: (service: MasterServiceRequest) => Promise<void> | void
   initialData?: MasterServiceResponse | null
   isSubmitting?: boolean
 }
@@ -96,6 +96,7 @@ export function MasterServiceModal({
         setIsHomeVisit(false)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialData])
 
   const handleAddWeightPrice = () => {

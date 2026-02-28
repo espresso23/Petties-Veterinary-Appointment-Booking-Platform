@@ -1301,82 +1301,59 @@ sequenceDiagram
 
 ## 8. Clinic Setup AI Agent
 
-### 8.1 Overview
+### 8.1 Overview (The Onboarding Wizard)
 
-Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết lập nhanh chóng và chuyên nghiệp thông tin phòng khám trên nền tảng Petties. Agent sử dụng ReAct pattern để:
-- Generate danh sách services phù hợp với loại hình phòng khám.
-- Tạo mô tả chi tiết, chuyên nghiệp cho từng service.
-- Đề xuất giá cả dựa trên phân tích thị trường.
-- Cấu hình weight-based pricing tiers.
-- Hỗ trợ đa ngôn ngữ (Vietnamese/English).
+Clinic Setup AI Agent hoạt động như một **"Onboarding Wizard"** thông minh, cho phép chủ phòng khám (Clinic Owner) thiết lập toàn bộ hệ thống (Thông tin, Nhân sự, Dịch vụ) chỉ từ các mô tả ngôn ngữ tự nhiên. Agent sử dụng ReAct pattern để tự thực hiện các bước khảo sát thị trường, lựa chọn template và nhập liệu.
+
+**Giá trị cốt lõi:**
+- **Zero-Form Entry**: Thay vì điền hàng chục form, chủ nuôi chỉ cần mô tả ý tưởng.
+- **Market-Aware Pricing**: Tự động khảo sát giá thực tế của đối thủ qua Web Search.
+- **Autonomous Setup**: Tự động tạo nháp toàn bộ hệ thống và thực hiện hành động "Bulk Create" sau khi được duyệt.
 
 ### 8.2 Clinic Setup Agent Flow
 
 ```mermaid
 flowchart TB
-    subgraph "CLINIC SETUP AI AGENT"
-        direction LR
+    subgraph "CLINIC ONBOARDING WIZARD FLOW"
+        direction TB
         
-        Start(["🏥 Clinic Owner"])
+        Start(["💬 Owner: 'Tôi muốn mở phòng khám...'"])
         
-        Start --> Init["🚀 Start AI Setup"]
-        
-        Init --> Step1{"📋 Step 1: Clinic Profile"}
-        
-        subgraph "CLINIC PROFILE"
-            C1["Select clinic type"]
-            C2["Add location"]
-            C3["Pet types served"]
-            C4["Operating hours"]
+        subgraph "PHASE 1: ENTITY EXTRACTION"
+            E1["🤖 Analyze Intent & Keywords"]
+            E2["📋 Extract: Type, Location, Staff size, Services"]
         end
         
-        Step1 --> C1 --> C2 --> C3 --> C4
-        
-        C4 --> Step2{"🎯 Step 2: Generate Services"}
-        
-        subgraph "AI SERVICE GENERATION"
-            S1["Query knowledge base"]
-            S2["Generate service list"]
-            S3["Create descriptions"]
-            S4["Suggest pricing"]
-            S5["Category organization"]
+        subgraph "PHASE 2: MARKET & COMPETITIVE RESEARCH"
+            M1["🔍 Web Search: Khảo sát đối thủ quanh khu vực"]
+            M2["📊 Web Fetch: Lấy bảng giá & dịch vụ thực tế"]
+            M3["⚖️ Pricing Strategy: Đề xuất mức giá cạnh tranh"]
         end
         
-        Step2 --> S1 --> S2 --> S3 --> S4 --> S5
-        
-        S5 --> Step3{"✏️ Step 3: Review & Edit"}
-        
-        subgraph "REVIEW WORKFLOW"
-            R1["Service cards display"]
-            R2["Inline editing"]
-            R3["Regenerate descriptions"]
-            R4["Delete unwanted services"]
-            R5["Add custom services"]
+        subgraph "PHASE 3: TEMPLATE & DRAFTING"
+            T1["🗄️ DB Query: Lấy Master Service Templates"]
+            T2["✍️ LLM: Viết mô tả dịch vụ chuyên nghiệp"]
+            T3["📝 Build Draft Setup: (Clinic + Staff + Services)"]
         end
         
-        Step3 --> R1 --> R2 --> R3 --> R4 --> R5
-        
-        R5 --> Step4{"💰 Step 4: Pricing Tiers"}
-        
-        subgraph "PRICING CONFIG"
-            P1["Weight-based tiers"]
-            P2["Market analysis"]
-            P3["Competitive pricing"]
-            P4["Owner approval"]
+        subgraph "PHASE 4: REVIEW & EXECUTION"
+            R1["👁️ Human Review: Xem bản nháp tổng thể"]
+            R2["✏️ Edit/Adjust"]
+            R3["🚀 Action: Bulk Create API Call"]
         end
         
-        Step4 --> P1 --> P2 --> P3 --> P4
-        
-        P4 --> Step5{"✅ Step 5: Publish"}
-        
-        subgraph "PUBLISH"
-            Pub1["Save all services"]
-            Pub2["Audit log"]
-            Pub3["Activate clinic"]
-            Pub4["Go live!"]
-        end
-        
-        Step5 --> Pub1 --> Pub2 --> Pub3 --> Pub4
+        Start --> E1
+        E1 --> E2
+        E2 --> M1
+        M1 --> M2
+        M2 --> M3
+        M3 --> T1
+        T1 --> T2
+        T2 --> T3
+        T3 --> R1
+        R1 --> R2
+        R2 --> R3
+        R3 --> Success(["🎉 Clinic Live!"])
     end
 ```
 
@@ -1390,35 +1367,37 @@ sequenceDiagram
     participant API as Spring Boot API
     participant LLM as OpenRouter (LLM)
     
-    CO->>Agent: "Tôi muốn thiết lập phòng khám thú y tổng quát ở Quận 7, TPHCM"
+    CO->>Agent: "Tôi muốn thiết lập phòng khám chuyên mèo ở Quận 2, TPHCM. Có 2 bác sĩ, hỗ trợ cả spa và phẫu thuật nội soi."
     
-    Note over Agent: THOUGHT 1
-    Agent->>Agent: "Cần thu thập thông tin clinic type và location"
-    Agent->>CO: "Bạn muốn loại hình phòng khám gì? (General Practice/Specialty/Emergency)"
+    Note over Agent: THOUGHT 1: Entity Extraction
+    Agent->>Agent: Extract: Type=Cat Only, Loc=District 2, Staff=2, Services=[Spa, Endoscopy]
     
-    CO->>Agent: "General Practice, phục vụ chó và mèo"
+    Note over Agent: THOUGHT 2: Market Research
+    Agent->>Tools: web_search("phòng khám thú y chuyên mèo Quận 2")
+    Tools-->>Agent: Kết quả: Phòng khám A, B, C... (Dịch vụ spa: 150-300K)
     
-    Note over Agent: THOUGHT 2
-    Agent->>DB: query_master_services(clinic_type="general_practice", pet_types=["dog", "cat"])
-    DB-->>Agent: Master Service Templates: Examination, Vaccination, Deworming, Grooming, Surgery
+    Note over Agent: THOUGHT 3: Fetch Competitive Data
+    Agent->>Tools: web_fetch("clinic-a.com/pricing")
+    Tools-->>Agent: Nội dung chi tiết bảng giá...
     
-    Note over Agent: THOUGHT 3
-    Agent->>LLM: generate_service_description(service="Vaccination", tone="professional")
-    LLM-->>Agent: "Tiêm phòng 6 bệnh phổ biến cho chó bao gồm..."
+    Note over Agent: THOUGHT 4: Planning
+    Agent->>DB: query_master_services(services=["Cat Spa", "Endoscopy"])
+    DB-->>Agent: Templates returned
     
-    Note over Agent: THOUGHT 4
-    Agent->>API: get_market_pricing(region="district_7_hcmc", service="vaccination")
-    API-->>Agent: Market avg: 150-200K VND (from 45 clinics)
-    
-    Note over Agent: THOUGHT 5
-    Agent->>Agent: "Suggest pricing với competitive but profitable margin"
+    Note over Agent: THOUGHT 5: Drafting
+    Agent->>LLM: Generate descriptions & Suggest pricing
     
     Agent-->>CO: 
-        📋 **Generated Services (15)**
+        📋 **Bản nháp thiết lập phòng khám (DRAFT)**
         
-        [Service cards với descriptions và pricing]
+        - **Phòng khám**: Petties Cat Specialty (Quận 2)
+        - **Nhân sự**: Cấu hình 02 bác sĩ (Dr. A, Dr. B)
+        - **Dịch vụ (08)**: 
+            - Spa trọn gói: 200,000 VNĐ (Dựa trên thị trường Q2)
+            - Phẫu thuật nội soi: 2,500,000 VNĐ
+            - ...
         
-        [✏️ Edit] [🔄 Regenerate] [🗑️ Remove]
+        [✅ Xác nhận khởi tạo] [✏️ Chỉnh sửa]
     
     CO->>Agent: "Chỉnh giá tiêm phòng xuống 150K"
     Agent->>API: update_service_price(service_id, 150000)
@@ -3012,6 +2991,78 @@ public class EmrRecord {
 
 ---
 
+## 9. Technical Implementation Details for Clinical Decision Support and EMR
+
+Phần này đặc tả kỹ thuật triển khai các tính năng chẩn đoán và tóm tắt bệnh án cho nhân viên y tế dựa trên nền tảng công nghệ hiện có.
+
+### 9.1 Clinical Diagnosis Engineering
+
+Hệ thống sử dụng mô hình tác vụ đa tầng để hỗ trợ bác sĩ đưa ra quyết định lâm sàng chính xác.
+
+**Các thành phần công nghệ:**
+- Môi trường: FastAPI (Python). Orchestration: LangGraph.
+- Mô hình suy luận chính: **DeepSeek-V3/R1** (được ưu tiên cho khả năng suy luận logic phức tạp và tối ưu chi phí).
+- Mô hình phân tích ảnh và đa phương thức: **Gemini 2.0 Flash** (được ưu tiên cho tốc độ xử lý vision và tích hợp hệ sinh thái Google).
+- Dữ liệu đầu vào:
+    - Định danh: Thông tin giống, loài, tuổi, cân nặng (Signalment).
+    - Lịch sử y tế: Truy vấn từ PostgreSQL (lịch sử tiêm phòng) và MongoDB (các bản EMR cũ).
+    - Dấu hiệu hiện tại: Triệu chứng do chủ nuôi mô tả và phát hiện lâm sàng của bác sĩ.
+
+**Quy trình xử lý chẩn đoán (Flowchart):**
+
+```mermaid
+graph TD
+    A[Bac si nhap mo ta trieu chung] --> B[AI trich xuat thuc the Entity Extraction]
+    B --> C[Agent goi Tool truy van PostgreSQL/MongoDB]
+    C --> D[Tong hop Context: Tien su + Hien trang]
+    D --> E[DeepSeek-V3/R1 thuc hien Chain of Thought]
+    E --> F{Co hinh anh lam sang?}
+    F -- Co --> G[Gemini 2.0 Flash phan tich Vision]
+    G --> H[Ket hop ket qua Vision vao suy luan]
+    F -- Khong --> H
+    H --> I[Dua ra danh sach chan doan phan biet DDx]
+    I --> J[De xuat cac xet nghiem can lam sang tiep theo]
+```
+
+### 9.2 EMR Summary and SOAP Automation
+
+Hệ thống tự động hóa việc ghi chép bệnh án để giảm tải công việc hành chính cho bác sĩ.
+
+**Các thành phần công nghệ:**
+- Mô hình xử lý: Gemini 2.0 Flash (tối ưu về chi phí và tốc độ cho các tác vụ tóm tắt dữ liệu lớn).
+- Kỹ thuật: Structured Outcome Extraction sử dụng Pydantic để đảm bảo định dạng đầu ra.
+- Tiêu chuẩn: Tuân thủ cấu trúc SOAP (Subjective, Objective, Assessment, Plan).
+
+**Cấu trúc dữ liệu đầu vào:**
+- Văn bản được chuyển từ ghi âm tư vấn.
+- Kết quả từ công cụ phân tích hình ảnh và xét nghiệm cận lâm sàng.
+
+**Quy trình tự động hóa bệnh án (Flowchart):**
+
+```mermaid
+graph LR
+    Input[Du lieu tho: Text/Voice/Image] --> Processing[AI Grouping & Categorization]
+    Processing --> Subjective[Trich xuat Subjective: Loi ke chu nuoi]
+    Processing --> Objective[Trich xuat Objective: Chi so lam sang]
+    Processing --> Assessment[Trich xuat Assessment: Ket luan chan doan]
+    Processing --> Plan[Trich xuat Plan: Ke hoach dieu tri]
+    Subjective --> Validation[Kiem tra tinh logic va day du]
+    Objective --> Validation
+    Assessment --> Validation
+    Plan --> Validation
+    Validation --> Draft[Tao ban nhap EMR trong MongoDB]
+    Draft --> Review[Bac si xem xet va phe duyet]
+```
+
+### 9.3 Key Development Guidelines
+
+1. Chain of Thought (CoT): Yeu cau mo hinh LLM giai thich ly do tai sao dua ra chan doan dua tren du lieu dau vao cu the truoc khi trinh bay ket qua cuoi cung.
+2. Context Injection: Luon cung cap day du thong tin ve loai va giong thu cung trong prompt vi cac gia tri sinh hoc va nguy co benh tat thay doi rat lon giua cho, meo va cac loai khac.
+3. Pydantic Validation: Su dung cac class Pydantic de bat loi du lieu dau ra tu AI, dam bao truong du lieu trong MongoDB luon nhat quan.
+4. No-RAG Rule for Clinic Data: Tuyet doi khong su dung quy trinh RAG cho ho so benh an rieng tu; phai su dung cac SQL/NoSQL query chinh xac qua Tool call.
+
+---
+
 *Document generated for Petties AI Agent Enhancement Planning*
-*Version: 4.0 - Added Clinic Setup AI Agent (Database/API only, No RAG)*
+*Version: 5.0 - Technical Specs for Clinical and EMR Features*
 *Architecture Reference: LangGraph ReAct Pattern*

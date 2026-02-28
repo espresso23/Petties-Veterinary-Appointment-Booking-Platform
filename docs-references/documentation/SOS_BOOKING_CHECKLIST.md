@@ -24,8 +24,9 @@ Tài liệu này tổng hợp tất cả các hạng mục công việc đã tri
     - [x] `SosMatchingService.dart`: Xử lý WebSocket matching.
     - [x] `SosMatchingScreen.dart`: Giao diện Radar Animation.
 - [x] **Staff Tracking**:
-    - [x] `StaffBookingDetailScreen.dart`: Gửi tọa độ GPS khi đang di chuyển.
-    - [x] `SosTrackingScreen.dart`: Bản đồ theo dõi bác sĩ real-time cho khách hàng.
+    - [x] `StaffBookingDetailScreen.dart`: Gửi tọa độ GPS + Action bar (Check-in, Checkout, Complete).
+    - [x] `SosTrackingScreen.dart`: Bản đồ theo dõi có **Polyline Routing** (Goong API) & **Call Staff** trực tiếp.
+    - [x] `MyBookingsTab.dart`: Nút **"THEO DÕI"** truy cập nhanh cho Pet Owner.
     - [x] `TrackingWebsocketService.dart`: Đăng ký nhận tọa độ qua STOMP.
 
 ## 3. Web Manager Implementation (React)
@@ -58,6 +59,20 @@ Tài liệu này tổng hợp tất cả các hạng mục công việc đã tri
 - [x] **Redis Distributed Lock**:
     - [x] Thêm lock trong `escalateToNextClinic()` tránh race condition.
 
----
-*Cập nhật lần cuối: 09/02/2026 bởi Antigravity*
+## 6. SOS Address & Tracking Enhancements (23/02/2026)
+- [x] **Smart Address Capture**:
+    - [x] Backend: Thêm trường `address` vào `SosMatchRequest` và lưu vào `homeAddress` (Booking).
+    - [x] Mobile: Tích hợp reverse geocoding trong `SosRequestScreen` để tự động xác định địa chỉ.
+    - [x] Mobile: Cho phép người dùng xác nhận hoặc sửa địa chỉ ngay khi yêu cầu cấp cứu.
+- [x] **Advanced Tracking UI**:
+    - [x] **Polyline Routing**: Vẽ đường đi chi tiết từ bác sĩ đến nhà người dùng dùng Goong Directions API.
+    - [x] **Custom Marker Icons**: Icons riêng biệt cho Bác sĩ (Medical), Phòng khám (Hospital) và Người dùng (Home).
+    - [x] **Direct Staff Contact**: Hiển thị và ưu tiên gói số điện thoại của bác sĩ được gán.
+- [x] **SOS Flow Optimization (24/02/2026)**:
+    - [x] Thêm nút **"ĐÃ ĐẾN NƠI"** cho Staff để xác nhận thời điểm bắt đầu hỗ trợ và tự động dừng GPS tracking.
+    - [x] Mobile Pet Owner: Tự động phát hiện Staff đã đến nơi qua cơ chế **Polling `arrivedAt`** (mỗi 15s) và cập nhật giao diện "Đã đến".
+    - [x] **Detailed Checkout Confirmation**: Hiển thị đầy đủ thông tin khách hàng, phí SOS, phí di chuyển và danh sách dịch vụ trước khi hoàn tất.
+    - [x] Mobile: Tự động dừng GPS tracking khi Staff nhấn "Đã đến nơi" hoặc "Checkout".
 
+---
+*Cập nhật lần cuối: 24/02/2026 bởi Antigravity*

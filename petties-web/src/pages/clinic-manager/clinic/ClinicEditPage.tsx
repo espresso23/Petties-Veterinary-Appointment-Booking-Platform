@@ -28,7 +28,7 @@ export function ClinicEditPage() {
         try {
             await updateClinic(clinicId, data)
             navigate('/clinic-manager/clinic')
-        } catch (error) {
+        } catch {
             // Error handled by store
         }
     }

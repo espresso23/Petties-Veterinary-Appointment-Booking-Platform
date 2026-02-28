@@ -34,11 +34,19 @@ public class SosMatchResponse {
     private String clinicName;
     private String clinicPhone;
     private String clinicAddress;
+    private Double clinicLat;
+    private Double clinicLng;
     private Double distanceKm;
     private Integer estimatedMinutes;
 
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+
+    // Staff info (when assigned)
+    private UUID staffId;
+    private String staffName;
+    private String staffPhone;
+    private String staffAvatarUrl;
 
     // WebSocket topic for real-time updates
     private String wsTopicUrl;

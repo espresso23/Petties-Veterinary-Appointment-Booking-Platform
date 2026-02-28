@@ -1,16 +1,23 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:logger/logger.dart';
+import 'components/radar_overlay_painter.dart';
+import 'components/sos_pet_info_card.dart';
+import 'components/sos_status_panel.dart';
 import '../../data/services/sos_matching_service.dart';
 import '../../data/services/tracking_websocket_service.dart';
 import '../../data/services/clinic_service.dart';
 import '../../data/models/clinic.dart';
+import '../../data/models/booking.dart';
 import '../../utils/storage_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../config/constants/app_constants.dart';
+import '../../utils/map_utils.dart';
 
 /// SOS Radar Map Screen - Grab-like emergency matching experience
 /// Shows full-screen map with nearby clinics and real-time staff tracking
@@ -19,8 +26,16 @@ class SosRadarMapScreen extends StatefulWidget {
   final String petName;
   final String? petAvatar;
   final String? symptoms;
+  final String? address;
   final String? bookingId; // Optional: for resuming existing booking
   final bool isResumingBooking; // Flag to indicate this is a resumed booking
+  final double? selectedLatitude; // From location picker
+  final double? selectedLongitude; // From location picker
+
+  final SosMatchingService? sosService;
+  final ClinicService? clinicService;
+  final TrackingWebsocketService? websocketService;
+  final Position? initialPosition;
 
   const SosRadarMapScreen({
     super.key,
@@ -28,8 +43,15 @@ class SosRadarMapScreen extends StatefulWidget {
     required this.petName,
     this.petAvatar,
     this.symptoms,
+    this.address,
     this.bookingId,
     this.isResumingBooking = false,
+    this.selectedLatitude,
+    this.selectedLongitude,
+    this.sosService,
+    this.clinicService,
+    this.websocketService,
+    this.initialPosition,
   });
 
   @override
@@ -48,8 +70,10 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
   late Animation<double> _pulseAnimation;
 
   // Services
-  final _sosService = sosMatchingService;
-  final _clinicService = ClinicService();
+  late final SosMatchingService _sosService;
+  late final ClinicService _clinicService;
+  late final TrackingWebsocketService _websocketService;
+  final _logger = Logger();
 
   // State
   Position? _userPosition;
@@ -70,13 +94,21 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
   String? _errorMessage;
   int _countdownSeconds = 60;
   Timer? _countdownTimer;
+  BitmapDescriptor? _homeIcon;
+  BitmapDescriptor? _clinicIcon;
+  BitmapDescriptor? _vetIcon;
 
   @override
   void initState() {
     super.initState();
+    _sosService = widget.sosService ?? sosMatchingService;
+    _clinicService = widget.clinicService ?? ClinicService();
+    _websocketService = widget.websocketService ?? trackingWebsocket;
     _isResumedBooking = widget.isResumingBooking;
     _initAnimations();
+    _initCustomIcons();
     _initLocation();
+    _sosService.addListener(_onStatusChanged);
   }
 
   void _initAnimations() {
@@ -102,6 +134,49 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
 
   Future<void> _initLocation() async {
     try {
+      if (widget.initialPosition != null) {
+        setState(() {
+          _userPosition = widget.initialPosition;
+          _statusText = 'Đang tìm phòng khám gần bạn...';
+        });
+        await _fetchNearbyClinics();
+        _startMatching();
+        return;
+      }
+
+      // If lat/lng were selected from Location Picker, use those
+      if (widget.selectedLatitude != null && widget.selectedLongitude != null) {
+        final pickedPosition = Position(
+          latitude: widget.selectedLatitude!,
+          longitude: widget.selectedLongitude!,
+          timestamp: DateTime.now(),
+          accuracy: 0,
+          altitude: 0,
+          altitudeAccuracy: 0,
+          heading: 0,
+          headingAccuracy: 0,
+          speed: 0,
+          speedAccuracy: 0,
+        );
+        setState(() {
+          _userPosition = pickedPosition;
+          _statusText = 'Đang tìm phòng khám gần bạn...';
+        });
+
+        // Move camera to selected location
+        final controller = await _mapController.future;
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            LatLng(widget.selectedLatitude!, widget.selectedLongitude!),
+            15,
+          ),
+        );
+
+        await _fetchNearbyClinics();
+        _startMatching();
+        return;
+      }
+
       // Check location permission
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -235,14 +310,80 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         latitude: _userPosition!.latitude,
         longitude: _userPosition!.longitude,
         symptoms: widget.symptoms,
+        address: widget.address,
       );
 
       final response = await _sosService.startMatching(request);
 
       if (response == null) {
+        // Check if error is due to existing active booking
+        final errorMsg = _sosService.error ?? 'Có lỗi xảy ra.';
+        final hasActiveBooking = errorMsg.contains('đang hoạt động') ||
+            errorMsg.contains('yêu cầu SOS');
+
+        if (hasActiveBooking && mounted) {
+          // Show dialog to let user choose to continue or cancel old booking
+          final shouldCancel = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: Colors.orange.shade700, size: 28),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Có yêu cầu SOS đang xử lý',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              content: Text(
+                '$errorMsg\n\nBạn muốn hủy yêu cầu cũ để tạo mới?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('QUAY LẠI'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('HỦY VÀ TẠO MỚI'),
+                ),
+              ],
+            ),
+          );
+
+          if (shouldCancel == true && mounted) {
+            // Try to get and cancel the active booking
+            final activeBooking = await _sosService.getActiveSosBooking();
+            if (activeBooking != null) {
+              final cancelled =
+                  await _sosService.cancelMatching(activeBooking.bookingId);
+              if (cancelled) {
+                // Retry matching after cancelling
+                await _startMatching();
+                return;
+              } else {
+                setState(() {
+                  _errorMessage = 'Không thể hủy yêu cầu cũ. Vui lòng thử lại.';
+                });
+              }
+            }
+          } else if (mounted) {
+            // User chose to go back
+            Navigator.pop(context);
+            return;
+          }
+        }
+
         setState(() {
           _isSearching = false;
-          _errorMessage = _sosService.error ?? 'Có lỗi xảy ra.';
+          _errorMessage = errorMsg;
         });
         _radarController.stop();
         _countdownTimer?.cancel();
@@ -254,8 +395,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         _isResumedBooking = true;
       }
 
-      // Listen to status changes
-      _sosService.addListener(_onStatusChanged);
+      // Listener added in initState
       _onStatusChanged();
     } catch (e) {
       setState(() {
@@ -275,9 +415,11 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
 
   /// Handle status update from either listener or direct fetch
   void _handleStatusUpdate(SosMatchingStatus status) {
+    if (!mounted) return;
     setState(() {
       _status = status;
-      _currentClinicId = status.clinicId; // Track which clinic is being contacted
+      _currentClinicId =
+          status.clinicId; // Track which clinic is being contacted
 
       if (status.isSearching) {
         _statusText = 'Đang tìm phòng khám gần bạn...';
@@ -292,17 +434,27 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         _isConfirmed = true;
         _statusText = 'Đã tìm thấy!';
         _radarController.stop();
+        _pulseController.stop();
         _countdownTimer?.cancel();
         _updateMapWithClinic();
         // Only start tracking if this is a fresh booking (not resumed from active)
         if (!_isResumedBooking) {
           _startTrackingStaff();
         }
+        // Auto-navigate to tracking screen after a brief delay
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && _isConfirmed) {
+            _navigateToTracking();
+          }
+        });
       } else if (status.isCancelled) {
         _isSearching = false;
         _statusText = status.message ?? 'Không tìm thấy phòng khám.';
         _radarController.stop();
+        _pulseController.stop();
         _countdownTimer?.cancel();
+        // Khi SOS đã bị hủy hoặc không tìm thấy, KHÔNG tự điều hướng sang màn hình theo dõi
+        _isConfirmed = false;
       }
     });
   }
@@ -318,7 +470,8 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       Marker(
         markerId: const MarkerId('user_location'),
         position: userLatLng,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        icon: _homeIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: const InfoWindow(title: 'Vị trí của bạn'),
       ),
     };
@@ -330,9 +483,12 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         markers.add(Marker(
           markerId: MarkerId('clinic_${clinic.clinicId}'),
           position: LatLng(clinic.latitude!, clinic.longitude!),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            isCurrentClinic ? BitmapDescriptor.hueRed : BitmapDescriptor.hueOrange,
-          ),
+          icon: isCurrentClinic
+              ? (_clinicIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRed))
+              : BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueOrange),
           infoWindow: InfoWindow(
             title: clinic.name,
             snippet: clinic.distance != null
@@ -353,8 +509,8 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         circleId: const CircleId('search_radius'),
         center: userLatLng,
         radius: 5000, // 5km radius
-        fillColor: Colors.blue.withValues(alpha: 0.1),
-        strokeColor: Colors.blue.withValues(alpha: 0.3),
+        fillColor: Colors.blue.withOpacity(0.1),
+        strokeColor: Colors.blue.withOpacity(0.3),
         strokeWidth: 2,
       ),
     };
@@ -371,7 +527,8 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       Marker(
         markerId: const MarkerId('user_location'),
         position: userLatLng,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        icon: _homeIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: const InfoWindow(title: 'Vị trí của bạn'),
       ),
     };
@@ -383,9 +540,12 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
         markers.add(Marker(
           markerId: MarkerId('clinic_${clinic.clinicId}'),
           position: LatLng(clinic.latitude!, clinic.longitude!),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            isCurrentClinic ? BitmapDescriptor.hueRed : BitmapDescriptor.hueOrange,
-          ),
+          icon: isCurrentClinic
+              ? (_clinicIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueRed))
+              : BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueOrange),
           infoWindow: InfoWindow(
             title: clinic.name,
             snippet: clinic.distance != null
@@ -401,14 +561,16 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       final clinicLatLng = LatLng(_status!.clinicLat!, _status!.clinicLng!);
 
       // Check if current clinic already exists in markers
-      final existsInNearby = _nearbyClinics.any((c) => c.clinicId == _status!.clinicId);
+      final existsInNearby =
+          _nearbyClinics.any((c) => c.clinicId == _status!.clinicId);
 
       if (!existsInNearby) {
         markers.add(
           Marker(
             markerId: const MarkerId('current_clinic_location'),
             position: clinicLatLng,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            icon: _clinicIcon ??
+                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
             infoWindow: InfoWindow(
               title: _status!.clinicName ?? 'Phòng khám',
               snippet: _status!.distance != null
@@ -461,7 +623,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
     final storage = StorageService();
     final token = await storage.getString(AppConstants.accessTokenKey);
     if (token != null) {
-      trackingWebsocket.setAccessToken(token);
+      _websocketService.setAccessToken(token);
     }
 
     _trackingHandler = (location) {
@@ -473,7 +635,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       }
     };
 
-    trackingWebsocket.subscribeToTracking(
+    _websocketService.subscribeToTracking(
       _status!.bookingId,
       _trackingHandler!,
     );
@@ -490,15 +652,17 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       Marker(
         markerId: const MarkerId('user_location'),
         position: userLatLng,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        icon: _homeIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: const InfoWindow(title: 'Vị trí của bạn'),
       ),
       Marker(
         markerId: const MarkerId('staff_location'),
         position: staffLatLng,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: _vetIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
         infoWindow: InfoWindow(
-          title: location.vetName ?? 'Bác sĩ',
+          title: _status?.staffName ?? 'Bác sĩ',
           snippet: 'Đang trên đường đến',
         ),
       ),
@@ -521,7 +685,44 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
     _fitMapToBounds(userLatLng, staffLatLng);
   }
 
+  /// Navigate to SOS Tracking Screen
+  void _navigateToTracking() {
+    if (!mounted) return;
+    final bookingId = _status?.bookingId ?? _sosService.currentBookingId;
+    if (bookingId != null) {
+      // Pass the status as booking object if it contains basic info
+      BookingResponse? booking;
+      if (_status != null) {
+        booking = BookingResponse(
+          bookingId: _status!.bookingId,
+          clinicId: _status!.clinicId,
+          clinicName: _status!.clinicName,
+          status: _status!.status,
+          assignedStaffName: _status!.staffName,
+          assignedStaffAvatarUrl: _status!.staffAvatarUrl,
+          petId: widget.petId,
+          petName: widget.petName,
+          symptoms: widget.symptoms,
+          homeAddress: widget.address,
+          clinicAddress: _status!.clinicAddress,
+          clinicPhone: _status!.clinicPhone,
+          homeLat: _userPosition?.latitude,
+          homeLong: _userPosition?.longitude,
+          clinicLat: _status!.clinicLat,
+          clinicLong: _status!.clinicLng,
+        );
+      }
+      context.push('/sos/tracking/$bookingId', extra: booking);
+    }
+  }
+
   Future<void> _handleCancel() async {
+    // If booking is already confirmed, navigate to tracking instead of cancelling
+    if (_isConfirmed) {
+      _navigateToTracking();
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -541,12 +742,61 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
       ),
     );
 
-    if (confirmed == true && _sosService.currentBookingId != null) {
-      await _sosService.cancelMatching(_sosService.currentBookingId!);
+    if (confirmed == true) {
+      final bookingId = _sosService.currentBookingId ?? _status?.bookingId;
+      if (bookingId == null || bookingId.isEmpty) {
+        _logger.w('Cannot cancel SOS: bookingId is null or empty');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy mã yêu cầu để hủy')),
+          );
+          Navigator.pop(context); // Close radar if no ID
+        }
+        return;
+      }
+
+      final cancelled = await _sosService.cancelMatching(bookingId);
+      if (!cancelled && mounted) {
+        // If cancel failed (e.g., already confirmed), navigate to tracking
+        final currentStatus = _sosService.currentStatus?.status;
+        if (currentStatus == 'CONFIRMED' || currentStatus == 'IN_PROGRESS') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'Booking đã được xác nhận. Đang chuyển sang theo dõi...')),
+          );
+          _navigateToTracking();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không thể hủy yêu cầu lúc này')),
+          );
+        }
+        return;
+      }
       if (mounted) {
         Navigator.pop(context);
       }
     }
+  }
+
+  Future<void> _initCustomIcons() async {
+    _homeIcon = await MapUtils.createCustomMarker(
+      iconData: Icons.person_pin_circle,
+      color: AppColors.coral,
+      imageUrl: (widget.petAvatar != null && widget.petAvatar!.isNotEmpty)
+          ? widget.petAvatar
+          : null,
+    );
+    _clinicIcon = await MapUtils.createCustomMarker(
+      iconData: Icons.local_hospital,
+      color: Colors.red,
+    );
+    _vetIcon = await MapUtils.createCustomMarker(
+      iconData: Icons.medical_services,
+      color: Colors.orange,
+      imageUrl: _status?.staffAvatarUrl,
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -563,7 +813,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
     _countdownTimer?.cancel();
     _sosService.removeListener(_onStatusChanged);
     if (_trackingHandler != null && _status?.bookingId != null) {
-      trackingWebsocket.unsubscribeFromTracking(
+      _websocketService.unsubscribeFromTracking(
         _status!.bookingId,
         _trackingHandler!,
       );
@@ -589,9 +839,10 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
             circles: _circles,
             polylines: _polylines,
             myLocationEnabled: true,
-            myLocationButtonEnabled: false,
+            myLocationButtonEnabled: true,
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
+            padding: const EdgeInsets.only(bottom: 150, top: 100),
           ),
 
           // Radar overlay animation (when searching)
@@ -609,7 +860,7 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.5),
+                    Colors.black.withOpacity(0.5),
                     Colors.transparent,
                   ],
                 ),
@@ -635,7 +886,13 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
             top: MediaQuery.of(context).padding.top + 60,
             left: 16,
             right: 16,
-            child: _buildPetInfoCard(),
+            child: SosPetInfoCard(
+              petName: widget.petName,
+              petAvatar: widget.petAvatar,
+              symptoms: widget.symptoms,
+              countdownSeconds: _countdownSeconds,
+              isSearching: _isSearching,
+            ),
           ),
 
           // Bottom sheet
@@ -643,7 +900,17 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
             bottom: 0,
             left: 0,
             right: 0,
-            child: _buildBottomSheet(),
+            child: SosStatusPanel(
+              isConfirmed: _isConfirmed,
+              isSearching: _isSearching,
+              status: _status,
+              statusText: _statusText,
+              pulseAnimation: _pulseAnimation,
+              staffLocation: _staffLocation,
+              onCancel: _handleCancel,
+              onTrack: _navigateToTracking,
+              onCall: _makePhoneCall,
+            ),
           ),
 
           // Emergency hotline FAB
@@ -686,372 +953,10 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
     );
   }
 
-  Widget _buildPetInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Pet avatar
-          CircleAvatar(
-            radius: 24,
-            backgroundImage: widget.petAvatar != null
-                ? NetworkImage(widget.petAvatar!)
-                : null,
-            child: widget.petAvatar == null
-                ? const Icon(Icons.pets, size: 24)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          // Pet info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  widget.petName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                if (widget.symptoms != null)
-                  Text(
-                    widget.symptoms!,
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          // Countdown timer
-          if (_isSearching)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.timer, size: 16, color: Colors.red.shade700),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${_countdownSeconds}s',
-                    style: TextStyle(
-                      color: Colors.red.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomSheet() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Status section
-              if (_isConfirmed && _status != null)
-                _buildConfirmedContent()
-              else if (_isSearching)
-                _buildSearchingContent()
-              else
-                _buildIdleContent(),
-
-              const SizedBox(height: 16),
-
-              // Cancel button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _handleCancel,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('HỦY YÊU CẦU'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSearchingContent() {
-    return Column(
-      children: [
-        // Status text with animation
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _pulseAnimation.value,
-                  child: const Icon(
-                    Icons.radar,
-                    color: AppColors.coral,
-                    size: 24,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _statusText,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Progress indicator
-        if (_status?.currentClinicIndex != null &&
-            _status?.totalClinics != null)
-          Column(
-            children: [
-              LinearProgressIndicator(
-                value:
-                    (_status!.currentClinicIndex! + 1) / _status!.totalClinics!,
-                backgroundColor: Colors.grey.shade200,
-                color: AppColors.coral,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Đang liên hệ ${_status!.currentClinicIndex! + 1}/${_status!.totalClinics} phòng khám',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-
-        // Current clinic info
-        if (_status?.isPendingConfirm == true && _status?.clinicName != null)
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.local_hospital, color: Colors.orange.shade700),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _status!.clinicName!,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade900,
-                        ),
-                      ),
-                      if (_status!.distance != null)
-                        Text(
-                          'Cách ${_status!.distance!.toStringAsFixed(1)} km • Đang chờ xác nhận',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontSize: 13,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildConfirmedContent() {
-    return Column(
-      children: [
-        // Success banner
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green.shade700, size: 28),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Đã tìm thấy phòng khám!',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade900,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (_staffLocation != null)
-                      Text(
-                        'Bác sĩ đang trên đường đến',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontSize: 13,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Staff/Clinic info card
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: AppColors.coral.withValues(alpha: 0.2),
-                child: const Icon(Icons.local_hospital,
-                    color: AppColors.coral, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _status?.clinicName ?? 'Phòng khám',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (_status?.distance != null)
-                      Text(
-                        'Cách ${_status!.distance!.toStringAsFixed(1)} km',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    if (_staffLocation != null)
-                      Text(
-                        'ETA: ${_staffLocation!.etaMinutes ?? '~'} phút',
-                        style: const TextStyle(
-                          color: AppColors.coral,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              // Call button
-              if (_status?.clinicPhone != null)
-                IconButton(
-                  onPressed: () => _makePhoneCall(_status!.clinicPhone!),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(12),
-                  ),
-                  icon: const Icon(Icons.phone, size: 24),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIdleContent() {
-    return Center(
-      child: Text(
-        _statusText,
-        style: TextStyle(
-          color: Colors.grey.shade600,
-          fontSize: 16,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-
   Widget _buildErrorOverlay() {
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withValues(alpha: 0.5),
+        color: Colors.black.withOpacity(0.5),
         child: Center(
           child: Container(
             margin: const EdgeInsets.all(32),
@@ -1107,46 +1012,3 @@ class _SosRadarMapScreenState extends State<SosRadarMapScreen>
 }
 
 /// Custom painter for radar sweep overlay effect
-class RadarOverlayPainter extends CustomPainter {
-  final double angle;
-  final Offset center;
-
-  RadarOverlayPainter({required this.angle, required this.center});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const radius = 150.0;
-
-    // Draw radar sweep gradient
-    final sweepPaint = Paint()
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: angle,
-        endAngle: angle + math.pi / 3,
-        colors: [
-          Colors.green.withValues(alpha: 0),
-          Colors.green.withValues(alpha: 0.1),
-          Colors.green.withValues(alpha: 0.2),
-          Colors.green.withValues(alpha: 0.1),
-          Colors.green.withValues(alpha: 0),
-        ],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-
-    canvas.drawCircle(center, radius, sweepPaint);
-
-    // Draw radar rings
-    final ringPaint = Paint()
-      ..color = Colors.green.withValues(alpha: 0.15)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (int i = 1; i <= 3; i++) {
-      canvas.drawCircle(center, radius * i / 3, ringPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant RadarOverlayPainter oldDelegate) {
-    return angle != oldDelegate.angle;
-  }
-}

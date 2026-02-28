@@ -57,10 +57,12 @@ public class PricingService {
 
     /**
      * Calculate home visit fee for the entire booking based on distance
+     * Note: SOS bookings do NOT charge distance fee - they use sosFee instead
      */
     public BigDecimal calculateBookingDistanceFee(UUID clinicId, BigDecimal distanceKm,
             BookingType bookingType) {
-        if ((bookingType != BookingType.HOME_VISIT && bookingType != BookingType.SOS)
+        // Only HOME_VISIT charges distance fee, SOS uses sosFee instead
+        if (bookingType != BookingType.HOME_VISIT
                 || distanceKm == null || distanceKm.compareTo(BigDecimal.ZERO) <= 0
                 || clinicId == null) {
             return BigDecimal.ZERO;
@@ -76,9 +78,16 @@ public class PricingService {
     }
 
     /**
-     * Calculate SOS emergency fee for a clinic
+     * Calculate SOS fee for a booking
+     *
+     * @param clinicId The clinic ID
+     * @return The SOS fee
      */
     public BigDecimal calculateSOSFee(UUID clinicId) {
-        return clinicPriceService.getSosFee(clinicId).orElse(BigDecimal.ZERO);
+        if (clinicId == null)
+            return BigDecimal.ZERO;
+
+        return clinicPriceService.getSosFee(clinicId)
+                .orElse(BigDecimal.ZERO); // Default to ZERO if not configured
     }
 }

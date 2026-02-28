@@ -120,7 +120,7 @@ public class ClinicController {
      * CLINIC_OWNER can only update their own clinic
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> updateClinic(
             @PathVariable UUID id,
             @Valid @RequestBody ClinicRequest request) {
@@ -293,7 +293,7 @@ public class ClinicController {
      * CLINIC_OWNER only
      */
     @GetMapping("/owner/my-clinics")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Page<ClinicResponse>> getMyClinics(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -311,7 +311,7 @@ public class ClinicController {
      * CLINIC_OWNER can only upload for their own clinic
      */
     @PostMapping(value = "/{id}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> uploadClinicImage(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file,
@@ -353,7 +353,7 @@ public class ClinicController {
      * CLINIC_OWNER can only upload for their own clinic
      */
     @PostMapping(value = "/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<ClinicResponse> uploadClinicLogo(
             @PathVariable UUID id,
             @RequestParam("file") MultipartFile file) {

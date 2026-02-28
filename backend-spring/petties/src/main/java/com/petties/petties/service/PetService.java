@@ -356,9 +356,7 @@ public class PetService {
         // Filter active statuses for status badge priority
         List<BookingStatus> activeStatuses = List.of(
                 BookingStatus.CONFIRMED,
-                BookingStatus.ARRIVED,
-                BookingStatus.IN_PROGRESS,
-                BookingStatus.ON_THE_WAY);
+                BookingStatus.IN_PROGRESS);
 
         for (Booking b : clinicBookingsToday) {
             Pet pet = b.getPet();
@@ -448,10 +446,6 @@ public class PetService {
         switch (status) {
             case "IN_PROGRESS":
                 return 4;
-            case "ARRIVED":
-                return 3;
-            case "ON_THE_WAY":
-                return 2;
             case "CONFIRMED":
                 return 1;
             default:

@@ -30,9 +30,7 @@ public class SosMatchingStatusMessage {
     }
 
     private UUID bookingId;
-
-    private BookingStatus bookingStatus;
-
+    private BookingStatus status;
     private MatchingEvent event;
 
     private String message;
@@ -47,6 +45,8 @@ public class SosMatchingStatusMessage {
     private String clinicPhone;
     private Double distanceKm;
     private Integer estimatedMinutes;
+    private Double clinicLat;
+    private Double clinicLng;
 
     /**
      * Alias for distanceKm for mobile compatibility
@@ -56,10 +56,35 @@ public class SosMatchingStatusMessage {
         return distanceKm;
     }
 
+    /**
+     * Alias for totalClinicsInRange for mobile compatibility
+     */
+    public Integer getTotalClinics() {
+        return totalClinicsInRange;
+    }
+
+    // Pet info (for clinic alert)
+    private String petName;
+    private String petSpecies;
+    private String petBreed;
+    private Double petWeight;
+    private String petAvatarUrl;
+
+    // Pet Owner info (for clinic alert)
+    private String petOwnerName;
+    private String petOwnerPhone;
+
+    // SOS details
+    private String symptoms;
+    private String homeAddress;
+    private Double homeLat;
+    private Double homeLong;
+
     // Staff info (when assigned)
     private UUID staffId;
     private String staffName;
     private String staffPhone;
+    private String staffAvatarUrl;
 
     // For NO_CLINIC scenario
     private String hotlineNumber;

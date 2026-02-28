@@ -15,6 +15,7 @@ export const CalendarPicker = ({ value, onChange, mode = 'date', displayFormat }
     const [isOpen, setIsOpen] = useState(false)
     const [viewDate, setViewDate] = useState(new Date(value))
     const containerRef = useRef<HTMLDivElement>(null)
+    const prevValueRef = useRef(value)
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -26,8 +27,15 @@ export const CalendarPicker = ({ value, onChange, mode = 'date', displayFormat }
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
+    // Only update viewDate if value actually changed (different date)
     useEffect(() => {
-        setViewDate(new Date(value))
+        const prevDate = prevValueRef.current
+        const newDate = value
+        if (prevDate.getTime() !== newDate.getTime()) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setViewDate(new Date(newDate))
+            prevValueRef.current = newDate
+        }
     }, [value])
 
     const handlePrevMonth = () => {

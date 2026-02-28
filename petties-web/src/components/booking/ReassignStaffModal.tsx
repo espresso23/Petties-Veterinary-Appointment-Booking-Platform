@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { XMarkIcon, CheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import type { AvailableStaffResponse, BookingServiceItem } from '../../types/booking';
 import { STAFF_SPECIALTY_LABELS } from '../../types/booking';
@@ -26,13 +26,7 @@ export const ReassignStaffModal: React.FC<ReassignStaffModalProps> = ({
     const [reassigning, setReassigning] = useState(false);
     const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (isOpen && bookingId && service.bookingServiceId) {
-            fetchAvailableStaff();
-        }
-    }, [isOpen, bookingId, service.bookingServiceId]);
-
-    const fetchAvailableStaff = async () => {
+    const fetchAvailableStaff = useCallback(async () => {
         if (!service.bookingServiceId) {
             showToast('error', 'Không tìm thấy ID dịch vụ');
             return;
@@ -47,7 +41,13 @@ export const ReassignStaffModal: React.FC<ReassignStaffModalProps> = ({
         } finally {
             setLoading(false);
         }
-    };
+    }, [bookingId, service.bookingServiceId, showToast]);
+
+    useEffect(() => {
+        if (isOpen && bookingId && service.bookingServiceId) {
+            fetchAvailableStaff();
+        }
+    }, [isOpen, bookingId, service.bookingServiceId, fetchAvailableStaff]);
 
     const handleReassign = async () => {
         if (!selectedStaffId) {

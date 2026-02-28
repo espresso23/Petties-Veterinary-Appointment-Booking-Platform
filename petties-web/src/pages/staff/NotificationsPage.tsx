@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notificationService } from '../../services/api/notificationService'
 import type { ClinicNotification } from '../../services/api/notificationService'
@@ -24,6 +24,25 @@ export const NotificationsPage = () => {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await notificationService.getNotifications(page, 20)
+      setNotifications(data.content)
+      setTotalPages(data.totalPages)
+      setTotalElements(data.totalElements)
+    } catch (error) {
+      showToast('error', 'Không thể tải thông báo')
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, showToast])
+
+  const loadUnreadCount = useCallback(async () => {
+    await refreshUnreadCount()
+  }, [refreshUnreadCount])
+
   // SSE hook for real-time notifications
   useSseNotification({
     onNotification: () => {
@@ -32,29 +51,10 @@ export const NotificationsPage = () => {
     },
   })
 
-  const loadNotifications = async () => {
-    try {
-      setLoading(true)
-      const data = await notificationService.getNotifications(page, 20)
-      setNotifications(data.content)
-      setTotalPages(data.totalPages)
-      setTotalElements(data.totalElements)
-    } catch (error: any) {
-      showToast('error', 'Không thể tải thông báo')
-      console.error(error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadUnreadCount = async () => {
-    await refreshUnreadCount()
-  }
-
   useEffect(() => {
     loadNotifications()
     loadUnreadCount()
-  }, [page])
+  }, [loadNotifications, loadUnreadCount])
 
   const handleMarkAsRead = async (notificationId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -65,7 +65,7 @@ export const NotificationsPage = () => {
       )
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
-    } catch (error: any) {
+    } catch (error) {
       showToast('error', 'Không thể đánh dấu đã đọc')
     }
   }
@@ -77,7 +77,7 @@ export const NotificationsPage = () => {
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
       showToast('success', 'Đã đánh dấu tất cả đã đọc')
-    } catch (error: any) {
+    } catch (error) {
       showToast('error', 'Không thể đánh dấu tất cả đã đọc')
     }
   }

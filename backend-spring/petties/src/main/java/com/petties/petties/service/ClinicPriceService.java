@@ -37,22 +37,36 @@ public class ClinicPriceService {
 
     @Transactional
     public ClinicPricePerKm updatePricing(UUID clinicId, BigDecimal pricePerKm, BigDecimal sosFee) {
+        log.info("Updating pricing for clinic {}: pricePerKm={}, sosFee={}", clinicId, pricePerKm, sosFee);
+        
         Clinic clinic = clinicRepository.findById(clinicId)
                 .orElseThrow(() -> new IllegalArgumentException("Clinic not found: " + clinicId));
 
         ClinicPricePerKm priceEntity = clinicPriceRepository.findById(clinicId)
                 .orElseGet(() -> {
+                    log.info("Creating new ClinicPricePerKm entity for clinic {}", clinicId);
                     ClinicPricePerKm newEntity = new ClinicPricePerKm();
                     newEntity.setClinic(clinic);
+                    newEntity.setClinicId(clinicId); // Explicitly set clinicId for @MapsId
                     return newEntity;
                 });
 
-        if (pricePerKm != null)
-            priceEntity.setPricePerKm(pricePerKm);
-        if (sosFee != null)
-            priceEntity.setSosFee(sosFee);
+        log.info("Before update - Existing pricePerKm={}, sosFee={}", 
+                priceEntity.getPricePerKm(), priceEntity.getSosFee());
 
-        return clinicPriceRepository.save(priceEntity);
+        if (pricePerKm != null) {
+            priceEntity.setPricePerKm(pricePerKm);
+            log.info("Set pricePerKm to {}", pricePerKm);
+        }
+        if (sosFee != null) {
+            priceEntity.setSosFee(sosFee);
+            log.info("Set sosFee to {}", sosFee);
+        }
+
+        ClinicPricePerKm saved = clinicPriceRepository.save(priceEntity);
+        log.info("After save - pricePerKm={}, sosFee={}", saved.getPricePerKm(), saved.getSosFee());
+        
+        return saved;
     }
 
     @Transactional

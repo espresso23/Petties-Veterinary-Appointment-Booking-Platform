@@ -32,6 +32,7 @@ export function PricingModal({
 
   useEffect(() => {
     if (isOpen && initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setData(initialData)
     }
   }, [isOpen, initialData])

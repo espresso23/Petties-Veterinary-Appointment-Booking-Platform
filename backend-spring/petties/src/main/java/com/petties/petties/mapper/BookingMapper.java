@@ -157,9 +157,12 @@ public class BookingMapper {
                                         .clinicLogo(clinic != null ? clinic.getLogo() : null)
                                         .clinicAddress(clinic != null ? clinic.getAddress() : null)
                                         .clinicPhone(clinic != null ? clinic.getPhone() : null)
+                                        .clinicLat(clinic != null ? clinic.getLatitude() : null)
+                                        .clinicLong(clinic != null ? clinic.getLongitude() : null)
                                         // Staff info
                                         .assignedStaffId(staff != null ? staff.getUserId() : null)
                                         .assignedStaffName(staff != null ? staff.getFullName() : null)
+                                        .assignedStaffPhone(staff != null ? staff.getPhone() : null)
                                         .assignedStaffSpecialty(
                                                         staff != null && staff.getSpecialty() != null
                                                                         ? staff.getSpecialty().name()
@@ -191,6 +194,7 @@ public class BookingMapper {
                                         .symptoms(booking.getSymptoms())
                                         // Timestamps
                                         .createdAt(booking.getCreatedAt())
+                                         .arrivedAt(booking.getArrivedAt())
                                         .build();
 
                 } catch (Exception e) {
@@ -258,6 +262,7 @@ public class BookingMapper {
                                 .primaryServiceName(primaryService)
                                 .servicesCount(servicesCount)
                                 .homeAddress(booking.getHomeAddress())
+                                .arrivedAt(booking.getArrivedAt())
                                 .build();
         }
 
@@ -373,6 +378,8 @@ public class BookingMapper {
                                         .clinicName(clinic != null ? clinic.getName() : null)
                                         .clinicAddress(clinic != null ? clinic.getAddress() : null)
                                         .clinicPhone(clinic != null ? clinic.getPhone() : null)
+                                        .clinicLat(clinic != null ? clinic.getLatitude() : null)
+                                        .clinicLong(clinic != null ? clinic.getLongitude() : null)
                                         // Staff info
                                         .assignedStaffId(staff != null ? staff.getUserId() : null)
                                         .assignedStaffName(staff != null ? staff.getFullName() : null)
@@ -407,6 +414,7 @@ public class BookingMapper {
                                         .symptoms(booking.getSymptoms())
                                         // Timestamps
                                         .createdAt(booking.getCreatedAt())
+                                         .arrivedAt(booking.getArrivedAt())
                                         .build();
 
                 } catch (Exception e) {

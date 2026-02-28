@@ -42,11 +42,11 @@ export const vaccinationService = {
      * Create a new vaccination record
      */
     async createVaccination(request: CreateVaccinationRequest): Promise<VaccinationRecord> {
-        const response = await api.post<any>('/vaccinations', request)
+        const response = await api.post<VaccinationRecord>('/vaccinations', request)
         const item = response.data
         return {
             ...item,
-            workflowStatus: item.status as 'PENDING' | 'COMPLETED',
+            workflowStatus: (item as unknown as { status?: string }).status as 'PENDING' | 'COMPLETED' || 'PENDING',
             status: this.calculateStatus(item.nextDueDate)
         }
     },
@@ -55,10 +55,10 @@ export const vaccinationService = {
      * Get all vaccination records for a pet
      */
     async getVaccinationsByPet(petId: string): Promise<VaccinationRecord[]> {
-        const response = await api.get<any[]>(`/vaccinations/pet/${petId}`)
+        const response = await api.get<VaccinationRecord[]>(`/vaccinations/pet/${petId}`)
         return response.data.map(item => ({
             ...item,
-            workflowStatus: item.status as 'PENDING' | 'COMPLETED',
+            workflowStatus: (item as unknown as { status?: string }).status as 'PENDING' | 'COMPLETED' || 'PENDING',
             status: this.calculateStatus(item.nextDueDate)
         }))
     },
@@ -67,11 +67,19 @@ export const vaccinationService = {
      * Get predicted upcoming vaccinations for a pet
      */
     async getUpcomingVaccinations(petId: string): Promise<VaccinationRecord[]> {
-        const response = await api.get<any[]>(`/vaccinations/pet/${petId}/upcoming?t=${new Date().getTime()}`)
+        const response = await api.get<Partial<VaccinationRecord>[]>(`/vaccinations/pet/${petId}/upcoming?t=${new Date().getTime()}`)
         return response.data.map(item => ({
-            ...item,
-            workflowStatus: 'PENDING',
-            status: 'N/A'
+            id: item.id || '',
+            petId: item.petId || petId,
+            staffId: item.staffId || '',
+            clinicId: item.clinicId || '',
+            clinicName: item.clinicName || '',
+            staffName: item.staffName || '',
+            vaccineName: item.vaccineName || '',
+            createdAt: item.createdAt || new Date().toISOString(),
+            workflowStatus: 'PENDING' as const,
+            status: 'N/A' as const,
+            ...item
         }))
     },
 

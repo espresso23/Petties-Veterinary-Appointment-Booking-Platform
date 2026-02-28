@@ -182,18 +182,9 @@ export const clinicService = {
     }
     formData.append('isPrimary', String(isPrimary))
 
-    // Use FormData - must remove Content-Type header completely
-    // Axios will automatically set Content-Type to multipart/form-data with boundary for FormData
-    const config: any = {
-      headers: {},
-    }
-    // Delete Content-Type header - axios will set it automatically for FormData
-    delete config.headers['Content-Type']
-
     const response = await apiClient.post<ClinicResponse>(
       `/clinics/${clinicId}/images`,
-      formData,
-      config
+      formData
     )
     return response.data
   },
@@ -220,16 +211,9 @@ export const clinicService = {
     const formData = new FormData()
     formData.append('file', file)
 
-    // Use FormData - delete Content-Type header to let browser set it automatically with boundary
-    const config: any = {
-      headers: {},
-    }
-    delete (config.headers as any)['Content-Type']
-
     const response = await apiClient.post<ClinicResponse>(
       `/clinics/${clinicId}/logo`,
-      formData,
-      config
+      formData
     )
     return response.data
   },

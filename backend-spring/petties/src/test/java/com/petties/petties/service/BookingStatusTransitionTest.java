@@ -1,6 +1,7 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
@@ -9,7 +10,6 @@ import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
-import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
 import com.petties.petties.repository.UserRepository;
@@ -22,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -156,16 +157,20 @@ class BookingStatusTransitionTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS thất bại")
-        void checkIn_fromInProgress_shouldFail() {
+        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS vẫn thành công (idempotent)")
+        void checkIn_fromInProgress_success() {
             // Given
             testBooking.setStatus(BookingStatus.IN_PROGRESS);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
 
-            // When/Then
-            assertThatThrownBy(() -> bookingService.checkIn(bookingId))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("CONFIRMED");
+            // When
+            BookingResponse response = bookingService.checkIn(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            verify(bookingRepository).save(testBooking);
         }
 
         @Test
@@ -228,6 +233,177 @@ class BookingStatusTransitionTest {
             assertThatThrownBy(() -> bookingService.complete(bookingId))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("IN_PROGRESS");
+        }
+    }
+
+    // ========== START MOVING TESTS ==========
+
+    @Nested
+    @DisplayName("Start Moving Tests")
+    class StartMovingTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-012: Start moving từ CONFIRMED cho SOS thành công")
+        void startMoving_fromConfirmed_sos_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.SOS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            // When
+            BookingResponse response = bookingService.startMoving(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "START_MOVING");
+            verify(notificationService).sendStaffOnWayNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-013: Start moving với loại IN_CLINIC thất bại")
+        void startMoving_wrongType_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.IN_CLINIC);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.startMoving(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-014: Start moving từ trạng thái khác CONFIRMED thất bại")
+        void startMoving_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.SOS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.startMoving(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED");
+        }
+    }
+
+    // ========== ARRIVED TESTS ==========
+
+    @Nested
+    @DisplayName("Arrived Tests")
+    class ArrivedTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-015: Arrived từ IN_PROGRESS thành công")
+        void arrived_fromInProgress_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            // When
+            BookingResponse response = bookingService.arrived(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            assertThat(testBooking.getArrivedAt()).isNotNull();
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "ARRIVED");
+            verify(notificationService).sendStaffArrivedNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-016: Arrived khi không ở trạng thái IN_PROGRESS thất bại")
+        void arrived_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.arrived(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS");
+        }
+    }
+
+    // ========== PROCESS CHECKOUT TESTS ==========
+
+    @Nested
+    @DisplayName("Process Checkout Tests")
+    class ProcessCheckoutTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-017: Checkout từ IN_PROGRESS cho HOME_VISIT thành công")
+        void processCheckout_fromInProgress_homeVisit_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.HOME_VISIT);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            // When
+            BookingResponse response = bookingService.processCheckout(bookingId, new CheckoutRequest(), staff);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "COMPLETED");
+            verify(notificationService).sendCompletedNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-018: Checkout khi booking không ở IN_PROGRESS thất bại")
+        void processCheckout_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.HOME_VISIT);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.processCheckout(bookingId, new CheckoutRequest(), staff))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-019: Checkout SOS không yêu cầu arrivedAt (dùng overriddenSosFee)")
+        void processCheckout_sosWithoutArrivedAt_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.SOS);
+            testBooking.setArrivedAt(null);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            CheckoutRequest request = new CheckoutRequest();
+            request.setOverriddenSosFee(BigDecimal.valueOf(50000));
+
+            // When
+            BookingResponse response = bookingService.processCheckout(bookingId, request, staff);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
+            // SOS fee should be set from pricingService
+            assertThat(testBooking.getSosFee()).isEqualByComparingTo(BigDecimal.valueOf(50000));
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "COMPLETED");
+            verify(notificationService).sendCompletedNotification(testBooking);
         }
     }
 

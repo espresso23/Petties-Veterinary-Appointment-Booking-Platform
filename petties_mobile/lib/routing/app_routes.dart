@@ -71,7 +71,7 @@ class AppRoutes {
   // SOS Emergency Booking (Pet Owner)
   static const String sosRequest = '/sos/request';
   static const String sosMatching = '/sos/matching';
-  static const String sosTracking = '/sos/tracking';
+  static const String sosTracking = '/sos/tracking/:bookingId';
 
   // Other
   static const String aboutUs = '/about';

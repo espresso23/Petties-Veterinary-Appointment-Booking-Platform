@@ -40,7 +40,7 @@ export interface MasterServiceRequest {
 }
 
 export interface MasterServiceUpdateRequest extends Partial<MasterServiceRequest> {
-  // Same as create request but all fields optional
+  masterServiceId?: string // Add identifier for clarity
 }
 
 // Updated Clinic Service Types
@@ -77,7 +77,7 @@ export interface ClinicServiceRequest {
 }
 
 export interface ClinicServiceUpdateRequest extends Partial<ClinicServiceRequest> {
-  // Same as create request but all fields optional
+  serviceId?: string // Add identifier for clarity
 }
 
 // NEW: Inherit Service Request

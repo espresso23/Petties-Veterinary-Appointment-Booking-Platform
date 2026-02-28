@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 import 'package:logger/logger.dart';
@@ -20,6 +21,10 @@ class SosMatchingStatus {
   final String? message;
   final int? currentClinicIndex;
   final int? totalClinics;
+  final String? staffId;
+  final String? staffName;
+  final String? staffPhone;
+  final String? staffAvatarUrl;
 
   SosMatchingStatus({
     required this.bookingId,
@@ -34,6 +39,10 @@ class SosMatchingStatus {
     this.message,
     this.currentClinicIndex,
     this.totalClinics,
+    this.staffId,
+    this.staffName,
+    this.staffPhone,
+    this.staffAvatarUrl,
   });
 
   factory SosMatchingStatus.fromJson(Map<String, dynamic> json) {
@@ -50,6 +59,10 @@ class SosMatchingStatus {
       message: json['message'],
       currentClinicIndex: json['currentClinicIndex'] as int?,
       totalClinics: json['totalClinics'] as int?,
+      staffId: json['staffId'],
+      staffName: json['staffName'],
+      staffPhone: json['staffPhone'],
+      staffAvatarUrl: json['staffAvatarUrl'],
     );
   }
 
@@ -65,12 +78,14 @@ class SosMatchRequest {
   final double latitude;
   final double longitude;
   final String? symptoms;
+  final String? address;
 
   SosMatchRequest({
     required this.petId,
     required this.latitude,
     required this.longitude,
     this.symptoms,
+    this.address,
   });
 
   Map<String, dynamic> toJson() => {
@@ -78,6 +93,7 @@ class SosMatchRequest {
         'latitude': latitude,
         'longitude': longitude,
         'symptoms': symptoms,
+        'address': address,
       };
 }
 
@@ -87,32 +103,85 @@ class SosMatchResponse {
   final String status;
   final String? clinicId;
   final String? clinicName;
+  final String? clinicPhone;
+  final String? clinicAddress;
+  final double? clinicLat;
+  final double? clinicLng;
+  final double? distanceKm;
+  final int? estimatedMinutes;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
   final String? wsTopicUrl;
   final String? message;
   final String? petId;
   final String? petName;
+  final String? staffId;
+  final String? staffName;
+  final String? staffPhone;
+  final String? staffAvatarUrl;
 
   SosMatchResponse({
     required this.bookingId,
     required this.status,
     this.clinicId,
     this.clinicName,
+    this.clinicPhone,
+    this.clinicAddress,
+    this.clinicLat,
+    this.clinicLng,
+    this.distanceKm,
+    this.estimatedMinutes,
+    this.createdAt,
+    this.expiresAt,
     this.wsTopicUrl,
     this.message,
     this.petId,
     this.petName,
+    this.staffId,
+    this.staffName,
+    this.staffPhone,
+    this.staffAvatarUrl,
   });
 
   factory SosMatchResponse.fromJson(Map<String, dynamic> json) {
+    double? _parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString());
+    }
+
+    int? _parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString());
+    }
+
     return SosMatchResponse(
       bookingId: json['bookingId'] ?? '',
       status: json['status'] ?? 'SEARCHING',
-      clinicId: json['clinicId'],
-      clinicName: json['clinicName'],
-      wsTopicUrl: json['wsTopicUrl'],
       message: json['message'],
       petId: json['petId'],
       petName: json['petName'],
+      wsTopicUrl: json['wsTopicUrl'],
+      clinicId: json['clinicId'],
+      clinicName: json['clinicName'],
+      clinicPhone: json['clinicPhone'],
+      clinicAddress: json['clinicAddress'],
+      clinicLat: _parseDouble(json['clinicLat']),
+      clinicLng: _parseDouble(json['clinicLng']),
+      distanceKm: _parseDouble(json['distanceKm'] ?? json['distance']),
+      estimatedMinutes: _parseInt(json['estimatedMinutes']),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      expiresAt: json['expiresAt'] != null
+          ? DateTime.tryParse(json['expiresAt'].toString())
+          : null,
+      staffId: json['staffId'],
+      staffName: json['staffName'],
+      staffPhone: json['staffPhone'],
+      staffAvatarUrl: json['staffAvatarUrl'],
     );
   }
 }
@@ -139,6 +208,7 @@ class SosMatchingService extends ChangeNotifier {
   // Connection state
   bool _isConnected = false;
   bool _isConnecting = false;
+  Completer<void>? _connectCompleter;
 
   // Current matching state
   SosMatchingStatus? _currentStatus;
@@ -164,9 +234,9 @@ class SosMatchingService extends ChangeNotifier {
     String serverUrl = baseUrl.replaceAll('/api', '');
 
     if (serverUrl.startsWith('https://')) {
-      return serverUrl.replaceFirst('https://', 'wss://') + '/api/ws-native';
+      return '${serverUrl.replaceFirst('https://', 'wss://')}/api/ws-native';
     } else if (serverUrl.startsWith('http://')) {
-      return serverUrl.replaceFirst('http://', 'ws://') + '/api/ws-native';
+      return '${serverUrl.replaceFirst('http://', 'ws://')}/api/ws-native';
     }
     return 'ws://$serverUrl/ws-native';
   }
@@ -202,7 +272,8 @@ class SosMatchingService extends ChangeNotifier {
       // Check for existing active SOS booking first
       final activeBooking = await getActiveSosBooking();
       if (activeBooking != null) {
-        _logger.w('User already has active SOS booking: ${activeBooking.bookingId}');
+        _logger.w(
+            'User already has active SOS booking: ${activeBooking.bookingId}');
         _currentBookingId = activeBooking.bookingId;
         _currentStatus = SosMatchingStatus(
           bookingId: activeBooking.bookingId,
@@ -245,7 +316,28 @@ class SosMatchingService extends ChangeNotifier {
       }
     } catch (e) {
       _logger.e('Error starting SOS match: $e');
-      _error = 'Không thể kết nối. Vui lòng thử lại.';
+
+      // Parse error message from server response
+      String errorMessage = 'Không thể kết nối. Vui lòng thử lại.';
+      if (e is DioException) {
+        final responseData = e.response?.data;
+        if (responseData is Map<String, dynamic>) {
+          // Extract message from server error response
+          final serverMessage = responseData['message'] as String?;
+          if (serverMessage != null && serverMessage.isNotEmpty) {
+            errorMessage = serverMessage;
+          }
+        }
+
+        // Handle specific status codes
+        if (e.response?.statusCode == 409) {
+          // Conflict - likely duplicate SOS booking
+          errorMessage = responseData?['message'] ??
+              'Bạn đã có yêu cầu SOS đang hoạt động. Vui lòng hủy yêu cầu cũ trước.';
+        }
+      }
+
+      _error = errorMessage;
       _isLoading = false;
       notifyListeners();
     }
@@ -267,7 +359,12 @@ class SosMatchingService extends ChangeNotifier {
       }
       _logger.w('Cancel failed with status: ${response.statusCode}');
     } catch (e) {
-      _logger.e('Error cancelling SOS match: $e');
+      String errorMsg = e.toString();
+      if (e is DioException && e.response?.data is Map) {
+        errorMsg = e.response?.data['message'] ?? errorMsg;
+      }
+      _logger.e('Error cancelling SOS match: $errorMsg');
+      _error = errorMsg;
     }
     return false;
   }
@@ -287,10 +384,17 @@ class SosMatchingService extends ChangeNotifier {
 
   /// Connect to WebSocket
   Future<void> connect() async {
-    if (_isConnected || _isConnecting) return;
+    if (_isConnected) return;
+    if (_isConnecting) {
+      // Wait for existing connection attempt
+      await _connectCompleter?.future;
+      return;
+    }
     if (_accessToken == null) return;
 
     _isConnecting = true;
+    _connectCompleter = Completer<void>();
+
     _client = StompClient(
       config: StompConfig(
         url: _wsUrl,
@@ -300,6 +404,9 @@ class SosMatchingService extends ChangeNotifier {
           _logger.i('SOS Matching WebSocket connected');
           _isConnected = true;
           _isConnecting = false;
+          if (!_connectCompleter!.isCompleted) {
+            _connectCompleter!.complete();
+          }
         },
         onDisconnect: (frame) {
           _logger.w('SOS Matching WebSocket disconnected');
@@ -308,11 +415,22 @@ class SosMatchingService extends ChangeNotifier {
         },
         onStompError: (frame) {
           _logger.e('STOMP error: ${frame.body}');
+          _isConnecting = false;
+          if (_connectCompleter != null && !_connectCompleter!.isCompleted) {
+            _connectCompleter!.completeError('STOMP connection error');
+          }
         },
         reconnectDelay: const Duration(seconds: 5),
       ),
     );
     _client!.activate();
+
+    // Wait up to 5 seconds for connection
+    try {
+      await _connectCompleter!.future.timeout(const Duration(seconds: 5));
+    } catch (e) {
+      _logger.w('WebSocket connect timeout/error: $e');
+    }
   }
 
   /// Disconnect from WebSocket
@@ -331,8 +449,6 @@ class SosMatchingService extends ChangeNotifier {
       String bookingId, SosMatchingHandler handler) async {
     if (!_isConnected) {
       await connect();
-      // Wait for connection
-      await Future.delayed(const Duration(seconds: 1));
     }
 
     if (!_handlers.containsKey(bookingId)) {
@@ -340,7 +456,9 @@ class SosMatchingService extends ChangeNotifier {
     }
     _handlers[bookingId]!.add(handler);
 
-    if (!_subscriptions.containsKey(bookingId)) {
+    if (_isConnected &&
+        _client != null &&
+        !_subscriptions.containsKey(bookingId)) {
       final destination = '/topic/sos-matching/$bookingId';
       _logger.d('Subscribing to $destination');
 
@@ -363,7 +481,13 @@ class SosMatchingService extends ChangeNotifier {
         },
       );
       _subscriptions[bookingId] = unsubscribe;
+    } else {
+      _logger.w(
+          'WebSocket not connected, will rely on HTTP polling fallback for booking $bookingId');
     }
+
+    // Start HTTP polling fallback to catch status changes even if WebSocket fails
+    _startStatusPolling(bookingId);
   }
 
   /// Unsubscribe from SOS matching updates
@@ -371,6 +495,41 @@ class SosMatchingService extends ChangeNotifier {
     _subscriptions[bookingId]?.call();
     _subscriptions.remove(bookingId);
     _handlers.remove(bookingId);
+  }
+
+  // Active polling timers
+  final Map<String, Timer> _pollingTimers = {};
+
+  /// Start HTTP polling fallback to catch CONFIRMED status
+  void _startStatusPolling(String bookingId) {
+    _pollingTimers[bookingId]?.cancel();
+    _pollingTimers[bookingId] =
+        Timer.periodic(const Duration(seconds: 5), (timer) async {
+      try {
+        final status = await getMatchingStatus(bookingId);
+        if (status != null) {
+          // Only notify if status changed
+          if (_currentStatus?.status != status.status) {
+            _logger.i('Polling detected status change: ${status.status}');
+            _currentStatus = status;
+            for (final h in _handlers[bookingId] ?? {}) {
+              h(status);
+            }
+            notifyListeners();
+          }
+          // Stop polling once confirmed, in-progress, completed, or cancelled
+          if (status.isConfirmed ||
+              status.isCancelled ||
+              status.status == 'IN_PROGRESS' ||
+              status.status == 'COMPLETED') {
+            timer.cancel();
+            _pollingTimers.remove(bookingId);
+          }
+        }
+      } catch (e) {
+        _logger.e('Polling error: $e');
+      }
+    });
   }
 
   /// Clear current matching state
@@ -382,11 +541,20 @@ class SosMatchingService extends ChangeNotifier {
     _currentBookingId = null;
     _error = null;
     _isLoading = false;
+    // Cancel all polling timers
+    for (final timer in _pollingTimers.values) {
+      timer.cancel();
+    }
+    _pollingTimers.clear();
     notifyListeners();
   }
 
   @override
   void dispose() {
+    for (final timer in _pollingTimers.values) {
+      timer.cancel();
+    }
+    _pollingTimers.clear();
     disconnect();
     super.dispose();
   }

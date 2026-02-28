@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Period;
 import java.util.ArrayList;
@@ -67,6 +68,8 @@ public class BookingService {
         private final EmrRecordRepository emrRecordRepository;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
+        private final SosSessionManager sosSessionManager;
+        private final TrackingService trackingService;
 
         private static final int MAX_RETRY_COUNT = 3;
 
@@ -188,18 +191,25 @@ public class BookingService {
                         }
                         log.debug("Services total price: {}", servicesTotal);
 
-                        // 2. Calculate single distance fee for the whole booking (using clinic-level
-                        // pricePerKm)
+                        // 2. Calculate distance fee or SOS fee
                         BigDecimal distanceKm = request.getDistanceKm();
-                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
-                                        distanceKm,
-                                        request.getType());
-                        log.debug("Distance fee calculated: {}", distanceFee);
+                        BigDecimal distanceFee = BigDecimal.ZERO;
+                        BigDecimal sosFee = BigDecimal.ZERO;
+
+                        if (request.getType() == BookingType.SOS) {
+                                sosFee = pricingService.calculateSOSFee(clinic.getClinicId());
+                                log.debug("SOS fee calculated: {}", sosFee);
+                        } else {
+                                distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
+                                                distanceKm,
+                                                request.getType());
+                                log.debug("Distance fee calculated: {}", distanceFee);
+                        }
 
                         // 3. Final total
-                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
-                        log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
-                                        distanceFee);
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee).add(sosFee);
+                        log.info("Total booking price: {} (services: {} + distance: {} + SOS: {})",
+                                        totalPrice, servicesTotal, distanceFee, sosFee);
 
                         // Build booking entity
                         Booking booking = Booking.builder()
@@ -211,6 +221,7 @@ public class BookingService {
                                         .type(request.getType())
                                         .totalPrice(totalPrice)
                                         .distanceFee(distanceFee)
+                                        .sosFee(sosFee)
                                         .status(BookingStatus.PENDING)
                                         .notes(request.getNotes())
                                         .homeAddress(request.getHomeAddress())
@@ -535,6 +546,14 @@ public class BookingService {
                         throw new IllegalStateException("Booking cannot be cancelled in current status");
                 }
 
+                // If SOS booking, clear matching session from Redis
+                if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS booking {} being cancelled, clearing matching session", bookingId);
+                        sosSessionManager.clearSession(bookingId);
+                        // Also release user lock if still held
+                        sosSessionManager.releaseUserLock(booking.getPetOwner().getUserId());
+                }
+
                 // Release slots back to AVAILABLE before cancelling
                 staffAssignmentService.releaseSlotsForBooking(booking);
 
@@ -588,8 +607,12 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                if (booking.getStatus() != BookingStatus.PENDING) {
-                        throw new IllegalStateException("Chỉ có thể lấy danh sách nhân viên cho booking PENDING");
+                if (booking.getStatus() != BookingStatus.PENDING &&
+                                (booking.getType() != BookingType.SOS ||
+                                                (booking.getStatus() != BookingStatus.PENDING_CLINIC_CONFIRM
+                                                                && booking.getStatus() != BookingStatus.SEARCHING))) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể lấy danh sách nhân viên cho booking đang chờ xác nhận");
                 }
 
                 return staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
@@ -734,10 +757,9 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status - only allow for active bookings
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS
-                                && booking.getStatus() != BookingStatus.ARRIVED) {
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái ARRIVED hoặc IN_PROGRESS");
+                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái IN_PROGRESS");
                 }
 
                 // Fetch service
@@ -758,7 +780,8 @@ public class BookingService {
 
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
                 // If booking is HOME_VISIT and current user is STAFF,
-                // they can only add services within their specialty
+                // they can only add services within their specialty.
+                // SOS dispatches prioritize speed, so we bypass specialty checks.
                 if (booking.getType() == BookingType.HOME_VISIT
                                 && currentUser.getRole() == Role.STAFF) {
 
@@ -781,6 +804,8 @@ public class BookingService {
                                                                 "Chuyên môn của bạn: %s, Dịch vụ yêu cầu: %s",
                                                                 staffSpecialty, requiredSpecialty));
                         }
+                } else if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS Booking: Bypassing specialty check for service addition");
                 }
                 // IN_CLINIC: Manager can add any service (no specialty restriction)
 
@@ -814,6 +839,69 @@ public class BookingService {
 
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Process checkout for a booking (Staff/Manager action)
+         * For SOS bookings, allows overriding the SOS fee
+         *
+         * @param bookingId   Booking ID
+         * @param request     Checkout request with optional fee override
+         * @param currentUser Current user performing checkout
+         * @return Updated booking response
+         */
+        @Transactional
+        public BookingResponse processCheckout(UUID bookingId, CheckoutRequest request, User currentUser) {
+                log.info("Processing checkout for booking {} by user {}", bookingId, currentUser.getUserId());
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+                }
+
+                // Handle SOS fee override or automated calculation
+                if (booking.getType() == BookingType.SOS) {
+                        BigDecimal sosFee;
+                        if (request != null && request.getOverriddenSosFee() != null) {
+                                sosFee = request.getOverriddenSosFee();
+                                log.info("SOS Booking: using overridden SOS fee {}", sosFee);
+                        } else {
+                                sosFee = pricingService.calculateSOSFee(booking.getClinic().getClinicId());
+                                log.info("SOS Booking: using automated SOS fee calculation {}", sosFee);
+                        }
+
+                        booking.setSosFee(sosFee);
+
+                        // Recalculate total price
+                        BigDecimal servicesTotal = booking.getBookingServices().stream()
+                                        .map(BookingServiceItem::getUnitPrice)
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                        // Total = Services + SOS Fee (Distance fee is 0 for SOS)
+                        booking.setTotalPrice(servicesTotal.add(sosFee));
+                }
+
+                // Final status update
+                booking.setStatus(BookingStatus.COMPLETED);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} checked out successfully. Final total: {}", bookingId, booking.getTotalPrice());
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendCompletedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send completed notification: {}", e.getMessage());
+                }
 
                 return bookingMapper.mapToResponse(booking);
         }
@@ -962,10 +1050,10 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - allow CONFIRMED or ARRIVED
-                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.ARRIVED) {
+                // Validate status - allow CONFIRMED or IN_PROGRESS (Staff has arrived)
+                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc ARRIVED. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc IN_PROGRESS. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -983,6 +1071,88 @@ public class BookingService {
                         notificationService.sendCheckinNotification(booking);
                 } catch (Exception e) {
                         log.warn("Failed to send check-in notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Start moving to customer location (Staff action)
+         * Transitions: CONFIRMED → IN_PROGRESS
+         * Only for SOS/HOME_VISIT bookings
+         */
+        @Transactional
+        public BookingResponse startMoving(UUID bookingId) {
+                log.info("Staff starting movement for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate type
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
+                                && booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
+                        throw new IllegalStateException("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+                }
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                // Update status to IN_PROGRESS
+                booking.setStatus(BookingStatus.IN_PROGRESS);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} started moving. Status: IN_PROGRESS", booking.getBookingCode());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "START_MOVING");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendStaffOnWayNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send movement notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        @Transactional
+        public BookingResponse arrived(UUID bookingId) {
+                log.info("Staff arrived for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status - must be IN_PROGRESS (movement phase)
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                booking.setArrivedAt(LocalDateTime.now());
+                Booking savedBooking = bookingRepository.save(booking);
+
+                log.info("Booking {} arrival recorded at {}", savedBooking.getBookingCode(), savedBooking.getArrivedAt());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "ARRIVED");
+
+                // Broadcast ARRIVED event qua WebSocket tracking để Pet Owner nhận real-time
+                try {
+                        trackingService.publishArrival(savedBooking);
+                } catch (Exception e) {
+                        log.warn("Failed to publish ARRIVED tracking event: {}", e.getMessage());
+                }
+
+                try {
+                        notificationService.sendStaffArrivedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send arrival notification: {}", e.getMessage());
                 }
 
                 return bookingMapper.mapToResponse(booking);
@@ -1013,6 +1183,13 @@ public class BookingService {
                 booking.setStatus(BookingStatus.COMPLETED);
                 bookingRepository.save(booking);
 
+                // Clear GPS tracking data from Redis (for SOS/HOME_VISIT bookings)
+                try {
+                        trackingService.clearTracking(bookingId);
+                } catch (Exception e) {
+                        log.warn("Failed to clear tracking data: {}", e.getMessage());
+                }
+
                 log.info("Booking {} completed successfully", booking.getBookingCode());
 
                 // Push SSE event for real-time sync
@@ -1024,62 +1201,6 @@ public class BookingService {
                 } catch (Exception e) {
                         log.warn("Failed to send completed notification: {}", e.getMessage());
                 }
-
-                return bookingMapper.mapToResponse(booking);
-        }
-
-        /**
-         * Process checkout for SOS booking (Manager action)
-         * Allows overriding SOS fee and transitions to COMPLETED
-         */
-        @Transactional
-        public BookingResponse processCheckout(UUID bookingId, CheckoutRequest request, User currentUser) {
-                log.info("Processing checkout for SOS booking {} by user {}", bookingId, currentUser.getUserId());
-
-                Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                // Validate: Must be SOS
-                if (booking.getType() != BookingType.SOS) {
-                        throw new BadRequestException("Phương thức này chỉ dành cho khách hàng SOS");
-                }
-
-                // Validate: Status - allow IN_PROGRESS or ARRIVED or ON_THE_WAY
-                if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
-                        throw new IllegalStateException("Lịch hẹn đã kết thúc hoặc đã bị hủy");
-                }
-
-                // Handle SOS fee override or automated calculation
-                BigDecimal sosFee = BigDecimal.ZERO;
-                if (request != null && request.getOverriddenSosFee() != null) {
-                        sosFee = request.getOverriddenSosFee();
-                        log.info("Using overridden SOS fee: {}", sosFee);
-                } else {
-                        sosFee = pricingService.calculateSOSFee(booking.getClinic().getClinicId());
-                        log.info("Using automated SOS fee calculation: {}", sosFee);
-                }
-
-                // Update booking
-                booking.setSosFee(sosFee);
-
-                // Recalculate total price: Sum of services + sosFee (distance fee is usually 0
-                // for SOS)
-                BigDecimal servicesTotal = booking.getBookingServices().stream()
-                                .map(item -> item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                BigDecimal totalAmount = servicesTotal.add(sosFee);
-                booking.setTotalPrice(totalAmount);
-
-                // Finalize the booking
-                booking.setStatus(BookingStatus.COMPLETED);
-                bookingRepository.save(booking);
-
-                log.info("SOS Booking {} checked out successfully. Final price: {}", booking.getBookingCode(),
-                                totalAmount);
-
-                // Push SSE event
-                bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECKOUT_COMPLETED");
 
                 return bookingMapper.mapToResponse(booking);
         }
@@ -1193,7 +1314,8 @@ public class BookingService {
         }
 
         /**
-         * Get bookings by pet owner with eager loading to avoid LazyInitializationException
+         * Get bookings by pet owner with eager loading to avoid
+         * LazyInitializationException
          */
         @Transactional(readOnly = true)
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
@@ -1208,13 +1330,13 @@ public class BookingService {
                 int end = Math.min(start + pageable.getPageSize(), allBookings.size());
 
                 List<Booking> pagedBookings = start >= allBookings.size()
-                        ? List.of()
-                        : allBookings.subList(start, end);
+                                ? List.of()
+                                : allBookings.subList(start, end);
 
                 // Map to response
                 List<BookingResponse> responses = pagedBookings.stream()
-                        .map(bookingMapper::mapToResponse)
-                        .collect(Collectors.toList());
+                                .map(bookingMapper::mapToResponse)
+                                .collect(Collectors.toList());
 
                 return new org.springframework.data.domain.PageImpl<>(responses, pageable, total);
         }

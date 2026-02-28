@@ -91,7 +91,7 @@ const mergeSlots = (slots: SlotResponse[] | null): MergedSlot[] => {
                 id: slot.slotId,
                 startTime: slot.startTime,
                 endTime: slot.endTime,
-                status: slot.status as any,
+                status: slot.status as 'AVAILABLE' | 'BOOKED' | 'BLOCKED',
                 petName: slot.petName,
                 petOwnerName: slot.petOwnerName,
                 bookingId: slot.bookingId,
@@ -165,13 +165,50 @@ export const StaffShiftPage = () => {
     const [viewMode, setViewMode] = useState<'week' | 'day' | 'month'>('week')
     const [selectedDay, setSelectedDay] = useState<Date>(new Date())
 
+    const fetchStaff = useCallback(async () => {
+        if (!clinicId) return
+        try {
+            const staffList = await clinicStaffService.getClinicStaff(clinicId)
+            const filteredStaff = staffList.filter(s => s.role === 'STAFF')
+            setStaffMembers(filteredStaff)
+        } catch (err) {
+            console.error('fetchStaff error:', err)
+        }
+    }, [clinicId])
+
+    const fetchShifts = useCallback(async () => {
+        if (!clinicId || weekDates.length === 0) return
+        setLoading(true)
+        try {
+            let startDate = formatDate(weekDates[0])
+            let endDate = formatDate(weekDates[6])
+
+            if (viewMode === 'month') {
+                const year = currentWeek.getFullYear()
+                const month = currentWeek.getMonth()
+                const first = new Date(year, month, 1)
+                const last = new Date(year, month + 1, 0)
+                startDate = formatDate(first)
+                endDate = formatDate(last)
+            }
+
+            const data = await staffShiftService.getShiftsByClinic(clinicId, startDate, endDate)
+            setShifts(data)
+        } catch (err) {
+            showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
+        } finally {
+            setLoading(false)
+        }
+    }, [clinicId, weekDates, viewMode, currentWeek, showToast])
+
     // Force re-calculate weekDates when currentWeek changes
     useEffect(() => {
         console.log('StaffShiftPage: currentWeek changed to:', currentWeek)
-        const newWeekDates = getWeekDates(new Date(currentWeek))
+        const currentWeekTime = currentWeek.getTime()
+        const newWeekDates = getWeekDates(new Date(currentWeekTime))
         console.log('StaffShiftPage: new weekDates:', newWeekDates.map(d => d.toDateString()))
         setWeekDates(newWeekDates)
-    }, [currentWeek.getTime()]) // Use getTime() to detect actual date changes
+    }, [currentWeek])
 
     // When switching to Day view, sync selectedDay to be within current week
     // Constraint logic removed to fix Month->Day navigation bug
@@ -196,42 +233,6 @@ export const StaffShiftPage = () => {
         if (clinicId && weekDates.length > 0) fetchShifts()
     }, [clinicId, weekDates, viewMode])
 
-    const fetchStaff = async () => {
-        if (!clinicId) return
-        try {
-            const staffList = await clinicStaffService.getClinicStaff(clinicId)
-            const filteredStaff = staffList.filter(s => s.role === 'STAFF')
-            setStaffMembers(filteredStaff)
-        } catch (err: any) {
-            console.error('fetchStaff error:', err)
-        }
-    }
-
-    const fetchShifts = async () => {
-        if (!clinicId || weekDates.length === 0) return
-        setLoading(true)
-        try {
-            let startDate = formatDate(weekDates[0])
-            let endDate = formatDate(weekDates[6])
-
-            if (viewMode === 'month') {
-                const year = currentWeek.getFullYear()
-                const month = currentWeek.getMonth()
-                const first = new Date(year, month, 1)
-                const last = new Date(year, month + 1, 0)
-                startDate = formatDate(first)
-                endDate = formatDate(last)
-            }
-
-            const data = await staffShiftService.getShiftsByClinic(clinicId, startDate, endDate)
-            setShifts(data)
-        } catch (err: any) {
-            showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
-        } finally {
-            setLoading(false)
-        }
-    }
-
     const handlePrevWeek = () => {
         const prev = new Date(currentWeek)
         prev.setDate(prev.getDate() - 7)
@@ -255,7 +256,7 @@ export const StaffShiftPage = () => {
             try {
                 const detail = await staffShiftService.getShiftDetail(selectedShift.shiftId)
                 setShiftDetail(detail)
-            } catch (err: any) {
+            } catch (err) {
                 showToast('error', 'Không thể tải chi tiết slots')
             } finally {
                 setLoadingSlots(false)
@@ -280,7 +281,7 @@ export const StaffShiftPage = () => {
             try {
                 const details = await Promise.all(detailPromises)
                 setDayViewShifts(details)
-            } catch {
+            } catch (err) {
                 setDayViewShifts(dayShifts) // Fallback to basic data
             }
         }
@@ -302,7 +303,7 @@ export const StaffShiftPage = () => {
             }
             showToast('success', 'Đã khóa slot')
             fetchShifts() // Refresh grid counts
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || 'Lỗi khóa slot')
         }
     }
@@ -320,7 +321,7 @@ export const StaffShiftPage = () => {
             }
             showToast('success', 'Đã mở khóa slot')
             fetchShifts() // Refresh grid counts
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || 'Lỗi mở khóa slot')
         }
     }
@@ -486,9 +487,9 @@ export const StaffShiftPage = () => {
             return h * 60 + m
         }
 
-        let s1 = toMinutes(start1)
+        const s1 = toMinutes(start1)
         let e1 = toMinutes(end1)
-        let s2 = toMinutes(start2)
+        const s2 = toMinutes(start2)
         let e2 = toMinutes(end2)
 
         // Handle overnight shifts (add 24h to end time if it's before start)
@@ -602,7 +603,7 @@ export const StaffShiftPage = () => {
             })
             setSelectedShift(null) // Clear selected shift
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi tạo lịch')
         } finally {
             setLoading(false)
@@ -617,7 +618,7 @@ export const StaffShiftPage = () => {
             setIsDeleteModalOpen(false)
             showToast('success', 'Đã xóa ca làm việc')
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi xóa lịch')
         }
     }
@@ -631,7 +632,7 @@ export const StaffShiftPage = () => {
             setIsBulkDeleteModalOpen(false)
             showToast('success', `Đã xóa ${selectedShiftIds.length} ca`)
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi xóa hàng loạt')
         }
     }

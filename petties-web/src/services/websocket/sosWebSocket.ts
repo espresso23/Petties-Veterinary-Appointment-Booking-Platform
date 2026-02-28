@@ -15,9 +15,16 @@ export interface SosAlertMessage {
     status?: 'SEARCHING' | 'PENDING_CLINIC_CONFIRM' | 'CONFIRMED' | 'CANCELLED' | 'NO_CLINIC'
     petId?: string
     petName?: string
+    petSpecies?: string
+    petBreed?: string
+    petWeight?: number
+    petAvatarUrl?: string
     petOwnerName?: string
     petOwnerPhone?: string
     symptoms?: string
+    homeAddress?: string
+    homeLat?: number
+    homeLong?: number
     latitude?: number
     longitude?: number
     distance?: number
@@ -56,6 +63,12 @@ class SosWebSocketService {
 
         this.clinicId = clinicId
         this.isConnecting = true
+
+        // Clear stale subscriptions from previous connection (#5: prevent memory leak on reconnect)
+        this.subscriptions.forEach((unsubscribe) => {
+            try { unsubscribe() } catch { /* ignore stale unsubscribe */ }
+        })
+        this.subscriptions.clear()
 
         return new Promise((resolve, reject) => {
             const wsUrl = `${env.API_BASE_URL.replace('/api', '')}/api/ws`
@@ -148,38 +161,6 @@ class SosWebSocketService {
      */
     removeAlertHandler(handler: SosAlertHandler): void {
         this.alertHandlers.delete(handler)
-    }
-
-    /**
-     * Confirm SOS request
-     */
-    confirmSos(bookingId: string): void {
-        if (!this.client?.connected) {
-            console.warn('[SOS WS] Not connected, cannot send confirmation')
-            return
-        }
-
-        this.client.publish({
-            destination: `/app/sos/${bookingId}/confirm`,
-            body: JSON.stringify({ confirmed: true }),
-        })
-        console.log('[SOS WS] Sent SOS confirmation for:', bookingId)
-    }
-
-    /**
-     * Decline SOS request
-     */
-    declineSos(bookingId: string, reason?: string): void {
-        if (!this.client?.connected) {
-            console.warn('[SOS WS] Not connected, cannot send decline')
-            return
-        }
-
-        this.client.publish({
-            destination: `/app/sos/${bookingId}/decline`,
-            body: JSON.stringify({ accepted: false, reason }),
-        })
-        console.log('[SOS WS] Sent SOS decline for:', bookingId)
     }
 
     /**

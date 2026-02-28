@@ -69,26 +69,10 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
         manifestPlaceholders["MAP_API_KEY"] = mapApiKey
+        resValue("string", "app_name", "Petties")
     }
 
-    // Flavor configuration for dev/test/prod environments
-    flavorDimensions += "environment"
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            versionNameSuffix = "-dev"
-            resValue("string", "app_name", "Petties Dev")
-        }
-        create("staging") {
-            dimension = "environment"
-            versionNameSuffix = "-staging"
-            resValue("string", "app_name", "Petties Staging")
-        }
-        create("prod") {
-            dimension = "environment"
-            resValue("string", "app_name", "Petties")
-        }
-    }
+    // No flavors - using .env file for environment configuration instead
 
     buildTypes {
         release {

@@ -741,7 +741,7 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

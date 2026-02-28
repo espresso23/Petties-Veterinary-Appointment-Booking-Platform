@@ -35,6 +35,7 @@ public enum NotificationType {
     BOOKING_CHECKIN, // Staff đã check-in và bắt đầu khám
     BOOKING_COMPLETED, // Lịch hẹn đã hoàn thành
     STAFF_ON_WAY, // Nhân viên đang trên đường đến (HOME_VISIT/SOS)
+    STAFF_ARRIVED, // Nhân viên đã đến địa chỉ của bạn
     BOOKING_ASSIGNED, // Staff được gán vào booking
 
     // Additional Clinic notifications

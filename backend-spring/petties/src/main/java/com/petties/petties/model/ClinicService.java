@@ -41,6 +41,7 @@ public class ClinicService {
     private MasterService masterService;
 
     // NEW: Phân biệt Custom vs Inherited
+    @Builder.Default
     @Column(name = "is_custom", nullable = false)
     private Boolean isCustom = true;
 
@@ -59,9 +60,11 @@ public class ClinicService {
     @Column(name = "slots_required", nullable = false)
     private Integer slotsRequired;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Builder.Default
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
@@ -79,6 +82,7 @@ public class ClinicService {
     @Column(name = "pet_type", length = 100)
     private String petType;
 
+    @Builder.Default
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
 

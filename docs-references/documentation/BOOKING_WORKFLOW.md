@@ -20,13 +20,9 @@ stateDiagram-v2
     ASSIGNED --> ASSIGNED: Manager Reassign Staff (v1.5.0)
     
     ASSIGNED --> IN_PROGRESS: Staff check-in (IN_CLINIC)
-    ASSIGNED --> ON_THE_WAY: Staff bắt đầu di chuyển (HOME_VISIT/SOS)
+    ASSIGNED --> IN_PROGRESS: Staff bắt đầu di chuyển (HOME_VISIT/SOS)
     ASSIGNED --> NO_SHOW: Khách không đến
     ASSIGNED --> CANCELLED: Hủy
-    
-    ON_THE_WAY --> ARRIVED: Staff đến nơi
-    
-    ARRIVED --> IN_PROGRESS: Staff check-in
     
     IN_PROGRESS --> COMPLETED: Staff checkout + Thanh toán
     
@@ -46,9 +42,7 @@ stateDiagram-v2
 | `PENDING` | Chờ xác nhận | Pet Owner tạo | All |
 | `CONFIRMED` | Đã xác nhận | Clinic Manager | All |
 | `ASSIGNED` | Đã phân công Staff | Clinic Manager | All |
-| `ON_THE_WAY` | Staff đang đến | Staff | HOME_VISIT, SOS |
-| `ARRIVED` | Staff đã đến | Staff | HOME_VISIT, SOS |
-| `IN_PROGRESS` | Đang khám (sau check-in) | Staff | All |
+| `IN_PROGRESS` | Đang khám / Đang di chuyển (SOS) | Staff | All |
 | `COMPLETED` | Hoàn thành (sau checkout + thanh toán) | Staff | All |
 | `CANCELLED` | Đã hủy | Pet Owner/Clinic | All |
 | `NO_SHOW` | Khách không đến | Clinic | All |
@@ -57,7 +51,8 @@ stateDiagram-v2
 
 | Action | Trigger | Transition |
 |--------|---------|------------|
-| `check-in` | Staff bấm check-in | ASSIGNED/ARRIVED → IN_PROGRESS |
+| `check-in` | Staff bấm check-in | ASSIGNED → IN_PROGRESS |
+| `start-moving` | Staff bắt đầu di chuyển | ASSIGNED → IN_PROGRESS |
 | `checkout` | Staff bấm checkout | IN_PROGRESS → COMPLETED |
 
 ---
@@ -71,12 +66,12 @@ PENDING → CONFIRMED → ASSIGNED → (check-in) → IN_PROGRESS → (checkout)
 
 ### 3.2 HOME_VISIT (Khám tại nhà)
 ```
-PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY → ARRIVED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
+PENDING → CONFIRMED → ASSIGNED → (check-in / start-moving) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 ### 3.3 SOS (Cấp cứu)
 ```
-PENDING → CONFIRMED → ASSIGNED → ON_THE_WAY (GPS Tracking) → ARRIVED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
+PENDING → CONFIRMED → ASSIGNED → (start-moving) → IN_PROGRESS (GPS Tracking) → (checkout) → COMPLETED
 ```
 
 > **Note:** SOS có thêm GPS tracking real-time qua Redis
@@ -136,15 +131,11 @@ sequenceDiagram
     S-->>V: 🔔 Được phân công
 
     V->>S: Bắt đầu di chuyển
-    S->>S: Status = ON_THE_WAY
-    S-->>PO: 🔔 Staff đang đến
-
-    V->>S: Đã đến nơi
-    S->>S: Status = ARRIVED
-    S-->>PO: 🔔 Staff đã đến
-
-    V->>S: Check-in
     S->>S: Status = IN_PROGRESS
+    S-->>PO: 🔔 Staff đang đến (Real-time tracking nếu là SOS)
+
+    V->>S: Đã đến nơi (action arrived - sets timestamp)
+    S->>S: arrivedAt = NOW
 
     Note over V: Khám tại nhà
 
@@ -168,18 +159,17 @@ sequenceDiagram
     S->>S: Status = ASSIGNED
 
     V->>S: Accept + Start moving
-    S->>S: Status = ON_THE_WAY
+    S->>S: Status = IN_PROGRESS
 
     loop Every 5 seconds
         V->>R: Update GPS location
         R-->>PO: Real-time GPS via WebSocket
     end
 
-    V->>S: Arrived
-    S->>S: Status = ARRIVED
-    R->>R: Stop GPS tracking
+    V->>S: Đã đến nơi (action arrived)
+    S->>S: arrivedAt = NOW
 
-    V->>S: Check-in (action) → Khám → Checkout (action)
+    V->>S: Khám → Checkout (action)
     S->>S: IN_PROGRESS → COMPLETED
 ```
 

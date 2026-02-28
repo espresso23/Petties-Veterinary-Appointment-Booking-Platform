@@ -11,11 +11,20 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.ResponseBody;
+
 import java.security.Principal;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * WebSocket Controller for real-time Staff location tracking.
+ * Controller for real-time Staff location tracking via WebSockets
+ * and HTTP endpoints for initial location fetch.
  * 
  * Staff sends location updates via STOMP to /app/tracking.update
  * Pet Owner subscribes to /topic/booking.{bookingId}.location to receive
@@ -72,5 +81,33 @@ public class TrackingController {
         } catch (Exception e) {
             log.error("Error processing tracking update: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Get current Staff location for a booking.
+     * Used when Pet Owner first opens the tracking screen to get initial position.
+     * 
+     * @param bookingId   The booking ID
+     * @param userDetails Authenticated Pet Owner
+     * @return Current location or 204 No Content if not available
+     */
+    @GetMapping("/tracking/booking/{bookingId}")
+    @ResponseBody
+    public ResponseEntity<LocationUpdateResponse> getStaffLocation(
+            @PathVariable UUID bookingId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        if (!(userDetails instanceof com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal)) {
+            return ResponseEntity.status(401).build();
+        }
+
+        UUID ownerId = ((com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails).getUserId();
+        log.debug("Pet Owner {} requesting Staff location for booking {}", ownerId, bookingId);
+
+        Optional<LocationUpdateResponse> location = trackingService.getStaffLocation(bookingId, ownerId);
+
+        return location
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 }

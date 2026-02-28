@@ -34,7 +34,6 @@ export function ClinicSelectModal({ isOpen, onClose, onApply }: ClinicSelectModa
           setClinics(data)
         } catch (err) {
           // log and show empty list
-          // eslint-disable-next-line no-console
           console.error('Failed to load clinics in modal', err)
           setClinics([])
         } finally {

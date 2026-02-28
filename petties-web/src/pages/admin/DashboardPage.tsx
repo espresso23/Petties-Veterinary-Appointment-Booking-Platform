@@ -19,37 +19,42 @@ export const AdminDashboardPage = () => {
     const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
     const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
 
-    const checkServices = async () => {
-        // Check AI Service
-        try {
-            const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
-            if (res.ok) {
-                const data = await res.json()
-                setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })
-            } else {
-                setAiHealth({ status: 'error', message: `HTTP ${res.status}` })
-            }
-        } catch {
-            setAiHealth({ status: 'error', message: 'Not running' })
-        }
-
-        // Check Spring Boot
-        try {
-            const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
-            if (res.ok) {
-                const data = await res.json()
-                setSpringHealth({ status: 'healthy', message: data.status || 'UP' })
-            } else {
-                setSpringHealth({ status: 'error', message: `HTTP ${res.status}` })
-            }
-        } catch {
-            setSpringHealth({ status: 'error', message: 'Connection failed' })
-        }
-    }
-
     useEffect(() => {
+        const checkServices = async () => {
+            // Check AI Service
+            try {
+                const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
+                if (res.ok) {
+                    const data = await res.json() as { service?: string; version?: string }
+
+                    setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })
+                } else {
+
+                    setAiHealth({ status: 'error', message: `HTTP ${res.status}` })
+                }
+            } catch {
+
+                setAiHealth({ status: 'error', message: 'Not running' })
+            }
+
+            // Check Spring Boot
+            try {
+                const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
+                if (res.ok) {
+                    const data = await res.json() as { status?: string }
+
+                    setSpringHealth({ status: 'healthy', message: data.status || 'UP' })
+                } else {
+
+                    setSpringHealth({ status: 'error', message: `HTTP ${res.status}` })
+                }
+            } catch {
+
+                setSpringHealth({ status: 'error', message: 'Connection failed' })
+            }
+        }
+
         checkServices()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const getStatusStyle = (status: ServiceHealth['status']) => {

@@ -148,7 +148,7 @@ export const PlaygroundPage = () => {
   // ReAct trace state
   const [reactSteps, setReactSteps] = useState<ReActStep[]>([])
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set())
-  const [debugLogs, setDebugLogs] = useState<any[]>([])
+  const [debugLogs, setDebugLogs] = useState<unknown[]>([])
   const [showDebug, setShowDebug] = useState(false)
   const [showTracePanel, setShowTracePanel] = useState(true)
   const [debugPanelHeight, setDebugPanelHeight] = useState(40) // Default 40% height
@@ -158,12 +158,7 @@ export const PlaygroundPage = () => {
 
   // ==================== LOAD DATA ====================
 
-  // Load agents and settings on mount
-  useEffect(() => {
-    loadAgentData()
-  }, [])
-
-  const loadAgentData = async () => {
+  const loadAgentData = useCallback(async () => {
     try {
       setLoadingAgents(true)
       const response = await agentApi.getAgents()
@@ -191,14 +186,19 @@ export const PlaygroundPage = () => {
         // Load API keys
         await loadProviderSettings(provider)
       }
-    } catch (error) {
+    } catch (err) {
       console.error('Failed to load agents:', error)
     } finally {
       setLoadingAgents(false)
     }
-  }
+  }, [loadProviderSettings])
 
-  const loadProviderSettings = async (currentProvider?: LLMProvider) => {
+  // Load agents and settings on mount
+  useEffect(() => {
+    loadAgentData()
+  }, [loadAgentData])
+
+  const loadProviderSettings = useCallback(async (currentProvider?: LLMProvider) => {
     try {
       const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
         headers: getAuthHeaders(),
@@ -219,7 +219,7 @@ export const PlaygroundPage = () => {
     } catch (err) {
       console.error('Failed to load provider settings:', err)
     }
-  }
+  }, [selectedProvider])
 
   const handleSeedDatabase = async () => {
     setShowSeedConfirm(false)
@@ -426,11 +426,12 @@ export const PlaygroundPage = () => {
           timestamp: new Date().toISOString()
         }, ...prev].slice(0, 100))
         handleWebSocketMessage(data)
-      } catch (error) {
+      } catch (err) {
         console.error('Failed to parse WebSocket message:', error)
       }
     }
     wsRef.current = ws
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
   const handleWebSocketMessage = useCallback((data: {
@@ -986,20 +987,20 @@ export const PlaygroundPage = () => {
                 <div className="h-full flex items-center justify-center text-stone-600 italic">No events yet... Waiting for agent interaction.</div>
               ) : (
                 debugLogs.map((log) => (
-                  <div key={log.id} className="border-l-2 border-stone-700 pl-3 py-1 hover:bg-stone-800 transition-colors">
+                  <div key={(log as any).id} className="border-l-2 border-stone-700 pl-3 py-1 hover:bg-stone-800 transition-colors">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-stone-500">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                      <span className={`px-1.5 py-0.5 rounded font-black uppercase text-[9px] ${log.type === 'thinking' ? 'bg-blue-900 text-blue-200' :
-                        log.type === 'tool_call' ? 'bg-purple-900 text-purple-200' :
-                          log.type === 'tool_result' ? 'bg-green-900 text-green-200' :
-                            log.type === 'error' ? 'bg-red-900 text-red-200' :
+                      <span className="text-stone-500">[{new Date((log as any).timestamp).toLocaleTimeString()}]</span>
+                      <span className={`px-1.5 py-0.5 rounded font-black uppercase text-[9px] ${(log as any).type === 'thinking' ? 'bg-blue-900 text-blue-200' :
+                        (log as any).type === 'tool_call' ? 'bg-purple-900 text-purple-200' :
+                          (log as any).type === 'tool_result' ? 'bg-green-900 text-green-200' :
+                            (log as any).type === 'error' ? 'bg-red-900 text-red-200' :
                               'bg-stone-700 text-stone-300'
                         }`}>
-                        {log.type}
+                        {(log as any).type}
                       </span>
                     </div>
                     <pre className="text-stone-300 whitespace-pre-wrap break-all">
-                      {JSON.stringify(log.data, null, 2)}
+                      {JSON.stringify((log as any).data, null, 2)}
                     </pre>
                   </div>
                 ))

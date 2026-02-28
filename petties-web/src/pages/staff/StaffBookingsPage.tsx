@@ -180,8 +180,8 @@ export const StaffBookingsPage = () => {
             setAvailableServices(services);
             setAddServiceModalOpen(true);
         } catch (error) {
-            console.error('Failed to fetch available services:', error);
-            showToast('error', 'Không thể tải danh sách dịch vụ');
+            console.error('Error opening service modal:', error)
+            showToast('error', 'Không thể lấy danh sách dịch vụ')
         }
     };
 
@@ -567,7 +567,7 @@ export const StaffBookingsPage = () => {
                                     {/* Action Buttons - Shared Visibility */}
                                     <div className="pt-6 border-t-2 border-stone-100 flex flex-col gap-4">
                                         {/* Check-in button - only for assigned staff */}
-                                        {(selectedBooking.status === 'CONFIRMED' || selectedBooking.status === 'ARRIVED') &&
+                                        {selectedBooking.status === 'CONFIRMED' &&
                                             selectedBooking.services?.some(svc => svc.assignedStaffId === user?.userId) && (
                                                 <button
                                                     onClick={async () => {

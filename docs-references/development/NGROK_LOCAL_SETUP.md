@@ -193,27 +193,17 @@ Thay thế `API_BASE_URL` và thêm `AI_SERVICE_URL`:
 
 ```bash
 # Backend API URL từ ngrok (thay abc123 bằng URL thực tế)
-API_BASE_URL=https://abc123.ngrok-free.app
+API_BASE_URL=https://abc123.ngrok.io
 
-# AI Service URL - để trống để auto-detect từ API_BASE_URL
-# (Vì dùng nginx reverse proxy, AI service cùng URL với Backend)
-AI_SERVICE_URL=
-
-# WebSocket URLs - dùng cùng domain với API_BASE_URL
-# Backend WebSocket: wss://abc123.ngrok-free.app/ws/chat/{conversationId}
-# AI WebSocket: wss://abc123.ngrok-free.app/ws/chat/{session_id}
-WS_URL=wss://abc123.ngrok-free.app
+# AI Service URL từ ngrok (thay def456 bằng URL thực tế)
+AI_SERVICE_URL=https://def456.ngrok.io
 
 # Giữ nguyên các config khác:
-GOOGLE_CLIENT_ID=620454234596-7vpt8pg3sdqo0j2u0r6j4iuaqu1q8t9h.apps.googleusercontent.com
-GOONG_API_KEY=wFNRmlVOfptNJb1489XgcutaXwZc2FBJJPU3VQ0j
-MAP_API_KEY=AIzaSyC-IQBcX0Sbbhb0seXwGdUbkvB5rSBUoic
+GOOGLE_CLIENT_ID=
+GOONG_API_KEY=
+MAP_API_KEY=
 ENVIRONMENT=dev
 ```
-
-**Lưu ý WebSocket:**
-- Backend WebSocket: `wss://xxx.ngrok-free.app/ws/chat/{conversationId}`
-- AI WebSocket: `wss://xxx.ngrok-free.app/ws/chat/{session_id}` (cùng path nhưng khác query params)
 
 ### Step 4: Rebuild & Run Mobile
 
@@ -237,7 +227,7 @@ flutter run
 ### Test Backend API
 ```bash
 # Từ mobile hoặc browser
-curl https://abc123.ngrok-free.app/api/actuator/health
+curl https://abc123.ngrok.io/api/actuator/health
 
 # Expected: {"status":"UP"}
 ```
@@ -245,31 +235,9 @@ curl https://abc123.ngrok-free.app/api/actuator/health
 ### Test AI Service
 ```bash
 # Từ mobile hoặc browser
-curl https://abc123.ngrok-free.app/health
+curl https://def456.ngrok.io/health
 
 # Expected: {"status":"healthy","service":"ai-agent"}
-```
-
-### Test WebSocket
-
-**Backend WebSocket:**
-```bash
-# Test WebSocket connection (dùng wscat hoặc websocat)
-wscat -c "wss://abc123.ngrok-free.app/ws/chat/test-conversation?token=YOUR_JWT_TOKEN"
-
-# Hoặc test với curl (HTTP upgrade)
-curl -i -N \
-  -H "Connection: Upgrade" \
-  -H "Upgrade: websocket" \
-  -H "Host: abc123.ngrok-free.app" \
-  -H "Origin: https://abc123.ngrok-free.app" \
-  "https://abc123.ngrok-free.app/ws-native"
-```
-
-**AI WebSocket:**
-```bash
-# AI Chat WebSocket
-wscat -c "wss://abc123.ngrok-free.app/ws/chat/test-session?token=YOUR_JWT_TOKEN"
 ```
 
 ---
@@ -286,24 +254,7 @@ wscat -c "wss://abc123.ngrok-free.app/ws/chat/test-session?token=YOUR_JWT_TOKEN"
 
 ## WebSocket Support (Cho Chat)
 
-### WebSocket với Nginx Reverse Proxy
-
-Với setup Nginx, cả Backend và AI Service đều dùng chung domain nhưng khác path:
-
-| Service | WebSocket URL | Path |
-|---------|---------------|------|
-| **Backend** | `wss://abc123.ngrok-free.app/ws/chat/{conversationId}` | `/ws/chat/*` |
-| **AI Service** | `wss://abc123.ngrok-free.app/ws/chat/{session_id}` | `/ws/chat/*` |
-| **Backend Native** | `wss://abc123.ngrok-free.app/ws-native` | `/ws-native` |
-
-> **Lưu ý quan trọng:** Cả Backend và AI Service đều dùng path `/ws/chat/*`. Nginx phân biệt bằng cách... không thể phân biệt chỉ bằng path! 
-> 
-> Đây là **limitation** của setup này. Nếu cần dùng cả 2 WebSocket cùng lúc, bạn cần:
-> - Option A: Dùng 2 ngrok tunnels riêng biệt (cần ngrok paid)
-> - Option B: Đổi AI WebSocket path trong code (vd: `/ai/ws/chat/*`)
-> - Option C: Dùng IP LAN thay vì ngrok cho development
-
-### Config trong Mobile
+Nếu dùng WebSocket (chat feature), cần đổi từ `ws://` sang `wss://`:
 
 ```dart
 // File: petties_mobile/lib/config/env/environment.dart
@@ -312,9 +263,7 @@ Với setup Nginx, cả Backend và AI Service đều dùng chung domain nhưng 
 final wsUrl = 'ws://localhost:8080/ws';
 
 // ✅ Đúng - Dùng wss:// cho ngrok HTTPS
-final wsUrl = 'wss://abc123.ngrok-free.app';
-// Backend WebSocket: $wsUrl/ws/chat/{conversationId}
-// AI WebSocket: $wsUrl/ws/chat/{session_id}
+final wsUrl = 'wss://abc123.ngrok.io/ws';
 ```
 
 **Update trong environment.dart:**
@@ -326,7 +275,7 @@ static String get wsUrl {
   }
   
   // Default cho ngrok (wss://)
-  return 'wss://abc123.ngrok-free.app';
+  return 'wss://abc123.ngrok.io/ws';
 }
 ```
 
@@ -386,25 +335,19 @@ Nếu dùng **IP LAN** hoặc **static ngrok domain**, thêm vào:
 
 ### Issue 1: "Connection refused" / "Failed to connect"
 
-**Nguyên nhân:** Backend, nginx không chạy, hoặc sai port  
+**Nguyên nhân:** Backend không chạy hoặc sai port  
 **Kiểm tra:**
 ```bash
-# Test backend trực tiếp
-curl http://localhost:8080/api/actuator/health
-
-# Test qua nginx
+# Test backend local
 curl http://localhost:8080/api/actuator/health
 
 # Test qua ngrok
-curl https://xxx.ngrok-free.app/api/actuator/health
-
-# Kiểm tra containers đang chạy
-docker-compose -f docker-compose.dev.yml ps
+curl https://xxx.ngrok.io/api/actuator/health
 ```
 
 **Fix:**
-- Kiểm tra backend và nginx đã start chưa: `docker-compose -f docker-compose.dev.yml up -d`
-- Kiểm tra port 8080 có bị chiếm không: `netstat -ano | findstr 8080`
+- Kiểm tra backend đã start chưa
+- Kiểm tra port 8080 có đúng không
 - Restart ngrok nếu URL expired
 
 ### Issue 2: CORS error trong console
@@ -427,65 +370,15 @@ docker-compose -f docker-compose.dev.yml ps
 
 ### Issue 4: AI Service không kết nối được
 
-**Nguyên nhân:** Nginx chưa route đúng hoặc AI service chưa start  
+**Nguyên nhân:** Quên start AI service hoặc sai URL  
 **Fix:**
 ```bash
-# Kiểm tra AI service đang chạy (trực tiếp)
+# Kiểm tra AI service đang chạy
 curl http://localhost:8000/health
 
-# Kiểm tra qua nginx
-curl http://localhost:8080/health
-
 # Kiểm tra qua ngrok
-curl https://xxx.ngrok-free.app/health
-
-# Nếu lỗi 404, kiểm tra nginx logs
-docker-compose -f docker-compose.dev.yml logs nginx
+curl https://yyy.ngrok.io/health
 ```
-
-### Issue 5: WebSocket không kết nối được / timeout
-
-**Nguyên nhân:** Nginx chưa config WebSocket headers  
-**Kiểm tra:**
-```bash
-# Kiểm tra nginx.conf có Upgrade và Connection headers không
-cat nginx.conf | grep -A5 "location /ws"
-```
-
-**Fix:**
-- Đảm bảo `nginx.conf` có:
-  ```nginx
-  proxy_set_header Upgrade $http_upgrade;
-  proxy_set_header Connection "upgrade";
-  proxy_read_timeout 86400s;
-  ```
-- Restart nginx: `docker-compose -f docker-compose.dev.yml restart nginx`
-
-### Issue 6: Nginx container không start
-
-**Nguyên nhân:** Thiếu file nginx.conf hoặc syntax error  
-**Fix:**
-```bash
-# Kiểm tra file tồn tại
-ls -la nginx.conf
-
-# Kiểm tra syntax
-nginx -t -c $(pwd)/nginx.conf
-
-# Nếu lỗi, copy lại từ repo
-git checkout nginx.conf
-
-# Restart
-docker-compose -f docker-compose.dev.yml up -d nginx
-```
-
-### Issue 7: Cả Backend và AI WebSocket đều dùng `/ws/chat/*` - xung đột
-
-**Nguyên nhân:** Nginx không thể phân biệt 2 WebSocket cùng path  
-**Giải pháp:**
-- **Option A:** Chỉ dùng 1 WebSocket tại 1 thời điểm (Backend hoặc AI)
-- **Option B:** Dùng IP LAN thay vì ngrok (không cần nginx)
-- **Option C:** Đổi AI WebSocket path trong code thành `/ai/ws/chat/*`
 
 ---
 
@@ -556,44 +449,31 @@ Write-Host "Updated .env with ngrok URLs"
 
 ## Checklist hàng ngày
 
-### Trường hợp 1: Không cần test Google Sign-In (Khuyến nghị dùng ngrok + Nginx)
-- [ ] Start Docker services: `docker-compose -f docker-compose.dev.yml up -d`
-- [ ] Kiểm tra nginx đang chạy: `docker-compose -f docker-compose.dev.yml ps nginx`
-- [ ] Start ngrok tunnel: `ngrok http 8080`
-- [ ] Copy ngrok URL (chỉ 1 URL duy nhất)
-- [ ] Update `petties_mobile/.env`:
-  - `API_BASE_URL=https://xxx.ngrok-free.app`
-  - `AI_SERVICE_URL=` (để trống)
-  - `WS_URL=wss://xxx.ngrok-free.app`
+### Trường hợp 1: Không cần test Google Sign-In (Khuyến nghị dùng ngrok)
+- [ ] Start Backend Spring Boot (port 8080)
+- [ ] Start AI Service (port 8000) - nếu cần
+- [ ] Start ngrok tunnel cho 8080: `ngrok http 8080`
+- [ ] Start ngrok tunnel cho 8000: `ngrok http 8000` (nếu cần AI)
+- [ ] Copy ngrok URLs
+- [ ] Update `petties_mobile/.env` với URLs mới
 - [ ] Run `flutter clean && flutter pub get && flutter run`
-- [ ] Test kết nối:
-  - [ ] Login (username/password)
-  - [ ] API calls (`/api/...`)
-  - [ ] AI Service (`/health`, chat)
-  - [ ] WebSocket (chat real-time)
+- [ ] Test kết nối: Login (username/password), API calls
 
 ### Trường hợp 2: Cần test Google Sign-In (Khuyến nghị dùng IP LAN)
 - [ ] Lấy IP LAN: `ipconfig` → ví dụ: `192.168.1.100`
-- [ ] Start Docker services: `docker-compose -f docker-compose.dev.yml up -d`
-- [ ] Stop nginx container (không cần thiết): `docker-compose -f docker-compose.dev.yml stop nginx`
-- [ ] Update `petties_mobile/.env`:
-  - `API_BASE_URL=http://192.168.1.100:8080`
-  - `AI_SERVICE_URL=http://192.168.1.100:8000`
-  - `WS_URL=ws://192.168.1.100:8080`
+- [ ] Start Backend Spring Boot (port 8080)
+- [ ] Update `petties_mobile/.env`: `API_BASE_URL=http://192.168.1.100:8080`
 - [ ] Đảm bảo phone và laptop cùng WiFi
 - [ ] Run `flutter clean && flutter pub get && flutter run`
 - [ ] Test: Google Sign-In, Login, API calls
 
 ### Lưu ý quan trọng
-| Tính năng | Ngrok + Nginx | IP LAN | Ngrok Paid |
-|-----------|---------------|--------|------------|
+| Tính năng | Ngrok Free | IP LAN | Ngrok Paid |
+|-----------|------------|--------|------------|
 | API calls | ✅ | ✅ | ✅ |
-| WebSocket | ✅* | ✅ | ✅ |
+| WebSocket | ✅ | ✅ | ✅ |
 | Google Sign-In | ❌ | ✅ | ✅ |
 | Static URL | ❌ | ✅ | ✅ |
-| Số tunnels cần thiết | 1 | 0 | 1-2 |
-
-\* *WebSocket có limitation: Backend và AI cùng dùng `/ws/chat/*`, có thể xung đột nếu dùng cả 2 cùng lúc.*
 
 ---
 

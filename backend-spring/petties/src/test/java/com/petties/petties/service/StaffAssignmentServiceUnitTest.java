@@ -28,7 +28,8 @@ import static org.mockito.Mockito.*;
  * Unit tests for StaffAssignmentService
  *
  * Tests cover:
- * - getAvailableStaffForReassign: filtering, availability check, slot validation
+ * - getAvailableStaffForReassign: filtering, availability check, slot
+ * validation
  * - findStaffWithSpecialty: specialty matching logic
  * - Slot availability calculations
  */
@@ -407,7 +408,8 @@ class StaffAssignmentServiceUnitTest {
                         List<AvailableStaffResponse> result = staffAssignmentService.getAvailableStaffForReassign(
                                         clinicId, testDate, testTime, StaffSpecialty.GROOMER, 1, null);
 
-                        // Assert: Should NOT find staff1 because VET_GENERAL is NOT fallback for GROOMER
+                        // Assert: Should NOT find staff1 because VET_GENERAL is NOT fallback for
+                        // GROOMER
                         assertTrue(result.isEmpty());
                 }
         }
@@ -723,7 +725,118 @@ class StaffAssignmentServiceUnitTest {
                         // Assert
                         assertNotNull(result);
                         assertFalse(result.getServices().isEmpty());
-                        assertNotNull(result.getServices().get(0).getSuggestedStaffId(), "Should have suggested staff ID");
+                        assertNotNull(result.getServices().get(0).getSuggestedStaffId(),
+                                        "Should have suggested staff ID");
+                }
+        }
+
+        // ==================== SOS Assignment Tests ====================
+
+        @Nested
+        @DisplayName("SOS Assignment Tests")
+        class SosAssignmentTests {
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-SOS-001: autoAssignStaff should pick any available staff for SOS booking")
+                void autoAssignStaff_shouldIgnoreSpecialtyForSos() {
+                        // Arrange
+                        Booking booking = new Booking();
+                        booking.setBookingCode("SOS-001");
+                        booking.setType(com.petties.petties.model.enums.BookingType.SOS);
+                        booking.setBookingDate(testDate);
+                        booking.setBookingTime(testTime);
+
+                        Clinic clinic = new Clinic();
+                        clinic.setClinicId(clinicId);
+                        booking.setClinic(clinic);
+
+                        // Mock 2 staff in clinic: staff1 (VET_GENERAL), staff3 (VET_SURGERY)
+                        when(userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF))
+                                        .thenReturn(List.of(staff1, staff3));
+
+                        // staff1 has shift
+                        StaffShift shift1 = createMockShift(staff1, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff1Id, testDate))
+                                        .thenReturn(List.of(shift1));
+
+                        // staff3 has no shift
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff3Id, testDate))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Mock available slots for staff1
+                        List<Slot> slots1 = List.of(createMockSlot(shift1.getShiftId(), testTime,
+                                        testTime.plusMinutes(30), SlotStatus.AVAILABLE));
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift1.getShiftId(),
+                                        SlotStatus.AVAILABLE))
+                                        .thenReturn(slots1);
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift1.getShiftId(),
+                                        SlotStatus.BOOKED))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Act
+                        User result = staffAssignmentService.autoAssignStaff(booking);
+
+                        // Assert: Should find staff1 even though we didn't specify a specialty
+                        assertNotNull(result);
+                        assertEquals(staff1Id, result.getUserId());
+                        verify(userRepository, times(1)).findByWorkingClinicIdAndRole(clinicId, Role.STAFF);
+                }
+
+                @Test
+                @DisplayName("TC-UNIT-STAFF-SOS-002: assignStaffToAllServices should bypass specialty for SOS")
+                void assignStaffToAllServices_shouldBypassSpecialtyForSos() {
+                        // Arrange
+                        Booking booking = new Booking();
+                        booking.setBookingCode("SOS-002");
+                        booking.setType(com.petties.petties.model.enums.BookingType.SOS);
+                        booking.setBookingDate(testDate);
+                        booking.setBookingTime(testTime);
+
+                        Clinic clinic = new Clinic();
+                        clinic.setClinicId(clinicId);
+                        booking.setClinic(clinic);
+
+                        BookingServiceItem item = new BookingServiceItem();
+                        item.setBookingServiceId(UUID.randomUUID());
+                        item.setBooking(booking);
+
+                        com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();
+                        service.setServiceId(UUID.randomUUID());
+                        service.setName("Phẫu thuật khẩn cấp");
+                        service.setDurationTime(30);
+                        service.setServiceCategory(ServiceCategory.SURGERY); // Should require VET_SURGERY
+                        item.setService(service);
+
+                        booking.setBookingServices(List.of(item));
+
+                        // staff1 is VET_GENERAL, staff3 is VET_SURGERY
+                        // In SOS mode, it should be able to pick staff1 even for SURGERY
+                        when(userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF))
+                                        .thenReturn(List.of(staff1, staff3));
+
+                        StaffShift shift1 = createMockShift(staff1, testDate, LocalTime.of(8, 0), LocalTime.of(17, 0));
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff1Id, testDate))
+                                        .thenReturn(List.of(shift1));
+
+                        // staff3 has no shift
+                        when(staffShiftRepository.findByStaff_UserIdAndWorkDate(staff3Id, testDate))
+                                        .thenReturn(Collections.emptyList());
+
+                        List<Slot> slots1 = List.of(createMockSlot(shift1.getShiftId(), testTime,
+                                        testTime.plusMinutes(30), SlotStatus.AVAILABLE));
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift1.getShiftId(),
+                                        SlotStatus.AVAILABLE))
+                                        .thenReturn(slots1);
+                        when(slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(shift1.getShiftId(),
+                                        SlotStatus.BOOKED))
+                                        .thenReturn(Collections.emptyList());
+
+                        // Act
+                        Map<UUID, User> result = staffAssignmentService.assignStaffToAllServices(booking);
+
+                        // Assert
+                        assertEquals(1, result.size());
+                        assertEquals(staff1Id, result.get(item.getBookingServiceId()).getUserId());
                 }
         }
 }

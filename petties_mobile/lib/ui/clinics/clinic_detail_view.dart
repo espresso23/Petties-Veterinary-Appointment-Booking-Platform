@@ -59,7 +59,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
         double? localAvg;
         if (reviews.isNotEmpty) {
            double total = 0;
-           for (var r in reviews) total += r.rating;
+           for (var r in reviews) {
+             total += r.rating;
+           }
            localAvg = total / reviews.length;
         }
 

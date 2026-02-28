@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicForm } from '../../../components/clinic/ClinicForm'
@@ -17,18 +17,22 @@ export function ClinicEditPage() {
     }
   }
 
-  useEffect(() => {
+  const loadClinic = useCallback(() => {
     if (clinicId) {
       fetchClinicById(clinicId)
     }
-  }, [clinicId])
+  }, [clinicId, fetchClinicById])
+
+  useEffect(() => {
+    loadClinic()
+  }, [loadClinic])
 
   const handleSubmit = async (data: ClinicRequest) => {
     if (!clinicId) return
     try {
       await updateClinic(clinicId, data)
       navigate(`${ROUTES.clinicOwner.clinics}/${clinicId}`)
-    } catch (error) {
+    } catch {
       // Error handled by store
     }
   }
@@ -95,6 +99,9 @@ export function ClinicEditPage() {
               operatingHours: currentClinic.operatingHours,
               businessLicenseUrl: currentClinic.businessLicenseUrl,
               logo: currentClinic.logo,
+              sosFee: currentClinic.sosFee,
+              bankName: currentClinic.bankName,
+              accountNumber: currentClinic.accountNumber,
             }}
             clinicId={currentClinic.clinicId}
             initialImages={currentClinic.imageDetails || []}

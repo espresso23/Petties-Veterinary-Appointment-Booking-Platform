@@ -34,8 +34,13 @@ export function EditSpecialtyModal({
         try {
             await onSubmit(specialty)
             onClose()
-        } catch (err: any) {
-            setError(err?.userMessage || err?.message || 'Có lỗi xảy ra')
+        } catch (err) {
+            const errorMessage = err instanceof Error && 'userMessage' in err
+                ? String((err as { userMessage?: string }).userMessage)
+                : err instanceof Error
+                    ? err.message
+                    : 'Có lỗi xảy ra'
+            setError(errorMessage)
         } finally {
             setIsSubmitting(false)
         }

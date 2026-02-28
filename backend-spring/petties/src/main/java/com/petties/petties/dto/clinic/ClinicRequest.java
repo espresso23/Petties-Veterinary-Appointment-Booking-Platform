@@ -71,4 +71,6 @@ public class ClinicRequest {
 
     @Size(max = 50, message = "Số tài khoản không được vượt quá 50 ký tự")
     private String accountNumber; // Số tài khoản ngân hàng
+
+    private BigDecimal sosFee; // Phí dịch vụ SOS
 }

@@ -47,9 +47,9 @@ graph TD
 
 ### 5.1 Activation Logic (Safety & Privacy)
 Tracking is **ONLY** enabled when:
-1. The Booking type is **HOME_VISIT**.
-2. The Booking status is exactly **EN_ROUTE**.
-3. Monitoring ends immediately when status changes to **ARRIVED** or **CANCELLED**.
+1. The Booking type is **SOS** or **HOME_VISIT**.
+2. The Booking status is exactly **ON_THE_WAY**.
+3. Monitoring ends immediately when status changes to **IN_PROGRESS** (Staff signs in), **COMPLETED**, or **CANCELLED**.
 
 ### 5.2 Staff Side (Producer)
 - **Background Service:** The app starts a background task when the Staff clicks "Start Travel".
@@ -70,7 +70,7 @@ Tracking is **ONLY** enabled when:
 - **Topic Structure:** `/topic/booking.{bookingId}.location`.
 - **Processing Steps:**
     1. Validate `bookingId` and user association.
-    2. Check if status is `EN_ROUTE`.
+    2. Check if status is `ON_THE_WAY`.
     3. Update Staff's location in Redis: `SET vet_location:{bookingId} {lat, lng}` (Expiration: 1 hour).
     4. Call Goong Maps Distance Matrix API:
         - Origin: Staff Current Location.

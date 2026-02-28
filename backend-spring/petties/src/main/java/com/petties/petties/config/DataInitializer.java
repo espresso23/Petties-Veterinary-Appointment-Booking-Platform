@@ -222,9 +222,7 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // Seed transaction test data for TransactionService (from Payment branch)
-        if (petOwner != null && clinic != null) {
-            seedTransactionTestData(petOwner, clinic, clinicManager);
-        }
+        // ĐÃ TẮT: tránh seed pet "Test Dog" và booking/payment test gây trùng dữ liệu trên môi trường dev
     }
 
     /**
@@ -483,13 +481,13 @@ public class DataInitializer implements CommandLineRunner {
     private User initializeUser(String username, String password, String email, String fullName, Role role) {
         // Check by username
         if (userRepository.existsByUsername(username)) {
-            log.info("   - User with username '{}' ({}) already exists.", username, role);
+            log.debug("   - User with username '{}' ({}) already exists.", username, role);
             return userRepository.findByUsername(username).orElse(null);
         }
 
         // Check by email to prevent duplicate key error
         if (userRepository.existsByEmail(email)) {
-            log.info("   - User with email '{}' ({}) already exists.", email, role);
+            log.debug("   - User with email '{}' ({}) already exists.", email, role);
             return userRepository.findByEmail(email).orElse(null);
         }
 
@@ -661,7 +659,7 @@ public class DataInitializer implements CommandLineRunner {
             double rating, int ratingCount) {
         // Check if clinic with this name already exists
         if (clinicRepository.findByName(name).isPresent()) {
-            log.info("   - Clinic '{}' already exists.", name);
+            log.debug("   - Clinic '{}' already exists.", name);
             return;
         }
 
@@ -710,6 +708,16 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         try {
+            // Check nếu đã seed transaction test data trước đó
+            boolean hasTestPet = petRepository.findByUser_UserId(petOwner.getUserId())
+                    .stream()
+                    .anyMatch(p -> "Test Dog".equals(p.getName()));
+
+            if (hasTestPet) {
+                log.info("   - Transaction test data already exists (Test Dog found), skipping...");
+                return;
+            }
+
             // 1. Create test Pet
             Pet pet = Pet.builder()
                     .name("Test Dog")
@@ -724,36 +732,41 @@ public class DataInitializer implements CommandLineRunner {
             log.info("   + Created test pet: {}", pet.getName());
 
             // 2. Create Booking
-            Booking booking = Booking.builder()
-                    .bookingCode("BK-TEST-001")
-                    .pet(pet)
-                    .petOwner(petOwner)
-                    .clinic(clinic)
-                    .assignedStaff(clinicManager)
-                    .bookingDate(java.time.LocalDate.now().plusDays(1))
-                    .bookingTime(java.time.LocalTime.of(10, 0))
-                    .type(BookingType.IN_CLINIC)
-                    .totalPrice(java.math.BigDecimal.valueOf(2000))
-                    .status(BookingStatus.PENDING)
-                    .notes("Test booking cho Transaction Service")
-                    .build();
+            String bookingCode = "BK-TEST-001";
+            if (bookingRepository.existsByBookingCode(bookingCode)) {
+                log.info("   - Booking code '{}' already exists, skipping seed.", bookingCode);
+            } else {
+                Booking booking = Booking.builder()
+                        .bookingCode(bookingCode)
+                        .pet(pet)
+                        .petOwner(petOwner)
+                        .clinic(clinic)
+                        .assignedStaff(clinicManager)
+                        .bookingDate(java.time.LocalDate.now().plusDays(1))
+                        .bookingTime(java.time.LocalTime.of(10, 0))
+                        .type(BookingType.IN_CLINIC)
+                        .totalPrice(java.math.BigDecimal.valueOf(2000))
+                        .status(BookingStatus.PENDING)
+                        .notes("Test booking cho Transaction Service")
+                        .build();
 
-            booking = bookingRepository.save(booking);
-            log.info("   + Created test booking: {} - Total: {} VND",
-                    booking.getBookingCode(), booking.getTotalPrice());
+                booking = bookingRepository.save(booking);
+                log.info("   + Created test booking: {} - Total: {} VND",
+                        booking.getBookingCode(), booking.getTotalPrice());
 
-            // 3. Create Payment with QR method
-            Payment payment = Payment.builder()
-                    .booking(booking)
-                    .amount(java.math.BigDecimal.valueOf(2000))
-                    .method(PaymentMethod.QR)
-                    .status(PaymentStatus.PENDING)
-                    .build();
-            payment = paymentRepository.save(payment);
-            booking.setPayment(payment);
-            bookingRepository.save(booking);
-            log.info("   + Created test payment: {} VND - Method: {}",
-                    payment.getAmount(), payment.getMethod());
+                // 3. Create Payment with QR method
+                Payment payment = Payment.builder()
+                        .booking(booking)
+                        .amount(java.math.BigDecimal.valueOf(2000))
+                        .method(PaymentMethod.QR)
+                        .status(PaymentStatus.PENDING)
+                        .build();
+                payment = paymentRepository.save(payment);
+                booking.setPayment(payment);
+                bookingRepository.save(booking);
+                log.info("   + Created test payment: {} VND - Method: {}",
+                        payment.getAmount(), payment.getMethod());
+            }
 
         } catch (Exception e) {
             log.error("   x Failed to seed transaction test data: {}", e.getMessage());

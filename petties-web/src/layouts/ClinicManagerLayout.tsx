@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAuthStore } from '../store/authStore'
 import { useNotificationStore } from '../store/notificationStore'
 import { useBookingStore } from '../store/bookingStore'
@@ -9,6 +9,7 @@ import type { NavGroup } from '../components/Sidebar/Sidebar'
 import { useSidebar } from '../hooks/useSidebar'
 import { useSseNotification } from '../hooks/useSseNotification'
 import { chatWebSocket } from '../services/websocket/chatWebSocket'
+import SosAlertModal from '../components/booking/SosAlertModal'
 import { chatService } from '../services/api/chatService'
 import type { ChatWebSocketMessage } from '../types/chat'
 import { useSyncProfile } from '../hooks/useSyncProfile'
@@ -21,9 +22,9 @@ import {
     CurrencyDollarIcon,
     BellIcon,
     UserCircleIcon,
-    ClipboardDocumentCheckIcon
+    ClipboardDocumentCheckIcon,
+    HomeModernIcon
 } from '@heroicons/react/24/outline'
-import SosAlertModal from '../components/booking/SosAlertModal'
 import '../styles/brutalist.css'
 
 export const ClinicManagerLayout = () => {
@@ -83,6 +84,8 @@ export const ClinicManagerLayout = () => {
         }
     }, [])
 
+    const unsubscribesRef = useRef<(() => void)[]>([])
+
     useEffect(() => {
         refreshUnreadCount()
         refreshChatUnreadCount()
@@ -91,8 +94,6 @@ export const ClinicManagerLayout = () => {
         }
 
         // GLOBAL SUBSCRIPTION for Sidebar Badge
-        let unsubscribes: (() => void)[] = []
-
         const setupGlobalSubscriptions = async () => {
             try {
                 // Fetch recent conversations to listen for updates
@@ -104,7 +105,7 @@ export const ClinicManagerLayout = () => {
                 console.log('[Layout] Setting up global subscriptions for', conversations.length, 'chats')
 
                 // Subscribe to each to detect new messages
-                unsubscribes = conversations.map(conv => {
+                const unsubscribes = conversations.map(conv => {
                     return chatWebSocket.subscribeToChatBox(conv.id, (wsMessage: ChatWebSocketMessage) => {
                         if (wsMessage.type === 'MESSAGE' && wsMessage.message) {
                             const msg = wsMessage.message
@@ -123,6 +124,7 @@ export const ClinicManagerLayout = () => {
                         }
                     })
                 })
+                unsubscribesRef.current = unsubscribes
             } catch (error) {
                 console.error('[Layout] Failed to setup global subscriptions:', error)
             }
@@ -135,7 +137,8 @@ export const ClinicManagerLayout = () => {
 
         return () => {
             clearTimeout(timer)
-            unsubscribes.forEach(u => u())
+            unsubscribesRef.current.forEach(u => u())
+            unsubscribesRef.current = []
         }
     }, [refreshUnreadCount, refreshChatUnreadCount, refreshPendingBookingCount, incrementChatUnreadCount, user?.workingClinicId])
 
@@ -149,6 +152,7 @@ export const ClinicManagerLayout = () => {
                 { path: '/clinic-manager/shifts', label: 'LỊCH LÀM VIỆC', icon: CalendarIcon },
                 { path: '/clinic-manager/bookings', label: 'BOOKING', icon: ClipboardDocumentListIcon, unreadCount: pendingBookingCount },
                 { path: '/clinic-manager/services', label: 'DỊCH VỤ', icon: ClipboardDocumentCheckIcon },
+                { path: '/clinic-manager/clinic', label: 'PHÒNG KHÁM', icon: HomeModernIcon },
             ]
         },
         {
@@ -169,6 +173,11 @@ export const ClinicManagerLayout = () => {
 
     return (
         <div className="h-screen bg-stone-50 flex overflow-hidden">
+            {/* SOS Alert Modal - shows incoming SOS requests */}
+            {user?.workingClinicId && (
+                <SosAlertModal clinicId={user.workingClinicId} />
+            )}
+
             <Sidebar
                 groups={navGroups}
                 user={user}
@@ -185,10 +194,6 @@ export const ClinicManagerLayout = () => {
                     <Outlet />
                 </div>
 
-                {/* SOS Alert Modal - Global listener */}
-                {user?.workingClinicId && (
-                    <SosAlertModal clinicId={user.workingClinicId} />
-                )}
             </main>
         </div>
     )

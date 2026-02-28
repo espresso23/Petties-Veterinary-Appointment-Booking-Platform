@@ -57,6 +57,8 @@ public class ClinicTodayBookingResponse {
     private String clinicName;
     private String clinicAddress;
     private String clinicPhone;
+    private BigDecimal clinicLat;
+    private BigDecimal clinicLong;
 
     // ========== STAFF INFO (Primary assigned staff) ==========
     private UUID assignedStaffId;
@@ -95,6 +97,9 @@ public class ClinicTodayBookingResponse {
     // ========== TIMESTAMPS ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime arrivedAt;
 
     /**
      * Nested DTO for booking service items

@@ -10,11 +10,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
@@ -46,6 +48,9 @@ class TrackingServiceUnitTest {
     @Mock
     private LocationService locationService;
 
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
+
     @InjectMocks
     private TrackingService trackingService;
 
@@ -72,11 +77,11 @@ class TrackingServiceUnitTest {
         owner.setUserId(ownerId);
         owner.setFullName("Test Owner");
 
-        // Setup SOS Booking with ON_THE_WAY status
+        // Setup SOS Booking with IN_PROGRESS status
         sosBooking = new Booking();
         sosBooking.setBookingId(bookingId);
         sosBooking.setType(BookingType.SOS);
-        sosBooking.setStatus(BookingStatus.ON_THE_WAY);
+        sosBooking.setStatus(BookingStatus.IN_PROGRESS);
         sosBooking.setAssignedStaff(staff);
         sosBooking.setPetOwner(owner);
         sosBooking.setHomeLat(new BigDecimal("10.7769"));
@@ -112,8 +117,8 @@ class TrackingServiceUnitTest {
     }
 
     @Test
-    @DisplayName("TC-TRACK-002: Reject tracking when booking is not ON_THE_WAY")
-    void updateStaffLocation_RejectWhenNotOnTheWay() {
+    @DisplayName("TC-TRACK-002: Reject tracking when booking is not IN_PROGRESS")
+    void updateStaffLocation_RejectWhenNotInProgress() {
         // Given
         sosBooking.setStatus(BookingStatus.CONFIRMED); // Wrong status
 
@@ -124,7 +129,7 @@ class TrackingServiceUnitTest {
                 () -> trackingService.updateStaffLocation(bookingId,
                         new BigDecimal("10.78"), new BigDecimal("106.71"), staffId));
 
-        assertTrue(exception.getMessage().contains("ON_THE_WAY"));
+        assertTrue(exception.getMessage().contains("IN_PROGRESS"));
     }
 
     @Test
@@ -227,5 +232,31 @@ class TrackingServiceUnitTest {
 
         // Then
         assertTrue(response.getStatusMessage().contains("sắp đến"));
+    }
+
+    @Test
+    @DisplayName("TC-TRACK-009: publishArrival sends ARRIVED event with arrived=true")
+    void publishArrival_SendsArrivedEvent() {
+        // Given
+        sosBooking.setHomeLat(new BigDecimal("10.7769"));
+        sosBooking.setHomeLong(new BigDecimal("106.7009"));
+
+        ArgumentCaptor<LocationUpdateResponse> payloadCaptor = ArgumentCaptor.forClass(LocationUpdateResponse.class);
+
+        // When
+        trackingService.publishArrival(sosBooking);
+
+        // Then
+        verify(messagingTemplate).convertAndSend(eq("/topic/booking." + bookingId + ".location"),
+                payloadCaptor.capture());
+
+        LocationUpdateResponse payload = payloadCaptor.getValue();
+        assertNotNull(payload);
+        assertEquals(bookingId, payload.getBookingId());
+        assertEquals(0.0, payload.getDistanceKm());
+        assertEquals(0, payload.getEtaMinutes());
+        assertEquals(Boolean.TRUE, payload.getArrived());
+        assertNotNull(payload.getLastUpdated());
+        assertTrue(payload.getStatusMessage().contains("đến nơi"));
     }
 }

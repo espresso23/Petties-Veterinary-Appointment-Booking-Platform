@@ -15,14 +15,14 @@ import { ClinicMapOSM } from '../../../components/clinic/ClinicMapOSM'
 import { ClinicLogoDisplay } from '../../../components/clinic/ClinicLogoDisplay'
 import { VIETQR_BANKS } from '../../../utils/vietqr'
 import { useToast } from '../../../components/Toast'
-import type { ClinicRequest } from '../../../types/clinic'
+import { updateClinicPricing } from '../../../services/endpoints/clinic'
 
 export function ClinicInfoPage() {
     const navigate = useNavigate()
     const { user } = useAuthStore()
     const { showToast } = useToast()
     const clinicId = user?.workingClinicId
-    const { currentClinic, fetchClinicById, updateClinic, isLoading, error } = useClinicStore()
+    const { currentClinic, fetchClinicById, isLoading, error } = useClinicStore()
     const scrollRef = useRef<HTMLDivElement | null>(null)
     const [canScrollLeft, setCanScrollLeft] = useState(false)
     const [canScrollRight, setCanScrollRight] = useState(false)
@@ -31,6 +31,7 @@ export function ClinicInfoPage() {
     const [isEditingPayment, setIsEditingPayment] = useState(false)
     const [editPaymentData, setEditPaymentData] = useState({
         sosFee: 0,
+        pricePerKm: 0,
         bankName: '',
         accountNumber: ''
     })
@@ -81,6 +82,7 @@ export function ClinicInfoPage() {
         if (!currentClinic) return
         setEditPaymentData({
             sosFee: currentClinic.sosFee || 0,
+            pricePerKm: currentClinic.pricePerKm || 0,
             bankName: currentClinic.bankName || '',
             accountNumber: currentClinic.accountNumber || ''
         })
@@ -96,31 +98,32 @@ export function ClinicInfoPage() {
 
         setIsSaving(true)
         try {
-            const requestData: ClinicRequest = {
-                name: currentClinic.name,
-                description: currentClinic.description,
-                address: currentClinic.address,
-                ward: currentClinic.ward,
-                district: currentClinic.district,
-                province: currentClinic.province,
-                specificLocation: currentClinic.specificLocation,
-                phone: currentClinic.phone,
-                email: currentClinic.email,
-                operatingHours: currentClinic.operatingHours,
-                latitude: currentClinic.latitude,
-                longitude: currentClinic.longitude,
-                logo: currentClinic.logo,
-                businessLicenseUrl: currentClinic.businessLicenseUrl,
+            // Debug: Log giá trị trước khi gửi
+            console.log('Saving pricing data:', {
+                pricePerKm: editPaymentData.pricePerKm,
                 sosFee: editPaymentData.sosFee,
-                bankName: currentClinic.bankName,
-                accountNumber: currentClinic.accountNumber,
-            }
+                pricePerKmType: typeof editPaymentData.pricePerKm,
+                sosFeeType: typeof editPaymentData.sosFee
+            })
 
-            await updateClinic(clinicId, requestData)
-            showToast('success', 'Cập nhật thông tin thanh toán thành công!')
+            // Sử dụng API pricing riêng cho Manager (chỉ cập nhật pricePerKm và sosFee)
+            const payload = {
+                pricePerKm: editPaymentData.pricePerKm !== null && editPaymentData.pricePerKm !== undefined
+                    ? editPaymentData.pricePerKm
+                    : undefined,
+                sosFee: editPaymentData.sosFee !== null && editPaymentData.sosFee !== undefined
+                    ? editPaymentData.sosFee
+                    : undefined,
+            }
+            console.log('Payload sent to API:', payload)
+
+            await updateClinicPricing(clinicId, payload)
+
+            showToast('success', 'Cập nhật cấu hình SOS thành công!')
             setIsEditingPayment(false)
             fetchClinicById(clinicId)
         } catch (err) {
+            console.error('Error saving pricing:', err)
             showToast('error', 'Có lỗi xảy ra khi cập nhật thông tin.')
         } finally {
             setIsSaving(false)
@@ -382,6 +385,27 @@ export function ClinicInfoPage() {
 
                     {isEditingPayment ? (
                         <div className="space-y-6">
+                            {/* Price Per KM Edit */}
+                            <div className="p-5 border-4 border-amber-600 bg-amber-50">
+                                <label className="block text-sm font-black uppercase text-amber-800 mb-2">
+                                    GIÁ DI CHUYỂN (VNĐ/KM)
+                                </label>
+                                <input
+                                    type="number"
+                                    value={editPaymentData.pricePerKm ?? ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value === '' ? 0 : Number(e.target.value)
+                                        setEditPaymentData(prev => ({ ...prev, pricePerKm: val }))
+                                    }}
+                                    className="w-full p-4 border-4 border-black font-black text-2xl text-amber-600 focus:outline-none focus:ring-4 focus:ring-amber-200 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                                    placeholder="Nhập giá theo km..."
+                                    min={0}
+                                />
+                                <p className="text-xs text-amber-700 font-bold uppercase mt-3">
+                                    Phí di chuyển tính theo khoảng cách từ phòng khám đến địa chỉ khách hàng.
+                                </p>
+                            </div>
+
                             {/* SOS Fee Edit */}
                             <div className="p-5 border-4 border-red-600 bg-red-50">
                                 <label className="block text-sm font-black uppercase text-red-800 mb-2">
@@ -389,14 +413,17 @@ export function ClinicInfoPage() {
                                 </label>
                                 <input
                                     type="number"
-                                    value={editPaymentData.sosFee}
-                                    onChange={(e) => setEditPaymentData(prev => ({ ...prev, sosFee: Number(e.target.value) }))}
+                                    value={editPaymentData.sosFee ?? ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value === '' ? 0 : Number(e.target.value)
+                                        setEditPaymentData(prev => ({ ...prev, sosFee: val }))
+                                    }}
                                     className="w-full p-4 border-4 border-black font-black text-2xl text-red-600 focus:outline-none focus:ring-4 focus:ring-red-200 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
                                     placeholder="Nhập phí SOS..."
                                     min={0}
                                 />
                                 <p className="text-xs text-red-700 font-bold uppercase mt-3">
-                                    Phí này sẽ được cộng vào tổng bill cho các booking SOS.
+                                    Phí cố định cộng thêm cho các booking cấp cứu SOS.
                                 </p>
                             </div>
 
@@ -424,6 +451,27 @@ export function ClinicInfoPage() {
                         </div>
                     ) : (
                         <>
+                            {/* Display Price Per KM */}
+                            {currentClinic.pricePerKm && currentClinic.pricePerKm > 0 ? (
+                                <div className="mb-4 p-4 border-4 border-amber-600 bg-amber-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                    <div>
+                                        <div className="text-lg font-black uppercase text-amber-800 tracking-tight">GIÁ DI CHUYỂN</div>
+                                        <div className="text-xs text-amber-700 font-bold uppercase">Tính theo khoảng cách từ phòng khám</div>
+                                    </div>
+                                    <div className="text-2xl font-black text-amber-600 bg-white px-4 py-2 border-2 border-amber-600 shadow-[4px_4px_0px_#d97706]">
+                                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentClinic.pricePerKm)}/KM
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="mb-4 p-4 border-4 border-stone-400 bg-stone-50 text-center">
+                                    <div className="text-sm font-bold uppercase text-stone-500">CHƯA CẤU HÌNH GIÁ DI CHUYỂN THEO KM</div>
+                                    <button onClick={handleStartEditingPayment} className="text-xs font-black uppercase text-amber-600 underline mt-1 block w-full">
+                                        CẤU HÌNH NGAY
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Display SOS Fee */}
                             {currentClinic.sosFee && currentClinic.sosFee > 0 ? (
                                 <div className="mb-6 p-4 border-4 border-red-600 bg-red-50 flex flex-col sm:flex-row items-center justify-between gap-4">
                                     <div>

@@ -25,22 +25,22 @@ export interface ClinicResponse {
 export async function getMyClinics(): Promise<ClinicResponse[]> {
   // Call my-clinics endpoint first (returns ALL clinics of owner including PENDING, APPROVED, REJECTED)
   try {
-    const resp = await apiClient.get<any>('/clinics/owner/my-clinics?size=100')
+    const resp = await apiClient.get<unknown>('/clinics/owner/my-clinics?size=100')
     const body = resp.data
 
     // Case A: backend returns Page<ClinicResponse> directly -> body.content
-    if (body && typeof body === 'object' && Array.isArray((body as any).content)) {
-      return (body as any).content as ClinicResponse[]
+    if (body && typeof body === 'object' && 'content' in body && Array.isArray(body.content)) {
+      return body.content as ClinicResponse[]
     }
 
     // Case B: backend wraps response in ApiResponse { data: { content: [...] } }
-    if (body?.data && typeof body.data === 'object' && Array.isArray((body.data as any).content)) {
-      return (body.data as any).content as ClinicResponse[]
+    if (body && typeof body === 'object' && 'data' in body && typeof body.data === 'object' && body.data && 'content' in body.data && Array.isArray(body.data.content)) {
+      return body.data.content as ClinicResponse[]
     }
 
     // Case C: backend returns plain array under data or at top-level
     if (Array.isArray(body)) return body as ClinicResponse[]
-    if (Array.isArray(body?.data)) return body.data as ClinicResponse[]
+    if (body && typeof body === 'object' && 'data' in body && Array.isArray(body.data)) return body.data as ClinicResponse[]
 
     // Otherwise continue to fallback
   } catch (e) {
@@ -49,17 +49,17 @@ export async function getMyClinics(): Promise<ClinicResponse[]> {
 
   // Fallback to owner/approved endpoint
   try {
-    const resp2 = await apiClient.get<any>('/clinics/owner/approved?size=100')
+    const resp2 = await apiClient.get<unknown>('/clinics/owner/approved?size=100')
     const body2 = resp2.data
 
-    if (body2 && typeof body2 === 'object' && Array.isArray((body2 as any).content)) {
-      return (body2 as any).content as ClinicResponse[]
+    if (body2 && typeof body2 === 'object' && 'content' in body2 && Array.isArray(body2.content)) {
+      return body2.content as ClinicResponse[]
     }
-    if (body2?.data && typeof body2.data === 'object' && Array.isArray((body2.data as any).content)) {
-      return (body2.data as any).content as ClinicResponse[]
+    if (body2 && typeof body2 === 'object' && 'data' in body2 && typeof body2.data === 'object' && body2.data && 'content' in body2.data && Array.isArray(body2.data.content)) {
+      return body2.data.content as ClinicResponse[]
     }
     if (Array.isArray(body2)) return body2 as ClinicResponse[]
-    if (Array.isArray(body2?.data)) return body2.data as ClinicResponse[]
+    if (body2 && typeof body2 === 'object' && 'data' in body2 && Array.isArray(body2.data)) return body2.data as ClinicResponse[]
   } catch (e) {
     console.warn('getMyClinics: fallback endpoint failed', e)
   }
@@ -72,11 +72,11 @@ export async function getMyClinics(): Promise<ClinicResponse[]> {
  */
 export async function getClinicPricing(clinicId: string): Promise<{ pricePerKm: number | null, sosFee: number | null }> {
   try {
-    const { data } = await apiClient.get<any>(`/clinics/${clinicId}/pricing`)
-    if (data && typeof data === 'object') {
+    const { data } = await apiClient.get<unknown>(`/clinics/${clinicId}/pricing`)
+    if (data && typeof data === 'object' && 'pricePerKm' in data && 'sosFee' in data) {
       return {
-        pricePerKm: data.pricePerKm ?? null,
-        sosFee: data.sosFee ?? null
+        pricePerKm: typeof data.pricePerKm === 'number' ? data.pricePerKm : null,
+        sosFee: typeof data.sosFee === 'number' ? data.sosFee : null
       }
     }
   } catch (e) {
@@ -88,7 +88,7 @@ export async function getClinicPricing(clinicId: string): Promise<{ pricePerKm: 
 /**
  * Update stored pricing for a clinic (owner only)
  */
-export async function updateClinicPricing(clinicId: string, pricing: { pricePerKm?: number, sosFee?: number }): Promise<any> {
+export async function updateClinicPricing(clinicId: string, pricing: { pricePerKm?: number, sosFee?: number }): Promise<unknown> {
   const { data } = await apiClient.patch(`/clinics/${clinicId}/pricing`, pricing)
   return data
 }
@@ -108,5 +108,5 @@ export async function getClinicPricePerKm(clinicId: string): Promise<number | nu
  */
 export async function updateClinicPricePerKm(clinicId: string, pricePerKm: number): Promise<number> {
   const data = await updateClinicPricing(clinicId, { pricePerKm })
-  return data.pricePerKm
+  return (data as any).pricePerKm
 }

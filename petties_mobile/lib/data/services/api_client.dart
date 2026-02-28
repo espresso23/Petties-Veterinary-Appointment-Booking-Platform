@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import '../../config/constants/app_constants.dart';
 import '../../core/error/exceptions.dart';
 import 'api_interceptor.dart';
 import '../../config/env/environment.dart';

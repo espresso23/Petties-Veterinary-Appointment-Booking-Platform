@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -83,7 +83,7 @@ export const StaffPatientsPage = () => {
                 const todayBookings = await getClinicTodayBookings(user.workingClinicId)
                 // Filter to only active statuses
                 const activeBookings = todayBookings.filter(b =>
-                    b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ARRIVED'
+                    b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED'
                 )
                 setBookings(activeBookings)
                 console.log('Loaded clinic today bookings:', activeBookings)
@@ -198,22 +198,7 @@ export const StaffPatientsPage = () => {
         }
     }, [user?.userId, user?.workingClinicId])
 
-    // Load Data based on Tab
-    useEffect(() => {
-        if (!selectedPatient) return
-
-        if (activeTab === 'emr') {
-            setIsLoadingEmr(true)
-            emrService.getEmrsByPetId(selectedPatient.id)
-                .then(records => setEmrRecords(records))
-                .catch(() => setEmrRecords([]))
-                .finally(() => setIsLoadingEmr(false))
-        } else if (activeTab === 'vaccinations') {
-            fetchVaccinations()
-        }
-    }, [selectedPatient, activeTab])
-
-    const fetchVaccinations = async () => {
+    const fetchVaccinations = useCallback(async () => {
         if (!selectedPatient) return
         setIsLoadingVaccinations(true)
         try {
@@ -229,7 +214,22 @@ export const StaffPatientsPage = () => {
         } finally {
             setIsLoadingVaccinations(false)
         }
-    }
+    }, [selectedPatient, showToast])
+
+    // Load Data based on Tab
+    useEffect(() => {
+        if (!selectedPatient) return
+
+        if (activeTab === 'emr') {
+            setIsLoadingEmr(true)
+            emrService.getEmrsByPetId(selectedPatient.id)
+                .then(records => setEmrRecords(records))
+                .catch(() => setEmrRecords([]))
+                .finally(() => setIsLoadingEmr(false))
+        } else if (activeTab === 'vaccinations') {
+            fetchVaccinations()
+        }
+    }, [selectedPatient, activeTab, fetchVaccinations])
 
     const handleAddVaccination = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -453,19 +453,17 @@ export const StaffPatientsPage = () => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            {patient.bookingStatus && ['IN_PROGRESS', 'ARRIVED', 'CONFIRMED'].includes(patient.bookingStatus) ? (
+                                            {patient.bookingStatus && ['IN_PROGRESS', 'CONFIRMED'].includes(patient.bookingStatus) ? (
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-block w-fit ${(() => {
                                                         switch (patient.bookingStatus) {
                                                             case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
-                                                            case 'ARRIVED': return 'bg-teal-100 text-teal-700 border-teal-200'
                                                             case 'CONFIRMED': return 'bg-orange-100 text-orange-700 border-orange-200'
                                                             default: return 'bg-stone-100 text-stone-600 border-stone-200'
                                                         }
                                                     })()}`}>
                                                         {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
-                                                            patient.bookingStatus === 'ARRIVED' ? 'Đã đến' :
-                                                                (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
+                                                            (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
                                                     </span>
                                                     {patient.bookingCode && (
                                                         <span className="text-[10px] font-mono text-stone-500">{patient.bookingCode}</span>

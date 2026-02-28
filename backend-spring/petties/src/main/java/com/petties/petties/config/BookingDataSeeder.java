@@ -496,16 +496,16 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 null, 0, 0, BigDecimal.ZERO, BookingStatus.COMPLETED, null,
                                 BookingType.IN_CLINIC);
 
-                // 5. TODAY - ON_THE_WAY (Staff is driving)
+                // 5. TODAY - IN_PROGRESS (Staff is driving)
                 double homeLat16 = 16.0400, homeLng16 = 108.2300;
                 double distKm16 = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
                                 BigDecimal.valueOf(homeLat16), BigDecimal.valueOf(homeLng16));
                 createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(11, 0),
-                                String.format("[TODAY] Bác sĩ đang di chuyển - ON WAY (%.1fkm)", distKm16),
+                                String.format("[TODAY] Bác sĩ đang di chuyển - IN PROGRESS (%.1fkm)", distKm16),
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
                                 "99 Nguyễn Văn Linh, Đà Nẵng", homeLat16, homeLng16,
-                                BigDecimal.valueOf(distKm16), BookingStatus.ON_THE_WAY, null,
+                                BigDecimal.valueOf(distKm16), BookingStatus.IN_PROGRESS, null,
                                 BookingType.HOME_VISIT);
 
                 // 6. TODAY - SOS (PENDING ASSIGNMENT - EMERGENCY)
@@ -567,8 +567,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         .toList());
                 }
 
-                long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
-                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                // Generate unique booking code
+                String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), date);
 
                 // Calculate total price: sum of service prices
                 BigDecimal totalPrice = BigDecimal.ZERO;
@@ -632,8 +632,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
-                long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
-                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                // Generate unique booking code
+                String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), date);
 
                 // Calculate single distance fee for the whole booking (using clinic-level
                 // pricePerKm)
@@ -713,8 +713,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
-                long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
-                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                // Generate unique booking code
+                String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), date);
 
                 // Calculate distance fee (using clinic-level pricePerKm)
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,
@@ -818,5 +818,21 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 log.info("   >> Found {} services matching categories", result.size());
                 return result;
+        }
+
+        /**
+         * Generate a unique booking code that doesn't exist in database
+         */
+        private String generateUniqueBookingCode(java.util.UUID clinicId, LocalDate date) {
+                long sequence = bookingRepository.countByClinicAndDate(clinicId, date) + 1;
+                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                // Keep incrementing until we find a unique code
+                while (bookingRepository.existsByBookingCode(bookingCode)) {
+                        sequence++;
+                        bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                }
+
+                return bookingCode;
         }
 }

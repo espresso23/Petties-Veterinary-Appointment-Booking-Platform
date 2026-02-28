@@ -47,7 +47,7 @@ class _StaffAddServiceScreenState extends State<StaffAddServiceScreen> {
     });
     try {
       final services =
-          await _bookingService.getAvailableServicesForAddOn(widget.clinicId);
+          await _bookingService.getAvailableServicesForAddOn(widget.bookingId);
       setState(() {
         _services = services;
         _applyFilters();

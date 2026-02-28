@@ -7,6 +7,7 @@ import com.petties.petties.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,13 +34,13 @@ public class TrackingService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final BookingRepository bookingRepository;
     private final LocationService locationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private static final String TRACKING_KEY_PREFIX = "tracking:";
     private static final Duration TRACKING_EXPIRATION = Duration.ofHours(1);
-
     /**
      * Update Staff's current location for a booking.
-     * Only works when booking status is ON_THE_WAY.
+     * Works when booking status is IN_PROGRESS.
      * 
      * @param bookingId The booking ID
      * @param latitude  Staff's current latitude
@@ -50,13 +51,14 @@ public class TrackingService {
     public LocationUpdateResponse updateStaffLocation(UUID bookingId, BigDecimal latitude,
             BigDecimal longitude, UUID staffId) {
 
-        // 1. Validate booking exists and is in EN_ROUTE status
+        // 1. Validate booking exists and is in active tracking status
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
 
-        if (booking.getStatus() != BookingStatus.ON_THE_WAY) {
-            throw new IllegalStateException("Tracking is only available when booking is ON_THE_WAY. Current status: "
-                    + booking.getStatus());
+        if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+            throw new IllegalStateException(
+                    "Tracking is only available when booking is IN_PROGRESS (movement or consultation). Current status: "
+                            + booking.getStatus());
         }
 
         // 2. Validate Staff is assigned to this booking
@@ -166,7 +168,7 @@ public class TrackingService {
 
     /**
      * Clear tracking data for a booking.
-     * Should be called when booking transitions out of ON_THE_WAY status.
+     * Should be called when booking completes or is cancelled.
      * 
      * @param bookingId The booking ID
      */
@@ -191,5 +193,33 @@ public class TrackingService {
         } else {
             return String.format("Còn khoảng %.1f km (khoảng %d phút)", distanceKm, etaMinutes);
         }
+    }
+
+    /**
+     * Publish ARRIVED event qua WebSocket để Pet Owner nhận real-time.
+     * Gửi lên cùng topic tracking hiện tại: /topic/booking.{bookingId}.location
+     */
+    public void publishArrival(Booking booking) {
+        if (booking == null || booking.getBookingId() == null) {
+            log.warn("Skip publishArrival: booking or bookingId is null");
+            return;
+        }
+
+        UUID bookingId = booking.getBookingId();
+
+        LocationUpdateResponse payload = LocationUpdateResponse.builder()
+                .bookingId(bookingId)
+                .latitude(booking.getHomeLat())
+                .longitude(booking.getHomeLong())
+                .distanceKm(0.0)
+                .etaMinutes(0)
+                .lastUpdated(Instant.now())
+                .statusMessage("Bác sĩ đã đến nơi")
+                .arrived(true)
+                .build();
+
+        String destination = "/topic/booking." + bookingId + ".location";
+        log.info("Publishing ARRIVED tracking event to {}", destination);
+        messagingTemplate.convertAndSend(destination, payload);
     }
 }

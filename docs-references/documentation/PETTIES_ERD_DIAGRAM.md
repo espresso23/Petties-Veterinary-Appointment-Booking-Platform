@@ -186,7 +186,7 @@ erDiagram
         decimal home_long "nullable (Destination longitude)"
         decimal distance_km "nullable (calculated)"
         decimal total_price "NOT NULL (sum of all services)"
-        enum status "PENDING|ASSIGNED|CONFIRMED|ON_THE_WAY|ARRIVED|CHECK_IN|IN_PROGRESS|CHECK_OUT|COMPLETED|CANCELLED|NO_SHOW"
+        enum status "PENDING|ASSIGNED|CONFIRMED|CHECK_IN|IN_PROGRESS|CHECK_OUT|COMPLETED|CANCELLED|NO_SHOW"
         varchar cancellation_reason "nullable"
         uuid cancelled_by "nullable (USER_ID)"
         text notes
@@ -764,9 +764,9 @@ Core entity representing a pet appointment, now with simplified pricing (delegat
 **Business Role:**
 - Created by PET_OWNER when scheduling an appointment
 - References PET, CLINIC, SERVICE (determines price), and selected SLOT
-- Tracks full appointment lifecycle: PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED/CANCELLED/NO_SHOW
+- Tracks full appointment lifecycle: PENDING → ASSIGNED → CONFIRMED → (CHECK_IN) → IN_PROGRESS → CHECK_OUT → COMPLETED/CANCELLED/NO_SHOW
 - Stores final `total_price` (calculated at creation time, based on SERVICE pricing rules)
-- Specifically for HOME_VISIT: Supports real-time tracking of vet location via `vet_current_lat` and `vet_current_long`.
+- Specifically for HOME_VISIT/SOS: Supports real-time tracking of vet location via `vet_current_lat` and `vet_current_long` while status is `IN_PROGRESS`.
 - Completion logic: Booking reaches COMPLETED only when (Status = CHECK_OUT AND Payment = PAID).
 - Optionally generates EMR, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION
 

@@ -35,7 +35,7 @@ Petties Mobile App là ứng dụng di động được xây dựng với **Flut
 | **macOS** | `world.petties.mobile` | Mac App Store |
 | **Linux** | `world.petties.mobile` | Linux builds |
 
-> **Note**: Dev và Prod dùng cùng Application ID. Flavors chỉ thay đổi URL endpoints.
+> **Note**: Không dùng Flavors nữa. Môi trường được cấu hình qua file `.env`.
 
 ---
 
@@ -125,43 +125,47 @@ cd petties_mobile
 # 2. Get Flutter packages
 flutter pub get
 
-# 3. Run on emulator/device (Development)
-flutter run --flavor dev --dart-define=FLAVOR=dev
+# 3. Setup .env file
+cp .env.example .env
+# Edit .env to configure API URLs
+
+# 4. Run on emulator/device
+flutter run
 
 # Or specify device
-flutter run -d <device_id> --flavor dev --dart-define=FLAVOR=dev
+flutter run -d <device_id>
 ```
 
 ### Build Commands
 
-#### Development Build
+#### Development Build (Default)
 ```bash
-# Run on emulator (uses localhost:8080)
-flutter run --flavor dev --dart-define=FLAVOR=dev
+# Run on emulator (uses API_BASE_URL from .env)
+flutter run
 
-# Build APK dev
-flutter build apk --flavor dev --dart-define=FLAVOR=dev
+# Build APK debug
+flutter build apk
 
-# Build iOS dev
-flutter build ios --flavor dev --dart-define=FLAVOR=dev
+# Build iOS
+flutter build ios
 ```
 
 #### Production Build
 ```bash
-# Run production (uses api.petties.world)
-flutter run --flavor prod --dart-define=FLAVOR=prod
+# Update .env file first:
+# API_BASE_URL=https://api.petties.world
 
 # Build APK production
-flutter build apk --release --flavor prod --dart-define=FLAVOR=prod
+flutter build apk --release
 
 # Build App Bundle (for Play Store)
-flutter build appbundle --release --flavor prod --dart-define=FLAVOR=prod
+flutter build appbundle --release
 
 # Build iOS (for App Store)
-flutter build ios --release --flavor prod --dart-define=FLAVOR=prod
+flutter build ios --release
 ```
 
-> 📘 Chi tiết đầy đủ về Flavors: [FLAVORS_SETUP.md](FLAVORS_SETUP.md)
+> 📘 **Config môi trường**: Chỉ cần sửa file `.env`, không cần dùng `--flavor`
 
 ---
 
@@ -177,7 +181,7 @@ flutter build ios --release --flavor prod --dart-define=FLAVOR=prod
 | **Role Restrictions** | ✅ Done | ADMIN/CLINIC_MANAGER/CLINIC_OWNER blocked (web only) |
 | **Auth Provider** | ✅ Done | JWT token management |
 | **Home Screens** | ✅ Done | Pet Owner, Vet |
-| **Flavors** | ✅ Done | Dev/Prod environment switching |
+| **Environment Config** | ✅ Done | Via .env file |
 
 > 📘 Google Sign-In setup: [GOOGLE_SIGNIN_SETUP.md](GOOGLE_SIGNIN_SETUP.md)
 
@@ -239,9 +243,9 @@ The app automatically redirects users based on their role after login:
 
 ### Environment Selection
 
-URLs tự động chuyển đổi theo flavor:
-- **dev**: Sử dụng localhost/emulator URLs
-- **prod**: Sử dụng production URLs
+URLs được cấu hình trong file `.env`:
+- **Development**: Sử dụng `API_BASE_URL=http://localhost:8080`
+- **Production**: Sử dụng `API_BASE_URL=https://api.petties.world`
 
 ### Platform-Specific URLs (Development)
 
