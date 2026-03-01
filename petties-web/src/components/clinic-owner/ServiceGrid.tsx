@@ -41,6 +41,8 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
     petType: response.petType,
     description: response.description,
     weightPrices: response.weightPrices,
+    vaccineTemplateId: response.vaccineTemplateId,
+    dosePrices: response.dosePrices,
   }
 }
 
@@ -56,6 +58,8 @@ function mapServiceToRequest(service: Partial<ClinicServiceRequest> & { basePric
     petType: service.petType,
     description: service.description,
     weightPrices: service.weightPrices,
+    vaccineTemplateId: service.vaccineTemplateId,
+    dosePrices: service.dosePrices,
   }
 }
 

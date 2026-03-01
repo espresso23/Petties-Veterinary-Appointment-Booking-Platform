@@ -98,7 +98,10 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
           return Center(child: Text('Lỗi: ${snapshot.error}'));
         }
 
-        final history = snapshot.data?[0] ?? [];
+        // Filter history to show only COMPLETED (parity with web/staff view)
+        final history = (snapshot.data?[0] ?? [])
+            .where((r) => r.status == 'COMPLETED')
+            .toList();
         final upcoming = snapshot.data?[1] ?? [];
 
         if (history.isEmpty && upcoming.isEmpty) {
@@ -130,7 +133,7 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
               // Recent History List
               if (history.isNotEmpty) ...[
                 const Text(
-                  'LỊCH SỬ CHI TIẾT',
+                  'LỊCH SỬ TIÊM CHỦNG',
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 14,
@@ -205,9 +208,15 @@ class _VaccinationCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [BoxShadow(color: AppColors.stone900, offset: Offset(3, 3))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,8 +234,7 @@ class _VaccinationCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.stone100,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: AppColors.stone900),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   record.vaccinationDate != null
@@ -303,9 +311,15 @@ class _EmrCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.stone900, width: 2),
-        boxShadow: const [BoxShadow(color: AppColors.stone900, offset: Offset(3, 3))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.stone200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -318,9 +332,8 @@ class _EmrCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.secondary,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.stone900, width: 1.5),
+                      color: AppColors.secondary.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       DateFormat('dd/MM/yyyy').format(record.examinationDate),
@@ -429,9 +442,18 @@ class _EmrCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(p.medicineName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('${p.dosage} • ${p.frequency}', style: const TextStyle(fontSize: 12, color: AppColors.stone500)),
+                          Text(
+                            '${p.dosage} viên/lần • ${p.frequency} lần/ngày • ${p.durationDays ?? "--"} ngày',
+                            style: const TextStyle(fontSize: 12, color: AppColors.stone500, fontWeight: FontWeight.bold),
+                          ),
                           if (p.instructions != null)
-                             Text('HDSD: ${p.instructions}', style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.stone400)),
+                             Padding(
+                               padding: const EdgeInsets.only(top: 4),
+                               child: Text(
+                                 'Hướng dẫn sử dụng: ${p.instructions}',
+                                 style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.stone400),
+                               ),
+                             ),
                         ],
                       ),
                     )),

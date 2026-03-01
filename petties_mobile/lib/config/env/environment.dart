@@ -89,6 +89,9 @@ class Environment {
         dotenv.env['AI_SERVICE_URL']!.isNotEmpty) {
       return dotenv.env['AI_SERVICE_URL']!;
     }
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000';
+    }
 
     // 2. If using ngrok with nginx reverse proxy, AI service uses same base URL
     // Backend: /api/*, AI: /* (root paths)

@@ -57,6 +57,20 @@ public class VaccinationController {
         return ResponseEntity.ok(vaccinationService.getUpcomingVaccinations(petId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<VaccinationResponse> updateVaccination(
+            @PathVariable String id,
+            @Valid @RequestBody CreateVaccinationRequest request,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+
+        UUID staffId = null;
+        if (userDetails instanceof com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) {
+            staffId = ((com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails).getUserId();
+        }
+
+        return ResponseEntity.ok(vaccinationService.updateVaccination(id, request, staffId));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteVaccination(@PathVariable String id) {
         vaccinationService.deleteVaccination(id);

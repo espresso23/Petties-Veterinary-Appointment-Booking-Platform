@@ -71,6 +71,9 @@ public class BookingService {
         private final NotificationService notificationService;
         private final PricingService pricingService;
         private final BookingServiceItemRepository bookingServiceItemRepository;
+        private final SseEmitterService sseEmitterService;
+        private final EmrRecordRepository emrRecordRepository;
+        private final VaccinationService vaccinationService;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
         private final SosSessionManager sosSessionManager;
@@ -659,6 +662,16 @@ public class BookingService {
                 log.info("Booking {} confirmed. Status: {}",
                                 updatedBooking.getBookingCode(), updatedBooking.getStatus());
 
+                // Auto-create draft vaccination records
+                try {
+                        for (BookingServiceItem item : updatedBooking.getBookingServices()) {
+                                vaccinationService.createDraftFromBooking(updatedBooking, item);
+                        }
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination drafts: {}", e.getMessage());
+                        // Don't fail the whole confirmation, just log error
+                }
+
                 return bookingMapper.mapToResponse(updatedBooking);
         }
 
@@ -678,7 +691,8 @@ public class BookingService {
          * Get bookings assigned to a staff
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByStaff(UUID staffId, BookingStatus status, Pageable pageable) {
+        public Page<BookingResponse> getBookingsByStaff(UUID staffId,
+                        com.petties.petties.model.enums.BookingStatus status, Pageable pageable) {
                 log.info("Fetching booking history for staff ID: {}", staffId);
 
                 try {
@@ -805,7 +819,7 @@ public class BookingService {
          *
          * @param bookingId Booking ID
          * @param serviceId BookingServiceItem ID
-         * @return List of available staff with their status
+         * @return List of AvailableStaffResponse with their status
          */
         @Transactional(readOnly = true)
         public List<AvailableStaffResponse> getAvailableStaffForReassign(UUID bookingId, UUID serviceId) {
@@ -1000,9 +1014,15 @@ public class BookingService {
                 booking.setTotalPrice(newTotal);
 
                 bookingRepository.save(booking);
-
                 log.info("Added service '{}' to booking {}. New total: {} (added: {})",
                                 service.getName(), booking.getBookingCode(), newTotal, weightPrice);
+
+                // Auto-create draft vaccination record if service is a vaccine
+                try {
+                        vaccinationService.createDraftFromBooking(booking, newItem);
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination draft for add-on service: {}", e.getMessage());
+                }
 
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
@@ -1239,6 +1259,15 @@ public class BookingService {
                         log.warn("Failed to send check-in notification: {}", e.getMessage());
                 }
 
+                // Auto-create draft vaccination records if missing
+                try {
+                        for (BookingServiceItem item : booking.getBookingServices()) {
+                                vaccinationService.createDraftFromBooking(booking, item);
+                        }
+                } catch (Exception e) {
+                        log.error("Failed to auto-create vaccination drafts during check-in: {}", e.getMessage());
+                }
+
                 return bookingMapper.mapToResponse(booking);
         }
 
@@ -1433,7 +1462,7 @@ public class BookingService {
 
                         // Get upcoming bookings (today and next 7 days) with active statuses
                         LocalDate endDate = today.plusDays(7);
-                        List<BookingStatus> activeStatuses = List.of(
+                        List<com.petties.petties.model.enums.BookingStatus> activeStatuses = List.of(
                                         BookingStatus.CONFIRMED,
                                         BookingStatus.PENDING,
                                         BookingStatus.IN_PROGRESS);

@@ -1188,150 +1188,80 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     }
     // 2. Logic for IN_PROGRESS bookings (Active care)
     else if (status == 'IN_PROGRESS') {
-      actionButton = Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Shared Visibility Actions (Any staff can do)
-          _buildActionButton(
-            label: 'TẠO BỆNH ÁN',
-            icon: Icons.assignment_outlined,
-            color: Colors.blue,
-            onPressed: () {
-              final petId = _booking!.petId;
-              if (petId != null) {
-                final petName = _booking!.petName ?? '';
-                final petSpecies = _booking!.petSpecies ?? '';
-                context.push(
-                  Uri(
-                    path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
-                    queryParameters: {
-                      'petName': petName,
-                      'petSpecies': petSpecies,
-                      'bookingId': _booking!.bookingId,
-                      'bookingCode': _booking!.bookingCode,
-                    },
-                  ).toString(),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-          if (_booking!.type != 'SOS') ...[
-            _buildActionButton(
-              label: 'TIÊM VACCINE',
-              icon: Icons.vaccines_outlined,
-              color: Colors.purple,
-              onPressed: () {
-                final petId = _booking!.petId;
-                if (petId != null) {
-                  final petName = _booking!.petName ?? 'Thú cưng';
-                  context.push(
-                    Uri(
-                      path: AppRoutes.staffVaccinationForm
-                          .replaceAll(':petId', petId),
-                      queryParameters: {
-                        'petName': petName,
-                        'bookingId': _booking!.bookingId,
-                        'bookingCode': _booking!.bookingCode,
-                      },
-                    ).toString(),
-                  );
-                }
-              },
-            ),
-          ],
-
-          // Assigned Staff Actions
-          if (isMyBooking) ...[
-            const SizedBox(height: 12),
-            if (_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT') ...[
-              // Khi chưa đến nơi: chỉ hiển thị nút Chỉ đường + ĐÃ ĐẾN NƠI
-              if (_booking!.arrivedAt == null) ...[
-                _buildActionButton(
-                  label: 'CHỈ ĐƯỜNG (MAPS)',
-                  icon: Icons.directions,
-                  color: Colors.green,
-                  onPressed: () => _openMap(
-                    _booking!.homeLat,
-                    _booking!.homeLong,
-                    _booking!.homeAddress ?? '',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildActionButton(
-                  label: 'ĐÃ ĐẾN NƠI',
-                  icon: Icons.flag_circle,
-                  color: Colors.orange,
-                  onPressed: _handleArrived,
-                ),
-                const SizedBox(height: 12),
-              ] else ...[
-                // Already arrived - show confirmation
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          color: Colors.green.shade700, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Đã đến nơi ✓',
-                        style: TextStyle(
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildActionButton(
+                label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
+                icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
+                color: _existingEmr != null ? Colors.green : Colors.blue,
+                onPressed: () {
+                  if (_existingEmr != null) {
+                    context.push('/staff/emr/${_existingEmr!.id}');
+                  } else {
+                    final petId = _booking!.petId;
+                    if (petId != null) {
+                      final petName = _booking!.petName ?? '';
+                      final petSpecies = _booking!.petSpecies ?? '';
+                      context.push(
+                        Uri(
+                          path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
+                          queryParameters: {
+                            'petName': petName,
+                            'petSpecies': petSpecies,
+                            'bookingId': _booking!.bookingId,
+                            'bookingCode': _booking!.bookingCode,
+                          },
+                        ).toString(),
+                      );
+                    }
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildActionButton(
+                label: 'TIÊM VACCINE',
+                icon: Icons.vaccines_outlined,
+                color: Colors.purple,
+                onPressed: () {
+                  final petId = _booking!.petId;
+                  if (petId != null) {
+                    final petName = _booking!.petName ?? 'Thú cưng';
+                    String? initialVaccineName;
+                    try {
+                      final vaccService = _booking!.services.firstWhere(
+                        (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
+                            s.serviceName?.toLowerCase().contains('vaccine') == true,
+                      );
+                      initialVaccineName = vaccService.serviceName;
+                    } catch (_) {
+                      initialVaccineName = null;
+                    }
+                    context.push(
+                      Uri(
+                        path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                        queryParameters: {
+                          'petName': petName,
+                          'bookingId': _booking!.bookingId,
+                          'bookingCode': _booking!.bookingCode,
+                          if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
+                        },
+                      ).toString(),
+                    );
+                  }
+                },
+              ),
             ],
-            _buildActionButton(
-              label: 'THÊM DỊCH VỤ',
-              icon: Icons.add_circle_outline,
-              color: Colors.teal,
-              onPressed: () async {
-                final result = await context.push(
-                  Uri(
-                    path: AppRoutes.staffAddService
-                        .replaceAll(':bookingId', _booking!.bookingId!),
-                    queryParameters: {'clinicId': _booking!.clinicId},
-                  ).toString(),
-                );
-                if (result == true) _fetchBookingDetail();
-              },
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    label: 'THANH TOÁN',
-                    icon: Icons.payment,
-                    color: AppColors.primary,
-                    onPressed: _handleCheckout,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildActionButton(
-                    label: 'HOÀN THÀNH',
-                    icon: Icons.check_circle,
-                    color: AppColors.successDark,
-                    onPressed: _handleComplete,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
+          ),
+        ),
       );
     }
 

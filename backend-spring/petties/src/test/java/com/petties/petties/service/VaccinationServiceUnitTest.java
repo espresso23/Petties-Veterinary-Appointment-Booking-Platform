@@ -122,6 +122,7 @@ class VaccinationServiceUnitTest {
     @Test
     @DisplayName("Get Upcoming Vaccinations - Predicts Next Dose")
     void getUpcomingVaccinations_returnsPredictedDoses() {
+        // ... (existing test content)
         // Arrange
         UUID petId = UUID.randomUUID();
         Pet pet = new Pet();
@@ -154,5 +155,97 @@ class VaccinationServiceUnitTest {
         assertFalse(upcoming.isEmpty());
         assertEquals(2, upcoming.get(0).getDoseNumber()); // Should suggest Dose 2
         assertEquals("PLANNED", upcoming.get(0).getStatus());
+    }
+
+    @Test
+    @DisplayName("Auto-create Draft - Success")
+    void createDraftFromBooking_success() {
+        // Arrange
+        UUID petId = UUID.randomUUID();
+        Pet pet = new Pet();
+        pet.setId(petId);
+
+        Clinic clinic = new Clinic();
+        clinic.setClinicId(UUID.randomUUID());
+        clinic.setName("Test Clinic");
+
+        com.petties.petties.model.Booking booking = new com.petties.petties.model.Booking();
+        booking.setBookingId(UUID.randomUUID());
+        booking.setPet(pet);
+        booking.setClinic(clinic);
+        booking.setStatus(com.petties.petties.model.enums.BookingStatus.PENDING);
+
+        com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();
+        service.setName("Rabies Shot");
+        service.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.VACCINATION);
+
+        com.petties.petties.model.BookingServiceItem item = new com.petties.petties.model.BookingServiceItem();
+        item.setService(service);
+
+        when(vaccinationRecordRepository.findByPetIdOrderByVaccinationDateDesc(petId))
+                .thenReturn(Collections.emptyList());
+
+        // Act
+        vaccinationService.createDraftFromBooking(booking, item);
+
+        // Assert
+        verify(vaccinationRecordRepository, times(1)).save(argThat(record -> "PENDING".equals(record.getStatus()) &&
+                "Rabies Shot".equals(record.getVaccineName()) &&
+                petId.equals(record.getPetId())));
+    }
+
+    @Test
+    @DisplayName("Auto-create Draft - Skip if not Vaccination Service")
+    void createDraftFromBooking_skipNonVaccination() {
+        // Arrange
+        com.petties.petties.model.Booking booking = new com.petties.petties.model.Booking();
+        booking.setStatus(com.petties.petties.model.enums.BookingStatus.PENDING);
+
+        com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();
+        service.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.CHECK_UP);
+
+        com.petties.petties.model.BookingServiceItem item = new com.petties.petties.model.BookingServiceItem();
+        item.setService(service);
+
+        // Act
+        vaccinationService.createDraftFromBooking(booking, item);
+
+        // Assert
+        verify(vaccinationRecordRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Auto-create Draft - Already Exists - Skip")
+    void createDraftFromBooking_alreadyExists_skip() {
+        // Arrange
+        UUID petId = UUID.randomUUID();
+        UUID bookingId = UUID.randomUUID();
+        Pet pet = new Pet();
+        pet.setId(petId);
+
+        com.petties.petties.model.Booking booking = new com.petties.petties.model.Booking();
+        booking.setBookingId(bookingId);
+        booking.setPet(pet);
+        booking.setStatus(com.petties.petties.model.enums.BookingStatus.PENDING);
+
+        com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();
+        service.setName("Rabies Shot");
+        service.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.VACCINATION);
+
+        com.petties.petties.model.BookingServiceItem item = new com.petties.petties.model.BookingServiceItem();
+        item.setService(service);
+
+        VaccinationRecord existing = new VaccinationRecord();
+        existing.setBookingId(bookingId);
+        existing.setVaccineName("Rabies Shot");
+
+        when(vaccinationRecordRepository.findByPetIdOrderByVaccinationDateDesc(petId))
+                .thenReturn(List.of(existing));
+
+        // Act
+        vaccinationService.createDraftFromBooking(booking, item);
+
+        // Assert
+        verify(vaccinationRecordRepository, never()).save(any());
     }
 }

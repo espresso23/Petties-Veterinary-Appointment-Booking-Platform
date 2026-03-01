@@ -35,6 +35,7 @@ export interface CreateVaccinationRequest {
     nextDueDate?: string
     doseSequence?: string
     notes?: string
+    workflowStatus?: 'PENDING' | 'COMPLETED'
 }
 
 export const vaccinationService = {
@@ -47,6 +48,19 @@ export const vaccinationService = {
         return {
             ...item,
             workflowStatus: (item as unknown as { status?: string }).status as 'PENDING' | 'COMPLETED' || 'PENDING',
+            status: this.calculateStatus(item.nextDueDate)
+        }
+    },
+
+    /**
+     * Update an existing vaccination record
+     */
+    async updateVaccination(id: string, request: Partial<CreateVaccinationRequest>): Promise<VaccinationRecord> {
+        const response = await api.put<any>(`/vaccinations/${id}`, request)
+        const item = response.data
+        return {
+            ...item,
+            workflowStatus: item.status as 'PENDING' | 'COMPLETED',
             status: this.calculateStatus(item.nextDueDate)
         }
     },
