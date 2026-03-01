@@ -56,10 +56,7 @@ Enum staff_role {
 }
 
 Enum staff_specialty {
-  VET_GENERAL [note: 'General veterinarian']
-  VET_SURGERY [note: 'Surgical specialist']
-  VET_DENTAL [note: 'Veterinary dentist']
-  VET_DERMATOLOGY [note: 'Veterinary dermatologist']
+  VET [note: 'Veterinarian - covers all medical services']
   GROOMER [note: 'Grooming staff']
 }
 
@@ -204,7 +201,7 @@ Table users {
   avatar varchar(500)
   avatar_public_id varchar(100)
   role role [not null, note: 'PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN']
-  specialty staff_specialty [note: 'Only for STAFF (VET_GENERAL, GROOMER, etc.)']
+  specialty staff_specialty [note: 'Only for STAFF (VET, GROOMER)']
   rating_avg decimal(2,1) [default: 0.0]
   rating_count int [default: 0]
   fcm_token varchar(500) [note: 'Firebase Cloud Messaging token']

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { type SVGProps, type RefAttributes } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
     ChevronLeftIcon,
@@ -8,10 +8,18 @@ import {
 } from '@heroicons/react/24/outline'
 import type { SidebarState } from '../../hooks/useSidebar'
 
+// SVG Icon component type
+type IconComponent = React.ForwardRefExoticComponent<
+    Omit<SVGProps<SVGSVGElement>, 'ref'> & {
+        title?: string
+        titleId?: string
+    } & RefAttributes<SVGSVGElement>
+>
+
 export interface NavItem {
     path: string
     label: string
-    icon: React.ForwardRefExoticComponent<any>
+    icon: IconComponent
     end?: boolean
     unreadCount?: number
 }
@@ -21,9 +29,17 @@ export interface NavGroup {
     items: NavItem[]
 }
 
+interface User {
+    fullName?: string
+    email?: string
+    avatarUrl?: string
+    avatar?: string
+    specialty?: string
+}
+
 interface SidebarProps {
     groups: NavGroup[]
-    user: any
+    user: User | null
     roleName: string
     state: SidebarState
     toggleSidebar: () => void
@@ -46,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Width classes based on state
     const sidebarWidth = isExpanded ? 'w-64' : 'w-20'
     const mobileClasses = isMobile
-        ? `fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out ${sidebarWidth} shadow-2xl`
+        ? `fixed z-50 sidebar-mobile-safe transform transition-all duration-300 ease-in-out ${sidebarWidth} shadow-2xl`
         : `relative transition-all duration-300 ease-in-out ${sidebarWidth} overflow-visible`
 
     return (
@@ -55,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {isMobile && isExpanded && (
                 <div
                     className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-40 transition-opacity duration-300"
+                    aria-hidden
                     onClick={toggleSidebar}
                 />
             )}
@@ -170,10 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <p className="text-[9px] font-medium text-stone-500 truncate mt-0.5">{user?.email}</p>
                                     {user?.specialty && (
                                         <p className="text-[8px] font-bold text-amber-600 truncate mt-0.5 uppercase">
-                                            {user.specialty === 'VET_GENERAL' && 'BS Thú y'}
-                                            {user.specialty === 'VET_SURGERY' && 'BS Phẫu thuật'}
-                                            {user.specialty === 'VET_DENTAL' && 'BS Nha khoa'}
-                                            {user.specialty === 'VET_DERMATOLOGY' && 'BS Da liễu'}
+                                            {(user.specialty === 'VET' || user.specialty?.startsWith('VET_')) && 'BS Thú y'}
                                             {user.specialty === 'GROOMER' && 'Grooming'}
                                         </p>
                                     )}

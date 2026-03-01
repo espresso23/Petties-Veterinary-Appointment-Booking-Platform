@@ -356,9 +356,7 @@ public class PetService {
         // Filter active statuses for status badge priority
         List<BookingStatus> activeStatuses = List.of(
                 BookingStatus.CONFIRMED,
-                BookingStatus.ARRIVED,
-                BookingStatus.IN_PROGRESS,
-                BookingStatus.ON_THE_WAY);
+                BookingStatus.IN_PROGRESS);
 
         for (Booking b : clinicBookingsToday) {
             Pet pet = b.getPet();
@@ -393,6 +391,25 @@ public class PetService {
                         updateDtoWithBooking(dto, b);
                     }
                 }
+            }
+        }
+
+        // 2b. Luôn áp dụng IN_PROGRESS (bất kể ngày) để trang bệnh nhân hiển thị "Đang khám" đúng
+        List<Booking> inProgressBookings = bookingRepository.findByClinicIdAndStatusInProgressWithDetails(clinicId);
+        for (Booking b : inProgressBookings) {
+            Pet pet = b.getPet();
+            if (pet == null) continue;
+            StaffPatientDTO dto = patientMap.get(pet.getId());
+            if (dto == null) continue;
+            // Ghi đè thành IN_PROGRESS nếu pet đang có booking đang thực hiện
+            if (!BookingStatus.IN_PROGRESS.name().equals(dto.getBookingStatus())) {
+                updateDtoWithBooking(dto, b);
+                log.debug("Patient list: set pet {} to IN_PROGRESS from any-date booking", pet.getName());
+            }
+            boolean isAssignedToThisStaff = b.getBookingServices() != null && b.getBookingServices().stream()
+                    .anyMatch(bs -> bs.getAssignedStaff() != null && bs.getAssignedStaff().getUserId().equals(staffId));
+            if (isAssignedToThisStaff) {
+                dto.setAssignedToMe(true);
             }
         }
 
@@ -448,10 +465,6 @@ public class PetService {
         switch (status) {
             case "IN_PROGRESS":
                 return 4;
-            case "ARRIVED":
-                return 3;
-            case "ON_THE_WAY":
-                return 2;
             case "CONFIRMED":
                 return 1;
             default:

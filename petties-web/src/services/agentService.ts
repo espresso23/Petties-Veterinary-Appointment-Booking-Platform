@@ -30,6 +30,11 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
 
 // ===== TYPES =====
 
+export interface AgentListResponse {
+    agents: Agent[]
+}
+
+
 export interface Agent {
     id: number
     name: string
@@ -46,9 +51,33 @@ export interface Agent {
     tools?: string[]
 }
 
-export interface AgentListResponse {
-    total: number
-    agents: Agent[]
+export interface PromptVersion {
+    version: number
+    prompt: string
+    created_at: string
+}
+
+export interface ScanToolsResult {
+    discovered: number
+    new_tools: string[]
+}
+
+export interface UploadDocumentResult {
+    success: boolean
+    document_id: number
+    message?: string
+}
+
+export interface ProcessDocumentResult {
+    success: boolean
+    chunks_created: number
+}
+
+export interface KnowledgeStatusResult {
+    total_documents: number
+    processed_documents: number
+    total_vectors: number
+    storage_size_bytes?: number
 }
 
 export interface Tool {
@@ -122,7 +151,7 @@ export const agentApi = {
     },
 
     // Get prompt history
-    async getPromptHistory(id: number): Promise<any[]> {
+    async getPromptHistory(id: number): Promise<PromptVersion[]> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/agents/${id}/prompt-history`)
         if (!response.ok) throw new Error('Failed to fetch prompt history')
         const data = await response.json()
@@ -196,7 +225,7 @@ export const toolApi = {
     },
 
     // Scan code tools
-    async scanTools(): Promise<any> {
+    async scanTools(): Promise<ScanToolsResult> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/tools/scan`, {
             method: 'POST'
         })
@@ -216,7 +245,7 @@ export const knowledgeApi = {
     },
 
     // Upload document
-    async uploadDocument(file: File, notes?: string): Promise<any> {
+    async uploadDocument(file: File, notes?: string): Promise<UploadDocumentResult> {
         const formData = new FormData()
         formData.append('file', file)
         if (notes) formData.append('notes', notes)
@@ -244,7 +273,7 @@ export const knowledgeApi = {
     },
 
     // Process document to create vectors
-    async processDocument(documentId: number): Promise<any> {
+    async processDocument(documentId: number): Promise<ProcessDocumentResult> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/documents/${documentId}/process`, {
             method: 'POST'
         })
@@ -279,7 +308,7 @@ export const knowledgeApi = {
     },
 
     // Get status
-    async getStatus(): Promise<any> {
+    async getStatus(): Promise<KnowledgeStatusResult> {
         const response = await fetchWithAuth(`${AGENT_SERVICE_URL}/api/v1/knowledge/status`)
         if (!response.ok) throw new Error('Failed to fetch status')
         return response.json()

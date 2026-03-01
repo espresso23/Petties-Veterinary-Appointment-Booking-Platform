@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../data/models/beneficiary_info.dart';
 import '../data/models/clinic.dart';
@@ -710,6 +711,18 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Parse API error to user-friendly Vietnamese message
+  String _parseBookingError(Object e) {
+    if (e is DioException && e.response?.data is Map) {
+      final data = e.response!.data as Map<String, dynamic>;
+      final message = data['message'];
+      if (message is String && message.isNotEmpty) {
+        return message;
+      }
+    }
+    return 'Không thể đặt lịch. Vui lòng thử lại.';
+  }
+
   /// Create booking
   Future<bool> createBooking() async {
     if (!canConfirmBooking || _clinic == null) return false;
@@ -782,8 +795,8 @@ class BookingWizardProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      // Hiển thị message lỗi từ backend nếu có
-      _bookingError = e.toString();
+      // Parse API error message (tiếng Việt từ backend)
+      _bookingError = _parseBookingError(e);
       debugPrint('Error creating booking: $e');
       return false;
     } finally {

@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 1.8.0 (Added Clinic Setup AI Agent)
-**Last Updated:** 2026-02-04
+**Version:** 2.0.0 (Added File Management, Vaccination Reminders, Enhanced Notifications)
+**Last Updated:** 2026-02-21
 **Document Status:** In Progress
 
 ---
@@ -191,7 +191,7 @@ graph TB
 
 #### 2.2.3 Pet Records & Health Hub (Boundary)
 
-**Actors involved:** Pet Owner, Staff
+**Actors involved:** Pet Owner, Staff, System
 
 | UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
 |-------|---------------|---------------|--------------|----------|
@@ -201,6 +201,10 @@ graph TB
 | UC-PET-04 | View Patient History (Mobile) | Staff | - | High |
 | UC-PET-05 | Update Pet Allergies | Pet Owner | - | Low |
 | UC-PET-06 | Update Pet Weight (Quick update) | Pet Owner | - | Low |
+| UC-VAC-01 | Schedule Vaccination Reminder | System | Pet Owner | Medium |
+| UC-VAC-02 | Send Vaccination Due Notification | System | Pet Owner | Medium |
+| UC-VAC-03 | View Upcoming Vaccination Schedule | Pet Owner | - | Medium |
+| UC-VAC-04 | Mark Vaccination as Completed | Staff | - | Low |
 
 #### 2.2.4 Clinic Discovery & Search (Boundary)
 
@@ -293,6 +297,15 @@ graph TB
 | UC-SOS-06 | Start Emergency Travel (Manual Click) | Staff | - | High |
 | UC-SOS-07 | Confirm SOS Arrival | Staff | Pet Owner | High |
 | UC-SOS-08 | Dispatch SOS (Manual) | Clinic Manager | Staff | Medium |
+| UC-SOS-09 | **Auto-Match: Find Nearest Clinic** | System | Pet Owner | High |
+| UC-SOS-10 | **Auto-Match: Accept/Decline SOS Request** | Clinic Manager | Pet Owner | High |
+| UC-SOS-11 | **Auto-Match: Escalate to Next Clinic** | System | Clinic Manager | High |
+| UC-SOS-12 | **Auto-Match: Notify No Clinic Available** | System | Pet Owner | Medium |
+| UC-SOS-13 | **Configure SOS Auto-Match Settings** | Clinic Owner | - | Medium |
+
+> [!NOTE]
+> **Auto-Match Flow (UC-SOS-09 → UC-SOS-12)**: Hệ thống tự động tìm phòng khám gần nhất và gửi yêu cầu SOS. Nếu không có phản hồi trong 60 giây, yêu cầu sẽ được chuyển sang phòng khám tiếp theo (tối đa 5 lần). Nếu không có phòng khám nào nhận → hiển thị số hotline.
+
 
 #### 2.2.10 AI Assistance & Agents (Boundary)
 
@@ -311,7 +324,7 @@ graph TB
 
 #### 2.2.11 Platform Administration & Governance (Boundary)
 
-**Actors involved:** Admin, Pet Owner
+**Actors involved:** Admin, Pet Owner, System
 
 | UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
 |-------|---------------|---------------|--------------|----------|
@@ -323,6 +336,24 @@ graph TB
 | UC-GOV-06 | SSE Real-time Notifications | Admin | - | Low |
 | UC-GOV-07 | Rate & Review | Pet Owner | Staff, Clinic | Low |
 | UC-GOV-08 | Report Violation | Pet Owner | Admin | Low |
+| UC-NOTIF-01 | Send FCM Push Notification | System | Pet Owner, Staff | High |
+| UC-NOTIF-02 | Subscribe to FCM Topic | Mobile App | - | High |
+| UC-NOTIF-03 | Send SSE Real-time Event | System | Web Client | Medium |
+| UC-NOTIF-04 | Subscribe to SSE Stream | Web Client | - | Medium |
+| UC-NOTIF-05 | Send Batch Notifications | System | Multiple Users | Low |
+
+#### 2.2.12 File & Media Management (Boundary)
+
+**Actors involved:** Pet Owner, Staff, Clinic Owner, Admin
+
+| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
+|-------|---------------|---------------|--------------|----------|
+| UC-FILE-01 | Upload Pet Image | Pet Owner | - | High |
+| UC-FILE-02 | Upload Medical Document | Staff | - | High |
+| UC-FILE-03 | Upload Clinic Logo/Banner | Clinic Owner | - | Medium |
+| UC-FILE-04 | Upload Knowledge Base Document | Admin | - | Medium |
+| UC-FILE-05 | Delete Uploaded File | Pet Owner, Staff | - | Low |
+| UC-FILE-06 | View File Gallery | Pet Owner, Staff | - | Low |
 
 ### 2.3 Use Case Implementation Status Reference
 
@@ -351,7 +382,10 @@ graph TB
 | 12 | View user account | - | - | ✅ UserController | ✅ Web | ✅ Done |
 | 13 | Create notification | - | - | ✅ NotificationService | ❌ | 🔄 Backend Only |
 | 14 | Delete notification | - | - | ❌ | ❌ | ❌ Not Started |
-| 109 | Cancel Email Change Request | UC-PO-24 | 2.2.2 | ✅ UserController | ✅ Mobile | ✅ Done |
+| 109 | Cancel Email Change Request | UC-PROFILE-04 | 2.2.2 | ✅ UserController | ✅ Mobile | ✅ Done |
+| 110 | Send FCM Push Notification | UC-NOTIF-01 | 2.2.11 | ✅ FcmController | ✅ Mobile | ✅ Done |
+| 111 | Subscribe FCM Topic | UC-NOTIF-02 | 2.2.11 | ✅ FcmService | ✅ Mobile | ✅ Done |
+| 112 | SSE Real-time Events | UC-NOTIF-03 | 2.2.11 | ✅ SseController | ✅ Web | ✅ Done |
 
 #### Pet Management
 
@@ -477,6 +511,17 @@ graph TB
 | 107 | Reassign Staff to Service | UC-CM-15 | 2.2.5 | ✅ BookingController | ✅ Web | ✅ Done |
 | 108 | Staff Home Dashboard Summary | UC-ST-14 | 2.2.5 | ✅ BookingController | ✅ Mobile | ✅ Done |
 
+#### File & Media Management
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|----------|----------|--------|
+| 113 | Upload Pet Image | UC-FILE-01 | 2.2.12 | ✅ FileController | ✅ Mobile | ✅ Done |
+| 114 | Upload Medical Document | UC-FILE-02 | 2.2.12 | ✅ FileController | ✅ Mobile | ✅ Done |
+| 115 | Upload Clinic Logo/Banner | UC-FILE-03 | 2.2.12 | ✅ CloudinaryService | ✅ Web | ✅ Done |
+| 116 | Upload Knowledge Base Doc | UC-FILE-04 | 2.2.12 | ✅ FileController | ✅ Web | ✅ Done |
+| 117 | Delete Uploaded File | UC-FILE-05 | 2.2.12 | ✅ FileController | ✅ Mobile/Web | ✅ Done |
+| 118 | View File Gallery | UC-FILE-06 | 2.2.12 | ✅ FileController | ✅ Mobile | ✅ Done |
+
 #### Patient & EMR Management
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
@@ -495,14 +540,136 @@ graph TB
 | 92 | Checkout patient | UC-CM-10 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
 | 93 | View assigned booking | UC-VT-03 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
 
+#### Vaccination Reminders
+
+| # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
+|---|----------|-------|---------|---------|----------|--------|
+| 119 | Schedule Vaccination Reminder | UC-VAC-01 | 2.2.3 | ✅ VaccinationReminderService | ✅ System | ✅ Done |
+| 120 | Send Vaccination Due Notification | UC-VAC-02 | 2.2.3 | ✅ VaccinationReminderService | ✅ Mobile | ✅ Done |
+| 121 | View Upcoming Vaccinations | UC-VAC-03 | 2.2.3 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
+| 122 | Mark Vaccination Completed | UC-VAC-04 | 2.2.3 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
+
 #### Implementation Summary
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Done | 91 | 81.3% |
-| 🔄 In Progress | 5 | 4.5% |
-| ❌ Not Started | 16 | 14.3% |
-| **Total** | **112** | **100%** |
+| ✅ Done | 104 | 85.2% |
+| 🔄 In Progress | 5 | 4.1% |
+| ❌ Not Started | 13 | 10.7% |
+| **Total** | **122** | **100%** |
+
+### 2.4 Cross-Reference: Use Case to SDD Mapping
+
+Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation trong SDD (REPORT_4_SDD_SYSTEM_DESIGN.md):
+
+#### Authentication & Account Management Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-AUTH-01 | Register Account (Email/OTP) | Authentication Management | 3.1 |
+| UC-AUTH-02 | Login by Google OAuth | Authentication Management | 3.1 |
+| UC-AUTH-03 | Staff Login (Invited Account) | Authentication Management | 3.1 |
+| UC-AUTH-04 | Manager Login | Authentication Management | 3.1 |
+| UC-AUTH-05 | Invite Staff (Quick Add by Email) | Staff Management | 3.7 |
+| UC-AUTH-06 | Register Clinic (Pending Approval) | Clinic Registration | 3.3 |
+| UC-AUTH-07 | Admin Login | Authentication Management | 3.1 |
+
+#### Pet Records & Health Hub Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-PET-01 | Manage Pet Profiles | Pet Management | 3.5 |
+| UC-PET-02 | View Pet EMR Records | EMR Management | 3.9 |
+| UC-PET-03 | View Vaccination Records | Vaccination Management | 3.9.4 |
+| UC-PET-04 | View Patient History (Mobile) | EMR Management | 3.9.7 |
+| UC-PET-05 | Update Pet Allergies | Pet Management | 3.5 |
+| UC-PET-06 | Update Pet Weight | Pet Management | 3.5 |
+| UC-VAC-01 | Schedule Vaccination Reminder | Vaccination Reminders | 3.14 (New) |
+| UC-VAC-02 | Send Vaccination Due Notification | Vaccination Reminders | 3.14 (New) |
+| UC-VAC-03 | View Upcoming Vaccination Schedule | Vaccination Management | 3.9.4 |
+| UC-VAC-04 | Mark Vaccination as Completed | Vaccination Management | 3.9.4 |
+
+#### Booking & Appointment Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-BOOK-01 | Create Booking Request | Booking Management | 3.8.1 |
+| UC-BOOK-02 | View Available Slots | Slot Calculation | 3.7.3 |
+| UC-BOOK-03 | Cancel Booking | Booking Management | 3.8.4 |
+| UC-BOOK-04 | Reschedule Booking | Booking Management | 3.8.5 |
+| UC-BOOK-05 | Check-in Patient | Booking Lifecycle | 3.8.6 |
+| UC-BOOK-06 | Check-out Patient | Booking Lifecycle | 3.8.6 |
+
+#### Clinical Operations Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-SERVICE-01 | Configure Master Services | Service Management | 3.6.1 |
+| UC-SERVICE-02 | Customize Clinic Services | Service Management | 3.6.1 |
+| UC-SERVICE-03 | Configure Service Weight Tiers | Service Management | 3.6.1 |
+| UC-STAFF-01 | Add Staff Member | Staff Management | 3.7.1 |
+| UC-STAFF-02 | Remove Staff Member | Staff Management | 3.7.1 |
+| UC-STAFF-03 | Create Staff Schedule | Scheduling Management | 3.7.2 |
+| UC-STAFF-04 | Assign Staff to Booking | Booking Assignment | 3.8.3 |
+
+#### SOS Emergency Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-SOS-01 | Request SOS | SOS Emergency | 3.10.1 |
+| UC-SOS-02 | Track Staff Location | SOS Emergency | 3.10.2 |
+| UC-SOS-03 | View ETA & Route | SOS Emergency | 3.10.3 |
+| UC-SOS-04 | Receive Arrival Alert | SOS Emergency | 3.10.4 |
+| UC-SOS-09 | Auto-Match: Find Nearest Clinic | SOS Auto-Match | 3.10.5 |
+| UC-SOS-10 | Auto-Match: Accept/Decline SOS | SOS Auto-Match | 3.10.6 |
+
+#### AI Assistance Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-AI-01 | Ask Pet Care Advice (RAG) | AI Agent Service | 3.11.1 |
+| UC-AI-02 | Symptom Check | AI Agent Tools | 3.11.2 |
+| UC-AI-03 | AI Booking Assistant | AI Agent Tools | 3.11.2 |
+| UC-AI-04 | Real-time Chat (WebSocket) | Chat Management | 3.11.3 |
+| UC-AI-05 | Chat Images Gallery | Chat Management | 3.11.3 |
+| UC-AI-06 | Manage Agent Tools | Agent Configuration | 3.11.4 |
+| UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
+| UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.6 |
+
+#### Notification Management Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-NOTIF-01 | Send FCM Push Notification | FCM Push Notifications | 3.13 (New) |
+| UC-NOTIF-02 | Subscribe to FCM Topic | FCM Push Notifications | 3.13 (New) |
+| UC-NOTIF-03 | Send SSE Real-time Event | SSE Real-time Notifications | 3.12 (New) |
+| UC-NOTIF-04 | Subscribe to SSE Stream | SSE Real-time Notifications | 3.12 (New) |
+| UC-NOTIF-05 | Send Batch Notifications | Notification Service | 3.4.3 |
+
+#### File & Media Management Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-FILE-01 | Upload Pet Image | File Upload Management | 3.15 (New) |
+| UC-FILE-02 | Upload Medical Document | File Upload Management | 3.15 (New) |
+| UC-FILE-03 | Upload Clinic Logo/Banner | File Upload Management | 3.15 (New) |
+| UC-FILE-04 | Upload Knowledge Base Document | File Upload Management | 3.15 (New) |
+| UC-FILE-05 | Delete Uploaded File | File Upload Management | 3.15 (New) |
+| UC-FILE-06 | View File Gallery | File Upload Management | 3.15 (New) |
+
+#### Governance & Administration Mapping
+
+| UC-ID | Use Case Name | SDD Module | SDD Section |
+|-------|---------------|------------|-------------|
+| UC-GOV-01 | View Pending Clinics | Clinic Approval | 3.3.2 |
+| UC-GOV-02 | Approve/Reject Clinic | Clinic Approval | 3.3.2 |
+| UC-GOV-03 | View Platform Stats | Admin Dashboard | 3.12.1 |
+| UC-GOV-04 | View User Reports | Reporting & Moderation | 3.12.2 |
+| UC-GOV-05 | Moderate Users | User Management | 3.2.5 |
+| UC-GOV-07 | Rate & Review | Review System | 3.12.3 |
+| UC-GOV-08 | Report Violation | Reporting System | 3.12.2 |
+
+> **Note:** Các section đánh dấu "(New)" cần được bổ sung vào SDD Document. Tham khảo existing sections để maintain consistency về format và structure.
 
 ---
 
@@ -884,7 +1051,7 @@ flowchart LR
 
 | # | Module | Screen Name | Platform/Role | Description |
 |:---:|:---|:---|:---|:---|
-| 59 | SOS Emergency | Create SOS Request | Mobile/PO | Wizard to create emergency SOS booking with location, pet selection |
+| 59 | SOS Emergency | Create SOS Request | Mobile/PO | Wizard to create SOS booking: address selection (Location Picker / GPS), pet selection, symptoms input. Includes cancel button and lat/lng coordinates. |
 | 60 | SOS Emergency | SOS Tracking | Mobile/PO | Real-time GPS map showing vet location, route, and ETA |
 | 61 | SOS Emergency | Start SOS Travel | Mobile/Staff | Emergency GPS toggle, route visual, geofence arrival confirmation |
 | 62 | Communication | AI Chat | Mobile/PO | Chat with AI assistant (3 modes: RAG Knowledge, Symptom Checker, AI Booking) |
@@ -2311,13 +2478,8 @@ The system tracks the full physical and logistical flow of each appointment usin
 | Status | Trigger | Description |
 | :--- | :--- | :--- |
 | **PENDING** | Booking Created | Waiting for payment completion (15-min TTL). |
-| **CONFIRMED** | Payment Success | Appointment is locked. Visible to Manager for assignment. |
-| **ASSIGNED** | Manager Action | Staff has been assigned to the booking. (UC-CM-06) |
-| **ON_THE_WAY** | Staff Action | For Home Visit/SOS: Staff starts traveling. GPS tracking active. |
-| **ARRIVED** | Staff Action / Geofence | Staff confirms arrival at location (or auto-detected). |
-| **CHECK_IN** | Staff Action | Physical handover/exam start. Creates EMR shell. (UC-VT-05) |
-| **IN_PROGRESS** | System | Medical record being updated by Staff. |
-| **PAID** | Manager/Staff Action| Final incurred costs settled (if cash or add-ons). |
+| **CONFIRMED** | Payment Success | Appointment is locked. Clinic confirms and staff is assigned. |
+| **IN_PROGRESS** | Staff Action | Staff starts moving (for HOME_VISIT/SOS) or starts examination (IN_CLINIC). |
 | **CHECK_OUT** | Staff Action | Exam finished, EMR locked. (UC-CM-10) |
 | **COMPLETED** | System | Final archival status. Review popup triggered for Owner. |
 
@@ -2331,12 +2493,12 @@ The system tracks the full physical and logistical flow of each appointment usin
 **Data processing:**
 1. Manager selects vet per service based on specialty matching.
 2. System verifies vet availability and assigns.
-3. Booking status → `ASSIGNED`.
+3. Booking status remains `CONFIRMED` (Staff assigned).
 
  #### *3.8.5 Handle Patient Check-in/Out (UC-VT-05 / UC-CM-10)*
 **Data processing:**
-1. Check-in: Status → `CHECK_IN`. Start EMR.
-2. Check-out: Status → `CHECK_OUT` → `COMPLETED`. Lock EMR.
+1. Check-in: Status → `IN_PROGRESS`. Start EMR.
+2. Check-out: Status → `COMPLETED`. Lock EMR.
 
  #### *3.8.6 Add Incurred Service / Final Settlement (UC-VT-09)*
 1. Staff adds additional services during exam.
@@ -2362,7 +2524,7 @@ The system tracks the full physical and logistical flow of each appointment usin
 **Data processing**
 1. System query tất cả bookings có `pet_owner_id = current_user`.
 2. Nhóm theo status:
-    - **Sắp tới:** `PENDING`, `CONFIRMED`, `ASSIGNED`, `ON_THE_WAY`, `CHECK_IN`, `IN_PROGRESS`
+    - **Sắp tới:** `PENDING`, `CONFIRMED`, `IN_PROGRESS`
     - **Đã hoàn thành:** `COMPLETED`
     - **Đã hủy:** `CANCELLED`, `NO_SHOW`
 3. Hiển thị danh sách với sorting theo `booking_date DESC`.
@@ -2401,12 +2563,12 @@ Figure 38. Screen My Bookings List (Mobile) - Tab-based view.
 **Data processing**
 1. User click "Hủy lịch hẹn" → Modal xác nhận hiển thị.
 2. User confirm → System kiểm tra:
-    - Status phải là `PENDING`, `CONFIRMED`, hoặc `ASSIGNED` (chưa `CHECK_IN`).
-    - Nếu status ≥ `CHECK_IN` → Không cho phép hủy.
+    - Status phải là `PENDING`, `CONFIRMED` (chưa `IN_PROGRESS`).
+    - Nếu status ≥ `IN_PROGRESS` → Không cho phép hủy.
 3. System thực hiện:
     - Update `booking.status = CANCELLED`.
     - Restore slots về `AVAILABLE`.
-    - Tạo notification cho Staff (nếu đã ASSIGNED) và Clinic Manager.
+    - Tạo notification cho Staff và Clinic Manager.
     - Nếu thanh toán online → Tạo refund request (UC-CM-07).
 4. Toast: "Đã hủy lịch hẹn thành công".
 
@@ -2419,7 +2581,7 @@ Figure 39. Screen Cancel Booking Confirmation (Mobile) - Modal dialog.
     - Response: `{ success: true, message: "Đã hủy lịch hẹn" }`
 - **Validation:**
     - Booking phải thuộc về user hiện tại.
-    - Status phải < `CHECK_IN`.
+    - Status phải < `IN_PROGRESS`.
 - **Business rules:** BR-BOK-09 tại (5.1 Business Rules)
 - **Normal case:** Booking status → `CANCELLED`, slots restored, notifications sent.
 - **Abnormal/Exception cases:**
@@ -3099,18 +3261,118 @@ Figure 47. Screen Patient Records Detail (Web)
 
  #### *3.10.1 SOS Emergency Booking (UC-PO-15)*
 **User Story:**
-> *As a Pet Owner, I want to trigger an emergency SOS alert so that the nearest available clinic and vet can be dispatched to my location immediately.*
+> *As a Pet Owner, I want to trigger an emergency SOS alert so that the nearest available clinic and vet can be dispatched to my location immediately, and I can track the vet’s arrival in real time.*
 
 **Function trigger**
-- **Navigation path:** Mobile Home → "SOS Emergency" (Red Button) OR AI Assistant → "Cấp cứu!".
+- **Navigation path:**
+  - From Pet Owner Mobile Home → red **“SOS Emergency”** button → `SosRequestScreen`.
+  - From **“My bookings” (MyBookingsTab)** → select a booking of type **SOS** with status **CONFIRMED / IN_PROGRESS** → press **“FOLLOW / TRACK”** → `SosTrackingScreen`.
+- **Timing frequency:** On demand (24/7). At any moment, a Pet Owner may have **at most one** active SOS booking.
 
-**Data processing**
-1. System identifies user GPS location.
-2. System searches for nearest clinic offering `EMERGENCY` service.
-3. System creates a `BOOKING` with `SOS` type and `PENDING_ASSIGNMENT` status.
-4. Alerts are broadcasted to all Staff in the selected clinic.
+**Function description**
+- **Actors/Roles:** Pet Owner (mobile app).
+- **Purpose:**  
+  - Allow the Pet Owner to create an SOS emergency booking for a pet, let the system automatically find and contact a suitable nearby clinic, then let the Pet Owner track the assigned vet’s real-time location until arrival.
+- **Interface:**
+    1. **`SosRequestScreen` (Mobile – Pet Owner):**
+       - **Pet selector**: list of the owner’s pets.
+       - **Quick symptom chips**: multiple-select chips for common emergency symptoms.
+       - **Free-text symptom description**: multiline text field.
+       - **Emergency location:**
+         - **“Use current location”** (GPS).
+         - **“Choose another location”** (opens Location Picker using Goong API, with reverse-geocoded address).
+       - **Primary action button**: “Send SOS request”.
+       - **Active SOS dialog**: when the screen opens and an active SOS booking already exists:
+         - Option **“Continue tracking”** → navigate directly to radar or tracking screen depending on current status.
+         - Option **“Cancel current request and create new”** → call SOS cancel API, then allow a new request.
+    2. **`SosRadarMapScreen` (Mobile – Pet Owner):**
+       - Full-screen Google Map.
+       - Marker for **owner location**, search **radius circle** (e.g. 10 km).
+       - **Radar animation** visualizing the search process.
+       - Dynamic status text driven by backend SOS matching status:
+         - “Searching for nearby clinics…”, “Waiting for clinic confirmation…”, “Clinic confirmed…”, “No clinic available”, “Request cancelled”.
+       - **60‑second countdown** per clinic according to business rules.
+       - **Cancel SOS** button when cancellation is allowed.
+       - When matching is **confirmed**, briefly shows clinic details (name, address, phone) and then auto-navigates to `SosTrackingScreen` (unless the booking was cancelled).
+    3. **`SosTrackingScreen` (Mobile – Pet Owner):**
+       - Google Map with:
+         - **Home marker** (pet owner’s address).
+         - **Clinic marker**.
+         - **Vet/staff marker**.
+       - Route polyline between home and clinic using Goong Direction API; vet marker snapped to the polyline and smoothly animated.
+       - Automatic camera fit/zoom to show both home and vet positions.
+       - **ETA (minutes)** and **distance (km)** only visible **after** staff has started travelling and valid tracking data is received.
+       - Contextual status messages, e.g. “Vet is on the way”, “Vet is nearby (≤ 0.5 km)”, “Vet is very close (≤ 0.1 km)”, “Vet has arrived”.
+       - On arrival, shows a success message and auto-returns to the home screen after a short delay.
+    4. **`MyBookingsTab` (Mobile – Pet Owner):**
+       - Booking list; SOS bookings show an extra **“FOLLOW / TRACK”** button when status is **CONFIRMED / IN_PROGRESS**, which navigates to `SosTrackingScreen`.
 
- #### *3.10.2 Track Staff Location (UC-PO-17 / UC-PO-18 / UC-PO-19)*
+**Screen layout**
+- The SOS flow consists of:
+  - **SOS Request screen**: form with pet, symptoms, and location.
+  - **SOS Radar screen**: map + radar animation + countdown + clinic highlight.
+  - **SOS Tracking screen**: live map tracking vet location, ETA, distance.
+  - **Entry from MyBookingsTab**: SOS booking card with “FOLLOW / TRACK” button.
+
+**Function details**
+- **Data:**
+  - **Request from `SosRequestScreen` (create SOS):**
+    - `petId`: ID of selected pet.
+    - `symptomTags`: array of selected quick symptom tags.
+    - `symptomDescription`: free-text description.
+    - `locationLat`, `locationLng`: GPS coordinates from current location or Location Picker.
+    - `locationAddress`: human-readable address from reverse geocoding.
+  - **SOS matching status (`SosMatchingStatus` from backend):**
+    - Flags: `isSearching`, `isPendingConfirm`, `isConfirmed`, `isCancelled`, `noClinic`.
+    - Clinic info: `clinicId`, `clinicName`, `clinicPhone`, `address`.
+    - User-facing `statusMessage`.
+  - **Tracking data (`LocationUpdateResponse` from backend):**
+    - `latitude`, `longitude`: latest staff coordinates.
+    - `distanceKm`: distance from staff to owner’s home in kilometers.
+    - `etaMinutes`: estimated time of arrival in minutes.
+    - `arrived`: boolean flag indicating staff arrival.
+  - **Booking entity (`Booking`):**
+    - Fields: `id`, `ownerId`, `petId`, `clinicId`, `assignedStaffId`, `type=SOS`, `status`, `locationLat`, `locationLng`, `locationAddress`, `createdAt`, `arrivedAt`, etc.
+- **Validation:**
+  - **Field validation:**
+    - `petId` must belong to the currently logged-in Pet Owner.
+    - `locationLat`, `locationLng` are required and must be in valid latitude/longitude ranges.
+    - Either GPS location must be successfully acquired or the user must select a location on the map.
+    - `symptomTags` must be from the configured set of quick symptoms; `symptomDescription` length is limited.
+  - **Business validation & error handling:**
+    - A Pet Owner **cannot create a new SOS** if there is already an active SOS booking, unless the existing one is cancelled or completed (BR-62).
+    - If the backend fails to create a booking or start matching, the app shows a localized error message and stays on the request screen.
+    - If clinic search finds no clinic within the search radius or all candidate clinics time out/decline, the booking is marked **NO_CLINIC** and the app shows an appropriate message; no tracking screen is shown.
+    - ETA/distance are only displayed when valid tracking data is available; otherwise the UI shows a “waiting for vet to start travelling” message instead of dummy values.
+    - Cancellation must respect `Booking.canBeCancelled()` (e.g. SOS in `IN_PROGRESS` may be cancellable under defined rules; COMPLETED is not).
+- **Business rules:**
+  - **BR-59:** Search radius for SOS auto-match is 10 km around the owner’s emergency location.
+  - **BR-60:** Maximum 5 clinics are tried for each SOS request.
+  - **BR-61:** Each clinic has 60 seconds to accept/decline before escalation.
+  - **BR-62:** A user may not have more than one active SOS booking.
+  - **BR-63:** Redis-based session and locks prevent concurrent duplicate SOS requests.
+  - **BR-64:** Status flow follows: `SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED / CANCELLED / NO_CLINIC`.
+  - **BR-65:** SOS session TTL is bounded (e.g. sum of all clinic timeouts plus buffer).
+  - **BR-66:** Booking code is generated with a unique SOS-specific format.
+  - ETA/distance are updated in real time primarily via WebSocket; REST polling is used only as fallback.
+- **Normal case:**
+    1. Pet Owner opens `SosRequestScreen`; there is no active SOS booking.
+    2. GPS is read and the address field is pre-filled; the user may adjust the address via Location Picker.
+    3. The user selects a pet, picks quick symptom chips, enters optional free-text description, and taps “Send SOS request”.
+    4. Backend validates that no active SOS booking exists, creates a new SOS booking, and starts SOS matching.
+    5. `SosRadarMapScreen` shows a radar animation, nearby clinics, and countdown while the system waits for clinic responses.
+    6. A clinic accepts within the allowed time; backend updates booking to `CONFIRMED` and assigns clinic/staff; the UI briefly shows clinic details.
+    7. The app automatically navigates to `SosTrackingScreen`, subscribes to the tracking WebSocket, and starts rendering the vet marker, route, ETA, and distance.
+    8. When the vet arrives, backend calls the arrival logic and pushes `arrived=true`; the app shows a success message and returns to the home screen.
+- **Abnormal/Exception cases:**
+    - A1 – Active SOS already exists: opening `SosRequestScreen` shows a dialog explaining there is an existing SOS; user can continue tracking or cancel the old request and then create a new one.
+    - A2 – No clinic available: all candidate clinics time out or decline → booking becomes `NO_CLINIC`; the radar screen shows a “no clinic available” message and does not transition to tracking.
+    - A3 – User cancels SOS: the Pet Owner presses “Cancel SOS” from radar/tracking while cancellation is allowed; backend updates booking to `CANCELLED` and stops matching/tracking; the app returns to the home screen.
+    - A4 – Tracking connection issues: WebSocket disconnects or fails repeatedly; the app falls back to REST polling; if tracking still cannot be updated, it shows an error message and allows the user to exit tracking.
+    - E1 – Invalid/missing location: GPS cannot be retrieved and no manual location is selected → the app shows validation errors and prevents sending the request.
+    - E2 – Backend persistence or code-generation errors: booking or session creation fails (e.g. booking code collision) → backend retries generation according to BR-66 or returns an error, and the app displays a localized error message without creating a corrupted booking.
+
+  #### *3.10.2 Track Staff Location (UC-PO-17 / UC-PO-18 / UC-PO-19)*
 **User Story:**
 > *As a Pet Owner requesting SOS, I want to track the vet's real-time location so that I can estimate their arrival time.*
 
@@ -3123,21 +3385,23 @@ Figure 47. Screen Patient Records Detail (Web)
 - **Purpose:** Real-time visibility of the vet's approach during an SOS Emergency.
 - **Interface:**
     - Live Map View
-    - Staff Avatar & License Plate
+    - Staff Avatar & License Plate (Optional)
+    - **Staff Phone Number** (with click-to-call action)
     - Estimated Time of Arrival (ETA)
 
 **Data processing**
-1. System receives GPS coordinates from the Staff's mobile app.
+1. System receives GPS coordinates from the Staff's mobile app via WebSockets/Redis.
 2. System calculates ETA using Goong Maps API.
 3. Renders the moving marker on the Owner's map.
+4. Retrieves and displays Staff phone number for direct contact.
 
 **Screen layout**
 Figure 41. Screen Proactive Staff Tracking (SOS Emergency - Mobile)
 
 **Function details**
 - **Data:** Staff Lat/Lng, Owner Lat/Lng.
-- **Logic:** Tracking is disabled once the Staff marks arrival.
-- **Business rules:** BR-03, BR-04, BR-52.
+- **Logic:** Tracking is active while status is `IN_PROGRESS` and staff is moving toward owner.
+- **Business rules:** BR-52, BR-64.
 - **Normal case:**
     1. Pet Owner opens SOS booking detail after vet is assigned.
     2. Owner taps "Track Staff" button.
@@ -3161,24 +3425,25 @@ Figure 41. Screen Proactive Staff Tracking (SOS Emergency - Mobile)
     - Status Indicator (En Route / Arriving)
 
 **Data processing**
-1. Sets booking travel status to `EN_ROUTE`.
-2. Continuously sends coordinates to the server.
-3. **Automatic Arrival:** System detects when Staff is within 100m of Owner's location and updates status to `ARRIVED` automatically.
-4. **Fallback:** Manual "Confirmed Arrival" option if GPS fails.
+1. Sets booking status to `IN_PROGRESS` (Simplified flow: skips `ON_THE_WAY` and `ARRIVED`).
+2. Continuously sends coordinates to the server while Staff is en route.
+3. System uses real-time proximity to notify the Pet Owner when Staff is near, but does not change status to `ARRIVED`.
+4. After completing the medical service, Staff proceeds directly to Checkout.
 
 **Screen layout**
 Figure 42. Screen SOS Travel Logistics (Staff Side - Mobile)
 
 **Function details**
 - **Data:** Staff Lat/Lng.
+- **Business rules:** BR-52, BR-64.
 - **Normal case:**
     1. Staff receives SOS assignment notification.
-    2. Staff clicks "Start Travel" to begin emergency response.
-    3. System opens external navigation (Google Maps) to owner's location.
-    4. App continuously broadcasts vet's GPS coordinates every 3 seconds.
-    5. System detects vet within 100m of destination.
-    6. Status automatically updates to ARRIVED.
-    7. Owner receives arrival notification.
+    2. Staff clicks "Bắt đầu di chuyển" to begin emergency response.
+    3. System updates booking status directly to `IN_PROGRESS`.
+    4. System opens external navigation (Google Maps) to owner's location.
+    5. App continuously broadcasts vet's GPS coordinates every 3 seconds.
+    6. System notifies Pet Owner when vet is nearing the destination.
+    7. Staff performs medical service and then clicks "Checkout" to complete.
 
 ### 3.11 AI Assistance Flow
 
@@ -3902,13 +4167,21 @@ Sentry Integration: Enabled with issue alerts
 | BR-49 | Staff Shifts and appointment slots must be scheduled for future times; retroactive scheduling (~the past~) is blocked. |
 | BR-50 | Check-out for an appointment is blocked until the corresponding EMR (SOAP note) is drafted and saved. |
 | BR-51 | Email change requests have a mandatory 60-second cooldown between OTP resend attempts. |
-| BR-52 | Real-time GPS tracking is active ONLY for SOS Emergency bookings when the status is EN_ROUTE. Standard Home Visits do not include real-time tracking. |
+| BR-52 | Real-time GPS tracking is active ONLY for SOS Emergency bookings when the status is IN_PROGRESS (during movement). Standard Home Visits do not include real-time tracking. |
 | BR-53 | Additional services and miscellaneous incurred costs must be visible in the final invoice/summary. |
 | BR-54 | Adding additional services or custom costs automatically updates the total price of the booking for final reconciliation. |
 | BR-55 | **[EMR]** EMR có thể UPDATE bởi Staff thuộc **cùng phòng khám đã tạo EMR** trong vòng **24 giờ** kể từ lúc tạo. |
 | BR-56 | **[EMR]** EMR từ **phòng khám khác** chỉ được phép **READ-ONLY**, không thể chỉnh sửa. |
 | BR-57 | **[EMR]** Sau 24 giờ kể từ thời điểm tạo, EMR bị **khóa vĩnh viễn** - chỉ READ-ONLY cho tất cả. |
 | BR-58 | **[Patient]** Khi Pet khám **lần đầu** tại Clinic, hệ thống **TỰ ĐỘNG tạo ClinicPatient** record để liên kết Pet với Clinic, giúp hạn chế nhập thủ công. |
+| BR-59 | **[SOS]** SOS Emergency bookings must search for clinics within 10km radius from pet owner's location. |
+| BR-60 | **[SOS]** SOS Auto-Match attempts maximum 5 clinics per request. |
+| BR-61 | **[SOS]** Each clinic has 60 seconds to respond to SOS request before escalation to next clinic. |
+| BR-62 | **[SOS]** Pet Owner cannot create new SOS booking if existing SOS booking is in active status (SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, IN_PROGRESS). |
+| BR-63 | **[SOS]** SOS bookings bypass specialty check - any available staff can be assigned regardless of specialty. |
+| BR-64 | **[SOS]** SOS booking status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED. |
+| BR-65 | **[SOS]** If no clinic accepts SOS within timeout period, system cancels booking and provides hotline number (1900-PETTIES). |
+| BR-66 | **[SOS]** SOS booking code format: "SOS-" + timestamp (must be unique). |
 
 
 ### 5.2 Common Requirements
@@ -4030,10 +4303,10 @@ Functional tests verify that the system behaves correctly from the user's perspe
 | TC-BOOK-04 | Cancel booking > 24h | Booking > 24h before | 1. Cancel booking | Full refund, show MSG-S05 | High |
 | TC-BOOK-05 | Cancel booking < 4h | Booking < 4h before | 1. Try to cancel | Show error MSG-E08 | High |
 | TC-BOOK-06 | Manager confirm booking | Booking status PENDING | 1. Manager clicks confirm | Status → CONFIRMED | High |
-| TC-BOOK-07 | Manager assign staff | Booking status CONFIRMED | 1. Select staff 2. Assign | Status → ASSIGNED | High |
-| TC-BOOK-08 | Staff check-in | Booking status ASSIGNED | 1. Staff clicks check-in | Status → IN_PROGRESS | High |
+| TC-BOOK-07 | Manager assign staff | Booking status CONFIRMED | 1. Select staff 2. Assign | Status → CONFIRMED (Staff assigned) | High |
+| TC-BOOK-08 | Staff start moving / check-in | Booking status CONFIRMED | 1. Staff clicks start moving / check-in | Status → IN_PROGRESS | High |
 | TC-BOOK-09 | Staff checkout | Booking status IN_PROGRESS | 1. Staff clicks checkout | Status → COMPLETED | High |
-| TC-BOOK-10 | Reassign staff | Booking status ASSIGNED | 1. Manager selects new staff | Staff changed, slots updated | Medium |
+| TC-BOOK-10 | Reassign staff | Booking status CONFIRMED | 1. Manager selects new staff | Staff changed, logic updated | Medium |
 
 ##### Payment Flow
 

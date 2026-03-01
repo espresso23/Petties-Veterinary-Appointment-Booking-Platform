@@ -5,12 +5,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { getBookingsByStaff, getBookingById, checkInBooking, getAvailableServicesForAddOn, addServiceToBooking } from '../../services/bookingService'
+import { getBookingsByStaff, getBookingById, checkInBooking, getAvailableServicesForAddOn, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
 import type { Booking, BookingStatus } from '../../types/booking'
 import type { ClinicServiceResponse } from '../../types/service'
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
 import { AddServiceModal } from '../../components/booking/AddServiceModal'
+import { ConfirmModal } from '../../components/ConfirmModal'
 import { useToast } from '../../components/Toast'
 import {
     CalendarIcon,
@@ -23,6 +24,7 @@ import {
     MagnifyingGlassIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    TrashIcon,
 } from '@heroicons/react/24/outline'
 
 
@@ -62,6 +64,7 @@ export const StaffBookingsPage = () => {
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
     const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
     const [addingService, setAddingService] = useState(false);
+    const [removeConfirmService, setRemoveConfirmService] = useState<{ bookingServiceId: string; serviceName: string } | null>(null);
     const [totalPages, setTotalPages] = useState(0)
     const [totalElements, setTotalElements] = useState(0)
     const pageSize = 10
@@ -180,8 +183,8 @@ export const StaffBookingsPage = () => {
             setAvailableServices(services);
             setAddServiceModalOpen(true);
         } catch (error) {
-            console.error('Failed to fetch available services:', error);
-            showToast('error', 'Không thể tải danh sách dịch vụ');
+            console.error('Error opening service modal:', error)
+            showToast('error', 'Không thể lấy danh sách dịch vụ')
         }
     };
 
@@ -195,11 +198,34 @@ export const StaffBookingsPage = () => {
             fetchBookings();
             setAddServiceModalOpen(false);
             showToast('success', 'Đã thêm dịch vụ thành công');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to add service:', error);
-            showToast('error', error?.response?.data?.message || 'Không thể thêm dịch vụ');
+            const msg = (error && typeof error === 'object' && 'response' in error && (error as { response?: { data?: { message?: string } } }).response?.data?.message)
+                ? (error as { response: { data: { message: string } } }).response.data.message
+                : 'Không thể thêm dịch vụ';
+            showToast('error', msg);
         } finally {
             setAddingService(false);
+        }
+    };
+
+    const handleRemoveAddOnConfirm = async () => {
+        if (!selectedBooking || !removeConfirmService) return;
+        setActionLoading(true);
+        try {
+            await removeServiceFromBooking(selectedBooking.bookingId, removeConfirmService.bookingServiceId);
+            const updated = await getBookingById(selectedBooking.bookingId);
+            setSelectedBooking(updated);
+            fetchBookings();
+            showToast('success', 'Đã xóa dịch vụ phát sinh.');
+        } catch (error: unknown) {
+            const msg = (error && typeof error === 'object' && 'response' in error && (error as { response?: { data?: { message?: string } } }).response?.data?.message)
+                ? (error as { response: { data: { message: string } } }).response.data.message
+                : 'Không thể xóa dịch vụ phát sinh.';
+            showToast('error', msg);
+        } finally {
+            setActionLoading(false);
+            setRemoveConfirmService(null);
         }
     };
 
@@ -401,6 +427,12 @@ export const StaffBookingsPage = () => {
                                 <div className="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
                             </div>
                         ) : (
+                            (() => {
+                                const allServiceItems = (selectedBooking.pets?.length ?? 0) > 0
+                                    ? (selectedBooking.pets ?? []).flatMap(p => p.services ?? [])
+                                    : (selectedBooking.services ?? []);
+                                const isAssignedToBooking = allServiceItems.some(svc => svc.assignedStaffId === user?.userId);
+                                return (
                             <>
                                 {/* Modal Header */}
                                 <div className="flex items-center justify-between p-5 border-b-2 border-stone-100">
@@ -464,6 +496,58 @@ export const StaffBookingsPage = () => {
                                         </div>
                                     </div>
 
+                                    {/* Thao tác - đặt trên cao để staff luôn thấy */}
+                                    <div className="p-4 bg-stone-50 rounded-2xl border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] space-y-3">
+                                        <div className="text-[10px] text-stone-500 font-black uppercase tracking-widest">Thao tác</div>
+                                        {selectedBooking.status === 'CONFIRMED' && isAssignedToBooking && (
+                                            <button
+                                                onClick={async () => {
+                                                    setActionLoading(true)
+                                                    try {
+                                                        await checkInBooking(selectedBooking.bookingId)
+                                                        handleViewDetail(selectedBooking.bookingId)
+                                                        fetchBookings()
+                                                        showToast('success', 'Check-in thành công')
+                                                    } catch (err) {
+                                                        console.error('Check-in failed:', err)
+                                                        showToast('error', 'Check-in thất bại')
+                                                    } finally {
+                                                        setActionLoading(false)
+                                                    }
+                                                }}
+                                                disabled={actionLoading}
+                                                className="w-full bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0 transition-all disabled:opacity-50"
+                                            >
+                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU KHÁM'}
+                                            </button>
+                                        )}
+                                        {selectedBooking.status === 'IN_PROGRESS' && (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)}
+                                                    className="bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                                >
+                                                    TẠO BỆNH ÁN
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleOpenVaccineModal}
+                                                    className="bg-emerald-500 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[2px_2px_0_0_#065f46] hover:-translate-y-0.5 transition-all"
+                                                >
+                                                    TIÊM VACCINE
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleOpenAddServiceModal}
+                                                    className="col-span-1 sm:col-span-2 bg-[#38B2AC] text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 transition-all"
+                                                >
+                                                    THÊM DỊCH VỤ PHÁT SINH
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Pet Info */}
                                     <div className="p-5 bg-white rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917]">
                                         <div className="flex items-center gap-5">
@@ -517,21 +601,23 @@ export const StaffBookingsPage = () => {
 
                                     {/* Services */}
                                     {(() => {
-                                        const myServices = selectedBooking.services?.filter(svc => svc.assignedStaffId === user?.userId) || [];
+                                        const addOnServices = allServiceItems.filter(svc => svc.isAddOn === true);
+                                        const myServices = allServiceItems.filter(svc => svc.assignedStaffId === user?.userId && !svc.isAddOn);
                                         const myTotal = myServices.reduce((sum, svc) => sum + (svc.price || 0), 0);
                                         const isMyBooking = myServices.length > 0;
 
                                         return (
                                             <>
-                                                {/* My Services */}
+                                                {/* Dịch vụ của bạn (chỉ dịch vụ gốc được giao cho bạn, không bao gồm phát sinh) */}
                                                 {myServices.length > 0 && (
                                                     <div className="space-y-3">
                                                         <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest px-1">
                                                             Dịch vụ của bạn ({myServices.length})
                                                         </div>
+                                                        <p className="text-xs text-stone-500 px-1">Các dịch vụ được giao cho bạn thực hiện</p>
                                                         <div className="space-y-3">
                                                             {myServices.map((svc, idx) => (
-                                                                <div key={idx} className="p-4 bg-amber-50/30 rounded-xl border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] transition-all hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_#1c1917]">
+                                                                <div key={svc.bookingServiceId ?? idx} className="p-4 bg-amber-50/30 rounded-xl border-2 border-stone-900 shadow-[2px_2px_0_0_#1c1917] transition-all hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_#1c1917]">
                                                                     <div className="flex items-center justify-between mb-2">
                                                                         <span className="font-black text-stone-900 uppercase tracking-tight">{svc.serviceName}</span>
                                                                         <span className="font-black text-amber-700">
@@ -551,7 +637,50 @@ export const StaffBookingsPage = () => {
                                                     </div>
                                                 )}
 
-                                                {/* Total Price */}
+                                                {/* Dịch vụ phát sinh (không gán ai thực hiện) */}
+                                                {addOnServices.length > 0 && (
+                                                    <div className="space-y-3">
+                                                        <div className="text-[10px] text-stone-400 font-black uppercase tracking-widest px-1">
+                                                            Dịch vụ phát sinh ({addOnServices.length})
+                                                        </div>
+                                                        <p className="text-xs text-stone-500 px-1">Dịch vụ thêm sau khi đặt lịch; không cần gán người thực hiện</p>
+                                                        <div className="space-y-3">
+                                                            {addOnServices.map((svc, idx) => (
+                                                                <div key={svc.bookingServiceId ?? idx} className="p-4 bg-stone-50 rounded-xl border-2 border-stone-300 shadow-[2px_2px_0_0_#1c1917]">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <span className="font-black text-stone-900 uppercase tracking-tight">{svc.serviceName}</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-black text-stone-700">
+                                                                                {svc.price?.toLocaleString('vi-VN')}đ
+                                                                            </span>
+                                                                            {svc.bookingServiceId && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => setRemoveConfirmService({ bookingServiceId: svc.bookingServiceId!, serviceName: svc.serviceName })}
+                                                                                    className="p-1.5 rounded-lg border-2 border-stone-900 bg-white text-red-600 shadow-[2px_2px_0_0_#1c1917] hover:bg-red-50 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_#1c1917] transition-all disabled:opacity-50"
+                                                                                    title="Xóa dịch vụ phát sinh"
+                                                                                    aria-label="Xóa dịch vụ phát sinh"
+                                                                                    disabled={actionLoading}
+                                                                                >
+                                                                                    <TrashIcon className="w-4 h-4" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    {svc.scheduledStartTime && svc.scheduledEndTime && (
+                                                                        <div className="flex items-center gap-2 text-[10px] font-bold text-stone-500 bg-white/50 w-fit px-2 py-1 rounded-md border border-stone-200">
+                                                                            <ClockIcon className="w-3.5 h-3.5" />
+                                                                            <span>{svc.scheduledStartTime?.substring(0, 5)} - {svc.scheduledEndTime?.substring(0, 5)}</span>
+                                                                            {svc.durationMinutes && <span className="text-stone-400 italic">({svc.durationMinutes} phút)</span>}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Total Price (chỉ tổng dịch vụ của tôi) */}
                                                 {isMyBooking && (
                                                     <div className="flex items-center justify-between p-5 bg-amber-600 text-white rounded-2xl border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917]">
                                                         <span className="font-black uppercase tracking-widest text-sm">Tổng của bạn</span>
@@ -564,61 +693,6 @@ export const StaffBookingsPage = () => {
                                         );
                                     })()}
 
-                                    {/* Action Buttons - Shared Visibility */}
-                                    <div className="pt-6 border-t-2 border-stone-100 flex flex-col gap-4">
-                                        {/* Check-in button - only for assigned staff */}
-                                        {(selectedBooking.status === 'CONFIRMED' || selectedBooking.status === 'ARRIVED') &&
-                                            selectedBooking.services?.some(svc => svc.assignedStaffId === user?.userId) && (
-                                                <button
-                                                    onClick={async () => {
-                                                        setActionLoading(true)
-                                                        try {
-                                                            await checkInBooking(selectedBooking.bookingId)
-                                                            handleViewDetail(selectedBooking.bookingId)
-                                                            fetchBookings()
-                                                        } catch (err) {
-                                                            console.error('Check-in failed:', err)
-                                                            showToast('error', 'Check-in thất bại')
-                                                        } finally {
-                                                            setActionLoading(false)
-                                                        }
-                                                    }}
-                                                    disabled={actionLoading}
-                                                    className="w-full bg-amber-600 text-white py-4 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#1c1917] active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50"
-                                                >
-                                                    {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU KHÁM'}
-                                                </button>
-                                            )}
-
-                                        {/* EMR & Vaccine buttons - show for ALL staff when IN_PROGRESS */}
-                                        {selectedBooking.status === 'IN_PROGRESS' && (
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <button
-                                                    onClick={() => {
-                                                        navigate(`/staff/emr/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
-                                                    }}
-                                                    className="bg-blue-500 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-1 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0.5 active:shadow-none transition-all"
-                                                >
-                                                    TẠO BỆNH ÁN
-                                                </button>
-
-                                                <button
-                                                    onClick={handleOpenVaccineModal}
-                                                    className="bg-emerald-500 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest border-2 border-emerald-700 shadow-[3px_3px_0_0_#065f46] hover:bg-emerald-600 hover:-translate-y-1 hover:shadow-[5px_5px_0_0_#065f46] active:translate-y-0.5 active:shadow-none transition-all"
-                                                >
-                                                    TIÊM VACCINE
-                                                </button>
-
-                                                <button
-                                                    onClick={handleOpenAddServiceModal}
-                                                    className="col-span-1 sm:col-span-2 bg-[#38B2AC] text-white py-4 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[4px_4px_0_0_#1c1917] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_#1c1917] active:translate-y-0.5 active:shadow-none transition-all"
-                                                >
-                                                    THÊM DỊCH VỤ PHÁT SINH
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
                                     {/* Add-on Service Modal */}
                                     <AddServiceModal
                                         isOpen={addServiceModalOpen}
@@ -627,8 +701,22 @@ export const StaffBookingsPage = () => {
                                         onAddService={handleAddService}
                                         isAdding={addingService}
                                     />
+
+                                    {/* Confirm remove add-on service */}
+                                    <ConfirmModal
+                                        isOpen={!!removeConfirmService}
+                                        title="Xóa dịch vụ phát sinh"
+                                        message="Bạn có chắc muốn xóa dịch vụ phát sinh này?"
+                                        confirmLabel="XÓA"
+                                        cancelLabel="HỦY BỎ"
+                                        isDanger
+                                        onConfirm={handleRemoveAddOnConfirm}
+                                        onCancel={() => setRemoveConfirmService(null)}
+                                    />
                                 </div>
                             </>
+                                );
+                            })()
                         )}
                     </div>
                 </div>

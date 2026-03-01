@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',
+    pool: 'vmThreads',
     setupFiles: './src/setupTests.ts',
     css: true,
     coverage: {
@@ -28,6 +29,14 @@ export default defineConfig({
         statements: 80,
       },
     },
+    server: {
+      deps: {
+        inline: [/react-router/, /react-router-dom/, /@remix-run\/router/],
+      },
+    },
+  },
+  ssr: {
+    noExternal: [/react-router/, /react-router-dom/, /@remix-run\/router/],
   },
   resolve: {
     alias: {

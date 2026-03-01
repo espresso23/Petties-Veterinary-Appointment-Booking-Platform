@@ -65,7 +65,7 @@ Tài liệu về Testing strategy và test cases:
 
 ### 🎨 Design (`/design`)
 Design guides và style guidelines:
-- `design-style-guide.md` - Design system và style guide (Neobrutalism)
+- `design-style-guide.md` - Design system và style guide (Soft Neobrutalism); có **Reference Implementation: Sidebar** (UI/UX, typography, icon)
 - `GOOGLE_MAPS_STYLING.md` - Hướng dẫn custom styling cho Google Maps
 
 ---

@@ -44,10 +44,15 @@ export const AddServiceModal = ({
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
-            <div className="bg-white border-2 border-stone-900 rounded-2xl shadow-[8px_8px_0_#1c1917] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="add-service-title"
+                className="bg-white border-2 border-stone-900 rounded-2xl shadow-[8px_8px_0_#1c1917] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200"
+            >
                 {/* Header */}
                 <div className="p-5 border-b-2 border-stone-900 bg-white flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-black uppercase tracking-tight text-stone-900">Thêm dịch vụ phát sinh</h2>
+                    <h2 id="add-service-title" className="text-xl font-black uppercase tracking-tight text-stone-900">Thêm dịch vụ phát sinh</h2>
                     <button
                         onClick={onClose}
                         className="p-1 hover:bg-stone-100 rounded-lg transition-colors text-stone-900"

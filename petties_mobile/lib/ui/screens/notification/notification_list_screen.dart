@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../routing/app_routes.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/notification.dart';
+import '../../../providers/auth_provider.dart';
 import '../../../providers/notification_provider.dart';
 
 class NotificationListScreen extends StatefulWidget {
@@ -150,7 +151,6 @@ class _NotificationItem extends StatelessWidget {
           if (!notification.isRead) {
             context.read<NotificationProvider>().markAsRead(notification.id);
           }
-          // Handle navigation based on type
           _handleTap(context);
         } catch (e) {
           debugPrint('Error handling notification tap: $e');
@@ -275,10 +275,15 @@ class _NotificationItem extends StatelessWidget {
   }
 
   void _handleTap(BuildContext context) {
+    // Ưu tiên action cụ thể nếu có
     if (notification.actionType == 'QUICK_BOOKING') {
       _handleQuickBook(context);
       return;
     }
+
+    final authProvider = context.read<AuthProvider>();
+    final role = authProvider.user?.role;
+    final isStaff = role == 'STAFF';
 
     switch (notification.type) {
       case NotificationType.STAFF_SHIFT_ASSIGNED:
@@ -286,8 +291,32 @@ class _NotificationItem extends StatelessWidget {
       case NotificationType.STAFF_SHIFT_DELETED:
         context.push(AppRoutes.staffSchedule);
         break;
+
+      case NotificationType.BOOKING_CREATED:
+      case NotificationType.BOOKING_CONFIRMED:
+      case NotificationType.BOOKING_ASSIGNED:
+      case NotificationType.BOOKING_CHECKIN:
+      case NotificationType.BOOKING_COMPLETED:
+      case NotificationType.BOOKING_CANCELLED:
+      case NotificationType.STAFF_ON_WAY:
+        // Nếu sau này actionData có bookingId, có thể deep-link chi tiết
+        if (isStaff) {
+          // Staff: mở màn hình danh sách lịch hẹn của tôi
+          context.push(AppRoutes.staffBookings);
+        } else {
+          // Pet Owner: mở tab Lịch hẹn trong Home
+          context.push('${AppRoutes.petOwnerHome}?tab=2');
+        }
+        break;
+
+      case NotificationType.VACCINATION_REMINDER:
+      case NotificationType.RE_EXAMINATION_REMINDER:
+        // Nhắc nhở tiêm/chăm sóc: đưa về danh sách thú cưng
+        context.push(AppRoutes.myPets);
+        break;
+
       default:
-        // Stay on notification list or go to relevant screen
+        // Các loại khác: giữ nguyên trên màn hình Thông báo
         break;
     }
   }

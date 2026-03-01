@@ -14,12 +14,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 /**
  * Global Exception Handler for REST API
@@ -317,6 +319,9 @@ public class GlobalExceptionHandler {
                         } else if (rootCause.contains("unique_active_booking_per_pet_time")) {
                                 message = "Bạn đã có lịch hẹn đang hoạt động cho thú cưng này vào thời gian này. " +
                                                 "Vui lòng hủy lịch cũ trước hoặc chọn thời gian khác.";
+                        } else if (rootCause.contains("unique_active_sos_booking_per_pet")) {
+                                message = "Bạn đã có yêu cầu SOS đang hoạt động cho thú cưng này. " +
+                                                "Vui lòng đợi hoặc hủy yêu cầu cũ trước khi tạo mới.";
                         } else if (rootCause.contains("booking_code_key")) {
                                 message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
                         } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
@@ -334,6 +339,74 @@ public class GlobalExceptionHandler {
                                 .path(request.getRequestURI())
                                 .build();
                 return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        }
+
+        @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+        public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(
+                        ObjectOptimisticLockingFailureException ex,
+                        HttpServletRequest request) {
+                log.warn("Optimistic locking failure at {}: {}", request.getRequestURI(), ex.getMessage());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(HttpStatus.CONFLICT.value())
+                                .error("Conflict")
+                                .message("Dữ liệu đã được thay đổi bởi một người dùng khác. Vui lòng tải lại trang và thử lại.")
+                                .path(request.getRequestURI())
+                                .build();
+                return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+        }
+
+        /**
+         * Handle SOS Matching specific exceptions - Code: 422 (Unprocessable Entity)
+         * Returns detailed error message with error code for client handling
+         */
+        @ExceptionHandler(SosMatchingException.class)
+        public ResponseEntity<ErrorResponse> handleSosMatchingException(
+                        SosMatchingException ex,
+                        HttpServletRequest request) {
+                log.warn("SOS matching error at {}: {} (code: {})",
+                                request.getRequestURI(), ex.getMessage(), ex.getErrorCode());
+
+                // Map error codes to appropriate HTTP status
+                HttpStatus status = switch (ex.getErrorCode()) {
+                        case ACTIVE_BOOKING_EXISTS -> HttpStatus.CONFLICT;
+                        case PET_NOT_FOUND, SESSION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                        case PET_NOT_OWNED, MANAGER_NOT_AUTHORIZED, NOT_OWNER -> HttpStatus.FORBIDDEN;
+                        default -> HttpStatus.UNPROCESSABLE_ENTITY;
+                };
+
+                Map<String, String> errors = new HashMap<>();
+                errors.put("errorCode", ex.getErrorCode().name());
+
+                ErrorResponse error = ErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(status.value())
+                                .error(status.getReasonPhrase())
+                                .message(ex.getMessage())
+                                .path(request.getRequestURI())
+                                .errors(errors)
+                                .build();
+
+                return new ResponseEntity<>(error, status);
+        }
+
+        /**
+         * Handle SSE async request timeout - không trả JSON, chỉ log DEBUG
+         * SSE timeout là hành vi bình thường, client sẽ tự reconnect
+         */
+        @ExceptionHandler(AsyncRequestTimeoutException.class)
+        public void handleAsyncRequestTimeout(AsyncRequestTimeoutException ex, HttpServletRequest request) {
+                log.debug("SSE connection timeout for path: {}", request.getRequestURI());
+                // Không trả về response, để connection close tự nhiên
+        }
+
+        /**
+         * Handle TimeoutException - log DEBUG level
+         */
+        @ExceptionHandler(java.util.concurrent.TimeoutException.class)
+        public void handleTimeoutException(java.util.concurrent.TimeoutException ex, HttpServletRequest request) {
+                log.debug("Timeout exception for path: {}", request.getRequestURI());
         }
 
         @ExceptionHandler(Exception.class) // Code: 500

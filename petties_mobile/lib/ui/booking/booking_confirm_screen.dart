@@ -623,17 +623,16 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                   ],
                 ),
               ),
-            GestureDetector(
-              onTap: provider.isCreatingBooking
-                  ? null
-                  : () async {
-                      final success = await provider.createBooking();
-                      if (success && context.mounted) {
-                        // Navigate to success screen
-                        context.go('/booking/success');
-                      }
-                    },
-              child: Container(
+            AbsorbPointer(
+              absorbing: provider.isCreatingBooking,
+              child: GestureDetector(
+                onTap: () async {
+                  final success = await provider.createBooking();
+                  if (success && context.mounted) {
+                    context.go('/booking/success');
+                  }
+                },
+                child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
                   color: provider.isCreatingBooking
@@ -677,6 +676,7 @@ class _BookingConfirmScreenState extends State<BookingConfirmScreen> {
                         ),
                 ),
               ),
+            ),
             ),
           ],
         ),

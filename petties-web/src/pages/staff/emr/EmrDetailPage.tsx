@@ -20,7 +20,19 @@ export const EmrDetailPage = () => {
     const [previewImage, setPreviewImage] = useState<EmrImage | null>(null)
     const [allergies, setAllergies] = useState('')
 
-    const [petInfo, setPetInfo] = useState<any>(null)
+    const [petInfo, setPetInfo] = useState<{
+        name: string;
+        species: string;
+        breed: string;
+        color?: string;
+        sex?: string;
+        age: string;
+        weight?: number;
+        imageUrl?: string;
+        ownerName: string;
+        ownerPhone?: string;
+        allergies?: string[]
+    } | null>(null)
 
     useEffect(() => {
         const fetchEmr = async () => {
@@ -44,6 +56,7 @@ export const EmrDetailPage = () => {
 
                     setPetInfo({
                         name: pet.name,
+                        species: pet.species || 'N/A',
                         breed: pet.breed || 'N/A',
                         color: pet.color || 'Không rõ',
                         sex: pet.gender === 'MALE' ? 'Đực' : pet.gender === 'FEMALE' ? 'Cái' : pet.gender || 'N/A',
@@ -54,12 +67,15 @@ export const EmrDetailPage = () => {
                     })
 
                     if (pet.allergies) setAllergies(pet.allergies)
-                } catch (petErr) {
+                } catch (petErr: unknown) {
                     console.error('Failed to load pet details', petErr)
                 }
 
-            } catch (err: any) {
-                setError(err.response?.data?.message || 'Không thể tải bệnh án')
+            } catch (err: unknown) {
+                const msg = (err && typeof err === 'object' && 'response' in err && (err as { response?: { data?: { message?: string } } }).response?.data?.message)
+                    ? (err as { response: { data: { message: string } } }).response.data.message
+                    : 'Không thể tải bệnh án';
+                setError(msg)
             } finally {
                 setIsLoading(false)
             }

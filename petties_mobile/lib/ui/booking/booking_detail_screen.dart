@@ -4,6 +4,7 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/booking.dart';
 import '../../utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../routing/app_routes.dart';
 
 class AppointmentDetailScreen extends StatelessWidget {
   final BookingResponse booking;
@@ -300,25 +301,27 @@ class AppointmentDetailScreen extends StatelessWidget {
   List<Map<String, String?>> _getUniqueStaff() {
     final Map<String, Map<String, String?>> staffMap = {};
 
-    // First, add the main assigned staff if exists
-    if (booking.assignedStaffName != null &&
-        booking.assignedStaffName!.isNotEmpty) {
-      final staffId = 'main'; // placeholder for main staff
-      staffMap[staffId] = {
-        'name': booking.assignedStaffName,
-        'avatarUrl': booking.assignedStaffAvatarUrl,
-      };
-    }
-
-    // Then add staff from services (they may override or add new staff)
+    // Collect staff from services first (they have actual staffId)
     for (final service in booking.services) {
       if (service.assignedStaffId != null &&
-          service.assignedStaffName != null) {
+          service.assignedStaffName != null &&
+          service.assignedStaffName!.isNotEmpty) {
         staffMap[service.assignedStaffId!] = {
           'name': service.assignedStaffName,
           'avatarUrl': service.assignedStaffAvatarUrl,
         };
       }
+    }
+
+    // Only add main staff if no service-level staff found
+    // OR if main staff is different from service staff (check by name)
+    if (staffMap.isEmpty &&
+        booking.assignedStaffName != null &&
+        booking.assignedStaffName!.isNotEmpty) {
+      staffMap['main'] = {
+        'name': booking.assignedStaffName,
+        'avatarUrl': booking.assignedStaffAvatarUrl,
+      };
     }
 
     return staffMap.values.toList();
@@ -679,34 +682,83 @@ class AppointmentDetailScreen extends StatelessWidget {
   }
 
   Widget _buildTotalCard() {
+    final bool hasSosFee = (booking.sosFee ?? 0) > 0;
+    final bool hasDistanceFee = (booking.distanceFee ?? 0) > 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+        border: Border.all(color: AppColors.stone200),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          const Text(
-            'TỔNG CỘNG',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.stone700,
-            ),
-          ),
-          Text(
-            FormatUtils.formatCurrency(booking.totalPrice ?? 0),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primary,
-            ),
+          if (hasSosFee || hasDistanceFee) ...[
+            if (booking.services.isNotEmpty) ...[
+              _buildFeeRow(
+                'Phí dịch vụ',
+                booking.services
+                    .fold(0.0, (sum, item) => sum + (item.price ?? 0)),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (hasSosFee) ...[
+              _buildFeeRow('Phí cấp cứu SOS', booking.sosFee!),
+              const SizedBox(height: 8),
+            ],
+            if (hasDistanceFee) ...[
+              _buildFeeRow('Phí di chuyển', booking.distanceFee!),
+              const SizedBox(height: 8),
+            ],
+            const Divider(height: 24),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'TỔNG CỘNG',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone700,
+                ),
+              ),
+              Text(
+                FormatUtils.formatCurrency(booking.totalPrice ?? 0),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFeeRow(String label, double amount) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.stone600,
+          ),
+        ),
+        Text(
+          FormatUtils.formatCurrency(amount),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.stone900,
+          ),
+        ),
+      ],
     );
   }
 
@@ -759,6 +811,67 @@ class AppointmentDetailScreen extends StatelessWidget {
             child: const Text('ĐẶT LẠI',
                 style: TextStyle(fontWeight: FontWeight.bold)),
           ),
+        ),
+      );
+    } else if (booking.type == 'SOS' &&
+        ['CONFIRMED', 'ASSIGNED', 'IN_PROGRESS'].contains(booking.status)) {
+      // For SOS, if it's confirmed or in progress (moving), check if it can be cancelled
+      // It can be cancelled if arrivedAt is null (still on the way)
+      final bool canCancel =
+          booking.status == 'CONFIRMED' || (booking.arrivedAt == null);
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  context.push(
+                    AppRoutes.sosTracking
+                        .replaceFirst(':bookingId', booking.bookingId ?? ''),
+                    extra: booking,
+                  );
+                },
+                icon: const Icon(Icons.location_on, color: Colors.white),
+                label: const Text('THEO DÕI BÁC SĨ',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.coral,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+            if (canCancel) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context, 'CANCEL');
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.stone500,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'HỦY LỊCH HẸN KHẨN CẤP',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }

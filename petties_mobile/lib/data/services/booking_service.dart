@@ -15,7 +15,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Check-in booking (Staff action: ASSIGNED/ARRIVED → IN_PROGRESS)
+  /// Check-in booking (Staff action: CONFIRMED → IN_PROGRESS)
+  /// Used for both clinic and home visits
   Future<BookingResponse> checkIn(String bookingId) async {
     final response = await _apiClient.post('/bookings/$bookingId/check-in');
     return BookingResponse.fromJson(response.data);
@@ -24,6 +25,44 @@ class BookingService {
   /// Complete booking (Staff action: IN_PROGRESS → COMPLETED)
   Future<BookingResponse> complete(String bookingId) async {
     final response = await _apiClient.post('/bookings/$bookingId/complete');
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Checkout booking (Staff action: COMPLETED → finalize payment)
+  /// Only callable when status is COMPLETED
+  /// @param bookingId Booking UUID
+  /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
+  Future<BookingResponse> checkout(String bookingId,
+      {double? overriddenSosFee}) async {
+    final response = await _apiClient.post(
+      '/bookings/$bookingId/checkout',
+      data: overriddenSosFee != null
+          ? {'overriddenSosFee': overriddenSosFee}
+          : null,
+    );
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Start moving to customer location (SOS/HOME_VISIT)
+  /// Note: Status remains CONFIRMED or transitions to IN_PROGRESS based on backend logic
+  Future<BookingResponse> startMoving(String bookingId) async {
+    final response = await _apiClient.post('/bookings/$bookingId/start-moving');
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Staff arrived at customer location
+  /// Note: Does not change status (remains IN_PROGRESS), just sets arrivedAt timestamp
+  Future<BookingResponse> arrived(String bookingId) async {
+    final response = await _apiClient.post('/bookings/$bookingId/arrived');
+    return BookingResponse.fromJson(response.data);
+  }
+
+  /// Notify pet owner that staff is on the way (HOME_VISIT/SOS only)
+  /// Legacy: Just sends notification, use startMoving() for status change.
+  /// @param bookingId Booking UUID
+  Future<BookingResponse> notifyOnWay(String bookingId) async {
+    final response =
+        await _apiClient.post('/bookings/$bookingId/notify-on-way');
     return BookingResponse.fromJson(response.data);
   }
 
@@ -46,8 +85,8 @@ class BookingService {
       'size': size,
     };
 
-    final response =
-        await _apiClient.get('/bookings/my', queryParameters: queryParams);
+    final response = await _apiClient.get('/bookings/my-bookings',
+        queryParameters: queryParams);
 
     if (response.data['content'] != null) {
       return (response.data['content'] as List)
@@ -86,7 +125,7 @@ class BookingService {
 
   /// Cancel booking (Pet Owner)
   Future<BookingResponse> cancelBooking(String bookingId, String reason) async {
-    final response = await _apiClient.patch(
+    final response = await _apiClient.post(
       '/bookings/$bookingId/cancel',
       queryParameters: {'reason': reason},
     );
@@ -101,7 +140,6 @@ class BookingService {
   }) async {
     try {
       final user = await AuthService().getCurrentUser();
-      if (user == null) throw Exception('User not logged in');
 
       final response = await _apiClient.get(
         '/bookings/staff/${user.userId}',
@@ -129,12 +167,12 @@ class BookingService {
 
   // ========== SHARED VISIBILITY ==========
 
-  /// Get available services for add-on in a clinic
+  /// Get available services for add-on in a booking
   Future<List<ClinicServiceModel>> getAvailableServicesForAddOn(
-      String clinicId) async {
+      String bookingId) async {
     try {
       final response =
-          await _apiClient.get('/clinic-services/clinic/$clinicId/available');
+          await _apiClient.get('/bookings/$bookingId/available-add-ons');
       if (response.data is List) {
         return (response.data as List)
             .map((json) => ClinicServiceModel.fromJson(json))
@@ -150,7 +188,8 @@ class BookingService {
   Future<BookingResponse> addServiceToBooking(
       String bookingId, String serviceId) async {
     final response = await _apiClient.post(
-      '/bookings/$bookingId/services/$serviceId',
+      '/bookings/$bookingId/services',
+      data: {'serviceId': serviceId},
     );
     return BookingResponse.fromJson(response.data);
   }

@@ -5,7 +5,8 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon, ChevronDownIcon } from '@heroicons/react/24/solid'
+import { isAxiosError } from 'axios'
+import { PlusIcon, ArrowPathIcon, ExclamationCircleIcon, ChevronDownIcon, CurrencyDollarIcon } from '@heroicons/react/24/solid'
 import { ServiceCard, type ClinicService } from './ServiceCard'
 import { ServiceModal } from './ServiceModal'
 import { PricingModal, type PricingData } from './PricingModal'
@@ -21,7 +22,7 @@ import {
   inheritFromMasterService,
   getServicesByClinicId,
 } from '../../services/endpoints/service'
-import { getMyClinics, updateClinicPricePerKm } from '../../services/endpoints/clinic'
+import { getMyClinics, getClinicPricing, updateClinicPricing } from '../../services/endpoints/clinic'
 import type { ClinicResponse } from '../../services/endpoints/clinic'
 import { useToast } from '../../components/Toast'
 import type { ClinicServiceResponse, ClinicServiceRequest } from '../../types/service'
@@ -43,7 +44,7 @@ function mapResponseToService(response: ClinicServiceResponse): ClinicService {
   }
 }
 
-function mapServiceToRequest(service: any, clinicId: string): ClinicServiceRequest {
+function mapServiceToRequest(service: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }, clinicId: string): ClinicServiceRequest {
   return {
     clinicId,
     name: service.name || '',
@@ -72,6 +73,7 @@ export function ServiceGrid() {
   const [isInheritModalOpen, setIsInheritModalOpen] = useState(false)
   const [pricingData, setPricingData] = useState<PricingData>({
     pricePerKm: 5000,
+    sosFee: 100000,
   })
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [serviceToDelete, setServiceToDelete] = useState<{ id: string; name: string } | null>(null)
@@ -82,12 +84,25 @@ export function ServiceGrid() {
     loadClinics()
   }, [])
 
-  // Load services when clinic changes
+  // Load services and pricing when clinic changes
   useEffect(() => {
     if (selectedClinic) {
       loadServicesForClinic(selectedClinic.clinicId)
+      loadClinicPricing(selectedClinic.clinicId)
     }
   }, [selectedClinic])
+
+  const loadClinicPricing = async (clinicId: string) => {
+    try {
+      const data = await getClinicPricing(clinicId)
+      setPricingData({
+        pricePerKm: data.pricePerKm || 5000,
+        sosFee: data.sosFee || 100000
+      })
+    } catch (err) {
+      console.error('Failed to load clinic pricing:', err)
+    }
+  }
 
   const loadClinics = async () => {
     try {
@@ -137,7 +152,7 @@ export function ServiceGrid() {
       const service = await getServiceById(id)
       setSelectedService(service)
       setIsModalOpen(true)
-    } catch (err) {
+    } catch {
       showToast('error', 'Không thể tải thông tin dịch vụ')
     }
   }
@@ -197,7 +212,7 @@ export function ServiceGrid() {
   }
 
   const handleSaveService = async (
-    serviceData: any
+    serviceData: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }
   ) => {
     try {
       setIsSubmitting(true)
@@ -221,11 +236,13 @@ export function ServiceGrid() {
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save service:', err)
-      const serverMessage = err.response?.data?.message || (selectedService
-        ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
-        : 'Không thể tạo dịch vụ. Vui lòng thử lại.')
+      const serverMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response !== null && 'data' in err.response && typeof err.response.data === 'object' && err.response.data !== null && 'message' in err.response.data
+        ? String(err.response.data.message)
+        : (selectedService
+          ? 'Không thể cập nhật dịch vụ. Vui lòng thử lại.'
+          : 'Không thể tạo dịch vụ. Vui lòng thử lại.')
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -235,16 +252,18 @@ export function ServiceGrid() {
   const handleSavePricing = async (data: PricingData) => {
     try {
       setIsSubmitting(true)
-      // Update clinic-level price-per-km (no longer service-level)
       if (selectedClinic) {
-        await updateClinicPricePerKm(selectedClinic.clinicId, data.pricePerKm)
+        await updateClinicPricing(selectedClinic.clinicId, {
+          pricePerKm: data.pricePerKm,
+          sosFee: data.sosFee
+        })
       }
       setPricingData(data)
       setIsPricingModalOpen(false)
-      showToast('success', 'Đã cập nhật đơn giá di chuyển (KM)')
-    } catch (error) {
-      console.error('Failed to update pricing:', error)
-      showToast('error', 'Không thể cập nhật đơn giá di chuyển')
+      showToast('success', 'Đã cập nhật đơn giá di chuyển (KM) và phí SOS')
+    } catch (err) {
+      console.error('Failed to update pricing:', err)
+      showToast('error', 'Không thể cập nhật đơn giá di chuyển và phí SOS')
     } finally {
       setIsSubmitting(false)
     }
@@ -263,9 +282,11 @@ export function ServiceGrid() {
       showToast('success', 'Đã thừa hưởng dịch vụ thành công')
       // Reload services
       await loadServicesForClinic(selectedClinic.clinicId)
-    } catch (error: any) {
-      console.error('Failed to inherit service:', error)
-      const serverMessage = error.response?.data?.message || 'Không thể thừa hưởng dịch vụ. Vui lòng thử lại.'
+    } catch (err) {
+      console.error('Failed to inherit service:', err)
+      const serverMessage = isAxiosError(err) && err.response?.data && typeof err.response.data === 'object' && 'message' in err.response.data
+        ? String((err.response.data as { message?: unknown }).message)
+        : 'Không thể thừa hưởng dịch vụ. Vui lòng thử lại.'
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -346,11 +367,11 @@ export function ServiceGrid() {
               className="flex items-center justify-center gap-3 bg-white text-black px-6 py-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all disabled:opacity-50 disabled:cursor-not-allowed min-h-[72px]"
             >
               <div className="w-9 h-9 flex items-center justify-center bg-black text-white border-2 border-black font-black text-xl flex-shrink-0">
-                $
+                <CurrencyDollarIcon className="w-6 h-6" />
               </div>
               <div className="flex flex-col items-start leading-[1.1]">
-                <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập đơn giá</span>
-                <span className="font-black text-sm uppercase whitespace-nowrap">Kilômét (KM)</span>
+                <span className="font-black text-[10px] uppercase text-gray-500">Thiết lập chung</span>
+                <span className="font-black text-sm uppercase whitespace-nowrap">Giá di chuyển & SOS</span>
               </div>
             </button>
           </div>

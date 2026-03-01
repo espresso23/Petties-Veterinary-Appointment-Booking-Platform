@@ -156,8 +156,6 @@ export const ClinicDetailModal = ({ isOpen, onClose, clinic }: ClinicDetailModal
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(false)
 
-  if (!isOpen) return null
-
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('vi-VN', {
@@ -245,6 +243,8 @@ export const ClinicDetailModal = ({ isOpen, onClose, clinic }: ClinicDetailModal
       window.removeEventListener('resize', updateScrollState)
     }
   }, [images])
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">

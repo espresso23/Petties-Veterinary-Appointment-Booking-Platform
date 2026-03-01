@@ -38,7 +38,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final WebSocketAuthInterceptor webSocketAuthInterceptor;
 
-    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev}")
     private String allowedOriginsString;
 
     @Override
@@ -58,12 +58,20 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        String[] allowedOrigins = allowedOriginsString.split(",");
+        String[] origins = java.util.Arrays.stream(allowedOriginsString.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toArray(String[]::new);
+        boolean hasWildcard = java.util.Arrays.stream(origins).anyMatch(o -> o.contains("*"));
 
         // WebSocket endpoint with SockJS fallback (for browsers that don't support WS)
-        registry.addEndpoint("/ws")
-                .setAllowedOrigins(allowedOrigins)
-                .withSockJS();
+        var wsEndpoint = registry.addEndpoint("/ws");
+        if (hasWildcard) {
+            wsEndpoint.setAllowedOriginPatterns(origins);
+        } else {
+            wsEndpoint.setAllowedOrigins(origins);
+        }
+        wsEndpoint.withSockJS();
 
         // Pure WebSocket endpoint (for native mobile clients - React Native, Flutter)
         // Use setAllowedOriginPatterns("*") because mobile clients don't send Origin header

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { TrashIcon, UserCircleIcon, PencilIcon } from '@heroicons/react/24/outline'
 import type { StaffMember, StaffSpecialty } from '../../types/clinicStaff'
-import { SPECIALTY_LABELS } from '../../types/clinicStaff'
+import { SPECIALTY_LABELS_LEGACY } from '../../types/clinicStaff'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 
 interface StaffTableProps {
@@ -61,22 +61,20 @@ export function StaffTable({ staff, isLoading, onRemove, onEditSpecialty, canRem
         )
     }
 
-    const getSpecialtyBadge = (specialty?: StaffSpecialty) => {
+    const getSpecialtyBadge = (specialty?: StaffSpecialty | string) => {
         if (!specialty) return <span className="text-stone-400">-</span>
 
-        const label = SPECIALTY_LABELS[specialty] || specialty
+        const label = SPECIALTY_LABELS_LEGACY[specialty] || specialty
 
-        // Neobrutalism colors - matching app design
-        const colorClasses: Record<StaffSpecialty, string> = {
-            VET_GENERAL: 'bg-blue-100 text-blue-800',
-            VET_SURGERY: 'bg-purple-100 text-purple-800',
-            VET_DENTAL: 'bg-cyan-100 text-cyan-800',
-            VET_DERMATOLOGY: 'bg-pink-100 text-pink-800',
+        // Neobrutalism colors - VET (blue), GROOMER (orange), legacy VET_* mapped to blue
+        const colorClasses: Record<string, string> = {
+            VET: 'bg-blue-100 text-blue-800',
             GROOMER: 'bg-orange-100 text-orange-800',
         }
+        const colorClass = colorClasses[specialty] ?? (specialty.startsWith('VET') ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800')
 
         return (
-            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] ${colorClasses[specialty]}`}>
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] ${colorClass}`}>
                 {label}
             </span>
         )

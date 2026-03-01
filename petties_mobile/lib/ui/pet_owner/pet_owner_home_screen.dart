@@ -83,7 +83,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     // Determine title based on tab
     String title = 'PETTIES';
     bool showActions = true;
-    
+
     if (_currentIndex == 1) {
       title = 'KHÁM PHÁ';
       showActions = false;
@@ -93,7 +93,7 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context);
-    
+
     // Choose body widget
     Widget bodyContent;
     switch (_currentIndex) {
@@ -111,32 +111,37 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      appBar: _currentIndex == 1 ? null : AppBar( // Hide AppBar for Search Tab (it has its own header)
-        backgroundColor: AppColors.primary,
-        elevation: 0,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2,
-            color: AppColors.white,
-          ),
-        ),
-        actions: showActions ? [
-           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => context.push(AppRoutes.notifications),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              authProvider.logout();
-              context.go(AppRoutes.login);
-            },
-          ),
-        ] : [],
-      ),
-      body: bodyContent,
+      appBar: _currentIndex == 1
+          ? null
+          : AppBar(
+              // Hide AppBar for Search Tab (it has its own header)
+              backgroundColor: AppColors.primary,
+              elevation: 0,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                  color: AppColors.white,
+                ),
+              ),
+              actions: showActions
+                  ? [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined),
+                        onPressed: () => context.push(AppRoutes.notifications),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout),
+                        onPressed: () {
+                          authProvider.logout();
+                          context.go(AppRoutes.login);
+                        },
+                      ),
+                    ]
+                  : [],
+            ),
+      body: SafeArea(child: bodyContent),
       bottomNavigationBar: _buildBrutalNavBar(context),
     );
   }
@@ -239,33 +244,113 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   }
 
   Widget _buildQuickActions(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       children: [
-        Expanded(
-            child: _buildActionCard(
-                Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: _buildActionCard(
-                Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: GestureDetector(
-          onTap: () async {
-            await context.push(AppRoutes.addPet);
-            _fetchPets(); // Refresh after returning
+        // SOS Emergency Button - Prominent position
+        GestureDetector(
+          onTap: () {
+            // Navigate to SOS Request pre-screen
+            context.push(AppRoutes.sosRequest);
           },
-          child:
-              _buildActionCard(Icons.pets, 'Thêm\npet', AppColors.primaryLight),
-        )),
-        const SizedBox(width: 12),
-        Expanded(
-            child: GestureDetector(
-          onTap: () => context.push(AppRoutes.myPets),
-          child: _buildActionCard(
-              Icons.medical_services, 'Sổ\ntiêm', AppColors.primary),
-        )),
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade600,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.stone900, width: 3),
+              boxShadow: const [
+                BoxShadow(color: AppColors.stone900, offset: Offset(4, 4)),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.stone900, width: 2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.emergency,
+                    color: Colors.red,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CẤP CỨU SOS',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Gọi bác sĩ đến ngay!',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Regular Quick Actions
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+                child: _buildActionCard(
+                    Icons.local_hospital, 'Đặt lịch\nkhám', AppColors.primary)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildActionCard(
+                    Icons.home_work, 'Khám\ntại nhà', AppColors.primaryDark)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: GestureDetector(
+              onTap: () async {
+                await context.push(AppRoutes.addPet);
+                _fetchPets(); // Refresh after returning
+              },
+              child: _buildActionCard(
+                  Icons.pets, 'Thêm\npet', AppColors.primaryLight),
+            )),
+            const SizedBox(width: 12),
+            Expanded(
+                child: GestureDetector(
+              onTap: () => context.push(AppRoutes.myPets),
+              child: _buildActionCard(
+                  Icons.medical_services, 'Sổ\ntiêm', AppColors.primary),
+            )),
+          ],
+        ),
       ],
     );
   }
@@ -489,12 +574,18 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
   }
 
   Widget _buildBrutalNavBar(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
           top: BorderSide(color: AppColors.stone900, width: 2),
         ),
+      ),
+      padding: EdgeInsets.only(
+        left: MediaQuery.of(context).padding.left,
+        right: MediaQuery.of(context).padding.right,
+        bottom: bottomPadding,
       ),
       child: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
@@ -507,14 +598,12 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
         onTap: _onTabTapped,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
           BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
           BottomNavigationBarItem(
               icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
         ],
       ),
     );

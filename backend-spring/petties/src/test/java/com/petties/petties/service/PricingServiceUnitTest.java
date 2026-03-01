@@ -227,6 +227,41 @@ class PricingServiceUnitTest {
         }
     }
 
+    // ========== calculateSOSFee TESTS ==========
+
+    @Nested
+    @DisplayName("calculateSOSFee Tests")
+    class CalculateSosFeeTests {
+
+        @Test
+        @DisplayName("20. ClinicId null → should return ZERO")
+        void whenClinicIdIsNull_shouldReturnZero() {
+            BigDecimal result = pricingService.calculateSOSFee(null);
+            assertEquals(BigDecimal.ZERO, result);
+        }
+
+        @Test
+        @DisplayName("21. Valid clinicId → should return sosFee from clinicPriceService")
+        void whenValidClinicId_shouldReturnFeeFromService() {
+            BigDecimal expectedFee = new BigDecimal("500000");
+            when(clinicPriceService.getSosFee(clinicId)).thenReturn(Optional.of(expectedFee));
+
+            BigDecimal result = pricingService.calculateSOSFee(clinicId);
+
+            assertEquals(expectedFee, result);
+        }
+
+        @Test
+        @DisplayName("22. Clinic has no sosFee configured → should return ZERO")
+        void whenNoSosFeeConfigured_shouldReturnZero() {
+            when(clinicPriceService.getSosFee(clinicId)).thenReturn(Optional.empty());
+
+            BigDecimal result = pricingService.calculateSOSFee(clinicId);
+
+            assertEquals(BigDecimal.ZERO, result);
+        }
+    }
+
     // ========== calculateBookingDistanceFee TESTS ==========
 
     @Nested

@@ -13,4 +13,5 @@ import java.util.UUID;
 public class ClinicPriceResponse {
     private UUID clinicId;
     private BigDecimal pricePerKm;
+    private BigDecimal sosFee;
 }

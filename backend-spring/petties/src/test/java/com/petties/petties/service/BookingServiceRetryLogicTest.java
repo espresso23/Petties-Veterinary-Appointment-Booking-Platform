@@ -16,6 +16,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
+import org.mockito.junit.jupiter.MockitoSettings;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("BookingService Retry Logic Tests")
 class BookingServiceRetryLogicTest {
 
@@ -110,9 +113,9 @@ class BookingServiceRetryLogicTest {
     class BookingCodeRetryTests {
 
         @Test
-        @DisplayName("TC-UNIT-BS-10: Retry on booking_code collision - Success on 2nd attempt")
-        void createBooking_BookingCodeCollision_RetriesAndSucceeds() {
-            // Arrange
+        @DisplayName("TC-UNIT-BS-10: Create booking with UUID-based code - Success")
+        void createBooking_UuidBasedCode_Succeeds() {
+            // Arrange - UUID-based code avoids collision, single save
             when(petRepository.findById(any())).thenReturn(Optional.of(pet));
             when(userRepository.findById(any())).thenReturn(Optional.of(petOwner));
             when(clinicRepository.findById(any())).thenReturn(Optional.of(clinic));
@@ -120,23 +123,11 @@ class BookingServiceRetryLogicTest {
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("100000"));
             when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
 
-            // Mock booking code generation
-            when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
-            when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());
-
-            // First save throws DataIntegrityViolationException with booking_code
-            // constraint
-            DataIntegrityViolationException exception = mock(DataIntegrityViolationException.class);
-            when(exception.getMostSpecificCause()).thenReturn(
-                    new RuntimeException("duplicate key value violates unique constraint \"booking_code_key\""));
-
             Booking savedBooking = Booking.builder()
-                    .bookingCode("BK-20260204-0002")
+                    .bookingCode("BK-20260204-A1B2C3D4")
                     .build();
 
-            when(bookingRepository.save(any(Booking.class)))
-                    .thenThrow(exception) // First attempt fails
-                    .thenReturn(savedBooking); // Second attempt succeeds
+            when(bookingRepository.save(any(Booking.class))).thenReturn(savedBooking);
 
             // Act
             BookingRequest request = new BookingRequest();
@@ -151,27 +142,21 @@ class BookingServiceRetryLogicTest {
 
             // Assert
             assertNotNull(response);
-            verify(bookingRepository, times(2)).save(any(Booking.class)); // 2 attempts
-            verify(notificationService, times(1)).sendBookingNotificationToClinic(any()); // Only after success
+            verify(bookingRepository, times(1)).save(any(Booking.class));
+            verify(notificationService, times(1)).sendBookingNotificationToClinic(any());
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-11: Retry on booking_code collision - Fails after max retries")
-        void createBooking_BookingCodeCollision_FailsAfterMaxRetries() {
-            // Arrange
+        @DisplayName("TC-UNIT-BS-11: DataIntegrityViolation on save - Propagates immediately")
+        void createBooking_DataIntegrityViolation_PropagatesImmediately() {
+            // Arrange - UUID avoids collision; if save fails (e.g. other constraint), propagate
             when(petRepository.findById(any())).thenReturn(Optional.of(pet));
             when(userRepository.findById(any())).thenReturn(Optional.of(petOwner));
             when(clinicRepository.findById(any())).thenReturn(Optional.of(clinic));
             when(clinicServiceRepository.findAllById(any())).thenReturn(List.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("100000"));
             when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
-            when(staffAssignmentService.findAvailableSlots(any(), any(), any()))
-                    .thenReturn(List.of(LocalTime.of(9, 0)));
 
-            when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
-            when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());
-
-            // All save attempts throw booking_code collision
             DataIntegrityViolationException exception = mock(DataIntegrityViolationException.class);
             when(exception.getMostSpecificCause()).thenReturn(
                     new RuntimeException("duplicate key value violates unique constraint \"booking_code_key\""));
@@ -186,18 +171,16 @@ class BookingServiceRetryLogicTest {
             request.setBookingTime(LocalTime.of(9, 0));
             request.setType(BookingType.IN_CLINIC);
 
-            RuntimeException thrown = assertThrows(RuntimeException.class, () -> {
+            assertThrows(DataIntegrityViolationException.class, () -> {
                 bookingService.createBooking(request, petOwner.getUserId());
             });
 
-            assertTrue(thrown.getMessage().contains("Không thể tạo mã booking")
-                    || thrown.getMessage().contains("booking_code"));
-            verify(bookingRepository, times(3)).save(any(Booking.class)); // 3 attempts
-            verify(notificationService, never()).sendBookingNotificationToClinic(any()); // No notification on failure
+            verify(bookingRepository, times(1)).save(any(Booking.class));
+            verify(notificationService, never()).sendBookingNotificationToClinic(any());
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-12: DataIntegrityViolation on unique_active_booking - No retry")
+        @DisplayName("TC-UNIT-BS-12: DataIntegrityViolation on unique_active_booking - Propagates immediately")
         void createBooking_DuplicateActiveBooking_ThrowsImmediately() {
             // Arrange
             when(petRepository.findById(any())).thenReturn(Optional.of(pet));
@@ -206,9 +189,6 @@ class BookingServiceRetryLogicTest {
             when(clinicServiceRepository.findAllById(any())).thenReturn(List.of(service));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("100000"));
             when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
-
-            when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
-            when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());
 
             // Save throws unique_active_booking_per_pet_time constraint violation
             DataIntegrityViolationException exception = mock(DataIntegrityViolationException.class);
@@ -295,11 +275,8 @@ class BookingServiceRetryLogicTest {
             when(clinicServiceRepository.findAllById(any())).thenReturn(List.of(service, service2));
             when(pricingService.calculateServicePrice(any(), any())).thenReturn(new BigDecimal("150000"));
             when(pricingService.calculateBookingDistanceFee(any(), any(), any())).thenReturn(BigDecimal.ZERO);
-            when(bookingRepository.countByClinicAndDate(any(), any())).thenReturn(0L);
-            when(bookingRepository.findByBookingCode(any())).thenReturn(Optional.empty());
-
             Booking savedBooking = Booking.builder()
-                    .bookingCode("BK-20260208-0001")
+                    .bookingCode("BK-20260208-A1B2C3D4")
                     .build();
             when(bookingRepository.save(any(Booking.class))).thenReturn(savedBooking);
 

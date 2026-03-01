@@ -106,7 +106,7 @@ services:
       # Google OAuth
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-YOUR_WEB_CLIENT_ID.apps.googleusercontent.com}
       # CORS
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,https://hasty-unvociferously-madalyn.ngrok-free.dev
       # Email SMTP (OTP) - MUST set in .env file!
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
@@ -121,7 +121,7 @@ services:
     volumes:
       - ./backend-spring/petties/src:/app/src:ro
     ports:
-      - "8080:8080"
+      - "8081:8080" # Đổi từ 8080 thành 8081 để nhường 8080 cho Nginx (Ngrok entry point)
     depends_on:
       postgres:
         condition: service_healthy
@@ -131,7 +131,6 @@ services:
         condition: service_healthy
     networks:
       - petties-dev-network
-  
 
   # ============================================
   # PYTHON AI AGENT SERVICE (Development)
@@ -168,7 +167,7 @@ services:
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
       # CORS (comma-separated string)
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000,http://localhost:8080,https://hasty-unvociferously-madalyn.ngrok-free.dev
       # Sentry Error Monitoring (disabled for dev)
       SENTRY_DSN:
     volumes:
@@ -180,6 +179,39 @@ services:
       - petties-dev-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ============================================
+  # NGINX REVERSE PROXY (for ngrok)
+  # ============================================
+  # Dùng để gộp Backend (8080) và AI Service (8000) 
+  # vào 1 endpoint cho ngrok Free Tier
+  #
+  # Routing (xem chi tiết trong nginx.conf):
+  # - /api/*      -> backend:8080/api/* (Backend REST API)
+  # - /ws/chat/*  -> ai-service:8000/ws/chat/* (AI WebSocket - đặt trước /ws/*)
+  # - /ws/*       -> backend:8080/ws/* (Backend WebSocket)
+  # - /ws-native/* -> backend:8080/ws-native/* (Backend Native WebSocket)
+  # - /*          -> ai-service:8000/* (AI REST API)
+  #
+  # Usage with ngrok:
+  # ngrok http 8080
+  # Mobile API_BASE_URL: https://xxx.ngrok-free.dev
+  # Backend API: https://xxx.ngrok-free.dev/api/...
+  # AI WebSocket: wss://xxx.ngrok-free.dev/ws/chat/{session_id}
+  # Backend WebSocket: wss://xxx.ngrok-free.dev/ws/chat/{conversationId}
+  nginx:
+    image: nginx:alpine
+    container_name: petties-dev-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Expose port 8080 để ngrok tunnel vào
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - petties-dev-network
 
 # ============================================
 # NETWORKS

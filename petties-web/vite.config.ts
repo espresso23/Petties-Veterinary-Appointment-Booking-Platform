@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    strictPort: true, // Nếu port bị chiếm, sẽ báo lỗi thay vì tự động chuyển port
+    host: '0.0.0.0', // Cho phép truy cập từ Docker/Network
+    strictPort: true,
+    allowedHosts: [
+      'hasty-unvociferously-madalyn.ngrok-free.dev',
+      'localhost',
+    ],
   },
   define: {
     // Fix for sockjs-client which expects Node.js globals

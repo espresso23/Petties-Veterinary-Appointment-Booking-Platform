@@ -10,8 +10,7 @@ class UserProfile extends BaseModel {
   final String? phone;
   final String? avatar;
   final String role;
-  final String?
-      specialty; // VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER
+  final String? specialty; // VET, GROOMER
   final double? ratingAvg; // Rating trung bình (1.0 - 5.0)
   final int? ratingCount; // Số lượt đánh giá
   final DateTime createdAt;
@@ -156,17 +155,12 @@ class UserProfile extends BaseModel {
   /// Get specialty display text in Vietnamese
   String? get specialtyDisplayText {
     switch (specialty) {
-      case 'VET_GENERAL':
-        return 'Bác sĩ thú y tổng quát';
-      case 'VET_SURGERY':
-        return 'Bác sĩ phẫu thuật';
-      case 'VET_DENTAL':
-        return 'Bác sĩ nha khoa';
-      case 'VET_DERMATOLOGY':
-        return 'Bác sĩ da liễu';
+      case 'VET':
+        return 'Bác sĩ thú y';
       case 'GROOMER':
         return 'Nhân viên Grooming';
       default:
+        if (specialty != null && specialty!.startsWith('VET')) return 'Bác sĩ thú y';
         return null;
     }
   }

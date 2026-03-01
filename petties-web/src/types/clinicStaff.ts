@@ -11,20 +11,23 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
     CLINIC_MANAGER: 'Quản lý phòng khám',
 };
 
-// Chuyên môn của nhân viên
+// Chuyên môn của nhân viên (đơn giản hóa: VET | GROOMER)
 export type StaffSpecialty =
-    | 'VET_GENERAL'      // Bác sĩ thú y tổng quát
-    | 'VET_SURGERY'      // Bác sĩ phẫu thuật
-    | 'VET_DENTAL'       // Bác sĩ nha khoa
-    | 'VET_DERMATOLOGY'  // Bác sĩ da liễu
-    | 'GROOMER'          // Nhân viên Grooming
+    | 'VET'      // Bác sĩ thú y (khám, tiêm, phẫu thuật, nha khoa, da liễu...)
+    | 'GROOMER'  // Nhân viên Grooming
 
 export const SPECIALTY_LABELS: Record<StaffSpecialty, string> = {
-    VET_GENERAL: 'Bác sĩ thú y tổng quát',
-    VET_SURGERY: 'Bác sĩ phẫu thuật',
-    VET_DENTAL: 'Bác sĩ nha khoa thú y',
-    VET_DERMATOLOGY: 'Bác sĩ da liễu thú y',
+    VET: 'Bác sĩ thú y',
     GROOMER: 'Nhân viên Grooming',
+};
+
+// Legacy labels (API có thể trả về trước migration)
+export const SPECIALTY_LABELS_LEGACY: Record<string, string> = {
+    ...SPECIALTY_LABELS,
+    VET_GENERAL: 'Bác sĩ thú y',
+    VET_SURGERY: 'Bác sĩ thú y',
+    VET_DENTAL: 'Bác sĩ thú y',
+    VET_DERMATOLOGY: 'Bác sĩ thú y',
 };
 
 export interface StaffMember {

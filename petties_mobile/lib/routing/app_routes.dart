@@ -70,6 +70,11 @@ class AppRoutes {
   static const String chatList = '/chat';
   static const String chatDetail = '/chat/detail';
 
+  // SOS Emergency Booking (Pet Owner)
+  static const String sosRequest = '/sos/request';
+  static const String sosMatching = '/sos/matching';
+  static const String sosTracking = '/sos/tracking/:bookingId';
+
   // Other
   static const String aboutUs = '/about';
   static const String termsOfService = '/terms';

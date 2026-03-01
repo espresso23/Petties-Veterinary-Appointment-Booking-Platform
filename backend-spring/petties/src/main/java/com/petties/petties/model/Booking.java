@@ -55,6 +55,10 @@ public class Booking {
     @Column(name = "booking_id")
     private UUID bookingId;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "booking_code", unique = true, nullable = false, length = 20)
     private String bookingCode;
 
@@ -69,7 +73,7 @@ public class Booking {
     private User petOwner;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "clinic_id", nullable = false)
+    @JoinColumn(name = "clinic_id") // nullable for SOS bookings during SEARCHING status
     private Clinic clinic;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -113,6 +117,9 @@ public class Booking {
     @Column(name = "distance_fee", precision = 12, scale = 2)
     private BigDecimal distanceFee;
 
+    @Column(name = "sos_fee", precision = 12, scale = 2)
+    private BigDecimal sosFee;
+
     // ========== PRICING ==========
 
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
@@ -121,7 +128,7 @@ public class Booking {
     // ========== STATUS ==========
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
 
@@ -135,6 +142,17 @@ public class Booking {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    // ========== SOS-SPECIFIC FIELDS ==========
+
+    @Column(name = "symptoms", columnDefinition = "TEXT")
+    private String symptoms;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "arrived_at")
+    private LocalDateTime arrivedAt;
 
     // ========== TIMESTAMPS ==========
 
@@ -161,7 +179,7 @@ public class Booking {
     // ========== HELPER METHODS ==========
 
     /**
-     * Generate booking code: BK-YYYYMMDD-XXXX
+     * Generate booking code: BK-YYYYMMDD-XXXX (sequence-based, for backward compat)
      */
     public static String generateBookingCode(LocalDate date, int sequence) {
         return String.format("BK-%s-%04d",
@@ -170,11 +188,38 @@ public class Booking {
     }
 
     /**
+     * Generate unique booking code using UUID to avoid race condition.
+     * Format: BK-YYYYMMDD-XXXXXXXX (8 hex chars from UUID)
+     */
+    public static String generateUniqueBookingCode(LocalDate date) {
+        String uuid8 = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return String.format("BK-%s-%s", date.toString().replace("-", ""), uuid8);
+    }
+
+    /**
      * Check if booking can be cancelled
      */
     public boolean canBeCancelled() {
-        return status == BookingStatus.PENDING ||
-                status == BookingStatus.CONFIRMED;
+        if (status == BookingStatus.PENDING ||
+                status == BookingStatus.CONFIRMED ||
+                status == BookingStatus.SEARCHING ||
+                status == BookingStatus.PENDING_CLINIC_CONFIRM) {
+            return true;
+        }
+
+        // Cho phép hủy khi đang di chuyển (IN_PROGRESS)
+        // - SOS: luôn cho hủy ở trạng thái IN_PROGRESS (kể cả bác sĩ đã đến nơi)
+        // - HOME_VISIT: chỉ cho hủy trước khi bác sĩ báo đã đến (arrivedAt == null)
+        if (status == BookingStatus.IN_PROGRESS) {
+            if (type == BookingType.SOS) {
+                return true;
+            }
+            if (type == BookingType.HOME_VISIT && arrivedAt == null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -1,5 +1,6 @@
 /// Clinic Service model for mobile app
 /// Matches backend ClinicServiceResponse
+library;
 
 class ClinicServiceModel {
   final String serviceId;

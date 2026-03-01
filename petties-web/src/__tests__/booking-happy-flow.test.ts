@@ -14,7 +14,7 @@
  * Sử dụng Vitest + mocked API responses
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest'
 import { clinicService } from '../services/api/clinicService'
 import { petService } from '../services/api/petService'
 import {
@@ -192,14 +192,14 @@ describe('Booking Happy Flow - End-to-End', () => {
     status: 'CONFIRMED',
     assignedStaffId: 'staff-001',
     assignedStaffName: 'Bác sĩ Trần Văn B',
-    assignedStaffSpecialty: 'VET_GENERAL',
+    assignedStaffSpecialty: 'VET',
     assignedStaffAvatarUrl: 'https://example.com/staff.jpg',
     services: [
       {
         ...mockCreatedBooking.services[0],
         assignedStaffId: 'staff-001',
         assignedStaffName: 'Bác sĩ Trần Văn B',
-        assignedStaffSpecialty: 'VET_GENERAL',
+        assignedStaffSpecialty: 'VET',
         scheduledStartTime: '10:00:00',
         scheduledEndTime: '10:30:00',
       },
@@ -220,12 +220,13 @@ describe('Booking Happy Flow - End-to-End', () => {
   }
 
   beforeEach(() => {
+    console.log('DEBUG: clinicService.searchClinics is mock?', vi.isMockFunction(clinicService.searchClinics))
     vi.clearAllMocks()
   })
 
   it('[STEP 1] Pet Owner search clinics by name', async () => {
     // Setup mock
-    vi.mocked(clinicService.searchClinics).mockResolvedValue(mockClinicSearchResponse)
+    (clinicService.searchClinics as Mock).mockResolvedValue(mockClinicSearchResponse)
 
     // Execute
     const result = await clinicService.searchClinics('Petties', 0, 20)
@@ -239,7 +240,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 2] Pet Owner views clinic details', async () => {
     // Setup mock
-    vi.mocked(clinicService.getClinicById).mockResolvedValue(mockClinicDetail)
+    (clinicService.getClinicById as Mock).mockResolvedValue(mockClinicDetail)
 
     // Execute
     const result = await clinicService.getClinicById('clinic-001')
@@ -253,7 +254,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 3] Pet Owner selects pet from their list', async () => {
     // Setup mock
-    vi.mocked(petService.getMyPets).mockResolvedValue(mockPets)
+    (petService.getMyPets as Mock).mockResolvedValue(mockPets)
 
     // Execute
     const result = await petService.getMyPets()
@@ -278,7 +279,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 5] Pet Owner creates booking', async () => {
     // Setup mock
-    vi.mocked(createBooking).mockResolvedValue(mockCreatedBooking)
+    (createBooking as Mock).mockResolvedValue(mockCreatedBooking)
 
     // Execute
     const result = await createBooking(mockBookingRequest)
@@ -299,8 +300,8 @@ describe('Booking Happy Flow - End-to-End', () => {
     // Setup mock
     const confirmRequest: ConfirmBookingRequest = {
       managerNotes: 'Xác nhận lịch hẹn, gán bác sĩ Trần Văn B',
-    }
-    vi.mocked(confirmBooking).mockResolvedValue(mockConfirmedBooking)
+    };
+    (confirmBooking as Mock).mockResolvedValue(mockConfirmedBooking)
 
     // Execute
     const result = await confirmBooking('booking-001', confirmRequest)
@@ -316,7 +317,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 7] Staff checks-in booking to start service', async () => {
     // Setup mock
-    vi.mocked(checkInBooking).mockResolvedValue(mockCheckedInBooking)
+    (checkInBooking as Mock).mockResolvedValue(mockCheckedInBooking)
 
     // Execute
     const result = await checkInBooking('booking-001')
@@ -329,7 +330,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 8] Staff completes booking (checkout) after treatment', async () => {
     // Setup mock
-    vi.mocked(completeBooking).mockResolvedValue(mockCompletedBooking)
+    (completeBooking as Mock).mockResolvedValue(mockCompletedBooking)
 
     // Execute
     const result = await completeBooking('booking-001')
@@ -343,7 +344,7 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 9] Verify final booking status after checkout', async () => {
     // Setup mock
-    vi.mocked(getBookingById).mockResolvedValue(mockCompletedBooking)
+    (getBookingById as Mock).mockResolvedValue(mockCompletedBooking)
 
     // Execute
     const result = await getBookingById('booking-001')
@@ -366,51 +367,51 @@ describe('Booking Happy Flow - End-to-End', () => {
     // Giả lập toàn bộ flow tuần tự
 
     // Step 1: Search clinic
-    vi.mocked(clinicService.searchClinics).mockResolvedValue(mockClinicSearchResponse)
-    const clinics = await clinicService.searchClinics('Petties')
-    expect(clinics.content[0].clinicId).toBe('clinic-001')
+    (clinicService.searchClinics as Mock).mockResolvedValue(mockClinicSearchResponse);
+    const clinics = await clinicService.searchClinics('Petties');
+    expect(clinics.content[0].clinicId).toBe('clinic-001');
 
     // Step 2: Get clinic details
-    vi.mocked(clinicService.getClinicById).mockResolvedValue(mockClinicDetail)
-    const clinic = await clinicService.getClinicById('clinic-001')
-    expect(clinic.name).toBe('Phòng Khám Thú Y Petties')
+    (clinicService.getClinicById as Mock).mockResolvedValue(mockClinicDetail);
+    const clinic = await clinicService.getClinicById('clinic-001');
+    expect(clinic.name).toBe('Phòng Khám Thú Y Petties');
 
     // Step 3: Get user's pets
-    vi.mocked(petService.getMyPets).mockResolvedValue(mockPets)
-    const pets = await petService.getMyPets()
-    expect(pets[0].id).toBe('pet-001')
+    (petService.getMyPets as Mock).mockResolvedValue(mockPets);
+    const pets = await petService.getMyPets();
+    expect(pets[0].id).toBe('pet-001');
 
     // Step 4: Create booking
-    vi.mocked(createBooking).mockResolvedValue(mockCreatedBooking)
-    const booking = await createBooking(mockBookingRequest)
-    expect(booking.status).toBe('PENDING')
+    (createBooking as Mock).mockResolvedValue(mockCreatedBooking);
+    const booking = await createBooking(mockBookingRequest);
+    expect(booking.status).toBe('PENDING');
 
     // Step 5: Manager confirms
-    vi.mocked(confirmBooking).mockResolvedValue(mockConfirmedBooking)
-    const confirmed = await confirmBooking('booking-001')
-    expect(confirmed.status).toBe('CONFIRMED')
-    expect(confirmed.assignedStaffId).toBe('staff-001')
+    (confirmBooking as Mock).mockResolvedValue(mockConfirmedBooking);
+    const confirmed = await confirmBooking('booking-001');
+    expect(confirmed.status).toBe('CONFIRMED');
+    expect(confirmed.assignedStaffId).toBe('staff-001');
 
     // Step 6: Staff check-in
-    vi.mocked(checkInBooking).mockResolvedValue(mockCheckedInBooking)
-    const checkedIn = await checkInBooking('booking-001')
-    expect(checkedIn.status).toBe('IN_PROGRESS')
+    (checkInBooking as Mock).mockResolvedValue(mockCheckedInBooking);
+    const checkedIn = await checkInBooking('booking-001');
+    expect(checkedIn.status).toBe('IN_PROGRESS');
 
     // Step 7: Staff checkout
-    vi.mocked(completeBooking).mockResolvedValue(mockCompletedBooking)
-    const completed = await completeBooking('booking-001')
-    expect(completed.status).toBe('COMPLETED')
-    expect(completed.paymentStatus).toBe('PAID')
-    expect(completed.emrId).toBe('emr-001')
+    (completeBooking as Mock).mockResolvedValue(mockCompletedBooking);
+    const completed = await completeBooking('booking-001');
+    expect(completed.status).toBe('COMPLETED');
+    expect(completed.paymentStatus).toBe('PAID');
+    expect(completed.emrId).toBe('emr-001');
 
     // Verify all mocks called
-    expect(clinicService.searchClinics).toHaveBeenCalled()
-    expect(clinicService.getClinicById).toHaveBeenCalled()
-    expect(petService.getMyPets).toHaveBeenCalled()
-    expect(createBooking).toHaveBeenCalled()
-    expect(confirmBooking).toHaveBeenCalled()
-    expect(checkInBooking).toHaveBeenCalled()
-    expect(completeBooking).toHaveBeenCalled()
+    expect(clinicService.searchClinics).toHaveBeenCalled();
+    expect(clinicService.getClinicById).toHaveBeenCalled();
+    expect(petService.getMyPets).toHaveBeenCalled();
+    expect(createBooking).toHaveBeenCalled();
+    expect(confirmBooking).toHaveBeenCalled();
+    expect(checkInBooking).toHaveBeenCalled();
+    expect(completeBooking).toHaveBeenCalled();
   })
 
   it('[VALIDATION] Booking status transitions are correct', () => {

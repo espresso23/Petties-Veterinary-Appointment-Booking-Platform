@@ -7,9 +7,10 @@ interface ClinicLogoUploadProps {
   clinicId: string
   currentLogo?: string
   onLogoUploaded?: (logoUrl: string) => void
+  disabled?: boolean
 }
 
-export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: ClinicLogoUploadProps) {
+export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded, disabled }: ClinicLogoUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [logoUrl, setLogoUrl] = useState<string | undefined>(currentLogo)
@@ -67,7 +68,7 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
           onLogoUploaded(newLogoUrl)
         }
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to upload logo:', err)
       const errorMessage = err.response?.data?.message || err.message || 'Không thể upload logo. Vui lòng thử lại.'
       setError(errorMessage)
@@ -99,8 +100,8 @@ export function ClinicLogoUpload({ clinicId, currentLogo, onLogoUploaded }: Clin
             id={`logo-upload-${clinicId}`}
           />
           <label
-            htmlFor={`logo-upload-${clinicId}`}
-            className={`btn-brutal inline-block cursor-pointer ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            htmlFor={disabled || uploading ? "" : `logo-upload-${clinicId}`}
+            className={`btn-brutal inline-block ${disabled || uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           >
             {uploading ? 'ĐANG TẢI LÊN...' : 'CHỌN LOGO'}
           </label>

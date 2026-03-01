@@ -80,9 +80,9 @@ export function timesOverlap(
         const [h, m] = t.split(':').map(Number)
         return h * 60 + m
     }
-    let s1 = toMin(start1)
+    const s1 = toMin(start1)
     let e1 = toMin(end1)
-    let s2 = toMin(start2)
+    const s2 = toMin(start2)
     let e2 = toMin(end2)
     if (isOvernight1 || e1 < s1) e1 += 24 * 60
     if (isOvernight2 || e2 < s2) e2 += 24 * 60

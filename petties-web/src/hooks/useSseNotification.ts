@@ -27,6 +27,7 @@ type NotificationType =
   | 'BOOKING_CHECKIN'
   | 'BOOKING_COMPLETED'
   | 'STAFF_ON_WAY'
+  | 'STAFF_ARRIVED'
   // Admin notifications
   | 'CLINIC_PENDING_APPROVAL'
   | 'CLINIC_VERIFIED'
@@ -153,6 +154,7 @@ export function useSseNotification(
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const connectRef = useRef<() => void>(() => {})
 
   // Generate SSE URL with token
   const getSseUrl = useCallback(() => {
@@ -199,6 +201,12 @@ export function useSseNotification(
           break
         case 'BOOKING_COMPLETED':
           showToast('success', message || 'Lịch hẹn đã hoàn thành')
+          break
+        case 'STAFF_ON_WAY':
+          showToast('info', message || 'Nhân viên đang trên đường đến khách hàng')
+          break
+        case 'STAFF_ARRIVED':
+          showToast('success', message || 'Nhân viên đã đến địa chỉ khách hàng')
           break
         default:
           showToast('info', message || 'Thong bao moi')
@@ -263,6 +271,7 @@ export function useSseNotification(
   )
 
   // Connect to SSE
+   
   const connect = useCallback(() => {
     const url = getSseUrl()
     if (!url) {
@@ -304,6 +313,7 @@ export function useSseNotification(
         console.error('[SSE] Connection error:', error)
         setIsConnected(false)
         eventSource.close()
+        eventSourceRef.current = null
 
         // Auto-reconnect if within max attempts
         if (reconnectAttemptsRef.current < maxReconnectAttempts && isAuthenticated) {
@@ -312,7 +322,7 @@ export function useSseNotification(
             `[SSE] Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
           )
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect()
+            connectRef.current()
           }, reconnectDelay)
         } else {
           console.warn('[SSE] Max reconnect attempts reached, stopping')
@@ -356,18 +366,19 @@ export function useSseNotification(
     connect()
   }, [connect, disconnect])
 
+  connectRef.current = connect
+
   // Connect on mount, disconnect on unmount
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       connect()
-    } else {
-      disconnect()
     }
-
+    // Cleanup: disconnect on unmount
     return () => {
       disconnect()
     }
-  }, [isAuthenticated, accessToken, connect, disconnect])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, accessToken])
 
   return {
     isConnected,

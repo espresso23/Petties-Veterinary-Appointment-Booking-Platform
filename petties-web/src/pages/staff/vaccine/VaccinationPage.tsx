@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { CalendarIcon, PlusIcon, TrashIcon, ArrowLeftIcon, ListBulletIcon, ClockIcon, Squares2X2Icon } from '@heroicons/react/24/outline'
 import DatePicker, { registerLocale } from 'react-datepicker'
@@ -38,16 +38,7 @@ const VaccinationPage = () => {
     const [nextDueDate, setNextDueDate] = useState<Date | null>(null)
     const [notes, setNotes] = useState('')
 
-    useEffect(() => {
-        if (petId) {
-            fetchRecords()
-            fetchPet()
-            fetchTemplates()
-            fetchUpcoming()
-        }
-    }, [petId])
-
-    const fetchUpcoming = async () => {
+    const fetchUpcoming = useCallback(async () => {
         if (!petId) return
         try {
             const data = await vaccinationService.getUpcomingVaccinations(petId)
@@ -55,9 +46,9 @@ const VaccinationPage = () => {
         } catch (error) {
             console.error('Failed to fetch upcoming vaccinations:', error)
         }
-    }
+    }, [petId])
 
-    const fetchPet = async () => {
+    const fetchPet = useCallback(async () => {
         if (!petId) return
         try {
             const data = await petService.getPetById(petId)
@@ -65,9 +56,9 @@ const VaccinationPage = () => {
         } catch (error) {
             console.error('Failed to fetch pet:', error)
         }
-    }
+    }, [petId])
 
-    const fetchRecords = async () => {
+    const fetchRecords = useCallback(async () => {
         if (!petId) return
         try {
             const data = await vaccinationService.getVaccinationsByPet(petId)
@@ -78,16 +69,25 @@ const VaccinationPage = () => {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [petId, showToast])
 
-    const fetchTemplates = async () => {
+    const fetchTemplates = useCallback(async () => {
         try {
             const data = await vaccineTemplateService.getAllTemplates()
             setTemplates(data)
         } catch (error) {
             console.error('Failed to fetch templates:', error)
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        if (petId) {
+            fetchRecords()
+            fetchPet()
+            fetchTemplates()
+            fetchUpcoming()
+        }
+    }, [petId, fetchRecords, fetchPet, fetchTemplates, fetchUpcoming])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -113,7 +113,7 @@ const VaccinationPage = () => {
             resetForm()
             fetchRecords()
             fetchUpcoming()
-        } catch (error: any) {
+        } catch (error) {
             console.error(error)
             const errorMessage = error?.response?.data?.message || error?.message || 'Lỗi khi thêm hồ sơ'
             showToast('error', errorMessage)

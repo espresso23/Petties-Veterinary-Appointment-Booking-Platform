@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { isAxiosError } from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking } from '../../../services/bookingService';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking, cancelBooking } from '../../../services/bookingService';
 import type { StaffOption } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import type { ClinicServiceResponse } from '../../../types/service';
@@ -10,14 +11,17 @@ import { ReassignStaffModal } from '../../../components/booking/ReassignStaffMod
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
 import { AddServiceModal } from '../../../components/booking/AddServiceModal';
 import { useToast } from '../../../components/Toast';
-import { TruckIcon, ScaleIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, TruckIcon, ScaleIcon } from '@heroicons/react/24/outline';
+import { useSseNotification } from '../../../hooks/useSseNotification';
 import '../../../styles/brutalist.css';
 
-type TabFilter = 'PENDING' | 'CONFIRMED' | 'HISTORY' | 'ALL';
+type TabFilter = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'HISTORY' | 'ALL';
 
 const TAB_OPTIONS: { key: TabFilter; label: string }[] = [
     { key: 'PENDING', label: 'Chờ xác nhận' },
     { key: 'CONFIRMED', label: 'Đã xác nhận' },
+    { key: 'IN_PROGRESS', label: 'Đang tiến hành' },
+    { key: 'COMPLETED', label: 'Đã hoàn thành' },
     { key: 'HISTORY', label: 'Lịch sử' },
     { key: 'ALL', label: 'Tất cả' },
 ];
@@ -50,6 +54,9 @@ export const BookingDashboardPage = () => {
     const [typeFilter, setTypeFilter] = useState<string>('ALL');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [confirming, setConfirming] = useState<string | null>(null);
+    const [cancelling, setCancelling] = useState<string | null>(null);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
+    const [bookingIdToCancel, setBookingIdToCancel] = useState<string | null>(null);
 
     // Staff availability warning modal state
     const [availabilityWarningOpen, setAvailabilityWarningOpen] = useState(false);
@@ -72,8 +79,14 @@ export const BookingDashboardPage = () => {
                     // Switch to appropriate tab
                     if (booking.status === 'PENDING') {
                         setActiveTab('PENDING');
-                    } else if (booking.status !== 'CANCELLED' && booking.status !== 'NO_SHOW') {
+                    } else if (booking.status === 'CONFIRMED') {
                         setActiveTab('CONFIRMED');
+                    } else if (booking.status === 'IN_PROGRESS') {
+                        setActiveTab('IN_PROGRESS');
+                    } else if (booking.status === 'COMPLETED') {
+                        setActiveTab('COMPLETED');
+                    } else if (booking.status === 'CANCELLED' || booking.status === 'NO_SHOW') {
+                        setActiveTab('HISTORY');
                     } else {
                         setActiveTab('ALL');
                     }
@@ -115,17 +128,19 @@ export const BookingDashboardPage = () => {
                 // Should already be filtered by API, but double check
                 filtered = filtered.filter(b => b.status === 'PENDING');
             } else if (activeTab === 'CONFIRMED') {
-                // Show active bookings: CONFIRMED, IN_PROGRESS, ARRIVED
-                // STRICTLY EXCLUDE PENDING
+                // Only show CONFIRMED status
+                filtered = filtered.filter(b => b.status === 'CONFIRMED');
+            } else if (activeTab === 'IN_PROGRESS') {
+                // Show in-progress bookings
                 filtered = filtered.filter(b =>
-                    b.status === 'IN_PROGRESS' ||
-                    b.status === 'ARRIVED' ||
-                    b.status === 'CONFIRMED'
+                    b.status === 'IN_PROGRESS'
                 );
+            } else if (activeTab === 'COMPLETED') {
+                // Show completed bookings only
+                filtered = filtered.filter(b => b.status === 'COMPLETED');
             } else if (activeTab === 'HISTORY') {
-                // Show completed/cancelled bookings
+                // Show cancelled/no-show bookings
                 filtered = filtered.filter(b =>
-                    b.status === 'COMPLETED' ||
                     b.status === 'CANCELLED' ||
                     b.status === 'NO_SHOW'
                 );
@@ -143,6 +158,26 @@ export const BookingDashboardPage = () => {
     useEffect(() => {
         fetchBookings();
     }, [fetchBookings]);
+
+    // Handle real-time booking updates
+    useSseNotification({
+        onBookingUpdate: (data) => {
+            console.log('[BookingDashboardPage] Real-time update:', data);
+
+            // 1. Refresh the main list
+            fetchBookings();
+
+            // 2. If the updated booking is currently open in modal, refresh it
+            if (selectedBooking && data.bookingId === selectedBooking.bookingId) {
+                getBookingById(data.bookingId)
+                    .then(updatedBooking => {
+                        console.log('[BookingDashboardPage] Refreshing open booking:', updatedBooking.bookingCode);
+                        setSelectedBooking(updatedBooking);
+                    })
+                    .catch(err => console.error('Failed to refresh selected booking:', err));
+            }
+        }
+    });
 
     // Handle confirm booking - checks availability first
     const handleConfirm = async (bookingId: string, selectedStaffId?: string) => {
@@ -174,7 +209,7 @@ export const BookingDashboardPage = () => {
             }
         } catch (error) {
             console.error('Failed to confirm booking:', error);
-            showToast('error', (error as any).response.data.message || 'Không thể xác nhận booking. Vui lòng thử lại.');
+            showToast('error', (isAxiosError(error) && error.response?.data && typeof error.response.data === 'object' && 'message' in error.response.data ? String((error.response.data as { message?: unknown }).message) : null) || 'Không thể xác nhận booking. Vui lòng thử lại.');
         } finally {
             setConfirming(null);
         }
@@ -247,11 +282,36 @@ export const BookingDashboardPage = () => {
             await fetchBookings();
             setAddServiceModalOpen(false);
             showToast('success', 'Đã thêm dịch vụ thành công');
-        } catch (error: any) {
+        } catch (error) {
             console.error('Failed to add service:', error);
             showToast('error', error?.response?.data?.message || 'Không thể thêm dịch vụ');
         } finally {
             setAddingService(false);
+        }
+    };
+
+    // Handle cancel booking
+    const handleCancelBooking = (bookingId: string) => {
+        setBookingIdToCancel(bookingId);
+        setCancelModalOpen(true);
+    };
+
+    const confirmCancelBooking = async (reason: string) => {
+        if (!bookingIdToCancel) return;
+
+        setCancelling(bookingIdToCancel);
+        try {
+            await cancelBooking(bookingIdToCancel, reason);
+            showToast('success', 'Đã hủy lịch hẹn thành công');
+            await fetchBookings();
+            setSelectedBooking(null);
+            setCancelModalOpen(false);
+            setBookingIdToCancel(null);
+        } catch (error) {
+            console.error('Failed to cancel booking:', error);
+            showToast('error', 'Không thể hủy lịch hẹn. Vui lòng thử lại.');
+        } finally {
+            setCancelling(null);
         }
     };
 
@@ -288,6 +348,8 @@ export const BookingDashboardPage = () => {
                     Xem và xác nhận các đơn đặt lịch khám
                 </p>
             </header>
+
+
 
             {/* Tabs */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -448,7 +510,15 @@ export const BookingDashboardPage = () => {
                                         {(() => {
                                             const staffMembers = new Map<string, { name: string; avatar?: string }>();
 
-                                            // 1. Add staff from individual services
+                                            // 1. Add primary assigned staff (Crucial for SOS where services list is empty)
+                                            if (booking.assignedStaffId && booking.assignedStaffName) {
+                                                staffMembers.set(booking.assignedStaffId, {
+                                                    name: booking.assignedStaffName,
+                                                    avatar: booking.assignedStaffAvatarUrl
+                                                });
+                                            }
+
+                                            // 2. Add staff from individual services (multi-pet + traditional)
                                             getAllServices(booking).forEach((service: BookingServiceItem) => {
                                                 if (service.assignedStaffId && service.assignedStaffName) {
                                                     staffMembers.set(service.assignedStaffId, {
@@ -497,9 +567,18 @@ export const BookingDashboardPage = () => {
                                                     {confirming === booking.bookingId ? '...' : 'Xác nhận'}
                                                 </button>
                                             )}
+                                            {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
+                                                <button
+                                                    onClick={() => handleCancelBooking(booking.bookingId)}
+                                                    disabled={cancelling === booking.bookingId}
+                                                    className="px-3 py-1 text-xs font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] transition-all disabled:opacity-50"
+                                                >
+                                                    {cancelling === booking.bookingId ? '...' : 'Hủy'}
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setSelectedBooking(booking)}
-                                                className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2px_0_#1c1917] transition-all"
+                                                className="px-3 py-1 text-xs font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[2px_2_0_#1c1917] transition-all"
                                             >
                                                 Chi tiết
                                             </button>
@@ -510,7 +589,7 @@ export const BookingDashboardPage = () => {
                         )}
                     </tbody>
                 </table>
-            </div>
+            </div >
 
             {/* Booking Detail Modal */}
             {selectedBooking && (
@@ -518,25 +597,28 @@ export const BookingDashboardPage = () => {
                     booking={selectedBooking}
                     onClose={() => setSelectedBooking(null)}
                     onConfirm={handleConfirm}
+                    onCancel={handleCancelBooking}
                     onBookingUpdated={fetchBookings}
                     onAddService={handleOpenAddServiceModal}
                 />
             )}
 
             {/* Staff Availability Warning Modal */}
-            {availabilityCheckResult && (
-                <StaffAvailabilityWarningModal
-                    isOpen={availabilityWarningOpen}
-                    availability={availabilityCheckResult}
-                    onClose={() => {
-                        setAvailabilityWarningOpen(false);
-                        setPendingBookingId(null);
-                        setAvailabilityCheckResult(null);
-                    }}
-                    onConfirm={handleConfirmOption}
-                    isConfirming={confirming !== null}
-                />
-            )}
+            {
+                availabilityCheckResult && (
+                    <StaffAvailabilityWarningModal
+                        isOpen={availabilityWarningOpen}
+                        availability={availabilityCheckResult}
+                        onClose={() => {
+                            setAvailabilityWarningOpen(false);
+                            setPendingBookingId(null);
+                            setAvailabilityCheckResult(null);
+                        }}
+                        onConfirm={handleConfirmOption}
+                        isConfirming={confirming !== null}
+                    />
+                )
+            }
             {/* Add-on Service Modal */}
             <AddServiceModal
                 isOpen={addServiceModalOpen}
@@ -545,7 +627,18 @@ export const BookingDashboardPage = () => {
                 onAddService={handleAddService}
                 isAdding={addingService}
             />
-        </div>
+
+            {/* Cancel Booking Modal */}
+            <CancelBookingModal
+                isOpen={cancelModalOpen}
+                onClose={() => {
+                    setCancelModalOpen(false);
+                    setBookingIdToCancel(null);
+                }}
+                onConfirm={confirmCancelBooking}
+                isCancelling={cancelling !== null}
+            />
+        </div >
     );
 };
 
@@ -554,21 +647,33 @@ interface BookingDetailModalProps {
     booking: Booking;
     onClose: () => void;
     onConfirm: (bookingId: string, selectedStaffId?: string) => void;
+    onCancel: (bookingId: string) => void;
     onBookingUpdated?: () => void;
     onAddService?: () => void;
 }
 
-const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
+const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCancel, onBookingUpdated, onAddService }: BookingDetailModalProps) => {
     const { showToast } = useToast();
     const [booking, setBooking] = useState<Booking>(initialBooking);
     const [reassignModalOpen, setReassignModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<BookingServiceItem | null>(null);
+
+    // Sync state when prop changes (e.g. from parent update or SSE)
+    useEffect(() => {
+        setBooking(initialBooking);
+    }, [initialBooking]);
 
     // Staff selection dropdown state - per service
     const [availableStaffByService, setAvailableStaffByService] = useState<Record<string, StaffOption[]>>({});
     const [selectedStaffByService, setSelectedStaffByService] = useState<Record<string, string>>({});
     const [loadingStaff, setLoadingStaff] = useState(false);
     const [openDropdownServiceId, setOpenDropdownServiceId] = useState<string | null>(null);
+
+    // Confirmation Modal for Removal
+    const [confirmRemoveModal, setConfirmRemoveModal] = useState<{ isOpen: boolean, serviceId: string | null }>({
+        isOpen: false,
+        serviceId: null
+    });
 
     // Fetch available staff when modal opens with PENDING booking
     useEffect(() => {
@@ -600,14 +705,10 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                 return false;
                             }
 
-                            // 3. Match specialty or allow VET_GENERAL as fallback for other medical
-                            const requiredSpecialty =
-                                category === 'SURGERY' ? 'VET_SURGERY' :
-                                    category === 'DENTAL' ? 'VET_DENTAL' :
-                                        category === 'DERMATOLOGY' ? 'VET_DERMATOLOGY' :
-                                            'VET_GENERAL';
-
-                            return staffSpec === requiredSpecialty || staffSpec === 'VET_GENERAL';
+                            // 3. Match specialty: medical services → VET, GROOMING_SPA → GROOMER
+                            const requiredSpecialty = category === 'GROOMING_SPA' ? 'GROOMER' : 'VET';
+                            const staffIsVet = staffSpec === 'VET' || (staffSpec?.startsWith('VET_') ?? false);
+                            return requiredSpecialty === 'VET' ? staffIsVet : staffSpec === requiredSpecialty;
                         });
 
                         staffByService[serviceId] = filteredStaff;
@@ -635,6 +736,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     setLoadingStaff(false);
                 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [booking.bookingId, booking.status]);
 
     const formatCurrency = (amount: number) => {
@@ -659,17 +761,21 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
         }
     };
 
-    const handleRemoveService = async (bookingId: string, serviceId: string) => {
-        if (!window.confirm('Bạn có chắc chắn muốn xóa dịch vụ phát sinh này không?')) {
-            return;
-        }
+    const handleRemoveService = async (_bookingId: string, serviceId: string) => {
+        setConfirmRemoveModal({ isOpen: true, serviceId });
+    };
+
+    const confirmRemoveAction = async () => {
+        const serviceId = confirmRemoveModal.serviceId;
+        if (!serviceId) return;
 
         try {
-            await removeServiceFromBooking(bookingId, serviceId);
+            await removeServiceFromBooking(booking.bookingId, serviceId);
             showToast('success', 'Đã xóa dịch vụ thành công');
+            setConfirmRemoveModal({ isOpen: false, serviceId: null });
 
             // Refresh booking
-            const updatedBooking = await getBookingById(bookingId);
+            const updatedBooking = await getBookingById(booking.bookingId);
             setBooking(updatedBooking);
             if (onBookingUpdated) {
                 onBookingUpdated();
@@ -682,12 +788,18 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white border-4 border-stone-900 shadow-brutal max-w-2xl w-full max-h-[90vh] overflow-auto">
+            {/* Main Modal Container */}
+            <div className="bg-white border-4 border-stone-900 shadow-brutal max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden relative">
                 {/* Header */}
-                <div className="flex justify-between items-center p-4 border-b-4 border-stone-900 bg-amber-400">
+                <div className={`flex justify-between items-center p-4 border-b-4 border-stone-900 ${booking.type === 'SOS' ? 'bg-red-500 text-white' : 'bg-amber-400 text-stone-900'}`}>
                     <div>
-                        <h2 className="text-xl font-bold uppercase">Chi tiết đặt lịch</h2>
-                        <p className="font-mono">{booking.bookingCode}</p>
+                        <h2 className="text-xl font-bold uppercase flex items-center gap-2">
+                            {booking.type === 'SOS' && (
+                                <span className="animate-pulse bg-white text-red-600 px-2 py-0.5 text-sm border-2 border-red-900">SOS</span>
+                            )}
+                            Chi tiết đặt lịch
+                        </h2>
+                        <p className={`font-mono ${booking.type === 'SOS' ? 'text-red-100' : 'text-stone-700'}`}>{booking.bookingCode}</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -697,11 +809,23 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 space-y-6">
+                {booking.type === 'SOS' && (
+                    <div className="bg-red-50 border-b-4 border-red-600 p-3 text-red-800 flex items-center gap-3">
+                        <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-red-600 text-white rounded-full">
+                            <span className="font-bold">!</span>
+                        </div>
+                        <div>
+                            <div className="font-bold uppercase text-sm">Yêu cầu cấp cứu khẩn cấp</div>
+                            <div className="text-xs">Vui lòng ưu tiên xử lý và gán nhân viên ngay lập tức.</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Content - Scrollable Body */}
+                <div className="p-6 space-y-6 overflow-auto flex-1 bg-white">
                     {/* Pet & Owner Info */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="border-2 border-stone-900 p-4">
+                        <div className="border-2 border-stone-900 p-4 bg-white">
                             <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">
                                 Thông tin thú cưng{booking.pets && booking.pets.length > 1 ? ` (${booking.pets.length})` : ''}
                             </h3>
@@ -743,7 +867,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                 </div>
                             )}
                         </div>
-                        <div className="border-2 border-stone-900 p-4">
+                        <div className="border-2 border-stone-900 p-4 bg-white">
                             <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Thông tin chủ</h3>
                             <div className="text-lg font-bold">{booking.ownerName}</div>
                             <div className="text-sm text-stone-600">{booking.ownerPhone}</div>
@@ -756,7 +880,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
 
                     {/* Payment Status */}
                     {booking.paymentStatus && (
-                        <div className="border-2 border-stone-900 p-3 flex items-center justify-between mb-4">
+                        <div className="border-2 border-stone-900 p-3 flex items-center justify-between">
                             <span className="font-bold uppercase text-sm text-stone-500">Thanh toán</span>
                             <span
                                 className="px-3 py-1 text-sm font-bold border-2 border-stone-900"
@@ -766,6 +890,28 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                             >
                                 {PAYMENT_STATUS_LABELS[booking.paymentStatus]?.label || booking.paymentStatus}
                             </span>
+                        </div>
+                    )}
+
+                    {/* Assigned Staff (Top level - e.g. for SOS) */}
+                    {booking.type === 'SOS' && booking.assignedStaffName && (
+                        <div className="border-2 border-stone-900 p-4 bg-mint-50">
+                            <h3 className="font-bold uppercase text-[10px] mb-3 text-stone-500 tracking-wider">Bác sĩ cấp cứu</h3>
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-stone-900 bg-white shadow-[2px_2px_0_#1c1917]">
+                                    {booking.assignedStaffAvatarUrl ? (
+                                        <img src={booking.assignedStaffAvatarUrl} alt={booking.assignedStaffName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-xl font-bold bg-mint-200 text-stone-600">
+                                            {booking.assignedStaffName.charAt(0)}
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <div className="font-bold text-lg leading-tight">{booking.assignedStaffName}</div>
+                                    <div className="text-xs text-stone-600 font-medium">{STAFF_SPECIALTY_LABELS[booking.assignedStaffSpecialty || ''] || booking.assignedStaffSpecialty || 'Bác sĩ thú y'}</div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -844,90 +990,45 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                             <button
                                                 onClick={() => handleOpenReassignModal(service)}
                                                 className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors flex items-center gap-1"
-                                                title="Đổi nhân viên"
                                             >
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-                                                    <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0v2.433l-.31-.31a7 7 0 00-11.712 3.138.75.75 0 001.449.39 5.5 5.5 0 019.201-2.466l.312.311H12.18c-.414 0-.75.336-.75.75s.336.75.75.75h4.242z" clipRule="evenodd" />
-                                                </svg>
-                                                Đổi người
+                                                Đổi
                                             </button>
                                         )}
                                     </div>
                                 ) : booking.status === 'PENDING' ? (
-                                    /* Inline Staff Selection Dropdown for PENDING booking */
                                     (() => {
                                         const serviceId = service.bookingServiceId || service.serviceId;
                                         const serviceStaff = availableStaffByService[serviceId] || [];
                                         const selectedStaffId = selectedStaffByService[serviceId];
                                         const isDropdownOpen = openDropdownServiceId === serviceId;
 
-                                        if (loadingStaff) {
-                                            return (
-                                                <div className="mt-2 flex items-center gap-2 px-2 py-1">
-                                                    <div className="w-4 h-4 border-2 border-stone-400 border-t-transparent rounded-full animate-spin"></div>
-                                                    <span className="text-xs text-stone-400">Đang tải nhân viên...</span>
-                                                </div>
-                                            );
-                                        }
-
-                                        if (serviceStaff.length === 0) {
-                                            return (
-                                                <div className="mt-2 flex items-center gap-2 bg-amber-50 px-2 py-1.5 border-2 border-amber-600">
-                                                    <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                    </svg>
-                                                    <span className="text-xs font-bold text-amber-800">Chưa có nhân viên phù hợp</span>
-                                                </div>
-                                            );
-                                        }
+                                        if (loadingStaff) return <div className="mt-2 text-xs text-stone-400 italic">Đang tải nhân viên...</div>;
+                                        if (serviceStaff.length === 0) return <div className="mt-2 text-xs font-bold text-amber-800 bg-amber-50 p-1 border border-amber-600">Không có nhân viên phù hợp</div>;
 
                                         const selectedStaff = serviceStaff.find(s => s.staffId === selectedStaffId);
 
                                         return (
                                             <div className="mt-2 relative">
-                                                {/* Dropdown Trigger */}
                                                 <button
-                                                    type="button"
                                                     onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)}
-                                                    className="w-full flex items-center justify-between gap-2 px-2 py-1.5 bg-green-50 border-2 border-green-600 hover:shadow-[2px_2px_0_#1c1917] transition-all text-left"
+                                                    className="w-full flex items-center justify-between px-2 py-1.5 bg-green-50 border-2 border-green-600 text-xs font-medium"
                                                 >
-                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                                        </svg>
-                                                        {selectedStaff ? (
-                                                            <>
+                                                    <div className="flex items-center gap-2">
+                                                        {selectedStaff && (
+                                                            <div className="w-5 h-5 rounded-full overflow-hidden border border-green-200 bg-white flex-shrink-0">
                                                                 {selectedStaff.avatarUrl ? (
-                                                                    <img
-                                                                        src={selectedStaff.avatarUrl}
-                                                                        alt={selectedStaff.fullName}
-                                                                        className="w-6 h-6 rounded-full border border-green-600 object-cover flex-shrink-0"
-                                                                    />
+                                                                    <img src={selectedStaff.avatarUrl} alt={selectedStaff.fullName} className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    <div className="w-6 h-6 rounded-full bg-green-200 border border-green-600 flex items-center justify-center flex-shrink-0">
-                                                                        <span className="text-xs font-bold text-green-700">
-                                                                            {selectedStaff.fullName?.charAt(0) || '?'}
-                                                                        </span>
+                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-green-100 text-green-700">
+                                                                        {selectedStaff.fullName?.charAt(0) || '?'}
                                                                     </div>
                                                                 )}
-                                                                <div className="text-xs flex-1 min-w-0">
-                                                                    <span className="font-bold text-green-800">Nhân viên:</span>
-                                                                    <span className="ml-1 font-medium text-green-700">{selectedStaff.fullName}</span>
-                                                                    {selectedStaff.isSuggested && (
-                                                                        <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1.5 py-0.5 border border-green-600">Gợi ý</span>
-                                                                    )}
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-xs text-stone-500">Chọn nhân viên...</span>
+                                                            </div>
                                                         )}
+                                                        <span>{selectedStaff ? selectedStaff.fullName : 'Chọn nhân viên...'}</span>
                                                     </div>
-                                                    <svg className={`w-4 h-4 text-green-600 transition-transform flex-shrink-0 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                    </svg>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
                                                 </button>
-
-                                                {/* Dropdown Options */}
                                                 {isDropdownOpen && (
                                                     <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
                                                         {serviceStaff.map((staff) => {
@@ -952,7 +1053,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                             : 'opacity-50 cursor-not-allowed bg-stone-100'
                                                                         }`}
                                                                 >
-                                                                {/* Avatar */}
                                                                 <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
                                                                     {staff.avatarUrl ? (
                                                                         <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -978,11 +1078,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                {selectedStaffId === staff.staffId && (
-                                                                    <svg className="w-4 h-4 text-mint-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                )}
                                                             </button>
                                                             );
                                                         })}
@@ -996,7 +1091,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                         <span className="text-xs text-stone-400 italic">
                                             Chưa phân công bác sĩ
                                         </span>
-                                        {/* Assign button for unassigned services in CONFIRMED status */}
                                         {booking.status === 'CONFIRMED' && (
                                             <button
                                                 onClick={() => handleOpenReassignModal(service)}
@@ -1172,7 +1266,6 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                 <span>{formatCurrency(getAllServices(booking)?.reduce((sum: number, svc: BookingServiceItem) => sum + (svc.basePrice || svc.price || 0), 0) || 0)}</span>
                             </div>
                             {(() => {
-                                // Weight pricing is ALWAYS a surcharge (never discount)
                                 const weightSurcharge = getAllServices(booking)?.reduce((sum: number, svc: BookingServiceItem) => {
                                     if (svc.weightPrice && svc.basePrice && svc.weightPrice > svc.basePrice) {
                                         return sum + (svc.weightPrice - svc.basePrice);
@@ -1192,45 +1285,47 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                                     <span>+{formatCurrency(booking.distanceFee || 0)}</span>
                                 </div>
                             )}
-                        </div>
-
-                        <div className="flex justify-between items-center pt-3 mt-3 border-t-2 border-stone-900">
-                            <span className="font-bold uppercase">Tổng cộng</span>
-                            <span className="text-xl font-bold text-coral-600">
-                                {formatCurrency(booking.totalPrice)}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Schedule */}
-                    <div className="border-2 border-stone-900 p-4">
-                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Lịch hẹn</h3>
-                        <div className="flex gap-6">
-                            <div>
-                                <div className="text-2xl font-bold">{booking.bookingDate}</div>
-                                <div className="text-stone-500">{booking.bookingTime}</div>
+                            {booking.type === 'SOS' && (booking.sosFee || 0) > 0 && (
+                                <div className="flex justify-between text-stone-500">
+                                    <span>+ Phí cấp cứu (SOS)</span>
+                                    <span className="text-red-600">+{formatCurrency(booking.sosFee || 0)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between font-bold border-t border-stone-300 pt-1 mt-1 text-stone-900">
+                                <span>Tổng cộng</span>
+                                <span className="text-sm">{formatCurrency(booking.totalPrice)}</span>
                             </div>
-                            <div className="border-l-2 border-stone-200 pl-6">
-                                <div className="text-sm text-stone-500">Loại</div>
+                        </div>
+
+                        {/* Type & Address */}
+                        <div className="mt-4 pt-4 border-t border-stone-200 flex items-center gap-4">
+                            <div className="border-l-4 border-amber-400 pl-3">
+                                <div className="text-xs text-stone-500 font-bold uppercase">Loại</div>
                                 <div className="font-bold">{BOOKING_TYPE_LABELS[booking.type]}</div>
                             </div>
+                            {booking.homeAddress && (
+                                <div className="border-l-4 border-stone-300 pl-3">
+                                    <div className="text-xs text-stone-500 font-bold uppercase tracking-tight">Địa chỉ khám tại nhà</div>
+                                    <div className="font-medium text-xs line-clamp-1">{booking.homeAddress}</div>
+                                </div>
+                            )}
                         </div>
-                        {booking.homeAddress && (
-                            <div className="mt-3 pt-3 border-t border-stone-200">
-                                <div className="text-sm text-stone-500">Địa chỉ khám tại nhà</div>
-                                <div className="font-medium">{booking.homeAddress}</div>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Assigned Staff */}
-                    <div className="border-2 border-stone-900 p-4">
+                    {/* Assigned Staff Summary */}
+                    <div className="border-2 border-stone-900 p-4 bg-white">
                         <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Nhân viên phụ trách</h3>
                         {(() => {
-                            // Collect unique staff from all sources
                             const uniqueStaff = new Map<string, { id: string; name: string; avatarUrl?: string; specialty?: string }>();
 
-                            // 1. Add staff from individual services
+                            if (booking.assignedStaffId && booking.assignedStaffName) {
+                                uniqueStaff.set(booking.assignedStaffId, {
+                                    id: booking.assignedStaffId,
+                                    name: booking.assignedStaffName,
+                                    avatarUrl: booking.assignedStaffAvatarUrl,
+                                    specialty: booking.assignedStaffSpecialty,
+                                });
+                            }
                             getAllServices(booking).forEach((service: BookingServiceItem) => {
                                 if (service.assignedStaffId && service.assignedStaffName) {
                                     uniqueStaff.set(service.assignedStaffId, {
@@ -1280,96 +1375,136 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onBoo
                         })()}
                     </div>
 
-                    {/* Notes */}
-                    {booking.notes && (
-                        <div className="border-2 border-stone-900 p-4">
-                            <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Ghi chú</h3>
-                            <p className="text-stone-700">{booking.notes}</p>
+                    {/* Notes & Status */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="border-2 border-stone-900 p-4 bg-white">
+                            <h3 className="font-bold uppercase text-sm mb-2 text-stone-500">Ghi chú</h3>
+                            <p className="text-sm text-stone-700">{booking.notes || 'Không có ghi chú'}</p>
                         </div>
-                    )}
-
-                    {/* Status */}
-                    <div className="border-2 border-stone-900 p-4">
-                        <h3 className="font-bold uppercase text-sm mb-3 text-stone-500">Trạng thái</h3>
-                        <div className="flex items-center gap-2">
-                            {BOOKING_STATUS_CONFIG[booking.status] && (
-                                <span
-                                    className="px-4 py-2 font-bold uppercase border-2 border-stone-900"
-                                    style={{
-                                        backgroundColor: BOOKING_STATUS_CONFIG[booking.status].bgColor,
-                                    }}
-                                >
-                                    {BOOKING_STATUS_CONFIG[booking.status].label}
-                                </span>
-                            )}
+                        <div className="border-2 border-stone-900 p-4 bg-white">
+                            <h3 className="font-bold uppercase text-sm mb-2 text-stone-500">Trạng thái</h3>
+                            <span className="inline-block px-3 py-1 font-bold uppercase border-2 border-stone-900 text-xs" style={{ backgroundColor: BOOKING_STATUS_CONFIG[booking.status]?.bgColor }}>
+                                {BOOKING_STATUS_CONFIG[booking.status]?.label}
+                            </span>
                         </div>
                     </div>
                 </div>
 
                 {/* Footer Actions */}
-                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50">
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                    >
-                        Đóng
-                    </button>
-                    {booking.status === 'PENDING' && (
+                <div className="flex justify-end gap-3 p-4 border-t-4 border-stone-900 bg-stone-50 flex-shrink-0">
+                    <button onClick={onClose} className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Đóng</button>
+                    {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
                         <button
-                            onClick={() => {
-                                // Get first selected staff from per-service selection
-                                const services = getAllServices(booking);
-                                const firstServiceId = services[0]?.bookingServiceId || services[0]?.serviceId;
-                                const selectedStaffId = firstServiceId ? selectedStaffByService[firstServiceId] : undefined;
-                                onConfirm(booking.bookingId, selectedStaffId);
-                                onClose();
-                            }}
-                            disabled={Object.keys(selectedStaffByService).length === 0 && Object.keys(availableStaffByService).length > 0}
-                            className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => onCancel(booking.bookingId)}
+                            className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
                         >
-                            Xác nhận & Gán nhân viên
+                            Hủy lịch
                         </button>
                     )}
-                    {(booking.status === 'ARRIVED' || booking.status === 'IN_PROGRESS') && (
+                    {booking.status === 'PENDING' && (
+                        <button onClick={() => { const firstSvc = getAllServices(booking)[0]; const sid = firstSvc?.bookingServiceId || firstSvc?.serviceId; onConfirm(booking.bookingId, sid ? selectedStaffByService[sid] : undefined); onClose(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Xác nhận</button>
+                    )}
+                    {booking.status === 'IN_PROGRESS' && (
                         <>
-                            <button
-                                onClick={onAddService}
-                                className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                            >
-                                Thêm dịch vụ
-                            </button>
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        await completeBooking(booking.bookingId);
-                                        onClose();
-                                        window.location.reload();
-                                    } catch (err) {
-                                        console.error('Failed to complete booking:', err);
-                                    }
-                                }}
-                                className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all"
-                            >
-                                Checkout
-                            </button>
+                            <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
+                            <button onClick={async () => { await completeBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Checkout</button>
                         </>
                     )}
                 </div>
             </div>
 
-            {/* Reassign Staff Modal */}
+            {/* Sub-Modals */}
+            {confirmRemoveModal.isOpen && (
+                <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
+                    <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-sm w-full p-6">
+                        <h4 className="text-xl font-bold mb-4">Xác nhận xóa</h4>
+                        <p className="text-stone-600 mb-6">Xóa dịch vụ phát sinh này?</p>
+                        <div className="flex gap-4">
+                            <button onClick={() => setConfirmRemoveModal({ isOpen: false, serviceId: null })} className="flex-1 py-2 font-bold border-2 border-stone-900">Bỏ qua</button>
+                            <button onClick={confirmRemoveAction} className="flex-1 py-2 font-bold bg-red-500 text-white border-2 border-stone-900">Xóa</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {selectedService && (
                 <ReassignStaffModal
                     isOpen={reassignModalOpen}
                     bookingId={booking.bookingId}
                     service={selectedService}
-                    onClose={() => {
-                        setReassignModalOpen(false);
-                        setSelectedService(null);
-                    }}
+                    onClose={() => { setReassignModalOpen(false); setSelectedService(null); }}
                     onReassigned={handleReassigned}
                 />
             )}
+        </div>
+    );
+};
+
+// Cancel Booking Modal Component
+interface CancelBookingModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (reason: string) => void;
+    isCancelling: boolean;
+}
+
+const CancelBookingModal = ({ isOpen, onClose, onConfirm, isCancelling }: CancelBookingModalProps) => {
+    const [reason, setReason] = useState('');
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (isOpen) setReason('');
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-stone-900/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className="bg-white border-4 border-stone-900 shadow-[8px_8px_0_#1c1917] max-w-md w-full overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+                {/* Header */}
+                <div className="bg-coral-500 border-b-4 border-stone-900 p-4 flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-white uppercase tracking-tight">Xác nhận hủy lịch</h2>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 flex items-center justify-center bg-white border-2 border-stone-900 hover:bg-stone-100 transition-colors"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6">
+                    <p className="font-bold text-stone-900 mb-4 uppercase text-xs tracking-wider">Lý do hủy lịch:</p>
+                    <textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Vui lòng nhập lý do hủy lịch hẹn này..."
+                        className="w-full h-32 p-4 border-4 border-stone-900 focus:outline-none focus:ring-2 focus:ring-coral-400 font-medium text-stone-700 resize-none"
+                    />
+                    <p className="mt-2 text-xs text-stone-500 italic">* Lý do này sẽ được gửi đến chủ thú cưng.</p>
+                </div>
+
+                {/* Footer */}
+                <div className="bg-stone-50 border-t-4 border-stone-900 p-4 flex gap-3 justify-end">
+                    <button
+                        onClick={onClose}
+                        disabled={isCancelling}
+                        className="px-6 py-2 font-bold uppercase bg-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50"
+                    >
+                        Quay lại
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (!reason.trim()) return;
+                            onConfirm(reason);
+                        }}
+                        disabled={isCancelling || !reason.trim()}
+                        className="px-6 py-2 font-bold uppercase bg-red-500 text-white border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isCancelling ? 'Đang xử lý...' : 'Xác nhận hủy'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };

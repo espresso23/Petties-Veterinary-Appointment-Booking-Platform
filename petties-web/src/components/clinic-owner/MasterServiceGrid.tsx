@@ -87,7 +87,7 @@ export function MasterServiceGrid() {
       const service = await getMasterServiceById(id)
       setSelectedService(service)
       setIsModalOpen(true)
-    } catch (err) {
+    } catch {
       showToast('error', 'Không thể tải thông tin dịch vụ mẫu')
     }
   }
@@ -131,7 +131,7 @@ export function MasterServiceGrid() {
     }
   }
 
-  const handleSaveService = async (serviceData: any) => {
+  const handleSaveService = async (serviceData: MasterServiceRequest) => {
     try {
       setIsSubmitting(true)
       const requestData: MasterServiceRequest = {
@@ -165,11 +165,13 @@ export function MasterServiceGrid() {
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save master service:', err)
-      const serverMessage = err.response?.data?.message || (selectedService
-        ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
-        : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
+      const serverMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response !== null && 'data' in err.response && typeof err.response.data === 'object' && err.response.data !== null && 'message' in err.response.data
+        ? String(err.response.data.message)
+        : (selectedService
+          ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
+          : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -306,7 +308,7 @@ export function MasterServiceGrid() {
 
                     try {
                       // Prepare promises for applying master services
-                      const promises: Promise<any>[] = []
+                      const promises: Promise<unknown>[] = []
 
                       // Prefetch missing per-km prices for clinics that didn't provide one using dedicated endpoint
                       const clinicsNeedingFetch = selectedClinics.filter(c => c.clinicPricePerKm === undefined || c.clinicPricePerKm === null)
@@ -340,8 +342,8 @@ export function MasterServiceGrid() {
                       // Reset selection
                       setSelectedServiceIds(new Set())
                       setIsApplyMode(false)
-                    } catch (error) {
-                      console.error('Failed to apply master services:', error)
+                    } catch (err) {
+                      console.error('Failed to apply master services:', err)
                       showToast('error', 'Có lỗi xảy ra khi áp dụng dịch vụ mẫu. Vui lòng thử lại.')
                     }
                   }}

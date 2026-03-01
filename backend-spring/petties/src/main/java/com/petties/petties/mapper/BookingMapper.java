@@ -68,7 +68,15 @@ public class BookingMapper {
             Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
             List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
-            for (BookingServiceItem item : booking.getBookingServices()) {
+            List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
+                    ? booking.getBookingServices()
+                    : new ArrayList<>();
+
+            for (BookingServiceItem item : bookingServices) {
+                if (item.getService() == null) {
+                    log.warn("BookingServiceItem {} has null service, skipping", item.getBookingServiceId());
+                    continue;
+                }
                 Pet itemPet = item.getPet() != null ? item.getPet() : booking.getPet();
                 User itemStaff = item.getAssignedStaff();
                 int durationMinutes = item.getService().getDurationTime() != null
@@ -183,6 +191,8 @@ public class BookingMapper {
                     .homeLong(booking.getHomeLong())
                     .distanceKm(booking.getDistanceKm())
                     .distanceFee(booking.getDistanceFee())
+                    .sosFee(booking.getSosFee())
+                    .symptoms(booking.getSymptoms())
                     // Timestamps
                     .createdAt(booking.getCreatedAt())
                     .build();
@@ -383,8 +393,11 @@ public class BookingMapper {
                     .homeLong(booking.getHomeLong())
                     .distanceKm(booking.getDistanceKm())
                     .distanceFee(booking.getDistanceFee())
+                    .sosFee(booking.getSosFee())
+                    .symptoms(booking.getSymptoms())
                     // Timestamps
                     .createdAt(booking.getCreatedAt())
+                    .arrivedAt(booking.getArrivedAt())
                     .build();
         } catch (Exception e) {
             log.error("Error mapping booking {} to ClinicTodayResponse: {}",

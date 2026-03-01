@@ -52,6 +52,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (profile) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEditForm({
         fullName: profile.fullName || '',
         phone: profile.phone || '',

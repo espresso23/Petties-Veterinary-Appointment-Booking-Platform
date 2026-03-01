@@ -50,10 +50,13 @@ public class BookingResponse {
     private String clinicLogo;
     private String clinicAddress;
     private String clinicPhone;
+    private BigDecimal clinicLat;
+    private BigDecimal clinicLong;
 
     // ========== STAFF INFO ==========
     private UUID assignedStaffId;
     private String assignedStaffName;
+    private String assignedStaffPhone;
     private String assignedStaffSpecialty;
     private String assignedStaffAvatarUrl;
 
@@ -85,10 +88,15 @@ public class BookingResponse {
     private BigDecimal homeLong;
     private BigDecimal distanceKm;
     private BigDecimal distanceFee; // Home visit fee (pricePerKm × distanceKm) applied once
+    private BigDecimal sosFee; // SOS emergency fee
+    private String symptoms; // SOS symptoms description
 
     // ========== TIMESTAMPS ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime arrivedAt;
 
     private Boolean isReviewed;
     private UUID reviewId;

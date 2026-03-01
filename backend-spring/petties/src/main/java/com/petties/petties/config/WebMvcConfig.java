@@ -18,7 +18,7 @@ import java.util.List;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    @Value("${cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://*.ngrok.io,https://*.ngrok-free.app,https://*.ngrok.dev}")
     private String allowedOrigins;
 
     @Override
@@ -35,8 +35,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowCredentials(true)
                 .maxAge(3600);
 
-        if (origins.contains("*")) {
-            corsRegistration.allowedOriginPatterns("*");
+        boolean hasWildcard = origins.stream().anyMatch(o -> o.contains("*"));
+        if (hasWildcard) {
+            corsRegistration.allowedOriginPatterns(origins.toArray(new String[0]));
         } else {
             corsRegistration.allowedOrigins(origins.toArray(new String[0]));
         }

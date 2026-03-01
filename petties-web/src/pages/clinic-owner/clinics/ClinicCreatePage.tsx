@@ -16,7 +16,7 @@ export function ClinicCreatePage() {
       const clinic = await createClinic(data)
       setCreatedClinic(clinic)
       // Stay on page to allow image upload
-    } catch (error) {
+    } catch {
       // Error handled by store
     }
   }
@@ -28,7 +28,7 @@ export function ClinicCreatePage() {
         await fetchClinicById(createdClinic.clinicId)
         // Update local state with clinic from store
         // We'll use currentClinic from store in the component
-      } catch (error) {
+      } catch {
         console.error('Failed to refetch clinic:', error)
       }
     }

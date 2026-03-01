@@ -46,7 +46,7 @@ export function LoginPage() {
       hasHandledUrlError.current = true
       setError('Tài khoản PET_OWNER chỉ có thể sử dụng ứng dụng mobile. Vui lòng tải ứng dụng Petties trên điện thoại.')
     }
-  }, []) // Empty dependency - run only on mount
+  }, [searchParams])
 
   // Redirect nếu đã đăng nhập (trừ PET_OWNER - xử lý trong handleSubmit)
   useEffect(() => {

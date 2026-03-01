@@ -48,7 +48,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: BeakerIcon,
         color: '#ecfdf5', // Emerald 50
         textColor: '#059669', // Emerald 600
-        specialty: 'VET_GENERAL',
+        specialty: 'VET',
     },
     {
         id: ServiceCategory.CHECK_UP,
@@ -57,7 +57,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: HeartIcon,
         color: '#e0f2fe', // Sky 50
         textColor: '#0284c7', // Sky 600
-        specialty: 'VET_GENERAL',
+        specialty: 'VET',
     },
     {
         id: ServiceCategory.SURGERY,
@@ -66,7 +66,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: SunIcon, // Use Sun icon for major surgery (bright/powerful)
         color: '#fef2f2', // Red 50
         textColor: '#dc2626', // Red 600
-        specialty: 'VET_SURGERY',
+        specialty: 'VET',
     },
     {
         id: ServiceCategory.DENTAL,
@@ -75,7 +75,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: SparklesIcon,
         color: '#fff7ed', // Orange 50
         textColor: '#ea580c', // Orange 600
-        specialty: 'VET_DENTAL',
+        specialty: 'VET',
     },
     {
         id: ServiceCategory.DERMATOLOGY,
@@ -84,7 +84,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: ScissorsIcon, // Scissors icon for grooming/skin/hair treatments
         color: '#fdf4ff', // Fuchsia 50
         textColor: '#c026d3', // Fuchsia 600
-        specialty: 'VET_DERMATOLOGY',
+        specialty: 'VET',
     },
     {
         id: ServiceCategory.OTHER,
@@ -93,7 +93,7 @@ export const SERVICE_CATEGORIES: CategoryInfo[] = [
         icon: HomeIcon,
         color: '#f9fafb', // Slate 50
         textColor: '#475569', // Slate 600
-        specialty: 'VET_GENERAL',
+        specialty: 'VET',
     },
 ]
 

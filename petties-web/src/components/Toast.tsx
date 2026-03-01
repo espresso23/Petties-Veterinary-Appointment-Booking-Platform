@@ -49,8 +49,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     )
 }
 
-// Hook to use toast
-export function useToast() {
+// Hook to use toast - moved to separate export for proper fast-refresh
+// eslint-disable-next-line react-refresh/only-export-components
+export const useToast = () => {
     const context = useContext(ToastContext)
     if (!context) {
         throw new Error('useToast must be used within a ToastProvider')

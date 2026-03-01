@@ -27,7 +27,7 @@ export function QuickAddStaffModal({
 }: AddStaffModalProps) {
     const [email, setEmail] = useState('')
     const [role, setRole] = useState<StaffRole>(allowedRoles[0])
-    const [specialty, setSpecialty] = useState<StaffSpecialty>('VET_GENERAL')
+    const [specialty, setSpecialty] = useState<StaffSpecialty>('VET')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -56,8 +56,13 @@ export function QuickAddStaffModal({
             // Reset form
             resetForm()
             onClose()
-        } catch (err: any) {
-            setError(err?.userMessage || err?.message || 'Có lỗi xảy ra')
+        } catch (err) {
+            const errorMessage = err instanceof Error && 'userMessage' in err
+                ? String((err as { userMessage?: string }).userMessage)
+                : err instanceof Error
+                    ? err.message
+                    : 'Có lỗi xảy ra'
+            setError(errorMessage)
         } finally {
             setIsSubmitting(false)
         }
@@ -66,7 +71,7 @@ export function QuickAddStaffModal({
     const resetForm = () => {
         setEmail('')
         setRole(allowedRoles[0])
-        setSpecialty('VET_GENERAL')
+        setSpecialty('VET')
         setError(null)
     }
 

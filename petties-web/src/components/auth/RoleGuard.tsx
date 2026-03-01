@@ -34,6 +34,7 @@ export const RoleGuard = ({ allowedRoles }: RoleGuardProps) => {
 /**
  * Get the appropriate dashboard path for a given role
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const getRoleBasedPath = (role: UserRole): string => {
     switch (role) {
         case 'STAFF':

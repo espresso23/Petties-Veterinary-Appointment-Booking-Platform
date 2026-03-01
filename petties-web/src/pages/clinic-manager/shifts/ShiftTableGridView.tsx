@@ -119,8 +119,11 @@ export const ShiftTableGridView = ({
         setSelectEndIdx(slotIdx)
     }
 
-    selectEndIdxRef.current = selectEndIdx
+    useEffect(() => {
+        selectEndIdxRef.current = selectEndIdx
+    }, [selectEndIdx])
 
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- drag selection uses refs, manual memoization needed
     const commitSelection = useCallback(() => {
         if (!dragRef.current.isSelecting || !dragRef.current.staffId) return
         const startIdx = dragRef.current.startIdx
@@ -138,15 +141,16 @@ export const ShiftTableGridView = ({
     }, [slots, dateStr, onTimeRangeSelect])
 
     useEffect(() => {
-        setCommittedSelection(null) // Xóa khi đổi ngày
+        setTimeout(() => setCommittedSelection(null), 0) // Xóa khi đổi ngày
     }, [selectedDay.toDateString()])
 
     useEffect(() => {
         if (formStaffId != null && committedSelection && formStaffId !== committedSelection.staffId) {
-            setCommittedSelection(null)
+            setTimeout(() => setCommittedSelection(null), 0)
         }
     }, [formStaffId, committedSelection])
 
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- delegates to commitSelection
     const handleSlotMouseUp = useCallback(() => {
         if (dragRef.current.isSelecting) commitSelection()
     }, [commitSelection])

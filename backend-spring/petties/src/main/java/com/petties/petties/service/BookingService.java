@@ -5,6 +5,7 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.EstimatedCompletionRequest;
 import com.petties.petties.dto.booking.PetServiceItemRequest;
@@ -72,8 +73,8 @@ public class BookingService {
         private final BookingServiceItemRepository bookingServiceItemRepository;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
-
-        private static final int MAX_RETRY_COUNT = 3;
+        private final SosSessionManager sosSessionManager;
+        private final TrackingService trackingService;
 
         // ========== HELPER METHODS ==========
 
@@ -88,39 +89,6 @@ public class BookingService {
         public User getCurrentUserById(UUID userId) {
                 return userRepository.findById(userId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
-        }
-
-        /**
-         * Generate unique booking code with retry logic to prevent race conditions.
-         * Uses count-based sequence with random offset as fallback.
-         */
-        private String generateUniqueBookingCode(UUID clinicId, LocalDate bookingDate) {
-                int attempt = 0;
-                while (attempt < MAX_RETRY_COUNT) {
-                        try {
-                                long sequence = bookingRepository.countByClinicAndDate(clinicId, bookingDate) + 1;
-                                String bookingCode = Booking.generateBookingCode(bookingDate, (int) sequence);
-
-                                // Check if booking code already exists (defensive check)
-                                if (bookingRepository.findByBookingCode(bookingCode).isEmpty()) {
-                                        log.debug("Generated unique booking code: {}", bookingCode);
-                                        return bookingCode;
-                                }
-
-                                // Code already exists, need to retry with higher sequence
-                                log.warn("Booking code {} already exists, retrying with higher sequence", bookingCode);
-                        } catch (Exception e) {
-                                log.warn("Error generating booking code on attempt {}: {}", attempt, e.getMessage());
-                        }
-
-                        attempt++;
-                }
-
-                // Final fallback: use random suffix to ensure uniqueness
-                long sequence = bookingRepository.countByClinicAndDate(clinicId, bookingDate) + 1 + attempt;
-                String bookingCode = Booking.generateBookingCode(bookingDate, (int) sequence);
-                log.warn("Using fallback booking code with random suffix: {}", bookingCode);
-                return bookingCode;
         }
 
         // ========== CREATE BOOKING ==========
@@ -235,10 +203,27 @@ public class BookingService {
                                 ClinicService svc = servicesToUse.get(i);
                                 servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, p));
                         }
+                        log.debug("Services total price: {}", servicesTotal);
+
+                        // 2. Calculate distance fee or SOS fee
                         BigDecimal distanceKm = request.getDistanceKm();
-                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
-                                        distanceKm, request.getType());
-                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
+                        BigDecimal distanceFee = BigDecimal.ZERO;
+                        BigDecimal sosFee = BigDecimal.ZERO;
+
+                        if (request.getType() == BookingType.SOS) {
+                                sosFee = pricingService.calculateSOSFee(clinic.getClinicId());
+                                log.debug("SOS fee calculated: {}", sosFee);
+                        } else {
+                                distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
+                                                distanceKm,
+                                                request.getType());
+                                log.debug("Distance fee calculated: {}", distanceFee);
+                        }
+
+                        // 3. Final total
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee).add(sosFee);
+                        log.info("Total booking price: {} (services: {} + distance: {} + SOS: {})",
+                                        totalPrice, servicesTotal, distanceFee, sosFee);
 
                         Booking booking = Booking.builder()
                                         .pet(primaryPet)
@@ -249,6 +234,7 @@ public class BookingService {
                                         .type(request.getType())
                                         .totalPrice(totalPrice)
                                         .distanceFee(distanceFee)
+                                        .sosFee(sosFee)
                                         .status(BookingStatus.PENDING)
                                         .notes(request.getNotes())
                                         .homeAddress(request.getHomeAddress())
@@ -276,44 +262,12 @@ public class BookingService {
                         }
                         log.debug("Services added to booking object");
 
-                        // ========== RETRY LOGIC FOR BOOKING CODE COLLISION ==========
-                        int maxRetries = 3;
-                        Booking savedBooking = null;
+                        // Generate unique booking code using UUID (no race condition)
+                        String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
+                        booking.setBookingCode(bookingCode);
 
-                        for (int attempt = 0; attempt < maxRetries; attempt++) {
-                                try {
-                                        // Generate unique booking code on each attempt
-                                        String bookingCode = generateUniqueBookingCode(clinic.getClinicId(),
-                                                        request.getBookingDate());
-                                        booking.setBookingCode(bookingCode);
-
-                                        // Save booking
-                                        savedBooking = bookingRepository.save(booking);
-                                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
-                                        break; // Success, exit retry loop
-
-                                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-                                        String rootCause = ex.getMostSpecificCause().getMessage();
-
-                                        // Retry ONLY for booking_code collision
-                                        if (rootCause != null && rootCause.contains("booking_code")) {
-                                                log.warn("Booking code collision, retry {}/{}", attempt + 1,
-                                                                maxRetries);
-                                                if (attempt == maxRetries - 1) {
-                                                        throw new IllegalStateException(
-                                                                        "Không thể tạo mã booking sau " + maxRetries
-                                                                                        + " lần thử. Vui lòng thử lại.");
-                                                }
-                                                continue; // Retry
-                                        }
-                                        // Re-throw for other constraints (e.g., unique_active_booking_per_pet_time)
-                                        throw ex;
-                                }
-                        }
-
-                        if (savedBooking == null) {
-                                throw new IllegalStateException("Không thể lưu booking");
-                        }
+                        Booking savedBooking = bookingRepository.save(booking);
+                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
 
                         // ========== NOTIFICATION AFTER SUCCESSFUL SAVE ==========
                         try {
@@ -465,35 +419,12 @@ public class BookingService {
                                 booking.getBookingServices().add(bookingItem);
                         }
 
-                        // Step 9: Save with retry for booking code collision
-                        int maxRetries = 3;
-                        Booking savedBooking = null;
-
-                        for (int attempt = 0; attempt < maxRetries; attempt++) {
-                                try {
-                                        String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), request.getBookingDate());
-                                        booking.setBookingCode(bookingCode);
-                                        savedBooking = bookingRepository.save(booking);
-                                        log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
-                                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
-                                        break;
-                                } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-                                        String rootCause = ex.getMostSpecificCause().getMessage();
-                                        if (rootCause != null && rootCause.contains("booking_code")) {
-                                                log.warn("Booking code collision, retry {}/{}", attempt + 1, maxRetries);
-                                                if (attempt == maxRetries - 1) {
-                                                        throw new IllegalStateException(
-                                                                        "Không thể tạo mã booking sau " + maxRetries + " lần thử. Vui lòng thử lại.");
-                                                }
-                                                continue;
-                                        }
-                                        throw ex;
-                                }
-                        }
-
-                        if (savedBooking == null) {
-                                throw new IllegalStateException("Không thể lưu booking");
-                        }
+                        // Step 9: Generate unique booking code and save
+                        String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
+                        booking.setBookingCode(bookingCode);
+                        Booking savedBooking = bookingRepository.save(booking);
+                        log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
+                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
 
                         // Step 10: Send notification to clinic
                         try {
@@ -795,6 +726,14 @@ public class BookingService {
                         throw new IllegalStateException("Booking cannot be cancelled in current status");
                 }
 
+                // If SOS booking, clear matching session from Redis
+                if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS booking {} being cancelled, clearing matching session", bookingId);
+                        sosSessionManager.clearSession(bookingId);
+                        // Also release user lock if still held
+                        sosSessionManager.releaseUserLock(booking.getPetOwner().getUserId());
+                }
+
                 // Release slots back to AVAILABLE before cancelling
                 staffAssignmentService.releaseSlotsForBooking(booking);
 
@@ -848,8 +787,12 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                if (booking.getStatus() != BookingStatus.PENDING) {
-                        throw new IllegalStateException("Chỉ có thể lấy danh sách nhân viên cho booking PENDING");
+                if (booking.getStatus() != BookingStatus.PENDING &&
+                                (booking.getType() != BookingType.SOS ||
+                                                (booking.getStatus() != BookingStatus.PENDING_CLINIC_CONFIRM
+                                                                && booking.getStatus() != BookingStatus.SEARCHING))) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể lấy danh sách nhân viên cho booking đang chờ xác nhận");
                 }
 
                 return staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
@@ -878,7 +821,7 @@ public class BookingService {
                 // Get required specialty from service
                 StaffSpecialty requiredSpecialty = serviceItem.getService().getServiceCategory() != null
                                 ? serviceItem.getService().getServiceCategory().getRequiredSpecialty()
-                                : StaffSpecialty.VET_GENERAL;
+                                : StaffSpecialty.VET;
 
                 // Calculate slots needed
                 Integer duration = serviceItem.getService().getDurationTime();
@@ -981,10 +924,9 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status - only allow for active bookings
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS
-                                && booking.getStatus() != BookingStatus.ARRIVED) {
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái ARRIVED hoặc IN_PROGRESS");
+                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái IN_PROGRESS");
                 }
 
                 // Fetch service
@@ -1005,18 +947,18 @@ public class BookingService {
 
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
                 // If booking is HOME_VISIT and current user is STAFF,
-                // they can only add services within their specialty
+                // they can only add services within their specialty.
+                // SOS dispatches prioritize speed, so we bypass specialty checks.
                 if (booking.getType() == BookingType.HOME_VISIT
                                 && currentUser.getRole() == Role.STAFF) {
 
                         StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                         StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
                                         ? service.getServiceCategory().getRequiredSpecialty()
-                                        : StaffSpecialty.VET_GENERAL;
+                                        : StaffSpecialty.VET;
 
-                        // VET_GENERAL can do any service, but specialized staff must match
-                        boolean isSpecialtyMatch = staffSpecialty == StaffSpecialty.VET_GENERAL
-                                        || staffSpecialty == requiredSpecialty;
+                        // With 2 specialties: exact match only
+                        boolean isSpecialtyMatch = staffSpecialty == requiredSpecialty;
 
                         if (!isSpecialtyMatch) {
                                 log.warn("Staff {} with specialty {} cannot add service {} requiring specialty {}",
@@ -1028,6 +970,8 @@ public class BookingService {
                                                                 "Chuyên môn của bạn: %s, Dịch vụ yêu cầu: %s",
                                                                 staffSpecialty, requiredSpecialty));
                         }
+                } else if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS Booking: Bypassing specialty check for service addition");
                 }
                 // IN_CLINIC: Manager can add any service (no specialty restriction)
 
@@ -1036,15 +980,16 @@ public class BookingService {
                 BigDecimal basePrice = service.getBasePrice();
                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
 
-                // Create new service item
+                // Create new service item (dịch vụ phát sinh không gán staff - ai thực hiện không cần xác định)
                 BookingServiceItem newItem = BookingServiceItem.builder()
                                 .booking(booking)
+                                .pet(pet)
                                 .service(service)
                                 .unitPrice(weightPrice)
                                 .basePrice(basePrice)
                                 .weightPrice(weightPrice)
                                 .quantity(1)
-                                .assignedStaff(null) // Arising services are not auto-assigned
+                                .assignedStaff(null)
                                 .isAddOn(true)
                                 .build();
 
@@ -1061,6 +1006,69 @@ public class BookingService {
 
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Process checkout for a booking (Staff/Manager action)
+         * For SOS bookings, allows overriding the SOS fee
+         *
+         * @param bookingId   Booking ID
+         * @param request     Checkout request with optional fee override
+         * @param currentUser Current user performing checkout
+         * @return Updated booking response
+         */
+        @Transactional
+        public BookingResponse processCheckout(UUID bookingId, CheckoutRequest request, User currentUser) {
+                log.info("Processing checkout for booking {} by user {}", bookingId, currentUser.getUserId());
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+                }
+
+                // Handle SOS fee override or automated calculation
+                if (booking.getType() == BookingType.SOS) {
+                        BigDecimal sosFee;
+                        if (request != null && request.getOverriddenSosFee() != null) {
+                                sosFee = request.getOverriddenSosFee();
+                                log.info("SOS Booking: using overridden SOS fee {}", sosFee);
+                        } else {
+                                sosFee = pricingService.calculateSOSFee(booking.getClinic().getClinicId());
+                                log.info("SOS Booking: using automated SOS fee calculation {}", sosFee);
+                        }
+
+                        booking.setSosFee(sosFee);
+
+                        // Recalculate total price
+                        BigDecimal servicesTotal = booking.getBookingServices().stream()
+                                        .map(BookingServiceItem::getUnitPrice)
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                        // Total = Services + SOS Fee (Distance fee is 0 for SOS)
+                        booking.setTotalPrice(servicesTotal.add(sosFee));
+                }
+
+                // Final status update
+                booking.setStatus(BookingStatus.COMPLETED);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} checked out successfully. Final total: {}", bookingId, booking.getTotalPrice());
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendCompletedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send completed notification: {}", e.getMessage());
+                }
 
                 return bookingMapper.mapToResponse(booking);
         }
@@ -1151,10 +1159,9 @@ public class BookingService {
                                                                         .getServiceCategory() != null
                                                                                         ? service.getServiceCategory()
                                                                                                         .getRequiredSpecialty()
-                                                                                        : StaffSpecialty.VET_GENERAL;
+                                                                                        : StaffSpecialty.VET;
 
-                                                        return staffSpecialty == StaffSpecialty.VET_GENERAL
-                                                                        || staffSpecialty == requiredSpecialty;
+                                                        return staffSpecialty == requiredSpecialty;
                                                 }
                                                 return true; // Managers or In-Clinic bookings see all (subject to above
                                                              // filter)
@@ -1209,10 +1216,10 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - allow CONFIRMED or ARRIVED
-                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.ARRIVED) {
+                // Validate status - allow CONFIRMED or IN_PROGRESS (Staff has arrived)
+                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc ARRIVED. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc IN_PROGRESS. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -1230,6 +1237,88 @@ public class BookingService {
                         notificationService.sendCheckinNotification(booking);
                 } catch (Exception e) {
                         log.warn("Failed to send check-in notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Start moving to customer location (Staff action)
+         * Transitions: CONFIRMED → IN_PROGRESS
+         * Only for SOS/HOME_VISIT bookings
+         */
+        @Transactional
+        public BookingResponse startMoving(UUID bookingId) {
+                log.info("Staff starting movement for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate type
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
+                                && booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
+                        throw new IllegalStateException("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+                }
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                // Update status to IN_PROGRESS
+                booking.setStatus(BookingStatus.IN_PROGRESS);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} started moving. Status: IN_PROGRESS", booking.getBookingCode());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "START_MOVING");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendStaffOnWayNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send movement notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        @Transactional
+        public BookingResponse arrived(UUID bookingId) {
+                log.info("Staff arrived for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status - must be IN_PROGRESS (movement phase)
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                booking.setArrivedAt(LocalDateTime.now());
+                Booking savedBooking = bookingRepository.save(booking);
+
+                log.info("Booking {} arrival recorded at {}", savedBooking.getBookingCode(), savedBooking.getArrivedAt());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "ARRIVED");
+
+                // Broadcast ARRIVED event qua WebSocket tracking để Pet Owner nhận real-time
+                try {
+                        trackingService.publishArrival(savedBooking);
+                } catch (Exception e) {
+                        log.warn("Failed to publish ARRIVED tracking event: {}", e.getMessage());
+                }
+
+                try {
+                        notificationService.sendStaffArrivedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send arrival notification: {}", e.getMessage());
                 }
 
                 return bookingMapper.mapToResponse(booking);
@@ -1259,6 +1348,13 @@ public class BookingService {
                 // Update status to COMPLETED
                 booking.setStatus(BookingStatus.COMPLETED);
                 bookingRepository.save(booking);
+
+                // Clear GPS tracking data from Redis (for SOS/HOME_VISIT bookings)
+                try {
+                        trackingService.clearTracking(bookingId);
+                } catch (Exception e) {
+                        log.warn("Failed to clear tracking data: {}", e.getMessage());
+                }
 
                 log.info("Booking {} completed successfully", booking.getBookingCode());
 
@@ -1384,14 +1480,20 @@ public class BookingService {
         }
 
         /**
-         * Get bookings by pet owner
+         * Get bookings by pet owner with eager loading to avoid
+         * LazyInitializationException
          */
-
         @Transactional(readOnly = true)
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
-                log.info("Fetching bookings for user: {}", petOwnerId);
-                Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
-                return bookings.map(bookingMapper::mapToResponse);
+                log.info("Fetching bookings for pet owner: {}", petOwnerId);
+
+                Page<Booking> bookingPage = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
+                List<BookingResponse> responses = bookingPage.getContent().stream()
+                                .map(bookingMapper::mapToResponse)
+                                .collect(Collectors.toList());
+
+                return new org.springframework.data.domain.PageImpl<>(
+                                responses, pageable, bookingPage.getTotalElements());
         }
 
         /**

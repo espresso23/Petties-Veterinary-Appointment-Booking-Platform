@@ -11,14 +11,14 @@ import {
   ChevronDownIcon,
   ScaleIcon,
 } from '@heroicons/react/24/solid'
-import type { ClinicServiceResponse } from '../../types/service'
+import type { ClinicServiceResponse, ClinicServiceRequest } from '../../types/service'
 import type { WeightPriceDto } from '../../types/service'
 import { SERVICE_CATEGORIES, getCategoryById } from '../../constants/serviceCategory'
 
 interface ServiceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (service: any) => void
+  onSave: (service: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }) => Promise<void> | void
   initialData?: ClinicServiceResponse | null
   isSubmitting?: boolean
 }
@@ -56,6 +56,7 @@ export function ServiceModal({
   const selectedCategory = getCategoryById(serviceCategory)
   const selectedPetType = petTypes.find(p => p.id === petType)
 
+
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
@@ -92,6 +93,7 @@ export function ServiceModal({
         setWeightPrices([])
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialData])
 
   const handleAddWeightPrice = () => {
@@ -563,7 +565,7 @@ export function ServiceModal({
                 paddingRight: '8px'
               }}
             >
-              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu.
+              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá di chuyển và phí SOS được thiết lập chung cho toàn phòng khám trong phần "Cấu hình chung".
             </p>
           </div>
 

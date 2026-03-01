@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { isAxiosError } from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../../store/authStore'
 import { staffShiftService } from '../../../services/api/staffShiftService'
@@ -138,13 +139,13 @@ export const StaffShiftPage = () => {
             // Đảm bảo luôn nhận được mảng (tránh case backend trả dạng { content: [...] } hoặc object khác)
             const normalizedStaffList = Array.isArray(staffList)
                 ? staffList
-                : Array.isArray((staffList as any)?.content)
-                    ? (staffList as any).content
+                : (staffList && typeof staffList === 'object' && 'content' in staffList && Array.isArray((staffList as { content?: unknown }).content))
+                    ? (staffList as { content: StaffMember[] }).content
                     : []
 
             const filteredStaff = normalizedStaffList.filter((s: StaffMember) => s.role === 'STAFF')
             setStaffMembers(filteredStaff)
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('fetchStaff error:', err)
         }
     }
@@ -160,13 +161,16 @@ export const StaffShiftPage = () => {
 
                 const normalizedShifts = Array.isArray(data)
                     ? data
-                    : Array.isArray((data as any)?.content)
-                        ? (data as any).content
+                    : (data && typeof data === 'object' && 'content' in data && Array.isArray((data as { content?: unknown }).content))
+                        ? (data as { content: StaffShiftResponse[] }).content
                         : []
 
                 setShifts(normalizedShifts)
-            } catch (err: any) {
-                showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
+            } catch (err: unknown) {
+                const msg = isAxiosError(err) && err.response?.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                    ? String((err.response.data as { message?: unknown }).message)
+                    : err instanceof Error ? err.message : 'Lỗi tải lịch'
+                showToast('error', msg)
             } finally {
                 setLoading(false)
             }
@@ -192,13 +196,16 @@ export const StaffShiftPage = () => {
 
             const normalizedShifts = Array.isArray(data)
                 ? data
-                : Array.isArray((data as any)?.content)
-                    ? (data as any).content
+                : (data && typeof data === 'object' && 'content' in data && Array.isArray((data as { content?: unknown }).content))
+                    ? (data as { content: StaffShiftResponse[] }).content
                     : []
 
             setShifts(normalizedShifts)
-        } catch (err: any) {
-            showToast('error', err.response?.data?.message || err.message || 'Lỗi tải lịch')
+        } catch (err: unknown) {
+            const msg = isAxiosError(err) && err.response?.data && typeof err.response.data === 'object' && 'message' in err.response.data
+                ? String((err.response.data as { message?: unknown }).message)
+                : err instanceof Error ? err.message : 'Lỗi tải lịch'
+            showToast('error', msg)
         } finally {
             setLoading(false)
         }
@@ -227,7 +234,7 @@ export const StaffShiftPage = () => {
             try {
                 const detail = await staffShiftService.getShiftDetail(selectedShift.shiftId)
                 setShiftDetail(detail)
-            } catch (err: any) {
+            } catch {
                 showToast('error', 'Không thể tải chi tiết slots')
             } finally {
                 setLoadingSlots(false)
@@ -271,7 +278,7 @@ export const StaffShiftPage = () => {
             }
             showToast('success', 'Đã khóa slot')
             fetchShifts() // Refresh grid counts
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || 'Lỗi khóa slot')
         }
     }
@@ -289,7 +296,7 @@ export const StaffShiftPage = () => {
             }
             showToast('success', 'Đã mở khóa slot')
             fetchShifts() // Refresh grid counts
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || 'Lỗi mở khóa slot')
         }
     }
@@ -584,7 +591,8 @@ export const StaffShiftPage = () => {
             // Check if we're editing existing shifts OR user confirmed to override conflicts
             const isEditing = forceCreate || isEditingExistingShifts
 
-            const { breakStart: _bS, breakEnd: _bE, ...rest } = formData
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructuring to exclude from request
+            const { breakStart: _breakStart, breakEnd: _breakEnd, ...rest } = formData
             const requestData: StaffShiftRequest = {
                 ...rest,
                 isOvernight: finalIsOvernight,
@@ -609,7 +617,7 @@ export const StaffShiftPage = () => {
             })
             setSelectedShift(null) // Clear selected shift
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi tạo lịch')
         } finally {
             setLoading(false)
@@ -624,7 +632,7 @@ export const StaffShiftPage = () => {
             setIsDeleteModalOpen(false)
             showToast('success', 'Đã xóa ca làm việc')
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi xóa lịch')
         }
     }
@@ -638,7 +646,7 @@ export const StaffShiftPage = () => {
             setIsBulkDeleteModalOpen(false)
             showToast('success', `Đã xóa ${selectedShiftIds.length} ca`)
             fetchShifts()
-        } catch (err: any) {
+        } catch (err) {
             showToast('error', err.response?.data?.message || err.message || 'Lỗi xóa hàng loạt')
         }
     }

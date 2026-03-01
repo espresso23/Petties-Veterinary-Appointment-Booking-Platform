@@ -94,7 +94,7 @@ export const StaffLayout = () => {
     }
 
     return (
-        <div className="h-screen bg-stone-50 flex overflow-hidden">
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
             <Sidebar
                 groups={navGroups}
                 user={user}

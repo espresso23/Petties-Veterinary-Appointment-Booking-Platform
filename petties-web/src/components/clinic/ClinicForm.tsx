@@ -7,6 +7,8 @@ import { DocumentDuplicateIcon, DocumentTextIcon, ArrowUpTrayIcon } from '@heroi
 import { LocationSelector } from '../common'
 import { uploadBusinessLicense } from '../../services/endpoints/file'
 import { useToast } from '../Toast'
+import { useAuthStore } from '../../store/authStore'
+import { VIETQR_BANKS } from '../../utils/vietqr'
 
 interface ClinicFormProps {
   initialData?: Partial<ClinicRequest>
@@ -46,6 +48,8 @@ export function ClinicForm({
   isLoading = false,
   onImageUploaded,
 }: ClinicFormProps) {
+  const { user } = useAuthStore()
+  const isClinicManager = user?.role === 'CLINIC_MANAGER'
   const { showToast } = useToast()
   const [formData, setFormData] = useState<ClinicRequest>({
     name: initialData?.name || '',
@@ -62,6 +66,9 @@ export function ClinicForm({
     longitude: initialData?.longitude,
     logo: initialData?.logo,
     businessLicenseUrl: initialData?.businessLicenseUrl || '',
+    sosFee: initialData?.sosFee,
+    bankName: initialData?.bankName || '',
+    accountNumber: initialData?.accountNumber || '',
   })
 
   const [businessLicenseFile, setBusinessLicenseFile] = useState<File | null>(null)
@@ -193,7 +200,7 @@ export function ClinicForm({
     if (!validate()) return
 
     try {
-      let finalFormData = { ...formData }
+      const finalFormData = { ...formData }
 
       // Upload business license file if selected
       if (businessLicenseFile) {
@@ -201,7 +208,7 @@ export function ClinicForm({
         try {
           const uploadResult = await uploadBusinessLicense(businessLicenseFile)
           finalFormData.businessLicenseUrl = uploadResult.url
-        } catch (uploadError) {
+        } catch {
           setErrors(prev => ({
             ...prev,
             businessLicense: 'Không thể tải lên giấy phép. Vui lòng thử lại.'
@@ -213,7 +220,7 @@ export function ClinicForm({
       }
 
       await onSubmit(finalFormData)
-    } catch (error) {
+    } catch {
       // Error handled by parent
     }
   }
@@ -233,9 +240,10 @@ export function ClinicForm({
               type="text"
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
-              className="input-brutal"
+              className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
               placeholder="Nhập tên phòng khám"
               maxLength={200}
+              disabled={isClinicManager}
             />
             {errors.name && (
               <p className="text-red-600 text-sm mt-1 font-bold">{errors.name}</p>
@@ -249,9 +257,10 @@ export function ClinicForm({
             <textarea
               value={formData.description || ''}
               onChange={(e) => handleChange('description', e.target.value)}
-              className="input-brutal min-h-[100px] resize-y"
+              className="input-brutal min-h-[100px] resize-y disabled:bg-stone-100 disabled:cursor-not-allowed"
               placeholder="Mô tả về phòng khám"
               maxLength={2000}
+              disabled={isClinicManager}
             />
           </div>
 
@@ -261,8 +270,9 @@ export function ClinicForm({
             </label>
             <AddressAutocompleteOSM
               value={formData.address}
-              onChange={(address) => handleChange('address', address)}
+              onChange={(address) => !isClinicManager && handleChange('address', address)}
               onPlaceSelect={(place) => {
+                if (isClinicManager) return;
                 if (place.latitude && place.longitude) {
                   setFormData((prev) => ({
                     ...prev,
@@ -276,6 +286,7 @@ export function ClinicForm({
                 }
               }}
               placeholder="Nhập địa chỉ đầy đủ"
+              disabled={isClinicManager}
             />
             {errors.address && (
               <p className="text-red-600 text-sm mt-1 font-bold">{errors.address}</p>
@@ -286,7 +297,9 @@ export function ClinicForm({
             provinceValue={formData.province}
             districtValue={formData.district}
             wardValue={formData.ward}
+            disabled={isClinicManager}
             onLocationChange={(loc) => {
+              if (isClinicManager) return;
               setFormData((prev) => ({
                 ...prev,
                 province: loc.province || '',
@@ -304,9 +317,10 @@ export function ClinicForm({
               type="text"
               value={formData.specificLocation || ''}
               onChange={(e) => handleChange('specificLocation', e.target.value)}
-              className="input-brutal"
+              className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
               placeholder="Ví dụ: Tầng 2, Khu phố 3, Số nhà 123, Tòa nhà ABC"
               maxLength={200}
+              disabled={isClinicManager}
             />
             <p className="text-xs text-stone-500 mt-1">
               Thông tin chi tiết như tầng lầu, khu phố, số nhà, tòa nhà, etc.
@@ -322,9 +336,10 @@ export function ClinicForm({
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
-                className="input-brutal"
+                className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
                 placeholder="0901234567"
                 maxLength={20}
+                disabled={isClinicManager}
               />
               {errors.phone && (
                 <p className="text-red-600 text-sm mt-1 font-bold">{errors.phone}</p>
@@ -339,9 +354,10 @@ export function ClinicForm({
                 type="email"
                 value={formData.email || ''}
                 onChange={(e) => handleChange('email', e.target.value)}
-                className="input-brutal"
+                className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
                 placeholder="contact@clinic.com"
                 maxLength={100}
+                disabled={isClinicManager}
               />
               {errors.email && (
                 <p className="text-red-600 text-sm mt-1 font-bold">{errors.email}</p>
@@ -366,12 +382,12 @@ export function ClinicForm({
                   id="business-license-upload"
                 />
                 <label
-                  htmlFor="business-license-upload"
-                  className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-amber-50 border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#1c1917] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all cursor-pointer"
+                  htmlFor={isClinicManager ? "" : "business-license-upload"}
+                  className={`flex items-center justify-center gap-3 w-full px-6 py-4 bg-amber-50 border-2 border-stone-900 shadow-[4px_4px_0px_#1c1917] transition-all ${isClinicManager ? 'opacity-50 cursor-not-allowed' : 'hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_#1c1917] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none cursor-pointer'}`}
                 >
                   <ArrowUpTrayIcon className="w-6 h-6 text-stone-900" />
                   <span className="text-sm font-bold text-stone-900">
-                    CHỌN FILE (PDF, JPG, PNG - Max 5MB)
+                    {isClinicManager ? 'CHỈ OWNER MỚI ĐƯỢC CẬP NHẬT GPKD' : 'CHỌN FILE (PDF, JPG, PNG - Max 5MB)'}
                   </span>
                 </label>
               </div>
@@ -382,13 +398,15 @@ export function ClinicForm({
                   <span className="text-sm font-bold text-green-800 flex-1 truncate">
                     {businessLicenseFile?.name || 'Đã tải lên'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveBusinessLicense}
-                    className="px-3 py-1 bg-red-600 text-white text-xs font-bold uppercase border-2 border-red-800 shadow-[2px_2px_0px_#991b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#991b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
-                  >
-                    XÓA
-                  </button>
+                  {!isClinicManager && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveBusinessLicense}
+                      className="px-3 py-1 bg-red-600 text-white text-xs font-bold uppercase border-2 border-red-800 shadow-[2px_2px_0px_#991b1b] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#991b1b] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all"
+                    >
+                      XÓA
+                    </button>
+                  )}
                 </div>
                 {/* Image Preview */}
                 {businessLicensePreview && (businessLicensePreview.startsWith('data:image') || businessLicensePreview.startsWith('http')) && (
@@ -412,6 +430,63 @@ export function ClinicForm({
             <p className="text-xs text-stone-500 mt-1">
               Giấy phép kinh doanh là bắt buộc để phòng khám được duyệt
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment & SOS Information */}
+      <div className="card-brutal p-6">
+        <h3 className="text-lg font-bold uppercase text-stone-900 mb-4">THANH TOÁN & DỊCH VỤ SOS</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+              Phí Dịch Vụ SOS (VNĐ)
+            </label>
+            <input
+              type="number"
+              value={formData.sosFee || ''}
+              onChange={(e) => handleChange('sosFee', e.target.value)}
+              className="input-brutal"
+              placeholder="Ví dụ: 200000"
+              min={0}
+            />
+            <p className="text-xs text-stone-500 mt-1">
+              Phí này sẽ được cộng thêm vào tổng hóa đơn cho các yêu cầu cứu hộ khẩn cấp (SOS).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+                Tên Ngân Hàng
+              </label>
+              <select
+                value={formData.bankName || ''}
+                onChange={(e) => handleChange('bankName', e.target.value)}
+                className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed appearance-none"
+                disabled={isClinicManager}
+              >
+                <option value="">Chọn ngân hàng</option>
+                {VIETQR_BANKS.map((bank) => (
+                  <option key={bank.code} value={bank.code}>
+                    {bank.shortName} - {bank.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold uppercase text-stone-900 mb-2">
+                Số Tài Khoản
+              </label>
+              <input
+                type="text"
+                value={formData.accountNumber || ''}
+                onChange={(e) => handleChange('accountNumber', e.target.value)}
+                className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
+                placeholder="Nhập số tài khoản"
+                disabled={isClinicManager}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -446,7 +521,9 @@ export function ClinicForm({
           <ClinicLogoUpload
             clinicId={clinicId}
             currentLogo={formData.logo}
+            disabled={isClinicManager}
             onLogoUploaded={(logoUrl) => {
+              if (isClinicManager) return;
               setFormData((prev) => ({ ...prev, logo: logoUrl }))
               if (onImageUploaded) {
                 onImageUploaded()
@@ -464,6 +541,7 @@ export function ClinicForm({
             clinicId={clinicId}
             initialImages={initialImages}
             onImageUploaded={onImageUploaded}
+            disabled={isClinicManager}
           />
         </div>
       )}
@@ -484,6 +562,7 @@ export function ClinicForm({
                 }) && DAYS_OF_WEEK.length > 0
               }
               onChange={(e) => {
+                if (isClinicManager) return;
                 if (e.target.checked) {
                   // Set all days to 24/7 (00:00 - 23:59)
                   const newHours: Record<string, OperatingHours> = {}
@@ -508,7 +587,8 @@ export function ClinicForm({
                   setFormData((prev) => ({ ...prev, operatingHours: newHours }))
                 }
               }}
-              className="w-6 h-6 border-2 border-stone-900"
+              className="w-6 h-6 border-2 border-stone-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isClinicManager}
             />
             <div>
               <div className="text-base font-bold uppercase text-stone-900">MỞ 24/7</div>
@@ -537,9 +617,10 @@ export function ClinicForm({
                       type="checkbox"
                       checked={hours.isClosed}
                       onChange={(e) =>
-                        handleOperatingHoursChange(day, 'isClosed', e.target.checked)
+                        !isClinicManager && handleOperatingHoursChange(day, 'isClosed', e.target.checked)
                       }
-                      className="w-5 h-5 border-2 border-stone-900"
+                      className="w-5 h-5 border-2 border-stone-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isClinicManager}
                     />
                     <span className="text-sm font-bold uppercase text-stone-700">ĐÓNG CỬA</span>
                   </label>
@@ -558,8 +639,8 @@ export function ClinicForm({
                           onChange={(e) =>
                             handleOperatingHoursChange(day, 'openTime', e.target.value)
                           }
-                          className="input-brutal"
-                          disabled={is24h}
+                          className="input-brutal disabled:bg-stone-100 disabled:cursor-not-allowed"
+                          disabled={is24h || isClinicManager}
                         />
                       </div>
                       <div>
@@ -589,8 +670,9 @@ export function ClinicForm({
                           onChange={(e) =>
                             handleOperatingHoursChange(day, 'breakStart', e.target.value)
                           }
-                          className="input-brutal bg-stone-50"
+                          className="input-brutal bg-stone-50 disabled:bg-stone-100 disabled:cursor-not-allowed"
                           placeholder="Optional"
+                          disabled={isClinicManager}
                         />
                       </div>
                       <div>
@@ -603,16 +685,18 @@ export function ClinicForm({
                           onChange={(e) =>
                             handleOperatingHoursChange(day, 'breakEnd', e.target.value)
                           }
-                          className="input-brutal bg-stone-50"
+                          className="input-brutal bg-stone-50 disabled:bg-stone-100 disabled:cursor-not-allowed"
                           placeholder="Optional"
+                          disabled={isClinicManager}
                         />
                       </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => handleApplyToAll(day)}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-900 text-white text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_#1c1917] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                      onClick={() => !isClinicManager && handleApplyToAll(day)}
+                      disabled={isClinicManager}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-900 text-white text-[10px] font-bold uppercase border-2 border-stone-900 shadow-[2px_2px_0px_#1c1917] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <DocumentDuplicateIcon className="w-3.5 h-3.5 text-white" />
                       Áp dụng cho mọi ngày

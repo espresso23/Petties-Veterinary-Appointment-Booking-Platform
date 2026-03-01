@@ -34,7 +34,12 @@ import { NotificationsPage as StaffNotificationsPage } from './pages/staff/Notif
 import { CreateEmrPage, EmrDetailPage, EditEmrPage } from './pages/staff'
 import VaccinationPage from './pages/staff/vaccine/VaccinationPage'
 import { ClinicOwnerDashboardPage, ServicesPage, NotificationsPage, MasterServicesPage } from './pages/clinic-owner'
-import { ClinicManagerDashboardPage, ChatPage as ClinicManagerChatPage } from './pages/clinic-manager'
+import {
+  ClinicManagerDashboardPage,
+  ChatPage as ClinicManagerChatPage,
+  ManagerClinicInfoPage,
+  ManagerClinicEditPage
+} from './pages/clinic-manager'
 import { NotificationsPage as ClinicManagerNotificationsPage } from './pages/clinic-manager/NotificationsPage'
 import {
   ClinicsListPage,
@@ -155,6 +160,8 @@ function App() {
             <Route path="services" element={<ServicesViewPage />} />
             <Route path="chat" element={<ClinicManagerChatPage />} />
             <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
+            <Route path="clinic" element={<ManagerClinicInfoPage />} />
+            <Route path="clinic/edit" element={<ManagerClinicEditPage />} />
           </Route >
         </Routes >
       </BrowserRouter >

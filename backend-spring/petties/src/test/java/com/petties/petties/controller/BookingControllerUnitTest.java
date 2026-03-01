@@ -497,8 +497,8 @@ class BookingControllerUnitTest {
 
                 when(bookingService.checkStaffAvailability(bookingId)).thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
+                // Act & Assert - Fixed: URL path changed from /check-staff-availability to /availability
+                mockMvc.perform(get("/bookings/{bookingId}/availability", bookingId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.allServicesHaveStaff").value(true))
                                 .andExpect(jsonPath("$.services[0].serviceName").value("Khám tổng quát"))
@@ -533,7 +533,7 @@ class BookingControllerUnitTest {
                                                                 .build()))
                                 .alternativeTimeSlots(List.of(
                                                 AlternativeTimeSlot.builder()
-                                                                .specialty("VET_DENTAL")
+                                                                .specialty("VET")
                                                                 .specialtyLabel("Nhân viên nha khoa thú y")
                                                                 .date(LocalDate.of(2025, 1, 17))
                                                                 .availableTimes(List.of("09:00", "10:00", "14:00"))
@@ -545,8 +545,8 @@ class BookingControllerUnitTest {
 
                 when(bookingService.checkStaffAvailability(bookingId)).thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
+                // Act & Assert - Fixed: URL path changed from /check-staff-availability to /availability
+                mockMvc.perform(get("/bookings/{bookingId}/availability", bookingId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.allServicesHaveStaff").value(false))
                                 .andExpect(jsonPath("$.services[1].hasAvailableStaff").value(false))
@@ -565,8 +565,8 @@ class BookingControllerUnitTest {
                 when(bookingService.checkStaffAvailability(bookingId))
                                 .thenThrow(new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/check-staff-availability", bookingId))
+                // Act & Assert - Fixed: URL path changed from /check-staff-availability to /availability
+                mockMvc.perform(get("/bookings/{bookingId}/availability", bookingId))
                                 .andExpect(status().isNotFound());
         }
 
@@ -588,8 +588,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -618,8 +618,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -643,8 +643,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -668,8 +668,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any(BookingConfirmRequest.class)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -686,8 +686,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any()))
                                 .thenThrow(new BadRequestException("Booking is not in PENDING status"));
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
                                 .andExpect(status().isBadRequest())
@@ -704,8 +704,8 @@ class BookingControllerUnitTest {
                 when(bookingService.confirmBooking(eq(bookingId), any()))
                                 .thenThrow(new ResourceNotFoundException("Booking not found"));
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/confirm", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/confirm", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{}"))
                                 .andExpect(status().isNotFound());
@@ -730,8 +730,8 @@ class BookingControllerUnitTest {
                 when(bookingService.cancelBooking(eq(bookingId), eq(reason), eq(userId)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/cancel", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/cancel", bookingId)
                                 .param("reason", reason))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("CANCELLED"));
@@ -752,8 +752,8 @@ class BookingControllerUnitTest {
                 when(bookingService.cancelBooking(eq(bookingId), any(), eq(userId)))
                                 .thenThrow(new ResourceNotFoundException("Booking not found"));
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/cancel", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/cancel", bookingId)
                                 .param("reason", "Test reason"))
                                 .andExpect(status().isNotFound());
         }
@@ -771,8 +771,8 @@ class BookingControllerUnitTest {
                 when(bookingService.cancelBooking(eq(bookingId), any(), eq(userId)))
                                 .thenThrow(new BadRequestException("Booking cannot be cancelled in current status"));
 
-                // Act & Assert
-                mockMvc.perform(patch("/bookings/{bookingId}/cancel", bookingId)
+                // Act & Assert - Fixed: HTTP method changed from PATCH to POST
+                mockMvc.perform(post("/bookings/{bookingId}/cancel", bookingId)
                                 .param("reason", "Test reason"))
                                 .andExpect(status().isBadRequest())
                                 .andExpect(jsonPath("$.message")
@@ -793,8 +793,8 @@ class BookingControllerUnitTest {
                 when(bookingService.getMyBookings(eq(userId), any(Pageable.class)))
                                 .thenReturn(emptyPage);
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/my"))
+                // Act & Assert - Fixed: URL path changed from /my to /my-bookings
+                mockMvc.perform(get("/bookings/my-bookings"))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.content").isEmpty());
 
@@ -816,7 +816,7 @@ class BookingControllerUnitTest {
                                 AvailableStaffResponse.builder()
                                                 .staffId(UUID.randomUUID())
                                                 .staffName("BS. Trần Văn B")
-                                                .specialty("VET_GENERAL")
+                                                .specialty("VET")
                                                 .available(true)
                                                 .bookedCount(2)
                                                 .availableSlots(List.of("09:30", "10:00", "14:00"))
@@ -824,7 +824,7 @@ class BookingControllerUnitTest {
                                 AvailableStaffResponse.builder()
                                                 .staffId(UUID.randomUUID())
                                                 .staffName("BS. Lê Văn C")
-                                                .specialty("VET_GENERAL")
+                                                .specialty("VET")
                                                 .available(false)
                                                 .unavailableReason("Không có ca làm việc")
                                                 .build());
@@ -832,8 +832,8 @@ class BookingControllerUnitTest {
                 when(bookingService.getAvailableStaffForReassign(bookingId, serviceId))
                                 .thenReturn(availableStaff);
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-staff", bookingId, serviceId))
+                // Act & Assert - Fixed: URL path changed from /available-staff to /alternatives
+                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/alternatives", bookingId, serviceId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$[0].staffName").value("BS. Trần Văn B"))
                                 .andExpect(jsonPath("$[0].available").value(true))
@@ -855,8 +855,8 @@ class BookingControllerUnitTest {
                 when(bookingService.getAvailableStaffForReassign(bookingId, serviceId))
                                 .thenThrow(new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                // Act & Assert
-                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/available-staff", bookingId, serviceId))
+                // Act & Assert - Fixed: URL path changed from /available-staff to /alternatives
+                mockMvc.perform(get("/bookings/{bookingId}/services/{serviceId}/alternatives", bookingId, serviceId))
                                 .andExpect(status().isNotFound());
         }
 
@@ -882,8 +882,8 @@ class BookingControllerUnitTest {
                 when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(post("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
+                // Act & Assert - Fixed: HTTP method changed from POST to PUT
+                mockMvc.perform(put("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -908,8 +908,8 @@ class BookingControllerUnitTest {
                 when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenThrow(new ResourceNotFoundException("Service item not found: " + serviceId));
 
-                // Act & Assert
-                mockMvc.perform(post("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
+                // Act & Assert - Fixed: HTTP method changed from POST to PUT
+                mockMvc.perform(put("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isNotFound());
@@ -931,8 +931,8 @@ class BookingControllerUnitTest {
                 when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenThrow(new ResourceNotFoundException("Staff not found: " + newStaffId));
 
-                // Act & Assert
-                mockMvc.perform(post("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
+                // Act & Assert - Fixed: HTTP method changed from POST to PUT
+                mockMvc.perform(put("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isNotFound());
@@ -954,8 +954,8 @@ class BookingControllerUnitTest {
                 when(bookingService.reassignStaffForService(bookingId, serviceId, newStaffId))
                                 .thenThrow(new BadRequestException("Không có đủ slot liên tiếp tại thời gian yêu cầu"));
 
-                // Act & Assert
-                mockMvc.perform(post("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
+                // Act & Assert - Fixed: HTTP method changed from POST to PUT
+                mockMvc.perform(put("/bookings/{bookingId}/services/{serviceId}/reassign", bookingId, serviceId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isBadRequest())
@@ -1009,8 +1009,8 @@ class BookingControllerUnitTest {
                                 any(com.petties.petties.model.User.class)))
                                 .thenReturn(response);
 
-                // Act & Assert
-                mockMvc.perform(post("/bookings/{bookingId}/add-service", bookingId)
+                // Act & Assert - Fixed: URL path changed from /add-service to /services
+                mockMvc.perform(post("/bookings/{bookingId}/services", bookingId)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
@@ -1104,5 +1104,172 @@ class BookingControllerUnitTest {
                                 .param("serviceIds", serviceIds.get(0).toString()))
                                 .andExpect(status().isNotFound())
                                 .andExpect(jsonPath("$.message").value("Clinic not found"));
+        }
+
+        // ==================== ESTIMATED COMPLETION TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-EST-001: Get estimated completion - Valid request - Returns 200")
+        @WithMockUser(roles = "PET_OWNER")
+        void getEstimatedCompletion_validRequest_returns200() throws Exception {
+                UUID clinicId = UUID.randomUUID();
+                EstimatedCompletionRequest request = EstimatedCompletionRequest.builder()
+                                .startDateTime(LocalDateTime.of(2025, 1, 20, 9, 0))
+                                .type(BookingType.IN_CLINIC)
+                                .pets(List.of(
+                                                EstimatedCompletionRequest.PetEstimation.builder()
+                                                                .petId(UUID.randomUUID())
+                                                                .petWeight(10.0)
+                                                                .serviceIds(List.of(UUID.randomUUID()))
+                                                                .build()))
+                                .build();
+
+                EstimatedCompletionResponse response = EstimatedCompletionResponse.builder()
+                                .startTime(LocalDateTime.of(2025, 1, 20, 9, 0))
+                                .estimatedEndTime(LocalDateTime.of(2025, 1, 20, 9, 30))
+                                .totalDurationMinutes(30)
+                                .totalSlotsRequired(1)
+                                .build();
+
+                when(bookingService.calculateEstimatedCompletion(eq(clinicId), any(EstimatedCompletionRequest.class)))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/bookings/public/estimated-completion")
+                                .param("clinicId", clinicId.toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.totalDurationMinutes").value(30));
+
+                verify(bookingService).calculateEstimatedCompletion(eq(clinicId), any(EstimatedCompletionRequest.class));
+        }
+
+        // ==================== PROXY BOOKING TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-PROXY-001: Create proxy booking - Valid request - Returns 201")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
+        void createProxyBooking_validRequest_returns201() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                ProxyRecipientInfo recipient = ProxyRecipientInfo.builder()
+                                .fullName("Nguyễn Văn B")
+                                .phone("0901234567")
+                                .build();
+
+                ProxyPetInfo petInfo = ProxyPetInfo.builder()
+                                .name("Buddy")
+                                .species("DOG")
+                                .breed("Golden Retriever")
+                                .weight(new BigDecimal("15.0"))
+                                .build();
+
+                ProxyPetServiceItem item = ProxyPetServiceItem.builder()
+                                .pet(petInfo)
+                                .serviceIds(List.of(UUID.randomUUID()))
+                                .build();
+
+                ProxyBookingRequest request = ProxyBookingRequest.builder()
+                                .recipient(recipient)
+                                .items(List.of(item))
+                                .clinicId(UUID.randomUUID())
+                                .bookingDate(LocalDate.of(2025, 1, 20))
+                                .bookingTime(LocalTime.of(9, 0))
+                                .type(BookingType.IN_CLINIC)
+                                .build();
+
+                BookingResponse response = createMockBookingResponse();
+                when(bookingService.createProxyBooking(any(ProxyBookingRequest.class), eq(userId)))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/bookings/proxy")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isCreated());
+
+                verify(bookingService).createProxyBooking(any(ProxyBookingRequest.class), eq(userId));
+        }
+
+        @Test
+        @DisplayName("TC-BOOKING-PROXY-002: Get my proxy bookings - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "PET_OWNER")
+        void getMyProxyBookings_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                BookingResponse booking = createMockBookingResponse();
+                Page<BookingResponse> page = new PageImpl<>(List.of(booking));
+
+                when(bookingService.getMyProxyBookings(eq(userId), any(Pageable.class))).thenReturn(page);
+
+                mockMvc.perform(get("/bookings/my/proxy"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content").isArray());
+
+                verify(bookingService).getMyProxyBookings(eq(userId), any(Pageable.class));
+        }
+
+        // ==================== CHECKOUT TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-CHECKOUT-001: Checkout booking - Valid request - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "STAFF")
+        void checkout_validRequest_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID bookingId = UUID.randomUUID();
+                CheckoutRequest request = new CheckoutRequest();
+                request.setOverriddenSosFee(new BigDecimal("150000"));
+
+                BookingResponse response = createMockBookingResponse();
+                response.setStatus(BookingStatus.COMPLETED);
+
+                when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
+                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
+                                .thenReturn(response);
+
+                mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.status").value("COMPLETED"));
+
+                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
+        }
+
+        // ==================== CLINIC TODAY BOOKINGS TESTS ====================
+
+        @Test
+        @DisplayName("TC-BOOKING-TODAY-001: Get clinic today bookings - Returns 200")
+        @WithMockUser(username = "11111111-1111-1111-1111-111111111111", roles = "STAFF")
+        void getClinicTodayBookings_returns200() throws Exception {
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+                setupUserPrincipalAuth(userId);
+
+                UUID clinicId = UUID.randomUUID();
+                com.petties.petties.dto.booking.ClinicTodayBookingResponse todayBooking =
+                                com.petties.petties.dto.booking.ClinicTodayBookingResponse.builder()
+                                                .bookingId(UUID.randomUUID())
+                                                .bookingCode("B-20250120-001")
+                                                .petName("Buddy")
+                                                .build();
+
+                com.petties.petties.model.User staffUser = new com.petties.petties.model.User();
+                staffUser.setUserId(userId);
+                com.petties.petties.model.Clinic workingClinic = new com.petties.petties.model.Clinic();
+                workingClinic.setClinicId(clinicId);
+                staffUser.setWorkingClinic(workingClinic);
+
+                when(bookingService.getCurrentUserById(userId)).thenReturn(staffUser);
+                when(bookingService.getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class)))
+                                .thenReturn(List.of(todayBooking));
+
+                mockMvc.perform(get("/bookings/clinic/{clinicId}/today", clinicId))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].bookingCode").value("B-20250120-001"));
+
+                verify(bookingService).getClinicTodayBookings(eq(clinicId), any(com.petties.petties.model.User.class));
         }
 }

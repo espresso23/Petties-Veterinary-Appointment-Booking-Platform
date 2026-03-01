@@ -88,8 +88,8 @@ class _VaccinationFormScreenState extends State<VaccinationFormScreen> {
         }), 
       ]);
       
-      final history = results[0] as List<VaccinationRecord>;
-      final upcoming = results[1] as List<VaccinationRecord>;
+      final history = results[0];
+      final upcoming = results[1];
 
       if (mounted) {
         setState(() {
@@ -258,14 +258,12 @@ class _VaccinationFormScreenState extends State<VaccinationFormScreen> {
     }
 
     // 2. Auto-calculate Next Due Date
-    if (_vaccinationDate != null) {
-      if (_selectedTemplate!.repeatIntervalDays != null && _selectedTemplate!.repeatIntervalDays! > 0) {
-        _nextDueDate = _vaccinationDate.add(Duration(days: _selectedTemplate!.repeatIntervalDays!));
-      } else if (_selectedTemplate!.isAnnualRepeat == true) {
-        _nextDueDate = DateTime(_vaccinationDate.year + 1, _vaccinationDate.month, _vaccinationDate.day);
-      }
+    if (_selectedTemplate!.repeatIntervalDays != null && _selectedTemplate!.repeatIntervalDays! > 0) {
+      _nextDueDate = _vaccinationDate.add(Duration(days: _selectedTemplate!.repeatIntervalDays!));
+    } else if (_selectedTemplate!.isAnnualRepeat == true) {
+      _nextDueDate = DateTime(_vaccinationDate.year + 1, _vaccinationDate.month, _vaccinationDate.day);
     }
-  }
+    }
 
   Future<void> _selectDate(BuildContext context, bool isNextDue) async {
     final DateTime? picked = await showDatePicker(
@@ -406,7 +404,7 @@ class _VaccinationFormScreenState extends State<VaccinationFormScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<VaccineTemplate>(
-                            value: _selectedTemplate,
+                            initialValue: _selectedTemplate,
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppColors.stone100,

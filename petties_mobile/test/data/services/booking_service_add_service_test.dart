@@ -10,7 +10,6 @@ void main() {
       const statusInProgress = 'IN_PROGRESS';
       const statusCompleted = 'COMPLETED';
       const statusConfirmed = 'CONFIRMED';
-      const statusArrived = 'ARRIVED';
       const statusCancelled = 'CANCELLED';
       const statusPending = 'PENDING';
 
@@ -26,9 +25,6 @@ void main() {
           reason: 'COMPLETED should NOT show Add Service button');
       expect(canShowAddServiceButton(statusConfirmed), false,
           reason: 'CONFIRMED should NOT show Add Service button');
-      expect(canShowAddServiceButton(statusArrived), false,
-          reason:
-              'ARRIVED should NOT show Add Service button (check-in first)');
       expect(canShowAddServiceButton(statusCancelled), false,
           reason: 'CANCELLED should NOT show Add Service button');
       expect(canShowAddServiceButton(statusPending), false,
@@ -77,7 +73,6 @@ void main() {
 
       // Invalid scenarios - Status wrong
       expect(shouldShowAddServiceButton('COMPLETED', 'HOME_VISIT'), false);
-      expect(shouldShowAddServiceButton('ARRIVED', 'HOME_VISIT'), false);
       expect(shouldShowAddServiceButton('CONFIRMED', 'HOME_VISIT'), false);
 
       // Invalid scenarios - Type wrong
@@ -166,9 +161,7 @@ void main() {
       final mockApiResponse = [];
 
       // Act
-      final services = mockApiResponse is List
-          ? List<Map<String, dynamic>>.from(mockApiResponse)
-          : <Map<String, dynamic>>[];
+      final services = List<Map<String, dynamic>>.from(mockApiResponse);
 
       // Assert
       expect(services.isEmpty, true);
@@ -178,10 +171,9 @@ void main() {
   group('Error Handling Scenarios', () {
     test('should identify booking not in valid status error', () {
       // Arrange - Error message from backend
-      const errorMessage = 'Booking is not in ARRIVED or IN_PROGRESS status';
+      const errorMessage = 'Booking is not in IN_PROGRESS status';
 
       // Assert
-      expect(errorMessage.contains('ARRIVED'), true);
       expect(errorMessage.contains('IN_PROGRESS'), true);
     });
 
