@@ -225,24 +225,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         // ========== FIND BY CODE ==========
 
         /**
-         * Find booking by code
-         */
-        Optional<Booking> findByBookingCode(String bookingCode);
-
-        /**
          * Check if booking code exists
          */
         boolean existsByBookingCode(String bookingCode);
-
-        // ========== FIND BY OWNER ==========
-
-        /**
-         * Find all bookings for a pet owner with pagination.
-         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
-         */
-        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
-        @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
-        Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
 
         // ========== FIND BY PROXY BOOKER ==========
 
@@ -253,30 +238,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
         @Query("SELECT b FROM Booking b WHERE b.proxyBooker.userId = :proxyBookerId ORDER BY b.createdAt DESC")
         Page<Booking> findByProxyBookerId(@Param("proxyBookerId") UUID proxyBookerId, Pageable pageable);
-
-        @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId AND b.bookingDate = :date")
-        long countByClinicAndDate(@Param("clinicId") UUID clinicId, @Param("date") LocalDate date);
-
-        @Query("SELECT COUNT(DISTINCT b) FROM Booking b LEFT JOIN b.bookingServices bs " +
-                        "WHERE (b.assignedStaff.userId = :staffId OR bs.assignedStaff.userId = :staffId) " +
-                        "AND b.bookingDate = :date " +
-                        "AND b.status IN (com.petties.petties.model.enums.BookingStatus.CONFIRMED, " +
-                        "com.petties.petties.model.enums.BookingStatus.IN_PROGRESS)")
-        long countActiveBookingsByStaffAndDate(@Param("staffId") UUID staffId, @Param("date") LocalDate date);
-
-        @Query("SELECT DISTINCT b FROM Booking b JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
-        List<Booking> findByStaffIdAndDate(@Param("staffId") UUID staffId, @Param("date") LocalDate date);
-
-        /**
-         * Find all bookings assigned to a staff for a specific date
-         * Using join with booking services
-         */
-        @Query("SELECT DISTINCT b FROM Booking b LEFT JOIN b.bookingServices bs " +
-                        "WHERE (b.assignedStaff.userId = :staffId OR bs.assignedStaff.userId = :staffId) " +
-                        "AND b.bookingDate = :date")
-        List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
-                        @Param("date") LocalDate date);
 
         /**
          * Check if booking exists for a specific pet, clinic, date and time.
