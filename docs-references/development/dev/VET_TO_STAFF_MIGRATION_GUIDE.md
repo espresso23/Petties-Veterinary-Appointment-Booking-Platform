@@ -129,24 +129,20 @@ Ban đầu, hệ thống sử dụng thuật ngữ `Vet` (Bác sĩ thú y) để
 
 ## 3. Lưu ý quan trọng
 
-### 3.1 StaffSpecialty Enum (GIỮ NGUYÊN)
+### 3.1 StaffSpecialty Enum (ĐƠN GIẢN HÓA 2026-02-28)
 
-Các enum values `VET_GENERAL`, `VET_SURGERY`, `VET_DENTAL`, `VET_DERMATOLOGY` **KHÔNG được rename** vì đây là specialty của staff, không phải role:
+**Cập nhật:** StaffSpecialty đã được đơn giản hóa từ 5 loại xuống 2 loại (**VET** và **GROOMER**) để filter dịch vụ và gán staff dễ hơn.
 
 ```java
 public enum StaffSpecialty {
-    VET_GENERAL,      // Bác sĩ thú y tổng quát
-    VET_SURGERY,      // Bác sĩ phẫu thuật
-    VET_DENTAL,       // Bác sĩ nha khoa
-    VET_DERMATOLOGY,  // Bác sĩ da liễu
-    GROOMER           // Nhân viên grooming
+    VET,      // Bác sĩ thú y (khám, tiêm, phẫu thuật, nha khoa, da liễu...)
+    GROOMER   // Nhân viên grooming
 }
 ```
 
-**Lý do:**
-- `VET_*` đại diện cho chuyên môn của nhân viên, không phải role
-- Staff có thể có specialty là VET_GENERAL (họ vẫn là STAFF role nhưng có chuyên môn bác sĩ thú y)
-- Rename sang `STAFF_GENERAL` sẽ không đúng ngữ nghĩa
+**Mapping:**
+- VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY → **VET** (migration DB)
+- GROOMING_SPA → GROOMER; các dịch vụ y tế khác → VET
 
 ### 3.2 Test Data Seeders (Đã update)
 

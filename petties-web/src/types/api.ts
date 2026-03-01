@@ -42,7 +42,7 @@ export interface ApiErrorResponse {
 /**
  * Generic API Response Wrapper
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean
   message?: string
   data?: T

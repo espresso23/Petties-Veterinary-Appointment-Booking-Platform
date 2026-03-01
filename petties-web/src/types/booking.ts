@@ -3,7 +3,7 @@
  */
 
 // Booking Status enum
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'ASSIGNED' | 'ON_THE_WAY' | 'ARRIVED' | 'CHECK_IN' | 'IN_PROGRESS' | 'CHECK_OUT' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type BookingStatus = 'PENDING' | 'SEARCHING' | 'PENDING_CLINIC_CONFIRM' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 // Booking Type enum
 export type BookingType = 'IN_CLINIC' | 'HOME_VISIT' | 'SOS';
@@ -29,8 +29,13 @@ export interface BookingServiceItem {
     assignedStaffSpecialty?: string;
 
     // Scheduled time for this service
-    scheduledStartTime?: string; // HH:mm:ss format
-    scheduledEndTime?: string;   // HH:mm:ss format
+    scheduledStartTime?: string; // For display
+    scheduledEndTime?: string;   // For display
+    isAddOn?: boolean;           // Arising service
+
+    // Pet this service is for (multi-pet booking)
+    petId?: string;
+    petName?: string;
 }
 
 // Main Booking interface
@@ -80,15 +85,30 @@ export interface Booking {
     notes?: string;
     services: BookingServiceItem[];
 
+    /**
+     * List of pets in booking (multi-pet), each with its own services.
+     */
+    pets?: PetInBookingSummary[];
+
     // Home visit info
     homeAddress?: string;
     homeLat?: number;
     homeLong?: number;
     distanceKm?: number;
     distanceFee?: number; // Home visit fee (pricePerKm × distanceKm) applied once
+    sosFee?: number;      // SOS emergency fee
 
     // Timestamps
     createdAt: string;
+}
+
+/**
+ * Summary of a pet in a booking (multi-pet) with its services.
+ */
+export interface PetInBookingSummary {
+    petId: string;
+    petName: string;
+    services: BookingServiceItem[];
 }
 
 // Create booking request
@@ -115,13 +135,10 @@ export interface ConfirmBookingRequest {
 // Status badge colors - Petties Amber-Stone Theme
 export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; bgColor: string; textColor: string }> = {
     PENDING: { label: 'Chờ xác nhận', bgColor: '#F5F5F4', textColor: '#44403C' }, // stone-100 / stone-700
+    SEARCHING: { label: 'Đang tìm kiếm', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
+    PENDING_CLINIC_CONFIRM: { label: 'Chờ phòng khám', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     CONFIRMED: { label: 'Đã xác nhận', bgColor: '#FFFBEB', textColor: '#B45309' }, // amber-50 / amber-700
-    ASSIGNED: { label: 'Đã gán BS', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    ON_THE_WAY: { label: 'Đang đến', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    ARRIVED: { label: 'Đã đến nơi', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    CHECK_IN: { label: 'Check-in', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
-    IN_PROGRESS: { label: 'Đang khám', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600 (primary)
-    CHECK_OUT: { label: 'Check-out', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
+    IN_PROGRESS: { label: 'Đang thực hiện', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600 (primary)
     COMPLETED: { label: 'Hoàn thành', bgColor: '#DCFCE7', textColor: '#16A34A' }, // green-100 / green-600
     CANCELLED: { label: 'Đã hủy', bgColor: '#F5F5F4', textColor: '#57534E' }, // stone-100 / stone-600
     NO_SHOW: { label: 'Không đến', bgColor: '#F5F5F4', textColor: '#57534E' }, // stone-100 / stone-600
@@ -172,11 +189,13 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 // Staff Specialty labels (Vietnamese)
 export const STAFF_SPECIALTY_LABELS: Record<string, string> = {
-    VET_GENERAL: 'Bác sĩ thú y tổng quát',
-    VET_SURGERY: 'Bác sĩ phẫu thuật',
-    VET_DENTAL: 'Bác sĩ nha khoa thú y',
-    VET_DERMATOLOGY: 'Bác sĩ da liễu thú y',
+    VET: 'Bác sĩ thú y',
     GROOMER: 'Nhân viên Grooming',
+    // Legacy (sau migration DB chỉ còn VET | GROOMER)
+    VET_GENERAL: 'Bác sĩ thú y',
+    VET_SURGERY: 'Bác sĩ thú y',
+    VET_DENTAL: 'Bác sĩ thú y',
+    VET_DERMATOLOGY: 'Bác sĩ thú y',
 };
 
 // Available staff response for reassignment

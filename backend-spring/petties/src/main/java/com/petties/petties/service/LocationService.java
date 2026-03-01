@@ -166,9 +166,19 @@ public class LocationService {
             String origins = originLat + "," + originLng;
             String destinations = destLat + "," + destLng;
 
+            // Calculate straight-line distance first to pick the best vehicle type
+            double haversineDistance = calculateDistance(originLat, originLng, destLat, destLng);
+            String vehicleType = "car";
+            if (haversineDistance <= 0.2) { // Under 200m -> Walk
+                vehicleType = "foot";
+            } else if (haversineDistance <= 3.0) { // Under 3km -> Motorbike
+                vehicleType = "bike";
+            }
+
             String url = UriComponentsBuilder.fromUriString(distanceMatrixUrl)
                     .queryParam("origins", origins)
                     .queryParam("destinations", destinations)
+                    .queryParam("vehicle", vehicleType)
                     .queryParam("api_key", apiKey)
                     .toUriString();
 

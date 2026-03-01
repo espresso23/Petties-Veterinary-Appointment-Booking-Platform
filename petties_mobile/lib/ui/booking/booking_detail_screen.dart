@@ -4,6 +4,7 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/booking.dart';
 import '../../utils/format_utils.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../routing/app_routes.dart';
 
 class AppointmentDetailScreen extends StatelessWidget {
   final BookingResponse booking;
@@ -44,9 +45,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                   ],
                   _buildTimeCard(),
                   const SizedBox(height: 16),
-                  _buildPetCard(),
-                  const SizedBox(height: 16),
-                  _buildServicesCard(),
+                  _buildPetsList(),
                   const SizedBox(height: 16),
                   if (booking.notes != null && booking.notes!.isNotEmpty) ...[
                     _buildNotesCard(),
@@ -302,25 +301,27 @@ class AppointmentDetailScreen extends StatelessWidget {
   List<Map<String, String?>> _getUniqueStaff() {
     final Map<String, Map<String, String?>> staffMap = {};
 
-    // First, add the main assigned staff if exists
-    if (booking.assignedStaffName != null &&
-        booking.assignedStaffName!.isNotEmpty) {
-      final staffId = 'main'; // placeholder for main staff
-      staffMap[staffId] = {
-        'name': booking.assignedStaffName,
-        'avatarUrl': booking.assignedStaffAvatarUrl,
-      };
-    }
-
-    // Then add staff from services (they may override or add new staff)
+    // Collect staff from services first (they have actual staffId)
     for (final service in booking.services) {
       if (service.assignedStaffId != null &&
-          service.assignedStaffName != null) {
+          service.assignedStaffName != null &&
+          service.assignedStaffName!.isNotEmpty) {
         staffMap[service.assignedStaffId!] = {
           'name': service.assignedStaffName,
           'avatarUrl': service.assignedStaffAvatarUrl,
         };
       }
+    }
+
+    // Only add main staff if no service-level staff found
+    // OR if main staff is different from service staff (check by name)
+    if (staffMap.isEmpty &&
+        booking.assignedStaffName != null &&
+        booking.assignedStaffName!.isNotEmpty) {
+      staffMap['main'] = {
+        'name': booking.assignedStaffName,
+        'avatarUrl': booking.assignedStaffAvatarUrl,
+      };
     }
 
     return staffMap.values.toList();
@@ -450,7 +451,57 @@ class AppointmentDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPetCard() {
+  Widget _buildPetsList() {
+    if (booking.pets.isEmpty) {
+      // Fallback for old data or if pets list is empty but pet info is in root
+      return Column(
+        children: [
+          _buildPetCard(
+            booking.petName,
+            booking.petSpecies,
+            booking.petWeight,
+            booking.petPhotoUrl,
+          ),
+          const SizedBox(height: 16),
+          _buildServicesCard(booking.services),
+        ],
+      );
+    }
+
+    return Column(
+      children: booking.pets.map((pet) {
+        // Try to get details from root if this is the primary pet
+        String? species;
+        double? weight;
+        String? photoUrl;
+
+        if (pet.petId == booking.petId) {
+          species = booking.petSpecies;
+          weight = booking.petWeight;
+          photoUrl = booking.petPhotoUrl;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            children: [
+              _buildPetCard(
+                pet.petName,
+                species,
+                weight,
+                photoUrl,
+              ),
+              const SizedBox(height: 8),
+              _buildServicesCard(pet.services),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPetCard(
+      String? name, String? species, double? weight, String? photoUrl) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -462,11 +513,9 @@ class AppointmentDetailScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundImage: booking.petPhotoUrl != null
-                ? NetworkImage(booking.petPhotoUrl!)
-                : null,
+            backgroundImage: photoUrl != null ? NetworkImage(photoUrl) : null,
             backgroundColor: AppColors.stone200,
-            child: booking.petPhotoUrl == null
+            child: photoUrl == null
                 ? const Icon(Icons.pets, color: AppColors.stone400)
                 : null,
           ),
@@ -486,20 +535,21 @@ class AppointmentDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  booking.petName ?? '',
+                  name ?? '',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: AppColors.stone900,
                   ),
                 ),
-                Text(
-                  '${booking.petSpecies} • ${booking.petWeight} kg',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.stone500,
+                if (species != null || weight != null)
+                  Text(
+                    '${species ?? ''} ${species != null && weight != null ? '•' : ''} ${weight != null ? '$weight kg' : ''}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.stone500,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -508,7 +558,7 @@ class AppointmentDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildServicesCard() {
+  Widget _buildServicesCard(List<BookingServiceItem> services) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -538,7 +588,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '${booking.services.length} dịch vụ',
+                  '${services.length} dịch vụ',
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -549,28 +599,46 @@ class AppointmentDetailScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          ...booking.services.map((service) => Padding(
+          if (services.isEmpty)
+            const Text('Chưa có dịch vụ',
+                style: TextStyle(color: AppColors.stone500)),
+          ...services.map((service) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        service.serviceName ?? '',
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            service.serviceName ?? '',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.stone700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          FormatUtils.formatCurrency(service.price ?? 0),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.stone900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (service.scheduledStartTime != null &&
+                        service.scheduledEndTime != null)
+                      Text(
+                        '${_formatTime(service.scheduledStartTime)} - ${_formatTime(service.scheduledEndTime)}',
                         style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.stone700,
+                          fontSize: 12,
+                          color: AppColors.stone500,
                         ),
                       ),
-                    ),
-                    Text(
-                      FormatUtils.formatCurrency(service.price ?? 0),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.stone900,
-                      ),
-                    ),
                   ],
                 ),
               )),
@@ -614,34 +682,83 @@ class AppointmentDetailScreen extends StatelessWidget {
   }
 
   Widget _buildTotalCard() {
+    final bool hasSosFee = (booking.sosFee ?? 0) > 0;
+    final bool hasDistanceFee = (booking.distanceFee ?? 0) > 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+        border: Border.all(color: AppColors.stone200),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          const Text(
-            'TỔNG CỘNG',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.stone700,
-            ),
-          ),
-          Text(
-            FormatUtils.formatCurrency(booking.totalPrice ?? 0),
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.primary,
-            ),
+          if (hasSosFee || hasDistanceFee) ...[
+            if (booking.services.isNotEmpty) ...[
+              _buildFeeRow(
+                'Phí dịch vụ',
+                booking.services
+                    .fold(0.0, (sum, item) => sum + (item.price ?? 0)),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (hasSosFee) ...[
+              _buildFeeRow('Phí cấp cứu SOS', booking.sosFee!),
+              const SizedBox(height: 8),
+            ],
+            if (hasDistanceFee) ...[
+              _buildFeeRow('Phí di chuyển', booking.distanceFee!),
+              const SizedBox(height: 8),
+            ],
+            const Divider(height: 24),
+          ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'TỔNG CỘNG',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone700,
+                ),
+              ),
+              Text(
+                FormatUtils.formatCurrency(booking.totalPrice ?? 0),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFeeRow(String label, double amount) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.stone600,
+          ),
+        ),
+        Text(
+          FormatUtils.formatCurrency(amount),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.stone900,
+          ),
+        ),
+      ],
     );
   }
 
@@ -694,6 +811,67 @@ class AppointmentDetailScreen extends StatelessWidget {
             child: const Text('ĐẶT LẠI',
                 style: TextStyle(fontWeight: FontWeight.bold)),
           ),
+        ),
+      );
+    } else if (booking.type == 'SOS' &&
+        ['CONFIRMED', 'ASSIGNED', 'IN_PROGRESS'].contains(booking.status)) {
+      // For SOS, if it's confirmed or in progress (moving), check if it can be cancelled
+      // It can be cancelled if arrivedAt is null (still on the way)
+      final bool canCancel =
+          booking.status == 'CONFIRMED' || (booking.arrivedAt == null);
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          border: Border(top: BorderSide(color: AppColors.stone200)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  context.push(
+                    AppRoutes.sosTracking
+                        .replaceFirst(':bookingId', booking.bookingId ?? ''),
+                    extra: booking,
+                  );
+                },
+                icon: const Icon(Icons.location_on, color: Colors.white),
+                label: const Text('THEO DÕI BÁC SĨ',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.coral,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+            if (canCancel) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context, 'CANCEL');
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.stone500,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'HỦY LỊCH HẸN KHẨN CẤP',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }

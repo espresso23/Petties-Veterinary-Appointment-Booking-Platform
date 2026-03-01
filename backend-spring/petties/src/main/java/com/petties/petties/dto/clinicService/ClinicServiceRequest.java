@@ -43,9 +43,6 @@ public class ClinicServiceRequest {
 
     private Boolean isHomeVisit = false;
 
-    @Min(value = 0, message = "Giá theo km không được nhỏ hơn 0")
-    private BigDecimal pricePerKm;
-
     private com.petties.petties.model.enums.ServiceCategory serviceCategory;
 
     private Integer reminderInterval;

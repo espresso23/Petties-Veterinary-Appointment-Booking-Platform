@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   MapPinIcon,
@@ -27,11 +27,15 @@ export function ClinicDetailPage() {
   const [canScrollRight, setCanScrollRight] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  useEffect(() => {
+  const loadClinic = useCallback(() => {
     if (clinicId) {
       fetchClinicById(clinicId)
     }
-  }, [clinicId])
+  }, [clinicId, fetchClinicById])
+
+  useEffect(() => {
+    loadClinic()
+  }, [loadClinic])
 
   const updateScrollState = () => {
     const el = scrollRef.current
@@ -78,7 +82,7 @@ export function ClinicDetailPage() {
     try {
       await deleteClinic(clinicId)
       navigate(ROUTES.clinicOwner.clinics)
-    } catch (error) {
+    } catch {
       // Error handled by store
     }
   }
@@ -361,6 +365,59 @@ export function ClinicDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Payment & SOS Information */}
+          {(currentClinic.bankName || currentClinic.accountNumber || (currentClinic.sosFee && currentClinic.sosFee > 0)) && (
+            <div className="card-brutal p-6 mb-6">
+              <h2 className="text-lg font-bold uppercase text-stone-900 mb-4">THANH TOÁN & DỊCH VỤ SOS</h2>
+
+              {currentClinic.sosFee && currentClinic.sosFee > 0 && (
+                <div className="mb-6 p-4 border-4 border-red-600 bg-red-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <div className="text-lg font-black uppercase text-red-800 tracking-tight">PHÍ CẤP CỨU (SOS)</div>
+                    <div className="text-xs text-red-700 font-bold uppercase">Áp dụng khẩn cấp cho các dịch vụ cứu hộ lưu động</div>
+                  </div>
+                  <div className="text-2xl font-black text-red-600 bg-white px-4 py-2 border-2 border-red-600 shadow-[4px_4px_0px_#dc2626]">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(currentClinic.sosFee)}
+                  </div>
+                </div>
+              )}
+
+              {currentClinic.bankName && currentClinic.accountNumber && (
+                <div className={`flex flex-col md:flex-row gap-6 items-center md:items-start ${currentClinic.sosFee ? 'pt-6 border-t-2 border-dashed border-stone-200' : ''}`}>
+                  {/* QR Code */}
+                  <div className="flex-shrink-0">
+                    <div className="w-48 h-48 border-4 border-stone-900 shadow-brutal overflow-hidden bg-white">
+                      <img
+                        src={`https://img.vietqr.io/image/${currentClinic.bankName}-${currentClinic.accountNumber}-compact2.jpg`}
+                        alt="VietQR Code"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {/* Bank Details */}
+                  <div className="flex-1 text-center md:text-left">
+                    <div className="mb-3">
+                      <div className="text-sm font-bold uppercase text-stone-600 mb-1">NGÂN HÀNG</div>
+                      <div className="text-lg font-bold text-stone-900">{currentClinic.bankName}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold uppercase text-stone-600 mb-1">SỐ TAI KHOAN</div>
+                      <div className="text-xl font-mono font-bold text-stone-900 tracking-wider">
+                        {currentClinic.accountNumber}
+                      </div>
+                    </div>
+                    <p className="mt-4 text-xs text-stone-500 italic">
+                      Quét mã QR bằng ứng dụng ngân hàng để chuyển khoản nhanh
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Operating Hours */}
           {currentClinic.operatingHours && Object.keys(currentClinic.operatingHours).length > 0 && (

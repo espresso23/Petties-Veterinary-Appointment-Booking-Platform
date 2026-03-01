@@ -13,7 +13,7 @@ import {
   AdjustmentsHorizontalIcon,
   CheckIcon,
 } from '@heroicons/react/24/solid'
-import type { ClinicServiceResponse, VaccineDosePriceDTO } from '../../types/service'
+import type { ClinicServiceResponse, ClinicServiceRequest, VaccineDosePriceDTO } from '../../types/service'
 import type { WeightPriceDto } from '../../types/service'
 import { SERVICE_CATEGORIES, getCategoryById } from '../../constants/serviceCategory'
 import { getAllVaccineTemplates, type VaccineTemplate } from '../../services/endpoints/vaccineTemplate'
@@ -21,7 +21,7 @@ import { getAllVaccineTemplates, type VaccineTemplate } from '../../services/end
 interface ServiceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSave: (service: any) => void
+  onSave: (service: Partial<ClinicServiceRequest> & { basePrice?: number; name?: string; slotsRequired?: number; isActive?: boolean; isHomeVisit?: boolean }) => Promise<void> | void
   initialData?: ClinicServiceResponse | null
   isSubmitting?: boolean
 }
@@ -71,6 +71,7 @@ export function ServiceModal({
 
   const selectedCategory = getCategoryById(serviceCategory)
   const selectedPetType = petTypes.find(p => p.id === petType)
+
 
   useEffect(() => {
     // Load vaccine templates
@@ -143,6 +144,7 @@ export function ServiceModal({
         setReminderIntervalWeeks(3)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialData])
 
   const handleAddWeightPrice = () => {
@@ -827,7 +829,7 @@ export function ServiceModal({
                 paddingRight: '8px'
               }}
             >
-              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá mỗi km được thiết lập ở phần "Định giá di chuyển" trong menu.
+              Cho phép khách hàng đặt dịch vụ này tại nhà. Giá di chuyển và phí SOS được thiết lập chung cho toàn phòng khám trong phần "Cấu hình chung".
             </p>
           </div>
 

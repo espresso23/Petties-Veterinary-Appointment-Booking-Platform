@@ -29,7 +29,6 @@ public class ClinicServiceResponse {
     private Integer slotsRequired;
     private Boolean isActive;
     private Boolean isHomeVisit;
-    private BigDecimal pricePerKm;
     private com.petties.petties.model.enums.ServiceCategory serviceCategory;
     private String petType;
     private Integer reminderInterval;

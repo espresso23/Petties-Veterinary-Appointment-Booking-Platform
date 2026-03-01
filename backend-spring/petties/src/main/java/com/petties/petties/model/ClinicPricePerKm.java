@@ -34,6 +34,9 @@ public class ClinicPricePerKm {
     @Column(name = "price_per_km", precision = 12, scale = 2)
     private BigDecimal pricePerKm;
 
+    @Column(name = "sos_fee", precision = 12, scale = 2)
+    private BigDecimal sosFee;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

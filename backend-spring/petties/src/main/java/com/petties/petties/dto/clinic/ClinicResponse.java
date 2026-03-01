@@ -35,6 +35,10 @@ public class ClinicResponse {
     private String specificLocation; // Vị trí chính xác
     private String phone;
     private String email;
+    private String bankName; // Tên ngân hàng
+    private String accountNumber; // Số tài khoản ngân hàng
+    private BigDecimal sosFee; // Phí dịch vụ SOS
+    private BigDecimal pricePerKm; // Giá di chuyển theo km
     private BigDecimal latitude;
     private BigDecimal longitude;
     private String logo; // URL to clinic logo

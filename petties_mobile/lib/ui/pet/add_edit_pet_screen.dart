@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../core/widgets/custom_button.dart';
@@ -391,10 +390,12 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                             label: 'Cân nặng (kg)',
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value == null || value.isEmpty)
+                              if (value == null || value.isEmpty) {
                                 return 'Vui lòng nhập cân nặng';
-                              if (double.tryParse(value) == null)
+                              }
+                              if (double.tryParse(value) == null) {
                                 return 'Cân nặng không hợp lệ';
+                              }
                               return null;
                             },
                           ),

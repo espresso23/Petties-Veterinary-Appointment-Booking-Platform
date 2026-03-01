@@ -1,5 +1,10 @@
 # II. Software Design Document
 
+**Project:** Petties - Veterinary Appointment Booking Platform  
+**Version:** 1.9.0 (Updated SOS Emergency Flow with BR references)  
+**Last Updated:** 2026-02-09  
+**Document Status:** In Progress
+
 ## TABLE OF CONTENTS
 - [1. System Design](#1-system-design)
     - [1.1 System Architecture](#11-system-architecture)
@@ -24,7 +29,13 @@
     - [4.9 SOS Emergency Flow](#49-sos-emergency-flow)
     - [4.10 AI Assistance Flow](#410-ai-assistance-flow)
     - [4.11 Governance & Reporting Flow](#411-governance--reporting-flow)
+    - [4.12 Clinic Setup AI Agent](#412-clinic-setup-ai-agent)
+    - [4.13 FCM Push Notifications](#413-fcm-push-notifications)
+    - [4.14 File Upload & Media Management](#414-file-upload--media-management)
+    - [4.15 SSE Real-time Notifications](#415-sse-real-time-notifications)
 - [5. Technology Stack Summary](#5-technology-stack-summary)
+
+
 
 ## 1. System Design
 
@@ -943,7 +954,7 @@ erDiagram
 | avatar | VARCHAR(500) | | Avatar URL (Cloudinary) |
 | avatar_public_id | VARCHAR(100) | | Cloudinary public ID |
 | role | ENUM | NOT NULL | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
-| specialty | ENUM | | VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER |
+| specialty | ENUM | | VET, GROOMER |
 | rating_avg | DECIMAL(2,1) | DEFAULT 0.0 | Average rating |
 | rating_count | INT | DEFAULT 0 | Number of ratings |
 | fcm_token | VARCHAR(500) | | Firebase Cloud Messaging token |
@@ -1192,10 +1203,9 @@ erDiagram
 
 **Booking Status State Machine:**
 ```
-PENDING → CONFIRMED → ASSIGNED → [ON_THE_WAY → ARRIVED] → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
-                                        ↑ Only for HOME_VISIT/SOS
-Alternative paths: CANCELLED, NO_SHOW
+PENDING → CONFIRMED → IN_PROGRESS → CHECK_OUT → COMPLETED
 ```
+Alternative paths: CANCELLED, NO_SHOW
 
 **Table: booking_service_items**
 
@@ -1412,10 +1422,10 @@ JWT_SECRET
 | Enum | Values |
 |------|--------|
 | **role** | PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN |
-| **staff_specialty** | VET_GENERAL, VET_SURGERY, VET_DENTAL, VET_DERMATOLOGY, GROOMER |
+| **staff_specialty** | VET, GROOMER |
 | **clinic_status** | PENDING, APPROVED, REJECTED, SUSPENDED |
 | **booking_type** | IN_CLINIC, HOME_VISIT, SOS |
-| **booking_status** | PENDING, CONFIRMED, ASSIGNED, ON_THE_WAY, ARRIVED, CHECK_IN, IN_PROGRESS, CHECK_OUT, COMPLETED, CANCELLED, NO_SHOW |
+| **booking_status** | PENDING, CONFIRMED, IN_PROGRESS, CHECK_OUT, COMPLETED, CANCELLED, NO_SHOW |
 | **slot_status** | AVAILABLE, BOOKED, BLOCKED |
 | **service_category** | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
 | **payment_method** | CASH, QR, CARD |
@@ -1805,11 +1815,13 @@ flowchart LR
 | POST | `/ai/knowledge/query` | Test RAG Retrieval | Admin |
 | GET | `/ai/knowledge/status` | KB Status & Stats | Admin |
 
-### 3.3 Planned Modules (Backend)
+### 3.3 Implemented Modules (Backend) - Previously Planned
+
+> **Note:** These modules were originally marked as "Planned" but are now **FULLY IMPLEMENTED** and functional in production.
 
 #### 3.3.1 Patient Management Module
 
-> **Status:** Design Approved. Endpoint paths finalized.
+> **Status:** ✅ **IMPLEMENTED** (Sprint 7-8). All endpoints functional.
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
@@ -1825,6 +1837,9 @@ flowchart LR
 | DELETE | `/api/vaccinations/{id}` | Delete Vaccination Record | STAFF |
 
 #### 3.3.2 Booking Management Module
+
+> **Status:** ✅ **IMPLEMENTED** (Sprint 6-7). Full booking lifecycle supported.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/api/bookings` | Create new booking (Select slot) | Pet Owner |
@@ -1832,14 +1847,20 @@ flowchart LR
 | GET | `/api/clinics/{id}/bookings` | List clinic bookings | CM, STAFF |
 | PATCH | `/api/bookings/{id}/status` | Update booking status | CM, STAFF |
 
-#### 3.3.3 Discovery & Search Module
+#### 3.3.3 Clinic Discovery & Search Module
+
+> **Status:** ✅ **IMPLEMENTED** (Sprint 4-5). Integrated with Goong Maps API. Endpoints are under `/api/clinics`.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
-| GET | `/api/discovery/nearby` | Find clinics by coordinates (lat, lng, radius) | Public |
-| GET | `/api/discovery/search` | Search by keyword, service, area | Public |
-| GET | `/api/discovery/geocoding` | Convert address to coordinates (Map API proxy) | Public |
+| GET | `/api/clinics/nearby` | Find clinics by coordinates (lat, lng, radius) | Public |
+| GET | `/api/clinics/search` | Search by keyword, service, area | Public |
+| GET | `/api/clinics/{id}/distance` | Get distance from point to clinic | Public |
 
 #### 3.3.4 Vaccination History Module (Merged)
+
+> **Status:** ✅ **IMPLEMENTED** (Sprint 7). Fully integrated with EMR module.
+
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/api/pets/{petId}/vaccinations` | Get full vaccination history | Auth |
@@ -3560,12 +3581,8 @@ sequenceDiagram
 **Matching Rules (Service Category → Staff Specialty):**
 | Service Category | Required Staff Specialty |
 |-----------------|------------------------|
-| GROOMING_SPA | VET_GROOMING, GROOMER |
-| CHECK_UP, VACCINATION, INTERNAL_MEDICINE | VET_GENERAL, VET_VACCINATION |
-| SURGERY | VET_SURGERY |
-| DENTAL | VET_DENTAL |
-| DERMATOLOGY | VET_DERMATOLOGY |
-| EMERGENCY | VET_EMERGENCY |
+| GROOMING_SPA | GROOMER |
+| VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER | VET |
 
 #### 4.7.5 Check Staff Availability
 
@@ -4856,58 +4873,472 @@ sequenceDiagram
 
 ---
 
-### 4.9 SOS Emergency Flow (UC-PO-15, UC-PO-17, UC-VT-11)
+### 4.9 SOS Emergency Flow (SOS-01 -> SOS-13)
 
 #### 4.9.1 Class Diagram - SOS Emergency
 
+**Business Rules:** BR-59, BR-60, BR-61, BR-62, BR-63, BR-64, BR-65, BR-66
+
+**Architecture Overview:**
+The SOS Emergency module uses a **refactored service-oriented architecture** with clear separation of concerns:
+- **SosMatchingService:** Core business logic for matching process
+- **SosSessionManager:** Redis session management (clinic lists, index, timestamps, locks)
+- **SosNotificationService:** WebSocket broadcasting to Pet Owners and Clinic Managers
+
 ```mermaid
 classDiagram
-    class SOSController {
-        -SOSService sosService
-        +requestSOS(SOSRequest) ResponseEntity
-        +trackVetLocation(UUID) ResponseEntity
-        +updateVetLocation(LocationUpdate) ResponseEntity
-        +confirmArrival(UUID) ResponseEntity
+    class SosController {
+        -SosMatchingService sosMatchingService
+        +startMatching(SosMatchRequest) ResponseEntity~SosMatchResponse~
+        +confirmSos(SosConfirmRequest) ResponseEntity~SosMatchResponse~
+        +getStatus(UUID) ResponseEntity~SosMatchResponse~
+        +cancelMatching(UUID) ResponseEntity~Void~
     }
-
-    class SOSService {
+    class SosMatchingService {
         -BookingRepository bookingRepository
+        -ClinicRepository clinicRepository
+        -PetRepository petRepository
         -UserRepository userRepository
-        -NotificationService notificationService
         -LocationService locationService
-        +createSOSBooking(SOSRequest) SOSResponse
-        +findNearbyAvailableVets(Location) List~VetResponse~
-        +updateVetLocation(UUID, Location) void
-        +confirmArrival(UUID) void
-        +getTrackingInfo(UUID) TrackingResponse
+        -SosSessionManager sessionManager
+        -SosNotificationService sosNotificationService
+        +startMatching(SosMatchRequest, UUID) SosMatchResponse
+        +processConfirmation(SosConfirmRequest, UUID) SosMatchResponse
+        +escalateToNextClinic(UUID) SosMatchResponse
+        +cancelMatching(UUID, UUID) void
+        +checkTimeouts() void
+        +getMatchingStatus(UUID) SosMatchResponse
+        +getActiveSosBooking(UUID) Optional~Booking~
+        -createSosBooking(Pet, SosMatchRequest, UUID) Booking
+        -confirmSos(Booking, User, UUID) SosMatchResponse
+        -declineSos(Booking, String) SosMatchResponse
+        -handleNoClinicAvailable(Booking) SosMatchResponse
+    }
+    class SosSessionManager {
+        -RedisTemplate~String,Object~ redisTemplate
+        +acquireUserLock(UUID) boolean
+        +releaseUserLock(UUID) void
+        +createSession(UUID, List~Clinic~) void
+        +clearSession(UUID) void
+        +getCurrentIndex(UUID) Optional~Integer~
+        +getClinicIds(UUID) Optional~List~String~~
+        +updateIndex(UUID, int) void
+        +updateNotifiedAt(UUID) void
+        +getNotifiedAt(UUID) Optional~Long~
+        +hasCurrentClinicTimedOut(UUID) boolean
+        +getElapsedSeconds(UUID) long
+        +sessionExists(UUID) boolean
+        +hasMoreClinics(UUID) boolean
+        +getClinicTimeoutSeconds() int
+        +getMaxClinicsToTry() int
+    }
+    class SosNotificationService {
+        -SimpMessagingTemplate messagingTemplate
+        +notifyOwnerClinicContacted(UUID, Clinic, int, int, double) void
+        +notifyOwnerWaitingNext(UUID, Clinic, int, int) void
+        +notifyOwnerConfirmed(UUID, Clinic, User) void
+        +notifyOwnerNoClinic(UUID) void
+        +notifyOwnerCancelled(UUID) void
+        +alertClinic(Booking, Clinic, int, int) void
+        +getClinicTimeoutSeconds() int
+    }
+    class SosMatchingScheduler {
+        -SosMatchingService sosMatchingService
+        +checkSosTimeouts() void
+    }
+    class BookingRepository {
+        <<interface>>
+        +save(Booking) Booking
+        +findById(UUID) Optional~Booking~
+        +findByStatusAndBookingType(BookingStatus, BookingType) List~Booking~
+        +findActiveSosBookingsByPetOwner(UUID) List~Booking~
+    }
+    class ClinicRepository {
+        <<interface>>
+        +findNearbyClinics(BigDecimal, BigDecimal, double) List~Clinic~
+    }
+    class SosMatchRequest {
+        +UUID petId
+        +BigDecimal latitude
+        +BigDecimal longitude
+        +String symptoms
+        +String notes
+    }
+    class SosMatchResponse {
+        +UUID bookingId
+        +BookingStatus status
+        +String message
+        +UUID clinicId
+        +String clinicName
+        +String clinicPhone
+        +Double distanceKm
+        +String wsTopicUrl
+    }
+    class SosMatchingStatusMessage {
+        +UUID bookingId
+        +BookingStatus bookingStatus
+        +MatchingEvent event
+        +String message
+        +Integer currentClinicIndex
+        +Integer totalClinicsInRange
+        +Long remainingSeconds
     }
 
-    class LocationService {
-        -GoongApiClient goongClient
-        +calculateDistance(Location, Location) DistanceInfo
-        +calculateETA(Location, Location) Duration
-        +isWithinRadius(Location, Location, meters) boolean
-    }
-
-    class SOSBooking {
-        +UUID sosId
-        +Booking booking
-        +User vet
-        +Location ownerLocation
-        +Location vetCurrentLocation
-        +SOSStatus status
-        +LocalDateTime requestTime
-        +LocalDateTime arrivalTime
-    }
-
-    SOSController --> SOSService
-    SOSService --> LocationService
-    SOSService --> BookingRepository
-    SOSService --> NotificationService
-    SOSService ..> SOSBooking
+    SosController --> SosMatchingService
+    SosMatchingService --> BookingRepository
+    SosMatchingService --> ClinicRepository
+    SosMatchingService --> SosSessionManager
+    SosMatchingService --> SosNotificationService
+    SosMatchingScheduler --> SosMatchingService
+    SosSessionManager --> RedisTemplate
+    SosNotificationService --> SimpMessagingTemplate
 ```
 
-#### 4.9.2 Request SOS & Staff Assignment (UC-PO-15)
+**Class Specifications:**
+
+**1. SosMatchingService**
+- **Responsibility:** Core SOS matching business logic
+- **Key Methods:**
+  - `startMatching()`: Initialize SOS request, find nearby clinics, notify first clinic
+  - `processConfirmation()`: Handle clinic accept/decline
+  - `escalateToNextClinic()`: Move to next clinic on timeout/decline
+  - `checkTimeouts()`: Scheduled job to detect timed-out requests
+  - `getActiveSosBooking()`: Check if user has active SOS
+  - `confirmSos()`: Update booking to CONFIRMED, assign staff
+  - `declineSos()`: Clear clinic field, escalate to next
+  - `handleNoClinicAvailable()`: Cancel booking when all clinics exhausted
+
+**2. SosSessionManager**
+- **Responsibility:** Manage Redis session data for SOS matching
+- **Key Methods:**
+  - `acquireUserLock()/releaseUserLock()`: Distributed lock to prevent race conditions
+  - `createSession()`: Store clinic IDs, index, timestamp
+  - `clearSession()`: Clean up session data
+  - `updateNotifiedAt()`: Record when current clinic was notified (for accurate timeout)
+  - `hasCurrentClinicTimedOut()`: Check if 60 seconds elapsed
+  - `sessionExists()`: Validate session before operations
+
+**Redis Keys Used:**
+- `sos:matching:{bookingId}:clinics` - List of clinic IDs
+- `sos:matching:{bookingId}:index` - Current clinic index
+- `sos:matching:{bookingId}:createdAt` - Session creation timestamp
+- `sos:matching:{bookingId}:notifiedAt` - When current clinic was notified
+- `sos:lock:user:{userId}` - User lock to prevent duplicate requests
+
+**3. SosNotificationService**
+- **Responsibility:** WebSocket broadcasting for SOS status updates
+- **Key Methods:**
+  - `notifyOwnerClinicContacted()`: Broadcast to Pet Owner when clinic is contacted
+  - `notifyOwnerWaitingNext()`: Broadcast when escalating to next clinic
+  - `notifyOwnerConfirmed()`: Broadcast when clinic confirms
+  - `notifyOwnerNoClinic()`: Broadcast when no clinics available
+  - `alertClinic()`: Send alert to Clinic Manager
+
+**WebSocket Topics:**
+- `/topic/sos-matching/{bookingId}` - Pet Owner subscribes for status updates
+- `/topic/clinic/{clinicId}/sos-alert` - Clinic Manager subscribes for SOS alerts
+
+**Business Rules:**
+- **BR-59:** Search radius 10km from user location
+- **BR-60:** Max 5 clinics to try
+- **BR-61:** 60 seconds timeout per clinic
+- **BR-62:** No duplicate active SOS bookings per user
+- **BR-63:** Distributed lock prevents race conditions
+- **BR-64:** Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
+- **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
+- **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
+
+#### 4.9.2 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
+
+**Business Rules:** BR-59 (10km radius), BR-60 (max 5 clinics), BR-61 (60s timeout), BR-62 (no duplicate active SOS), BR-64 (status flow), BR-66 (unique booking code)
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI1 as SosRequestScreen (Mobile)
+    participant UI2 as SosRadarMapScreen (Mobile)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant CR as ClinicRepository
+    participant DB as Database
+
+    PO->>UI1: 1. Open SOS Request screen
+    activate UI1
+    UI1->>SC: 2. GET /api/sos/active (check active SOS booking)
+    activate SC
+    SC->>MS: 3. getActiveSosBookingForCurrentUser()
+    activate MS
+    MS->>BR: 4. findActiveSosByOwnerId(ownerId)
+    activate BR
+    BR->>DB: 5. Query active SOS bookings
+    activate DB
+    DB-->>BR: 6. Active booking (if any)
+    deactivate DB
+    BR-->>MS: 7. Optional~Booking~
+    deactivate BR
+    MS-->>SC: 8. Active SOS booking (if any)
+    deactivate MS
+    SC-->>UI1: 9. 200 OK (active booking or null)
+    deactivate SC
+
+    alt Active SOS booking exists
+        UI1-->>PO: 10. Show dialog: continue tracking or cancel and create new
+    end
+
+    PO->>UI1: 11. Fill pet, symptoms, location and submit
+    UI1->>SC: 12. POST /api/sos/start (SosMatchRequest)
+    activate SC
+    SC->>BS: 13. createSosBooking(request)
+    activate BS
+    BS->>BR: 14. save(new Booking(type=SOS, status=PENDING, ...))
+    activate BR
+    BR->>DB: 15. INSERT booking
+    activate DB
+    DB-->>BR: 16. Booking saved
+    deactivate DB
+    BR-->>BS: 17. Booking
+    deactivate BR
+    BS-->>SC: 18. Booking
+    deactivate BS
+
+    SC->>MS: 19. startSos(booking, request)
+    activate MS
+    MS->>CR: 20. searchNearbyClinics(lat, lng, 10km)
+    activate CR
+    CR->>DB: 21. Query clinics within radius
+    activate DB
+    DB-->>CR: 22. List~Clinic~ (sorted by distance)
+    deactivate DB
+    CR-->>MS: 23. Clinics (max 5)
+    deactivate CR
+
+    alt No clinics found
+        MS->>BR: 24. update booking status: NO_CLINIC
+        activate BR
+        BR->>DB: 25. UPDATE bookings SET status='NO_CLINIC'
+        activate DB
+        DB-->>BR: 26. Success
+        deactivate DB
+        BR-->>MS: 27. Booking updated
+        deactivate BR
+        MS-->>SC: 28. SosMatchResponse (status=NO_CLINIC)
+        SC-->>UI1: 29. 201 Created (NO_CLINIC)
+        UI1-->>PO: 30. Show "No clinic available" message
+    else Clinics found
+        MS->>DB: 24c. Store SOS session (clinics, index=0, createdAt)
+        MS-->>UI2: 25c. Push initial matching status over WebSocket
+        MS-->>SC: 26c. SosMatchResponse (bookingId, status=SEARCHING)
+        SC-->>UI1: 27c. 201 Created (SEARCHING)
+        deactivate MS
+        deactivate SC
+
+        UI1->>UI2: 28c. Navigate to SosRadarMapScreen(bookingId)
+        UI2->>UI2: 29c. Start radar animation & countdown
+        note over UI2: UI2 subscribes to SOS matching WebSocket topic<br/>and optionally polls /api/sos/{bookingId}/status
+    end
+```
+
+#### 4.9.X SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
+
+This subsection describes the end-to-end SOS booking experience from the Pet Owner’s perspective, combining matching and real-time tracking flows.
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI1 as SosRequestScreen (Mobile)
+    participant UI2 as SosRadarMapScreen (Mobile)
+    participant UI3 as SosTrackingScreen (Mobile)
+    participant SC as SosController
+    participant TC as TrackingController
+    participant BS as BookingService
+    participant SMS as SosMatchingService
+    participant TS as TrackingService
+    participant BR as BookingRepository
+    participant CR as ClinicRepository
+    participant DB as Database
+
+    PO->>UI1: 1. Open SOS Request screen
+    UI1->>SC: 2. GET /api/sos/active
+    SC->>SMS: 3. getActiveSosBookingForCurrentUser()
+    SMS->>BR: 4. findActiveSosByOwnerId(ownerId)
+    BR->>DB: 5. SELECT active SOS bookings
+    DB-->>BR: 6. Result
+    BR-->>SMS: 7. Optional~Booking~
+    SMS-->>SC: 8. Active SOS booking (if any)
+    SC-->>UI1: 9. 200 OK (BookingResponse or null)
+
+    alt Active SOS booking exists
+        UI1-->>PO: 10. Show dialog (continue tracking / cancel & create new)
+    end
+
+    PO->>UI1: 11. Submit SOS form (pet, symptoms, location)
+    UI1->>SC: 12. POST /api/sos/start (SosMatchRequest)
+    SC->>BS: 13. createSosBooking(request)
+    BS->>BR: 14. save(Booking type=SOS)
+    BR->>DB: 15. INSERT booking
+    DB-->>BR: 16. Saved booking
+    BR-->>BS: 17. Booking
+    BS-->>SC: 18. Booking
+    SC->>SMS: 19. startSos(booking, request)
+
+    SMS->>CR: 20. searchNearbyClinics(lat, lng, radius)
+    CR->>DB: 21. SELECT clinics
+    DB-->>CR: 22. List clinics
+    CR-->>SMS: 23. Clinics (max 5)
+
+    alt No clinic available
+        SMS->>BR: 24. update status NO_CLINIC
+        BR->>DB: 25. UPDATE bookings
+        DB-->>BR: 26. OK
+        BR-->>SMS: 27. Booking updated
+        SMS-->>SC: 28. SosMatchResponse(status=NO_CLINIC)
+        SC-->>UI1: 29. 201 Created (NO_CLINIC)
+        UI1-->>PO: 30. Show "No clinic available" and stop flow
+    else Clinic found and accepts
+        SMS->>SMS: 24c. Initialize SosSession (searching=true)
+        SMS-->>UI2: 25c. WebSocket /topic/sos.{bookingId}.status (SEARCHING)
+        SMS-->>SC: 26c. SosMatchResponse(status=SEARCHING)
+        SC-->>UI1: 27c. 201 Created (SEARCHING)
+        UI1->>UI2: 28c. Navigate to SosRadarMapScreen(bookingId)
+        UI2->>UI2: 29c. Show radar and countdown
+
+        SMS->>SMS: 30c. Mark CONFIRMED with matched clinic
+        SMS-->>UI2: 31c. WebSocket status (CONFIRMED, clinic)
+        UI2-->>PO: 32c. Show confirmed clinic info
+        UI2->>UI3: 33c. After short delay, navigate to SosTrackingScreen(bookingId)
+    end
+
+    UI3->>UI3: 34. Subscribe /topic/booking.{bookingId}.location
+    UI3->>TC: 35. GET /tracking/booking/{bookingId} (initial location)
+    TC->>TS: 36. getLatestLocation(bookingId)
+    TS->>BR: 37. findById(bookingId)
+    BR->>DB: 38. SELECT booking
+    DB-->>BR: 39. Booking
+    BR-->>TS: 40. Booking
+    TS-->>TC: 41. LocationUpdateResponse (initial snapshot)
+    TC-->>UI3: 42. 200 OK
+    UI3-->>PO: 43. Render map with home + staff marker (if available)
+
+    loop Real-time tracking
+        TS-->>UI3: 44. WebSocket /topic/booking.{bookingId}.location (LocationUpdateResponse)
+        UI3->>UI3: 45. Snap marker to route polyline, animate, update ETA/distance
+        UI3-->>PO: 46. Update tracking UI and status text
+    end
+
+    alt Staff arrives (arrived=true)
+        TS-->>UI3: 47. LocationUpdateResponse(arrived=true)
+        UI3-->>PO: 48. Show "Vet has arrived" message
+        UI3->>UI3: 49. After delay, navigate back to Home
+    end
+```
+            BR->>DB: 26c. Update booking status
+            activate DB
+            DB-->>BR: 27c. Confirmed
+            deactivate DB
+            BR-->>MS: 28c. Done
+            deactivate BR
+            MS-->>SC: 29c. SosMatchResponse
+            deactivate MS
+            SC-->>UI: 30c. 201 Created (bookingId, wsTopicUrl)
+            deactivate SC
+            UI-->>PO: 31c. Display matching screen & countdown
+            deactivate UI
+        end
+    end
+```
+
+#### 4.9.3 Accept/Decline SOS Request (UC-SOS-10)
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Web Manager
+    participant SC as SOSController
+    participant MS as SosMatchingService
+    participant BR as BookingRepository
+    participant DB as Database
+    participant WS as WebSocket
+
+    CM->>UI: 1. Nhận thông báo & Click "Chấp nhận"
+    activate UI
+    UI->>SC: 2. POST /api/sos/{id}/confirm (accept=true)
+    activate SC
+    SC->>MS: 3. processConfirmation(id, true)
+    activate MS
+    MS->>BR: 4. findById(id)
+    activate BR
+    BR->>DB: 5. Truy vấn thông tin booking
+    activate DB
+    DB-->>BR: 6. Thông tin Booking
+    deactivate DB
+    BR-->>MS: 7. Booking Entity
+    deactivate BR
+    MS->>BR: 8. Cập nhật thông tin nhận ca
+    activate BR
+    BR->>DB: 9. Cập nhật status: CONFIRMED & gán clinic_id
+    activate DB
+    DB-->>BR: 10. Xác nhận cập nhật
+    deactivate DB
+    BR-->>MS: 11. Hoàn tất
+    deactivate BR
+    MS->>WS: 12. Push trạng thái CONFIRMED cho Pet Owner
+    MS-->>SC: 13. OK
+    deactivate MS
+    SC-->>UI: 14. 200 OK
+    deactivate SC
+    UI-->>CM: 15. Chuyển hướng đến trang Chi tiết ca cấp cứu
+    deactivate UI
+```
+
+#### 4.9.4 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
+
+```mermaid
+sequenceDiagram
+    participant Job as Scheduled Task (Hệ thống)
+    participant MS as SosMatchingService
+    participant BR as BookingRepository
+    participant DB as Database
+    participant WS as WebSocket
+
+    loop Kiểm tra mỗi 5 giây
+        Job->>MS: 1. Hoàn thành kiểm tra timeout cấp cứu
+        activate MS
+        MS->>BR: 2. Tìm các booking PENDING_CLINIC_CONFIRM quá 60s
+        activate BR
+        BR->>DB: 3. Truy vấn các booking hết hạn phản hồi
+        activate DB
+        DB-->>BR: 4. Danh sách các booking hết hạn
+        deactivate DB
+        BR-->>MS: 5. Danh sách cần xử lý
+        deactivate BR
+        
+        loop Với mỗi booking hết hạn
+            MS->>DB: 6. Lấy dữ liệu phiên tìm kiếm hiện tại
+            alt Vẫn còn phòng khám tiếp theo (index < 5)
+                MS->>MS: 7. Chọn phòng khám kế tiếp trong danh sách
+                MS->>DB: 8. Cập nhật lại index trong phiên tìm kiếm
+                MS->>WS: 9. Thông báo cho phòng khám tiếp theo
+                MS->>WS: 10. Push cập nhật "Đang tìm phòng khám tiếp theo" cho chủ pet
+            else Không còn phòng khám nào trong bán kính
+                MS->>BR: 11. Cập nhật trạng thái hủy ca do không có clinic
+                activate BR
+                BR->>DB: 12. Cập nhật status: CANCELLED
+                activate DB
+                DB-->>BR: 13. Xác nhận cập nhật
+                deactivate DB
+                BR-->>MS: 14. Hoàn tất
+                deactivate BR
+                MS->>WS: 15. Push trạng thái NO_CLINIC & cung cấp số hotline cho chủ pet
+            end
+        end
+        MS-->>Job: 16. Hoàn tất chu kỳ kiểm tra
+        deactivate MS
+    end
+```
+
+#### 4.9.5 Track Staff Location (UC-SOS-02)
 
 ```mermaid
 sequenceDiagram
@@ -4915,130 +5346,93 @@ sequenceDiagram
     participant UI as Mobile App
     participant SC as SOSController
     participant SS as SOSService
-    participant LS as LocationService
-    participant UR as UserRepository
-    participant BR as BookingRepository
-    participant NS as NotificationService
     participant DB as Database
+    participant LS as LocationService
 
-    PO->>UI: 1. Click "SOS Emergency"
+    loop Cập nhật mỗi 5 giây (Màn hình Tracking)
+        UI->>SC: 1. GET /api/sos/{id}/track
+        activate SC
+        SC->>SS: 2. getTrackingInfo(id)
+        activate SS
+        SS->>DB: 3. Lấy vị trí hiện tại của nhân viên
+        activate DB
+        DB-->>SS: 4. Tọa độ (Lat, Lng)
+        deactivate DB
+        SS->>LS: 5. calculateETA(vị trí nhân viên, vị trí chủ pet)
+        activate LS
+        LS-->>SS: 6. Thông tin ETA (Thời gian & Khoảng cách)
+        deactivate LS
+        SS-->>SC: 7. Trả về TrackingResponse
+        deactivate SS
+        SC-->>UI: 8. 200 OK
+        deactivate SC
+        UI-->>PO: 9. Cập nhật vị trí trên bản đồ & Hiển thị ETA mới
+    end
+```
+
+#### 4.9.6 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
+**Transitions:** `CONFIRMED → IN_PROGRESS` (khi Staff bấm "Bắt đầu di chuyển")
+
+```mermaid
+sequenceDiagram
+    actor V as Staff (Nhân viên)
+    participant UI as Staff Mobile App
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant DB as Database
+    participant WS as WebSocket
+
+    V->>UI: 1. Click "Bắt đầu di chuyển"
     activate UI
-    UI->>UI: 2. Get current GPS location
-    UI->>SC: 3. POST /sos (SOSRequest: location, petId, symptoms)
-    activate SC
-    SC->>SS: 4. createSOSBooking(request)
-    activate SS
-    SS->>LS: 5. findNearbyVets(ownerLocation, 10km)
-    activate LS
-    LS->>UR: 6. findActiveVetsBySpecialty(EMERGENCY)
-    activate UR
-    UR->>DB: 7. Query available vets
-    activate DB
-    DB-->>UR: 8. List<Staff>
-    deactivate DB
-    UR-->>LS: 9. Staff
-    deactivate UR
-    LS->>LS: 10. Calculate distances & sort
-    LS-->>SS: 11. Sorted vets by proximity
-    deactivate LS
-    SS->>SS: 12. Auto-assign nearest vet
-    SS->>BR: 13. save(SOSBooking)
+    UI->>BC: 2. POST /api/bookings/{id}/start-moving
+    activate BC
+    BC->>BS: 3. startMoving(id)
+    activate BS
+    BS->>BR: 4. findById(id)
+    BR-->>BS: 5. Booking Entity
+    BS->>BR: 6. Update status to IN_PROGRESS
     activate BR
-    BR-->>SS: 14. Saved
+    BR->>DB: 7. Update status: IN_PROGRESS
+    activate DB
+    DB-->>BR: 8. Confirmed
+    deactivate DB
+    BR-->>BS: 9. Done
     deactivate BR
-    SS->>NS: 15. sendPushNotification(vetId, SOS_ALERT)
-    activate NS
-    NS-->>SS: 16. Sent
-    deactivate NS
-    SS-->>SC: 17. SOSResponse (vetInfo, ETA)
-    deactivate SS
-    SC-->>UI: 18. 201 Created
-    deactivate SC
-    UI-->>PO: 19. Show vet info & tracking map
+    Note over BS,WS: Gửi thông báo cho Pet Owner: "BS đang trên đường đến"
+    BS->>WS: 10. Notify Pet Owner (Status: IN_PROGRESS)
+    BS-->>BC: 11. Success
+    deactivate BS
+    BC-->>UI: 12. 200 OK
+    deactivate BC
+    UI-->>V: 13. Mở bản đồ dẫn đường & Start GPS Broadcast
     deactivate UI
 ```
 
-#### 4.9.3 Track Staff Location (UC-PO-17)
+#### 4.9.7 SOS Service Completion & Checkout (UC-SOS-08)
+**Transitions:** `IN_PROGRESS → COMPLETED` (khi Staff bấm "Checkout")
 
 ```mermaid
 sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Tracking Screen
-    participant SC as SOSController
-    participant SS as SOSService
-    participant LS as LocationService
-    participant Cache as Redis
-
-    loop Every 5 seconds
-        UI->>SC: 1. GET /sos/{sosId}/track
-        activate SC
-        SC->>SS: 2. getTrackingInfo(sosId)
-        activate SS
-        SS->>Cache: 3. get("vet_location:" + vetId)
-        activate Cache
-        Cache-->>SS: 4. Current vet location
-        deactivate Cache
-        SS->>LS: 5. calculateETA(vetLocation, ownerLocation)
-        activate LS
-        LS-->>SS: 6. ETA (minutes, meters)
-        deactivate LS
-        SS-->>SC: 7. TrackingResponse
-        deactivate SS
-        SC-->>UI: 8. 200 OK (location, ETA)
-        deactivate SC
-        UI-->>PO: 9. Update map marker & ETA display
-    end
-```
-
-#### 4.9.4 Staff Travel & Auto-Arrival (UC-VT-11)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
+    actor V as Staff (Nhân viên)
     participant UI as Staff Mobile App
-    participant SC as SOSController
-    participant SS as SOSService
-    participant LS as LocationService
-    participant NS as NotificationService
-    participant Cache as Redis
+    participant BC as BookingController
+    participant BS as BookingService
     participant DB as Database
 
-    V->>UI: 1. Accept SOS & Click "Start Travel"
+    V->>UI: 1. Click "Checkout" (Sau khi sơ cứu xong)
     activate UI
-    UI->>SC: 2. POST /sos/{sosId}/start-travel
-    activate SC
-    SC->>SS: 3. startTravel(sosId)
-    activate SS
-    SS->>DB: 4. Update status = EN_ROUTE
-    SS-->>SC: 5. OK
-    deactivate SS
-    SC-->>UI: 6. 200 OK
-    deactivate SC
-    UI->>UI: 7. Open external navigation (Google Maps)
-    
-    loop GPS Broadcast (every 3s)
-        UI->>SC: 8. PUT /sos/{sosId}/location
-        activate SC
-        SC->>SS: 9. updateVetLocation(sosId, location)
-        activate SS
-        SS->>Cache: 10. set("vet_location:" + vetId, location, TTL=30s)
-        SS->>LS: 11. isWithinRadius(vetLoc, ownerLoc, 100m)
-        activate LS
-        LS-->>SS: 12. true/false
-        deactivate LS
-        alt Within 100m (Auto-Arrival)
-            SS->>DB: 13. Update status = ARRIVED
-            SS->>NS: 14. notifyOwner(ARRIVAL_ALERT)
-            SS-->>SC: 15. AutoArrivalTriggered
-            SC-->>UI: 16. 200 OK (arrived: true)
-            UI-->>V: 17. Show "Arrived" confirmation
-        else Not yet arrived
-            SS-->>SC: 15b. OK
-            deactivate SS
-            SC-->>UI: 16b. 200 OK
-            deactivate SC
-        end
-    end
+    UI->>BC: 2. POST /api/bookings/{id}/checkout (CheckoutRequest)
+    activate BC
+    BC->>BS: 3. processCheckout(id, request)
+    activate BS
+    Note over BS: Tính toán phí SOS và dịch vụ đi kèm
+    BS->>DB: 4. Lưu Hóa đơn (EMR) & Update status: COMPLETED
+    BS-->>BC: 5. Success
+    deactivate BS
+    BC-->>UI: 6. 200 OK
+    deactivate BC
+    UI-->>V: 13. Hiển thị thông báo hoàn tất ca cấp cứu
     deactivate UI
 ```
 
@@ -5605,11 +5999,937 @@ sequenceDiagram
     deactivate RC
     UI-->>A: 21. Refresh list
     deactivate UI
+ ```
+
+---
+
+### 4.12 Clinic Setup AI Agent (UC-CO-14, UC-CO-15, UC-CO-16)
+
+#### 4.12.1 Overview
+
+**Feature Description:**
+
+Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết lập nhanh chóng và chuyên nghiệp thông tin phòng khám trên nền tảng Petties. Agent sử dụng ReAct pattern để:
+- Generate danh sách services phù hợp với loại hình phòng khám.
+- Tạo mô tả chi tiết, chuyên nghiệp cho từng service.
+- Đề xuất giá cả dựa trên phân tích thị trường.
+- Cấu hình weight-based pricing tiers.
+- Hỗ trợ đa ngôn ngữ (Vietnamese/English).
+
+#### 4.12.2 Class Diagram
+
+```mermaid
+classDiagram
+    class ClinicSetupController {
+        <<REST Controller>>
+        +initSetup(clinicId)
+        +generateServices(request)
+        +updateService(serviceData)
+        +saveServices(clinicId, services)
+        +getPricingSuggestions(request)
+        +translateDescriptions(request)
+    }
+
+    class ClinicSetupService {
+        <<Business Logic>>
+        -agentService: AgentService
+        -clinicService: ClinicService
+        -clinicServiceRepository: ClinicServiceRepository
+        -masterServiceRepository: MasterServiceRepository
+        
+        +initSetup(clinicId)
+        +generateClinicServices(request)
+        +saveGeneratedServices(clinicId, services)
+        +getMarketPricingAnalysis(request)
+        +translateServiceContent(request)
+    }
+
+    class AgentService {
+        <<AI Service>>
+        -agent: CompiledStateGraph
+        -chatHistoryService: ChatHistoryService
+        
+        +executeClinicSetupTask(taskType, params)
+        +generateServices(params)
+        +analyzePricing(params)
+        +translateContent(params)
+    }
+
+    class ClinicSetupAgentTools {
+        <<FastMCP Tools>>
+        +generate_clinic_services()
+        +generate_service_description()
+        +analyze_market_pricing()
+        +suggest_weight_tiers()
+        +translate_service_descriptions()
+        +import_master_services()
+    }
+
+    class ClinicService {
+        <<Entity>>
+        -clinicServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -duration: Integer
+        -category: ServiceCategory
+        -isAiGenerated: Boolean
+        -aiConfidenceScore: Float
+    }
+
+    class ServicePricingTier {
+        <<Entity>>
+        -tierId: UUID
+        -weightRange: String
+        -multiplier: Float
+        -finalPrice: BigDecimal
+    }
+
+    class MasterService {
+        <<Entity>>
+        -masterServiceId: UUID
+        -name: String
+        -description: String
+        -basePrice: BigDecimal
+        -category: ServiceCategory
+    }
+
+    ClinicSetupController --> ClinicSetupService
+    ClinicSetupService --> AgentService
+    ClinicSetupService --> ClinicService
+    ClinicSetupService --> MasterService
+    
+    AgentService --> ClinicSetupAgentTools
+    AgentService --> ChatHistoryService
+    
+    ClinicService "1" --> "*" ServicePricingTier
+```
+
+#### 4.12.3 Class Specifications
+
+**1. ClinicSetupController**
+
+- **Responsibility:** REST API endpoints cho AI-assisted clinic setup wizard.
+- **Key Methods:**
+
+| Method | HTTP | Path | Description |
+|--------|------|------|-------------|
+| `initSetup` | POST | `/api/ai/clinic-setup/init` | Khởi tạo setup session cho clinic |
+| `generateServices` | POST | `/api/ai/clinic-setup/services` | Generate services theo loại hình |
+| `updateService` | PUT | `/api/ai/clinic-setup/services/{id}` | Update một service |
+| `saveServices` | POST | `/api/ai/clinic-setup/save` | Lưu tất cả services đã approve |
+| `getPricingSuggestions` | POST | `/api/ai/clinic-setup/pricing` | Lấy gợi ý pricing |
+| `translateDescriptions` | POST | `/api/ai/clinic-setup/translate` | Dịch service descriptions |
+
+**2. ClinicSetupService**
+
+- **Responsibility:** Business logic cho clinic setup workflow.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `initSetup(clinicId)` | Khởi tạo session, lấy clinic profile |
+| `generateClinicServices(request)` | Gọi AI Agent để generate services |
+| `saveGeneratedServices(clinicId, services)` | Save services với metadata (ai_generated=true) |
+| `getMarketPricingAnalysis(request)` | Phân tích market pricing |
+| `translateServiceContent(request)` | Translate descriptions |
+
+**3. AgentService (Clinic Setup Methods)**
+
+- **Responsibility:** Handle AI operations cho clinic setup.
+- **Key Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `executeClinicSetupTask(taskType, params)` | Execute clinic setup task via ReAct agent |
+| `generateServices(params)` | Generate services list |
+| `analyzePricing(params)` | Analyze market pricing |
+| `translateContent(params)` | Translate content |
+
+**4. ClinicSetupAgentTools**
+
+- **Responsibility:** FastMCP tools cho clinic setup operations.
+
+| Tool Name | Description |
+|-----------|-------------|
+| `generate_clinic_services` | Generate services based on clinic type |
+| `generate_service_description` | Generate professional descriptions |
+| `analyze_market_pricing` | Analyze regional pricing data |
+| `suggest_weight_tiers` | Suggest weight-based pricing tiers |
+| `translate_service_descriptions` | Translate to target language |
+| `import_master_services` | Import from master service templates |
+
+#### 4.12.4 Sequence Diagram: AI Clinic Setup Flow
+
+```mermaid
+sequenceDiagram
+    participant CO as Clinic Owner
+    participant UI as Web Dashboard
+    participant CSC as ClinicSetupController
+    participant CSS as ClinicSetupService
+    participant AS as AgentService
+    participant KB as Knowledge Base (Qdrant)
+    participant DB as PostgreSQL
+    participant MR as MasterServiceRepository
+
+    CO->>UI: 1. Click "Start AI Setup"
+    UI->>CSC: 2. POST /api/ai/clinic-setup/init {clinicId}
+    activate CSC
+    CSC->>CSS: 3. initSetup(clinicId)
+    activate CSS
+    CSS->>DB: 4. getClinicById(clinicId)
+    DB-->>CSS: 5. Clinic entity
+    CSS-->>CSC: 6. SetupResponse
+    CSC-->>UI: 7. 200 OK
+    UI-->>CO: 8. Display wizard step 1
+    
+    CO->>UI: 9. Select clinic type & pets
+    UI->>CSC: 10. POST /api/ai/clinic-setup/services {clinicType, pets, location}
+    CSC->>CSS: 11. generateClinicServices(request)
+    activate CSS
+    CSS->>AS: 12. generateServices(params)
+    activate AS
+    
+    AS->>KB: 13. Query standard services by type
+    KB-->>AS: 14. Service templates
+    
+    AS->>AS: 15. Generate descriptions (LLM)
+    AS->>KB: 16. Query pricing data (optional)
+    KB-->>AS: 17. Market pricing ranges
+    
+    AS-->>CSS: 18. Generated services array
+    CSS-->>CSC: 19. ServicesResponse
+    CSC-->>UI: 20. 200 OK
+    
+    UI-->>CO: 21. Display service cards
+    
+    loop Review Loop
+        CO->>UI: 22. Edit/Regenerate service
+        UI->>CSC: 23. PUT /api/ai/clinic-setup/services/{id}
+        CSC->>CSS: 24. updateService(data)
+        CSS->>AS: 25. generateServiceDescription()
+        AS-->>CSS: 26. Regenerated content
+        CSS-->>CSC: 27. Updated service
+        CSC-->>UI: 28. 200 OK
+        UI-->>CO: 29. Updated card
+    end
+    
+    CO->>UI: 30. Click "Save All"
+    UI->>CSC: 31. POST /api/ai/clinic-setup/save {services[]}
+    CSC->>CSS: 32. saveGeneratedServices(clinicId, services)
+    activate CSS
+    
+    loop Each Service
+        CSS->>DB: 33a. save(service with ai_metadata)
+    end
+    
+    DB-->>CSS: 34. Saved confirmations
+    CSS-->>CSC: 35. SaveResult
+    CSC-->>UI: 36. 200 OK
+    UI-->>CO: 37. Success message
+    
+    deactivate CSS
+    deactivate CSC
+```
+
+#### 4.12.5 API Endpoints
+
+**Clinic Setup API**
+
+| Method | Endpoint | Description | Request | Response |
+|--------|----------|-------------|---------|----------|
+| `POST` | `/api/ai/clinic-setup/init` | Initialize setup session | `{clinicId}` | `{sessionId, clinicInfo, steps[]}` |
+| `POST` | `/api/ai/clinic-setup/services` | Generate services | `{clinicType, petTypes[], location, language}` | `{services: [{name, description, category, price, duration, aiConfidence}]}` |
+| `PUT` | `/api/ai/clinic-setup/services/{id}` | Update service | `{name, description, price, duration}` | `{updated}` |
+| `POST` | `/api/ai/clinic-setup/save` | Save all services | `{services[], pricingTiers[]}` | `{savedCount, serviceIds[]}` |
+| `POST` | `/api/ai/clinic-setup/pricing` | Get pricing suggestions | `{serviceCategory, region}` | `{marketAvg, priceRange, suggestion}` |
+| `POST` | `/api/ai/clinic-setup/translate` | Translate descriptions | `{serviceIds[], targetLang}` | `{translations: [{serviceId, name, description}]}` |
+| `GET` | `/api/ai/clinic-setup/{sessionId}` | Get session status | - | `{step, services[], progress}` |
+
+**Request/Response Objects**
+
+```typescript
+// Generate Services Request
+interface GenerateServicesRequest {
+    clinicType: 'GENERAL_PRACTICE' | 'SPECIALTY' | 'EMERGENCY' | 'MULTI_SPECIALTY' | 'MOBILE_CLINIC';
+    petTypes: ('DOG' | 'CAT' | 'EXOTIC')[];
+    location: string;  // e.g., "Ho Chi Minh City, District 7"
+    language: 'VI' | 'EN';
+    operatingHours?: string;
+}
+
+// Generated Service
+interface GeneratedService {
+    id?: UUID;
+    name: string;
+    description: string;
+    category: ServiceCategory;
+    basePrice: number;  // VND
+    duration: number;   // minutes
+    weightTiers?: WeightTier[];
+    aiConfidence: number;  // 0.0 - 1.0
+    isAiGenerated: boolean;
+}
+
+// Weight Tier
+interface WeightTier {
+    weightRange: string;      // "<5kg", "5-15kg", ">15kg"
+    multiplier: number;       // 1.0, 1.2, 1.5
+    finalPrice: number;
+}
+
+// Pricing Suggestion
+interface PricingSuggestion {
+    serviceCategory: string;
+    marketAverage: number;
+    priceRangeLow: number;
+    priceRangeHigh: number;
+    recommendation: string;
+    confidence: number;
+}
+
+// Save Request
+interface SaveServicesRequest {
+    clinicId: UUID;
+    services: GeneratedService[];
+    pricingTiers: ServicePricingTier[];
+}
+```
+
+#### 4.12.6 Database Schema Additions
+
+**New/Modified Tables:**
+
+| Table | Type | Description |
+|-------|------|-------------|
+| `clinic_services` | Modified | Add `is_ai_generated`, `ai_confidence_score`, `ai_prompt_version` columns |
+| `service_pricing_tiers` | Existing | Already exists, used for weight-based pricing |
+| `ai_setup_sessions` | New | Track setup wizard sessions |
+| `ai_generated_content_log` | New | Audit log for AI-generated content |
+
+**AI Setup Session Table:**
+
+```sql
+CREATE TABLE ai_setup_sessions (
+    session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    clinic_id UUID NOT NULL REFERENCES clinics(clinic_id),
+    step VARCHAR(50) NOT NULL,
+    clinic_type VARCHAR(50),
+    pet_types JSONB,
+    language VARCHAR(10) DEFAULT 'VI',
+    status VARCHAR(20) DEFAULT 'IN_PROGRESS',
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP,
+    metadata JSONB
+);
+```
+
+**AI Content Audit Log:**
+
+```sql
+CREATE TABLE ai_generated_content_log (
+    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id UUID NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    original_content TEXT,
+    generated_content TEXT,
+    ai_prompt TEXT,
+    confidence_score FLOAT,
+    owner_approved BOOLEAN DEFAULT FALSE,
+    approved_by UUID,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---
 
+---
+
+### 4.13 FCM Push Notifications
+
+Firebase Cloud Messaging (FCM) enables real-time push notifications to mobile devices. This module handles FCM token management and notification delivery across Android and iOS platforms.
+
+**Key Features:**
+- Token registration on app startup
+- Token removal on logout
+- Single-user push notifications
+- Batch notifications to multiple users
+- Automatic token cleanup for invalid/expired tokens
+- Platform-specific configuration (Android channel, iOS sound)
+
+#### 4.13.1 Class Diagram - FCM Push Notifications
+
+```mermaid
+classDiagram
+    class FcmController {
+        -FcmService fcmService
+        -JwtTokenProvider jwtTokenProvider
+        +registerToken(String, FcmTokenRequest) ResponseEntity~Map~
+        +removeToken(String) ResponseEntity~Map~
+    }
+    class FcmService {
+        -FirebaseMessaging firebaseMessaging
+        -UserRepository userRepository
+        +registerToken(UUID, String) void
+        +removeToken(UUID) void
+        +sendToUser(User, String, String, Map) boolean
+        +sendToUsers(List~User~, String, String, Map) int
+        +sendToUser(UUID, String, String, Map) boolean
+        -handleFcmError(User, FirebaseMessagingException) void
+    }
+    class FcmTokenRequest {
+        +String fcmToken
+    }
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +save(User) User
+    }
+    class FirebaseMessaging {
+        <<external>>
+        +send(Message) String
+        +sendEachForMulticast(MulticastMessage) BatchResponse
+    }
+
+    FcmController --> FcmService
+    FcmService --> UserRepository
+    FcmService --> FirebaseMessaging
+```
+
+#### 4.13.2 Class Specifications
+
+**1. FcmController**
+- **Responsibility:** Handle FCM token registration/removal endpoints
+- **Key Methods:**
+  - `registerToken()`: Register FCM token for authenticated user
+  - `removeToken()`: Remove FCM token on logout
+
+**2. FcmService**
+- **Responsibility:** Manage FCM token lifecycle and send push notifications
+- **Key Methods:**
+  - `registerToken()`: Store FCM token in user entity
+  - `removeToken()`: Clear FCM token from user entity
+  - `sendToUser()`: Send notification to a single user
+  - `sendToUsers()`: Send batch notifications
+  - `handleFcmError()`: Handle FCM errors and invalid tokens
+
+**Business Rules:**
+- **BR-FCM-01:** FCM token must be non-empty
+- **BR-FCM-02:** Invalid/expired tokens are automatically removed
+- **BR-FCM-03:** Android notifications use `petties_notifications` channel
+- **BR-FCM-04:** Batch notifications report success count
+
+#### 4.13.3 Sequence Diagram: Register FCM Token
+
+```mermaid
+sequenceDiagram
+    actor U as User (Mobile)
+    participant MA as Mobile App
+    participant FC as FcmController
+    participant FS as FcmService
+    participant UR as UserRepository
+    participant DB as Database
+
+    U->>MA: 1. Open app & login
+    activate MA
+    MA->>MA: 2. Request FCM token from Firebase SDK
+    MA->>FC: 3. POST /api/fcm/token (JWT, fcmToken)
+    activate FC
+    FC->>FC: 4. Extract userId from JWT
+    FC->>FS: 5. registerToken(userId, fcmToken)
+    activate FS
+
+    alt Empty FCM token
+        FS-->>FC: 6a. Log warning, return
+        FC-->>MA: 7a. 200 OK (silently ignore)
+    else Valid FCM token
+        FS->>UR: 6b. findById(userId)
+        activate UR
+        UR->>DB: 7b. SELECT * FROM users WHERE user_id = ?
+        activate DB
+        DB-->>UR: 8b. User entity
+        deactivate DB
+        UR-->>FS: 9b. Optional~User~
+        deactivate UR
+
+        FS->>FS: 10b. user.setFcmToken(fcmToken)
+        FS->>UR: 11b. save(user)
+        activate UR
+        UR->>DB: 12b. UPDATE users SET fcm_token = ? WHERE user_id = ?
+        activate DB
+        DB-->>UR: 13b. Updated
+        deactivate DB
+        UR-->>FS: 14b. User
+        deactivate UR
+
+        FS-->>FC: 15b. void (success)
+        deactivate FS
+        FC-->>MA: 16b. 200 OK {"message": "FCM token registered"}
+        deactivate FC
+        MA-->>U: 17b. Ready to receive push notifications
+        deactivate MA
+    end
+```
+
+#### 4.13.4 Sequence Diagram: Send Push Notification
+
+```mermaid
+sequenceDiagram
+    participant BS as BookingService
+    participant FS as FcmService
+    participant UR as UserRepository
+    participant DB as Database
+    participant FCM as Firebase Cloud Messaging
+    participant Device as User Device
+
+    Note over BS: Booking confirmed event
+    BS->>FS: 1. sendToUser(userId, title, body, data)
+    activate FS
+    FS->>UR: 2. findById(userId)
+    activate UR
+    UR->>DB: 3. SELECT * FROM users WHERE user_id = ?
+    activate DB
+    DB-->>UR: 4. User entity
+    deactivate DB
+    UR-->>FS: 5. Optional~User~
+    deactivate UR
+
+    alt User has no FCM token
+        FS-->>BS: 6a. return false (skip)
+    else User has FCM token
+        FS->>FS: 6b. Build FCM Message (title, body, data, Android/iOS config)
+        FS->>FCM: 7b. send(message)
+        activate FCM
+
+        alt Token valid
+            FCM->>Device: 8b. Push notification
+            activate Device
+            Device-->>U: 9b. Show notification
+            deactivate Device
+            FCM-->>FS: 10b. Response (messageId)
+            deactivate FCM
+            FS-->>BS: 11b. return true (success)
+        else Token invalid/expired
+            FCM-->>FS: 8c. FirebaseMessagingException (UNREGISTERED)
+            deactivate FCM
+            FS->>FS: 9c. handleFcmError() - Clear token
+            FS->>UR: 10c. save(user with fcmToken=null)
+            UR->>DB: 11c. UPDATE users SET fcm_token = NULL
+            FS-->>BS: 12c. return false
+        end
+    end
+    deactivate FS
+```
+
+#### 4.13.5 Cross-Reference to SRS
+
+| Requirement | Description | Implementation |
+|------------|-------------|----------------|
+| FR-NOTIF-01 | Push notifications for booking updates | `FcmService.sendToUser()` after booking status changes |
+| FR-NOTIF-02 | Push notifications for SOS alerts | `SosNotificationService` calls `FcmService.sendToUser()` |
+| FR-NOTIF-03 | Token registration on app startup | `FcmController.registerToken()` |
+| FR-NOTIF-04 | Token cleanup on logout | `FcmController.removeToken()` |
+| NFR-NOTIF-01 | Support Android and iOS | `AndroidConfig` and `ApnsConfig` in message |
+
+---
+
+### 4.14 File Upload & Media Management
+
+Cloudinary-based file upload service for handling images and documents. Supports multiple use cases with optimized transformations for avatars, clinic images, and clinical photos.
+
+**Key Features:**
+- Multi-format support (JPEG, PNG, GIF, WEBP, PDF)
+- Automatic image optimization (quality, format, size)
+- Use-case specific transformations (avatar resize, clinic image limits)
+- File validation (size, content type)
+- Cloudinary folder organization
+- Secure file deletion
+
+#### 4.14.1 Class Diagram - File Upload
+
+```mermaid
+classDiagram
+    class FileController {
+        -CloudinaryService cloudinaryService
+        +uploadAvatar(MultipartFile) ResponseEntity~UploadResponse~
+        +uploadClinicImage(MultipartFile) ResponseEntity~UploadResponse~
+        +uploadEmrImage(MultipartFile) ResponseEntity~UploadResponse~
+        +deleteFile(String) ResponseEntity~Map~
+    }
+    class CloudinaryService {
+        -Cloudinary cloudinary
+        +uploadFile(MultipartFile, String) UploadResponse
+        +uploadAvatar(MultipartFile) UploadResponse
+        +uploadClinicImage(MultipartFile) UploadResponse
+        +uploadEmrImage(MultipartFile) UploadResponse
+        +deleteFile(String) boolean
+        -validateFile(MultipartFile) void
+        -checkCloudinaryConfig() void
+        -mapUploadResult(Map) UploadResponse
+    }
+    class UploadResponse {
+        +String url
+        +String publicId
+        +String format
+        +int width
+        +int height
+        +long bytes
+    }
+    class Cloudinary {
+        <<external>>
+        +uploader() Uploader
+        +config CloudinaryConfig
+    }
+
+    FileController --> CloudinaryService
+    CloudinaryService --> Cloudinary
+```
+
+#### 4.14.2 Class Specifications
+
+**1. FileController**
+- **Responsibility:** Handle file upload endpoints for different use cases
+- **Key Methods:**
+  - `uploadAvatar()`: Upload user avatar (300x300 crop)
+  - `uploadClinicImage()`: Upload clinic photo (1200x800 limit)
+  - `uploadEmrImage()`: Upload clinical image (1600x1200 limit)
+  - `deleteFile()`: Delete file from Cloudinary
+
+**2. CloudinaryService**
+- **Responsibility:** Manage file upload/deletion with Cloudinary
+- **Key Methods:**
+  - `uploadFile()`: Generic upload with folder path
+  - `uploadAvatar()`: Avatar-specific transformation (face detection crop)
+  - `uploadClinicImage()`: Clinic image transformation (limit dimensions)
+  - `uploadEmrImage()`: Clinical image transformation (high quality)
+  - `deleteFile()`: Delete file by publicId
+
+**Business Rules:**
+- **BR-FILE-01:** Max file size 10MB
+- **BR-FILE-02:** Allowed formats: JPEG, PNG, GIF, WEBP, PDF
+- **BR-FILE-03:** Avatar auto-cropped to 300x300 with face detection
+- **BR-FILE-04:** Clinic images limited to 1200x800
+- **BR-FILE-05:** EMR images limited to 1600x1200 for quality
+- **BR-FILE-06:** Files organized in folders: `petties/avatars/`, `petties/clinics/`, `petties/emr/`
+
+#### 4.14.3 Sequence Diagram: Upload Avatar
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant UI as Web/Mobile
+    participant FC as FileController
+    participant CS as CloudinaryService
+    participant C as Cloudinary API
+    participant UR as UserRepository
+    participant DB as Database
+
+    U->>UI: 1. Select avatar image
+    activate UI
+    UI->>FC: 2. POST /api/files/upload/avatar (file)
+    activate FC
+    FC->>CS: 3. uploadAvatar(file)
+    activate CS
+
+    CS->>CS: 4. validateFile(file)
+    alt File invalid (size > 10MB or wrong format)
+        CS-->>FC: 5a. throw BadRequestException
+        FC-->>UI: 6a. 400 Bad Request
+        UI-->>U: 7a. "File không hợp lệ"
+    else File valid
+        CS->>CS: 5b. checkCloudinaryConfig()
+        CS->>C: 6b. upload(file, folder="petties/avatars", transformation={width:300, height:300, crop:"fill", gravity:"face"})
+        activate C
+        C->>C: 7b. Resize & optimize image
+        C-->>CS: 8b. Upload result (url, publicId, format, dimensions)
+        deactivate C
+
+        CS->>CS: 9b. mapUploadResult()
+        CS-->>FC: 10b. UploadResponse
+        deactivate CS
+        FC-->>UI: 11b. 200 OK (url, publicId)
+        deactivate FC
+
+        UI->>UR: 12b. Update user.avatar = url
+        UR->>DB: 13b. UPDATE users SET avatar = ?
+        UI-->>U: 14b. Show new avatar
+        deactivate UI
+    end
+```
+
+#### 4.14.4 Sequence Diagram: Delete Old File
+
+```mermaid
+sequenceDiagram
+    actor U as Clinic Owner
+    participant UI as Web Dashboard
+    participant FC as FileController
+    participant CS as CloudinaryService
+    participant C as Cloudinary API
+
+    U->>UI: 1. Upload new clinic image
+    activate UI
+    UI->>UI: 2. Check if old image exists (publicId)
+
+    alt Has old image
+        UI->>FC: 3. DELETE /api/files/delete?publicId=old_image_id
+        activate FC
+        FC->>CS: 4. deleteFile(publicId)
+        activate CS
+        CS->>CS: 5. checkCloudinaryConfig()
+        CS->>C: 6. destroy(publicId)
+        activate C
+        C-->>CS: 7. {"result": "ok"}
+        deactivate C
+        CS-->>FC: 8. return true
+        deactivate CS
+        FC-->>UI: 9. 200 OK {"message": "Deleted"}
+        deactivate FC
+    end
+
+    UI->>FC: 10. POST /api/files/upload/clinic (newFile)
+    FC->>CS: 11. uploadClinicImage(newFile)
+    CS->>C: 12. upload(file, transformation={width:1200, height:800, crop:"limit"})
+    C-->>CS: 13. Upload result
+    CS-->>FC: 14. UploadResponse
+    FC-->>UI: 15. 200 OK (newUrl, newPublicId)
+    UI-->>U: 16. Display new clinic image
+    deactivate UI
+```
+
+#### 4.14.5 Cross-Reference to SRS
+
+| Requirement | Description | Implementation |
+|------------|-------------|----------------|
+| FR-FILE-01 | Upload avatar with face crop | `CloudinaryService.uploadAvatar()` with gravity:"face" |
+| FR-FILE-02 | Upload clinic images | `CloudinaryService.uploadClinicImage()` |
+| FR-FILE-03 | Upload clinical photos (EMR) | `CloudinaryService.uploadEmrImage()` |
+| FR-FILE-04 | Delete old files | `CloudinaryService.deleteFile()` |
+| NFR-FILE-01 | Max file size 10MB | Validation in `validateFile()` |
+| NFR-FILE-02 | Auto image optimization | Cloudinary transformation `quality:"auto:good"` |
+
+---
+
+### 4.15 SSE Real-time Notifications
+
+Server-Sent Events (SSE) provide unidirectional real-time updates from server to client. Unlike WebSocket (bidirectional), SSE is ideal for push notifications, live status updates, and event streaming.
+
+**Key Features:**
+- Long-lived HTTP connections (30 minutes timeout)
+- Multi-tab/device support per user
+- Automatic heartbeat (30 seconds)
+- Connection lifecycle management
+- Event types: CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE
+
+**Advantages over WebSocket:**
+- Simpler protocol (HTTP-based)
+- Auto-reconnect in browsers
+- Better for one-way push notifications
+- No need for bidirectional communication
+
+#### 4.15.1 Class Diagram - SSE Real-time
+
+```mermaid
+classDiagram
+    class SseController {
+        -SseEmitterService sseEmitterService
+        -AuthService authService
+        -JwtTokenProvider jwtTokenProvider
+        +subscribe(String) SseEmitter
+        +getStats() Map~String,Object~
+    }
+    class SseEmitterService {
+        -Map~UUID,List~SseEmitter~~ emitters
+        +subscribe(UUID) SseEmitter
+        +pushToUser(UUID, SseEventDto) void
+        +pushToUsers(List~UUID~, SseEventDto) void
+        +sendHeartbeats() void
+        +disconnectUser(UUID) void
+        +getConnectionCount(UUID) int
+        +getTotalConnectionCount() int
+        +isUserConnected(UUID) boolean
+        -removeEmitter(UUID, SseEmitter) void
+        -sendHeartbeat(UUID, SseEmitter) void
+    }
+    class SseEventDto {
+        +String type
+        +Object data
+        +LocalDateTime timestamp
+        +heartbeat() SseEventDto
+    }
+    class SseEmitter {
+        <<Spring>>
+        +send(SseEventBuilder) void
+        +complete() void
+        +onCompletion(Runnable) void
+        +onTimeout(Runnable) void
+        +onError(Consumer) void
+    }
+
+    SseController --> SseEmitterService
+    SseEmitterService --> SseEmitter
+```
+
+#### 4.15.2 Class Specifications
+
+**1. SseController**
+- **Responsibility:** Handle SSE subscription endpoint
+- **Key Methods:**
+  - `subscribe()`: Create SSE connection for authenticated user
+  - `getStats()`: Return connection statistics (Admin only)
+
+**2. SseEmitterService**
+- **Responsibility:** Manage SSE connections and push events
+- **Key Methods:**
+  - `subscribe()`: Create SseEmitter and register callbacks
+  - `pushToUser()`: Push event to all user connections
+  - `pushToUsers()`: Batch push to multiple users
+  - `sendHeartbeats()`: Scheduled task to keep connections alive
+  - `disconnectUser()`: Close all user connections (on logout)
+
+**3. SseEventDto**
+- **Responsibility:** Standard event format for SSE messages
+- **Fields:**
+  - `type`: Event type (CONNECTED, HEARTBEAT, NOTIFICATION, SHIFT_UPDATE)
+  - `data`: Event payload (varies by type)
+  - `timestamp`: Event timestamp
+
+**Business Rules:**
+- **BR-SSE-01:** Connection timeout 30 minutes
+- **BR-SSE-02:** Heartbeat every 30 seconds
+- **BR-SSE-03:** Users can have multiple connections (multi-tab)
+- **BR-SSE-04:** Auto-cleanup on timeout/error/completion
+- **BR-SSE-05:** Initial CONNECTED event sent on subscription
+
+#### 4.15.3 Sequence Diagram: SSE Subscription
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant UI as Web Dashboard
+    participant SC as SseController
+    participant AS as AuthService
+    participant JTP as JwtTokenProvider
+    participant SS as SseEmitterService
+
+    U->>UI: 1. Open dashboard page
+    activate UI
+    UI->>UI: 2. Create EventSource connection
+    UI->>SC: 3. GET /api/sse/subscribe?token=JWT
+    activate SC
+
+    SC->>JTP: 4. validateToken(token)
+    activate JTP
+    JTP-->>SC: 5. true
+    deactivate JTP
+
+    SC->>JTP: 6. getUserIdFromToken(token)
+    activate JTP
+    JTP-->>SC: 7. userId
+    deactivate JTP
+
+    SC->>SS: 8. subscribe(userId)
+    activate SS
+    SS->>SS: 9. Create SseEmitter (timeout=30min)
+    SS->>SS: 10. Add to emitters map
+    SS->>SS: 11. Register onCompletion/onTimeout/onError callbacks
+    SS->>UI: 12. Send CONNECTED event
+    SS-->>SC: 13. SseEmitter
+    deactivate SS
+    SC-->>UI: 14. SSE stream started (200 OK)
+    deactivate SC
+    UI-->>U: 15. Connected (ready to receive events)
+    deactivate UI
+
+    Note over SS: Every 30 seconds
+    SS->>UI: 16. HEARTBEAT event
+    Note over UI: Connection stays alive
+```
+
+#### 4.15.4 Sequence Diagram: Push Notification via SSE
+
+```mermaid
+sequenceDiagram
+    participant BS as BookingService
+    participant SS as SseEmitterService
+    participant E1 as SseEmitter (Tab 1)
+    participant E2 as SseEmitter (Tab 2)
+    participant U1 as User Browser Tab 1
+    participant U2 as User Browser Tab 2
+
+    Note over BS: Booking status changed to CONFIRMED
+    BS->>BS: 1. Prepare event data
+    BS->>SS: 2. pushToUser(userId, SseEventDto{type:"NOTIFICATION", data:{...}})
+    activate SS
+
+    SS->>SS: 3. Get all emitters for userId
+    alt User has 2 active connections
+        SS->>E1: 4a. send(event: "NOTIFICATION", data: {...})
+        activate E1
+        E1->>U1: 5a. Dispatch event
+        activate U1
+        U1->>U1: 6a. Show notification badge
+        deactivate U1
+        deactivate E1
+
+        SS->>E2: 4b. send(event: "NOTIFICATION", data: {...})
+        activate E2
+        E2->>U2: 5b. Dispatch event
+        activate U2
+        U2->>U2: 6b. Show notification badge
+        deactivate U2
+        deactivate E2
+    else Connection error on Tab 2
+        SS->>E2: 7. send(event) throws IOException
+        SS->>SS: 8. removeEmitter(userId, E2)
+        SS->>SS: 9. E2.complete()
+    end
+    deactivate SS
+```
+
+#### 4.15.5 Sequence Diagram: Connection Timeout
+
+```mermaid
+sequenceDiagram
+    participant UI as Web Dashboard
+    participant E as SseEmitter
+    participant SS as SseEmitterService
+
+    Note over E: 30 minutes elapsed
+    E->>E: 1. Timeout triggered
+    E->>SS: 2. onTimeout() callback
+    activate SS
+    SS->>SS: 3. removeEmitter(userId, emitter)
+    SS->>SS: 4. Clean up empty list
+    deactivate SS
+    E->>UI: 5. EventSource error event
+    activate UI
+    UI->>UI: 6. Auto-reconnect (browser behavior)
+    UI->>SC: 7. GET /api/sse/subscribe?token=JWT
+    Note over UI: New connection created
+    deactivate UI
+```
+
+#### 4.15.6 Cross-Reference to SRS
+
+| Requirement | Description | Implementation |
+|------------|-------------|----------------|
+| FR-SSE-01 | Real-time notifications | `SseEmitterService.pushToUser()` |
+| FR-SSE-02 | Multi-tab support | `Map<UUID, List<SseEmitter>>` |
+| FR-SSE-03 | Connection heartbeat | `@Scheduled` task `sendHeartbeats()` |
+| FR-SSE-04 | Auto-reconnect on timeout | Browser EventSource auto-reconnect |
+| FR-SSE-05 | Shift update notifications | `pushToUser()` with `SHIFT_UPDATE` event |
+| NFR-SSE-01 | Connection timeout 30 minutes | `SSE_TIMEOUT` constant |
+| NFR-SSE-02 | Graceful disconnect | `onCompletion/onTimeout/onError` callbacks |
+
+---
+
+---
+
 ## 5. TECHNOLOGY STACK SUMMARY
+
 
 ### Frontend (petties-web)
 - **Framework:** React 19 + Vite (rolldown-vite)
@@ -5667,5 +6987,5 @@ sequenceDiagram
 ---
 
 **Prepared by:** Petties Development Team
-**Document Version:** 1.4.0
-**Last Updated:** 2026-01-22
+**Document Version:** 1.6.0 (Added FCM, File Upload, SSE, Extended SOS Architecture)
+**Last Updated:** 2026-02-21

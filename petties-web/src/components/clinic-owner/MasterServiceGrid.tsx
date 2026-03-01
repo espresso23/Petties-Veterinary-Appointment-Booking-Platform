@@ -16,7 +16,6 @@ import {
   deleteMasterService,
 } from '../../services/endpoints/masterService'
 import { inheritFromMasterService } from '../../services/endpoints/service'
-import { getServicesByClinicId } from '../../services/endpoints/service'
 import { useToast } from '../Toast'
 import { ClinicSelectModal } from './ClinicSelectModal'
 import type { ClinicApplyItem } from './ClinicSelectModal'
@@ -88,7 +87,7 @@ export function MasterServiceGrid() {
       const service = await getMasterServiceById(id)
       setSelectedService(service)
       setIsModalOpen(true)
-    } catch (err) {
+    } catch {
       showToast('error', 'Không thể tải thông tin dịch vụ mẫu')
     }
   }
@@ -132,7 +131,7 @@ export function MasterServiceGrid() {
     }
   }
 
-  const handleSaveService = async (serviceData: any) => {
+  const handleSaveService = async (serviceData: MasterServiceRequest) => {
     try {
       setIsSubmitting(true)
       const requestData: MasterServiceRequest = {
@@ -166,11 +165,13 @@ export function MasterServiceGrid() {
 
       setIsModalOpen(false)
       setSelectedService(null)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save master service:', err)
-      const serverMessage = err.response?.data?.message || (selectedService
-        ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
-        : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
+      const serverMessage = err instanceof Error && 'response' in err && typeof err.response === 'object' && err.response !== null && 'data' in err.response && typeof err.response.data === 'object' && err.response.data !== null && 'message' in err.response.data
+        ? String(err.response.data.message)
+        : (selectedService
+          ? 'Không thể cập nhật dịch vụ mẫu. Vui lòng thử lại.'
+          : 'Không thể tạo dịch vụ mẫu. Vui lòng thử lại.')
       showToast('error', serverMessage)
     } finally {
       setIsSubmitting(false)
@@ -307,7 +308,7 @@ export function MasterServiceGrid() {
 
                     try {
                       // Prepare promises for applying master services
-                      const promises: Promise<any>[] = []
+                      const promises: Promise<unknown>[] = []
 
                       // Prefetch missing per-km prices for clinics that didn't provide one using dedicated endpoint
                       const clinicsNeedingFetch = selectedClinics.filter(c => c.clinicPricePerKm === undefined || c.clinicPricePerKm === null)
@@ -319,14 +320,8 @@ export function MasterServiceGrid() {
                             fetchedPriceMap[c.clinicId] = p
                             return
                           }
-                          // fallback: try to infer from existing services
-                          try {
-                            const existingServices = await getServicesByClinicId(c.clinicId)
-                            const hv = existingServices.find(s => s.isHomeVisit && s.pricePerKm && Number(s.pricePerKm) > 0)
-                            if (hv && hv.pricePerKm) fetchedPriceMap[c.clinicId] = hv.pricePerKm
-                          } catch (err2) {
-                            console.warn('Failed to fetch existing services for clinic', c.clinicId, err2)
-                          }
+                          // Note: pricePerKm has been removed from ClinicServiceResponse
+                          // Fallback is no longer available - use clinic-level setting only
                         } catch (err) {
                           console.warn('Failed to fetch price-per-km for clinic', c.clinicId, err)
                         }
@@ -347,8 +342,8 @@ export function MasterServiceGrid() {
                       // Reset selection
                       setSelectedServiceIds(new Set())
                       setIsApplyMode(false)
-                    } catch (error) {
-                      console.error('Failed to apply master services:', error)
+                    } catch (err) {
+                      console.error('Failed to apply master services:', err)
                       showToast('error', 'Có lỗi xảy ra khi áp dụng dịch vụ mẫu. Vui lòng thử lại.')
                     }
                   }}

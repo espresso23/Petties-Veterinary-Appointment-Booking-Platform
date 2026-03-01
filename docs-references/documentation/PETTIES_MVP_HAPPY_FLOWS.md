@@ -264,7 +264,7 @@
 
 ```
 BOOKING:
-PENDING → ASSIGNED → CONFIRMED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → ASSIGNED → CONFIRMED → ON_THE_WAY → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
 
 PAYMENT:
 UNPAID (Cash) → PAID (after checkout)
@@ -737,14 +737,16 @@ PUT /api/bookings/B001/location
 
 ---
 
-#### Phase 4: Thông Báo Sắp Đến
+#### Phase 4: Thông Báo Sắp Đến & Tự Động Ngưng Tracking
 
-**Actor:** System
+**Actor:** System, Pet Owner (Mobile)
 
 ```
-Khi khoảng cách <= 500m:
-  1. System detect: Staff sắp đến nơi
-  2. Trigger notification → Pet Owner
+1. Khi khoảng cách <= 500m:
+   - System gởi notification: "Nhân viên sắp đến!"
+2. Khi Staff nhấn "ĐÃ ĐẾN NƠI" (Phase 5) hoặc hệ thống phát hiện `arrivedAt` được set:
+   - App Pet Owner (polling mỗi 15s) tự động cancel Timer polling và unsubscribe WebSocket tracking.
+   - Giao diện tracking chuyển từ "Bác sĩ đang trên đường" sang "✅ Bác sĩ đã đến và đang hỗ trợ thú cưng của bạn".
 ```
 
 **Push Notification:**
@@ -759,110 +761,54 @@ Khi khoảng cách <= 500m:
 }
 ```
 
-**Pet Owner App:**
-```
-┌─────────────────────────────────────────┐
-│ 🔔 THÔNG BÁO                           │
-├─────────────────────────────────────────┤
-│ 🚗 Dr. Minh sắp đến!                   │
-│ Còn ~500m • 2 phút nữa                 │
-│                                         │
-│ Vui lòng chuẩn bị đón nhân viên.          │
-│         [XEM BẢN ĐỒ]                    │
-└─────────────────────────────────────────┘
-```
-
 ---
 
-#### Phase 5: Thông Báo Đến Nơi
+#### Phase 5: Đến Nơi & Checkout (Xác nhận & Thu phí)
 
 **Actor:** Staff (Mobile)
 
 ```
-1. Staff đến địa chỉ khách hàng
-2. App hiển thị popup:
-   ┌─────────────────────────────────────────┐
-   │ 📍 BẠN ĐÃ ĐẾN ĐỊA CHỈ                  │
-   ├─────────────────────────────────────────┤
-   │ 123 Nguyễn Văn Linh, Q.7               │
-   │                                         │
-   │ Xác nhận để thông báo cho chủ pet.     │
-   │                                         │
-   │         [✅ ĐÃ ĐẾN NƠI]                 │
-   └─────────────────────────────────────────┘
-
-3. Staff click "Đã đến nơi"
+1. Staff đến địa chỉ khách hàng.
+2. Staff nhấn nút "ĐÃ ĐẾN NƠI" trên App:
+   - App Staff tự động dừng background GPS tracking.
+   - Gọi API /arrived → cập nhật `arrivedAt` trong database.
+   - Badge "Đã đến nơi ✓" hiện thị màu xanh trên màn hình detail.
+3. Sau khi hỗ trợ thú cưng xong, Staff nhấn "THANH TOÁN":
+   - Checkout Confirmation Dialog hiện lên với đầy đủ thông tin:
+     + Thông tin khách hàng (Tên, SĐT, Địa chỉ).
+     + Thông tin thú cưng.
+     + Danh sách dịch vụ phát sinh đã thêm.
+     + Phí SOS & Phí di chuyển (từ cấu hình clinic).
+     + Tổng tiền in đậm.
+4. Staff xác nhận → Booking status: di chuyển từ CONFIRMED sang IN_PROGRESS (từ hành động startMoving) và kết thúc tại COMPLETED (sau checkout).
 ```
-
-**System Actions:**
-```sql
--- 1. Notify Pet Owner
-INSERT INTO notifications (user_id, type, title, content)
-VALUES ([PetOwner_id], 'BOOKING', 'Nhân viên đã đến!', 
-        'Dr. Minh đã đến địa chỉ nhà bạn. Vui lòng ra đón.');
-```
-
-**Pet Owner App:**
-```
-┌─────────────────────────────────────────┐
-│ 🎉 BÁC SĨ ĐÃ ĐẾN!                      │
-├─────────────────────────────────────────┤
-│ 👨‍⚕️ Dr. Minh đã đến địa chỉ của bạn.    │
-│                                         │
-│ Vui lòng ra đón nhân viên.                │
-│                                         │
-│   [📞 GỌI ĐIỆN]    [💬 NHẮN TIN]        │
-└─────────────────────────────────────────┘
-```
+ 
+ **System Actions:**
+ ```sql
+ -- 1. Notify Pet Owner
+ INSERT INTO notifications (user_id, type, title, content)
+ VALUES ([PetOwner_id], 'BOOKING', 'Bắt đầu cứu hộ/khám', 
+         'Dr. Minh đã đến và bắt đầu quá trình hỗ trợ thú cưng của bạn.');
+ ```
 
 ---
 
-#### Phase 6: Check-in Tại Nhà
+### 14.3 Status Flow (Home Visit & SOS)
 
-**Actor:** Staff (Mobile)
-
-```
-1. Pet Owner ra đón nhân viên
-2. Staff gặp pet và owner
-3. Staff click "Check-in" trên app:
-   ┌─────────────────────────────────────────┐
-   │ 🏠 HOME VISIT CHECK-IN                  │
-   ├─────────────────────────────────────────┤
-   │ Xác nhận bạn đã gặp chủ pet và thú cưng│
-   │                                         │
-   │         [✅ CHECK-IN]                   │
-   └─────────────────────────────────────────┘
-
-4. Booking status: ON_THE_WAY → CHECK_IN
-5. GPS tracking STOPPED (không cần track nữa)
+```mermaid
+graph TD
+    PENDING[PENDING/SEARCHING] --> CONFIRMED[CONFIRMED]
+    CONFIRMED -- "Action: startMoving / checkIn" --> IN_PROGRESS[IN_PROGRESS]
+    IN_PROGRESS -- "Action: arrived (Update arrivedAt)" --> IN_PROGRESS
+    IN_PROGRESS -- "Action: checkout + payment" --> COMPLETED[COMPLETED]
+    
+    CONFIRMED -.-> CANCELLED[CANCELLED]
+    IN_PROGRESS -.-> CANCELLED
 ```
 
-**Database Changes:**
-```sql
-UPDATE bookings SET 
-    status = 'CHECK_IN',
-    vet_current_lat = NULL,  -- Clear tracking data
-    vet_current_long = NULL
-WHERE id = 'B001';
-```
-
----
-
-### 14.3 Status Flow (Home Visit)
-
-```
-CONFIRMED
-    ↓ (Staff click "Bắt đầu di chuyển")
-ON_THE_WAY  ← GPS tracking ACTIVE
-    ↓ (Staff click "Check-in")
-CHECK_IN    ← GPS tracking STOPPED
-    ↓ (Bắt đầu khám)
-IN_PROGRESS
-    ↓ (Hoàn thành khám)
-CHECK_OUT
-    ↓ (Payment confirmed)
-COMPLETED
-```
+> [!IMPORTANT]
+> `ON_THE_WAY` and `CHECK_OUT` are NOT official statuses in the database. 
+> They are UI states or logical actions that happen while the Booking is in `IN_PROGRESS` or transitioning to it.
 
 ---
 
@@ -871,7 +817,7 @@ COMPLETED
 | Field | Type | Description |
 |-------|------|-------------|
 | `booking.type` | ENUM | = 'HOME_VISIT' |
-| `booking.status` | ENUM | CONFIRMED → ON_THE_WAY → CHECK_IN → ... |
+| `booking.status` | ENUM | PENDING → CONFIRMED → IN_PROGRESS → COMPLETED |
 | `booking.home_address` | VARCHAR | Địa chỉ nhà khách |
 | `booking.vet_current_lat` | DECIMAL | Latitude hiện tại của Staff |
 | `booking.vet_current_long` | DECIMAL | Longitude hiện tại của Staff |
@@ -885,8 +831,7 @@ COMPLETED
 |-----------|--------------|---------|
 | Staff click "Bắt đầu di chuyển" | "Nhân viên đang đến!" | Pet Owner |
 | Khoảng cách <= 500m | "Nhân viên sắp đến!" | Pet Owner |
-| Staff click "Đã đến nơi" | "Nhân viên đã đến!" | Pet Owner |
-| Staff check-in | "Bắt đầu khám" | Pet Owner |
+| Staff check-in | "Bắt đầu cứu hộ/khám" | Pet Owner |
 
 ---
 

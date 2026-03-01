@@ -2,6 +2,7 @@ package com.petties.petties.dto.booking;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.petties.petties.model.enums.BookingType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Request DTO for creating a new booking
+ * Request DTO for creating a new booking.
+ * Supports single-pet (petId + serviceIds) and multi-pet (items: list of pet + serviceIds).
  */
 @Data
 @Builder
@@ -23,28 +25,36 @@ import java.util.UUID;
 @AllArgsConstructor
 public class BookingRequest {
 
-    @NotNull(message = "Pet ID is required")
+    /**
+     * Single-pet mode: one pet for the whole booking. Required when items is null or empty.
+     */
     private UUID petId;
 
-    @NotNull(message = "Clinic ID is required")
+    @NotNull(message = "Mã phòng khám không được để trống")
     private UUID clinicId;
 
-    @NotNull(message = "Booking date is required")
+    @NotNull(message = "Ngày đặt lịch không được để trống")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate bookingDate;
 
-    @NotNull(message = "Booking time is required")
+    @NotNull(message = "Giờ đặt lịch không được để trống")
     @JsonFormat(pattern = "HH:mm")
     private LocalTime bookingTime;
 
-    @NotNull(message = "Booking type is required")
+    @NotNull(message = "Loại lịch hẹn không được để trống")
     private BookingType type;
 
     /**
-     * List of service IDs to book
+     * Single-pet mode: list of service IDs. Required when items is null or empty.
      */
-    @NotNull(message = "At least one service is required")
     private List<UUID> serviceIds;
+
+    /**
+     * Multi-pet mode: each item = one pet + list of service IDs.
+     * When non-null and non-empty, items is used and petId/serviceIds are ignored.
+     */
+    @Valid
+    private List<PetServiceItemRequest> items;
 
     /**
      * For Home Visit / SOS bookings

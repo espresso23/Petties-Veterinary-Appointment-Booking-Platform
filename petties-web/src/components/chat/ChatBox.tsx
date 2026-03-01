@@ -186,7 +186,7 @@ export function ChatBox({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [showImageGallery, setShowImageGallery] = useState(false)
-  const [galleryImages, setGalleryImages] = useState<any[]>([])
+  const [galleryImages, setGalleryImages] = useState<{ url: string; timestamp: string; sender: string; id: string }[]>([])
   const [galleryPage, setGalleryPage] = useState(0)
   const [galleryHasMore, setGalleryHasMore] = useState(false)
   const [galleryLoading, setGalleryLoading] = useState(false)
@@ -338,7 +338,7 @@ export function ChatBox({
   }
 
   // Handle click on image in ImageGroup
-  const handleImageGroupClick = (imageUrl: string, _groupMessages?: ChatMessage[]) => {
+  const handleImageGroupClick = (imageUrl: string) => {
     // Always show counter in total conversation images
     const allImages = displayMessages.filter(msg => msg.messageType === 'IMAGE' && msg.imageUrl)
     const idx = allImages.findIndex(img => img.imageUrl === imageUrl)

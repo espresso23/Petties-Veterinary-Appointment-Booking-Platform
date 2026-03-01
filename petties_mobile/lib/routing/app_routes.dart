@@ -24,11 +24,13 @@ class AppRoutes {
   static const String staffSchedule = '/staff/schedule';
   static const String staffBookings = '/staff/bookings';
   static const String staffBookingDetail = '/staff/booking/:bookingId';
+  static const String staffAddService = '/staff/booking/:bookingId/add-service';
 
   // STAFF Patient Routes
   static const String staffPatients = '/staff/patients';
   static const String staffPatientDetail = '/staff/patients/:petId';
-  static const String staffVaccinationForm = '/staff/patients/:petId/vaccination/add';
+  static const String staffVaccinationForm =
+      '/staff/patients/:petId/vaccination/add';
 
   // STAFF EMR Routes
   static const String staffCreateEmr = '/staff/emr/create/:petId';
@@ -41,7 +43,9 @@ class AppRoutes {
 
   // Booking Flow (Pet Owner)
   static const String bookingSelectPet = '/booking/:clinicId/pet';
-  static const String bookingSelectServices = '/booking/services';
+  static const String bookingForOthersInfo =
+      '/booking/:clinicId/for-others-info';
+  static const String bookingSelectServices = '/booking/:clinicId/services';
   static const String bookingSelectDateTime = '/booking/datetime';
   static const String bookingConfirm = '/booking/confirm';
   static const String bookingSuccess = '/booking/success';
@@ -66,10 +70,14 @@ class AppRoutes {
   static const String chatList = '/chat';
   static const String chatDetail = '/chat/detail';
 
+  // SOS Emergency Booking (Pet Owner)
+  static const String sosRequest = '/sos/request';
+  static const String sosMatching = '/sos/matching';
+  static const String sosTracking = '/sos/tracking/:bookingId';
+
   // Other
   static const String aboutUs = '/about';
   static const String termsOfService = '/terms';
   static const String privacyPolicy = '/privacy';
   static const String help = '/help';
 }
-

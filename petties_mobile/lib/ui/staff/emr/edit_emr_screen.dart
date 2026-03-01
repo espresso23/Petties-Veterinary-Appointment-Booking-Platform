@@ -141,15 +141,11 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
   // Prescription Form State
       // Prescriptions
-      if (emr.prescriptions != null) {
-        _prescriptions = List.from(emr.prescriptions!);
-      }
-
+      _prescriptions = List.from(emr.prescriptions);
+    
       // Images
-      if (emr.images != null) {
-        _images = List.from(emr.images!);
-      }
-
+      _images = List.from(emr.images);
+    
       // Client-side lock check (backup for backend timezone issues)
       final now = DateTime.now();
       final createdAt = emr.createdAt;
@@ -776,7 +772,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                           offset: const Offset(0, 40),
                           onSelected: (newValue) {
                              setState(() {
-                               _reExamUnit = newValue!;
+                               _reExamUnit = newValue;
                                _updateReExamDate();
                              });
                           },

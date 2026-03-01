@@ -18,7 +18,9 @@ export function ImageCropper({ imageUrl, aspectRatio = 1, onCancel, onSave }: Im
 
     // Reset state when image changes
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setScale(1)
+         
         setPosition({ x: 0, y: 0 })
     }, [imageUrl])
 

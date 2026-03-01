@@ -124,7 +124,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 
 ## Design System
 
-**Style: Soft Neobrutalism** (Updated January 2025)
+**Style: Soft Neobrutalism** (Updated March 2025)
 
 Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thiện hơn.
 
@@ -161,7 +161,7 @@ Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thi�
 - **No border-radius > 12px** except for badges/avatars (use `rounded-full`)
 - **No blur shadows** - always offset shadows only
 - CSS file: `petties-web/src/styles/brutalist.css`
-- Style guide: `docs-references/design/design-style-guide.md`
+- Style guide: `docs-references/design/design-style-guide.md` (Reference Implementation: Sidebar, typography scale nav/sidebar, icon system)
 
 ## Vietnamese-Only Rule (User-Facing Text)
 
@@ -406,4 +406,4 @@ flowchart TD
 - `docs-references/deployment/TEST_ENVIRONMENT_SETUP.md` - Test Env setup guide
 
 **Design:**
-- `docs-references/design/design-style-guide.md` - Neobrutalism UI guide
+- `docs-references/design/design-style-guide.md` - Soft Neobrutalism UI guide; Reference Implementation: Sidebar (UI/UX, typography, icon)

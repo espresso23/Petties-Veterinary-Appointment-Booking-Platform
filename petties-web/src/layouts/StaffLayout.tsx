@@ -33,8 +33,8 @@ export const StaffLayout = () => {
         onBookingUpdate: (data) => {
             console.log('[StaffLayout] Booking update received:', data)
             // Refresh booking count when booking is assigned to this staff
-            if (data.action === 'ASSIGNED') {
-                // For ASSIGNED action, just refresh the count (the staff received this because they were assigned)
+            if (data.action === 'CONFIRMED') {
+                // For CONFIRMED action, just refresh the count (the staff received this because they were assigned)
                 if (user?.userId) {
                     refreshAssignedBookingCount(user.userId)
                 }
@@ -94,7 +94,7 @@ export const StaffLayout = () => {
     }
 
     return (
-        <div className="h-screen bg-stone-50 flex overflow-hidden">
+        <div className="h-screen h-screen-safe min-h-screen-safe bg-stone-50 flex overflow-hidden safe-area-padding">
             <Sidebar
                 groups={navGroups}
                 user={user}

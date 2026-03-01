@@ -81,11 +81,26 @@ class Environment {
   static String get flavor => _flavor;
 
   /// AI Service URL
+  /// Priority: AI_SERVICE_URL from .env > same as baseUrl (for ngrok/nginx setup) > default localhost
   static String get _devAiServiceUrl {
-
-    if (Platform.isAndroid) {
-      return 'http://localhost:8000';
+    // 1. Priority: AI_SERVICE_URL from .env file
+    if (dotenv.isInitialized &&
+        dotenv.env['AI_SERVICE_URL'] != null &&
+        dotenv.env['AI_SERVICE_URL']!.isNotEmpty) {
+      return dotenv.env['AI_SERVICE_URL']!;
     }
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:8000';
+    }
+
+    // 2. If using ngrok with nginx reverse proxy, AI service uses same base URL
+    // Backend: /api/*, AI: /* (root paths)
+    final base = _devBaseUrl.replaceAll('/api', '');
+    if (!base.contains('localhost') && !base.contains('10.0.2.2')) {
+      return base;
+    }
+
+    // 3. Fallback to localhost
     return 'http://localhost:8000';
   }
 

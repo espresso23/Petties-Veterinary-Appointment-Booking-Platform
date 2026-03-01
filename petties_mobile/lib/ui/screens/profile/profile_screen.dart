@@ -211,8 +211,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: _buildAppBar(),
-      body: Consumer<UserProvider>(
-        builder: (context, userProvider, child) {
+      body: SafeArea(
+        child: Consumer<UserProvider>(
+          builder: (context, userProvider, child) {
           if (userProvider.isLoading) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
@@ -224,7 +225,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           return _buildProfileContent(userProvider);
-        },
+          },
+        ),
       ),
     );
   }

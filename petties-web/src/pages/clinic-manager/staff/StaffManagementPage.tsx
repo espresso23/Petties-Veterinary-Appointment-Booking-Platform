@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../../store/authStore'
 import { clinicStaffService } from '../../../services/api/clinicStaffService'
@@ -21,14 +21,7 @@ export function StaffManagementPage() {
     const clinicId = user?.workingClinicId
     const clinicName = user?.workingClinicName
 
-    useEffect(() => {
-        if (clinicId) {
-            fetchStaff()
-            console.log(clinicId)
-        }
-    }, [clinicId])
-
-    const fetchStaff = async () => {
+    const fetchStaff = useCallback(async () => {
         if (!clinicId) return
         setIsLoading(true)
         setError(null)
@@ -37,12 +30,19 @@ export function StaffManagementPage() {
             // Filter to show only STAFFs for Manager view
             const vets = data.filter((s) => s.role === 'STAFF')
             setStaff(vets)
-        } catch (err: any) {
+        } catch (err) {
             setError(err?.userMessage || err?.message || 'Không thể tải danh sách nhân viên')
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [clinicId])
+
+    useEffect(() => {
+        if (clinicId) {
+            fetchStaff()
+            console.log(clinicId)
+        }
+    }, [clinicId, fetchStaff])
 
     const handleAddStaff = async (data: InviteByEmailRequest) => {
         if (!clinicId) return
@@ -56,7 +56,7 @@ export function StaffManagementPage() {
         try {
             await clinicStaffService.removeStaff(clinicId, userId)
             await fetchStaff()
-        } catch (err: any) {
+        } catch (err) {
             setError(err?.userMessage || err?.message || 'Không thể xóa nhân viên')
         }
     }
@@ -154,7 +154,7 @@ export function StaffManagementPage() {
                 isOpen={editingMember !== null}
                 onClose={() => setEditingMember(null)}
                 onSubmit={handleUpdateSpecialty}
-                currentSpecialty={editingMember?.specialty || 'VET_GENERAL'}
+                currentSpecialty={editingMember?.specialty || 'VET'}
                 staffName={editingMember?.fullName || ''}
             />
         </div>

@@ -41,7 +41,7 @@ export const clinicStaffService = {
      * Assign an existing user as Staff
      */
     assignStaff: async (clinicId: string, usernameOrEmail: string): Promise<void> => {
-        await apiClient.post(`/clinics/${clinicId}/staff/staff/${encodeURIComponent(usernameOrEmail)}`)
+        await apiClient.post(`/clinics/${clinicId}/staff/assign/${encodeURIComponent(usernameOrEmail)}`)
     },
 
     /**

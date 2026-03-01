@@ -39,7 +39,7 @@ export function ChatPage() {
 
   // ======================== API CALLS ========================
 
-  const loadChatBoxes = async () => {
+  const loadChatBoxes = useCallback(async () => {
     try {
       setLoadingChatBoxes(true)
       const response = await chatService.getConversations(0, 50)
@@ -50,9 +50,9 @@ export function ChatPage() {
     } finally {
       setLoadingChatBoxes(false)
     }
-  }
+  }, [showToast])
 
-  const loadMessages = async (chatBoxId: string, page: number, reset = false) => {
+  const loadMessages = useCallback(async (chatBoxId: string, page: number, reset = false) => {
     try {
       setLoadingMessages(true)
       const response = await chatService.getMessages(chatBoxId, page, 50)
@@ -80,17 +80,17 @@ export function ChatPage() {
     } finally {
       setLoadingMessages(false)
     }
-  }
+  }, [showToast])
 
-  const loadMoreMessages = () => {
+  const loadMoreMessages = useCallback(() => {
     if (selectedChatBox && hasMoreMessages && !loadingMessages) {
       loadMessages(selectedChatBox.id, messagesPage + 1, false)
     }
-  }
+  }, [selectedChatBox, hasMoreMessages, loadingMessages, messagesPage, loadMessages])
 
   // ======================== WEBSOCKET ========================
 
-  const connectWebSocket = async () => {
+  const connectWebSocket = useCallback(async () => {
     try {
       await chatWebSocket.connect()
       setWsConnected(true)
@@ -100,7 +100,7 @@ export function ChatPage() {
       setWsConnected(false)
       showToast('error', 'Không thể kết nối real-time. Tin nhắn có thể bị trễ.')
     }
-  }
+  }, [showToast])
 
 
 
@@ -278,7 +278,7 @@ export function ChatPage() {
       // Don't disconnect WebSocket as layout needs it for global updates
       // chatWebSocket.disconnect()
     }
-  }, [])
+  }, [loadChatBoxes, refreshChatUnreadCount, connectWebSocket])
 
   // Subscribe to ALL chat boxes for realtime updates in the list
   useEffect(() => {
@@ -301,7 +301,8 @@ export function ChatPage() {
       console.log('[WS DEBUG] Unsubscribing from all chat boxes, count:', unsubscribes.length)
       unsubscribes.forEach(unsub => unsub())
     }
-  }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsConnected, chatBoxes.length])
 
   // Load messages and send online status for the selected chat box
   useEffect(() => {
@@ -321,6 +322,7 @@ export function ChatPage() {
         chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChatBox?.id, wsConnected])
 
   // ======================== HANDLERS ========================

@@ -40,7 +40,7 @@ export interface MasterServiceRequest {
 }
 
 export interface MasterServiceUpdateRequest extends Partial<MasterServiceRequest> {
-  // Same as create request but all fields optional
+  masterServiceId?: string // Add identifier for clarity
 }
 
 // NEW: Vaccine Dose Price DTO
@@ -65,7 +65,6 @@ export interface ClinicServiceResponse {
   slotsRequired: number
   isActive: boolean
   isHomeVisit: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   reminderInterval?: number
@@ -87,7 +86,6 @@ export interface ClinicServiceRequest {
   slotsRequired: number
   isActive?: boolean
   isHomeVisit?: boolean
-  pricePerKm?: number
   serviceCategory?: string
   petType?: string
   weightPrices?: WeightPriceDto[]
@@ -96,7 +94,7 @@ export interface ClinicServiceRequest {
 }
 
 export interface ClinicServiceUpdateRequest extends Partial<ClinicServiceRequest> {
-  // Same as create request but all fields optional
+  serviceId?: string // Add identifier for clarity
 }
 
 // NEW: Inherit Service Request

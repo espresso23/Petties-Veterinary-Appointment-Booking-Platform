@@ -2,9 +2,12 @@ package com.petties.petties.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -15,10 +18,13 @@ import java.util.UUID;
 @Entity
 @Table(name = "pets")
 @EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE pets SET deleted_at = CURRENT_TIMESTAMP WHERE pet_id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Pet {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -66,4 +72,31 @@ public class Pet {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * Soft delete timestamp - if not null, pet is considered deleted
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    /**
+     * Check if this pet has been soft deleted
+     */
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    /**
+     * Soft delete this pet
+     */
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Restore soft deleted pet
+     */
+    public void restore() {
+        this.deletedAt = null;
+    }
 }

@@ -5,7 +5,7 @@ import type { BookingStatus } from '../types/booking'
 interface BookingState {
   // Booking counts for sidebar badges
   pendingBookingCount: number  // For Manager: PENDING bookings count
-  assignedBookingCount: number // For Staff: ASSIGNED bookings count
+  assignedBookingCount: number // For Staff: CONFIRMED bookings count (assigned to them)
   isLoading: boolean
 
   // Actions
@@ -78,8 +78,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
   refreshAssignedBookingCount: async (staffId: string) => {
     try {
       set({ isLoading: true })
-      // Fetch ASSIGNED bookings count for Staff
-      const response = await getBookingsByStaff(staffId, 'ASSIGNED' as BookingStatus, 0, 1)
+      // Fetch CONFIRMED bookings count for Staff
+      const response = await getBookingsByStaff(staffId, 'CONFIRMED' as BookingStatus, 0, 1)
       set({ assignedBookingCount: response.totalElements, isLoading: false })
     } catch (error) {
       console.error('Failed to refresh assigned booking count:', error)

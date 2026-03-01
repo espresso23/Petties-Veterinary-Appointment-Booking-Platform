@@ -188,9 +188,9 @@ export const CreateEmrPage = () => {
             setErrors(prev => ({ ...prev, general: undefined }))
             const result = await emrService.uploadEmrImage(file)
             setImages([...images, { url: result.url }])
-        } catch (err: any) {
+        } catch (err) {
             console.error('Upload error:', err)
-            setErrors(prev => ({ ...prev, general: `Lỗi upload: ${err.response?.data?.message || err.message} ` }))
+            setErrors(prev => ({ ...prev, general: `Lỗi upload: ${err instanceof Error ? err.message : 'Lỗi upload ảnh'}` }))
         }
     }
 
@@ -269,9 +269,9 @@ export const CreateEmrPage = () => {
 
             showToast('success', 'Lưu Bệnh án thành công!')
             navigate(-1)
-        } catch (err: any) {
+        } catch (err) {
             // Parse backend error to show at correct field
-            const errorMsg = err.response?.data?.message || ''
+            const errorMsg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || ''
             const newErrors: FieldErrors = {}
 
             if (errorMsg.includes('pet') || errorMsg.includes('thú cưng')) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../routing/app_routes.dart';
 import '../../providers/notification_provider.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/models/booking.dart';
+import '../../utils/fcm_service.dart';
 
 /// Staff Home Screen - Redesigned based on Image 0
 /// Uses optimized single API call for home summary data
@@ -23,6 +25,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   bool _isLoading = true;
   StaffHomeSummaryResponse? _summary;
   String? _errorMessage;
+  StreamSubscription? _fcmSubscription;
 
   @override
   void initState() {
@@ -31,6 +34,21 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchData();
     });
+
+    // Listen for FCM messages to refresh home data
+    _fcmSubscription = FcmService().messageStream.listen((message) {
+      if (mounted) {
+        debugPrint(
+            'FCM message received in StaffHomeScreen, refreshing data...');
+        _fetchData();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _fcmSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
@@ -536,8 +554,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       );
     }
 
+    // Sort: SOS bookings first, then by original order
+    final sortedBookings = List<UpcomingBookingDTO>.from(upcomingBookings);
+    sortedBookings.sort((a, b) {
+      final aIsSos = a.type == 'SOS' ? 0 : 1;
+      final bIsSos = b.type == 'SOS' ? 0 : 1;
+      return aIsSos.compareTo(bIsSos);
+    });
+
     // Limit to 2 items for home screen
-    final displayBookings = upcomingBookings.take(2).toList();
+    final displayBookings = sortedBookings.take(2).toList();
 
     return Column(
       children: displayBookings.map((booking) {
@@ -550,16 +576,21 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
               endTime.isNotEmpty ? '$startTime - $endTime' : startTime;
         }
 
-        // Determine status tag
+        // Determine status tag - SOS takes priority
         String statusTag = 'BOOKED';
         Color tagColor = AppColors.warningLight;
         Color tagTextColor = AppColors.primaryDark;
 
-        if (booking.status == 'IN_PROGRESS') {
+        if (booking.type == 'SOS') {
+          statusTag = 'SOS CẤP CỨU';
+          tagColor = const Color(0xFFFCA5A5);
+          tagTextColor = const Color(0xFF991B1B);
+        } else if (booking.status == 'IN_PROGRESS') {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED' || booking.status == 'CONFIRMED') {
+        } else if (booking.status == 'ASSIGNED' ||
+            booking.status == 'CONFIRMED') {
           statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;
@@ -600,6 +631,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             tagTextColor: tagTextColor,
             dateDisplay: dateDisplay,
             isHomeVisit: booking.type == 'HOME_VISIT',
+            isSOS: booking.type == 'SOS',
           ),
         );
       }).toList(),
@@ -618,6 +650,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     required Color tagTextColor,
     String? dateDisplay,
     bool isHomeVisit = false,
+    bool isSOS = false,
   }) {
     return GestureDetector(
       onTap: bookingId != null
@@ -630,13 +663,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: isSOS ? Colors.red.shade50 : AppColors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.stone900, width: 2),
-          boxShadow: const [
+          border: Border.all(
+            color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+            width: isSOS ? 3 : 2,
+          ),
+          boxShadow: [
             BoxShadow(
-              color: AppColors.stone900,
-              offset: Offset(4, 4),
+              color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+              offset: const Offset(4, 4),
             )
           ],
         ),
@@ -646,9 +682,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                color: isHomeVisit ? AppColors.infoLight : AppColors.stone100,
+                color: isSOS
+                    ? Colors.red.shade100
+                    : isHomeVisit
+                        ? AppColors.infoLight
+                        : AppColors.stone100,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.stone900, width: 1.5),
+                border: Border.all(
+                  color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+                  width: 1.5,
+                ),
               ),
               child: Column(
                 children: [
@@ -658,13 +701,24 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color:
-                            isHomeVisit ? AppColors.info : AppColors.stone600,
+                        color: isSOS
+                            ? Colors.red.shade700
+                            : isHomeVisit
+                                ? AppColors.info
+                                : AppColors.stone600,
                       ),
                     ),
                   Icon(
-                    isHomeVisit ? Icons.home : Icons.pets,
-                    color: isHomeVisit ? AppColors.info : AppColors.stone500,
+                    isSOS
+                        ? Icons.emergency_rounded
+                        : isHomeVisit
+                            ? Icons.home
+                            : Icons.pets,
+                    color: isSOS
+                        ? Colors.red.shade700
+                        : isHomeVisit
+                            ? AppColors.info
+                            : AppColors.stone500,
                     size: 20,
                   ),
                 ],

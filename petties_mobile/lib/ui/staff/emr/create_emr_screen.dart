@@ -59,8 +59,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   // Dynamic Re-exam Input
   final _reExamAmountController = TextEditingController(text: '1');
   String _reExamUnit = 'Tuần'; // Ngày, Tuần, Tháng, Năm
-  List<Prescription> _prescriptions = [];
-  List<EmrImage> _images = [];
+  final List<Prescription> _prescriptions = [];
+  final List<EmrImage> _images = [];
   bool _isSubmitting = false;
   bool _isEditingPrescription = false;
 

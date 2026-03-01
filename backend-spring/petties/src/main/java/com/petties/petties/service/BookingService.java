@@ -5,37 +5,53 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
+import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest;
+import com.petties.petties.dto.booking.PetServiceItemRequest;
+import com.petties.petties.dto.booking.ProxyBookingRequest;
+import com.petties.petties.dto.booking.ProxyPetInfo;
+import com.petties.petties.dto.booking.ProxyPetServiceItem;
+import com.petties.petties.dto.booking.ProxyRecipientInfo;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
 import com.petties.petties.dto.booking.StaffHomeSummaryResponse;
-import com.petties.petties.dto.sse.SseEventDto;
+import com.petties.petties.dto.booking.UpcomingBookingDTO;
+import com.petties.petties.dto.booking.EstimatedCompletionRequest.PetEstimation;
+import com.petties.petties.dto.clinicService.ClinicServiceResponse;
+import com.petties.petties.exception.BadRequestException;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
-import com.petties.petties.dto.booking.UpcomingBookingDTO;
 import com.petties.petties.model.Clinic;
+import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.petties.petties.dto.booking.EstimatedCompletionResponse;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.Period;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.AbstractMap;
+import com.petties.petties.model.OperatingHours;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -58,99 +74,318 @@ public class BookingService {
         private final SseEmitterService sseEmitterService;
         private final EmrRecordRepository emrRecordRepository;
         private final VaccinationService vaccinationService;
+        private final BookingMapper bookingMapper;
+        private final BookingNotificationService bookingNotificationService;
+        private final SosSessionManager sosSessionManager;
+        private final TrackingService trackingService;
+
+        // ========== HELPER METHODS ==========
+
+        /**
+         * Get current user by userId (helper method for Controller to avoid direct
+         * Repository access)
+         *
+         * @param userId User ID from JWT token
+         * @return User entity
+         */
+        @Transactional(readOnly = true)
+        public User getCurrentUserById(UUID userId) {
+                return userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+        }
 
         // ========== CREATE BOOKING ==========
 
         /**
-         * Create a new booking (from pet owner)
+         * Create a new booking (from pet owner).
+         * Supports single-pet (petId + serviceIds) and multi-pet (items: list of petId + serviceIds).
          */
         @Transactional
         public BookingResponse createBooking(BookingRequest request, UUID petOwnerId) {
-                log.info("Creating booking for pet {} at clinic {}", request.getPetId(), request.getClinicId());
+                log.info("Creating booking at clinic {}", request.getClinicId());
 
-                // Fetch services
                 try {
-                        log.info("Starting createBooking for clinic: {}, pet: {}", request.getClinicId(),
-                                        request.getPetId());
+                        // Resolve (primaryPet, list of (pet, service)) and validate
+                        List<PetServiceItemRequest> items = request.getItems();
+                        boolean multiPet = items != null && !items.isEmpty();
 
-                        // Validate and fetch entities
-                        Pet pet = petRepository.findById(request.getPetId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
-                        log.debug("Pet found: {}", pet.getId());
+                        if (multiPet) {
+                                if (items.stream().anyMatch(
+                                                it -> it.getPetId() == null || it.getServiceIds() == null
+                                                                || it.getServiceIds().isEmpty())) {
+                                        throw new BadRequestException(
+                                                        "Mỗi mục phải có mã thú cưng và ít nhất một dịch vụ");
+                                }
+                        } else {
+                                if (request.getPetId() == null || request.getServiceIds() == null
+                                                || request.getServiceIds().isEmpty()) {
+                                        throw new BadRequestException(
+                                                        "Vui lòng gửi mã thú cưng và danh sách dịch vụ, hoặc dùng items cho đặt nhiều thú cưng");
+                                }
+                        }
 
                         User petOwner = userRepository.findById(petOwnerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Pet owner not found"));
-                        log.debug("Pet owner found: {}", petOwner.getUserId());
-
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
-                                        .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
-                        log.debug("Clinic found: {}", clinic.getClinicId());
-                        List<com.petties.petties.model.ClinicService> services = clinicServiceRepository
-                                        .findAllById(request.getServiceIds());
-                        if (services.isEmpty()) {
-                                throw new IllegalArgumentException("At least one valid service is required");
-                        }
-                        if (services.size() != request.getServiceIds().size()) {
-                                throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
-                        }
-                        log.debug("Found {} services", services.size());
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
-                        // Home Visit Validation: All services must support home visits and share the
-                        // same specialty
-                        if (request.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                        || request.getType() == com.petties.petties.model.enums.BookingType.SOS) {
-                                log.debug("Booking type is HOME_VISIT or SOS, performing home visit validations.");
+                        List<Pet> petsToUse = new ArrayList<>();
+                        List<ClinicService> servicesToUse = new ArrayList<>();
+                        UUID primaryPetId;
 
-                                // 1. Check isHomeVisit flag
-                                List<String> ineligibleServices = services.stream()
+                        if (multiPet) {
+                                primaryPetId = items.get(0).getPetId();
+                                Set<UUID> allServiceIds = new java.util.HashSet<>();
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId())
+                                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                                        "Không tìm thấy thú cưng: " + it.getPetId()));
+                                        if (!p.getUser().getUserId().equals(petOwnerId)) {
+                                                throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                        }
+                                        allServiceIds.addAll(it.getServiceIds());
+                                }
+                                List<ClinicService> clinicServices = clinicServiceRepository.findAllById(allServiceIds);
+                                Map<UUID, ClinicService> serviceMap = clinicServices.stream()
+                                                .collect(Collectors.toMap(ClinicService::getServiceId, s -> s));
+                                for (PetServiceItemRequest it : items) {
+                                        Pet p = petRepository.findById(it.getPetId()).orElseThrow();
+                                        for (UUID sid : it.getServiceIds()) {
+                                                ClinicService svc = serviceMap.get(sid);
+                                                if (svc == null) {
+                                                        throw new ResourceNotFoundException("Dịch vụ không tồn tại: " + sid);
+                                                }
+                                                if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                        throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                                }
+                                                petsToUse.add(p);
+                                                servicesToUse.add(svc);
+                                        }
+                                }
+                        } else {
+                                Pet pet = petRepository.findById(request.getPetId())
+                                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
+                                if (!pet.getUser().getUserId().equals(petOwnerId)) {
+                                        throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                }
+                                primaryPetId = pet.getId();
+                                List<ClinicService> services = clinicServiceRepository.findAllById(request.getServiceIds());
+                                if (services.isEmpty()) {
+                                        throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
+                                }
+                                if (services.size() != request.getServiceIds().size()) {
+                                        throw new ResourceNotFoundException("Một số dịch vụ không tồn tại");
+                                }
+                                for (ClinicService s : services) {
+                                        if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                                throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                        }
+                                        petsToUse.add(pet);
+                                        servicesToUse.add(s);
+                                }
+                        }
+
+                        Pet primaryPet = petRepository.findById(primaryPetId).orElseThrow();
+
+                        // Home Visit Validation
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = servicesToUse.stream()
                                                 .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
-                                                .map(com.petties.petties.model.ClinicService::getName)
+                                                .map(ClinicService::getName)
                                                 .collect(Collectors.toList());
-
                                 if (!ineligibleServices.isEmpty()) {
-                                        throw new IllegalArgumentException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
                                                         + String.join(", ", ineligibleServices));
                                 }
-                                log.debug("All services support home visits.");
-
-                                // 2. Check specialty consistency
-                                // REMOVED: Allow multi-specialty for Home Visit as requested.
-                                // StaffAssignmentService will handle assigning multiple staff if needed.
-                                log.debug("Multi-specialty check skipped for Home Visit to support multi-staff assignment.");
                         }
 
-                        // Generate booking code
-                        long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(),
-                                        request.getBookingDate())
-                                        + 1;
-                        String bookingCode = Booking.generateBookingCode(request.getBookingDate(), (int) sequence);
-                        log.debug("Generated booking code: {}", bookingCode);
-
-                        // Calculate total price using PricingService
-                        // 1. Sum weight-based prices for all services
+                        // Calculate total price: sum over (pet, service) with weight-based price
                         BigDecimal servicesTotal = BigDecimal.ZERO;
-                        for (com.petties.petties.model.ClinicService service : services) {
-                                BigDecimal servicePrice = pricingService.calculateServicePrice(service, pet);
-                                servicesTotal = servicesTotal.add(servicePrice);
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService svc = servicesToUse.get(i);
+                                servicesTotal = servicesTotal.add(pricingService.calculateServicePrice(svc, p));
                         }
                         log.debug("Services total price: {}", servicesTotal);
 
-                        // 2. Calculate single distance fee for the whole booking
+                        // 2. Calculate distance fee or SOS fee
                         BigDecimal distanceKm = request.getDistanceKm();
-                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(services, distanceKm,
-                                        request.getType());
-                        log.debug("Distance fee calculated: {}", distanceFee);
+                        BigDecimal distanceFee = BigDecimal.ZERO;
+                        BigDecimal sosFee = BigDecimal.ZERO;
+
+                        if (request.getType() == BookingType.SOS) {
+                                sosFee = pricingService.calculateSOSFee(clinic.getClinicId());
+                                log.debug("SOS fee calculated: {}", sosFee);
+                        } else {
+                                distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(),
+                                                distanceKm,
+                                                request.getType());
+                                log.debug("Distance fee calculated: {}", distanceFee);
+                        }
 
                         // 3. Final total
-                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
-                        log.info("Total booking price: {} (services: {} + distance fee: {})", totalPrice, servicesTotal,
-                                        distanceFee);
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee).add(sosFee);
+                        log.info("Total booking price: {} (services: {} + distance: {} + SOS: {})",
+                                        totalPrice, servicesTotal, distanceFee, sosFee);
 
-                        // Build booking entity
                         Booking booking = Booking.builder()
-                                        .bookingCode(bookingCode)
-                                        .pet(pet)
+                                        .pet(primaryPet)
                                         .petOwner(petOwner)
+                                        .clinic(clinic)
+                                        .bookingDate(request.getBookingDate())
+                                        .bookingTime(request.getBookingTime())
+                                        .type(request.getType())
+                                        .totalPrice(totalPrice)
+                                        .distanceFee(distanceFee)
+                                        .sosFee(sosFee)
+                                        .status(BookingStatus.PENDING)
+                                        .notes(request.getNotes())
+                                        .homeAddress(request.getHomeAddress())
+                                        .homeLat(request.getHomeLat())
+                                        .homeLong(request.getHomeLong())
+                                        .distanceKm(distanceKm)
+                                        .build();
+
+                        for (int i = 0; i < servicesToUse.size(); i++) {
+                                Pet p = petsToUse.get(i);
+                                ClinicService service = servicesToUse.get(i);
+                                BigDecimal basePrice = service.getBasePrice();
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, p);
+                                BookingServiceItem item = BookingServiceItem.builder()
+                                                .booking(booking)
+                                                .pet(p)
+                                                .service(service)
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
+                                                .quantity(1)
+                                                .isAddOn(false)
+                                                .build();
+                                booking.getBookingServices().add(item);
+                        }
+                        log.debug("Services added to booking object");
+
+                        // Generate unique booking code using UUID (no race condition)
+                        String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
+                        booking.setBookingCode(bookingCode);
+
+                        Booking savedBooking = bookingRepository.save(booking);
+                        log.info("Booking created successfully: {}", savedBooking.getBookingCode());
+
+                        // ========== NOTIFICATION AFTER SUCCESSFUL SAVE ==========
+                        try {
+                                notificationService.sendBookingNotificationToClinic(savedBooking);
+                                log.debug("Notification sent to clinic");
+                        } catch (Exception e) {
+                                log.error("Failed to send notification (non-blocking): {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(savedBooking);
+                } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        // Let GlobalExceptionHandler translate to user-friendly Vietnamese messages
+                        log.error("Data integrity violation: ", e);
+                        throw e;
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during booking creation: {}", e.getMessage());
+                        throw e;
+                } catch (Exception e) {
+                        log.error("Error creating booking: ", e);
+                        throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
+                }
+        }
+
+        // ========== PROXY BOOKING (ĐẶT HỘ) ==========
+
+        /**
+         * Create a proxy booking on behalf of someone else.
+         * The logged-in user (proxyBooker) creates a booking for a recipient who may not have an account.
+         *
+         * @param request      ProxyBookingRequest with recipient info, pet info, and booking details
+         * @param proxyBookerId UUID of the logged-in user who is booking on behalf of the recipient
+         * @return BookingResponse
+         */
+        @Transactional
+        public BookingResponse createProxyBooking(ProxyBookingRequest request, UUID proxyBookerId) {
+                log.info("Creating proxy booking by user {} for recipient {}",
+                                proxyBookerId, request.getRecipient().getPhone());
+
+                try {
+                        // Get the proxy booker (the person making the booking on behalf of someone)
+                        User proxyBooker = userRepository.findById(proxyBookerId)
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+
+                        // Step 1: Create a new guest user for the recipient
+                        ProxyRecipientInfo recipientInfo = request.getRecipient();
+                        User recipient = createRecipientUser(recipientInfo);
+
+                        // Step 2: Validate clinic
+                        Clinic clinic = clinicRepository.findById(request.getClinicId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                        // Step 3: Collect (serviceId, pet) pairs - mỗi cặp ứng với 1 BookingServiceItem
+                        // Dùng List thay vì Map vì cùng serviceId có thể dùng cho nhiều pet khác nhau
+                        List<Pet> createdPets = new ArrayList<>();
+                        List<AbstractMap.SimpleEntry<UUID, Pet>> servicePetPairs = new ArrayList<>();
+                        java.util.Set<UUID> uniqueServiceIds = new java.util.HashSet<>();
+
+                        for (ProxyPetServiceItem item : request.getItems()) {
+                                // Create pet for recipient
+                                Pet pet = createPetForRecipient(item.getPet(), recipient);
+                                createdPets.add(pet);
+                                log.info("Created new pet {} for recipient", pet.getName());
+
+                                // Mỗi (serviceId, pet) là 1 item riêng - cùng service có thể cho nhiều pet
+                                for (UUID serviceId : item.getServiceIds()) {
+                                        servicePetPairs.add(new AbstractMap.SimpleEntry<>(serviceId, pet));
+                                        uniqueServiceIds.add(serviceId);
+                                }
+                        }
+
+                        // Step 4: Validate services
+                        List<ClinicService> services = clinicServiceRepository.findAllById(uniqueServiceIds)
+                                        .stream()
+                                        .filter(ClinicService::getIsActive)
+                                        .collect(Collectors.toList());
+
+                        if (services.isEmpty()) {
+                                throw new BadRequestException("Không tìm thấy dịch vụ hợp lệ");
+                        }
+
+                        Map<UUID, ClinicService> serviceById = services.stream()
+                                        .collect(Collectors.toMap(ClinicService::getServiceId, s -> s, (a, b) -> a));
+
+                        // Step 5: Validate home visit services if applicable
+                        if (request.getType() == BookingType.HOME_VISIT || request.getType() == BookingType.SOS) {
+                                List<String> ineligibleServices = services.stream()
+                                                .filter(s -> s.getIsHomeVisit() == null || !s.getIsHomeVisit())
+                                                .map(ClinicService::getName)
+                                                .collect(Collectors.toList());
+                                if (!ineligibleServices.isEmpty()) {
+                                        throw new BadRequestException("Các dịch vụ sau không hỗ trợ khám tại nhà: "
+                                                        + String.join(", ", ineligibleServices));
+                                }
+                        }
+
+                        // Step 6: Calculate pricing - tổng theo từng (service, pet) pair
+                        Pet firstPet = createdPets.get(0);
+                        BigDecimal servicesTotal = BigDecimal.ZERO;
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService svc = serviceById.get(pair.getKey());
+                                if (svc != null) {
+                                        servicesTotal = servicesTotal.add(
+                                                        pricingService.calculateServicePrice(svc, pair.getValue()));
+                                }
+                        }
+                        BigDecimal distanceKm = request.getDistanceKm();
+                        BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(
+                                        clinic.getClinicId(), distanceKm, request.getType());
+                        BigDecimal totalPrice = servicesTotal.add(distanceFee);
+
+                        // Step 7: Build the booking
+                        Booking booking = Booking.builder()
+                                        .pet(firstPet) // Primary pet
+                                        .petOwner(recipient)
+                                        .proxyBooker(proxyBooker)
                                         .clinic(clinic)
                                         .bookingDate(request.getBookingDate())
                                         .bookingTime(request.getBookingTime())
@@ -159,48 +394,100 @@ public class BookingService {
                                         .distanceFee(distanceFee)
                                         .status(BookingStatus.PENDING)
                                         .notes(request.getNotes())
-                                        .homeAddress(request.getHomeAddress())
-                                        .homeLat(request.getHomeLat())
-                                        .homeLong(request.getHomeLong())
+                                        .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress() : recipientInfo.getAddress())
+                                        .homeLat(request.getHomeLat() != null ? request.getHomeLat() : recipientInfo.getLat())
+                                        .homeLong(request.getHomeLong() != null ? request.getHomeLong() : recipientInfo.getLng())
                                         .distanceKm(distanceKm)
                                         .build();
-                        log.debug("Booking entity built.");
 
-                        // Add service items with calculated prices (including pricing breakdown)
-                        for (com.petties.petties.model.ClinicService service : services) {
+                        // Step 8: Add services to booking - each (serviceId, pet) creates a BookingServiceItem
+                        for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
+                                ClinicService service = serviceById.get(pair.getKey());
+                                if (service == null) {
+                                        continue;
+                                }
+                                Pet petForService = pair.getValue();
                                 BigDecimal basePrice = service.getBasePrice();
-                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
-
-                                BookingServiceItem item = BookingServiceItem.builder()
+                                BigDecimal weightPrice = pricingService.calculateServicePrice(service, petForService);
+                                BookingServiceItem bookingItem = BookingServiceItem.builder()
                                                 .booking(booking)
+                                                .pet(petForService)
                                                 .service(service)
-                                                .unitPrice(weightPrice) // Use weight-based price as unit price
-                                                .basePrice(basePrice) // Store original base price for display
-                                                .weightPrice(weightPrice) // Store calculated weight-based price
+                                                .unitPrice(weightPrice)
+                                                .basePrice(basePrice)
+                                                .weightPrice(weightPrice)
                                                 .quantity(1)
+                                                .isAddOn(false)
                                                 .build();
-                                booking.getBookingServices().add(item);
+                                booking.getBookingServices().add(bookingItem);
                         }
-                        log.debug("Services added to booking object");
 
-                        // Save booking
+                        // Step 9: Generate unique booking code and save
+                        String bookingCode = Booking.generateUniqueBookingCode(request.getBookingDate());
+                        booking.setBookingCode(bookingCode);
                         Booking savedBooking = bookingRepository.save(booking);
-                        log.info("Booking created: {}", savedBooking.getBookingCode());
+                        log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
+                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
 
-                        // Send notification to clinic manager
+                        // Step 10: Send notification to clinic
                         try {
                                 notificationService.sendBookingNotificationToClinic(savedBooking);
-                                log.debug("Notification sent to clinic");
                         } catch (Exception e) {
                                 log.error("Failed to send notification (non-blocking): {}", e.getMessage());
-                                // Don't fail booking if notification fails
                         }
 
-                        return mapToResponse(savedBooking);
+                        return bookingMapper.mapToResponse(savedBooking);
+
+                } catch (BadRequestException | IllegalStateException | IllegalArgumentException e) {
+                        log.warn("Business exception during proxy booking creation: {}", e.getMessage());
+                        throw e;
                 } catch (Exception e) {
-                        log.error("Error creating booking: ", e);
-                        throw new RuntimeException("Lỗi tạo booking: " + e.getMessage());
+                        log.error("Error creating proxy booking: ", e);
+                        throw new RuntimeException("Lỗi tạo proxy booking: " + e.getMessage());
                 }
+        }
+
+        /**
+         * Create a new guest user for proxy booking.
+         * In proxy booking flow, we always create a new guest user without checking existing records.
+         */
+        private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
+                // Generate a unique username using phone + timestamp to avoid conflicts
+                String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
+                
+                User newUser = new User();
+                newUser.setFullName(recipientInfo.getFullName());
+                newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
+                newUser.setAddress(recipientInfo.getAddress());
+                newUser.setRole(Role.PET_OWNER);
+                newUser.setUsername(uniqueUsername);
+                newUser.setPassword(""); // No password for guest users
+
+                newUser = userRepository.save(newUser);
+                log.info("Created new guest user for proxy booking: {} ({})", newUser.getUserId(), recipientInfo.getPhone());
+                return newUser;
+        }
+
+        /**
+         * Create a new pet for the recipient during proxy booking.
+         */
+        private Pet createPetForRecipient(ProxyPetInfo petInfo, User owner) {
+                // Set default dateOfBirth to today if not provided (required field in DB)
+                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null 
+                                ? petInfo.getDateOfBirth() 
+                                : LocalDate.now();
+
+                Pet pet = Pet.builder()
+                                .name(petInfo.getName())
+                                .species(petInfo.getSpecies()) // String type
+                                .breed(petInfo.getBreed())
+                                .gender(petInfo.getGender()) // String type
+                                .dateOfBirth(dateOfBirth)
+                                .weight(petInfo.getWeight() != null ? petInfo.getWeight().doubleValue() : 0.0)
+                                .user(owner)
+                                .build();
+
+                return petRepository.save(pet);
         }
 
         // ========== CONFIRM BOOKING ==========
@@ -219,7 +506,7 @@ public class BookingService {
                 log.info("Confirming booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 if (booking.getStatus() != BookingStatus.PENDING) {
                         throw new IllegalStateException("Booking is not in PENDING status");
@@ -321,7 +608,7 @@ public class BookingService {
 
                                 booking.setAssignedStaff(manualStaff);
                                 booking.getBookingServices().forEach(item -> item.setAssignedStaff(manualStaff));
-                                booking.setStatus(BookingStatus.ASSIGNED);
+                                booking.setStatus(BookingStatus.CONFIRMED);
 
                                 // Reserve slots for the booking
                                 staffAssignmentService.reserveSlotsForBooking(booking);
@@ -329,7 +616,7 @@ public class BookingService {
                                 notificationService.sendBookingAssignedNotificationToStaff(booking);
 
                                 // Push SSE event to assigned staff and clinic managers for real-time sync
-                                pushBookingUpdateToUsers(booking, "ASSIGNED");
+                                bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
                         } else {
                                 // Auto-assign staff based on service specialty (now slot-aware)
                                 Map<UUID, User> assignments = staffAssignmentService.assignStaffToAllServices(booking);
@@ -337,14 +624,14 @@ public class BookingService {
                                 boolean allAssigned = assignments.size() == booking.getBookingServices().size();
 
                                 if (allAssigned) {
-                                        booking.setStatus(BookingStatus.ASSIGNED);
+                                        booking.setStatus(BookingStatus.CONFIRMED);
                                         // Reserve slots for the booking
                                         staffAssignmentService.reserveSlotsForBooking(booking);
                                         // Send notification to all assigned staff
                                         notificationService.sendBookingAssignedNotificationToStaff(booking);
 
                                         // Push SSE event to assigned staff and clinic managers for real-time sync
-                                        pushBookingUpdateToUsers(booking, "ASSIGNED");
+                                        bookingNotificationService.pushBookingUpdateToUsers(booking, "CONFIRMED");
                                 } else if (allowPartial && !assignments.isEmpty()) {
                                         // Partial assignment allowed
                                         booking.setStatus(BookingStatus.CONFIRMED);
@@ -385,7 +672,7 @@ public class BookingService {
                         // Don't fail the whole confirmation, just log error
                 }
 
-                return mapToResponse(updatedBooking);
+                return bookingMapper.mapToResponse(updatedBooking);
         }
 
         // ========== GET BOOKINGS ==========
@@ -394,11 +681,10 @@ public class BookingService {
          * Get bookings for a clinic with optional status and type filter (Manager view)
          */
         @Transactional(readOnly = true)
-        public Page<BookingResponse> getBookingsByClinic(UUID clinicId,
-                        com.petties.petties.model.enums.BookingStatus status,
-                        com.petties.petties.model.enums.BookingType type, Pageable pageable) {
+        public Page<BookingResponse> getBookingsByClinic(UUID clinicId, BookingStatus status,
+                        BookingType type, Pageable pageable) {
                 return bookingRepository.findByClinicIdAndStatusAndType(clinicId, status, type, pageable)
-                                .map(this::mapToResponse);
+                                .map(bookingMapper::mapToResponse);
         }
 
         /**
@@ -413,7 +699,7 @@ public class BookingService {
                         // JPQL query handles null status automatically
                         Page<Booking> bookings = bookingRepository.findByAssignedStaffIdAndStatus(staffId, status,
                                         pageable);
-                        return bookings.map(this::mapToResponse);
+                        return bookings.map(bookingMapper::mapToResponse);
                 } catch (Exception e) {
                         log.error("Error fetching bookings for staff {}: {}", staffId, e.getMessage(), e);
                         throw new RuntimeException("Failed to fetch staff bookings: " + e.getMessage(), e);
@@ -426,8 +712,8 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingById(UUID bookingId) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-                return mapToResponse(booking);
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -436,8 +722,8 @@ public class BookingService {
         @Transactional(readOnly = true)
         public BookingResponse getBookingByCode(String bookingCode) {
                 Booking booking = bookingRepository.findByBookingCode(bookingCode)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
-                return mapToResponse(booking);
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                return bookingMapper.mapToResponse(booking);
         }
 
         // ========== CANCEL BOOKING ==========
@@ -448,10 +734,18 @@ public class BookingService {
         @Transactional
         public BookingResponse cancelBooking(UUID bookingId, String reason, UUID cancelledBy) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 if (!booking.canBeCancelled()) {
                         throw new IllegalStateException("Booking cannot be cancelled in current status");
+                }
+
+                // If SOS booking, clear matching session from Redis
+                if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS booking {} being cancelled, clearing matching session", bookingId);
+                        sosSessionManager.clearSession(bookingId);
+                        // Also release user lock if still held
+                        sosSessionManager.releaseUserLock(booking.getPetOwner().getUserId());
                 }
 
                 // Release slots back to AVAILABLE before cancelling
@@ -465,153 +759,9 @@ public class BookingService {
                 log.info("Booking {} cancelled", savedBooking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(savedBooking, "CANCELLED");
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
 
-                return mapToResponse(savedBooking);
-        }
-
-        // ========== HELPER METHODS ==========
-
-        /**
-         * Map Booking entity to BookingResponse DTO
-         */
-        private BookingResponse mapToResponse(Booking booking) {
-                try {
-                        Pet pet = booking.getPet();
-                        User owner = booking.getPetOwner();
-                        Clinic clinic = booking.getClinic();
-                        User staff = booking.getAssignedStaff();
-
-                        // Check if EMR already exists for this booking
-                        // Use list to safely handle duplicates without exception
-                        java.util.List<com.petties.petties.model.EmrRecord> emrs = emrRecordRepository
-                                        .findByBookingId(booking.getBookingId());
-                        String emrId = !emrs.isEmpty() ? emrs.get(0).getId() : null;
-
-                        // Calculate pet age
-                        String petAge = "N/A";
-                        if (pet.getDateOfBirth() != null) {
-                                Period age = Period.between(pet.getDateOfBirth(), LocalDate.now());
-                                petAge = age.getYears() > 0
-                                                ? age.getYears() + " tuổi"
-                                                : age.getMonths() + " tháng";
-                        }
-
-                        // Map services with assigned staff info and calculate scheduled times
-                        // Use slotsRequired * 30 minutes (slot duration) for consistency with schedule
-                        LocalTime currentTime = booking.getBookingTime();
-                        List<BookingResponse.BookingServiceItemResponse> serviceResponses = new java.util.ArrayList<>();
-
-                        for (BookingServiceItem item : booking.getBookingServices()) {
-                                User itemStaff = item.getAssignedStaff();
-                                int durationMinutes = item.getService().getDurationTime() != null
-                                                ? item.getService().getDurationTime()
-                                                : 30; // Default 30 minutes
-
-                                // Calculate slots from duration: ceil(duration / 30)
-                                // This ensures consistency with slot reservation logic
-                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
-                                int slotDurationMinutes = slotsRequired * 30; // Each slot is 30 min
-
-                                LocalTime startTime = currentTime;
-                                LocalTime endTime = currentTime.plusMinutes(slotDurationMinutes);
-
-                                serviceResponses.add(BookingResponse.BookingServiceItemResponse.builder()
-                                                .bookingServiceId(item.getBookingServiceId()) // BookingServiceItem ID
-                                                .serviceId(item.getService().getServiceId())
-                                                .serviceName(item.getService().getName())
-                                                .serviceCategory(item.getService().getServiceCategory() != null
-                                                                ? item.getService().getServiceCategory().name()
-                                                                : null)
-                                                .price(item.getUnitPrice())
-                                                .slotsRequired(slotsRequired)
-                                                .durationMinutes(durationMinutes)
-                                                // Pricing breakdown fields
-                                                .basePrice(item.getBasePrice())
-                                                .weightPrice(item.getWeightPrice())
-                                                // Staff info for this specific service
-                                                .assignedStaffId(itemStaff != null ? itemStaff.getUserId() : null)
-                                                .assignedStaffName(itemStaff != null ? itemStaff.getFullName() : null)
-                                                .assignedStaffAvatarUrl(
-                                                                itemStaff != null ? itemStaff.getAvatar() : null)
-                                                .assignedStaffSpecialty(
-                                                                itemStaff != null && itemStaff.getSpecialty() != null
-                                                                                ? itemStaff.getSpecialty().name()
-                                                                                : null)
-                                                // Scheduled time (based on slot allocation, not service duration)
-                                                .scheduledStartTime(startTime)
-                                                .scheduledEndTime(endTime)
-                                                .build());
-
-                                // Move to next time slot
-                                currentTime = endTime;
-                        }
-
-                        return BookingResponse.builder()
-                                        .bookingId(booking.getBookingId())
-                                        .bookingCode(booking.getBookingCode())
-                                        .emrId(emrId)
-                                        // Pet info
-                                        .petId(pet.getId())
-                                        .petName(pet.getName())
-                                        .petSpecies(pet.getSpecies())
-                                        .petBreed(pet.getBreed())
-                                        .petAge(petAge)
-                                        .petPhotoUrl(pet.getImageUrl())
-                                        .petWeight(pet.getWeight())
-                                        // Owner info
-                                        .ownerId(owner.getUserId())
-                                        .ownerName(owner.getFullName())
-                                        .ownerPhone(owner.getPhone())
-                                        .ownerEmail(owner.getEmail())
-                                        .ownerAvatarUrl(owner.getAvatar())
-                                        .ownerAddress(owner.getAddress())
-                                        // Clinic info
-                                        .clinicId(clinic.getClinicId())
-                                        .clinicName(clinic.getName())
-                                        .clinicAddress(clinic.getAddress())
-                                        .clinicPhone(clinic.getPhone())
-                                        // Staff info
-                                        .assignedStaffId(staff != null ? staff.getUserId() : null)
-                                        .assignedStaffName(staff != null ? staff.getFullName() : null)
-                                        .assignedStaffSpecialty(
-                                                        staff != null && staff.getSpecialty() != null
-                                                                        ? staff.getSpecialty().name()
-                                                                        : null)
-                                        .assignedStaffAvatarUrl(staff != null ? staff.getAvatar() : null)
-                                        // Payment info
-                                        .paymentStatus(booking.getPayment() != null
-                                                        ? booking.getPayment().getStatus().name()
-                                                        : "PENDING")
-                                        .paymentMethod(booking.getPayment() != null
-                                                        && booking.getPayment().getMethod() != null
-                                                                        ? booking.getPayment().getMethod().name()
-                                                                        : null)
-                                        // Booking info
-                                        .bookingDate(booking.getBookingDate())
-                                        .bookingTime(booking.getBookingTime())
-                                        .type(booking.getType())
-                                        .status(booking.getStatus())
-                                        .totalPrice(booking.getTotalPrice())
-                                        .notes(booking.getNotes())
-                                        .services(serviceResponses)
-                                        // Home visit info
-                                        .homeAddress(booking.getHomeAddress())
-                                        .homeLat(booking.getHomeLat())
-                                        .homeLong(booking.getHomeLong())
-                                        .distanceKm(booking.getDistanceKm())
-                                        .distanceFee(booking.getDistanceFee())
-                                        // Timestamps
-                                        .createdAt(booking.getCreatedAt())
-                                        .build();
-                } catch (Exception e) {
-                        log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(),
-                                        e);
-                        // Return a minimal valid response or rethrow depending on severity.
-                        // We'll throw RuntimeException to see the error in logs, but arguably we could
-                        // return null and filter it out upstream if we wanted partial success.
-                        throw new RuntimeException("Error mapping booking " + booking.getBookingCode(), e);
-                }
+                return bookingMapper.mapToResponse(savedBooking);
         }
 
         // ========== STAFF AVAILABILITY CHECK ==========
@@ -651,8 +801,12 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found: " + bookingId));
 
-                if (booking.getStatus() != BookingStatus.PENDING) {
-                        throw new IllegalStateException("Chỉ có thể lấy danh sách nhân viên cho booking PENDING");
+                if (booking.getStatus() != BookingStatus.PENDING &&
+                                (booking.getType() != BookingType.SOS ||
+                                                (booking.getStatus() != BookingStatus.PENDING_CLINIC_CONFIRM
+                                                                && booking.getStatus() != BookingStatus.SEARCHING))) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể lấy danh sách nhân viên cho booking đang chờ xác nhận");
                 }
 
                 return staffAssignmentService.getAvailableStaffForBookingConfirm(booking);
@@ -681,7 +835,7 @@ public class BookingService {
                 // Get required specialty from service
                 StaffSpecialty requiredSpecialty = serviceItem.getService().getServiceCategory() != null
                                 ? serviceItem.getService().getServiceCategory().getRequiredSpecialty()
-                                : StaffSpecialty.VET_GENERAL;
+                                : StaffSpecialty.VET;
 
                 // Calculate slots needed
                 Integer duration = serviceItem.getService().getDurationTime();
@@ -748,32 +902,20 @@ public class BookingService {
                 notificationService.sendStaffReassignedNotification(booking, newStaff, oldStaff, serviceName);
 
                 // Push SSE event to BOTH old and new staff for real-time sync
-                pushBookingUpdateToStaff(booking, "STAFF_REASSIGNED", oldStaffId, newStaffId);
+                bookingNotificationService.pushBookingUpdateToStaff(booking, "STAFF_REASSIGNED", oldStaffId,
+                                newStaffId);
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
-         * Calculate the start time for a specific service in a booking
-         * Based on the order of services and their durations
+         * Calculate the start time for a specific service in a booking.
+         * Multi-pet: parallel schedule. Single-pet: sequential.
          */
         private LocalTime calculateServiceStartTime(Booking booking, UUID serviceId) {
-                LocalTime startTime = booking.getBookingTime();
-
-                for (BookingServiceItem item : booking.getBookingServices()) {
-                        if (item.getBookingServiceId().equals(serviceId)) {
-                                return startTime;
-                        }
-
-                        // Add duration of previous services
-                        Integer duration = item.getService().getDurationTime();
-                        int slots = (duration != null && duration > 0)
-                                        ? (int) Math.ceil(duration / 30.0)
-                                        : 1;
-                        startTime = startTime.plusMinutes(slots * 30L);
-                }
-
-                return booking.getBookingTime(); // Fallback
+                Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                LocalTime[] range = schedule.get(serviceId);
+                return range != null ? range[0] : booking.getBookingTime();
         }
 
         // ========== ADD-ON SERVICE (During Active Booking) ==========
@@ -793,18 +935,17 @@ public class BookingService {
                 log.info("Adding service {} to booking {} by user {}", serviceId, bookingId, currentUser.getUserId());
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status - only allow for active bookings
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS
-                                && booking.getStatus() != BookingStatus.ARRIVED) {
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái ARRIVED hoặc IN_PROGRESS");
+                                        "Chỉ có thể thêm dịch vụ khi booking đang ở trạng thái IN_PROGRESS");
                 }
 
                 // Fetch service
-                com.petties.petties.model.ClinicService service = clinicServiceRepository.findById(serviceId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
+                ClinicService service = clinicServiceRepository.findById(serviceId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ"));
 
                 // Validate service belongs to the same clinic
                 if (!service.getClinic().getClinicId().equals(booking.getClinic().getClinicId())) {
@@ -820,18 +961,18 @@ public class BookingService {
 
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
                 // If booking is HOME_VISIT and current user is STAFF,
-                // they can only add services within their specialty
-                if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
+                // they can only add services within their specialty.
+                // SOS dispatches prioritize speed, so we bypass specialty checks.
+                if (booking.getType() == BookingType.HOME_VISIT
+                                && currentUser.getRole() == Role.STAFF) {
 
                         StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                         StaffSpecialty requiredSpecialty = service.getServiceCategory() != null
                                         ? service.getServiceCategory().getRequiredSpecialty()
-                                        : StaffSpecialty.VET_GENERAL;
+                                        : StaffSpecialty.VET;
 
-                        // VET_GENERAL can do any service, but specialized staff must match
-                        boolean isSpecialtyMatch = staffSpecialty == StaffSpecialty.VET_GENERAL
-                                        || staffSpecialty == requiredSpecialty;
+                        // With 2 specialties: exact match only
+                        boolean isSpecialtyMatch = staffSpecialty == requiredSpecialty;
 
                         if (!isSpecialtyMatch) {
                                 log.warn("Staff {} with specialty {} cannot add service {} requiring specialty {}",
@@ -843,6 +984,8 @@ public class BookingService {
                                                                 "Chuyên môn của bạn: %s, Dịch vụ yêu cầu: %s",
                                                                 staffSpecialty, requiredSpecialty));
                         }
+                } else if (booking.getType() == BookingType.SOS) {
+                        log.info("SOS Booking: Bypassing specialty check for service addition");
                 }
                 // IN_CLINIC: Manager can add any service (no specialty restriction)
 
@@ -851,15 +994,17 @@ public class BookingService {
                 BigDecimal basePrice = service.getBasePrice();
                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
 
-                // Create new service item
+                // Create new service item (dịch vụ phát sinh không gán staff - ai thực hiện không cần xác định)
                 BookingServiceItem newItem = BookingServiceItem.builder()
                                 .booking(booking)
+                                .pet(pet)
                                 .service(service)
                                 .unitPrice(weightPrice)
                                 .basePrice(basePrice)
                                 .weightPrice(weightPrice)
                                 .quantity(1)
-                                .assignedStaff(booking.getAssignedStaff()) // Same staff as booking
+                                .assignedStaff(null)
+                                .isAddOn(true)
                                 .build();
 
                 booking.getBookingServices().add(newItem);
@@ -880,9 +1025,112 @@ public class BookingService {
                 }
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "SERVICE_ADDED");
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Process checkout for a booking (Staff/Manager action)
+         * For SOS bookings, allows overriding the SOS fee
+         *
+         * @param bookingId   Booking ID
+         * @param request     Checkout request with optional fee override
+         * @param currentUser Current user performing checkout
+         * @return Updated booking response
+         */
+        @Transactional
+        public BookingResponse processCheckout(UUID bookingId, CheckoutRequest request, User currentUser) {
+                log.info("Processing checkout for booking {} by user {}", bookingId, currentUser.getUserId());
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+                }
+
+                // Handle SOS fee override or automated calculation
+                if (booking.getType() == BookingType.SOS) {
+                        BigDecimal sosFee;
+                        if (request != null && request.getOverriddenSosFee() != null) {
+                                sosFee = request.getOverriddenSosFee();
+                                log.info("SOS Booking: using overridden SOS fee {}", sosFee);
+                        } else {
+                                sosFee = pricingService.calculateSOSFee(booking.getClinic().getClinicId());
+                                log.info("SOS Booking: using automated SOS fee calculation {}", sosFee);
+                        }
+
+                        booking.setSosFee(sosFee);
+
+                        // Recalculate total price
+                        BigDecimal servicesTotal = booking.getBookingServices().stream()
+                                        .map(BookingServiceItem::getUnitPrice)
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                        // Total = Services + SOS Fee (Distance fee is 0 for SOS)
+                        booking.setTotalPrice(servicesTotal.add(sosFee));
+                }
+
+                // Final status update
+                booking.setStatus(BookingStatus.COMPLETED);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} checked out successfully. Final total: {}", bookingId, booking.getTotalPrice());
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendCompletedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send completed notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Remove a service from booking
+         * ONLY allowed for add-on services (isAddOn = true)
+         */
+        @Transactional
+        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId) {
+                log.info("Removing service {} from booking {}", bookingServiceId, bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                BookingServiceItem itemToRemove = booking.getBookingServices().stream()
+                                .filter(item -> item.getBookingServiceId().equals(bookingServiceId))
+                                .findFirst()
+                                .orElseThrow(() -> new ResourceNotFoundException("Service item not found in booking"));
+
+                // Validate: Only allow removing add-on services
+                if (!Boolean.TRUE.equals(itemToRemove.getIsAddOn())) {
+                        throw new IllegalStateException(
+                                        "Không thể xóa dịch vụ gốc của booking. Chỉ có thể xóa dịch vụ phát sinh.");
+                }
+
+                // Update total price
+                BigDecimal priceToRemove = itemToRemove.getWeightPrice(); // Or unitPrice * quantity if > 1
+                BigDecimal newTotal = booking.getTotalPrice().subtract(priceToRemove);
+                booking.setTotalPrice(newTotal);
+
+                // Remove from list and delete entity
+                booking.getBookingServices().remove(itemToRemove);
+                bookingServiceItemRepository.delete(itemToRemove);
+
+                Booking updatedBooking = bookingRepository.save(booking);
+                log.info("Removed service '{}'. New total: {}", itemToRemove.getService().getName(), newTotal);
+
+                // Push SSE event
+                bookingNotificationService.pushBookingUpdateToUsers(updatedBooking, "SERVICE_REMOVED");
+
+                return bookingMapper.mapToResponse(updatedBooking);
         }
 
         /**
@@ -896,13 +1144,13 @@ public class BookingService {
          * @return List of available services
          */
         @Transactional(readOnly = true)
-        public List<com.petties.petties.dto.clinicService.ClinicServiceResponse> getAvailableServicesForAddOn(
+        public List<ClinicServiceResponse> getAvailableServicesForAddOn(
                         UUID bookingId, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Get all active services for the clinic
-                List<com.petties.petties.model.ClinicService> allActiveServices = clinicServiceRepository
+                List<ClinicService> allActiveServices = clinicServiceRepository
                                 .findByClinicClinicIdAndIsActiveTrue(booking.getClinic().getClinicId());
 
                 // IDs of services already in the booking
@@ -915,44 +1163,35 @@ public class BookingService {
                         return allActiveServices.stream()
                                         .filter(service -> !existingServiceIds.contains(service.getServiceId()))
                                         .filter(service -> {
-                                                // Specialty filtering for Staff in Home Visit
-                                                if (booking.getType() == com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                                                && currentUser.getRole() == com.petties.petties.model.enums.Role.STAFF) {
+                                                // 1. IN_CLINIC: Only show services with isHomeVisit = false
+                                                if (booking.getType() == BookingType.IN_CLINIC) {
+                                                        if (Boolean.TRUE.equals(service.getIsHomeVisit())) {
+                                                                return false;
+                                                        }
+                                                }
+
+                                                // 2. Specialty filtering for Staff in Home Visit
+                                                if (booking.getType() == BookingType.HOME_VISIT
+                                                                && currentUser.getRole() == Role.STAFF) {
 
                                                         StaffSpecialty staffSpecialty = currentUser.getSpecialty();
                                                         StaffSpecialty requiredSpecialty = service
                                                                         .getServiceCategory() != null
                                                                                         ? service.getServiceCategory()
                                                                                                         .getRequiredSpecialty()
-                                                                                        : StaffSpecialty.VET_GENERAL;
+                                                                                        : StaffSpecialty.VET;
 
-                                                        return staffSpecialty == StaffSpecialty.VET_GENERAL
-                                                                        || staffSpecialty == requiredSpecialty;
+                                                        return staffSpecialty == requiredSpecialty;
                                                 }
-                                                return true; // Managers or In-Clinic bookings see all
+                                                return true; // Managers or In-Clinic bookings see all (subject to above
+                                                             // filter)
                                         })
-                                        .map(this::mapServiceToResponse)
+                                        .map(bookingMapper::mapServiceToResponse)
                                         .collect(Collectors.toList());
                 } catch (Exception e) {
                         log.error("Error filtering/mapping services for booking {}: {}", bookingId, e.getMessage(), e);
                         throw e; // Controller will catch this
                 }
-        }
-
-        private com.petties.petties.dto.clinicService.ClinicServiceResponse mapServiceToResponse(
-                        com.petties.petties.model.ClinicService service) {
-                return com.petties.petties.dto.clinicService.ClinicServiceResponse.builder()
-                                .serviceId(service.getServiceId())
-                                .name(service.getName())
-                                .description(service.getDescription())
-                                .basePrice(service.getBasePrice())
-                                .durationTime(service.getDurationTime())
-                                .slotsRequired(service.getSlotsRequired())
-                                .serviceCategory(service.getServiceCategory())
-                                .isHomeVisit(service.getIsHomeVisit())
-                                .pricePerKm(service.getPricePerKm())
-                                .isActive(service.getIsActive())
-                                .build();
         }
 
         // ========== SMART AVAILABILITY ==========
@@ -985,8 +1224,8 @@ public class BookingService {
 
         /**
          * Check-in booking (Staff action)
-         * Transitions: ASSIGNED → IN_PROGRESS
-         * 
+         * Transitions: CONFIRMED → IN_PROGRESS
+         *
          * @param bookingId Booking ID
          * @return Updated booking response
          */
@@ -995,13 +1234,12 @@ public class BookingService {
                 log.info("Check-in booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - allow ASSIGNED or ARRIVED
-                if (booking.getStatus() != BookingStatus.ASSIGNED
-                                && booking.getStatus() != BookingStatus.ARRIVED) {
+                // Validate status - allow CONFIRMED or IN_PROGRESS (Staff has arrived)
+                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái ASSIGNED hoặc ARRIVED. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc IN_PROGRESS. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -1012,7 +1250,7 @@ public class BookingService {
                 log.info("Booking {} checked in successfully. Status: IN_PROGRESS", booking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "CHECK_IN");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECK_IN");
 
                 // Notify pet owner
                 try {
@@ -1030,7 +1268,89 @@ public class BookingService {
                         log.error("Failed to auto-create vaccination drafts during check-in: {}", e.getMessage());
                 }
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        /**
+         * Start moving to customer location (Staff action)
+         * Transitions: CONFIRMED → IN_PROGRESS
+         * Only for SOS/HOME_VISIT bookings
+         */
+        @Transactional
+        public BookingResponse startMoving(UUID bookingId) {
+                log.info("Staff starting movement for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate type
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
+                                && booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
+                        throw new IllegalStateException("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+                }
+
+                // Validate status
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                // Update status to IN_PROGRESS
+                booking.setStatus(BookingStatus.IN_PROGRESS);
+                bookingRepository.save(booking);
+
+                log.info("Booking {} started moving. Status: IN_PROGRESS", booking.getBookingCode());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "START_MOVING");
+
+                // Notify pet owner
+                try {
+                        notificationService.sendStaffOnWayNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send movement notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
+        }
+
+        @Transactional
+        public BookingResponse arrived(UUID bookingId) {
+                log.info("Staff arrived for booking {}", bookingId);
+
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                // Validate status - must be IN_PROGRESS (movement phase)
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                                        + booking.getStatus());
+                }
+
+                booking.setArrivedAt(LocalDateTime.now());
+                Booking savedBooking = bookingRepository.save(booking);
+
+                log.info("Booking {} arrival recorded at {}", savedBooking.getBookingCode(), savedBooking.getArrivedAt());
+
+                // Push SSE event for real-time sync
+                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "ARRIVED");
+
+                // Broadcast ARRIVED event qua WebSocket tracking để Pet Owner nhận real-time
+                try {
+                        trackingService.publishArrival(savedBooking);
+                } catch (Exception e) {
+                        log.warn("Failed to publish ARRIVED tracking event: {}", e.getMessage());
+                }
+
+                try {
+                        notificationService.sendStaffArrivedNotification(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to send arrival notification: {}", e.getMessage());
+                }
+
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -1045,7 +1365,7 @@ public class BookingService {
                 log.info("Completing booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1058,10 +1378,17 @@ public class BookingService {
                 booking.setStatus(BookingStatus.COMPLETED);
                 bookingRepository.save(booking);
 
+                // Clear GPS tracking data from Redis (for SOS/HOME_VISIT bookings)
+                try {
+                        trackingService.clearTracking(bookingId);
+                } catch (Exception e) {
+                        log.warn("Failed to clear tracking data: {}", e.getMessage());
+                }
+
                 log.info("Booking {} completed successfully", booking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                pushBookingUpdateToUsers(booking, "COMPLETED");
+                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
 
                 // Notify pet owner
                 try {
@@ -1070,7 +1397,7 @@ public class BookingService {
                         log.warn("Failed to send completed notification: {}", e.getMessage());
                 }
 
-                return mapToResponse(booking);
+                return bookingMapper.mapToResponse(booking);
         }
 
         /**
@@ -1085,18 +1412,18 @@ public class BookingService {
                 log.info("Sending 'staff on the way' notification for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - should be ASSIGNED (staff assigned but not yet started)
-                if (booking.getStatus() != BookingStatus.ASSIGNED) {
+                // Validate status - should be CONFIRMED (staff assigned but not yet started)
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể gửi thông báo khi booking ở trạng thái ASSIGNED. Trạng thái hiện tại: "
+                                        "Chỉ có thể gửi thông báo khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
                 // Validate booking type - only for HOME_VISIT or SOS
-                if (booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT
-                                && booking.getType() != com.petties.petties.model.enums.BookingType.SOS) {
+                if (booking.getType() != BookingType.HOME_VISIT
+                                && booking.getType() != BookingType.SOS) {
                         throw new IllegalStateException("Chỉ áp dụng cho lịch hẹn tại nhà hoặc SOS");
                 }
 
@@ -1109,101 +1436,7 @@ public class BookingService {
                         throw new RuntimeException("Không thể gửi thông báo: " + e.getMessage());
                 }
 
-                return mapToResponse(booking);
-        }
-
-        // ========== PRIVATE HELPER METHODS ==========
-
-        /**
-         * Push SSE event when reassigning staff
-         * Notifies BOTH old staff (to remove from schedule) and new staff (to add to
-         * schedule)
-         *
-         * @param booking    The updated booking
-         * @param action     Action type (STAFF_REASSIGNED)
-         * @param oldStaffId Old staff ID (who is being removed from booking)
-         * @param newStaffId New staff ID (who is being assigned)
-         */
-        private void pushBookingUpdateToStaff(Booking booking, String action, UUID oldStaffId, UUID newStaffId) {
-                try {
-                        java.util.Map<String, Object> eventData = new java.util.HashMap<>();
-                        eventData.put("bookingId", booking.getBookingId().toString());
-                        eventData.put("bookingCode", booking.getBookingCode());
-                        eventData.put("action", action);
-                        eventData.put("status", booking.getStatus().name());
-                        eventData.put("oldStaffId", oldStaffId != null ? oldStaffId.toString() : "");
-                        eventData.put("newStaffId", newStaffId != null ? newStaffId.toString() : "");
-
-                        SseEventDto event = SseEventDto.bookingUpdate(eventData);
-
-                        // Push to OLD staff (so they can remove from their schedule)
-                        if (oldStaffId != null) {
-                                sseEmitterService.pushToUser(oldStaffId, event);
-                                log.debug("Pushed BOOKING_UPDATE to OLD staff: {}", oldStaffId);
-                        }
-
-                        // Push to NEW staff (so they can add to their schedule)
-                        if (newStaffId != null) {
-                                sseEmitterService.pushToUser(newStaffId, event);
-                                log.debug("Pushed BOOKING_UPDATE to NEW staff: {}", newStaffId);
-                        }
-
-                        // Push to all managers of the clinic
-                        List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(),
-                                        com.petties.petties.model.enums.Role.CLINIC_MANAGER);
-                        for (User manager : managers) {
-                                sseEmitterService.pushToUser(manager.getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
-                        }
-
-                        log.info("STAFF_REASSIGN event pushed for booking {}: oldStaff={}, newStaff={}",
-                                        booking.getBookingCode(), oldStaffId, newStaffId);
-                } catch (Exception e) {
-                        log.warn("Failed to push SSE event for staff reassign {}: {}",
-                                        booking.getBookingCode(), e.getMessage());
-                }
-        }
-
-        /**
-         * Push SSE event to all relevant users when booking changes
-         * - Assigned staff (if any)
-         * - All managers of the clinic
-         *
-         * @param booking The updated booking
-         * @param action  Action type: ASSIGNED, STATUS_CHANGED, CANCELLED, etc.
-         */
-        private void pushBookingUpdateToUsers(Booking booking, String action) {
-                try {
-                        java.util.Map<String, Object> eventData = java.util.Map.of(
-                                        "bookingId", booking.getBookingId().toString(),
-                                        "bookingCode", booking.getBookingCode(),
-                                        "action", action,
-                                        "status", booking.getStatus().name());
-
-                        SseEventDto event = SseEventDto.bookingUpdate(eventData);
-
-                        // Push to assigned staff
-                        if (booking.getAssignedStaff() != null) {
-                                sseEmitterService.pushToUser(booking.getAssignedStaff().getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to staff: {}", booking.getAssignedStaff().getUserId());
-                        }
-
-                        // Push to all managers of the clinic
-                        List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                        booking.getClinic().getClinicId(),
-                                        com.petties.petties.model.enums.Role.CLINIC_MANAGER);
-                        for (User manager : managers) {
-                                sseEmitterService.pushToUser(manager.getUserId(), event);
-                                log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
-                        }
-
-                        log.info("BOOKING_UPDATE event pushed for booking {} action {}", booking.getBookingCode(),
-                                        action);
-                } catch (Exception e) {
-                        log.warn("Failed to push SSE event for booking {}: {}", booking.getBookingCode(),
-                                        e.getMessage());
-                }
+                return bookingMapper.mapToResponse(booking);
         }
 
         // ========== STAFF HOME SUMMARY ==========
@@ -1231,7 +1464,6 @@ public class BookingService {
                         LocalDate endDate = today.plusDays(7);
                         List<com.petties.petties.model.enums.BookingStatus> activeStatuses = List.of(
                                         BookingStatus.CONFIRMED,
-                                        BookingStatus.ASSIGNED,
                                         BookingStatus.PENDING,
                                         BookingStatus.IN_PROGRESS);
                         List<Booking> upcomingBookings = bookingRepository
@@ -1242,7 +1474,6 @@ public class BookingService {
                         int todayCount = todayBookings != null ? todayBookings.size() : 0;
                         int pendingCount = todayBookings != null ? (int) todayBookings.stream()
                                         .filter(b -> b.getStatus() == BookingStatus.CONFIRMED
-                                                        || b.getStatus() == BookingStatus.ASSIGNED
                                                         || b.getStatus() == BookingStatus.PENDING)
                                         .count() : 0;
                         int inProgressCount = todayBookings != null ? (int) todayBookings.stream()
@@ -1261,7 +1492,7 @@ public class BookingService {
                                                         return a.getBookingTime().compareTo(b.getBookingTime());
                                                 })
                                                 .limit(5)
-                                                .map(this::mapToUpcomingDTO)
+                                                .map(bookingMapper::mapToUpcomingDTO)
                                                 .collect(Collectors.toList());
                         }
 
@@ -1278,79 +1509,199 @@ public class BookingService {
         }
 
         /**
-         * Map Booking entity to UpcomingBookingDTO for home screen display
-         * Note: bookingServices may not be fetched, so we use default values
-         */
-        private UpcomingBookingDTO mapToUpcomingDTO(Booking booking) {
-                Pet pet = booking.getPet();
-                User owner = booking.getPetOwner();
-
-                // Null safety for pet and owner
-                String petName = pet != null ? pet.getName() : "N/A";
-                String petSpecies = pet != null ? pet.getSpecies() : null;
-                String petPhotoUrl = pet != null ? pet.getImageUrl() : null;
-                String ownerName = owner != null ? owner.getFullName() : "N/A";
-                String ownerPhone = owner != null ? owner.getPhone() : null;
-
-                // Default values for service info (bookingServices not eager-fetched to avoid
-                // MultipleBagFetchException)
-                int totalMinutes = 30;
-                String primaryService = "Dịch vụ khám";
-                int servicesCount = 0;
-
-                // Try to get service info if available (within transaction)
-                try {
-                        List<BookingServiceItem> services = booking.getBookingServices();
-                        if (services != null && !services.isEmpty()) {
-                                servicesCount = services.size();
-                                totalMinutes = services.stream()
-                                                .mapToInt(item -> {
-                                                        if (item.getService() == null)
-                                                                return 30;
-                                                        Integer duration = item.getService().getDurationTime();
-                                                        return duration != null ? duration : 30;
-                                                })
-                                                .sum();
-                                BookingServiceItem firstItem = services.get(0);
-                                if (firstItem.getService() != null && firstItem.getService().getName() != null) {
-                                        primaryService = firstItem.getService().getName();
-                                }
-                        }
-                } catch (Exception e) {
-                        // LazyInitializationException - use defaults
-                        log.debug("Could not load booking services for booking {}, using defaults",
-                                        booking.getBookingId());
-                }
-
-                LocalTime endTime = booking.getBookingTime().plusMinutes(totalMinutes);
-
-                return UpcomingBookingDTO.builder()
-                                .bookingId(booking.getBookingId())
-                                .bookingCode(booking.getBookingCode())
-                                .petName(petName)
-                                .petSpecies(petSpecies)
-                                .petPhotoUrl(petPhotoUrl)
-                                .ownerName(ownerName)
-                                .ownerPhone(ownerPhone)
-                                .bookingDate(booking.getBookingDate())
-                                .bookingTime(booking.getBookingTime())
-                                .endTime(endTime)
-                                .type(booking.getType())
-                                .status(booking.getStatus())
-                                .totalPrice(booking.getTotalPrice())
-                                .primaryServiceName(primaryService)
-                                .servicesCount(servicesCount)
-                                .homeAddress(booking.getHomeAddress())
-                                .build();
-        }
-
-        /**
-         * Get bookings by pet owner
+         * Get bookings by pet owner with eager loading to avoid
+         * LazyInitializationException
          */
         @Transactional(readOnly = true)
         public Page<BookingResponse> getMyBookings(UUID petOwnerId, Pageable pageable) {
-                log.info("Fetching bookings for user: {}", petOwnerId);
-                Page<Booking> bookings = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
-                return bookings.map(this::mapToResponse);
+                log.info("Fetching bookings for pet owner: {}", petOwnerId);
+
+                Page<Booking> bookingPage = bookingRepository.findByPetOwnerId(petOwnerId, pageable);
+                List<BookingResponse> responses = bookingPage.getContent().stream()
+                                .map(bookingMapper::mapToResponse)
+                                .collect(Collectors.toList());
+
+                return new org.springframework.data.domain.PageImpl<>(
+                                responses, pageable, bookingPage.getTotalElements());
+        }
+
+        /**
+         * Get bookings created by user on behalf of others (proxy bookings)
+         */
+        @Transactional(readOnly = true)
+        public Page<BookingResponse> getMyProxyBookings(UUID proxyBookerId, Pageable pageable) {
+                log.info("Fetching proxy bookings created by user: {}", proxyBookerId);
+                Page<Booking> bookings = bookingRepository.findByProxyBookerId(proxyBookerId, pageable);
+                return bookings.map(bookingMapper::mapToResponse);
+        }
+
+        // ========== SHARED VISIBILITY ==========
+
+        /**
+         * Get all bookings for a clinic today - Shared Visibility for Staff
+         * All staff in the clinic can see ALL bookings, with isMyAssignment flag
+         * to identify their own assignments
+         *
+         * @param clinicId     Clinic ID
+         * @param currentStaff Current logged-in staff
+         * @return List of ClinicTodayBookingResponse with isMyAssignment flag
+         */
+        @Transactional(readOnly = true)
+        public List<ClinicTodayBookingResponse> getClinicTodayBookings(
+                        UUID clinicId, User currentStaff) {
+                log.info("Getting today's bookings for clinic {} by staff {}", clinicId, currentStaff.getUserId());
+
+                // Validate: Staff must belong to the clinic
+                if (currentStaff.getWorkingClinic() == null ||
+                                !currentStaff.getWorkingClinic().getClinicId().equals(clinicId)) {
+                        throw new ForbiddenException(
+                                        "Bạn không có quyền xem lịch hẹn của phòng khám này");
+                }
+
+                LocalDate today = LocalDate.now();
+                List<Booking> bookings = bookingRepository.findByClinicIdAndDateWithDetails(clinicId, today);
+
+                return bookings.stream()
+                                .map(booking -> bookingMapper.mapToClinicTodayResponse(booking,
+                                                currentStaff.getUserId()))
+                                .collect(Collectors.toList());
+        }
+
+        // ========== ESTIMATED COMPLETION TIME ==========
+
+        /**
+         * Calculate estimated completion time based on pet info, services, and start time
+         * Supports multi-pet format: pets: [{ petId, petWeight, serviceIds: [...] }]
+         *
+         * @param clinicId Clinic ID to fetch services from
+         * @param request  EstimatedCompletionRequest with pets array
+         * @return EstimatedCompletionResponse with total duration and breakdown by pet
+         */
+        @Transactional(readOnly = true)
+        public EstimatedCompletionResponse calculateEstimatedCompletion(
+                        UUID clinicId,
+                        EstimatedCompletionRequest request) {
+                log.info("Calculating estimated completion for clinic={}, pets={}, type={}, startDateTime={}",
+                                clinicId, request.getPets().size(), request.getType(), request.getStartDateTime());
+
+                Clinic clinic = clinicRepository.findById(clinicId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
+
+                // Get operating hours for the specific day
+                String dayOfWeek = request.getStartDateTime().getDayOfWeek().name();
+                OperatingHours oh = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek) : null;
+
+                if (oh != null && Boolean.TRUE.equals(oh.getIsClosed())) {
+                        throw new com.petties.petties.exception.BadRequestException("Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
+                }
+
+                LocalDateTime currentStartDateTime = request.getStartDateTime();
+                int grandTotalDurationMinutes = 0;
+                int grandTotalSlotsRequired = 0;
+                List<EstimatedCompletionResponse.PetDuration> petDurations = new ArrayList<>();
+
+                for (PetEstimation petEst : request.getPets()) {
+                        // Fetch services for this pet
+                        List<ClinicService> services = clinicServiceRepository.findAllById(petEst.getServiceIds());
+
+                        if (services.isEmpty()) {
+                                throw new ResourceNotFoundException("Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
+                        }
+
+                        // Validate all services belong to the same clinic
+                        boolean allBelongToClinic = services.stream()
+                                        .allMatch(s -> s.getClinic().getClinicId().equals(clinicId));
+                        if (!allBelongToClinic) {
+                                throw new BadRequestException("Một số dịch vụ không thuộc phòng khám này");
+                        }
+
+                        // Calculate durations for this pet's services
+                        List<EstimatedCompletionResponse.ServiceDuration> serviceDurations = new ArrayList<>();
+                        int petTotalDuration = 0;
+
+                        for (ClinicService service : services) {
+                                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
+                                int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
+
+                                // Logic for Clinic Breaks (only if IN_CLINIC)
+                                if (request.getType() == BookingType.IN_CLINIC && oh != null
+                                                && oh.getBreakStart() != null && oh.getBreakEnd() != null) {
+
+                                        LocalTime currentStartTime = currentStartDateTime.toLocalTime();
+
+                                        // 1. If currentStart is during break, push to breakEnd
+                                        if (!currentStartTime.isBefore(oh.getBreakStart())
+                                                        && currentStartTime.isBefore(oh.getBreakEnd())) {
+                                                currentStartDateTime = currentStartDateTime.with(oh.getBreakEnd());
+                                        }
+
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+                                        LocalTime endStartTime = serviceEndDateTime.toLocalTime();
+
+                                        // 2. If service starts before break but finishes after break starts
+                                        // (Push the whole service end time by break duration)
+                                        if (currentStartDateTime.toLocalTime().isBefore(oh.getBreakStart())
+                                                        && endStartTime.isAfter(oh.getBreakStart())) {
+                                                long breakDuration = Duration.between(oh.getBreakStart(),
+                                                                oh.getBreakEnd()).toMinutes();
+                                                serviceEndDateTime = serviceEndDateTime.plusMinutes(breakDuration);
+                                        }
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                } else {
+                                        // HOME_VISIT, SOS or no operating hours/breaks defined
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+
+                                        serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
+                                                        .serviceId(service.getServiceId().toString())
+                                                        .serviceName(service.getName())
+                                                        .durationMinutes(durationMinutes)
+                                                        .slotsRequired(slotsRequired)
+                                                        .estimatedStartTime(currentStartDateTime)
+                                                        .estimatedEndTime(serviceEndDateTime)
+                                                        .build());
+
+                                        petTotalDuration += durationMinutes;
+                                        grandTotalSlotsRequired += slotsRequired;
+                                        currentStartDateTime = serviceEndDateTime;
+                                }
+                        }
+
+                        grandTotalDurationMinutes += petTotalDuration;
+
+                        petDurations.add(EstimatedCompletionResponse.PetDuration.builder()
+                                        .petId(petEst.getPetId() != null ? petEst.getPetId().toString() : null)
+                                        .petWeight(petEst.getPetWeight())
+                                        .totalDurationMinutes(petTotalDuration)
+                                        .services(serviceDurations)
+                                        .build());
+                }
+
+                // Final grand estimated end time is just the last currentStartDateTime
+                LocalDateTime estimatedEndDateTime = currentStartDateTime;
+
+                log.info("Estimated completion: startDateTime={}, endDateTime={}, totalDuration={}min, pets={}",
+                                request.getStartDateTime(), estimatedEndDateTime, grandTotalDurationMinutes,
+                                petDurations.size());
+
+                return EstimatedCompletionResponse.builder()
+                                .startTime(request.getStartDateTime())
+                                .estimatedEndTime(estimatedEndDateTime)
+                                .totalDurationMinutes(grandTotalDurationMinutes)
+                                .totalSlotsRequired(grandTotalSlotsRequired)
+                                .pets(petDurations)
+                                .build();
         }
 }
+

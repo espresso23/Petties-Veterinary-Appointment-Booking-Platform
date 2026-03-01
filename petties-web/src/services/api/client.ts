@@ -38,16 +38,16 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
 
     // Nếu lỗi 401 và chưa retry, và không phải là request auth
     if (
       error.response?.status === 401 &&
       originalRequest &&
-      !(originalRequest as any)._retry &&
+      !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/')
     ) {
-      ; (originalRequest as any)._retry = true
+      originalRequest._retry = true
 
       try {
         const refreshToken = useAuthStore.getState().refreshToken
@@ -91,13 +91,13 @@ apiClient.interceptors.response.use(
 
     // Parse error và attach userMessage vào error object
     const userMessage = parseApiError(error)
-      ; (error as any).userMessage = userMessage
+    ;(error as AxiosError & { userMessage?: string }).userMessage = userMessage
 
     // Log error trong dev mode
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
+
       console.error('API error', error)
-      // eslint-disable-next-line no-console
+
       console.error('User message:', userMessage)
     }
 

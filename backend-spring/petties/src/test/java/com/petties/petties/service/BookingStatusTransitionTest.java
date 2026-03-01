@@ -1,7 +1,9 @@
 package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.exception.ResourceNotFoundException;
+import com.petties.petties.mapper.BookingMapper;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Pet;
@@ -10,6 +12,7 @@ import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -45,6 +49,18 @@ class BookingStatusTransitionTest {
 
     @Mock
     private EmrRecordRepository emrRecordRepository;
+
+    @Mock
+    private SseEmitterService sseEmitterService;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private BookingMapper bookingMapper;
+
+    @Mock
+    private BookingNotificationService bookingNotificationService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -87,8 +103,20 @@ class BookingStatusTransitionTest {
         testBooking.setBookingDate(LocalDate.now());
         testBooking.setBookingTime(LocalTime.of(10, 0));
         testBooking.setType(BookingType.HOME_VISIT);
-        testBooking.setStatus(BookingStatus.ASSIGNED);
+        testBooking.setStatus(BookingStatus.CONFIRMED);
         testBooking.setBookingServices(new ArrayList<>());
+
+        // Mock bookingMapper to return non-null response (lenient to avoid
+        // UnnecessaryStubbingException)
+        lenient().when(bookingMapper.mapToResponse(any(Booking.class))).thenAnswer(invocation -> {
+            Booking b = invocation.getArgument(0);
+            return BookingResponse.builder()
+                    .bookingId(b.getBookingId())
+                    .bookingCode(b.getBookingCode())
+                    .status(b.getStatus())
+                    .type(b.getType())
+                    .build();
+        });
     }
 
     // ========== CHECK-IN TESTS ==========
@@ -98,10 +126,10 @@ class BookingStatusTransitionTest {
     class CheckInTests {
 
         @Test
-        @DisplayName("TC-UNIT-BOOKING-001: Check-in từ ASSIGNED thành công")
-        void checkIn_fromAssigned_success() {
+        @DisplayName("TC-UNIT-BOOKING-001: Check-in từ CONFIRMED thành công")
+        void checkIn_fromCONFIRMED_success() {
             // Given
-            testBooking.setStatus(BookingStatus.ASSIGNED);
+            testBooking.setStatus(BookingStatus.CONFIRMED);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
             when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -125,20 +153,24 @@ class BookingStatusTransitionTest {
             // When/Then
             assertThatThrownBy(() -> bookingService.checkIn(bookingId))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("ASSIGNED");
+                    .hasMessageContaining("CONFIRMED");
         }
 
         @Test
-        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS thất bại")
-        void checkIn_fromInProgress_shouldFail() {
+        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS vẫn thành công (idempotent)")
+        void checkIn_fromInProgress_success() {
             // Given
             testBooking.setStatus(BookingStatus.IN_PROGRESS);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
 
-            // When/Then
-            assertThatThrownBy(() -> bookingService.checkIn(bookingId))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("ASSIGNED");
+            // When
+            BookingResponse response = bookingService.checkIn(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            verify(bookingRepository).save(testBooking);
         }
 
         @Test
@@ -178,10 +210,10 @@ class BookingStatusTransitionTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BOOKING-006: Complete từ ASSIGNED thất bại")
-        void complete_fromAssigned_shouldFail() {
+        @DisplayName("TC-UNIT-BOOKING-006: Complete từ CONFIRMED thất bại")
+        void complete_fromCONFIRMED_shouldFail() {
             // Given
-            testBooking.setStatus(BookingStatus.ASSIGNED);
+            testBooking.setStatus(BookingStatus.CONFIRMED);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
             // When/Then
@@ -204,6 +236,177 @@ class BookingStatusTransitionTest {
         }
     }
 
+    // ========== START MOVING TESTS ==========
+
+    @Nested
+    @DisplayName("Start Moving Tests")
+    class StartMovingTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-012: Start moving từ CONFIRMED cho SOS thành công")
+        void startMoving_fromConfirmed_sos_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.SOS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            // When
+            BookingResponse response = bookingService.startMoving(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "START_MOVING");
+            verify(notificationService).sendStaffOnWayNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-013: Start moving với loại IN_CLINIC thất bại")
+        void startMoving_wrongType_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.IN_CLINIC);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.startMoving(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ áp dụng cho đặt lịch SOS hoặc khám tại nhà");
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-014: Start moving từ trạng thái khác CONFIRMED thất bại")
+        void startMoving_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.SOS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.startMoving(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể bắt đầu di chuyển khi booking ở trạng thái CONFIRMED");
+        }
+    }
+
+    // ========== ARRIVED TESTS ==========
+
+    @Nested
+    @DisplayName("Arrived Tests")
+    class ArrivedTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-015: Arrived từ IN_PROGRESS thành công")
+        void arrived_fromInProgress_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            // When
+            BookingResponse response = bookingService.arrived(bookingId);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
+            assertThat(testBooking.getArrivedAt()).isNotNull();
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "ARRIVED");
+            verify(notificationService).sendStaffArrivedNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-016: Arrived khi không ở trạng thái IN_PROGRESS thất bại")
+        void arrived_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.arrived(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể báo đã đến khi booking ở trạng thái IN_PROGRESS");
+        }
+    }
+
+    // ========== PROCESS CHECKOUT TESTS ==========
+
+    @Nested
+    @DisplayName("Process Checkout Tests")
+    class ProcessCheckoutTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-017: Checkout từ IN_PROGRESS cho HOME_VISIT thành công")
+        void processCheckout_fromInProgress_homeVisit_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.HOME_VISIT);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            // When
+            BookingResponse response = bookingService.processCheckout(bookingId, new CheckoutRequest(), staff);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "COMPLETED");
+            verify(notificationService).sendCompletedNotification(testBooking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-018: Checkout khi booking không ở IN_PROGRESS thất bại")
+        void processCheckout_wrongStatus_shouldFail() {
+            // Given
+            testBooking.setStatus(BookingStatus.CONFIRMED);
+            testBooking.setType(BookingType.HOME_VISIT);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            // When/Then
+            assertThatThrownBy(() -> bookingService.processCheckout(bookingId, new CheckoutRequest(), staff))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("Chỉ có thể checkout khi lịch hẹn đang thực hiện");
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BOOKING-019: Checkout SOS không yêu cầu arrivedAt (dùng overriddenSosFee)")
+        void processCheckout_sosWithoutArrivedAt_success() {
+            // Given
+            testBooking.setStatus(BookingStatus.IN_PROGRESS);
+            testBooking.setType(BookingType.SOS);
+            testBooking.setArrivedAt(null);
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+
+            CheckoutRequest request = new CheckoutRequest();
+            request.setOverriddenSosFee(BigDecimal.valueOf(50000));
+
+            // When
+            BookingResponse response = bookingService.processCheckout(bookingId, request, staff);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.COMPLETED);
+            // SOS fee should be set from pricingService
+            assertThat(testBooking.getSosFee()).isEqualByComparingTo(BigDecimal.valueOf(50000));
+            verify(bookingRepository).save(testBooking);
+            verify(bookingNotificationService).pushBookingUpdateToUsers(testBooking, "COMPLETED");
+            verify(notificationService).sendCompletedNotification(testBooking);
+        }
+    }
+
     // ========== NOTIFY ON WAY TESTS ==========
 
     @Nested
@@ -214,7 +417,7 @@ class BookingStatusTransitionTest {
         @DisplayName("TC-UNIT-BOOKING-008: Notify on way cho HOME_VISIT thành công")
         void notifyOnWay_homeVisit_success() {
             // Given
-            testBooking.setStatus(BookingStatus.ASSIGNED);
+            testBooking.setStatus(BookingStatus.CONFIRMED);
             testBooking.setType(BookingType.HOME_VISIT);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
@@ -225,14 +428,14 @@ class BookingStatusTransitionTest {
             assertThat(response).isNotNull();
             verify(notificationService).sendStaffOnWayNotification(testBooking);
             // Status should NOT change
-            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.ASSIGNED);
+            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
         }
 
         @Test
         @DisplayName("TC-UNIT-BOOKING-009: Notify on way cho SOS thành công")
         void notifyOnWay_sos_success() {
             // Given
-            testBooking.setStatus(BookingStatus.ASSIGNED);
+            testBooking.setStatus(BookingStatus.CONFIRMED);
             testBooking.setType(BookingType.SOS);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
@@ -248,7 +451,7 @@ class BookingStatusTransitionTest {
         @DisplayName("TC-UNIT-BOOKING-010: Notify on way cho IN_CLINIC thất bại")
         void notifyOnWay_inClinic_shouldFail() {
             // Given
-            testBooking.setStatus(BookingStatus.ASSIGNED);
+            testBooking.setStatus(BookingStatus.CONFIRMED);
             testBooking.setType(BookingType.IN_CLINIC);
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
@@ -269,7 +472,7 @@ class BookingStatusTransitionTest {
             // When/Then
             assertThatThrownBy(() -> bookingService.notifyOnWay(bookingId))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("ASSIGNED");
+                    .hasMessageContaining("CONFIRMED");
         }
     }
 }

@@ -2,6 +2,7 @@ package com.petties.petties.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,6 +23,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ClinicService {
 
     @Id
@@ -39,6 +41,7 @@ public class ClinicService {
     private MasterService masterService;
 
     // NEW: Phân biệt Custom vs Inherited
+    @Builder.Default
     @Column(name = "is_custom", nullable = false)
     private Boolean isCustom = true;
 
@@ -57,9 +60,11 @@ public class ClinicService {
     @Column(name = "slots_required", nullable = false)
     private Integer slotsRequired;
 
+    @Builder.Default
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Builder.Default
     @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
@@ -69,9 +74,6 @@ public class ClinicService {
 
     @Column(name = "reminder_unit", length = 50)
     private String reminderUnit; // DAYS, WEEKS, MONTHS, YEARS
-
-    @Column(name = "price_per_km", precision = 19, scale = 2)
-    private BigDecimal pricePerKm;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "service_category", length = 100)
@@ -85,6 +87,7 @@ public class ClinicService {
     @JoinColumn(name = "vaccine_template_id")
     private VaccineTemplate vaccineTemplate;
 
+    @Builder.Default
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
 

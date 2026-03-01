@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notificationService } from '../../services/api/notificationService'
 import type { ClinicNotification } from '../../services/api/notificationService'
@@ -24,6 +24,25 @@ export const NotificationsPage = () => {
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const refreshUnreadCount = useNotificationStore((state) => state.refreshUnreadCount)
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await notificationService.getNotifications(page, 20)
+      setNotifications(data.content)
+      setTotalPages(data.totalPages)
+      setTotalElements(data.totalElements)
+    } catch (err) {
+      showToast('error', 'Không thể tải thông báo')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, showToast])
+
+  const loadUnreadCount = useCallback(async () => {
+    await refreshUnreadCount()
+  }, [refreshUnreadCount])
+
   // SSE hook for real-time notifications
   useSseNotification({
     onNotification: () => {
@@ -32,29 +51,10 @@ export const NotificationsPage = () => {
     },
   })
 
-  const loadNotifications = async () => {
-    try {
-      setLoading(true)
-      const data = await notificationService.getNotifications(page, 20)
-      setNotifications(data.content)
-      setTotalPages(data.totalPages)
-      setTotalElements(data.totalElements)
-    } catch (error: any) {
-      showToast('error', 'Không thể tải thông báo')
-      console.error(error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadUnreadCount = async () => {
-    await refreshUnreadCount()
-  }
-
   useEffect(() => {
     loadNotifications()
     loadUnreadCount()
-  }, [page])
+  }, [loadNotifications, loadUnreadCount])
 
   const handleMarkAsRead = async (notificationId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation()
@@ -65,7 +65,7 @@ export const NotificationsPage = () => {
       )
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu đã đọc')
     }
   }
@@ -77,7 +77,7 @@ export const NotificationsPage = () => {
       // Refresh unread count immediately to update sidebar
       await refreshUnreadCount()
       showToast('success', 'Đã đánh dấu tất cả đã đọc')
-    } catch (error: any) {
+    } catch {
       showToast('error', 'Không thể đánh dấu tất cả đã đọc')
     }
   }
@@ -89,7 +89,7 @@ export const NotificationsPage = () => {
       case 'STAFF_SHIFT_UPDATED':
       case 'STAFF_SHIFT_DELETED':
         return '/staff/schedule'
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
       case 'BOOKING_CANCELLED':
         return '/staff/bookings'
       default:
@@ -132,7 +132,7 @@ export const NotificationsPage = () => {
         return 'bg-blue-100 border-blue-600'
       case 'STAFF_SHIFT_DELETED':
         return 'bg-orange-100 border-orange-600'
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
         return 'bg-blue-100 border-blue-600'
       case 'BOOKING_CANCELLED':
         return 'bg-red-100 border-red-600'
@@ -153,8 +153,8 @@ export const NotificationsPage = () => {
         return 'CA LÀM VIỆC ĐÃ ĐƯỢC CẬP NHẬT'
       case 'STAFF_SHIFT_DELETED':
         return 'CA LÀM VIỆC ĐÃ BỊ XÓA'
-      case 'BOOKING_ASSIGNED':
-        return 'BẠN CÓ LỊCH HẸN MỚI'
+      case 'BOOKING_CONFIRMED':
+        return 'LỊCH HẸN ĐÃ XÁC NHẬN'
       case 'BOOKING_CANCELLED':
         return 'LỊCH HẸN ĐÃ HỦY'
       default:
@@ -205,7 +205,7 @@ export const NotificationsPage = () => {
             </svg>
           </div>
         )
-      case 'BOOKING_ASSIGNED':
+      case 'BOOKING_CONFIRMED':
         return (
           <div className="w-10 h-10 bg-blue-500 border-2 border-stone-900 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

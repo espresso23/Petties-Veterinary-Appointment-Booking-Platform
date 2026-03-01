@@ -1,10 +1,15 @@
 package com.petties.petties.service;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.petties.petties.dto.booking.AlternativeTimeSlot;
 import com.petties.petties.dto.booking.AvailableStaffResponse;
 import com.petties.petties.dto.booking.ServiceAvailability;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
+import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
@@ -21,6 +26,7 @@ import com.petties.petties.repository.BookingSlotRepository;
 import com.petties.petties.repository.SlotRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.repository.StaffShiftRepository;
+import com.petties.petties.util.BookingScheduleUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +52,7 @@ public class StaffAssignmentService {
     private final SlotRepository slotRepository;
     private final BookingSlotRepository bookingSlotRepository;
     private final com.petties.petties.repository.ClinicServiceRepository clinicServiceRepository;
+    private final SosSessionManager sosSessionManager;
 
     /**
      * Auto-assign staff for a booking based on:
@@ -63,20 +70,20 @@ public class StaffAssignmentService {
         LocalDate bookingDate = booking.getBookingDate();
         LocalTime bookingTime = booking.getBookingTime();
 
-        // Step 1: Determine required specialty from services
-        StaffSpecialty requiredSpecialty = determineRequiredSpecialty(booking);
-        log.info("Required specialty: {}", requiredSpecialty);
+        List<User> matchingStaff;
+        if (booking.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+            log.info("SOS Mode: Bypassing specialty check for auto-assignment");
+            matchingStaff = userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF);
+        } else {
+            // Step 1: Determine required specialty from services
+            StaffSpecialty requiredSpecialty = determineRequiredSpecialty(booking);
+            log.info("Required specialty: {}", requiredSpecialty);
 
-        // Step 2: Find staff with matching specialty in clinic
-        List<User> matchingStaff = findStaffWithSpecialty(clinicId, requiredSpecialty);
-        log.info("Found {} staff with specialty {}", matchingStaff.size(), requiredSpecialty);
+            // Step 2: Find staff with matching specialty in clinic
+            matchingStaff = findStaffWithSpecialty(clinicId, requiredSpecialty);
+            log.info("Found {} staff with specialty {}", matchingStaff.size(), requiredSpecialty);
 
-        if (matchingStaff.isEmpty()) {
-            // Fallback: try VET_GENERAL
-            if (requiredSpecialty != StaffSpecialty.VET_GENERAL && requiredSpecialty != StaffSpecialty.GROOMER) {
-                log.info("No staff with {} specialty, falling back to VET_GENERAL", requiredSpecialty);
-                matchingStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-            }
+            // No fallback needed - only VET and GROOMER
         }
 
         if (matchingStaff.isEmpty()) {
@@ -114,39 +121,41 @@ public class StaffAssignmentService {
 
         UUID clinicId = booking.getClinic().getClinicId();
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentTime = booking.getBookingTime();
+
+        // Multi-pet: parallel schedule - each service has its own start time
+        // Single-pet: sequential - compatible with previous logic
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
 
         Map<UUID, User> assignments = new HashMap<>();
         Map<StaffSpecialty, User> specialtyStaffCache = new HashMap<>();
 
-        // Process services sequentially to calculate correct start times for each
-        for (BookingServiceItem item : booking.getBookingServices()) {
-            StaffSpecialty specialty = getSpecialtyForService(item);
+        boolean isSOS = booking.getType() == com.petties.petties.model.enums.BookingType.SOS;
 
-            // Calculate slots needed for this specific service
+        for (BookingServiceItem item : booking.getBookingServices()) {
+            StaffSpecialty specialty = isSOS ? null : getSpecialtyForService(item);
+
             Integer duration = item.getService().getDurationTime();
             int slotsNeeded = (duration != null && duration > 0)
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            // Find available staff for this specialty at THIS specific time with ENOUGH slots
-            // This ensures we pick a staff who actually has capacity
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
+
+            // Find available staff at THIS service's scheduled start time (parallel for multi-pet)
             User staff = findAvailableStaffForSpecialtyAtTime(
-                    clinicId, bookingDate, currentTime, specialty, slotsNeeded);
+                    clinicId, bookingDate, slotStartTime, specialty, slotsNeeded);
 
             if (staff != null) {
                 item.setAssignedStaff(staff);
                 assignments.put(item.getBookingServiceId(), staff);
                 specialtyStaffCache.put(specialty, staff);
                 log.info("Assigned staff {} to service {} (specialty: {}) at {}",
-                        staff.getFullName(), item.getService().getName(), specialty, currentTime);
+                        staff.getFullName(), item.getService().getName(), specialty, slotStartTime);
             } else {
                 log.warn("No staff available for service {} (specialty: {}) at {}",
-                        item.getService().getName(), specialty, currentTime);
+                        item.getService().getName(), specialty, slotStartTime);
             }
-
-            // Advance time for next service
-            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
         // Set primary staff on booking (highest specialty priority)
@@ -167,22 +176,27 @@ public class StaffAssignmentService {
         if (category != null) {
             return category.getRequiredSpecialty();
         }
-        return StaffSpecialty.VET_GENERAL;
+        return StaffSpecialty.VET;
     }
 
     /**
-     * Find available staff for a specific specialty at a specific time with enough slots
+     * Find available staff for a specific specialty at a specific time with enough
+     * slots
      */
     private User findAvailableStaffForSpecialtyAtTime(UUID clinicId, LocalDate date, LocalTime time,
             StaffSpecialty specialty, int slotsNeeded) {
         log.info(">> Finding staff for specialty: {} at time: {} needing {} slots", specialty, time, slotsNeeded);
-        List<User> matchingStaff = findStaffWithSpecialty(clinicId, specialty);
-        log.info(">> Found {} staff with specialty {}", matchingStaff.size(), specialty);
 
-        if (matchingStaff.isEmpty() && specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
-            log.info("No staff with {} specialty, falling back to VET_GENERAL", specialty);
-            matchingStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-            log.info(">> Fallback found {} VET_GENERAL staff", matchingStaff.size());
+        List<User> matchingStaff;
+        if (specialty == null) {
+            // SOS case - any staff in clinic
+            matchingStaff = userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF);
+            log.info(">> SOS Mode: Found {} total staff in clinic", matchingStaff.size());
+        } else {
+            matchingStaff = findStaffWithSpecialty(clinicId, specialty);
+            log.info(">> Found {} staff with specialty {}", matchingStaff.size(), specialty);
+
+            // No fallback - only VET and GROOMER
         }
 
         if (matchingStaff.isEmpty()) {
@@ -201,49 +215,29 @@ public class StaffAssignmentService {
      * Select primary staff (highest specialty priority)
      */
     private User selectPrimaryStaff(Map<StaffSpecialty, User> specialtyStaffCache) {
-        List<StaffSpecialty> priorityOrder = Arrays.asList(
-                StaffSpecialty.VET_SURGERY,
-                StaffSpecialty.VET_DENTAL,
-                StaffSpecialty.VET_DERMATOLOGY,
-                StaffSpecialty.VET_GENERAL,
-                StaffSpecialty.GROOMER);
-
-        for (StaffSpecialty specialty : priorityOrder) {
-            if (specialtyStaffCache.containsKey(specialty)) {
-                return specialtyStaffCache.get(specialty);
-            }
+        // VET before GROOMER when mixed
+        if (specialtyStaffCache.containsKey(StaffSpecialty.VET)) {
+            return specialtyStaffCache.get(StaffSpecialty.VET);
+        }
+        if (specialtyStaffCache.containsKey(StaffSpecialty.GROOMER)) {
+            return specialtyStaffCache.get(StaffSpecialty.GROOMER);
         }
         return specialtyStaffCache.values().iterator().next();
     }
 
     /**
-     * Determine required specialty from booking services
+     * Determine required specialty from booking services.
      * Priority: highest specialty requirement wins
      */
     private StaffSpecialty determineRequiredSpecialty(Booking booking) {
-        // Priority order (higher index = higher priority)
-        List<StaffSpecialty> priorityOrder = Arrays.asList(
-                StaffSpecialty.GROOMER,
-                StaffSpecialty.VET_GENERAL,
-                StaffSpecialty.VET_DERMATOLOGY,
-                StaffSpecialty.VET_DENTAL,
-                StaffSpecialty.VET_SURGERY);
-
-        StaffSpecialty highestPriority = StaffSpecialty.VET_GENERAL;
-
+        // If any service requires GROOMER, return GROOMER; else VET
         for (BookingServiceItem item : booking.getBookingServices()) {
             ServiceCategory category = item.getService().getServiceCategory();
-            if (category != null) {
-                StaffSpecialty required = category.getRequiredSpecialty();
-
-                // Compare priority
-                if (priorityOrder.indexOf(required) > priorityOrder.indexOf(highestPriority)) {
-                    highestPriority = required;
-                }
+            if (category != null && category.getRequiredSpecialty() == StaffSpecialty.GROOMER) {
+                return StaffSpecialty.GROOMER;
             }
         }
-
-        return highestPriority;
+        return StaffSpecialty.VET;
     }
 
     /**
@@ -283,8 +277,10 @@ public class StaffAssignmentService {
             List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(), date);
 
             for (StaffShift shift : shifts) {
-                // Check if shift is at the same clinic
-                if (shift.getClinic().getClinicId().equals(clinicId) && isTimeWithinShift(time, shift)) {
+                // Check if shift is at the same clinic (with null safety)
+                if (shift.getClinic() != null
+                        && shift.getClinic().getClinicId().equals(clinicId)
+                        && isTimeWithinShift(time, shift)) {
                     available.add(member);
                     break;
                 }
@@ -342,10 +338,9 @@ public class StaffAssignmentService {
         log.info("Reserving slots for booking {}", booking.getBookingCode());
 
         LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentSlotTime = booking.getBookingTime(); // Track current time position
 
-        // Process services IN ORDER (sequentially, not grouped by staff)
-        // This ensures services are scheduled one after another
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+
         for (BookingServiceItem item : booking.getBookingServices()) {
             if (item.getAssignedStaff() == null) {
                 log.warn("Service '{}' has no assigned staff, skipping", item.getService().getName());
@@ -358,11 +353,11 @@ public class StaffAssignmentService {
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            log.info("Service '{}' (staff {}) duration={}min needs {} slots starting at {}",
-                    item.getService().getName(), staffId, duration, slotsNeeded, currentSlotTime);
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            final LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
 
-            // Create final copy for use in lambdas
-            final LocalTime slotStartTime = currentSlotTime;
+            log.info("Service '{}' (staff {}) duration={}min needs {} slots starting at {}",
+                    item.getService().getName(), staffId, duration, slotsNeeded, slotStartTime);
 
             // Find staff's shift on booking date
             List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(staffId, bookingDate);
@@ -420,11 +415,8 @@ public class StaffAssignmentService {
                         slot.getSlotId(), slot.getStartTime(), slot.getEndTime(), item.getService().getName());
             }
 
-            // Advance current time position to end of last reserved slot
-            Slot lastSlot = consecutiveSlots.get(consecutiveSlots.size() - 1);
-            currentSlotTime = lastSlot.getEndTime();
-            log.info("Advanced time position to {} after service '{}'",
-                    currentSlotTime, item.getService().getName());
+            log.info("Reserved {} slots for service '{}' starting at {}",
+                    consecutiveSlots.size(), item.getService().getName(), slotStartTime);
         }
 
         log.info("Completed slot reservation for booking {}", booking.getBookingCode());
@@ -503,14 +495,9 @@ public class StaffAssignmentService {
         // Find all staff with matching specialty at clinic
         List<User> staff = findStaffWithSpecialty(clinicId, specialty);
 
-        // Also add VET_GENERAL as fallback (they can handle most services except
-        // GROOMER)
-        if (specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
-            List<User> generalStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-            staff.addAll(generalStaff);
-        }
+        // No fallback - only VET and GROOMER
 
-        log.info("Found {} staff with specialty {} (including fallback) at clinic", staff.size(), specialty);
+        log.info("Found {} staff with specialty {} at clinic", staff.size(), specialty);
 
         for (User member : staff) {
             // Skip the currently assigned staff - they should not appear in the list
@@ -607,6 +594,26 @@ public class StaffAssignmentService {
         User newStaff = userRepository.findById(newStaffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff not found: " + newStaffId));
 
+        // ========== SPECIALTY VALIDATION ==========
+        // Check if new staff has appropriate specialty for this service
+        StaffSpecialty requiredSpecialty = serviceItem.getService().getServiceCategory().getRequiredSpecialty();
+        StaffSpecialty newStaffSpecialty = newStaff.getSpecialty();
+
+        if (!isSpecialtyCompatible(newStaffSpecialty, requiredSpecialty)) {
+            String message = String.format(
+                "Nhân viên %s (%s) không có chuyên môn phù hợp với dịch vụ %s (yêu cầu: %s)",
+                newStaff.getFullName(),
+                newStaffSpecialty != null ? newStaffSpecialty.getVietnameseLabel() : "Không xác định",
+                serviceItem.getService().getName(),
+                requiredSpecialty.getVietnameseLabel()
+            );
+            log.warn("Specialty validation failed: {}", message);
+            throw new BadRequestException(message);
+        }
+
+        log.info("Specialty validation passed: {} ({}) is compatible with required {}",
+                newStaff.getFullName(), newStaffSpecialty, requiredSpecialty);
+
         Booking booking = serviceItem.getBooking();
         User oldStaff = serviceItem.getAssignedStaff();
 
@@ -614,6 +621,12 @@ public class StaffAssignmentService {
                 serviceItem.getService().getName(),
                 oldStaff != null ? oldStaff.getFullName() : "unassigned",
                 newStaff.getFullName());
+
+        // Validate: service category cannot be changed to groomer
+        StaffSpecialty serviceCategorySpecialty = getSpecialtyForService(serviceItem);
+        if (serviceCategorySpecialty != StaffSpecialty.GROOMER && newStaff.getSpecialty() == StaffSpecialty.GROOMER) {
+            throw new BadRequestException("Dịch vụ chuyên khoa không thể đổi cho nhân viên groomer");
+        }
 
         // Calculate slots needed for this service
         Integer duration = serviceItem.getService().getDurationTime();
@@ -743,31 +756,35 @@ public class StaffAssignmentService {
     public StaffAvailabilityCheckResponse checkStaffAvailabilityForBooking(Booking booking) {
         log.info("Checking staff availability for booking {}", booking.getBookingCode());
 
-        UUID clinicId = booking.getClinic().getClinicId();
-        LocalDate bookingDate = booking.getBookingDate();
-        LocalTime currentTime = booking.getBookingTime();
+        UUID clinicId = resolveClinicId(booking);
+        LocalDate bookingDate = booking.getBookingDate() != null ? booking.getBookingDate() : LocalDate.now();
+
+        // Multi-pet: parallel schedule - each service has its own start time
+        Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
 
         List<ServiceAvailability> serviceResults = new ArrayList<>();
         Set<StaffSpecialty> missingSpecialties = new HashSet<>();
         BigDecimal priceReduction = BigDecimal.ZERO;
         boolean allHaveStaff = true;
 
-        // Check each service
+        boolean isSOS = booking.getType() == com.petties.petties.model.enums.BookingType.SOS;
+
         for (BookingServiceItem item : booking.getBookingServices()) {
-            StaffSpecialty requiredSpecialty = getSpecialtyForService(item);
+            StaffSpecialty requiredSpecialty = isSOS ? null : getSpecialtyForService(item);
             String specialtyLabel = requiredSpecialty != null
                     ? requiredSpecialty.getVietnameseLabel()
-                    : "Chưa xác định";
+                    : (isSOS ? "Bất kỳ nhân viên" : "Chưa xác định");
 
-            // Calculate slots needed
             Integer duration = item.getService().getDurationTime();
             int slotsNeeded = (duration != null && duration > 0)
                     ? (int) Math.ceil(duration / 30.0)
                     : 1;
 
-            // Find available staff for this specialty at this time
+            LocalTime[] range = schedule.get(item.getBookingServiceId());
+            LocalTime slotStartTime = range != null ? range[0] : booking.getBookingTime();
+
             User availableStaff = findAvailableStaffForSpecialtyAtTime(
-                    clinicId, bookingDate, currentTime, requiredSpecialty, slotsNeeded);
+                    clinicId, bookingDate, slotStartTime, requiredSpecialty, slotsNeeded);
 
             ServiceAvailability.ServiceAvailabilityBuilder builder = ServiceAvailability.builder()
                     .bookingServiceId(item.getBookingServiceId())
@@ -797,9 +814,6 @@ public class StaffAssignmentService {
             }
 
             serviceResults.add(builder.build());
-
-            // Advance time for next service
-            currentTime = currentTime.plusMinutes(slotsNeeded * 30L);
         }
 
         // Find alternative time slots for missing specialties
@@ -862,7 +876,7 @@ public class StaffAssignmentService {
                     List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
                             searchDate);
                     StaffShift matchingShift = shifts.stream()
-                            .filter(s -> s.getClinic().getClinicId().equals(clinicId))
+                            .filter(s -> s.getClinic() != null && s.getClinic().getClinicId().equals(clinicId))
                             .findFirst()
                             .orElse(null);
 
@@ -919,137 +933,197 @@ public class StaffAssignmentService {
      * @param booking The booking to get available staff for
      * @return List of StaffOptionDTO sorted by availability and workload
      */
+    @Transactional(readOnly = true)
     public List<StaffOptionDTO> getAvailableStaffForBookingConfirm(Booking booking) {
         log.info("Getting available staff for booking confirm: {}", booking.getBookingCode());
 
-        UUID clinicId = booking.getClinic().getClinicId();
-        LocalDate bookingDate = booking.getBookingDate();
-        LocalTime bookingTime = booking.getBookingTime();
+        try {
+            UUID clinicId = resolveClinicId(booking);
+            LocalDate bookingDate = booking.getBookingDate() != null ? booking.getBookingDate() : LocalDate.now();
+            LocalTime bookingTime = booking.getBookingTime() != null ? booking.getBookingTime() : LocalTime.now();
 
-        // Step 1: Get all required specialties from services
-        Set<StaffSpecialty> requiredSpecialties = new HashSet<>();
-        int totalSlotsNeeded = 0;
+            Set<StaffSpecialty> requiredSpecialties = new HashSet<>();
+            int totalSlotsNeeded = 0;
+            boolean isSOS = booking.getType() == com.petties.petties.model.enums.BookingType.SOS;
 
-        log.info("Getting available staff for booking confirmation {}. Services categories: {}",
-                booking.getBookingCode(),
-                booking.getBookingServices().stream().map(s -> s.getService().getServiceCategory())
-                        .collect(Collectors.toList()));
+            log.info("Getting available staff for booking confirmation {}. SOS Mode: {}",
+                    booking.getBookingCode(), isSOS);
 
-        for (BookingServiceItem item : booking.getBookingServices()) {
-            StaffSpecialty specialty = getSpecialtyForService(item);
-            requiredSpecialties.add(specialty);
-
-            Integer duration = item.getService().getDurationTime();
-            int slotsNeeded = (duration != null && duration > 0)
-                    ? (int) Math.ceil(duration / 30.0)
-                    : 1;
-            totalSlotsNeeded += slotsNeeded;
-        }
-
-        log.info("Required specialties for booking: {}, total slots needed: {}", requiredSpecialties, totalSlotsNeeded);
-
-        // Step 2: Find all staff that can handle ANY of the required specialties
-        Set<User> allMatchingStaff = new HashSet<>();
-        for (StaffSpecialty specialty : requiredSpecialties) {
-            List<User> staff = findStaffWithSpecialty(clinicId, specialty);
-            allMatchingStaff.addAll(staff);
-
-            // Also add VET_GENERAL as fallback (they can handle most services)
-            if (specialty != StaffSpecialty.VET_GENERAL && specialty != StaffSpecialty.GROOMER) {
-                List<User> generalStaff = findStaffWithSpecialty(clinicId, StaffSpecialty.VET_GENERAL);
-                allMatchingStaff.addAll(generalStaff);
-            }
-        }
-
-        log.info("Found {} matching staff for all required specialties", allMatchingStaff.size());
-
-        // Step 3: Get suggested staff from availability check
-        UUID suggestedStaffId = null;
-        StaffAvailabilityCheckResponse availabilityCheck = checkStaffAvailabilityForBooking(booking);
-        if (availabilityCheck.isAllServicesHaveStaff() && !availabilityCheck.getServices().isEmpty()) {
-            // Get the first service's suggested staff as the primary suggested staff
-            suggestedStaffId = availabilityCheck.getServices().get(0).getSuggestedStaffId();
-        }
-        final UUID finalSuggestedStaffId = suggestedStaffId;
-
-        // Step 4: Build StaffOptionDTO for each staff
-        List<StaffOptionDTO> result = new ArrayList<>();
-
-        for (User member : allMatchingStaff) {
-            StaffOptionDTO.StaffOptionDTOBuilder builder = StaffOptionDTO.builder()
-                    .staffId(member.getUserId())
-                    .fullName(member.getFullName())
-                    .avatarUrl(member.getAvatar())
-                    .specialty(member.getSpecialty() != null ? member.getSpecialty().name() : null)
-                    .specialtyLabel(member.getSpecialty() != null ? member.getSpecialty().getVietnameseLabel() : null)
-                    .isSuggested(member.getUserId().equals(finalSuggestedStaffId));
-
-            // Check if staff has shift on booking date
-            List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
-                    bookingDate);
-            StaffShift matchingShift = shifts.stream()
-                    .filter(s -> s.getClinic().getClinicId().equals(clinicId) && isTimeWithinShift(bookingTime, s))
-                    .findFirst()
-                    .orElse(null);
-
-            if (matchingShift == null) {
-                builder.hasAvailableSlots(false)
-                        .unavailableReason("Không có ca làm việc vào thời gian này")
-                        .bookingCount(0);
-            } else {
-                // Count available slots at exact booking time
-                List<Slot> availableSlots = slotRepository
-                        .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(), SlotStatus.AVAILABLE);
-
-                // Find consecutive slots starting at booking time
-                List<Slot> consecutiveSlots = new ArrayList<>();
-                LocalTime expectedStart = bookingTime;
-
-                for (Slot slot : availableSlots) {
-                    if (slot.getStartTime().equals(expectedStart)) {
-                        consecutiveSlots.add(slot);
-                        expectedStart = slot.getEndTime();
-                        if (consecutiveSlots.size() >= totalSlotsNeeded)
-                            break;
-                    } else if (!consecutiveSlots.isEmpty() && !slot.getStartTime().equals(expectedStart)) {
-                        break; // Gap in consecutive slots
-                    }
+            for (BookingServiceItem item : booking.getBookingServices()) {
+                if (!isSOS) {
+                    requiredSpecialties.add(getSpecialtyForService(item));
                 }
+                Integer duration = item.getService().getDurationTime();
+                int slotsNeeded = (duration != null && duration > 0)
+                        ? (int) Math.ceil(duration / 30.0)
+                        : 1;
+                totalSlotsNeeded += slotsNeeded;
+            }
 
-                boolean hasEnoughSlots = consecutiveSlots.size() >= totalSlotsNeeded;
+            log.info("Required specialties for booking: {}, total slots needed: {}",
+                    isSOS ? "ANY" : requiredSpecialties,
+                    totalSlotsNeeded);
 
-                // Count bookings for this staff on booking date
+            // Step 2: Find all staff that can handle ANY of the required specialties
+            Set<User> allMatchingStaff = new HashSet<>();
+            if (isSOS) {
+                allMatchingStaff.addAll(userRepository.findByWorkingClinicIdAndRole(clinicId, Role.STAFF));
+            } else {
+                for (StaffSpecialty specialty : requiredSpecialties) {
+                    List<User> staff = findStaffWithSpecialty(clinicId, specialty);
+                    allMatchingStaff.addAll(staff);
+
+                    // No fallback - only VET and GROOMER
+                }
+            }
+
+            log.info("Found {} matching staff for confirmation", allMatchingStaff.size());
+
+            // Step 3: Get suggested staff from availability check
+            UUID suggestedStaffId = null;
+            StaffAvailabilityCheckResponse availabilityCheck = checkStaffAvailabilityForBooking(booking);
+            if (availabilityCheck.isAllServicesHaveStaff() && !availabilityCheck.getServices().isEmpty()) {
+                suggestedStaffId = availabilityCheck.getServices().get(0).getSuggestedStaffId();
+            }
+            final UUID finalSuggestedStaffId = suggestedStaffId;
+
+            // Step 4: Compute per-service schedule (start time + slots needed)
+            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+            Map<UUID, Integer> slotsNeededPerItem = new LinkedHashMap<>();
+            for (BookingServiceItem item : booking.getBookingServices()) {
+                Integer duration = item.getService().getDurationTime();
+                int slots = (duration != null && duration > 0)
+                        ? (int) Math.ceil(duration / 30.0)
+                        : 1;
+                slotsNeededPerItem.put(item.getBookingServiceId(), slots);
+            }
+
+            // Step 5: Build StaffOptionDTO for each staff - check availability PER SERVICE
+            List<StaffOptionDTO> result = new ArrayList<>();
+
+            for (User member : allMatchingStaff) {
+                StaffOptionDTO.StaffOptionDTOBuilder builder = StaffOptionDTO.builder()
+                        .staffId(member.getUserId())
+                        .fullName(member.getFullName())
+                        .avatarUrl(member.getAvatar())
+                        .specialty(member.getSpecialty() != null ? member.getSpecialty().name() : null)
+                        .specialtyLabel(
+                                member.getSpecialty() != null ? member.getSpecialty().getVietnameseLabel() : null)
+                        .isSuggested(member.getUserId().equals(finalSuggestedStaffId));
+
                 long bookingCount = bookingRepository.countActiveBookingsByStaffAndDate(member.getUserId(),
                         bookingDate);
+                builder.bookingCount((int) bookingCount);
 
-                builder.hasAvailableSlots(hasEnoughSlots)
-                        .bookingCount((int) bookingCount);
+                List<StaffShift> shifts = staffShiftRepository.findByStaff_UserIdAndWorkDate(member.getUserId(),
+                        bookingDate);
 
-                if (!hasEnoughSlots) {
-                    builder.unavailableReason(
-                            "Không đủ slot trống (cần " + totalSlotsNeeded + ", có " + consecutiveSlots.size() + ")");
+                if (isSOS) {
+                    builder.hasAvailableSlots(true)
+                            .unavailableReason(null)
+                            .availableServiceItemIds(new ArrayList<>(slotsNeededPerItem.keySet()));
+                } else {
+                    List<UUID> availableForItems = new ArrayList<>();
+                    String firstUnavailableReason = null;
+
+                    for (BookingServiceItem item : booking.getBookingServices()) {
+                        UUID itemId = item.getBookingServiceId();
+                        LocalTime[] range = schedule.get(itemId);
+                        LocalTime serviceStartTime = range != null ? range[0] : bookingTime;
+                        int slotsNeeded = slotsNeededPerItem.getOrDefault(itemId, 1);
+
+                        StaffShift matchingShift = shifts.stream()
+                                .filter(s -> s.getClinic() != null && s.getClinic().getClinicId().equals(clinicId)
+                                        && isTimeWithinShift(serviceStartTime, s))
+                                .findFirst()
+                                .orElse(null);
+
+                        if (matchingShift == null) {
+                            if (firstUnavailableReason == null) {
+                                firstUnavailableReason = "Không có ca làm việc vào thời gian này";
+                            }
+                            continue;
+                        }
+
+                        List<Slot> availableSlots = slotRepository
+                                .findByShift_ShiftIdAndStatusOrderByStartTime(matchingShift.getShiftId(),
+                                        SlotStatus.AVAILABLE);
+
+                        List<Slot> consecutiveSlots = new ArrayList<>();
+                        LocalTime expectedStart = serviceStartTime;
+
+                        for (Slot slot : availableSlots) {
+                            if (slot.getStartTime().equals(expectedStart)) {
+                                consecutiveSlots.add(slot);
+                                expectedStart = slot.getEndTime();
+                                if (consecutiveSlots.size() >= slotsNeeded)
+                                    break;
+                            } else if (!consecutiveSlots.isEmpty() && !slot.getStartTime().equals(expectedStart)) {
+                                break;
+                            }
+                        }
+
+                        if (consecutiveSlots.size() >= slotsNeeded) {
+                            availableForItems.add(itemId);
+                        } else if (firstUnavailableReason == null) {
+                            firstUnavailableReason = String.format(
+                                    "Không đủ slot trống (cần %d, có %d)",
+                                    slotsNeeded, consecutiveSlots.size());
+                        }
+                    }
+
+                    boolean hasAvailableSlots = !availableForItems.isEmpty();
+                    builder.hasAvailableSlots(hasAvailableSlots)
+                            .availableServiceItemIds(availableForItems)
+                            .unavailableReason(hasAvailableSlots ? null : firstUnavailableReason);
                 }
+
+                result.add(builder.build());
             }
 
-            result.add(builder.build());
+            // Step 6: Sort by: suggested first, then available, then by booking count
+            result.sort((a, b) -> {
+                if (a.isSuggested() != b.isSuggested()) {
+                    return a.isSuggested() ? -1 : 1;
+                }
+                if (a.isHasAvailableSlots() != b.isHasAvailableSlots()) {
+                    return a.isHasAvailableSlots() ? -1 : 1;
+                }
+                return Integer.compare(a.getBookingCount(), b.getBookingCount());
+            });
+
+            log.info("Returning {} staff options for booking {}", result.size(), booking.getBookingCode());
+            return result;
+        } catch (Exception e) {
+            log.error("Error getting available staff for booking {}: {}", booking.getBookingCode(), e.getMessage(), e);
+            throw e;
         }
+    }
 
-        // Step 5: Sort by: suggested first, then available, then by booking count
-        result.sort((a, b) -> {
-            // Suggested staff first
-            if (a.isSuggested() != b.isSuggested()) {
-                return a.isSuggested() ? -1 : 1;
-            }
-            // Available staff before unavailable
-            if (a.isHasAvailableSlots() != b.isHasAvailableSlots()) {
-                return a.isHasAvailableSlots() ? -1 : 1;
-            }
-            // Lower booking count first (load balancing)
-            return Integer.compare(a.getBookingCount(), b.getBookingCount());
-        });
+    /**
+     * Check if a list of available slots contains enough consecutive slots starting at a specific time
+     */
+    private boolean hasEnoughConsecutiveSlots(List<Slot> availableSlots, LocalTime startTime, int slotsNeeded) {
+        int count = 0;
+        LocalTime expectedTime = startTime;
 
-        log.info("Returning {} staff options for booking {}", result.size(), booking.getBookingCode());
-        return result;
+        for (Slot slot : availableSlots) {
+            if (slot.getStartTime().equals(expectedTime)) {
+                count++;
+                expectedTime = slot.getEndTime();
+                if (count >= slotsNeeded) {
+                    return true;
+                }
+            } else if (slot.getStartTime().isAfter(expectedTime)) {
+                // Gap in sequence or start time missed
+                if (count == 0) {
+                    // We haven't even found the first slot yet, keep looking
+                    continue;
+                }
+                return false;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1083,7 +1157,7 @@ public class StaffAssignmentService {
 
             StaffSpecialty required = service.getServiceCategory() != null
                     ? service.getServiceCategory().getRequiredSpecialty()
-                    : StaffSpecialty.VET_GENERAL;
+                    : StaffSpecialty.VET;
             requiredSpecialties.put(service, required);
 
             log.debug("Service {} requires specialty {}", service.getName(), required);
@@ -1134,43 +1208,34 @@ public class StaffAssignmentService {
             boolean isValid = true;
             LocalTime currentTime = startTime;
 
-            // Check EACH service in sequence (consecutive slots)
             for (com.petties.petties.model.ClinicService service : services) {
-                // Calculate end time for this service
-                int durationMinutes = service.getDurationTime();
+                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
                 LocalTime endTime = currentTime.plusMinutes(durationMinutes);
-                final LocalTime slotStart = currentTime; // Effective final for lambda
+                final LocalTime slotStart = currentTime;
 
-                // Check if ANY staff with required specialty is free
                 List<User> staffForService = matchingStaff.get(service);
                 boolean hasAvailableStaff = false;
 
                 for (User member : staffForService) {
-                    // Check if staff has shift covering this time range
                     boolean hasShift = shifts.stream()
-                            .anyMatch(shift -> shift.getStaff().getUserId().equals(member.getUserId()) &&
-                                    !shift.getStartTime().isAfter(slotStart) && // Use slotStart here
-                                    !shift.getEndTime().isBefore(endTime));
+                            .anyMatch(shift -> shift.getStaff().getUserId().equals(member.getUserId())
+                                    && !shift.getStartTime().isAfter(slotStart)
+                                    && !shift.getEndTime().isBefore(endTime));
 
                     if (!hasShift) {
                         continue;
                     }
-
-                    // Check if staff is free (no bookings in this time range)
                     boolean isStaffFree = !hasBookingInTimeRange(member.getUserId(), date, currentTime, endTime);
-
                     if (isStaffFree) {
                         hasAvailableStaff = true;
-                        break; // Found one available staff, that's enough
+                        break;
                     }
                 }
 
                 if (!hasAvailableStaff) {
                     isValid = false;
-                    break; // This service can't be fulfilled at this time
+                    break;
                 }
-
-                // Move time cursor to next service
                 currentTime = endTime;
             }
 
@@ -1184,27 +1249,90 @@ public class StaffAssignmentService {
     }
 
     /**
+     * Check if staff specialty is compatible with required specialty.
+     * With 2 specialties (VET, GROOMER): exact match only.
+     *
+     * @param staffSpecialty    The specialty of the staff member
+     * @param requiredSpecialty The specialty required by the service
+     * @return true if compatible, false otherwise
+     */
+    private boolean isSpecialtyCompatible(StaffSpecialty staffSpecialty, StaffSpecialty requiredSpecialty) {
+        if (staffSpecialty == null || requiredSpecialty == null) {
+            return false;
+        }
+
+        // With 2 specialties (VET, GROOMER): exact match only
+        return staffSpecialty == requiredSpecialty;
+    }
+
+    /**
      * Helper: Check if staff has any booking in the specified time range
      */
     private boolean hasBookingInTimeRange(UUID staffId, LocalDate date, LocalTime startTime, LocalTime endTime) {
         List<Booking> staffBookings = bookingRepository.findByStaffIdAndDate(staffId, date);
-
         for (Booking booking : staffBookings) {
             LocalTime bookingStart = booking.getBookingTime();
-
-            // Calculate total duration from all booking services
             int totalDuration = booking.getBookingServices().stream()
-                    .mapToInt(item -> item.getService().getDurationTime())
+                    .mapToInt(item -> item.getService().getDurationTime() != null ? item.getService().getDurationTime() : 30)
                     .sum();
             LocalTime bookingEnd = bookingStart.plusMinutes(totalDuration);
-
-            // Check for overlap
             boolean overlaps = !bookingEnd.isBefore(startTime) && !bookingStart.isAfter(endTime);
             if (overlaps) {
                 return true;
             }
         }
-
         return false;
+    }
+
+    /**
+     * Resolve clinic ID for a booking.
+     * For regular bookings, gets from booking.getClinic().
+     * For SOS bookings where clinic is not yet assigned (PENDING_CLINIC_CONFIRM),
+     * falls back to the authenticated clinic manager's working clinic.
+     */
+    private UUID resolveClinicId(Booking booking) {
+        // Normal case: booking has clinic assigned
+        if (booking.getClinic() != null) {
+            return booking.getClinic().getClinicId();
+        }
+
+        // SOS case: clinic not yet assigned, get clinicId from Redis SOS session
+        if (booking.getType() == com.petties.petties.model.enums.BookingType.SOS) {
+            log.info("SOS booking {} has no clinic assigned, resolving from SOS session", booking.getBookingCode());
+
+            // Try to get from SOS session in Redis
+            Optional<List<String>> clinicIdsOpt = sosSessionManager.getClinicIds(booking.getBookingId());
+            Optional<Integer> currentIndexOpt = sosSessionManager.getCurrentIndex(booking.getBookingId());
+
+            if (clinicIdsOpt.isPresent() && currentIndexOpt.isPresent()) {
+                List<String> clinicIds = clinicIdsOpt.get();
+                int currentIndex = currentIndexOpt.get();
+                if (currentIndex >= 0 && currentIndex < clinicIds.size()) {
+                    UUID clinicId = UUID.fromString(clinicIds.get(currentIndex));
+                    log.info("Resolved SOS clinic from Redis session: {} (index {}/{})",
+                            clinicId, currentIndex + 1, clinicIds.size());
+                    return clinicId;
+                }
+            }
+
+            // Fallback: try authenticated user's working clinic
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null
+                    && auth.getPrincipal() instanceof com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) {
+                com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal principal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) auth
+                        .getPrincipal();
+                User currentUser = userRepository.findById(principal.getUserId()).orElse(null);
+                if (currentUser != null && currentUser.getWorkingClinic() != null) {
+                    log.info("Resolved SOS clinic from authenticated user: {}",
+                            currentUser.getWorkingClinic().getClinicId());
+                    return currentUser.getWorkingClinic().getClinicId();
+                }
+            }
+
+            throw new IllegalStateException(
+                    "Không thể xác định phòng khám cho booking SOS. Phiên SOS không tồn tại hoặc đã hết hạn.");
+        }
+
+        throw new IllegalStateException("Booking " + booking.getBookingCode() + " không có phòng khám được gán.");
     }
 }

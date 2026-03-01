@@ -166,11 +166,6 @@ export function MasterServiceCard({
               <span className="font-black text-lg text-[#FF6B35]">
                 {formattedPrice}
               </span>
-              {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0 && (
-                <div className="text-[10px] font-black text-green-600 mt-1 uppercase">
-                  +{service.defaultPricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                </div>
-              )}
             </div>
           </div>
 
@@ -284,19 +279,6 @@ export function MasterServiceCard({
             </div>
 
             {/* Price Per KM (only for home visit services) */}
-            {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0 && (
-              <div className="bg-blue-50 border-b-2 border-black p-3">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="w-5 h-5 text-blue-600" />
-                    <span className="font-bold text-gray-700 uppercase text-sm">Phụ phí di chuyển</span>
-                  </div>
-                  <span className="text-lg font-black text-green-600">
-                    +{service.defaultPricePerKm.toLocaleString('vi-VN')} VNĐ / KM
-                  </span>
-                </div>
-              </div>
-            )}
 
             {/* Weight Price Tiers */}
             <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
@@ -330,9 +312,7 @@ export function MasterServiceCard({
             {/* Footer Note */}
             <div className="bg-gray-100 border-t-2 border-black p-3">
               <p className="text-xs font-bold text-gray-600">
-                {service.isHomeVisit && service.defaultPricePerKm !== undefined && service.defaultPricePerKm > 0
-                  ? 'Giá cuối cùng = Giá cơ bản + Phụ phí cân nặng + Phụ phí di chuyển (KM x giá/KM)'
-                  : 'Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng'}
+                Giá cuối cùng = Giá cơ bản + Phụ phí theo cân nặng thú cưng
               </p>
             </div>
           </div>

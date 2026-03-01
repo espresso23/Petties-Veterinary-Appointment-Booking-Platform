@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
 import { ClinicList } from '../../../components/clinic/ClinicList'
@@ -8,7 +8,7 @@ import type { ClinicStatus } from '../../../types/clinic'
 
 export function ClinicsListPage() {
   const navigate = useNavigate()
-  const { deleteClinic, fetchClinics } = useClinicStore()
+  const { deleteClinic, fetchClinics, getMyClinics } = useClinicStore()
   const [statusFilter, setStatusFilter] = useState<ClinicStatus | undefined>(undefined)
   const [searchName, setSearchName] = useState('')
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -34,7 +34,7 @@ export function ClinicsListPage() {
     try {
       await deleteClinic(clinicId)
       fetchClinics({ status: statusFilter, name: searchName })
-    } catch (error) {
+    } catch {
       // Error handled by store
     }
   }
@@ -42,6 +42,11 @@ export function ClinicsListPage() {
   const handleSearch = () => {
     fetchClinics({ status: statusFilter, name: searchName || undefined })
   }
+
+  // Load owner's clinics on first render
+  useEffect(() => {
+    getMyClinics()
+  }, [getMyClinics])
 
   return (
     <>

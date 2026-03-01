@@ -1,12 +1,29 @@
 /// Booking models for mobile app
 /// Matches the backend BookingResponse structure
+library;
+
+/// Map staff specialty code to Vietnamese display label
+String staffSpecialtyDisplay(String? specialty) {
+  if (specialty == null || specialty.isEmpty) return 'Bác sĩ thú y';
+  switch (specialty) {
+    case 'VET':
+      return 'Bác sĩ thú y';
+    case 'GROOMER':
+      return 'Nhân viên Grooming';
+    default:
+      if (specialty.startsWith('VET')) return 'Bác sĩ thú y';
+      return specialty;
+  }
+}
 
 class BookingResponse {
   final String? bookingId;
   final String? bookingCode;
   final String? clinicId;
   final String? clinicName;
+  final String? clinicLogo;
   final String? clinicPhone;
+  final String? clinicAddress;
   final String? petId;
   final String? petName;
   final String? petPhotoUrl;
@@ -16,25 +33,45 @@ class BookingResponse {
   final String? ownerId;
   final String? ownerName;
   final String? ownerPhone;
+  final String? ownerAvatarUrl;
   final String? bookingDate;
   final String? bookingTime;
   final String? status;
   final String? type;
   final String? homeAddress;
+  final double? homeLat;
+  final double? homeLong;
+  final double? clinicLat;
+  final double? clinicLong;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
   final double? totalPrice;
+  final String? symptoms;
   final String? notes;
   final String? emrId;
   final List<BookingServiceItem> services;
+  final List<BookingPet> pets;
+  final String? assignedStaffId;
   // Staff info
   final String? assignedStaffName;
+  final String? assignedStaffPhone;
+  final String? assignedStaffSpecialty;
   final String? assignedStaffAvatarUrl;
+  final bool? isReviewed;
+  final String? reviewId;
+  final int? rating;
+  final String? reviewComment;
+  final String? arrivedAt;
 
   BookingResponse({
     this.bookingId,
     this.bookingCode,
     this.clinicId,
     this.clinicName,
+    this.clinicLogo,
     this.clinicPhone,
+    this.clinicAddress,
     this.petId,
     this.petName,
     this.petPhotoUrl,
@@ -44,26 +81,66 @@ class BookingResponse {
     this.ownerId,
     this.ownerName,
     this.ownerPhone,
+    this.ownerAvatarUrl,
     this.bookingDate,
     this.bookingTime,
     this.status,
     this.type,
     this.homeAddress,
+    this.homeLat,
+    this.homeLong,
+    this.clinicLat,
+    this.clinicLong,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
     this.totalPrice,
+    this.symptoms,
     this.notes,
     this.emrId,
     this.services = const [],
+    this.pets = const [],
+    this.assignedStaffId,
     this.assignedStaffName,
+    this.assignedStaffPhone,
+    this.assignedStaffSpecialty,
     this.assignedStaffAvatarUrl,
+    this.isReviewed,
+    this.reviewId,
+    this.rating,
+    this.reviewComment,
+    this.arrivedAt,
   });
 
   factory BookingResponse.fromJson(Map<String, dynamic> json) {
+    // Parse pets list
+    final petsList = (json['pets'] as List<dynamic>?)
+            ?.map((e) => BookingPet.fromJson(e))
+            .toList() ??
+        [];
+
+    // Flatten services from all pets if services is not directly provided or empty
+    // But since the new API provides services inside pets, we should flatten them to maintain compatibility
+    // with existing UI that uses `services` field.
+    List<BookingServiceItem> allServices = [];
+    if (json['services'] != null) {
+      allServices = (json['services'] as List<dynamic>)
+          .map((e) => BookingServiceItem.fromJson(e))
+          .toList();
+    } else {
+      for (final pet in petsList) {
+        allServices.addAll(pet.services);
+      }
+    }
+
     return BookingResponse(
       bookingId: json['bookingId'],
       bookingCode: json['bookingCode'],
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
+      clinicLogo: json['clinicLogo'],
       clinicPhone: json['clinicPhone'],
+      clinicAddress: json['clinicAddress'],
       petId: json['petId'],
       petName: json['petName'],
       petPhotoUrl: json['petPhotoUrl'],
@@ -73,20 +150,80 @@ class BookingResponse {
       ownerId: json['ownerId'],
       ownerName: json['ownerName'],
       ownerPhone: json['ownerPhone'],
+      ownerAvatarUrl: json['ownerAvatarUrl'],
       bookingDate: json['bookingDate'],
       bookingTime: json['bookingTime'],
       status: json['status'],
       type: json['type'],
       homeAddress: json['homeAddress'],
+      homeLat: (json['homeLat'] as num?)?.toDouble(),
+      homeLong: (json['homeLong'] as num?)?.toDouble(),
+      clinicLat: (json['clinicLat'] as num?)?.toDouble(),
+      clinicLong: (json['clinicLong'] as num?)?.toDouble(),
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
       totalPrice: (json['totalPrice'] as num?)?.toDouble(),
+      symptoms: json['symptoms'],
       notes: json['notes'],
       emrId: json['emrId'],
+      services: allServices,
+      pets: petsList,
+      assignedStaffName: json['assignedStaffName'],
+      assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+    );
+  }
+}
+
+class BookingPet {
+  final String? petId;
+  final String? petName;
+  final List<BookingServiceItem> services;
+  final String? assignedStaffId;
+  final String? assignedStaffName;
+  final String? assignedStaffPhone;
+  final String? assignedStaffSpecialty;
+  final String? assignedStaffAvatarUrl;
+  final bool? isReviewed;
+  final String? reviewId;
+  final int? rating;
+  final String? reviewComment;
+  final String? arrivedAt;
+
+  BookingPet({
+    this.petId,
+    this.petName,
+    this.services = const [],
+    this.assignedStaffId,
+    this.assignedStaffName,
+    this.assignedStaffPhone,
+    this.assignedStaffSpecialty,
+    this.assignedStaffAvatarUrl,
+    this.isReviewed,
+    this.reviewId,
+    this.rating,
+    this.reviewComment,
+    this.arrivedAt,
+  });
+
+  factory BookingPet.fromJson(Map<String, dynamic> json) {
+    return BookingPet(
+      petId: json['petId'],
+      petName: json['petName'],
       services: (json['services'] as List<dynamic>?)
               ?.map((e) => BookingServiceItem.fromJson(e))
               .toList() ??
           [],
+      assignedStaffId: json['assignedStaffId'],
       assignedStaffName: json['assignedStaffName'],
+      assignedStaffPhone: json['assignedStaffPhone'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      isReviewed: json['isReviewed'],
+      reviewId: json['reviewId'],
+      rating: json['rating'],
+      reviewComment: json['reviewComment'],
+      arrivedAt: json['arrivedAt'],
     );
   }
 }
@@ -95,25 +232,41 @@ class BookingServiceItem {
   final String? bookingServiceId;
   final String? serviceId;
   final String? serviceName;
+  final String? serviceCategory;
   final double? price;
+  final double? basePrice;
+  final double? weightPrice;
+  final int? slotsRequired;
   final String? assignedStaffId;
   final String? assignedStaffName;
   final String? assignedStaffAvatarUrl;
+  final String? assignedStaffSpecialty;
+  final String? petId;
+  final String? petName;
   final String? scheduledStartTime;
   final String? scheduledEndTime;
   final int? durationMinutes;
+  final bool? isAddOn;
 
   BookingServiceItem({
     this.bookingServiceId,
     this.serviceId,
     this.serviceName,
+    this.serviceCategory,
     this.price,
+    this.basePrice,
+    this.weightPrice,
+    this.slotsRequired,
     this.assignedStaffId,
     this.assignedStaffName,
     this.assignedStaffAvatarUrl,
+    this.assignedStaffSpecialty,
+    this.petId,
+    this.petName,
     this.scheduledStartTime,
     this.scheduledEndTime,
     this.durationMinutes,
+    this.isAddOn,
   });
 
   factory BookingServiceItem.fromJson(Map<String, dynamic> json) {
@@ -121,13 +274,21 @@ class BookingServiceItem {
       bookingServiceId: json['bookingServiceId'],
       serviceId: json['serviceId'],
       serviceName: json['serviceName'],
+      serviceCategory: json['serviceCategory'],
       price: (json['price'] as num?)?.toDouble(),
+      basePrice: (json['basePrice'] as num?)?.toDouble(),
+      weightPrice: (json['weightPrice'] as num?)?.toDouble(),
+      slotsRequired: json['slotsRequired'],
       assignedStaffId: json['assignedStaffId'],
       assignedStaffName: json['assignedStaffName'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
+      petId: json['petId'],
+      petName: json['petName'],
       scheduledStartTime: json['scheduledStartTime'],
       scheduledEndTime: json['scheduledEndTime'],
       durationMinutes: json['durationMinutes'],
+      isAddOn: json['isAddOn'],
     );
   }
 }
@@ -180,6 +341,10 @@ class UpcomingBookingDTO {
   final String? primaryServiceName;
   final int servicesCount;
   final String? homeAddress;
+  final double? distanceKm;
+  final double? distanceFee;
+  final double? sosFee;
+  final String? arrivedAt;
 
   UpcomingBookingDTO({
     this.bookingId,
@@ -198,6 +363,10 @@ class UpcomingBookingDTO {
     this.primaryServiceName,
     this.servicesCount = 0,
     this.homeAddress,
+    this.distanceKm,
+    this.distanceFee,
+    this.sosFee,
+    this.arrivedAt,
   });
 
   factory UpcomingBookingDTO.fromJson(Map<String, dynamic> json) {
@@ -218,6 +387,10 @@ class UpcomingBookingDTO {
       primaryServiceName: json['primaryServiceName'],
       servicesCount: json['servicesCount'] ?? 0,
       homeAddress: json['homeAddress'],
+      distanceKm: (json['distanceKm'] as num?)?.toDouble(),
+      distanceFee: (json['distanceFee'] as num?)?.toDouble(),
+      sosFee: (json['sosFee'] as num?)?.toDouble(),
+      arrivedAt: json['arrivedAt'],
     );
   }
 }

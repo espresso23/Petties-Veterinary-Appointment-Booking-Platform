@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -51,6 +52,10 @@ class NotificationModel {
   final String? actionType;
   final String? actionData;
 
+  // Parsed action payload (optional)
+  final String? bookingId;
+  final String? conversationId;
+
   NotificationModel({
     required this.id,
     required this.type,
@@ -66,9 +71,29 @@ class NotificationModel {
     this.shiftEndTime,
     this.actionType,
     this.actionData,
+    this.bookingId,
+    this.conversationId,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
+    final rawActionData = json['actionData'] as String?;
+    String? bookingId;
+    String? conversationId;
+
+    if (rawActionData != null && rawActionData.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawActionData);
+        if (decoded is Map<String, dynamic>) {
+          final dynamic bookingIdValue = decoded['bookingId'];
+          final dynamic conversationIdValue = decoded['conversationId'];
+          bookingId = bookingIdValue?.toString();
+          conversationId = conversationIdValue?.toString();
+        }
+      } catch (e) {
+        debugPrint('Error parsing notification actionData JSON: $e');
+      }
+    }
+
     return NotificationModel(
       id: json['notificationId'] as String,
       type: _parseNotificationType(json['type'] as String),
@@ -85,7 +110,9 @@ class NotificationModel {
       shiftStartTime: json['shiftStartTime'] as String?,
       shiftEndTime: json['shiftEndTime'] as String?,
       actionType: json['actionType'] as String?,
-      actionData: json['actionData'] as String?,
+      actionData: rawActionData,
+      bookingId: bookingId,
+      conversationId: conversationId,
     );
   }
 

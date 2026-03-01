@@ -18,6 +18,8 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.model.enums.NotificationType;
 import com.petties.petties.model.Notification;
+import com.petties.petties.model.ClinicPricePerKm;
+import com.petties.petties.repository.ClinicPricePerKmRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -48,6 +50,7 @@ public class ClinicService {
         private final CloudinaryService cloudinaryService;
         private final EmailService emailService;
         private final NotificationService notificationService;
+        private final ClinicPricePerKmRepository clinicPricePerKmRepository;
 
         @Transactional(readOnly = true)
         public List<ClinicLocationResponse> getActiveLocations() {
@@ -91,6 +94,8 @@ public class ClinicService {
                 clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
                 clinic.setStatus(ClinicStatus.PENDING);
 
@@ -115,6 +120,16 @@ public class ClinicService {
                 }
 
                 clinic = clinicRepository.saveAndFlush(clinic);
+
+                // Save or update SOS fee
+                if (request.getSosFee() != null) {
+                        ClinicPricePerKm pricing = new ClinicPricePerKm();
+                        pricing.setClinicId(clinic.getClinicId());
+                        pricing.setClinic(clinic);
+                        pricing.setSosFee(request.getSosFee());
+                        clinicPricePerKmRepository.save(pricing);
+                }
+
                 log.info("Clinic created: {} by owner: {}", clinic.getClinicId(), ownerId);
 
                 // Notify all Admins about new clinic registration
@@ -136,9 +151,17 @@ public class ClinicService {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-                // Check ownership
-                if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể cập nhật phòng khám của mình");
+                // Check ownership or management rights
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền cập nhật phòng khám này");
                 }
 
                 // !! FIX: Capture old address BEFORE updating to detect changes
@@ -156,6 +179,8 @@ public class ClinicService {
                 clinic.setBusinessLicenseUrl(request.getBusinessLicenseUrl());
                 clinic.setPhone(request.getPhone());
                 clinic.setEmail(request.getEmail());
+                clinic.setBankName(request.getBankName());
+                clinic.setAccountNumber(request.getAccountNumber());
                 clinic.setOperatingHours(request.getOperatingHours());
 
                 // Update coordinates: prioritize provided coordinates, otherwise geocode if
@@ -179,6 +204,22 @@ public class ClinicService {
                 }
 
                 clinic = clinicRepository.save(clinic);
+
+                // Update SOS fee
+                if (request.getSosFee() != null) {
+                        final Clinic finalClinic = clinic;
+                        ClinicPricePerKm pricing = clinicPricePerKmRepository.findById(clinicId)
+                                        .orElseGet(() -> {
+                                                ClinicPricePerKm p = new ClinicPricePerKm();
+                                                p.setClinicId(clinicId);
+                                                p.setClinic(finalClinic);
+                                                return p;
+                                        });
+                        pricing.setSosFee(request.getSosFee());
+                        clinicPricePerKmRepository.save(pricing);
+                        log.info("SOS fee updated for clinic {}: {}", clinicId, request.getSosFee());
+                }
+
                 log.info("Clinic updated: {} by owner: {}", clinicId, ownerId);
                 return mapToResponse(clinic);
         }
@@ -189,8 +230,9 @@ public class ClinicService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
                 // Check ownership
+                // Note: Only Owners should be able to delete clinics. Managers can only update.
                 if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể xóa phòng khám của mình");
+                        throw new ForbiddenException("Chỉ chủ phòng khám mới có quyền xóa phòng khám");
                 }
 
                 clinicRepository.delete(clinic);
@@ -290,7 +332,8 @@ public class ClinicService {
                 }
 
                 LocalTime currentTime = now.toLocalTime();
-                log.debug("Operating hours: {} - {}, current: {}", hours.getOpenTime(), hours.getCloseTime(), currentTime);
+                log.debug("Operating hours: {} - {}, current: {}", hours.getOpenTime(), hours.getCloseTime(),
+                                currentTime);
 
                 if (hours.getOpenTime() != null && hours.getCloseTime() != null) {
                         if (currentTime.isBefore(hours.getOpenTime()) || currentTime.isAfter(hours.getCloseTime())) {
@@ -448,9 +491,17 @@ public class ClinicService {
         }
 
         @Transactional(readOnly = true)
-        public Page<ClinicResponse> getClinicsByOwner(UUID ownerId, Pageable pageable) {
-                // Get ALL clinics owned by user (any status: PENDING, APPROVED, REJECTED)
-                Page<Clinic> clinics = clinicRepository.findByOwnerUserId(ownerId, pageable);
+        public Page<ClinicResponse> getClinicsByOwner(UUID userId, Pageable pageable) {
+                User user = userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                if (user.getRole() == Role.CLINIC_MANAGER && user.getWorkingClinic() != null) {
+                        // Manager: Return only the assigned clinic
+                        return new PageImpl<>(List.of(mapToResponse(user.getWorkingClinic())), pageable, 1);
+                }
+
+                // Owner: Return all owned clinics
+                Page<Clinic> clinics = clinicRepository.findByOwnerUserId(userId, pageable);
                 return clinics.map(this::mapToResponse);
         }
 
@@ -460,9 +511,17 @@ public class ClinicService {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-                // Check ownership
-                if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể tải ảnh lên cho phòng khám của mình");
+                // Check ownership or management rights
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền tải ảnh lên cho phòng khám này");
                 }
 
                 // If this is set as primary, unset other primary images
@@ -503,9 +562,17 @@ public class ClinicService {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-                // Check ownership
-                if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể xóa ảnh từ phòng khám của mình");
+                // Check ownership or management rights
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền xóa ảnh từ phòng khám này");
                 }
 
                 ClinicImage clinicImage = clinicImageRepository
@@ -539,9 +606,17 @@ public class ClinicService {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-                // Check ownership
-                if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể cập nhật ảnh cho phòng khám của mình");
+                // Check ownership or management rights
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền cập nhật ảnh cho phòng khám này");
                 }
 
                 ClinicImage targetImage = clinicImageRepository.findByImageIdAndClinicClinicId(imageId, clinicId)
@@ -563,9 +638,17 @@ public class ClinicService {
                 Clinic clinic = clinicRepository.findByIdAndNotDeleted(clinicId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Clinic not found"));
 
-                // Check ownership
-                if (!clinic.getOwner().getUserId().equals(ownerId)) {
-                        throw new ForbiddenException("Bạn chỉ có thể cập nhật logo cho phòng khám của mình");
+                // Check ownership or management rights
+                User currentUser = userRepository.findById(ownerId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+                boolean isOwner = clinic.getOwner().getUserId().equals(ownerId);
+                boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER &&
+                                currentUser.getWorkingClinic() != null &&
+                                currentUser.getWorkingClinic().getClinicId().equals(clinicId);
+
+                if (!isOwner && !isManager) {
+                        throw new ForbiddenException("Bạn không có quyền cập nhật logo cho phòng khám này");
                 }
 
                 // Delete old logo from Cloudinary if exists
@@ -644,6 +727,14 @@ public class ClinicService {
                                 .businessLicenseUrl(clinic.getBusinessLicenseUrl())
                                 .phone(clinic.getPhone())
                                 .email(clinic.getEmail())
+                                .bankName(clinic.getBankName())
+                                .accountNumber(clinic.getAccountNumber())
+                                .sosFee(clinicPricePerKmRepository.findById(clinic.getClinicId())
+                                                .map(ClinicPricePerKm::getSosFee)
+                                                .orElse(null))
+                                .pricePerKm(clinicPricePerKmRepository.findById(clinic.getClinicId())
+                                                .map(ClinicPricePerKm::getPricePerKm)
+                                                .orElse(null))
                                 .latitude(clinic.getLatitude())
                                 .longitude(clinic.getLongitude())
                                 .operatingHours(clinic.getOperatingHours())

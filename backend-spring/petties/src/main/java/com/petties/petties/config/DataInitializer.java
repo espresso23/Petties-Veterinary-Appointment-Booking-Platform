@@ -4,6 +4,7 @@ import com.petties.petties.model.Clinic;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.EmrRecord;
+import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.Prescription;
 import com.petties.petties.model.enums.ClinicStatus;
 import com.petties.petties.model.enums.Role;
@@ -12,6 +13,7 @@ import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.PetRepository;
 import com.petties.petties.repository.UserRepository;
 import com.petties.petties.repository.EmrRecordRepository;
+import com.petties.petties.repository.ClinicServiceRepository;
 import com.petties.petties.repository.ChatConversationRepository;
 import com.petties.petties.repository.ChatMessageRepository;
 import com.petties.petties.model.ChatConversation;
@@ -35,12 +37,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-@Order(1) // Run BEFORE BookingDataSeeder (Order 2)
+@Order(1)
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final PetRepository petRepository;
     private final EmrRecordRepository emrRecordRepository;
+    private final ClinicServiceRepository clinicServiceRepository;
     private final PasswordEncoder passwordEncoder;
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -51,11 +54,15 @@ public class DataInitializer implements CommandLineRunner {
     @Value("${app.init.seed-test-data:true}")
     private boolean seedTestData;
 
+    @Value("${app.init.seed-test-pets:false}")
+    private boolean seedTestPets;
+
     @Override
     public void run(String... args) throws Exception {
         log.info("🚀 Starting data initialization...");
         log.info("   Active profile: {}", activeProfile);
         log.info("   Seed test data: {}", seedTestData);
+        log.info("   Seed test pets: {}", seedTestPets);
 
         // ALWAYS create admin user (required for system operation)
         initializeAdminUser();
@@ -184,8 +191,10 @@ public class DataInitializer implements CommandLineRunner {
             }
         }
 
-        // Seed pets for pet owners
-        seedTestPets(petOwner, petOwner2, petOwner3);
+        // Seed pets for pet owners (chỉ khi bật app.init.seed-test-pets=true)
+        if (seedTestPets) {
+            seedTestPets(petOwner, petOwner2, petOwner3);
+        }
 
         // Seed EMR records for pets
         User staffForEmr = userRepository.findByEmail("congnvde180639@fpt.edu.vn").orElse(null);
@@ -207,6 +216,7 @@ public class DataInitializer implements CommandLineRunner {
         if (petOwner2 != null && clinicManager != null && clinic != null) {
             seedConversationAndMessages(petOwner2, clinicManager, clinic);
         }
+
     }
 
     /**
@@ -465,13 +475,13 @@ public class DataInitializer implements CommandLineRunner {
     private User initializeUser(String username, String password, String email, String fullName, Role role) {
         // Check by username
         if (userRepository.existsByUsername(username)) {
-            log.info("   - User with username '{}' ({}) already exists.", username, role);
+            log.debug("   - User with username '{}' ({}) already exists.", username, role);
             return userRepository.findByUsername(username).orElse(null);
         }
 
         // Check by email to prevent duplicate key error
         if (userRepository.existsByEmail(email)) {
-            log.info("   - User with email '{}' ({}) already exists.", email, role);
+            log.debug("   - User with email '{}' ({}) already exists.", email, role);
             return userRepository.findByEmail(email).orElse(null);
         }
 
@@ -645,7 +655,7 @@ public class DataInitializer implements CommandLineRunner {
             double rating, int ratingCount) {
         // Check if clinic with this name already exists
         if (clinicRepository.findByName(name).isPresent()) {
-            log.info("   - Clinic '{}' already exists.", name);
+            log.debug("   - Clinic '{}' already exists.", name);
             return;
         }
 

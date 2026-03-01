@@ -6,15 +6,15 @@
  * Decode JWT token (without verification)
  * Note: This only decodes, does NOT verify signature
  */
-export function decodeJWT(token: string): { exp?: number; iat?: number; [key: string]: any } | null {
+export function decodeJWT(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) {
       return null
     }
-    
+
     const payload = parts[1]
-    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
     return decoded
   } catch {
     return null
@@ -26,17 +26,21 @@ export function decodeJWT(token: string): { exp?: number; iat?: number; [key: st
  */
 export function isTokenExpired(token: string | null): boolean {
   if (!token) return true
-  
+
   const decoded = decodeJWT(token)
-  if (!decoded || !decoded.exp) {
-    // If no expiration claim, assume expired for safety
+  if (!decoded) {
     return true
   }
-  
+
+  // Check if exp exists and is a number
+  if (!('exp' in decoded) || typeof decoded.exp !== 'number') {
+    return true
+  }
+
   // exp is in seconds, Date.now() is in milliseconds
   const expirationTime = decoded.exp * 1000
   const currentTime = Date.now()
-  
+
   // Add 60 second buffer to avoid edge cases
   return currentTime >= (expirationTime - 60000)
 }
@@ -46,12 +50,16 @@ export function isTokenExpired(token: string | null): boolean {
  */
 export function getTokenExpiration(token: string | null): number | null {
   if (!token) return null
-  
+
   const decoded = decodeJWT(token)
-  if (!decoded || !decoded.exp) {
+  if (!decoded) {
     return null
   }
-  
+
+  if (!('exp' in decoded) || typeof decoded.exp !== 'number') {
+    return null
+  }
+
   return decoded.exp * 1000
 }
 

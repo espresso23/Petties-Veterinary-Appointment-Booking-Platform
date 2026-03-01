@@ -135,21 +135,29 @@ class _ClinicSearchViewState extends State<ClinicSearchView>
 
     return Scaffold(
       backgroundColor: AppColors.stone50,
-      body: content,
+      body: SafeArea(child: content),
       bottomNavigationBar: _buildBrutalNavBar(),
     );
   }
 
   Widget _buildBrutalNavBar() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 2),
-        ),
-      ),
-      child: Builder(
-        builder: (context) => BottomNavigationBar(
+    return Builder(
+      builder: (context) {
+        final padding = MediaQuery.of(context).padding;
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            border: Border(
+              top: BorderSide(color: AppColors.stone900, width: 2),
+            ),
+          ),
+          padding: EdgeInsets.only(
+            left: padding.left,
+            right: padding.right,
+            bottom: padding.bottom,
+          ),
+          child: Builder(
+            builder: (context) => BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           backgroundColor: AppColors.white,
           selectedItemColor: AppColors.primary,
@@ -182,8 +190,10 @@ class _ClinicSearchViewState extends State<ClinicSearchView>
             BottomNavigationBarItem(
                 icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
           ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 

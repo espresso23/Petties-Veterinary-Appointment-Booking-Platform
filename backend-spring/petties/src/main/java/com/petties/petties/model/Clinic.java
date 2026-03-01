@@ -3,6 +3,7 @@ package com.petties.petties.model;
 import com.petties.petties.model.enums.ClinicStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,6 +37,7 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Clinic {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -76,6 +78,12 @@ public class Clinic {
     @Column(name = "email", length = 100)
     private String email;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName; // Tên ngân hàng
+
+    @Column(name = "account_number", length = 50)
+    private String accountNumber; // Số tài khoản ngân hàng
+
     @Column(name = "latitude", precision = 10, scale = 8)
     private BigDecimal latitude;
 
@@ -100,9 +108,11 @@ public class Clinic {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
+    @Builder.Default
     @Column(name = "rating_avg", precision = 2, scale = 1)
     private BigDecimal ratingAvg = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "rating_count")
     private Integer ratingCount = 0;
 
@@ -121,9 +131,11 @@ public class Clinic {
     private LocalDateTime deletedAt;
 
     // Relationships
+    @Builder.Default
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClinicImage> images = new ArrayList<>();
 
+    @Builder.Default
     @OneToMany(mappedBy = "clinic")
     private List<ClinicService> services = new ArrayList<>();
 

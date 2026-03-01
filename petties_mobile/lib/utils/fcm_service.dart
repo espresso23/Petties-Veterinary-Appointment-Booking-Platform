@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../config/env/environment.dart';
@@ -12,6 +11,8 @@ import '../config/constants/app_constants.dart';
 import '../routing/router_config.dart';
 import '../routing/app_routes.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -336,6 +337,15 @@ class FcmService {
   void _navigateToScreen(BuildContext context, Map<String, dynamic> data) {
     final type = data['type'] as String?;
 
+    // Lấy role hiện tại (PET_OWNER, STAFF, ...)
+    String? role;
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      role = authProvider.user?.role;
+    } catch (_) {
+      role = null;
+    }
+
     if (type == null) {
       debugPrint('Notification type is null, navigating to notification list');
       context.push(AppRoutes.notifications);
@@ -348,17 +358,24 @@ class FcmService {
       case 'STAFF_SHIFT_DELETED':
         context.push(AppRoutes.staffSchedule);
         break;
+
+      // Booking-related notifications
       case 'BOOKING_CREATED':
       case 'BOOKING_CONFIRMED':
       case 'BOOKING_CANCELLED':
-        final bookingId = data['notificationId'] ?? data['id'];
-        if (bookingId != null) {
-          context.push(
-              AppRoutes.bookingDetails.replaceAll(':id', bookingId.toString()));
+      case 'BOOKING_CHECKIN':
+      case 'BOOKING_COMPLETED':
+      case 'STAFF_ON_WAY':
+      case 'STAFF_ARRIVED':
+        // Nếu sau này payload có bookingId, có thể deep-link chi tiết.
+        // Hiện tại điều hướng giống logic trong NotificationListScreen:
+        if (role == 'STAFF') {
+          context.push(AppRoutes.staffBookings);
         } else {
-          context.push(AppRoutes.notifications);
+          context.push('${AppRoutes.petOwnerHome}?tab=2');
         }
         break;
+
       case 'CLINIC_VERIFIED':
       case 'APPROVED':
       case 'REJECTED':

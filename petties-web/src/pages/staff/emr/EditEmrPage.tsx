@@ -72,7 +72,7 @@ export const EditEmrPage = () => {
     })
     const [assessment, setAssessment] = useState('')
     const [plan, setPlan] = useState('')
-    const [prescriptions, setPrescriptions] = useState<any[]>([]) // Using same structure as Create
+    const [prescriptions, setPrescriptions] = useState<Prescription[]>([]) // Using same structure as Create
     const [images, setImages] = useState<EmrImage[]>([])
     const [notes, setNotes] = useState('')
     const [allergies, setAllergies] = useState('')
@@ -198,8 +198,8 @@ export const EditEmrPage = () => {
                     })
                     .catch(err => console.error('Failed to load history', err))
 
-            } catch (error) {
-                console.error('Failed to load EMR:', error)
+            } catch (err) {
+                console.error('Failed to load EMR:', err)
                 showToast('error', 'Không thể tải thông tin bệnh án')
                 navigate(-1)
             } finally {
@@ -207,6 +207,7 @@ export const EditEmrPage = () => {
             }
         }
         loadEmrData()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [emrId, navigate])
 
     // --- Form Handlers ---
@@ -217,7 +218,7 @@ export const EditEmrPage = () => {
         try {
             const result = await emrService.uploadEmrImage(file)
             setImages([...images, { url: result.url, description: '' }])
-        } catch (error) {
+        } catch {
             showToast('error', 'Upload ảnh thất bại')
         }
     }
@@ -289,8 +290,8 @@ export const EditEmrPage = () => {
                 const newWeight = parseFloat(objective.weight.replace(',', '.'))
                 try {
                     await petService.updateWeight(petInfo.id, newWeight)
-                } catch (weightErr) {
-                    console.error('Failed to update pet weight:', weightErr)
+                } catch (err) {
+                    console.error('Failed to update pet weight:', err)
                 }
             }
 
@@ -298,8 +299,8 @@ export const EditEmrPage = () => {
             if (petInfo && allergies !== (petInfo.allergies?.join(', ') || '')) {
                 try {
                     await petService.updateAllergies(petInfo.id, allergies);
-                } catch (allergyErr) {
-                    console.error('Failed to update allergies:', allergyErr);
+                } catch (err) {
+                    console.error('Failed to update allergies:', err);
                 }
             }
 
@@ -309,7 +310,7 @@ export const EditEmrPage = () => {
 
             showToast('success', 'Cập nhật Bệnh án thành công!')
             navigate(-1)
-        } catch (err: any) {
+        } catch (err) {
             console.error(err)
             showToast('error', err.response?.data?.message || err.message || 'Có lỗi xảy ra khi lưu')
         } finally {

@@ -36,6 +36,9 @@ public class Payment {
     @Column(name = "amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
+    @Column(name = "payment_description", length = 100)
+    private String paymentDescription;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 20)
     private PaymentMethod method;

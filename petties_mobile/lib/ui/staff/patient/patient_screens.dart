@@ -11,7 +11,6 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/vaccination_service.dart';
 import '../../../data/models/vaccine_template.dart';
 import '../../../data/services/vaccine_template_service.dart';
-import './vaccination_form_screen.dart';
 import 'widgets/vaccination_roadmap_table.dart';
 
 /// Staff Patient List Screen - Fetches real data from API
@@ -24,7 +23,7 @@ class PatientListScreen extends StatefulWidget {
 
 class _PatientListScreenState extends State<PatientListScreen> {
   final PetService _petService = PetService();
-  
+
   List<Pet> _patients = [];
   bool _isLoading = true;
   String _searchQuery = '';
@@ -46,7 +45,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
     setState(() => _isLoading = true);
     try {
       final userResponse = await AuthService().getCurrentUser();
-      
+
       if (userResponse.workingClinicId != null) {
         final patients = await _petService.getStaffPatients(
           userResponse.workingClinicId!,
@@ -65,10 +64,10 @@ class _PatientListScreenState extends State<PatientListScreen> {
           page: _currentPage,
           size: _pageSize,
         );
-        
+
         final List<dynamic> content = response['content'] ?? [];
         final pets = content.map((json) => Pet.fromJson(json)).toList();
-        
+
         setState(() {
           _patients = pets;
           _totalPages = response['totalPages'] ?? 1;
@@ -87,21 +86,30 @@ class _PatientListScreenState extends State<PatientListScreen> {
 
   List<Pet> get filteredPatients {
     var list = _patients.where((p) {
-      final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          (p.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
+      final matchesSearch = p.name
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase()) ||
+          (p.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+              false);
       final matchesFilter = _filter == 'all' ||
-          (_filter == 'dogs' && (p.species.toLowerCase().contains('chó') || p.species.toLowerCase() == 'dog')) ||
-          (_filter == 'cats' && (p.species.toLowerCase().contains('mèo') || p.species.toLowerCase() == 'cat'));
+          (_filter == 'dogs' &&
+              (p.species.toLowerCase().contains('chó') ||
+                  p.species.toLowerCase() == 'dog')) ||
+          (_filter == 'cats' &&
+              (p.species.toLowerCase().contains('mèo') ||
+                  p.species.toLowerCase() == 'cat'));
       return matchesSearch && matchesFilter;
     }).toList();
 
     // Apply sorting
     switch (_sortBy) {
       case 'name-asc':
-        list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        list.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
         break;
       case 'name-desc':
-        list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        list.sort(
+            (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
         break;
       case 'exam-newest':
         // Sort by last exam date if available (placeholder - needs lastExamDate field)
@@ -126,7 +134,8 @@ class _PatientListScreenState extends State<PatientListScreen> {
     final now = DateTime.now();
     final years = now.year - dateOfBirth.year;
     if (years < 1) {
-      final months = (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
+      final months =
+          (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
       return '$months tháng';
     }
     return '$years tuổi';
@@ -155,7 +164,6 @@ class _PatientListScreenState extends State<PatientListScreen> {
         text = 'Đang khám';
         break;
       case 'CONFIRMED':
-      case 'ASSIGNED': // Vet assigned, waiting for exam
         color = Colors.orange;
         bgColor = Colors.orange.withOpacity(0.1);
         text = 'Chờ khám';
@@ -215,7 +223,8 @@ class _PatientListScreenState extends State<PatientListScreen> {
                   onChanged: (v) => setState(() => _searchQuery = v),
                   decoration: InputDecoration(
                     hintText: 'Tìm pet, chủ nuôi...',
-                    prefixIcon: const Icon(Icons.search, color: AppColors.stone400),
+                    prefixIcon:
+                        const Icon(Icons.search, color: AppColors.stone400),
                     filled: true,
                     fillColor: AppColors.stone100,
                     border: OutlineInputBorder(
@@ -237,7 +246,8 @@ class _PatientListScreenState extends State<PatientListScreen> {
                       const SizedBox(width: 8),
                       _buildFilterChip('Mèo', 'cats'),
                       const SizedBox(width: 16),
-                      Container(width: 1, height: 24, color: AppColors.stone300),
+                      Container(
+                          width: 1, height: 24, color: AppColors.stone300),
                       const SizedBox(width: 16),
                       _buildSortChip('Tên A-Z', 'name-asc'),
                       const SizedBox(width: 8),
@@ -252,17 +262,20 @@ class _PatientListScreenState extends State<PatientListScreen> {
           // Patient list
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary))
                 : filteredPatients.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.pets, size: 64, color: AppColors.stone300),
+                            Icon(Icons.pets,
+                                size: 64, color: AppColors.stone300),
                             const SizedBox(height: 16),
                             Text(
                               'Chưa có bệnh nhân nào',
-                              style: TextStyle(color: AppColors.stone500, fontSize: 16),
+                              style: TextStyle(
+                                  color: AppColors.stone500, fontSize: 16),
                             ),
                           ],
                         ),
@@ -458,11 +471,13 @@ class _PatientListScreenState extends State<PatientListScreen> {
                       if (patient.isAssignedToMe) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.blue.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                            border:
+                                Border.all(color: Colors.blue.withOpacity(0.3)),
                           ),
                           child: const Text(
                             'CỦA TÔI',
@@ -528,9 +543,10 @@ class PatientDetailScreen extends StatefulWidget {
   State<PatientDetailScreen> createState() => _PatientDetailScreenState();
 }
 
-class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTickerProviderStateMixin {
+class _PatientDetailScreenState extends State<PatientDetailScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Future for caching vaccination data
   Future<List<dynamic>>? _vaccinationFuture;
   late Pet _patient;
@@ -542,9 +558,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
   final _templateService = VaccineTemplateService();
   List<VaccineTemplate> _templates = [];
   VaccineTemplate? _selectedTemplate;
-  final _vaccineDetailNameController = TextEditingController(); // Renamed to avoid conflicts
+  final _vaccineDetailNameController =
+      TextEditingController(); // Renamed to avoid conflicts
   String _doseSequence = '1';
-  final _notesDetailController = TextEditingController(); // Renamed to avoid conflicts
+  final _notesDetailController =
+      TextEditingController(); // Renamed to avoid conflicts
   DateTime _vaccinationDate = DateTime.now();
   DateTime? _nextDueDate;
   bool _isLoadingTemplates = true;
@@ -576,7 +594,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc muốn xóa hồ sơ tiêm "${record.vaccineName}" không?'),
+        content: Text(
+            'Bạn có chắc muốn xóa hồ sơ tiêm "${record.vaccineName}" không?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -599,7 +618,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       await _vaccinationService.deleteVaccination(record.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa hồ sơ tiêm chủng'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('Đã xóa hồ sơ tiêm chủng'),
+              backgroundColor: Colors.green),
         );
         _refreshVaccinationData();
       }
@@ -649,10 +670,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       final request = CreateVaccinationRequest(
         petId: _patient.id,
         bookingId: _patient.bookingId,
-        vaccineName: _selectedTemplate?.name ?? _vaccineDetailNameController.text, // Safe
+        vaccineName: _selectedTemplate?.name ??
+            _vaccineDetailNameController.text, // Safe
         vaccinationDate: _vaccinationDate,
         nextDueDate: _nextDueDate,
-        notes: _notesDetailController.text.isEmpty ? null : _notesDetailController.text,
+        notes: _notesDetailController.text.isEmpty
+            ? null
+            : _notesDetailController.text,
         vaccineTemplateId: _selectedTemplate?.id,
         doseSequence: _doseSequence,
         workflowStatus: 'COMPLETED',
@@ -662,7 +686,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lưu thông tin tiêm chủng thành công!'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('Lưu thông tin tiêm chủng thành công!'),
+              backgroundColor: Colors.green),
         );
         _resetVaccinationForm();
         setState(() {
@@ -706,7 +732,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     final now = DateTime.now();
     final years = now.year - dateOfBirth.year;
     if (years < 1) {
-      final months = (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
+      final months =
+          (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
       return '$months tháng';
     }
     return '$years tuổi';
@@ -737,7 +764,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
 
   void _showEditAllergiesDialog(Pet patient) {
     final controller = TextEditingController(text: patient.allergies ?? '');
-    
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -795,7 +822,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
   @override
   Widget build(BuildContext context) {
     final patient = _patient;
-    
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       body: NestedScrollView(
@@ -809,8 +836,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             flexibleSpace: FlexibleSpaceBar(
               background: _buildHeader(patient),
             ),
-            title: innerBoxIsScrolled 
-                ? Text(patient.name, style: const TextStyle(fontWeight: FontWeight.w900))
+            title: innerBoxIsScrolled
+                ? Text(patient.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900))
                 : null,
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(48),
@@ -823,7 +851,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   unselectedLabelColor: AppColors.stone500,
                   indicatorColor: AppColors.primary,
                   indicatorWeight: 3,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13),
                   tabs: const [
                     Tab(text: 'Lịch sử bệnh án'),
                     Tab(text: 'Tiêm phòng'),
@@ -920,9 +949,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 // Stats row
                 Row(
                   children: [
-                    _buildStatChip('${patient.species}'),
+                    _buildStatChip(patient.species),
                     const SizedBox(width: 8),
-                    _buildStatChip('${_calculateAge(patient.dateOfBirth)} / ${_getGenderVietnamese(patient.gender)}'),
+                    _buildStatChip(
+                        '${_calculateAge(patient.dateOfBirth)} / ${_getGenderVietnamese(patient.gender)}'),
                     const SizedBox(width: 8),
                     _buildStatChip('${patient.weight} kg'),
                   ],
@@ -930,17 +960,21 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _buildStatChip('Giống: ${patient.breed.isNotEmpty ? patient.breed : 'Không rõ'}'),
+                    _buildStatChip(
+                        'Giống: ${patient.breed.isNotEmpty ? patient.breed : 'Không rõ'}'),
                     const SizedBox(width: 8),
-                    _buildStatChip('Màu: ${patient.color?.isNotEmpty == true ? patient.color! : 'Không rõ'}'),
+                    _buildStatChip(
+                        'Màu: ${patient.color?.isNotEmpty == true ? patient.color! : 'Không rõ'}'),
                   ],
                 ),
-                if (patient.allergies != null && patient.allergies!.isNotEmpty) ...[
+                if (patient.allergies != null &&
+                    patient.allergies!.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => _showEditAllergiesDialog(patient),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.red.shade400,
                         borderRadius: BorderRadius.circular(12),
@@ -957,7 +991,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                             ),
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.edit, size: 12, color: AppColors.white),
+                          const Icon(Icons.edit,
+                              size: 12, color: AppColors.white),
                         ],
                       ),
                     ),
@@ -967,11 +1002,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   GestureDetector(
                     onTap: () => _showEditAllergiesDialog(patient),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.white.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.white.withOpacity(0.4)),
+                        border:
+                            Border.all(color: AppColors.white.withOpacity(0.4)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1032,14 +1069,14 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             _buildInfoRow('Cân nặng', '${patient.weight} kg'),
             _buildInfoRow('Màu lông', patient.color ?? 'N/A'),
           ]),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildInfoCard('Thông tin chủ nuôi', [
             _buildInfoRow('Họ tên', patient.ownerName ?? 'N/A'),
             _buildInfoRow('Số điện thoại', patient.ownerPhone ?? 'N/A'),
           ]),
-          
+
           if (patient.allergies != null && patient.allergies!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
@@ -1055,7 +1092,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+                      Icon(Icons.warning_amber_rounded,
+                          color: Colors.red.shade700),
                       const SizedBox(width: 8),
                       Text(
                         'Dị ứng',
@@ -1188,7 +1226,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   ),
                   Row(
                     children: [
-
                       const SizedBox(width: 8),
                       FilledButton.icon(
                         onPressed: () async {
@@ -1200,12 +1237,12 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                           }
                         },
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Thêm mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                        label: const Text('Thêm mới',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                         ),
                       ),
-
                     ],
                   ),
                 ],
@@ -1275,152 +1312,172 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       ),
       child: InkWell(
         onTap: () {
-            context.push('/staff/emr/${emr.id}');
+          context.push('/staff/emr/${emr.id}');
         },
         borderRadius: BorderRadius.circular(16),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.stone50,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border(bottom: BorderSide(color: AppColors.stone200)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        emr.assessment ?? 'Không có chẩn đoán',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: AppColors.stone900,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.stone50,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(16)),
+                border: Border(bottom: BorderSide(color: AppColors.stone200)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          emr.assessment ?? 'Không có chẩn đoán',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: AppColors.stone900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${DateFormat('dd/MM/yyyy').format(emr.examinationDate)} • BS. ${emr.staffName ?? 'N/A'}',
-                        style: const TextStyle(
-                          color: AppColors.stone500,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Badges Column
-                Column(
-                   crossAxisAlignment: CrossAxisAlignment.end,
-                   children: [
-                     // Booking code badge
-                     if (emr.bookingCode != null)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.confirmation_number, size: 10, color: Colors.orange.shade700),
-                            const SizedBox(width: 4),
-                            Text(
-                              emr.bookingCode ?? '',
-                              style: TextStyle(
-                                color: Colors.orange.shade700,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                     if (emr.clinicName != null)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          'Nguồn: ${emr.clinicName}',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                        const SizedBox(height: 4),
+                        Text(
+                          '${DateFormat('dd/MM/yyyy').format(emr.examinationDate)} • BS. ${emr.staffName ?? 'N/A'}',
+                          style: const TextStyle(
+                            color: AppColors.stone500,
+                            fontSize: 13,
                           ),
                         ),
-                      ),
-                      // Edit/View status
-                      // Edit/View status
-                // Check 24h lock
-                if ((!emr.isLocked && emr.staffId == _currentUserId) && 
-                    (DateTime.now().difference(emr.createdAt.isUtc ? emr.createdAt.toLocal() : emr.createdAt).inHours < 24))
-                  const SizedBox.shrink() // Editable, no badge needed
-
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.stone100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.lock_outline, size: 10, color: AppColors.stone500),
-                        const SizedBox(width: 4),
-                        Text('Chỉ được xem', style: TextStyle(fontSize: 10, color: AppColors.stone500, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
-                   ],
-                ),
-              ],
-            ),
-          ),
 
-          // SOAP Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // S - Subjective
-                if (emr.subjective != null && emr.subjective!.isNotEmpty)
-                  _buildSoapSection('S - CHỦ QUAN', emr.subjective ?? '', Colors.orange),
-                
-                // A - Assessment
-                if (emr.assessment != null)
-                  _buildSoapSection('A - CHẨN ĐOÁN', emr.assessment ?? '', Colors.orange),
-                
-                // O - Objective
-                if (emr.objective != null && emr.objective!.isNotEmpty)
-                  _buildSoapSection('O - KHÁCH QUAN', emr.objective ?? '', Colors.orange),
-                
-                // P - Plan
-                if (emr.plan != null)
-                  _buildSoapSection('P - KẾ HOẠCH', emr.plan ?? '', Colors.orange),
-              ],
+                  // Badges Column
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Booking code badge
+                      if (emr.bookingCode != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.confirmation_number,
+                                  size: 10, color: Colors.orange.shade700),
+                              const SizedBox(width: 4),
+                              Text(
+                                emr.bookingCode ?? '',
+                                style: TextStyle(
+                                  color: Colors.orange.shade700,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (emr.clinicName != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: AppColors.primary.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            'Nguồn: ${emr.clinicName}',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      // Edit/View status
+                      // Edit/View status
+                      // Check 24h lock
+                      if ((!emr.isLocked && emr.staffId == _currentUserId) &&
+                          (DateTime.now()
+                                  .difference(emr.createdAt.isUtc
+                                      ? emr.createdAt.toLocal()
+                                      : emr.createdAt)
+                                  .inHours <
+                              24))
+                        const SizedBox.shrink() // Editable, no badge needed
+
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.stone100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.stone300),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.lock_outline,
+                                  size: 10, color: AppColors.stone500),
+                              const SizedBox(width: 4),
+                              Text('Chỉ được xem',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.stone500,
+                                      fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+
+            // SOAP Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // S - Subjective
+                  if (emr.subjective != null && emr.subjective!.isNotEmpty)
+                    _buildSoapSection(
+                        'S - CHỦ QUAN', emr.subjective ?? '', Colors.orange),
+
+                  // A - Assessment
+                  if (emr.assessment != null)
+                    _buildSoapSection(
+                        'A - CHẨN ĐOÁN', emr.assessment ?? '', Colors.orange),
+
+                  // O - Objective
+                  if (emr.objective != null && emr.objective!.isNotEmpty)
+                    _buildSoapSection(
+                        'O - KHÁCH QUAN', emr.objective ?? '', Colors.orange),
+
+                  // P - Plan
+                  if (emr.plan != null)
+                    _buildSoapSection(
+                        'P - KẾ HOẠCH', emr.plan ?? '', Colors.orange),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1457,7 +1514,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
       future: _vaccinationFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary));
         }
 
         if (snapshot.hasError) {
@@ -1468,21 +1526,21 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
           return const Center(child: Text('Không có dữ liệu'));
         }
 
-        final history = (snapshot.data?[0] as List?)?.cast<VaccinationRecord>() ?? <VaccinationRecord>[];
-        final upcoming = (snapshot.data?[1] as List?)?.cast<VaccinationRecord>() ?? <VaccinationRecord>[];
-
-
+        final history =
+            (snapshot.data?[0] as List?)?.cast<VaccinationRecord>() ??
+                <VaccinationRecord>[];
+        final upcoming =
+            (snapshot.data?[1] as List?)?.cast<VaccinationRecord>() ??
+                <VaccinationRecord>[];
 
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // Management Form
             _buildEmbeddedVaccinationForm(),
-            
-            const SizedBox(height: 32),
-            
 
-            
+            const SizedBox(height: 32),
+
             // History Header with Toggle
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1490,7 +1548,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 const Expanded(
                   child: Text(
                     'Lịch Sử Tiêm Chủng',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.stone900),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1504,7 +1565,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   child: Row(
                     children: [
                       _buildViewToggle('DANH SÁCH', 'list', Icons.list),
-                      _buildViewToggle('LỘ TRÌNH (GRID)', 'grid', Icons.grid_view),
+                      _buildViewToggle(
+                          'LỘ TRÌNH (GRID)', 'grid', Icons.grid_view),
                     ],
                   ),
                 ),
@@ -1527,7 +1589,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.schedule, size: 20, color: Colors.orange.shade800),
+                        Icon(Icons.schedule,
+                            size: 20, color: Colors.orange.shade800),
                         const SizedBox(width: 8),
                         Text(
                           'MŨI TIÊM GỢI Ý (DỰ KIẾN)',
@@ -1544,7 +1607,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: upcoming.map((rec) => _buildSuggestionCard(rec)).toList(),
+                        children: upcoming
+                            .map((rec) => _buildSuggestionCard(rec))
+                            .toList(),
                       ),
                     ),
                   ],
@@ -1553,27 +1618,32 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             ],
 
             if (_vaccinationViewMode == 'grid') ...[
-               // Roadmap Header matching Web
-               const Padding(
-                 padding: EdgeInsets.only(bottom: 12),
-                 child: Text(
-                   'LỘ TRÌNH TIÊM CHỦNG (ROADMAP)',
-                   style: TextStyle(
-                     fontSize: 12,
-                     fontWeight: FontWeight.w900,
-                     color: AppColors.stone500,
-                     letterSpacing: 1.0,
-                   ),
-                 ),
-               ),
-               VaccinationRoadmapTable(records: history, upcoming: upcoming)
+              // Roadmap Header matching Web
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'LỘ TRÌNH TIÊM CHỦNG (ROADMAP)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.stone500,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
+              VaccinationRoadmapTable(records: history, upcoming: upcoming)
             ] else ...[
               if (history.isEmpty)
-                const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Chưa có lịch sử tiêm chủng', style: TextStyle(color: AppColors.stone400))))
+                const Center(
+                    child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('Chưa có lịch sử tiêm chủng',
+                            style: TextStyle(color: AppColors.stone400))))
               else
-                ...history.reversed.map((rec) => _buildVaccinationHistoryCard(rec)),
+                ...history.reversed
+                    .map((rec) => _buildVaccinationHistoryCard(rec)),
             ],
-            
+
             const SizedBox(height: 32),
           ],
         );
@@ -1590,11 +1660,20 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
         decoration: BoxDecoration(
           color: isActive ? AppColors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null,
+          boxShadow: isActive
+              ? [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2))
+                ]
+              : null,
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: isActive ? AppColors.primary : AppColors.stone400),
+            Icon(icon,
+                size: 14,
+                color: isActive ? AppColors.primary : AppColors.stone400),
             const SizedBox(width: 6),
             Text(
               label,
@@ -1610,8 +1689,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     );
   }
 
-
-
   Widget _buildSuggestionCard(VaccinationRecord sug) {
     return GestureDetector(
       onTap: () {
@@ -1620,7 +1697,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
           _doseSequence = sug.doseNumber?.toString() ?? '1';
           if (sug.vaccineTemplateId != null && _templates.isNotEmpty) {
             try {
-              _selectedTemplate = _templates.firstWhere((t) => t.id == sug.vaccineTemplateId);
+              _selectedTemplate =
+                  _templates.firstWhere((t) => t.id == sug.vaccineTemplateId);
               _vaccineDetailNameController.text = _selectedTemplate!.name;
             } catch (e) {
               _vaccineDetailNameController.text = sug.vaccineName;
@@ -1649,27 +1727,38 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'MŨI ${sug.doseNumber ?? 1}',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5),
                   ),
                 ),
                 if (sug.nextDueDate != null)
                   Text(
                     DateFormat('dd/MM/yyyy').format(sug.nextDueDate!),
-                    style: TextStyle(color: Colors.orange.shade800, fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
                   ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
               sug.vaccineName,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.stone900),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  color: AppColors.stone900),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1678,17 +1767,24 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Dự kiến: Mũi ${sug.doseNumber} (Sau mũi ${(sug.doseNumber ?? 1) - 1})',
-                  style: const TextStyle(fontSize: 10, color: AppColors.stone500, fontWeight: FontWeight.normal),
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.stone500,
+                      fontWeight: FontWeight.normal),
                 ),
               ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.touch_app_outlined, size: 12, color: AppColors.stone400),
+                Icon(Icons.touch_app_outlined,
+                    size: 12, color: AppColors.stone400),
                 const SizedBox(width: 4),
                 const Text(
                   'Bấm để ghi nhận',
-                  style: TextStyle(fontSize: 10, color: AppColors.stone400, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.stone400,
+                      fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -1698,11 +1794,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     );
   }
 
-
-
   Widget _buildVaccinationHistoryCard(VaccinationRecord rec) {
     final bool isCompleted = rec.status == 'COMPLETED';
-    
+
     // Calculate validity for "HIỆU LỰC" badge
     bool isValid = isCompleted;
     if (isCompleted && rec.nextDueDate != null) {
@@ -1739,7 +1833,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         Expanded(
                           child: Text(
                             rec.vaccineName,
-                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.stone900),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: AppColors.stone900),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1747,7 +1844,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         const SizedBox(width: 8),
                         if (isValid)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.green.shade50,
                               borderRadius: BorderRadius.circular(20),
@@ -1758,12 +1856,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                                 Container(
                                   width: 6,
                                   height: 6,
-                                  decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                                  decoration: const BoxDecoration(
+                                      color: Colors.green,
+                                      shape: BoxShape.circle),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'HIỆU LỰC',
-                                  style: TextStyle(color: Colors.green.shade700, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                                  style: TextStyle(
+                                      color: Colors.green.shade700,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5),
                                 ),
                               ],
                             ),
@@ -1773,14 +1877,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     const SizedBox(height: 4),
                     if (rec.doseNumber != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
                           'Mũi ${rec.doseNumber} / ${rec.totalDoses ?? 3}',
-                          style: TextStyle(color: Colors.orange.shade800, fontSize: 10, fontWeight: FontWeight.w900),
+                          style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900),
                         ),
                       ),
                   ],
@@ -1788,19 +1896,20 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
               ),
             ],
           ),
-          
+
           // Delete Button Row
           Align(
             alignment: Alignment.centerRight,
             child: IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppColors.stone400, size: 20),
+              icon: const Icon(Icons.delete_outline,
+                  color: AppColors.stone400, size: 20),
               onPressed: () => _showDeleteVaccinationDialog(rec),
               tooltip: 'Xóa hồ sơ tiêm',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
           ),
-          
+
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Divider(height: 1, color: AppColors.stone100),
@@ -1817,7 +1926,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     _buildDateInfo('NGÀY TIÊM', rec.vaccinationDate),
                     const SizedBox(width: 24),
                     if (rec.nextDueDate != null)
-                      _buildDateInfo('TÁI CHỦNG', rec.nextDueDate, isProminent: true),
+                      _buildDateInfo('TÁI CHỦNG', rec.nextDueDate,
+                          isProminent: true),
                   ],
                 ),
               ),
@@ -1836,8 +1946,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                       ),
                       child: Center(
                         child: Text(
-                          rec.staffName.isNotEmpty ? rec.staffName[0].toUpperCase() : '?',
-                          style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.w900, fontSize: 14),
+                          rec.staffName.isNotEmpty
+                              ? rec.staffName[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14),
                         ),
                       ),
                     ),
@@ -1845,7 +1960,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     Flexible(
                       child: Text(
                         rec.staffName,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.stone700),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.stone700),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1885,13 +2003,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
     );
   }
 
-  Widget _buildDateInfo(String label, DateTime? date, {bool isProminent = false}) {
+  Widget _buildDateInfo(String label, DateTime? date,
+      {bool isProminent = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.stone400, letterSpacing: 0.5),
+          style: const TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              color: AppColors.stone400,
+              letterSpacing: 0.5),
         ),
         const SizedBox(height: 4),
         Text(
@@ -1908,7 +2031,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
 
   Widget _buildEmbeddedVaccinationForm() {
     if (_isLoadingTemplates) {
-      return const Center(child: Padding(
+      return const Center(
+          child: Padding(
         padding: EdgeInsets.all(20),
         child: CircularProgressIndicator(color: AppColors.primary),
       ));
@@ -1920,7 +2044,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: Colors.orange.withOpacity(0.15)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 8)),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 15,
+              offset: const Offset(0, 8)),
         ],
       ),
       child: Form(
@@ -1937,12 +2064,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.add_circle_outline, size: 18, color: Colors.orange),
+                  const Icon(Icons.add_circle_outline,
+                      size: 18, color: Colors.orange),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       'Ghi Nhận Mũi Tiêm Mới',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.orange),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13,
+                          color: Colors.orange),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -1950,7 +2081,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   if (_patient.bookingCode != null)
                     Flexible(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.orange.shade50,
                           borderRadius: BorderRadius.circular(20),
@@ -1958,7 +2090,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         ),
                         child: Text(
                           '#${_patient.bookingCode}',
-                          style: TextStyle(color: Colors.orange.shade800, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.2),
+                          style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1997,7 +2133,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Dose Selector Tabs
                   Container(
                     padding: const EdgeInsets.all(4),
@@ -2032,11 +2168,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         children: [
                           Expanded(
                             child: Text(
-                              _selectedTemplate?.name ?? 'Nhấn để chọn loại vắc-xin',
+                              _selectedTemplate?.name ??
+                                  'Nhấn để chọn loại vắc-xin',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _selectedTemplate != null ? AppColors.stone900 : AppColors.stone400,
-                                fontWeight: _selectedTemplate != null ? FontWeight.w600 : FontWeight.normal,
+                                color: _selectedTemplate != null
+                                    ? AppColors.stone900
+                                    : AppColors.stone400,
+                                fontWeight: _selectedTemplate != null
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -2046,7 +2187,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.list_alt, color: Colors.orange, size: 18),
+                            child: const Icon(Icons.list_alt,
+                                color: Colors.orange, size: 18),
                           ),
                         ],
                       ),
@@ -2061,7 +2203,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('NGÀY TIÊM *', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone600)),
+                            const Text('NGÀY TIÊM *',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.stone600)),
                             const SizedBox(height: 8),
                             _buildFieldDatePickerTile(
                               date: _vaccinationDate,
@@ -2076,7 +2222,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('TÁI CHỦNG (DỰ KIẾN)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone600)),
+                            const Text('TÁI CHỦNG (DỰ KIẾN)',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.stone600)),
                             const SizedBox(height: 8),
                             _buildFieldDatePickerTile(
                               date: _nextDueDate,
@@ -2084,7 +2234,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                               icon: Icons.history,
                               placeholder: 'dd/mm/yyyy',
                               isNullable: true,
-                              onClear: () => setState(() => _nextDueDate = null),
+                              onClear: () =>
+                                  setState(() => _nextDueDate = null),
                             ),
                           ],
                         ),
@@ -2115,7 +2266,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       ElevatedButton(
-                        onPressed: _isSubmittingVaccination ? null : _handleSubmitVaccination,
+                        onPressed: _isSubmittingVaccination
+                            ? null
+                            : _handleSubmitVaccination,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange.shade800,
                           foregroundColor: Colors.white,
@@ -2124,8 +2277,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                           elevation: 0,
                         ),
                         child: _isSubmittingVaccination
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2))
-                            : const Text('LƯU HỒ SƠ', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    color: AppColors.white, strokeWidth: 2))
+                            : const Text('LƯU HỒ SƠ',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                    letterSpacing: 0.5)),
                       ),
                     ],
                   ),
@@ -2190,21 +2351,24 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                date != null ? DateFormat('dd/MM/yyyy').format(date) : (placeholder ?? 'Chọn ngày'),
+                date != null
+                    ? DateFormat('dd/MM/yyyy').format(date)
+                    : (placeholder ?? 'Chọn ngày'),
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: date != null ? FontWeight.w900 : FontWeight.normal,
+                  fontWeight:
+                      date != null ? FontWeight.w900 : FontWeight.normal,
                   color: date != null ? AppColors.stone900 : AppColors.stone400,
                 ),
               ),
             ),
             if (isNullable && date != null && onClear != null)
               GestureDetector(
-                onTap: () {
-                   onClear();
-                },
-                child: const Icon(Icons.close, size: 16, color: AppColors.stone400)
-              ),
+                  onTap: () {
+                    onClear();
+                  },
+                  child: const Icon(Icons.close,
+                      size: 16, color: AppColors.stone400)),
           ],
         ),
       ),
@@ -2214,9 +2378,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
   Future<void> _selectEmbeddedDate(BuildContext context, bool isNextDue) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isNextDue ? (_nextDueDate ?? DateTime.now().add(const Duration(days: 21))) : _vaccinationDate,
+      initialDate: isNextDue
+          ? (_nextDueDate ?? DateTime.now().add(const Duration(days: 21)))
+          : _vaccinationDate,
       firstDate: isNextDue ? DateTime.now() : DateTime(2000),
-      lastDate: isNextDue ? DateTime.now().add(const Duration(days: 365 * 2)) : DateTime.now().add(const Duration(days: 30)),
+      lastDate: isNextDue
+          ? DateTime.now().add(const Duration(days: 365 * 2))
+          : DateTime.now().add(const Duration(days: 30)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -2239,7 +2407,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
             if (days != null && days > 0) {
               _nextDueDate = picked.add(Duration(days: days));
             } else if (template.isAnnualRepeat == true) {
-              _nextDueDate = DateTime(picked.year + 1, picked.month, picked.day);
+              _nextDueDate =
+                  DateTime(picked.year + 1, picked.month, picked.day);
             }
           }
         }
@@ -2250,24 +2419,29 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
   void _showVaccineSelectionSheet() {
     if (_templates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Danh sách vắc-xin trống. Đang tải lại...')),
+        const SnackBar(
+            content: Text('Danh sách vắc-xin trống. Đang tải lại...')),
       );
       _loadTemplates();
       return;
     }
 
     String searchQuery = '';
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
-          final filteredTemplates = _templates.where((t) => 
-            t.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-            (t.description?.toLowerCase().contains(searchQuery.toLowerCase()) ?? false)
-          ).toList();
+          final filteredTemplates = _templates
+              .where((t) =>
+                  t.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
+                  (t.description
+                          ?.toLowerCase()
+                          .contains(searchQuery.toLowerCase()) ??
+                      false))
+              .toList();
 
           return Container(
             height: MediaQuery.of(context).size.height * 0.8,
@@ -2281,27 +2455,39 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                   margin: const EdgeInsets.only(top: 12),
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(color: AppColors.stone200, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(
+                      color: AppColors.stone200,
+                      borderRadius: BorderRadius.circular(2)),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('DANH SÁCH VẮC-XIN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.stone900, letterSpacing: 0.5)),
-                      Text('${filteredTemplates.length} loại', style: const TextStyle(fontSize: 11, color: AppColors.stone400)),
+                      const Text('DANH SÁCH VẮC-XIN',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.stone900,
+                              letterSpacing: 0.5)),
+                      Text('${filteredTemplates.length} loại',
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.stone400)),
                     ],
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
                   child: TextFormField(
                     decoration: InputDecoration(
                       hintText: 'Tìm kiếm tên vắc-xin...',
                       prefixIcon: const Icon(Icons.search, size: 20),
                       filled: true,
                       fillColor: AppColors.stone50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
                     onChanged: (val) {
@@ -2312,36 +2498,61 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> with SingleTi
                 const SizedBox(height: 16),
                 const Divider(height: 1),
                 Expanded(
-                  child: filteredTemplates.isEmpty 
-                    ? const Center(child: Text('Không tìm thấy vắc-xin phù hợp', style: TextStyle(color: AppColors.stone400)))
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: filteredTemplates.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.stone100),
-                        itemBuilder: (context, index) {
-                          final t = filteredTemplates[index];
-                          bool isSelected = _selectedTemplate?.id == t.id;
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            title: Text(t.name, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal, color: isSelected ? Colors.orange.shade800 : AppColors.stone900)),
-                            subtitle: Text(t.description ?? 'Thông tin vắc-xin', style: const TextStyle(fontSize: 11, color: AppColors.stone400)),
-                            trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.orange, size: 20) : const Icon(Icons.chevron_right, size: 18, color: AppColors.stone300),
-                            onTap: () {
-                              setState(() {
-                                _selectedTemplate = t;
-                                _vaccineDetailNameController.text = t.name;
-                                // Auto-calculate next due date
-                                if (t.repeatIntervalDays != null && t.repeatIntervalDays! > 0) {
-                                  _nextDueDate = _vaccinationDate.add(Duration(days: t.repeatIntervalDays!));
-                                } else if (t.isAnnualRepeat == true) {
-                                  _nextDueDate = DateTime(_vaccinationDate.year + 1, _vaccinationDate.month, _vaccinationDate.day);
-                                }
-                              });
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
+                  child: filteredTemplates.isEmpty
+                      ? const Center(
+                          child: Text('Không tìm thấy vắc-xin phù hợp',
+                              style: TextStyle(color: AppColors.stone400)))
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          itemCount: filteredTemplates.length,
+                          separatorBuilder: (context, index) => const Divider(
+                              height: 1, color: AppColors.stone100),
+                          itemBuilder: (context, index) {
+                            final t = filteredTemplates[index];
+                            bool isSelected = _selectedTemplate?.id == t.id;
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
+                              title: Text(t.name,
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w900
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? Colors.orange.shade800
+                                          : AppColors.stone900)),
+                              subtitle: Text(
+                                  t.description ?? 'Thông tin vắc-xin',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: AppColors.stone400)),
+                              trailing: isSelected
+                                  ? const Icon(Icons.check_circle,
+                                      color: Colors.orange, size: 20)
+                                  : const Icon(Icons.chevron_right,
+                                      size: 18, color: AppColors.stone300),
+                              onTap: () {
+                                setState(() {
+                                  _selectedTemplate = t;
+                                  _vaccineDetailNameController.text = t.name;
+                                  // Auto-calculate next due date
+                                  if (t.repeatIntervalDays != null &&
+                                      t.repeatIntervalDays! > 0) {
+                                    _nextDueDate = _vaccinationDate.add(
+                                        Duration(days: t.repeatIntervalDays!));
+                                  } else if (t.isAnnualRepeat == true) {
+                                    _nextDueDate = DateTime(
+                                        _vaccinationDate.year + 1,
+                                        _vaccinationDate.month,
+                                        _vaccinationDate.day);
+                                  }
+                                });
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
                 ),
               ],
             ),

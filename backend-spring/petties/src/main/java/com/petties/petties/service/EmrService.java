@@ -34,28 +34,50 @@ public class EmrService {
 
         /**
          * Create a new EMR record
+         *
+         * SHARED VISIBILITY RULES:
+         * - Any staff in the same clinic can create EMR for IN_PROGRESS bookings
+         * - Staff doesn't need to be assigned to the booking
+         * - Each EMR records the staffId of the creator for audit trail
          */
         @org.springframework.transaction.annotation.Transactional
         public EmrResponse createEmr(CreateEmrRequest request, UUID staffId) {
                 // Get staff info
                 User staff = userRepository.findById(staffId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Staff not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên"));
 
-                // Check if EMR already exists for this booking
-                if (request.getBookingId() != null && emrRecordRepository.existsByBookingId(request.getBookingId())) {
-                        throw new BadRequestException(
-                                        "Bệnh án cho booking này đã tồn tại. Vui lòng chỉnh sửa bệnh án cũ.");
+                // Get clinic from staff's working clinic
+                Clinic clinic = staff.getWorkingClinic();
+                if (clinic == null) {
+                        throw new BadRequestException("Bạn chưa được gán vào phòng khám nào");
                 }
 
-                // Get clinic from staff's working clinic (Optional for Dev/Test)
-                Clinic clinic = staff.getWorkingClinic();
-                // if (clinic == null) {
-                // throw new RuntimeException("Staff is not assigned to any clinic");
-                // }
+                // SHARED VISIBILITY: Validate booking is IN_PROGRESS and belongs to same clinic
+                if (request.getBookingId() != null) {
+                        Booking booking = bookingRepository.findById(request.getBookingId())
+                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                        // Rule 1: Booking must be IN_PROGRESS to add EMR
+                        if (booking.getStatus() != com.petties.petties.model.enums.BookingStatus.IN_PROGRESS) {
+                                throw new BadRequestException(
+                                        "Chỉ có thể thêm bệnh án khi lịch hẹn đang ở trạng thái 'Đang khám' (IN_PROGRESS)");
+                        }
+
+                        // Rule 2: Staff must belong to the same clinic as the booking
+                        if (!booking.getClinic().getClinicId().equals(clinic.getClinicId())) {
+                                throw new ForbiddenException(
+                                        "Bạn không có quyền thêm bệnh án cho lịch hẹn của phòng khám khác");
+                        }
+
+                        log.info("Staff {} creating EMR for booking {} (Shared Visibility enabled)",
+                                        staffId, booking.getBookingCode());
+                }
+
+        // Allow multiple EMR records per booking (different staff can add their own records)
 
                 // Get pet info
                 Pet pet = petRepository.findById(request.getPetId())
-                                .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
 
                 // Map prescriptions
                 List<Prescription> prescriptions = request.getPrescriptions() != null

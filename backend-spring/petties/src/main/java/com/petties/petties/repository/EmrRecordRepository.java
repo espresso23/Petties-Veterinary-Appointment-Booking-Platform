@@ -24,5 +24,10 @@ public interface EmrRecordRepository extends MongoRepository<EmrRecord, String> 
 
     boolean existsByBookingId(UUID bookingId);
 
+    /**
+     * Find EMR records by clinic for extracting pet IDs
+     */
+    List<EmrRecord> findByClinicId(UUID clinicId);
+
     List<EmrRecord> findByReExaminationDateBetween(java.time.LocalDateTime start, java.time.LocalDateTime end);
 }
