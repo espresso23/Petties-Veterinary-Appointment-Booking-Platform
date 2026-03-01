@@ -1,0 +1,520 @@
+# Đáp án đánh giá Project Petties
+
+**Phiên bản:** 1.0  
+**Cập nhật:** 2026-03-01  
+**Mục đích:** Trả lời các câu hỏi đánh giá (Software Product, Third Parties, Apply AI) và gợi ý chia slide trình bày. Phần B (Project Management) và C (Interaction with Supervisor) không trình bày trong tài liệu này.
+
+**Tài liệu tham chiếu chính:**
+- [REPORT_4_SDD_SYSTEM_DESIGN.md](SDD/REPORT_4_SDD_SYSTEM_DESIGN.md) – Kiến trúc, Package Diagram, Detailed Design
+- [PETTIES_ERD_DIAGRAM.md](PETTIES_ERD_DIAGRAM.md) – ERD, thực thể, quan hệ
+- [AI_AGENT_SERVICE_SDD.md](SDD/AI_AGENT_SERVICE_SDD.md) – Thiết kế AI Agent (sequence, class, DB, xử lý lỗi)
+- [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.md) – Ý tưởng tính năng AI cho Clinic Owner / Manager / Staff
+- [PROJECT_STATUS.md](../../PROJECT_STATUS.md) – Tiến độ, use case
+
+---
+
+## A. Software Product
+
+### A.1 Kiến trúc hệ thống (deployment view & process view) có được mô tả rõ không?
+
+**Đáp án:** Có. Kiến trúc hệ thống được mô tả rõ ở cả **deployment view** và **process view**.
+
+- **Deployment view:** Trong Report 4 §1.1 System Architecture có flowchart với các khối: **DEPLOYMENT & INFRASTRUCTURE** (Docker, GitHub Actions, AWS EC2, Vercel), **FRONTEND** (Flutter Mobile, React Web), **BACKEND** (API Gateway NGINX, Spring Boot, Python FastAPI), **STORE DATA** (PostgreSQL, MongoDB, Redis, Qdrant Cloud, Cloudinary, Firebase), **EXTERNAL SERVICES** (Cohere, OpenRouter, Google Maps, Stripe). Luồng kết nối giữa từng lớp được vẽ rõ (Frontend → API Gateway → Spring Boot / Python; Spring Boot ↔ Python; Backend → Storage và External).
+- **Process view:** Thể hiện qua mô tả luồng xử lý: User (Web/Mobile) → API Gateway (routing, load balancing) → Spring Boot (REST API, auth, business logic) hoặc Python FastAPI (AI Agent, chat streaming, RAG); Spring Boot và Python giao tiếp qua API; cả hai truy vấn PostgreSQL, MongoDB, Redis, Qdrant; Python gọi OpenRouter/Cohere.
+
+**Deployment & Process View – Kiến trúc hệ thống (Report 4 §1.1):**
+
+```mermaid
+flowchart TD
+    subgraph INFRA["DEPLOYMENT & INFRASTRUCTURE"]
+        direction LR
+        Docker["Docker"]
+        GitHub["GitHub Actions"]
+        AWS["AWS EC2"]
+        Vercel["Vercel"]
+    end
+
+    subgraph FRONTEND["FRONTEND"]
+        User["User Web & Mobile"]
+        Flutter["Flutter Mobile"]
+        React["React Web"]
+        User --> Flutter
+        User --> React
+    end
+
+    subgraph BACKEND["BACKEND"]
+        APIGateway["API Gateway NGINX"]
+        SpringBoot["Spring Boot"]
+        Python["Python FastAPI AI"]
+        APIGateway --> SpringBoot
+        APIGateway --> Python
+        SpringBoot <-.-> Python
+    end
+
+    subgraph STORAGE["STORE DATA"]
+        PostgreSQL[("PostgreSQL")]
+        MongoDB[("MongoDB")]
+        Redis[("Redis")]
+        QdrantCloud[("Qdrant Cloud")]
+        Cloudinary["Cloudinary"]
+    end
+
+    subgraph EXTERNAL["EXTERNAL SERVICES"]
+        Cohere["Cohere API"]
+        OpenRouter["OpenRouter API"]
+        GoogleMaps["Google Maps API"]
+    end
+
+    Flutter --> APIGateway
+    React --> APIGateway
+    SpringBoot --> PostgreSQL
+    SpringBoot --> Redis
+    SpringBoot --> MongoDB
+    SpringBoot --> Cloudinary
+    Python --> PostgreSQL
+    Python --> QdrantCloud
+    Python --> Cohere
+    Python --> OpenRouter
+    SpringBoot --> GoogleMaps
+```
+
+**Bằng chứng:** `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` – Mục **1.1 System Architecture** (flowchart và đoạn mô tả 1–5).
+
+---
+
+### A.2 ERD có phản ánh đúng các thực thể, quan hệ và thuộc tính trong hệ thống không?
+
+**Đáp án:** Có. ERD trong PETTIES_ERD_DIAGRAM.md phản ánh đầy đủ với Mermaid Crow's Foot, gồm **28+ thực thể** và quan hệ rõ ràng.
+
+- **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, VET_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
+- **MongoDB:** EMR_RECORD, VACCINATION_RECORD (và các embedded: prescriptions, images).
+- **AI Service (PostgreSQL):** AI_AGENT, AI_TOOL, AI_PROMPT_VERSION, AI_CHAT_SESSION, AI_CHAT_MESSAGE, AI_KNOWLEDGE_DOC, AI_SYSTEM_SETTING.
+- **Quan hệ:** Đầy đủ cardinality (1-N, N-1, junction tables như BOOKING_SLOT, BOOKING_SERVICE), khóa ngoại và mô tả từng thực thể (mục đích, thuộc tính chính).
+
+**Bằng chứng:** `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §1 Complete Mermaid ERD, §2 Detailed Entities Description, §4 Relationship Matrix.
+
+---
+
+### A.3 Các entity model chính có đủ để thể hiện state và behavior như trong state diagram không?
+
+**Đáp án:** Có. Các entity chính có trạng thái và luồng trạng thái được mô tả tương ứng state diagram.
+
+- **BOOKING:** Trạng thái PENDING → ASSIGNED → CONFIRMED → (CHECK_IN) → IN_PROGRESS → CHECK_OUT → COMPLETED; các nhánh CANCELLED, NO_SHOW; với HOME_VISIT có thêm ON_THE_WAY, ARRIVED. ERD §2.10 mô tả Status Flow và Completion Dependency (payment, EMR).
+- **USER:** status (ACTIVE | SUSPENDED | PENDING), role (PET_OWNER | STAFF | CLINIC_MANAGER | CLINIC_OWNER | ADMIN).
+- **CLINIC:** status (PENDING | APPROVED | REJECTED | SUSPENDED).
+- **VET_SHIFT:** status (SCHEDULED | COMPLETED | CANCELLED); **SLOT:** status (AVAILABLE | BOOKED | BLOCKED).
+- **PAYMENT:** status (PENDING | PAID | REFUNDED | FAILED).
+
+Các enum và trường này đủ để mô hình hóa state và behavior trong state diagram.
+
+**State diagram – Luồng trạng thái BOOKING (happy path & nhánh lỗi):**
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> ASSIGNED: Assign vet
+    ASSIGNED --> CONFIRMED: Pet owner confirm
+    CONFIRMED --> CHECK_IN: Check-in at clinic
+    CONFIRMED --> ON_THE_WAY: Home visit start travel
+    ON_THE_WAY --> ARRIVED: Staff arrived
+    ARRIVED --> CHECK_IN: Check-in
+    CHECK_IN --> IN_PROGRESS: Start examination
+    IN_PROGRESS --> CHECK_OUT: Finish service
+    CHECK_OUT --> COMPLETED: Payment done
+    PENDING --> CANCELLED: Cancel
+    ASSIGNED --> CANCELLED: Cancel
+    CONFIRMED --> CANCELLED: Cancel
+    CHECK_IN --> NO_SHOW: No show
+    IN_PROGRESS --> NO_SHOW: No show
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    NO_SHOW --> [*]
+```
+
+**Bằng chứng:** `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §2.10 Booking (Status Flow), §5 Booking Lifecycle & Status Flow.
+
+---
+
+### A.4 Việc sử dụng dịch vụ bên ngoài (third-party API) có được biện minh và triển khai hiệu quả không?
+
+**Đáp án:** Có. Các dịch vụ bên ngoài được dùng có mục đích rõ và được triển khai trong từng layer phù hợp.
+
+| Dịch vụ | Mục đích | Nơi sử dụng | Ghi chú |
+|--------|----------|-------------|---------|
+| **OpenRouter** | LLM cho AI Agent (chat, ReAct) | Python AI Service | API key lưu trong DB (system_settings), Services layer có error handling |
+| **Cohere** | Embeddings cho RAG (đa ngôn ngữ) | Python AI Service | Dùng embed-multilingual-v3, tích hợp LlamaIndex |
+| **Qdrant Cloud** | Vector store cho RAG | Python AI Service | Lưu embedding 1024 chiều, binary quantization |
+| **Cloudinary** | Media (ảnh avatar, clinic, EMR) | Spring Boot | Upload/URL qua config, CDN |
+| **Google Maps / Goong** | Geocoding, bản đồ | Spring Boot | Tìm địa chỉ, tọa độ clinic / home visit |
+| **Stripe** | Thanh toán online | Spring Boot | [Planned] – tài liệu có đề cập |
+| **Firebase** | Push notification (FCM) | Spring Boot / Mobile | Thông báo real-time |
+
+Kiến trúc tách Spring Boot (business logic, auth) và Python (AI, RAG) nên việc gọi API bên ngoài được phân tách rõ; API key và cấu hình được quản lý qua Admin (system_settings) cho AI.
+
+**Bằng chứng:** Report 4 §1.1 EXTERNAL SERVICES; AI Agent SDD §5 (system_settings), §1.2 Services Layer (retry, error handling).
+
+---
+
+### A.5 Cấu trúc source code có hỗ trợ hiểu logic, bảo trì và mở rộng không?
+
+**Đáp án:** Có. Cấu trúc monorepo và package diagram từng service hỗ trợ hiểu logic, bảo trì và mở rộng.
+
+- **Monorepo:** Bốn service chính: `backend-spring/petties/`, `petties-web/`, `petties_mobile/`, `petties-agent-serivce/`, cộng `docs-references/`.
+- **Spring Boot (backend-spring):** Các layer Presentation (controller), Business (service, service/impl), Data Access (repository), Domain (model, enums), DTO (dto, mapper), Cross-Cutting (config, security, exception, validation), Infrastructure (util, converter, scheduler, event), Migration (db/migration), Testing (test). Luồng Controller → Service → Repository → Entity được mô tả trong Report 4 §1.2.1.
+- **Python AI Service (petties-agent-serivce):** API (routes, websocket, middleware, schemas, dependencies), Core (agents, tools, rag, config_helper), Services (LLM/embedding clients), Database (postgres models, session, migrations), Config, Testing. Package diagram và mô tả từng package trong Report 4 §1.2.1 (Python AI Agent Service).
+- **React (petties-web):** Components, pages, store (Zustand), services (api, websocket), hooks, utils, layout; cấu trúc theo feature và shared modules.
+- **Flutter (petties_mobile):** data (services, models, repositories), providers, ui/screens, routing, core (auth, error, network).
+
+Cấu trúc này hỗ trợ tìm module theo chức năng, tách biệt cross-cutting (auth, lỗi), và mở rộng (thêm tool AI, thêm API, thêm màn hình) mà không phá vỡ ranh giới layer.
+
+**Bằng chứng:** `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` – **1.2 Package Diagram** (Spring Boot, Python AI, React, Flutter) và bảng mô tả package.
+
+---
+
+## D. Interaction with Third Parties
+
+### D.1 Giao tiếp với bên thứ ba (Reviewer, doanh nghiệp) có hiệu quả không?
+
+**Đáp án (template – nhóm điền theo thực tế):**  
+Có. Giao tiếp với Reviewer/doanh nghiệp qua [kênh cụ thể]. *(Nhóm điền: email, meeting, công cụ; tần suất.)*
+
+---
+
+### D.2 Yêu cầu hoặc feedback từ bên thứ ba có được xử lý chuyên nghiệp và kịp thời không?
+
+**Đáp án (template – nhóm điền theo thực tế):**  
+Có. Yêu cầu/feedback được ghi nhận, phân loại và đưa vào backlog hoặc xử lý trong sprint phù hợp. *(Nhóm điền: quy trình cụ thể.)*
+
+---
+
+### D.3 Đóng góp từ bên thứ ba có được tích hợp vào project không?
+
+**Đáp án (template – nhóm điền theo thực tế):**  
+Có. Đóng góp (ý kiến nghiệp vụ, yêu cầu tính năng, góp ý UX) được phản ánh trong tài liệu và backlog, và triển khai khi phù hợp. *(Nhóm điền: ví dụ cụ thể.)*
+
+---
+
+## AI. Apply AI
+
+### AI.1 Kiến trúc hệ thống / package diagram có mô tả AI là thành phần tách biệt hay nhúng trong logic chính không?
+
+**Đáp án:** Có. AI được mô tả rõ là **thành phần tách biệt** (sub-system riêng), không nhúng trong từng API của Spring Boot.
+
+- **Report 4 §1.1:** Backend gồm hai thành phần: **Spring Boot** (API, auth, business logic) và **Python FastAPI** (AI Agent Service, AI Chat Streaming, RAG Pipeline). Hai service này nối với nhau qua API Gateway; Spring Boot và Python có kết nối hai chiều (dashed line) để AI gọi API nghiệp vụ khi cần.
+- **Report 4 §1.2:** Có **Package Diagram riêng cho Python AI Agent Service** (api, core/agents, core/tools, core/rag, services, db, config, tests). Điều này thể hiện AI là một service độc lập với cấu trúc package rõ ràng.
+- **AI Agent SDD §1.1–1.2:** High-Level Architecture và Service Layers mô tả Client (Web/Mobile) → API Gateway → REST/WebSocket → **Agent Core Layer** (Single Agent, Tool Registry, RAG Engine) → LLM Layer (OpenRouter, Cohere) và Data Layer (PostgreSQL, Qdrant, MongoDB). AI xử lý trong **Single Agent (LangGraph ReAct)**, gọi tools và RAG; logic nghiệp vụ chính vẫn nằm ở Spring Boot.
+- **Mở rộng phạm vi AI (Non-Pet Owner):** Tài liệu [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.md) mô tả **Petties AI Agent Ecosystem** với nhiều vai trò (Pet Owner, Staff, Clinic Manager, Clinic Owner) và các agent hướng nghiệp vụ: General Agent (entry), Clinical Agent, Operations Agent, Business Agent, Setup Agent. Tools layer tách bạch: RAG (chỉ cho Pet Care Q&A), Database Tools, Spring Boot API, Image Analysis. Điều này củng cố việc AI là **hệ thống con tách biệt** với nhiều use case, không nhúng lẫn vào từng API nghiệp vụ.
+
+**Bằng chứng:**  
+- `docs-references/documentation/SDD/REPORT_4_SDD_SYSTEM_DESIGN.md` – §1.1 System Architecture, §1.2 Package Diagram (Python AI).  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §1.1 High-Level Architecture, §1.2 Service Layers.  
+- `docs-references/documentation/AI_FEATURES_NON_PET_OWNER_IDEA.md` – §1 Agent Architecture Overview, §1.2 Petties AI Agent Ecosystem.
+
+---
+
+### AI.2 Sequence diagram có thể hiện hệ thống gửi/nhận dữ liệu với AI không?
+
+**Đáp án:** Có. Dưới đây là các sequence diagram mô tả rõ luồng gửi/nhận dữ liệu giữa client và AI.
+
+**1. Agent Invocation Flow (REST) – User gửi message, nhận response đồng bộ:**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as Pet Owner
+    participant Mobile as Flutter Mobile
+    participant API as FastAPI
+    participant Auth as Auth Middleware
+    participant Agent as Single Agent
+    participant LLM as OpenRouter
+    participant DB as PostgreSQL
+
+    User->>Mobile: Nhập câu hỏi
+    Mobile->>API: POST /api/v1/chat/sessions/{id}/messages
+    API->>Auth: Verify JWT token
+    Auth-->>API: User authenticated
+
+    API->>DB: Load agent config
+    DB-->>API: AgentConfig
+
+    API->>Agent: invoke(user_query, config)
+
+    Agent->>Agent: Initialize ReActState
+    Agent->>LLM: Generate thoughts (system_prompt + user_query)
+    LLM-->>Agent: Thought: "Cần dùng tool symptom_search"
+
+    Agent->>Agent: Extract tool_name + params
+    Agent->>Agent: call_mcp_tool("symptom_search", params)
+    Agent->>Agent: Add observation to state
+
+    Agent->>LLM: Generate final answer (with observations)
+    LLM-->>Agent: Final answer
+
+    Agent-->>API: Response + metadata
+    API->>DB: Save chat message
+    API-->>Mobile: JSON Response
+    Mobile-->>User: Hiển thị câu trả lời
+```
+
+**2. WebSocket Chat Flow – ReAct Streaming (thinking → tool_call → observation → response → done):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Mobile as Mobile App
+    participant WS as WebSocket /ws/chat
+    participant Agent as Single Agent
+    participant Tools as Tool Registry
+    participant LLM as OpenRouter
+    participant RAG as RAG Engine
+
+    User->>Mobile: Nhập: "Cách chăm sóc chó Poodle?"
+    Mobile->>WS: Connect + send message
+
+    WS->>Agent: Start ReAct loop
+
+    Agent->>LLM: Generate thought
+    LLM-->>Agent: "Cần tìm kiếm kiến thức về Poodle"
+    Agent->>WS: emit("thinking", thought)
+    WS-->>Mobile: Display thinking
+
+    Agent->>Tools: call_tool("pet_care_qa", query="chăm sóc chó Poodle")
+    Agent->>WS: emit("tool_call", tool_name + params)
+    WS-->>Mobile: Display tool execution
+
+    Tools->>RAG: query("chăm sóc chó Poodle")
+    RAG-->>Tools: Retrieved chunks + sources
+    Tools-->>Agent: Tool result
+
+    Agent->>WS: emit("observation", result)
+    WS-->>Mobile: Display observation
+
+    Agent->>LLM: Generate answer (streaming)
+
+    loop Streaming tokens
+        LLM-->>Agent: Token chunk
+        Agent->>WS: emit("response", delta=true)
+        WS-->>Mobile: Display token
+    end
+
+    Agent->>WS: emit("done", final_response + sources)
+    WS-->>Mobile: Show sources
+    Mobile-->>User: Hiển thị câu trả lời hoàn chỉnh
+```
+
+**3. Tool Execution Flow (pet_care_qa) – Agent gọi tool RAG, nhận chunks:**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Agent
+    participant MCP as FastMCP Server
+    participant Tool as pet_care_qa
+    participant RAG as RAG Engine
+    participant Cohere as Cohere API
+    participant Qdrant as Qdrant Cloud
+
+    Agent->>MCP: call_mcp_tool("pet_care_qa", {"query": "chăm sóc chó Poodle"})
+    MCP->>Tool: Execute @mcp.tool function
+
+    Tool->>RAG: query("chăm sóc chó Poodle", top_k=5)
+
+    RAG->>Cohere: POST /embed (query text)
+    Cohere-->>RAG: Query vector [1024 dim]
+
+    RAG->>Qdrant: Search similar vectors (cosine)
+    Qdrant-->>RAG: Top 5 chunks with scores
+
+    RAG->>RAG: Filter by min_score=0.5
+    RAG-->>Tool: List[RetrievedChunk]
+
+    Tool->>Tool: Build context from chunks
+    Tool->>Tool: Format result with sources
+
+    Tool-->>MCP: Return result dict
+    MCP-->>Agent: Tool execution result
+
+    Agent->>Agent: Add to observations
+    Agent->>Agent: Continue ReAct loop or finish
+```
+
+Tài liệu [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.md) §1.3 bổ sung **ReAct Pattern – Agent Reasoning Loop** (Thought → Action → Observation) cho nhiều bước và nhiều tool (get_pet_info, get_booking_history, symptom_to_diagnosis, treatment_recommendation, emr_autonomous_creator), thể hiện gửi/nhận dữ liệu trong vòng lặp lý luận của agent.
+
+**Bằng chứng:**  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §6.1, §6.2, §6.3, §6.4, §6.5.  
+- `docs-references/documentation/AI_FEATURES_NON_PET_OWNER_IDEA.md` – §1.3 ReAct Pattern - Agent Reasoning Loop.
+
+---
+
+### AI.3 Sequence diagram hoặc mô tả có nêu rõ: hệ thống gọi AI ở đâu, chờ response thế nào, xử lý khi AI lỗi không?
+
+**Đáp án:** Có.
+
+- **Gọi AI ở đâu:**  
+  - **REST:** Client gọi FastAPI endpoint (ví dụ POST /api/v1/chat/sessions/{session_id}/messages). Route handler nhận request → load agent config từ DB → gọi `Agent.invoke(user_query, config)`.  
+  - **WebSocket:** Client kết nối `/ws/chat/{session_id}?token=JWT`, gửi message dạng `{ "type": "message", "content": "..." }`. WebSocket handler chuyển vào Single Agent, bắt đầu ReAct loop.  
+  (AI_FEATURES_NON_PET_OWNER_IDEA.md mô tả agent được gọi từ nhiều role – Pet Owner, Staff, CM, CO – qua cùng entry point General Agent rồi phân luồng theo ngữ cảnh.)
+
+- **Chờ response:**  
+  - **REST:** Đồng bộ – client đợi đến khi `invoke()` trả về (sau khi Think → Act → Observe có thể lặp, rồi Generate answer).  
+  - **WebSocket:** Bất đồng bộ – client nhận lần lượt event: `thinking` → `tool_call` → `observation` → `response` (delta) → `done` (final answer + sources). Client hiển thị từng bước và tích lũy nội dung.
+
+- **Xử lý khi AI lỗi:**  
+  - **WebSocket:** Server gửi event `type: "error"`, ví dụ `{ "type": "error", "error": "Failed to connect to LLM service", "code": "LLM_ERROR" }`. Client có thể hiển thị thông báo lỗi và cho phép gửi lại.  
+  - **Mã lỗi chuẩn (AI Agent SDD Appendix A):** AGENT_DISABLED (503), TOOL_NOT_FOUND (404), TOOL_DISABLED (400), LLM_ERROR (500), RAG_ERROR (500), INVALID_TOKEN (401), QUOTA_EXCEEDED (429), DOCUMENT_NOT_FOUND (404).  
+  - **Implementation:** Services layer (OpenRouter, Cohere) có retry và error handling; Tool Executor xử lý lỗi tool và trả kết quả cấu trúc về agent; core/sentry dùng cho error monitoring.
+
+**Sequence diagram – Gọi AI và xử lý lỗi (WebSocket):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Mobile as Mobile App
+    participant WS as WebSocket
+    participant Agent as Single Agent
+    participant LLM as OpenRouter
+
+    User->>Mobile: Gửi câu hỏi
+    Mobile->>WS: message {"type": "message", "content": "..."}
+    WS->>Agent: invoke(query)
+
+    alt LLM thành công
+        Agent->>LLM: Generate
+        LLM-->>Agent: Response
+        Agent->>WS: emit("thinking"), emit("tool_call"), emit("response"), emit("done")
+        WS-->>Mobile: Hiển thị từng bước
+        Mobile-->>User: Câu trả lời hoàn chỉnh
+    else LLM lỗi / timeout / quota
+        Agent->>LLM: Generate
+        LLM-->>Agent: Error
+        Agent->>WS: emit("error", {"code": "LLM_ERROR", "error": "..."})
+        WS-->>Mobile: Nhận event error
+        Mobile-->>User: Hiển thị lỗi, gợi ý gửi lại
+    end
+```
+
+**Bằng chứng:**  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §4.2 WebSocket Protocol (error event), Appendix A API Error Codes; §2.5 Tool Execution Flow; §1.2 Services Layer.
+
+---
+
+### AI.4 Thiết kế database có hỗ trợ lưu dữ liệu gửi tới AI và kết quả AI trả về để phân tích/kiểm chứng sau không?
+
+**Đáp án:** Có. Cả PostgreSQL (AI service) và MongoDB (chat history) đều có schema lưu input/output và metadata của AI.
+
+- **PostgreSQL (AI Agent SDD §5.2):**  
+  - **chat_sessions:** id, agent_id, user_id (từ Core), session_id (unique), started_at, ended_at.  
+  - **chat_messages:** id, session_id, role (user | assistant | system), content, **message_metadata** (JSON – tool_calls, ReAct steps, thoughts), timestamp.  
+  Nhờ đó có thể lưu từng tin nhắn user/assistant và metadata (tool gọi, tham số, kết quả, bước suy luận).
+
+- **MongoDB (AI Agent SDD §5.4):** Collection `chat_history`, document có session_id, user_id, agent_id, **messages** (mảng: role, content, timestamp; với assistant có thêm **metadata**: thoughts, tool_calls với params và result, sources). Phù hợp truy vấn theo session/user và phân tích sau.
+
+- **ERD (PETTIES_ERD_DIAGRAM.md §2.24–2.25):** AI_CHAT_SESSION, AI_CHAT_MESSAGE với mô tả: session nhóm tin theo user/agent; message lưu content và message_metadata (tool_calls, thinking steps). Đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
+
+**Bằng chứng:**  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §5.2 Table Specifications (chat_sessions, chat_messages), §5.4 MongoDB Schema.  
+- `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §2.24 AI_CHAT_SESSION, §2.25 AI_CHAT_MESSAGE.
+
+---
+
+### AI.5 Class diagram có thể hiện việc gọi và xử lý AI được đóng gói thành class/module riêng (AI Client, Prediction Service, v.v.) không?
+
+**Đáp án:** Có. Class diagram trong AI Agent SDD thể hiện gọi và xử lý AI được đóng gói trong các class/module riêng.
+
+**Agent Core Classes (AI Agent SDD §7.1):**
+
+```mermaid
+classDiagram
+    class SingleAgent {
+        +str agent_name
+        +AgentConfig config
+        +StateGraph graph
+        +ToolRegistry tool_registry
+        +invoke(query: str) Response
+        -_think_node(state: ReActState) ReActState
+        -_act_node(state: ReActState) ReActState
+        -_observe_node(state: ReActState) ReActState
+        -_should_continue(state: ReActState) str
+    }
+
+    class AgentConfig {
+        +str agent_name
+        +str model
+        +float temperature
+        +int max_tokens
+        +float top_p
+        +str system_prompt
+        +int max_iterations
+        +bool enabled
+        +from_database(agent_id: int) AgentConfig
+    }
+
+    class ReActState {
+        +List~Message~ messages
+        +List~str~ thoughts
+        +List~ToolCall~ tool_calls
+        +List~str~ observations
+        +int iteration
+        +bool should_continue
+        +str final_answer
+    }
+
+    class ToolRegistry {
+        +Dict~str, Tool~ tools
+        +get_enabled_tools() List~Tool~
+        +call_tool(name: str, params: dict) Any
+        +scan_tools() ScanResult
+    }
+
+    class LLMClient {
+        +str provider
+        +str model
+        +generate(prompt: str, config: dict) str
+        +stream(prompt: str, config: dict) Iterator~str~
+    }
+
+    SingleAgent --> AgentConfig : uses
+    SingleAgent --> ReActState : manages
+    SingleAgent --> ToolRegistry : uses
+    SingleAgent --> LLMClient : uses
+```
+
+- **SingleAgent** là lớp điều phối chính (invoke, think/act/observe); **LLMClient** đóng gói gọi LLM bên ngoài; **ToolRegistry** quản lý và gọi tools; **ReActState** lưu trạng thái vòng lặp. Các module RAG (LlamaIndexRAGEngine), Tool (FastMCP, MCPTool, PetCareQATool, SymptomSearchTool) nằm trong §7.2–7.3 – tách biệt với business logic Spring Boot.
+
+Tài liệu [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.md) bổ sung **các tool và luồng** cho Clinical/Operations/Business/Setup agents (symptom_to_diagnosis, treatment_recommendation, emr_autonomous_creator, staff_allocation_agent, revenue_insights_agent, v.v.) – các tool này được implement dưới dạng hàm/callable trong Tool Layer và gọi từ Single Agent, vẫn nằm trong cùng kiến trúc class/module tách biệt (core/tools, core/agents).
+
+**Bằng chứng:**  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §7.1 Agent Core Classes, §7.2 RAG Engine Classes, §7.3 Tool System Classes, §7.4 Database Models.  
+- `docs-references/documentation/AI_FEATURES_NON_PET_OWNER_IDEA.md` – §2.1 Autonomous Clinical Diagnosis System (tools), §3–5 (Operations, Business tools), §8 Clinic Setup Agent Tools.
+
+---
+
+## Gợi ý chia slide trình bày
+
+| Slide | Nội dung |
+|-------|----------|
+| **1** | **Bìa** – Tên project (Petties), nhóm, ngày thuyết trình. |
+| **2** | **Mục lục / Cấu trúc đánh giá** – A. Software Product, D. Third Parties, AI. Apply AI. (B, C không trình bày.) |
+| **3** | **A. Software Product – Kiến trúc & ERD** – Tóm tắt A.1 (deployment + process view) kèm flowchart, A.2 (ERD đầy đủ). |
+| **4** | **A. Software Product – Entity, dịch vụ ngoài, code** – A.3 (entity/state) kèm state diagram BOOKING, A.4 (external services), A.5 (package structure). |
+| **5** | **D. Interaction with Third Parties** – Giao tiếp (D.1), Xử lý yêu cầu/feedback (D.2), Tích hợp đóng góp (D.3). |
+| **6** | **AI. Kiến trúc & luồng AI** – AI là service tách biệt; sequence diagram REST invocation + WebSocket streaming + Tool execution (pet_care_qa). |
+| **7** | **AI. Xử lý lỗi & DB & Class** – Sequence diagram gọi AI + alt khi lỗi; DB lưu session/message + metadata; class diagram Agent Core (SingleAgent, LLMClient, ToolRegistry). |
+| **8** | **Kết luận** – Điểm mạnh, hạn chế (nếu có), hướng phát triển (AI_FEATURES_NON_PET_OWNER_IDEA). |
+| **9** | **Q&A** |
+
+**Tổng:** 9 slide (không gồm B, C).
+
+---
+
+## Metadata
+
+| Thuộc tính | Giá trị |
+|------------|---------|
+| **Document** | EVALUATION_ANSWERS_AND_SLIDES.md |
+| **Version** | 1.0 |
+| **Last Updated** | 2026-03-01 |
+| **Tác giả** | Petties Team (template đáp án) |
+| **Tham chiếu** | REPORT_4_SDD, PETTIES_ERD_DIAGRAM, AI_AGENT_SERVICE_SDD, AI_FEATURES_NON_PET_OWNER_IDEA, PROJECT_STATUS |

@@ -7,6 +7,7 @@ import com.petties.petties.config.UserDetailsServiceImpl;
 import com.petties.petties.dto.clinicService.ClinicServiceRequest;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceUpdateRequest;
+import com.petties.petties.dto.clinicService.VaccineDosePriceDTO;
 import com.petties.petties.dto.clinicService.WeightPriceDto;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
@@ -139,6 +140,55 @@ class ClinicServiceControllerUnitTest {
                                 .andExpect(jsonPath("$.error").value("Validation Failed"));
         }
 
+        @Test
+        @DisplayName("TC-UNIT-SERVICE-003: Success - create vaccination service with dose prices")
+        void createService_vaccinationWithDosePrices_returns201WithDosePrices() throws Exception {
+                List<VaccineDosePriceDTO> dosePrices = Arrays.asList(
+                                new VaccineDosePriceDTO(null, 1, "Mũi 1", new BigDecimal("200000"), true),
+                                new VaccineDosePriceDTO(null, 2, "Mũi 2", new BigDecimal("200000"), true),
+                                new VaccineDosePriceDTO(null, 3, "Tiêm nhắc lại (Hằng năm)", new BigDecimal("180000"), true));
+                ClinicServiceRequest vaccinationRequest = new ClinicServiceRequest();
+                vaccinationRequest.setClinicId(testClinicId);
+                vaccinationRequest.setName("Vắc-xin 5 bệnh (Chó)");
+                vaccinationRequest.setBasePrice(new BigDecimal("250000"));
+                vaccinationRequest.setSlotsRequired(1);
+                vaccinationRequest.setIsActive(true);
+                vaccinationRequest.setIsHomeVisit(false);
+                vaccinationRequest.setServiceCategory(com.petties.petties.model.enums.ServiceCategory.VACCINATION);
+                vaccinationRequest.setPetType("Chó");
+                vaccinationRequest.setDosePrices(dosePrices);
+
+                ClinicServiceResponse vaccinationResponse = ClinicServiceResponse.builder()
+                                .serviceId(testServiceId)
+                                .clinicId(testClinicId)
+                                .name("Vắc-xin 5 bệnh (Chó)")
+                                .basePrice(new BigDecimal("250000"))
+                                .durationTime(30)
+                                .slotsRequired(1)
+                                .isActive(true)
+                                .isHomeVisit(false)
+                                .serviceCategory(com.petties.petties.model.enums.ServiceCategory.VACCINATION)
+                                .petType("Chó")
+                                .dosePrices(dosePrices)
+                                .build();
+
+                when(clinicServiceService.createService(any(ClinicServiceRequest.class)))
+                                .thenReturn(vaccinationResponse);
+
+                mockMvc.perform(post("/services")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(vaccinationRequest)))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.serviceId").exists())
+                                .andExpect(jsonPath("$.name").value(containsString("Vắc-xin")))
+                                .andExpect(jsonPath("$.dosePrices").isArray())
+                                .andExpect(jsonPath("$.dosePrices.length()").value(3))
+                                .andExpect(jsonPath("$.dosePrices[0].doseNumber").value(1))
+                                .andExpect(jsonPath("$.dosePrices[0].doseLabel").value("Mũi 1"))
+                                .andExpect(jsonPath("$.dosePrices[0].price").value(200000))
+                                .andExpect(jsonPath("$.dosePrices[2].doseLabel").value("Tiêm nhắc lại (Hằng năm)"));
+        }
+
         // ==================== LIST SERVICE TESTS ====================
 
         @Test
@@ -195,6 +245,44 @@ class ClinicServiceControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.name").value("Updated Name"))
                                 .andExpect(jsonPath("$.basePrice").value(250000.0));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-SERVICE-024: Success - update service with dose prices")
+        void updateService_withDosePrices_returns200WithDosePrices() throws Exception {
+                List<VaccineDosePriceDTO> dosePrices = Arrays.asList(
+                                new VaccineDosePriceDTO(null, 1, "Mũi 1", new BigDecimal("220000"), true),
+                                new VaccineDosePriceDTO(null, 2, "Mũi 2", new BigDecimal("220000"), true));
+                ClinicServiceUpdateRequest updateRequest = new ClinicServiceUpdateRequest();
+                updateRequest.setName("Vắc-xin 5 bệnh (Chó) - cập nhật");
+                updateRequest.setBasePrice(new BigDecimal("250000"));
+                updateRequest.setDosePrices(dosePrices);
+
+                ClinicServiceResponse updatedResponse = ClinicServiceResponse.builder()
+                                .serviceId(testServiceId)
+                                .clinicId(testClinicId)
+                                .name("Vắc-xin 5 bệnh (Chó) - cập nhật")
+                                .basePrice(new BigDecimal("250000"))
+                                .durationTime(30)
+                                .slotsRequired(1)
+                                .isActive(true)
+                                .isHomeVisit(false)
+                                .serviceCategory(com.petties.petties.model.enums.ServiceCategory.VACCINATION)
+                                .petType("Chó")
+                                .dosePrices(dosePrices)
+                                .build();
+
+                when(clinicServiceService.updateService(eq(testServiceId), any(ClinicServiceUpdateRequest.class)))
+                                .thenReturn(updatedResponse);
+
+                mockMvc.perform(put("/services/{serviceId}", testServiceId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(updateRequest)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.name").value("Vắc-xin 5 bệnh (Chó) - cập nhật"))
+                                .andExpect(jsonPath("$.dosePrices").isArray())
+                                .andExpect(jsonPath("$.dosePrices.length()").value(2))
+                                .andExpect(jsonPath("$.dosePrices[0].price").value(220000));
         }
 
         // ==================== PATCH & DELETE TESTS ====================

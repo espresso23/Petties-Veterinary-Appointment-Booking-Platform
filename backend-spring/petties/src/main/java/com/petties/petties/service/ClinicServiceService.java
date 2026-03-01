@@ -155,7 +155,7 @@ public class ClinicServiceService {
                 dosePrice.setService(service);
                 dosePrice.setDoseNumber(dto.doseNumber());
                 dosePrice.setDoseLabel(dto.doseLabel());
-                dosePrice.setPrice(dto.price());
+                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
                 dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
                 service.getDosePrices().add(dosePrice);
             }
@@ -263,7 +263,7 @@ public class ClinicServiceService {
                 dosePrice.setService(service);
                 dosePrice.setDoseNumber(dto.doseNumber());
                 dosePrice.setDoseLabel(dto.doseLabel());
-                dosePrice.setPrice(dto.price());
+                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
                 dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
                 service.getDosePrices().add(dosePrice);
             }

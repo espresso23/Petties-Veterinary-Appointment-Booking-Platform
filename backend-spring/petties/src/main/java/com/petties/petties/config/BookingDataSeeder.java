@@ -266,7 +266,6 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         service.setIsActive(true);
                                         service.setIsHomeVisit(true);
                                         service.setIsCustom(true);
-                                        service.setPricePerKm(BigDecimal.valueOf(5000));
                                         service.setServiceCategory(ServiceCategory.VACCINATION);
                                         clinicServiceRepository.save(service);
                                 }
@@ -379,7 +378,6 @@ public class BookingDataSeeder implements CommandLineRunner {
                         service.setSlotsRequired(1);
                         service.setIsActive(true);
                         service.setIsHomeVisit(true);
-                        service.setPricePerKm(BigDecimal.valueOf(5000));
                         service.setIsCustom(false);
                         service.setVaccineTemplate(template);
                         service.setReminderInterval(template.getRepeatIntervalDays());

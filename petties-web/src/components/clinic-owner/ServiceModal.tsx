@@ -207,7 +207,10 @@ export function ServiceModal({
   }
 
   const handleAddDose = () => {
-    const nextDoseNumber = dosePrices.length + 1
+    const nextDoseNumber =
+      dosePrices.length === 0
+        ? 1
+        : Math.max(...dosePrices.map(d => d.doseNumber)) + 1
     const newDose: VaccineDosePriceDTO = {
       doseNumber: nextDoseNumber,
       doseLabel: `Mũi ${nextDoseNumber}`,
@@ -249,7 +252,14 @@ export function ServiceModal({
         price: Number(wp.price)
       })) : undefined,
       vaccineTemplateId: selectedTemplateId || undefined,
-      dosePrices: dosePrices.length > 0 ? dosePrices : undefined,
+      dosePrices: serviceCategory === 'VACCINATION'
+        ? dosePrices.map(dp => ({
+            doseNumber: dp.doseNumber,
+            doseLabel: dp.doseLabel,
+            price: Number(dp.price) || 0,
+            isActive: dp.isActive ?? true
+          }))
+        : undefined,
       // Save reminder interval (Days = Weeks * 7) if custom vaccine
       reminderInterval: (!selectedTemplateId && serviceCategory === 'VACCINATION') ? (reminderIntervalWeeks * 7) : undefined,
       reminderUnit: (!selectedTemplateId && serviceCategory === 'VACCINATION') ? 'DAYS' : undefined
@@ -1181,6 +1191,7 @@ export function ServiceModal({
             {/* Footer */}
             <div className="border-t-4 border-black p-4 bg-gray-50 flex justify-between items-center">
               <button
+                type="button"
                 onClick={handleAddDose}
                 className="flex items-center gap-2 px-4 py-3 bg-[#c8e6c9] text-black font-black border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase"
               >
@@ -1188,6 +1199,7 @@ export function ServiceModal({
                 Thêm mũi tiêm
               </button>
               <button
+                type="button"
                 onClick={() => setShowDosePriceModal(false)}
                 className="px-6 py-3 text-white font-black border-4 border-black hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-shadow uppercase"
                 style={{ backgroundColor: '#FF6B35' }}

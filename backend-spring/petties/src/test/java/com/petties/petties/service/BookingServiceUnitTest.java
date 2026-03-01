@@ -380,7 +380,7 @@ class BookingServiceUnitTest {
             bookingService.confirmBooking(bookingId, null);
 
             // Assert
-            assertEquals(com.petties.petties.model.enums.BookingStatus.ASSIGNED, booking.getStatus());
+            assertEquals(com.petties.petties.model.enums.BookingStatus.CONFIRMED, booking.getStatus());
             verify(vaccinationService, times(1)).createDraftFromBooking(eq(booking), eq(item));
             verify(bookingRepository).save(booking);
         }

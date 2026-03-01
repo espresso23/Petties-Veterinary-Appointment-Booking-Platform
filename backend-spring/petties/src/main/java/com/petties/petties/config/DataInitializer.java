@@ -129,7 +129,7 @@ public class DataInitializer implements CommandLineRunner {
                 Role.CLINIC_OWNER);
         User clinicManager = initializeUser("clinicManager", "123456", "manager@clinic.com", "Clinic Manager User",
                 Role.CLINIC_MANAGER);
-        initializeStaffUser("staff", "123456", "staff@clinic.com", "Dr. Staff User", StaffSpecialty.VET_GENERAL);
+        initializeStaffUser("staff", "123456", "staff@clinic.com", "Dr. Staff User", StaffSpecialty.VET);
 
         // Create more pet owners for testing
         User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);

@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '../../../store/authStore'
 import { getServicesByClinicId } from '../../../services/endpoints/service'
-import type { ClinicServiceResponse, WeightPriceDto } from '../../../types/service'
+import type { ClinicServiceResponse, WeightPriceDto, VaccineDosePriceDTO } from '../../../types/service'
 import { getCategoryById } from '../../../constants/serviceCategory'
 import {
     ClockIcon,
     HomeIcon,
     XMarkIcon,
     ScaleIcon,
-    MagnifyingGlassIcon
+    MagnifyingGlassIcon,
+    ListBulletIcon
 } from '@heroicons/react/24/outline'
 import '../../../styles/brutalist.css'
 
@@ -197,7 +198,7 @@ export const ServicesViewPage = () => {
                                 {/* Vaccine Dose Prices Indicator */}
                                 {service.serviceCategory === 'VACCINATION' && service.dosePrices && service.dosePrices.length > 0 && (
                                     <div className="mt-4 bg-blue-50 border-2 border-blue-600 rounded-lg px-3 py-2 flex items-center gap-2">
-                                        <span className="text-sm">💉</span>
+                                        <ListBulletIcon className="w-4 h-4 text-blue-700" />
                                         <span className="text-xs font-bold text-blue-800">{service.dosePrices.length} mức giá theo mũi tiêm</span>
                                     </div>
                                 )}
@@ -321,35 +322,110 @@ export const ServicesViewPage = () => {
 }
 
 // Sub-component for displaying dose prices (Read-only)
+// Hiển thị đầy đủ giá theo từng mũi tiêm và mũi nhắc lại, sắp xếp theo thứ tự
 const DosePriceList = ({ service }: { service: ClinicServiceResponse }) => {
-    const dosePrices = service.dosePrices || []
+    const rawDosePrices = service.dosePrices || []
+    const sorted = [...rawDosePrices].sort((a, b) => (a.doseNumber ?? 0) - (b.doseNumber ?? 0))
+
+    const isBooster = (dp: VaccineDosePriceDTO) =>
+        (dp.doseLabel && dp.doseLabel.toLowerCase().includes('nhắc lại')) || dp.doseNumber === 4
+    const regularDoses = sorted.filter(dp => !isBooster(dp))
+    const boosterDoses = sorted.filter(isBooster)
+
+    const formatPrice = (value: number | string | undefined) =>
+        new Intl.NumberFormat('vi-VN').format(Number(value) || 0)
+
+    // Trích "thời gian nhắc lại" từ doseLabel: "Mũi 1 (Sau 3 tuần)" -> "Sau 3 tuần", "Tiêm nhắc lại (Hàng năm)" -> "Hàng năm"
+    const getRecallIntervalLabel = (doseLabel: string | undefined, isBooster: boolean): string => {
+        if (!doseLabel) return isBooster ? 'Hàng năm' : ''
+        const match = doseLabel.match(/\(([^)]+)\)/)
+        if (match) return match[1].trim()
+        return doseLabel.toLowerCase().includes('nhắc lại') && isBooster ? 'Hàng năm' : ''
+    }
 
     return (
         <div className="mt-4 pt-4 border-t-2 border-dashed border-stone-300">
-            <div className="flex justify-between items-center mb-4">
-                <p className="text-xs font-bold text-stone-500 uppercase flex items-center gap-1">
-                    💉 Giá theo mũi tiêm
-                </p>
-            </div>
+            <p className="text-xs font-bold text-stone-500 uppercase mb-3 flex items-center gap-1">
+                <ListBulletIcon className="w-4 h-4" />
+                Giá theo mũi tiêm
+            </p>
 
-            <div className="space-y-3">
-                {dosePrices.length === 0 ? (
-                    <p className="text-sm text-stone-400 italic">Chưa có cấu hình giá mũi tiêm</p>
-                ) : (
-                    dosePrices.map((dp, idx) => (
-                        <div key={dp.id || idx} className="border-2 border-blue-600 rounded-lg p-4 bg-blue-50 shadow-[2px_2px_0_#1c1917]">
-                            <div className="flex justify-between items-center">
-                                <span className="font-bold text-blue-900">
-                                    {dp.doseLabel || `Mũi ${dp.doseNumber}`}
-                                </span>
-                                <span className="font-bold text-blue-600 text-lg">
-                                    {new Intl.NumberFormat('vi-VN').format(dp.price || 0)}đ
-                                </span>
+            {sorted.length === 0 ? (
+                <p className="text-sm text-stone-400 italic">Chưa có cấu hình giá mũi tiêm</p>
+            ) : (
+                <div className="space-y-4">
+                    {/* Liệu trình: Mũi 1, 2, 3... (mỗi mũi có thể có thời gian nhắc lại) */}
+                    {regularDoses.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-stone-500 uppercase mb-2">Liệu trình</p>
+                            <div className="space-y-2">
+                                {regularDoses.map((dp, idx) => {
+                                    const recallLabel = getRecallIntervalLabel(dp.doseLabel, false)
+                                    const displayName = dp.doseLabel?.replace(/\s*\([^)]+\)\s*$/, '').trim() || `Mũi ${dp.doseNumber}`
+                                    return (
+                                        <div
+                                            key={dp.id || `reg-${idx}`}
+                                            className="border-2 border-stone-900 rounded-lg p-3 bg-white shadow-[2px_2px_0_#1c1917]"
+                                        >
+                                            <div className="flex justify-between items-start gap-3">
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-stone-900 block">
+                                                        {displayName}
+                                                    </span>
+                                                    {recallLabel && (
+                                                        <p className="text-xs font-semibold text-stone-600 mt-1 flex items-center gap-1">
+                                                            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+                                                            Thời gian nhắc lại: {recallLabel}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <span className="font-bold text-amber-600 shrink-0">
+                                                    {formatPrice(dp.price)}đ
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
-                    ))
-                )}
-            </div>
+                    )}
+                    {/* Mũi nhắc lại + Thời gian nhắc lại */}
+                    {boosterDoses.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-stone-500 uppercase mb-2">Tiêm nhắc lại</p>
+                            <div className="space-y-2">
+                                {boosterDoses.map((dp, idx) => {
+                                    const recallLabel = getRecallIntervalLabel(dp.doseLabel, true)
+                                    const displayName = dp.doseLabel?.replace(/\s*\([^)]+\)\s*$/, '').trim() || 'Tiêm nhắc lại'
+                                    return (
+                                        <div
+                                            key={dp.id || `booster-${idx}`}
+                                            className="border-2 border-blue-600 rounded-lg p-3 bg-blue-50 shadow-[2px_2px_0_#1c1917]"
+                                        >
+                                            <div className="flex justify-between items-start gap-3">
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-blue-900 block">
+                                                        {displayName}
+                                                    </span>
+                                                    {recallLabel && (
+                                                        <p className="text-xs font-semibold text-blue-700 mt-1 flex items-center gap-1">
+                                                            <ClockIcon className="w-3.5 h-3.5 shrink-0" />
+                                                            Thời gian nhắc lại: {recallLabel}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <span className="font-bold text-blue-600 shrink-0">
+                                                    {formatPrice(dp.price)}đ
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     )
 }
