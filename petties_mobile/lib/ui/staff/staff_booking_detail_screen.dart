@@ -1188,6 +1188,89 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     }
     // 2. Logic for IN_PROGRESS bookings (Active care)
     else if (status == 'IN_PROGRESS') {
+      final actions = <Widget>[
+        _buildActionButton(
+          label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
+          icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
+          color: _existingEmr != null ? Colors.green : Colors.blue,
+          onPressed: () async {
+            if (_existingEmr != null) {
+              await context.push('/staff/emr/${_existingEmr!.id}');
+            } else {
+              final petId = _booking!.petId;
+              if (petId != null) {
+                final petName = _booking!.petName ?? '';
+                final petSpecies = _booking!.petSpecies ?? '';
+                await context.push(
+                  Uri(
+                    path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
+                    queryParameters: {
+                      'petName': petName,
+                      'petSpecies': petSpecies,
+                      'bookingId': _booking!.bookingId,
+                      'bookingCode': _booking!.bookingCode,
+                    },
+                  ).toString(),
+                );
+              }
+            }
+            if (mounted) await _fetchBookingDetail();
+          },
+        ),
+        const SizedBox(height: 12),
+        _buildActionButton(
+          label: 'TIÊM VACCINE',
+          icon: Icons.vaccines_outlined,
+          color: Colors.purple,
+          onPressed: () {
+            final petId = _booking!.petId;
+            if (petId != null) {
+              final petName = _booking!.petName ?? 'Thú cưng';
+              String? initialVaccineName;
+              try {
+                final vaccService = _booking!.services.firstWhere(
+                  (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
+                      s.serviceName?.toLowerCase().contains('vaccine') == true,
+                );
+                initialVaccineName = vaccService.serviceName;
+              } catch (_) {
+                initialVaccineName = null;
+              }
+              context.push(
+                Uri(
+                  path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                  queryParameters: {
+                    'petName': petName,
+                    'bookingId': _booking!.bookingId,
+                    'bookingCode': _booking!.bookingCode,
+                    if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
+                  },
+                ).toString(),
+              );
+            }
+          },
+        ),
+      ];
+      // Thêm dịch vụ phát sinh: chỉ cho booking khám tại nhà (HOME_VISIT)
+      if (_booking!.type == 'HOME_VISIT') {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'THÊM DỊCH VỤ PHÁT SINH',
+            icon: Icons.add_circle_outline,
+            color: AppColors.primary,
+            onPressed: () async {
+              final bid = _booking!.bookingId;
+              final cid = _booking!.clinicId ?? '';
+              if (bid != null) {
+                final path = AppRoutes.staffAddService.replaceAll(':bookingId', bid);
+                final result = await context.push<bool>('$path?clinicId=$cid');
+                if (result == true && mounted) await _fetchBookingDetail();
+              }
+            },
+          ),
+        ]);
+      }
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1198,68 +1281,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildActionButton(
-                label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
-                icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
-                color: _existingEmr != null ? Colors.green : Colors.blue,
-                onPressed: () {
-                  if (_existingEmr != null) {
-                    context.push('/staff/emr/${_existingEmr!.id}');
-                  } else {
-                    final petId = _booking!.petId;
-                    if (petId != null) {
-                      final petName = _booking!.petName ?? '';
-                      final petSpecies = _booking!.petSpecies ?? '';
-                      context.push(
-                        Uri(
-                          path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
-                          queryParameters: {
-                            'petName': petName,
-                            'petSpecies': petSpecies,
-                            'bookingId': _booking!.bookingId,
-                            'bookingCode': _booking!.bookingCode,
-                          },
-                        ).toString(),
-                      );
-                    }
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildActionButton(
-                label: 'TIÊM VACCINE',
-                icon: Icons.vaccines_outlined,
-                color: Colors.purple,
-                onPressed: () {
-                  final petId = _booking!.petId;
-                  if (petId != null) {
-                    final petName = _booking!.petName ?? 'Thú cưng';
-                    String? initialVaccineName;
-                    try {
-                      final vaccService = _booking!.services.firstWhere(
-                        (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
-                            s.serviceName?.toLowerCase().contains('vaccine') == true,
-                      );
-                      initialVaccineName = vaccService.serviceName;
-                    } catch (_) {
-                      initialVaccineName = null;
-                    }
-                    context.push(
-                      Uri(
-                        path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
-                        queryParameters: {
-                          'petName': petName,
-                          'bookingId': _booking!.bookingId,
-                          'bookingCode': _booking!.bookingCode,
-                          if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
-                        },
-                      ).toString(),
-                    );
-                  }
-                },
-              ),
-            ],
+            children: actions,
           ),
         ),
       );

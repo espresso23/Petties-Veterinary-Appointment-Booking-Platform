@@ -130,7 +130,7 @@ class BookingStatusTransitionTest {
         void checkIn_fromCONFIRMED_success() {
             // Given
             testBooking.setStatus(BookingStatus.CONFIRMED);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(testBooking));
             when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
 
             // When
@@ -148,7 +148,7 @@ class BookingStatusTransitionTest {
         void checkIn_fromPending_shouldFail() {
             // Given
             testBooking.setStatus(BookingStatus.PENDING);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
+            when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(testBooking));
 
             // When/Then
             assertThatThrownBy(() -> bookingService.checkIn(bookingId))
@@ -157,27 +157,23 @@ class BookingStatusTransitionTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS vẫn thành công (idempotent)")
-        void checkIn_fromInProgress_success() {
-            // Given
+        @DisplayName("TC-UNIT-BOOKING-003: Check-in từ IN_PROGRESS thất bại (đã check-in rồi)")
+        void checkIn_fromInProgress_shouldFail() {
+            // Given - IN_PROGRESS nghĩa là đã check-in, không cho check-in lại
             testBooking.setStatus(BookingStatus.IN_PROGRESS);
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
-            when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
+            when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.of(testBooking));
 
-            // When
-            BookingResponse response = bookingService.checkIn(bookingId);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(testBooking.getStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
-            verify(bookingRepository).save(testBooking);
+            // When/Then
+            assertThatThrownBy(() -> bookingService.checkIn(bookingId))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("CONFIRMED");
         }
 
         @Test
         @DisplayName("TC-UNIT-BOOKING-004: Check-in booking không tồn tại")
         void checkIn_bookingNotFound_shouldFail() {
             // Given
-            when(bookingRepository.findById(bookingId)).thenReturn(Optional.empty());
+            when(bookingRepository.findByIdWithDetails(bookingId)).thenReturn(Optional.empty());
 
             // When/Then
             assertThatThrownBy(() -> bookingService.checkIn(bookingId))

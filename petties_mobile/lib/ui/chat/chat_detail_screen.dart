@@ -949,6 +949,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       _showImageGroupCarousel(allImages, imageIndex);
                     }
                   },
+                  onActionButtonTap: (msg, button) {
+                    if (!mounted) return;
+                    switch (button.type.toUpperCase()) {
+                      case 'BOOKING':
+                        if (_conversation?.clinicId != null) {
+                          context.push('/booking/${_conversation!.clinicId}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Chọn phòng khám để đặt lịch.')),
+                          );
+                        }
+                        break;
+                      case 'MENU':
+                        if (_conversation?.clinicId != null) {
+                          context.push('/clinics/${_conversation!.clinicId}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(button.label)),
+                          );
+                        }
+                        break;
+                      default:
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(button.label)),
+                        );
+                    }
+                  },
                 );
               }
             },

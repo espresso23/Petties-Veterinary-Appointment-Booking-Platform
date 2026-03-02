@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { MagnifyingGlassIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
-import { ChatBoxList, ChatBox } from '../../components/chat'
+import { MagnifyingGlassIcon, ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
+import { ChatBoxList, ChatBox, AutoReplyModal } from '../../components/chat'
 import { chatService } from '../../services/api/chatService'
 import { chatWebSocket } from '../../services/websocket/chatWebSocket'
 import { useToast } from '../../hooks/useToast'
@@ -24,6 +24,7 @@ export function ChatPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isPartnerTyping, setIsPartnerTyping] = useState(false)
   const [wsConnected, setWsConnected] = useState(false)
+  const [showAutoReplyModal, setShowAutoReplyModal] = useState(false)
 
   // Loading states
   const [loadingChatBoxes, setLoadingChatBoxes] = useState(true)
@@ -492,9 +493,17 @@ export function ChatPage() {
       <div className="w-80 bg-stone-50 border-r-2 border-stone-900 flex flex-col">
         {/* Header */}
         <div className="p-5 border-b-2 border-stone-900 bg-white">
-          <h1 className="text-2xl font-black uppercase mb-4 tracking-tight text-stone-900">
-            CHAT TƯ VẤN
+          <h1 className="text-2xl font-black uppercase tracking-tight text-stone-900 mb-3">
+            CHAT
           </h1>
+          <button
+            type="button"
+            onClick={() => setShowAutoReplyModal(true)}
+            className="w-full mb-4 px-3 py-2 bg-amber-50 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-amber-100 transition-all flex items-center gap-2.5"
+          >
+            <Cog6ToothIcon className="w-5 h-5 text-amber-700 flex-shrink-0" />
+            <span className="text-xs font-bold text-stone-700 text-left">Thiết lập tin nhắn tự động</span>
+          </button>
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
             <input
@@ -544,6 +553,11 @@ export function ChatPage() {
           </p>
         </div>
       )}
+
+      <AutoReplyModal
+        isOpen={showAutoReplyModal}
+        onClose={() => setShowAutoReplyModal(false)}
+      />
     </div>
   )
 }

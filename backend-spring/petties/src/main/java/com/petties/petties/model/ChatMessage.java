@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -98,6 +99,11 @@ public class ChatMessage {
      */
     private LocalDateTime readAt;
 
+    /**
+     * List of interactive action buttons for this message (e.g. from Auto-Reply)
+     */
+    private List<ActionButton> actionButtons;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
@@ -125,5 +131,18 @@ public class ChatMessage {
         TEXT,
         IMAGE,
         IMAGE_TEXT
+    }
+
+    /**
+     * Action Button inner class
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ActionButton {
+        private String id;
+        private String label;
+        private String type; // 'MENU', 'OFFER', 'BOOKING', 'CUSTOM'
     }
 }

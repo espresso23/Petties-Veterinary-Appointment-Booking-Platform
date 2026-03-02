@@ -34,6 +34,48 @@ const VaccinationPage = () => {
     const [editingId, setEditingId] = useState<string | null>(null)
     const [formInitialData, setFormInitialData] = useState<Partial<VaccinationFormData> | undefined>(undefined)
 
+    const fetchUpcoming = useCallback(async () => {
+        if (!petId) return
+        try {
+            const data = await vaccinationService.getUpcomingVaccinations(petId)
+            setUpcomingRecords(data)
+        } catch (error) {
+            console.error('Failed to fetch upcoming vaccinations:', error)
+        }
+    }, [petId])
+
+    const fetchPet = useCallback(async () => {
+        if (!petId) return
+        try {
+            const data = await petService.getPetById(petId)
+            setPet(data)
+        } catch (error) {
+            console.error('Failed to fetch pet:', error)
+        }
+    }, [petId])
+
+    const fetchRecords = useCallback(async () => {
+        if (!petId) return
+        try {
+            const data = await vaccinationService.getVaccinationsByPet(petId)
+            setRecords(data)
+        } catch (error) {
+            console.error(error)
+            showToast('error', 'Không thể tải lịch sử tiêm chủng')
+        } finally {
+            setIsLoading(false)
+        }
+    }, [petId, showToast])
+
+    const fetchTemplates = useCallback(async () => {
+        try {
+            const data = await vaccineTemplateService.getAllTemplates()
+            setTemplates(data)
+        } catch (error) {
+            console.error('Failed to fetch templates:', error)
+        }
+    }, [])
+
     useEffect(() => {
         if (petId) {
             fetchRecords()
@@ -101,57 +143,6 @@ const VaccinationPage = () => {
             }
         }
     }, [bookingId, records, templates, editingId, isLoading])
-
-    const fetchUpcoming = useCallback(async () => {
-        if (!petId) return
-        try {
-            const data = await vaccinationService.getUpcomingVaccinations(petId)
-            setUpcomingRecords(data)
-        } catch (error) {
-            console.error('Failed to fetch upcoming vaccinations:', error)
-        }
-    }, [petId])
-
-    const fetchPet = useCallback(async () => {
-        if (!petId) return
-        try {
-            const data = await petService.getPetById(petId)
-            setPet(data)
-        } catch (error) {
-            console.error('Failed to fetch pet:', error)
-        }
-    }, [petId])
-
-    const fetchRecords = useCallback(async () => {
-        if (!petId) return
-        try {
-            const data = await vaccinationService.getVaccinationsByPet(petId)
-            setRecords(data)
-        } catch (error) {
-            console.error(error)
-            showToast('error', 'Không thể tải lịch sử tiêm chủng')
-        } finally {
-            setIsLoading(false)
-        }
-    }, [petId, showToast])
-
-    const fetchTemplates = useCallback(async () => {
-        try {
-            const data = await vaccineTemplateService.getAllTemplates()
-            setTemplates(data)
-        } catch (error) {
-            console.error('Failed to fetch templates:', error)
-        }
-    }, [])
-
-    useEffect(() => {
-        if (petId) {
-            fetchRecords()
-            fetchPet()
-            fetchTemplates()
-            fetchUpcoming()
-        }
-    }, [petId, fetchRecords, fetchPet, fetchTemplates, fetchUpcoming])
 
     const handleSubmit = async (data: VaccinationFormData) => {
         if (!petId) {

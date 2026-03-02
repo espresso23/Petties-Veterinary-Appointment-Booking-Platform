@@ -3,7 +3,7 @@
  */
 
 // Booking Status enum
-export type BookingStatus = 'PENDING' | 'SEARCHING' | 'PENDING_CLINIC_CONFIRM' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type BookingStatus = 'PENDING' | 'SEARCHING' | 'PENDING_CLINIC_CONFIRM' | 'CONFIRMED' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 // Booking Type enum
 export type BookingType = 'IN_CLINIC' | 'HOME_VISIT' | 'SOS';
@@ -138,6 +138,7 @@ export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; bgCol
     SEARCHING: { label: 'Đang tìm kiếm', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     PENDING_CLINIC_CONFIRM: { label: 'Chờ phòng khám', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     CONFIRMED: { label: 'Đã xác nhận', bgColor: '#FFFBEB', textColor: '#B45309' }, // amber-50 / amber-700
+    ASSIGNED: { label: 'Đã phân công', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600
     IN_PROGRESS: { label: 'Đang thực hiện', bgColor: '#FEF3C7', textColor: '#D97706' }, // amber-100 / amber-600 (primary)
     COMPLETED: { label: 'Hoàn thành', bgColor: '#DCFCE7', textColor: '#16A34A' }, // green-100 / green-600
     CANCELLED: { label: 'Đã hủy', bgColor: '#F5F5F4', textColor: '#57534E' }, // stone-100 / stone-600

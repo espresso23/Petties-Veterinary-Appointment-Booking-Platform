@@ -117,4 +117,15 @@ public class ChatConversation {
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+
+    /**
+     * Thời điểm gần nhất gửi tin nhắn tự động trong cuộc hội thoại này
+     * (dùng để giới hạn tần suất auto-reply).
+     */
+    private LocalDateTime lastAutoReplyAt;
+
+    /**
+     * Loại tin nhắn tự động gần nhất: QUICK_REPLY hoặc AWAY_MESSAGE.
+     */
+    private String lastAutoReplyType;
 }

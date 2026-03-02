@@ -246,6 +246,8 @@ class ChatMessage extends BaseModel {
   final DateTime? readAt;
   final DateTime createdAt;
   final bool isUploading; // Flag for upload state
+  /// Nút hành động (từ tin nhắn tự động phòng khám)
+  final List<ActionButton>? actionButtons;
 
   ChatMessage({
     required this.id,
@@ -262,6 +264,7 @@ class ChatMessage extends BaseModel {
     this.readAt,
     required this.createdAt,
     this.isUploading = false,
+    this.actionButtons,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -281,23 +284,50 @@ class ChatMessage extends BaseModel {
       imageUrl: json['imageUrl'] ?? json['image_url'],
       status: MessageStatus.fromString(json['status']),
       isRead: json['isRead'] ?? json['is_read'] ?? false,
-      readAt: json['readAt'] != null
-          ? DateTime.parse(json['readAt'])
-          : json['read_at'] != null
-              ? DateTime.parse(json['read_at'])
-              : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : json['created_at'] != null
-              ? DateTime.parse(json['created_at'])
-              : DateTime.now(),
-      isUploading: json['isUploading'] ?? false, // Default to false when parsing from JSON
+      readAt: _parseUtcDate(json['readAt'] ?? json['read_at']),
+      createdAt: _parseUtcDate(json['createdAt'] ?? json['created_at']) ?? DateTime.now(),
+      isUploading: json['isUploading'] ?? json['is_uploading'] ?? false,
+      actionButtons: _parseActionButtons(json['actionButtons'] ?? json['action_buttons']),
     );
+  }
+
+  static List<ActionButton>? _parseActionButtons(dynamic value) {
+    if (value == null || value is! List) return null;
+    final list = value;
+    if (list.isEmpty) return null;
+    final result = <ActionButton>[];
+    for (final e in list) {
+      if (e is Map) {
+        try {
+          result.add(ActionButton.fromJson(Map<String, dynamic>.from(e)));
+        } catch (_) {
+          // Skip invalid item
+        }
+      }
+    }
+    return result.isEmpty ? null : result;
+  }
+
+  static DateTime? _parseUtcDate(dynamic value) {
+    if (value == null) return null;
+    final String dateStr = value.toString().trim();
+    if (dateStr.isEmpty) return null;
+    try {
+      String normalized = dateStr;
+      if (!normalized.endsWith('Z') &&
+          !normalized.contains('+') &&
+          !RegExp(r'-\d{2}:\d{2}$').hasMatch(normalized)) {
+        normalized += 'Z';
+      }
+      return DateTime.parse(normalized).toLocal();
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Map<String, dynamic> toJson() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'conversationId': conversationId,
       'senderId': senderId,
@@ -310,6 +340,10 @@ class ChatMessage extends BaseModel {
       'readAt': readAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
     };
+    if (actionButtons != null) {
+      map['actionButtons'] = actionButtons!.map((e) => e.toJson()).toList();
+    }
+    return map;
   }
 
   /// Kiểm tra tin nhắn có phải của mình không (Pet Owner)
@@ -331,6 +365,7 @@ class ChatMessage extends BaseModel {
     DateTime? readAt,
     DateTime? createdAt,
     bool? isUploading,
+    List<ActionButton>? actionButtons,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -347,7 +382,33 @@ class ChatMessage extends BaseModel {
       readAt: readAt ?? this.readAt,
       createdAt: createdAt ?? this.createdAt,
       isUploading: isUploading ?? this.isUploading,
+      actionButtons: actionButtons ?? this.actionButtons,
     );
+  }
+}
+
+/// Nút hành động trong tin nhắn (từ tin nhắn tự động phòng khám)
+class ActionButton {
+  final String id;
+  final String label;
+  final String type; // 'MENU', 'OFFER', 'BOOKING', 'CUSTOM'
+
+  ActionButton({
+    required this.id,
+    required this.label,
+    required this.type,
+  });
+
+  factory ActionButton.fromJson(Map<String, dynamic> json) {
+    return ActionButton(
+      id: json['id']?.toString() ?? '',
+      label: json['label']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'CUSTOM',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'label': label, 'type': type};
   }
 }
 

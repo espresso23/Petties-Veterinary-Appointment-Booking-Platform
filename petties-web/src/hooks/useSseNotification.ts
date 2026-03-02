@@ -297,17 +297,14 @@ export function useSseNotification(
         refreshUnreadCount()
       }
 
-      // Listen for named events
+      // Listen for named events only (backend always sends event name).
+      // Do NOT set onmessage: for named events only addEventListener runs; adding onmessage
+      // can cause duplicate handling in some environments (same event processed twice).
       eventSource.addEventListener('NOTIFICATION', handleSseEvent)
       eventSource.addEventListener('HEARTBEAT', handleSseEvent)
       eventSource.addEventListener('SHIFT_UPDATE', handleSseEvent)
       eventSource.addEventListener('CLINIC_COUNTER_UPDATE', handleSseEvent)
       eventSource.addEventListener('BOOKING_UPDATE', handleSseEvent)
-
-      // Also handle generic message events
-      eventSource.onmessage = (event) => {
-        handleSseEvent(event)
-      }
 
       eventSource.onerror = (error) => {
         console.error('[SSE] Connection error:', error)

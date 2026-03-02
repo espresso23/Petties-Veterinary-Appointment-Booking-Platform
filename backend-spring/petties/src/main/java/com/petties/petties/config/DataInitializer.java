@@ -134,6 +134,7 @@ public class DataInitializer implements CommandLineRunner {
         // Create more pet owners for testing
         User petOwner2 = initializeUser("petOwner2", "owner", "nguyen.an@gmail.com", "Nguyễn Văn An", Role.PET_OWNER);
         User petOwner3 = initializeUser("petOwner3", "owner", "tran.binh@gmail.com", "Trần Thị Bình", Role.PET_OWNER);
+        User petOwner4 = initializeUser("petOwner4", "owner", "trinh.binh@gmail.com", "Trịnh Thị Bình", Role.PET_OWNER);
 
         // Initialize a clinic for the clinic owner
         Clinic clinic = null;

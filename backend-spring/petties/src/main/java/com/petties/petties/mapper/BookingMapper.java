@@ -48,6 +48,11 @@ public class BookingMapper {
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
 
+            if (pet == null || owner == null) {
+                log.warn("Booking {} has null pet or owner - cannot map to response", booking.getBookingId());
+                throw new IllegalArgumentException("Dữ liệu lịch hẹn không hợp lệ: thiếu thông tin thú cưng hoặc chủ sở hữu");
+            }
+
             // Check if EMR already exists for this booking
             List<EmrRecord> emrs = emrRecordRepository
                     .findByBookingId(booking.getBookingId());
@@ -156,11 +161,11 @@ public class BookingMapper {
                     .ownerEmail(owner.getEmail())
                     .ownerAvatarUrl(owner.getAvatar())
                     .ownerAddress(owner.getAddress())
-                    // Clinic info
-                    .clinicId(clinic.getClinicId())
-                    .clinicName(clinic.getName())
-                    .clinicAddress(clinic.getAddress())
-                    .clinicPhone(clinic.getPhone())
+                    // Clinic info (nullable for SOS during matching)
+                    .clinicId(clinic != null ? clinic.getClinicId() : null)
+                    .clinicName(clinic != null ? clinic.getName() : null)
+                    .clinicAddress(clinic != null ? clinic.getAddress() : null)
+                    .clinicPhone(clinic != null ? clinic.getPhone() : null)
                     // Staff info
                     .assignedStaffId(staff != null ? staff.getUserId() : null)
                     .assignedStaffName(staff != null ? staff.getFullName() : null)

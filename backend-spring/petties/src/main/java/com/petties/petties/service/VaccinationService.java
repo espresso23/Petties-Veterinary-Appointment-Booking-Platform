@@ -13,6 +13,7 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -172,12 +173,10 @@ public class VaccinationService {
     }
 
     /**
-     * Auto-create draft vaccination records from booking
+     * Auto-create draft vaccination records from booking.
+     * Uses REQUIRES_NEW so failures don't roll back the parent transaction (e.g. check-in).
      */
-    /**
-     * Auto-create draft vaccination records from booking
-     */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createDraftFromBooking(com.petties.petties.model.Booking booking,
             com.petties.petties.model.BookingServiceItem item) {
         // Only create drafts for active/pending bookings
@@ -189,6 +188,12 @@ public class VaccinationService {
 
         if (item.getService() == null || item.getService()
                 .getServiceCategory() != com.petties.petties.model.enums.ServiceCategory.VACCINATION) {
+            return;
+        }
+
+        // Skip if clinic is null (e.g. SOS booking during matching phase)
+        if (booking.getClinic() == null) {
+            log.debug("Skipping vaccination draft creation: booking {} has no clinic", booking.getBookingId());
             return;
         }
 

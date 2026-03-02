@@ -113,6 +113,23 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         // ========== UTILITY QUERIES ==========
 
         /**
+         * Find booking by ID with all relations loaded (for check-in, map to response).
+         * Uses JOIN FETCH to avoid LazyInitializationException.
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "LEFT JOIN FETCH b.clinic " +
+                        "LEFT JOIN FETCH b.assignedStaff " +
+                        "LEFT JOIN FETCH b.bookingServices bs " +
+                        "LEFT JOIN FETCH bs.service " +
+                        "LEFT JOIN FETCH bs.pet " +
+                        "LEFT JOIN FETCH bs.assignedStaff " +
+                        "LEFT JOIN FETCH b.payment " +
+                        "WHERE b.bookingId = :id")
+        Optional<Booking> findByIdWithDetails(@Param("id") UUID id);
+
+        /**
          * Find booking by booking code
          */
         Optional<Booking> findByBookingCode(String bookingCode);

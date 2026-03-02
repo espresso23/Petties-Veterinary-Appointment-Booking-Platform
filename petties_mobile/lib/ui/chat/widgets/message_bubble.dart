@@ -229,6 +229,7 @@ class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
   final Function(ChatMessage)? onImageTap;
+  final void Function(ChatMessage message, ActionButton button)? onActionButtonTap;
   final String? clinicLogo;
 
   const MessageBubble({
@@ -236,6 +237,7 @@ class MessageBubble extends StatelessWidget {
     required this.message,
     this.showAvatar = true,
     this.onImageTap,
+    this.onActionButtonTap,
     this.clinicLogo,
   });
 
@@ -261,10 +263,60 @@ class MessageBubble extends StatelessWidget {
 
           const SizedBox(width: 8),
 
-          // Message bubble
-          Flexible(child: _buildBubble(isMine)),
+          // Message bubble + action buttons (chỉ tin từ clinic)
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildBubble(isMine),
+                if (!isMine &&
+                    message.actionButtons != null &&
+                    message.actionButtons!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _buildActionButtons(),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final buttons = message.actionButtons!;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      alignment: WrapAlignment.start,
+      children: buttons.map((btn) {
+        return GestureDetector(
+          onTap: () => onActionButtonTap?.call(message, btn),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              border: Border.all(color: AppColors.stone900, width: 2),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.stone900,
+                  offset: const Offset(2, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              btn.label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.stone900,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
