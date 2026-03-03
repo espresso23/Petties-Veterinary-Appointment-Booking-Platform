@@ -3,6 +3,7 @@ package com.petties.petties.service;
 import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.model.Booking;
 import com.petties.petties.model.Payment;
+import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +12,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -83,11 +91,11 @@ public class PaymentHistoryService {
     }
 
     /**
-     * Get payment history by clinic ID
-     * Used by ClinicOwner/Manager to view their clinic's payments
+     * Get payment history by clinic ID with optional payment status and booking status filters.
      */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> getPaymentHistoryByClinicId(UUID clinicId, Integer limit, String status) {
+    public List<Map<String, Object>> getPaymentHistoryByClinicId(UUID clinicId, Integer limit, String status,
+            List<String> bookingStatus) {
         if (clinicId == null) {
             throw new BadRequestException("Thiếu clinicId");
         }
@@ -109,17 +117,21 @@ public class PaymentHistoryService {
             }
         }
 
-        List<Payment> payments;
-        if (parsedStatus == null) {
-            payments = paymentRepository.findByBookingClinicClinicIdOrderByCreatedAtDesc(
-                    clinicId,
-                    PageRequest.of(0, safeLimit));
-        } else {
-            payments = paymentRepository.findByBookingClinicClinicIdAndStatusOrderByCreatedAtDesc(
-                    clinicId,
-                    parsedStatus,
-                    PageRequest.of(0, safeLimit));
+        List<BookingStatus> parsedBookingStatuses = null;
+        if (bookingStatus != null && !bookingStatus.isEmpty()) {
+            try {
+                List<BookingStatus> list = bookingStatus.stream()
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(s -> BookingStatus.valueOf(s.trim().toUpperCase()))
+                        .collect(Collectors.toList());
+                parsedBookingStatuses = list.isEmpty() ? null : list;
+            } catch (Exception e) {
+                throw new BadRequestException("Trạng thái booking không hợp lệ");
+            }
         }
+
+        List<Payment> payments = paymentRepository.findByClinicAndOptionalFilters(
+                clinicId, parsedStatus, parsedBookingStatuses, PageRequest.of(0, safeLimit));
 
         return payments.stream().map(payment -> {
             Map<String, Object> item = new HashMap<>();
@@ -135,6 +147,7 @@ public class PaymentHistoryService {
             if (booking != null) {
                 item.put("bookingId", booking.getBookingId());
                 item.put("bookingCode", booking.getBookingCode());
+                item.put("bookingStatus", booking.getStatus() != null ? booking.getStatus().name() : null);
 
                 if (booking.getPetOwner() != null) {
                     item.put("petOwnerId", booking.getPetOwner().getUserId());
@@ -149,5 +162,59 @@ public class PaymentHistoryService {
 
             return item;
         }).toList();
+    }
+
+    /**
+     * Revenue summary by period: DAY, WEEK, MONTH, YEAR.
+     * Returns list of { label, total } for table/chart.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getRevenueSummaryByClinicId(UUID clinicId, String period) {
+        if (clinicId == null) {
+            throw new BadRequestException("Thiếu clinicId");
+        }
+        String p = (period == null || period.isBlank()) ? "MONTH" : period.trim().toUpperCase();
+        List<Object[]> rows;
+        DateTimeFormatter formatter;
+        switch (p) {
+            case "DAY" -> {
+                rows = paymentRepository.getRevenueByDay(clinicId);
+                formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            }
+            case "WEEK" -> {
+                rows = paymentRepository.getRevenueByWeek(clinicId);
+                formatter = DateTimeFormatter.ofPattern("'Tuần' w/yyyy");
+            }
+            case "MONTH" -> {
+                rows = paymentRepository.getRevenueByMonth(clinicId);
+                formatter = DateTimeFormatter.ofPattern("MM/yyyy");
+            }
+            case "YEAR" -> {
+                rows = paymentRepository.getRevenueByYear(clinicId);
+                formatter = DateTimeFormatter.ofPattern("yyyy");
+            }
+            default -> {
+                rows = paymentRepository.getRevenueByMonth(clinicId);
+                formatter = DateTimeFormatter.ofPattern("MM/yyyy");
+            }
+        }
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        ZoneId zone = ZoneId.systemDefault();
+        for (Object[] row : rows) {
+            Object ts = row[0];
+            Object sum = row[1];
+            LocalDate date = ts instanceof java.sql.Timestamp
+                    ? ((java.sql.Timestamp) ts).toInstant().atZone(zone).toLocalDate()
+                    : Instant.ofEpochMilli(((java.util.Date) ts).getTime()).atZone(zone).toLocalDate();
+            String label = date.format(formatter);
+            BigDecimal total = sum != null ? (BigDecimal) sum : BigDecimal.ZERO;
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("label", label);
+            entry.put("total", total);
+            entry.put("periodStart", date.toString());
+            items.add(entry);
+        }
+        return items;
     }
 }

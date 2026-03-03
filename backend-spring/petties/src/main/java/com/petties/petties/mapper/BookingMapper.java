@@ -154,11 +154,14 @@ public class BookingMapper {
                                         // Payment info
                                         .paymentStatus(booking.getPayment() != null
                                                         ? booking.getPayment().getStatus().name()
-                                                        : "PENDING")
+                                                        : null)
                                         .paymentMethod(booking.getPayment() != null
                                                         && booking.getPayment().getMethod() != null
                                                                         ? booking.getPayment().getMethod().name()
                                                                         : null)
+                                        .paymentDescription(booking.getPayment() != null
+                                                        ? booking.getPayment().getPaymentDescription()
+                                                        : null)
                                         // Booking info
                                         .bookingDate(booking.getBookingDate())
                                         .bookingTime(booking.getBookingTime())
@@ -367,7 +370,7 @@ public class BookingMapper {
                                         // Payment info
                                         .paymentStatus(booking.getPayment() != null
                                                         ? booking.getPayment().getStatus().name()
-                                                        : "PENDING")
+                                                        : null)
                                         .paymentMethod(booking.getPayment() != null
                                                         && booking.getPayment().getMethod() != null
                                                                         ? booking.getPayment().getMethod().name()

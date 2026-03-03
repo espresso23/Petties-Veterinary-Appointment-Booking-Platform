@@ -6,6 +6,7 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.dto.booking.ReassignStaffRequest;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
@@ -297,13 +298,18 @@ public class BookingController {
     }
 
     /**
-     * Complete booking (Manager action - after payment confirmed)
-     * Transitions: IN_PROGRESS → COMPLETED
+     * Complete booking with payment method selection (Manager action)
+     * - CASH: Creates payment as PAID → booking COMPLETED immediately
+     * - QR: Creates payment as PENDING → returns QR info for polling
+     * Transitions: IN_PROGRESS → COMPLETED (for CASH) or stays IN_PROGRESS (for QR
+     * until paid)
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/complete")
-    public ResponseEntity<BookingResponse> complete(@PathVariable UUID bookingId) {
-        BookingResponse response = bookingService.complete(bookingId);
+    public ResponseEntity<BookingResponse> complete(
+            @PathVariable UUID bookingId,
+            @RequestBody(required = false) CheckoutRequest request) {
+        BookingResponse response = bookingService.complete(bookingId, request);
         return ResponseEntity.ok(response);
     }
 

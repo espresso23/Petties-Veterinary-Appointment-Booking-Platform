@@ -99,19 +99,23 @@ public class Clinic {
     @Convert(converter = com.petties.petties.converter.OperatingHoursConverter.class)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "operating_hours", columnDefinition = "jsonb")
+    @Builder.Default
     private Map<String, OperatingHours> operatingHours = new HashMap<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private ClinicStatus status = ClinicStatus.PENDING;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
     @Column(name = "rating_avg", precision = 2, scale = 1)
+    @Builder.Default
     private BigDecimal ratingAvg = BigDecimal.ZERO;
 
     @Column(name = "rating_count")
+    @Builder.Default
     private Integer ratingCount = 0;
 
     @Column(name = "approved_at")
@@ -130,9 +134,11 @@ public class Clinic {
 
     // Relationships
     @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ClinicImage> images = new ArrayList<>();
 
     @OneToMany(mappedBy = "clinic")
+    @Builder.Default
     private List<ClinicService> services = new ArrayList<>();
 
 }

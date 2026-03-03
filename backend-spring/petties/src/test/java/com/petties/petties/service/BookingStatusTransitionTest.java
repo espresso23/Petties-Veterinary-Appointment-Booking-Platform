@@ -195,7 +195,7 @@ class BookingStatusTransitionTest {
             when(bookingRepository.save(any(Booking.class))).thenAnswer(i -> i.getArgument(0));
 
             // When
-            BookingResponse response = bookingService.complete(bookingId);
+            BookingResponse response = bookingService.complete(bookingId, null);
 
             // Then
             assertThat(response).isNotNull();
@@ -212,7 +212,7 @@ class BookingStatusTransitionTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
             // When/Then
-            assertThatThrownBy(() -> bookingService.complete(bookingId))
+            assertThatThrownBy(() -> bookingService.complete(bookingId, null))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("IN_PROGRESS");
         }
@@ -225,7 +225,7 @@ class BookingStatusTransitionTest {
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(testBooking));
 
             // When/Then
-            assertThatThrownBy(() -> bookingService.complete(bookingId))
+            assertThatThrownBy(() -> bookingService.complete(bookingId, null))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("IN_PROGRESS");
         }

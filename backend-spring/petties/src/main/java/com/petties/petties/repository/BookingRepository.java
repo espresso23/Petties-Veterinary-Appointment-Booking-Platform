@@ -157,4 +157,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
         List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
                         @Param("date") LocalDate date);
+
+        boolean existsByPetAndClinicAndBookingDateAndBookingTime(com.petties.petties.model.Pet pet, com.petties.petties.model.Clinic clinic, LocalDate bookingDate, java.time.LocalTime bookingTime);
 }

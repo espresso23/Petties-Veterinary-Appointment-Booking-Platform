@@ -30,6 +30,7 @@ export const ROUTES = {
     dashboard: '/clinic-manager',
     profile: '/clinic-manager/profile',
     bookings: '/clinic-manager/bookings',
+    refunds: '/clinic-manager/refunds',
   },
 } as const
 

@@ -60,6 +60,8 @@ public class BookingResponse {
     // ========== PAYMENT INFO ==========
     private String paymentStatus; // PENDING, PAID, REFUNDED, FAILED
     private String paymentMethod; // CASH, QR, CARD
+    private String paymentDescription; // SePay payment description for QR matching
+    private String qrImageUrl; // QR code image URL (only for QR + PENDING)
 
     // ========== BOOKING INFO ==========
     @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd")

@@ -5,6 +5,7 @@ import com.petties.petties.dto.booking.AvailableSlotsResponse;
 import com.petties.petties.dto.booking.BookingConfirmRequest;
 import com.petties.petties.dto.booking.BookingRequest;
 import com.petties.petties.dto.booking.BookingResponse;
+import com.petties.petties.dto.booking.CheckoutRequest;
 import com.petties.petties.dto.booking.ClinicTodayBookingResponse;
 import com.petties.petties.dto.booking.StaffAvailabilityCheckResponse;
 import com.petties.petties.dto.booking.StaffOptionDTO;
@@ -20,15 +21,19 @@ import com.petties.petties.model.Booking;
 import com.petties.petties.model.BookingServiceItem;
 import com.petties.petties.model.Clinic;
 import com.petties.petties.model.ClinicService;
+import com.petties.petties.model.Payment;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
+import com.petties.petties.model.enums.PaymentMethod;
+import com.petties.petties.model.enums.PaymentStatus;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -66,6 +71,14 @@ public class BookingService {
         private final EmrRecordRepository emrRecordRepository;
         private final BookingMapper bookingMapper;
         private final BookingNotificationService bookingNotificationService;
+        private final PaymentRepository paymentRepository;
+        private final TransactionService transactionService;
+
+        @Value("${sepay.qr.acc:}")
+        private String sepayQrAcc;
+
+        @Value("${sepay.qr.bank:}")
+        private String sepayQrBank;
 
         private static final int MAX_RETRY_COUNT = 3;
 
@@ -988,43 +1001,129 @@ public class BookingService {
         }
 
         /**
-         * Complete booking (Manager action - after payment confirmed)
-         * Transitions: IN_PROGRESS → COMPLETED
-         * 
+         * Complete booking with payment method selection (Manager action)
+         * - CASH: Creates Payment (PAID) → Booking COMPLETED immediately
+         * - QR: Creates Payment (PENDING) → Returns QR info → Booking stays IN_PROGRESS
+         * - null request: Legacy behavior → Booking COMPLETED without payment
+         *
          * @param bookingId Booking ID
-         * @return Updated booking response
+         * @param request   CheckoutRequest with paymentMethod (CASH or QR), nullable
+         * @return Updated booking response (with qrImageUrl for QR)
          */
         @Transactional
-        public BookingResponse complete(UUID bookingId) {
-                log.info("Completing booking {}", bookingId);
+        public BookingResponse complete(UUID bookingId, CheckoutRequest request) {
+                log.info("Completing booking {} with payment method: {}",
+                                bookingId, request != null ? request.getPaymentMethod() : "NONE");
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS && booking.getStatus() != BookingStatus.COMPLETED
+                                && booking.getStatus() != BookingStatus.CONFIRMED
+                                && booking.getStatus() != BookingStatus.ARRIVED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể hoàn thành khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
+                                        "Chỉ có thể hoàn thành/thanh toán khi booking ở trạng thái CONFIRMED, ARRIVED, IN_PROGRESS hoặc COMPLETED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
-                // Update status to COMPLETED
-                booking.setStatus(BookingStatus.COMPLETED);
-                bookingRepository.save(booking);
+                // If no payment method specified, use legacy behavior (complete without
+                // payment)
+                if (request == null || request.getPaymentMethod() == null) {
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+                        log.info("Booking {} completed (no payment method)", booking.getBookingCode());
 
-                log.info("Booking {} completed successfully", booking.getBookingCode());
-
-                // Push SSE event for real-time sync
-                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
-
-                // Notify pet owner
-                try {
-                        notificationService.sendCompletedNotification(booking);
-                } catch (Exception e) {
-                        log.warn("Failed to send completed notification: {}", e.getMessage());
+                        bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification: {}", e.getMessage());
+                        }
+                        return bookingMapper.mapToResponse(booking);
                 }
 
-                return bookingMapper.mapToResponse(booking);
+                PaymentMethod method = PaymentMethod.valueOf(request.getPaymentMethod());
+
+                // Check if payment already exists for this booking (1-1 relationship)
+                Payment existingPayment = paymentRepository.findByBookingBookingId(bookingId).orElse(null);
+
+                // Nếu đã thanh toán rồi thì chỉ cần hoàn tất booking, không tạo payment mới
+                if (existingPayment != null && existingPayment.getStatus() == PaymentStatus.PAID) {
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+                        return bookingMapper.mapToResponse(booking);
+                }
+
+                // Dùng lại bản ghi payment hiện tại (PENDING/FAILED/REFUNDED) thay vì tạo bản ghi mới
+                Payment payment;
+                if (existingPayment != null) {
+                        log.info("Reusing existing payment {} for booking {} with new method {} and resetting state",
+                                        existingPayment.getPaymentId(), bookingId, method);
+                        existingPayment.setMethod(method);
+                        existingPayment.setStatus(PaymentStatus.PENDING);
+                        existingPayment.setPaidAt(null);
+                        existingPayment.setStripePaymentId(null);
+                        existingPayment.setPaymentDescription(null);
+                        payment = existingPayment;
+                } else {
+                        // Chưa có payment nào cho booking này → tạo mới
+                        payment = Payment.builder()
+                                        .booking(booking)
+                                        .amount(booking.getTotalPrice())
+                                        .method(method)
+                                        .status(PaymentStatus.PENDING)
+                                        .build();
+                }
+
+                if (method == PaymentMethod.CASH) {
+                        // CASH: Mark as paid immediately and complete booking
+                        payment.markAsPaid();
+                        paymentRepository.save(payment);
+
+                        booking.setPayment(payment);
+                        booking.setStatus(BookingStatus.COMPLETED);
+                        bookingRepository.save(booking);
+
+                        log.info("Booking {} completed with CASH payment", booking.getBookingCode());
+
+                        bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
+                        try {
+                                notificationService.sendCompletedNotification(booking);
+                        } catch (Exception e) {
+                                log.warn("Failed to send completed notification: {}", e.getMessage());
+                        }
+
+                        return bookingMapper.mapToResponse(booking);
+
+                } else if (method == PaymentMethod.QR) {
+                        // QR: Save as PENDING, generate description, return QR URL
+                        paymentRepository.save(payment);
+                        booking.setPayment(payment);
+                        bookingRepository.save(booking);
+
+                        // Generate unique payment description for SePay matching
+                        String paymentDescription = transactionService.generatePaymentDescription(bookingId);
+
+                        // Build QR image URL
+                        String qrImageUrl = String.format(
+                                        "https://qr.sepay.vn/img?acc=%s&bank=%s&amount=%s&des=%s",
+                                        sepayQrAcc,
+                                        sepayQrBank,
+                                        booking.getTotalPrice().toBigInteger().toString(),
+                                        paymentDescription);
+
+                        log.info("Booking {} QR payment initiated. Description: {}", booking.getBookingCode(),
+                                        paymentDescription);
+
+                        // Map response and inject QR fields
+                        BookingResponse response = bookingMapper.mapToResponse(booking);
+                        response.setQrImageUrl(qrImageUrl);
+                        return response;
+
+                } else {
+                        throw new IllegalArgumentException("Phương thức thanh toán không được hỗ trợ: " + method);
+                }
         }
 
         /**

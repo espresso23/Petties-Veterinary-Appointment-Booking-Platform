@@ -147,6 +147,10 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         .endTime(LocalTime.of(21, 0)) // Extended for testing
                                         .isOvernight(false)
                                         .build();
+
+                        // Generate slots for today's shift manually since we're bypassing
+                        // StaffShiftService
+                        todayShift.setSlots(generateSlots(todayShift, null, null));
                         staffShiftRepository.save(todayShift);
                         log.info("   + Created/Forced shift for TODAY (Sunday testing): 08:00-21:00");
                 } else {
@@ -172,10 +176,63 @@ public class BookingDataSeeder implements CommandLineRunner {
                                                 .endTime(LocalTime.of(21, 0))
                                                 .isOvernight(false)
                                                 .build();
+                                shift.setSlots(generateSlots(shift, null, null));
                                 staffShiftRepository.save(shift);
                         }
                 }
                 log.info("   + Verified staff shifts for next 7 days");
+        }
+
+        private List<Slot> generateSlots(StaffShift shift, LocalTime breakStart, LocalTime breakEnd) {
+                List<Slot> slots = new java.util.ArrayList<>();
+                LocalTime currentTime = shift.getStartTime();
+                LocalTime endTime = shift.getEndTime();
+                boolean isOvernight = Boolean.TRUE.equals(shift.getIsOvernight());
+
+                if (isOvernight) {
+                        LocalTime lastSlotBeforeMidnight = LocalTime.of(23, 30);
+                        while (currentTime.isBefore(lastSlotBeforeMidnight)
+                                        || currentTime.equals(lastSlotBeforeMidnight)) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (slotEnd.isBefore(currentTime))
+                                        break;
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                                if (currentTime.equals(LocalTime.MIDNIGHT)
+                                                || currentTime.isBefore(shift.getStartTime()))
+                                        break;
+                        }
+
+                        currentTime = LocalTime.of(0, 0);
+                        while (currentTime.plusMinutes(30).compareTo(endTime) <= 0) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                        }
+                } else {
+                        while (currentTime.plusMinutes(30).compareTo(endTime) <= 0) {
+                                LocalTime slotEnd = currentTime.plusMinutes(30);
+                                if (!isInBreakTime(currentTime, slotEnd, breakStart, breakEnd)) {
+                                        slots.add(new Slot(null, shift, currentTime, slotEnd, SlotStatus.AVAILABLE,
+                                                        java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+                                }
+                                currentTime = slotEnd;
+                        }
+                }
+                return slots;
+        }
+
+        private boolean isInBreakTime(LocalTime slotStart, LocalTime slotEnd, LocalTime breakStart,
+                        LocalTime breakEnd) {
+                if (breakStart == null || breakEnd == null)
+                        return false;
+                return slotStart.isBefore(breakEnd) && slotEnd.isAfter(breakStart);
         }
 
         /**
@@ -542,6 +599,10 @@ public class BookingDataSeeder implements CommandLineRunner {
          */
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
+                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
+                        return;
+                }
 
                 // Check for duplicate booking
                 boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
@@ -618,14 +679,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
                         String address, double lat, double lng, BigDecimal distanceKm) {
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
 
@@ -699,14 +754,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                         String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
                         String staffUsername, BookingType type) {
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                        log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
 

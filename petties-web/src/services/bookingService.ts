@@ -209,11 +209,18 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
- * Complete booking (Checkout)
- * Transitions: IN_PROGRESS → COMPLETED
+ * Complete booking (Checkout) with payment method selection
+ * - CASH: Creates payment as PAID → booking COMPLETED immediately
+ * - QR: Creates payment as PENDING → returns QR info for polling
+ * - undefined: Legacy behavior → booking COMPLETED without payment
+ * Transitions: IN_PROGRESS → COMPLETED (for CASH/undefined)
  */
-export const completeBooking = async (bookingId: string): Promise<Booking> => {
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/complete`);
+export const completeBooking = async (
+    bookingId: string,
+    paymentMethod?: 'CASH' | 'QR'
+): Promise<Booking> => {
+    const body = paymentMethod ? { paymentMethod } : undefined;
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/complete`, body);
     return response.data;
 };
 

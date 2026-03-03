@@ -47,6 +47,7 @@ import { StaffManagementPage as ClinicManagerStaffPage } from './pages/clinic-ma
 import { StaffShiftPage } from './pages/clinic-manager/shifts/StaffShiftPage'
 import { BookingDashboardPage } from './pages/clinic-manager/bookings/BookingDashboardPage'
 import { ServicesViewPage } from './pages/clinic-manager/services/ServicesViewPage'
+import { RefundsPage } from './pages/clinic-manager/RefundsPage'
 
 // Shared Pages
 import { ProfilePage } from './pages/shared'
@@ -154,6 +155,7 @@ function App() {
             <Route path="shifts" element={<StaffShiftPage />} />
             <Route path="services" element={<ServicesViewPage />} />
             <Route path="chat" element={<ClinicManagerChatPage />} />
+            <Route path="refunds" element={<RefundsPage />} />
             <Route path="notifications" element={<ClinicManagerNotificationsPage />} />
           </Route >
         </Routes >

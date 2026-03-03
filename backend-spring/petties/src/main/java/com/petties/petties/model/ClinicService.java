@@ -42,6 +42,7 @@ public class ClinicService {
 
     // NEW: Phân biệt Custom vs Inherited
     @Column(name = "is_custom", nullable = false)
+    @Builder.Default
     private Boolean isCustom = true;
 
     @Column(name = "name", nullable = false, length = 200)
@@ -60,9 +61,11 @@ public class ClinicService {
     private Integer slotsRequired;
 
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
     @Column(name = "is_home_visit", nullable = false)
+    @Builder.Default
     private Boolean isHomeVisit = false;
 
     // NEW: Reminder schedule for vaccination
@@ -80,6 +83,7 @@ public class ClinicService {
     private String petType;
 
     @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
 
     @CreatedDate
