@@ -356,6 +356,11 @@ class BookingWizardProvider extends ChangeNotifier {
         _currentPetIdForServiceSelection =
             _selectedPets.isNotEmpty ? _selectedPets.first.id : null;
       }
+
+      // Reload services when pets change (species filter might change)
+      if (_selectedPets.isNotEmpty) {
+        loadServices();
+      }
     } else {
       // Add
       _selectedPets.add(pet);
@@ -365,6 +370,9 @@ class BookingWizardProvider extends ChangeNotifier {
       if (_selectedPets.length == 1) {
         _currentPetIdForServiceSelection = pet.id;
       }
+
+      // Reload services filtered by pet species
+      loadServices();
     }
     notifyListeners();
   }
@@ -393,6 +401,7 @@ class BookingWizardProvider extends ChangeNotifier {
   }
 
   /// Load available services for clinic
+  /// When a pet is selected, filter by pet species for compatibility
   Future<void> loadServices() async {
     if (_clinic == null || _isLoadingServices) return;
 
@@ -401,14 +410,32 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final services =
-          await _bookingService.getClinicServices(_clinic!.clinicId);
-      // Filter by booking type
-      if (_bookingType == BookingType.homeVisit) {
-        _availableServices =
-            services.where((s) => s.isHomeVisit && s.isActive).toList();
-      } else {
+      final bool isHomeVisit = _bookingType == BookingType.homeVisit;
+
+      // If we have selected pets, load services filtered by species
+      if (_selectedPets.isNotEmpty) {
+        // Get services compatible with ALL selected pets' species
+        // For now, use first pet's species (in most cases, user selects pets of same species)
+        final petSpecies = _selectedPets.first.species.value;
+
+        final services = await _bookingService.getClinicServicesFiltered(
+          clinicId: _clinic!.clinicId,
+          petSpecies: petSpecies,
+          isHomeVisit: isHomeVisit,
+        );
+
         _availableServices = services.where((s) => s.isActive).toList();
+      } else {
+        // No pet selected yet, load all services
+        final services =
+            await _bookingService.getClinicServices(_clinic!.clinicId);
+        // Filter by booking type
+        if (isHomeVisit) {
+          _availableServices =
+              services.where((s) => s.isHomeVisit && s.isActive).toList();
+        } else {
+          _availableServices = services.where((s) => s.isActive).toList();
+        }
       }
     } catch (e) {
       _error = 'Không thể tải danh sách dịch vụ';
@@ -746,7 +773,7 @@ class BookingWizardProvider extends ChangeNotifier {
           itemsPayload.add({
             'pet': {
               'name': pet.name,
-              'species': pet.species,
+              'species': pet.species.value,
               'breed': pet.breed,
               'gender': pet.gender,
               'weight': pet.weight,

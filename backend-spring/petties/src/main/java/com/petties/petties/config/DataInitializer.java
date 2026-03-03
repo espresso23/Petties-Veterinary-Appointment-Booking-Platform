@@ -228,28 +228,28 @@ public class DataInitializer implements CommandLineRunner {
 
         // Pets for petOwner1 (John Pet Owner)
         if (petOwner1 != null && !petRepository.existsByUserUserId(petOwner1.getUserId())) {
-            createPet(petOwner1, "Bella", "Chó", "Golden Retriever", "2022-03-15", 15.5, "Cái", "Vàng kem",
+            createPet(petOwner1, "Bella", com.petties.petties.model.enums.PetSpecies.DOG, "Golden Retriever", "2022-03-15", 15.5, "Cái", "Vàng kem",
                     "Dị ứng Penicillin");
-            createPet(petOwner1, "Mimi", "Mèo", "Mèo Anh lông ngắn", "2023-06-20", 4.2, "Cái", "Xám", null);
+            createPet(petOwner1, "Mimi", com.petties.petties.model.enums.PetSpecies.CAT, "Mèo Anh lông ngắn", "2023-06-20", 4.2, "Cái", "Xám", null);
         }
 
         // Pets for petOwner2 (Nguyễn Văn An)
         if (petOwner2 != null && !petRepository.existsByUserUserId(petOwner2.getUserId())) {
-            createPet(petOwner2, "Rocky", "Chó", "French Bulldog", "2021-11-10", 12.0, "Đực", "Trắng đen", null);
-            createPet(petOwner2, "Lucky", "Chó", "Corgi", "2023-01-05", 10.5, "Đực", "Vàng trắng",
+            createPet(petOwner2, "Rocky", com.petties.petties.model.enums.PetSpecies.DOG, "French Bulldog", "2021-11-10", 12.0, "Đực", "Trắng đen", null);
+            createPet(petOwner2, "Lucky", com.petties.petties.model.enums.PetSpecies.DOG, "Corgi", "2023-01-05", 10.5, "Đực", "Vàng trắng",
                     "Dị ứng thức ăn biển");
         }
 
         // Pets for petOwner3 (Trần Thị Bình)
         if (petOwner3 != null && !petRepository.existsByUserUserId(petOwner3.getUserId())) {
-            createPet(petOwner3, "Bunny", "Thỏ", "Holland Lop", "2024-02-14", 2.5, "Cái", "Trắng nâu", null);
+            createPet(petOwner3, "Bunny", com.petties.petties.model.enums.PetSpecies.RABBIT, "Holland Lop", "2024-02-14", 2.5, "Cái", "Trắng nâu", null);
         }
     }
 
     /**
      * Helper to create a pet
      */
-    private void createPet(User owner, String name, String species, String breed, String dob, double weight,
+    private void createPet(User owner, String name, com.petties.petties.model.enums.PetSpecies species, String breed, String dob, double weight,
             String gender, String color, String allergies) {
         try {
             Pet pet = new Pet();

@@ -1,5 +1,6 @@
 package com.petties.petties.model;
 
+import com.petties.petties.model.enums.PetSpecies;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,8 +35,9 @@ public class Pet {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String species;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PetSpecies species;
 
     @Column(nullable = false)
     private String breed;

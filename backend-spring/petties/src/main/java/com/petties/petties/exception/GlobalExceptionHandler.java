@@ -335,6 +335,8 @@ public class GlobalExceptionHandler {
                                 message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
                         } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
                                 message = "Lỗi trùng lặp dữ liệu booking. Vui lòng thử lại.";
+                        } else if (rootCause.contains("unique_staff_date")) {
+                                message = "Nhân viên đã có ca làm việc trong ngày này. Vui lòng cập nhật ca hiện tại thay vì tạo mới.";
                         } else if (rootCause.contains("_key") || rootCause.contains("unique")) {
                                 message = "Dữ liệu trùng lặp. Vui lòng kiểm tra và thử lại.";
                         }

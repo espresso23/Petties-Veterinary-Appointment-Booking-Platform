@@ -2,10 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { isAxiosError } from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableServicesForAddOn, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking, cancelBooking } from '../../../services/bookingService';
-import type { StaffOption } from '../../../services/bookingService';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking, cancelBooking, type StaffOption } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
-import type { ClinicServiceResponse } from '../../../types/service';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
 import { StaffAvailabilityWarningModal, type ConfirmOption } from '../../../components/booking/StaffAvailabilityWarningModal';
@@ -65,7 +63,6 @@ export const BookingDashboardPage = () => {
 
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
-    const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
     const [addingService, setAddingService] = useState(false);
 
     // Handle bookingId from URL query params (e.g., from schedule page click)
@@ -256,19 +253,9 @@ export const BookingDashboardPage = () => {
             setConfirming(null);
         }
     };
-    const handleOpenAddServiceModal = async () => {
+    const handleOpenAddServiceModal = () => {
         if (!selectedBooking) return;
-
-        try {
-            // Fetch available services for this booking (filters by specialty for Staff/Home Visit)
-            const services = await getAvailableServicesForAddOn(selectedBooking.bookingId);
-
-            setAvailableServices(services);
-            setAddServiceModalOpen(true);
-        } catch (error) {
-            console.error('Failed to fetch available services:', error);
-            showToast('error', 'Không thể tải danh sách dịch vụ');
-        }
+        setAddServiceModalOpen(true);
     };
 
     // Handle Add Service
@@ -620,13 +607,15 @@ export const BookingDashboardPage = () => {
                 )
             }
             {/* Add-on Service Modal */}
-            <AddServiceModal
-                isOpen={addServiceModalOpen}
-                onClose={() => setAddServiceModalOpen(false)}
-                availableServices={availableServices}
-                onAddService={handleAddService}
-                isAdding={addingService}
-            />
+            {selectedBooking && (
+                <AddServiceModal
+                    isOpen={addServiceModalOpen}
+                    onClose={() => setAddServiceModalOpen(false)}
+                    booking={selectedBooking}
+                    onAddService={handleAddService}
+                    isAdding={addingService}
+                />
+            )}
 
             {/* Cancel Booking Modal */}
             <CancelBookingModal

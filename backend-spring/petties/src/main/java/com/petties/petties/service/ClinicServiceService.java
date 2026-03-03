@@ -12,10 +12,12 @@ import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.MasterService;
 import com.petties.petties.model.ServiceWeightPrice;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.PetSpecies;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.ClinicServiceRepository;
 import com.petties.petties.repository.MasterServiceRepository;
+import com.petties.petties.util.SpeciesUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -441,6 +443,44 @@ public class ClinicServiceService {
         // Only return active services for public view
         List<ClinicService> services = clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId);
         return services.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * PUBLIC: Get services compatible with a specific pet species
+     * Filters out vaccines that are not compatible with the pet's species
+     *
+     * @param clinicId    Clinic ID
+     * @param petSpecies  Pet species to filter by (optional, if null returns all)
+     * @param isHomeVisit Only return home visit services (optional)
+     * @return List of compatible services
+     */
+    @Transactional(readOnly = true)
+    public List<ClinicServiceResponse> getCompatibleServices(UUID clinicId, PetSpecies petSpecies, Boolean isHomeVisit) {
+        // Verify clinic exists
+        if (!clinicRepository.existsById(clinicId)) {
+            throw new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId);
+        }
+
+        List<ClinicService> services = clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId);
+
+        return services.stream()
+                // Filter by home visit if specified
+                .filter(s -> isHomeVisit == null || !isHomeVisit || Boolean.TRUE.equals(s.getIsHomeVisit()))
+                // Filter by species compatibility
+                .filter(s -> {
+                    // If no vaccine template, service is compatible with all species
+                    if (s.getVaccineTemplate() == null) {
+                        return true;
+                    }
+                    // If no petSpecies specified, return all services
+                    if (petSpecies == null) {
+                        return true;
+                    }
+                    // Check vaccine compatibility
+                    return SpeciesUtils.isVaccineCompatible(s.getVaccineTemplate().getTargetSpecies(), petSpecies);
+                })
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

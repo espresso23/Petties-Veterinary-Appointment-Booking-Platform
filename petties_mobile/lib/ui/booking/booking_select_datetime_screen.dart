@@ -6,6 +6,7 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/clinic_service.dart';
 import '../../providers/booking_wizard_provider.dart';
 import '../../utils/format_utils.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 /// Step 3: Select Date and Time
 class BookingSelectDateTimeScreen extends StatefulWidget {
@@ -67,6 +68,10 @@ class _BookingSelectDateTimeScreenState
             ],
           );
         },
+      ),
+      bottomNavigationBar: PetOwnerBottomNav(
+        currentIndex: 2,
+        onTap: (index) => handlePetOwnerNavTap(context, index),
       ),
     );
   }
@@ -185,6 +190,7 @@ class _BookingSelectDateTimeScreenState
           provider.selectDate(selectedDay);
         },
         calendarFormat: CalendarFormat.month,
+        rowHeight: 38,
         headerStyle: const HeaderStyle(
           formatButtonVisible: false,
           titleCentered: true,
@@ -210,20 +216,20 @@ class _BookingSelectDateTimeScreenState
           ),
         ),
         calendarStyle: CalendarStyle(
-          todayDecoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.3),
+          todayDecoration: const BoxDecoration(
+            color: AppColors.primarySurface,
             shape: BoxShape.circle,
           ),
           todayTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: AppColors.stone900,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryDark,
           ),
           selectedDecoration: const BoxDecoration(
             color: AppColors.primary,
             shape: BoxShape.circle,
           ),
           selectedTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             color: AppColors.white,
           ),
           weekendTextStyle: const TextStyle(color: AppColors.coral),
@@ -253,9 +259,9 @@ class _BookingSelectDateTimeScreenState
               Text(
                 FormatUtils.formatDate(provider.selectedDate!),
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
                 ),
               ),
           ],
@@ -517,9 +523,7 @@ class _BookingSelectDateTimeScreenState
 
   Widget _buildSlotChips(
       BookingWizardProvider provider, List<AvailableSlot> slots) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return Column(
       children: slots.map((slot) {
         final isSelected = provider.selectedTimeSlots.contains(slot.startTime);
 
@@ -547,24 +551,29 @@ class _BookingSelectDateTimeScreenState
         Color bgColor;
         Color borderColor;
         Color textColor;
+        String statusLabel;
 
         if (isSelected) {
           // Single selected slot (drop-off time)
-          bgColor = AppColors.primary;
+          bgColor = AppColors.primaryBackground;
           borderColor = AppColors.primary;
-          textColor = AppColors.white;
+          textColor = AppColors.primaryDark;
+          statusLabel = 'Đã chọn';
         } else if (isBreakTime) {
           bgColor = AppColors.coral.withValues(alpha: 0.15);
           borderColor = AppColors.coral.withValues(alpha: 0.5);
           textColor = AppColors.coral;
+          statusLabel = 'Nghỉ';
         } else if (!isAvailable) {
           bgColor = AppColors.stone200;
           borderColor = AppColors.stone300;
-          textColor = AppColors.stone400;
+          textColor = AppColors.stone500;
+          statusLabel = isPastTime ? 'Đã qua giờ' : 'Đã đầy';
         } else {
-          bgColor = AppColors.white;
-          borderColor = AppColors.stone300;
-          textColor = AppColors.stone700;
+          bgColor = AppColors.successLight;
+          borderColor = AppColors.successDark;
+          textColor = AppColors.successDark;
+          statusLabel = 'Khả dụng';
         }
 
         return Tooltip(
@@ -575,40 +584,56 @@ class _BookingSelectDateTimeScreenState
             onTap:
                 isAvailable ? () => provider.selectTime(slot.startTime) : null,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: borderColor, width: 2),
                 boxShadow: isSelected
                     ? const [
                         BoxShadow(
-                            color: AppColors.stone900, offset: Offset(2, 2))
+                          color: AppColors.stone900,
+                          offset: Offset(2, 2),
+                        ),
                       ]
                     : null,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
+                  Icon(
+                    isBreakTime
+                        ? Icons.free_breakfast
+                        : (isAvailable ? Icons.radio_button_unchecked : Icons.block),
+                    size: 18,
+                    color: textColor,
+                  ),
+                  const SizedBox(width: 10),
                   Text(
                     slot.startTime,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: textColor,
                     ),
                   ),
-                  if (isBreakTime) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Nghỉ',
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: textColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: textColor.withValues(alpha: 0.8),
+                        color: textColor,
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),

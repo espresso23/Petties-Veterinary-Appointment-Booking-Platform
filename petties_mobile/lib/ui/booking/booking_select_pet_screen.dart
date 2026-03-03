@@ -910,7 +910,7 @@ class _BookingSelectPetScreenState extends State<BookingSelectPetScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${pet.species} • ${pet.breed} • ${pet.weight} kg',
+                    '${pet.species.displayName} • ${pet.breed} • ${pet.weight} kg',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.stone500,
@@ -1023,7 +1023,7 @@ class _AddPetForBeneficiarySheetState
 
   void _save() {
     final name = _nameController.text.trim();
-    final species = _speciesController.text.trim();
+    final speciesText = _speciesController.text.trim();
     final breed = _breedController.text.trim();
     final weight =
         double.tryParse(_weightController.text.replaceAll(',', '.')) ?? 0.0;
@@ -1033,12 +1033,14 @@ class _AddPetForBeneficiarySheetState
       );
       return;
     }
-    if (species.isEmpty) {
+    if (speciesText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập loài')),
       );
       return;
     }
+    // Convert species text to PetSpecies enum
+    final species = PetSpecies.fromString(speciesText);
     final pet = Pet(
       // Id chỉ dùng tạm trong phiên đặt lịch, không gửi lên backend
       id: DateTime.now().millisecondsSinceEpoch.toString(),

@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../core/widgets/custom_button.dart';
 import '../core/widgets/custom_text_field.dart';
+import '../../providers/auth_provider.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 class AddEditPetScreen extends StatefulWidget {
   final String? id; // If null, it's Add mode. If not, Edit mode.
@@ -24,7 +29,6 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   // Controllers
   final _nameController = TextEditingController();
-  final _speciesController = TextEditingController();
   final _breedController = TextEditingController();
   final _weightController = TextEditingController();
   final _colorController = TextEditingController();
@@ -32,6 +36,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   DateTime? _selectedDateOfBirth;
   String _selectedGender = 'MALE';
+  PetSpecies _selectedSpecies = PetSpecies.DOG;
   XFile? _selectedImage;
   String? _currentImageUrl;
 
@@ -48,7 +53,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
     try {
       final pet = await _petService.getPet(id);
       _nameController.text = pet.name;
-      _speciesController.text = pet.species;
+      _selectedSpecies = pet.species;
       _breedController.text = pet.breed;
       _weightController.text = pet.weight.toString();
       _selectedDateOfBirth = pet.dateOfBirth;
@@ -201,7 +206,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
         // Create
         await _petService.createPet(
           name: _nameController.text,
-          species: _speciesController.text,
+          species: _selectedSpecies.value,
           breed: _breedController.text,
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
@@ -215,7 +220,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
         await _petService.updatePet(
           id: widget.id!,
           name: _nameController.text,
-          species: _speciesController.text,
+          species: _selectedSpecies.value,
           breed: _breedController.text,
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
@@ -239,6 +244,9 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: AppBar(
@@ -337,16 +345,62 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Species & Breed
+                    // Species Dropdown & Breed
                     Row(
                       children: [
                         Expanded(
-                          child: CustomTextField(
-                            controller: _speciesController,
-                            label: 'Loài (Chó/Mèo...)',
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Vui lòng nhập loài'
-                                : null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Loài',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.stone900,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.stone900, width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+                                  ],
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<PetSpecies>(
+                                    value: _selectedSpecies,
+                                    isExpanded: true,
+                                    items: PetSpecies.values.map((species) {
+                                      return DropdownMenuItem(
+                                        value: species,
+                                        child: Row(
+                                          children: [
+                                            Text(species.icon, style: const TextStyle(fontSize: 18)),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              species.displayName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.stone900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _selectedSpecies = value);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -449,6 +503,12 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                 ),
               ),
             ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 

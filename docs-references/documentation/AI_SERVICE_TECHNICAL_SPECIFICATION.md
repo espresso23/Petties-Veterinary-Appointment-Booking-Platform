@@ -1,7 +1,7 @@
 # Tài liệu Kỹ thuật – AI Agent Service (Petties)
 
-**Phiên bản:** 1.0  
-**Cập nhật:** 2026-03-02  
+**Phiên bản:** 1.1  
+**Cập nhật:** 2026-03-03  
 **Tham chiếu:** AI_AGENT_SERVICE_SRS.md, AI_AGENT_SERVICE_SDD.md, REPORT_4_SDD_SYSTEM_DESIGN.md
 
 ---
@@ -39,8 +39,9 @@ AI Agent Service là **thành phần tách biệt** (microservice Python FastAPI
 | | Chẩn đoán sơ bộ theo triệu chứng | Tool `symptom_search`: map triệu chứng → gợi ý bệnh, khuyên đặt lịch nếu cần. |
 | | Đặt lịch qua chat | Tools `search_clinics`, `check_slots`, `create_booking` gọi Spring Boot API. |
 | **Vision** | Phân tích hình ảnh sức khỏe thú cưng | Tool `analyze_pet_image`: gửi ảnh + context lên LLM (multimodal), trả severity + gợi ý dịch vụ/booking. |
-| **Clinic / Staff** | Hỗ trợ xử lý booking, FAQ, gợi ý reassign | Dùng cùng Single Agent, có thể bật tools tương ứng cho role (Web). |
+| **Clinic / Staff** | Hỗ trợ xử lý booking, FAQ, gợi ý reassign, thêm lịch làm việc | Dùng cùng Single Agent, có thể bật tools tương ứng cho role (Web) và chỉ thực thi khi người dùng xác nhận. |
 | **Admin** | Cấu hình Agent, Tools, Knowledge Base | REST API + Web: prompt, model, hyperparameters, enable/disable tools, upload/test RAG. |
+| **Fallback** | Trả lời khi confidence thấp | Tool `web_search` (ví dụ DuckDuckGo): bổ sung thông tin từ web khi RAG/symptom_search/vision trả về confidence thấp; vẫn trích dẫn nguồn và khuyên đi khám khi liên quan sức khỏe. |
 
 ---
 
@@ -57,6 +58,7 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-003 | Tìm bệnh theo triệu chứng | Agent gọi `symptom_search` → trả gợi ý bệnh, khuyên đến phòng khám nếu cần. |
 | UC-004 | Đặt lịch qua chat | Agent gọi `search_clinics` → `check_slots` → `create_booking` (gọi Spring Boot). |
 | UC-019 | Phân tích hình ảnh (Vision) | User gửi ảnh + text; Agent gọi `analyze_pet_image` → LLM multimodal → severity + gợi ý booking. |
+| UC-029 | Tra cứu cẩm nang & mẹo thú y từ web (fallback) | Khi RAG nội bộ không đủ hoặc user hỏi thông tin cập nhật, agent gọi `web_search` để lấy nguồn tham khảo và tóm tắt hướng dẫn/mẹo chăm sóc (kèm trích dẫn nguồn). |
 
 ### 2.2 Clinic Staff / Manager (Web)
 
@@ -65,9 +67,12 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-020 | Hỗ trợ xử lý booking | Hỏi AI về tình huống booking, gợi ý thao tác. |
 | UC-021 | Gợi ý reassign staff | AI gợi ý nhân viên phù hợp (dựa trên tools gọi backend). |
 | UC-022 | Trả lời FAQ cho khách | RAG + tools trả lời câu hỏi thường gặp. |
-| UC-023 | Tổng hợp thông tin bệnh nhân | Tool có thể gọi API backend lấy pet/booking. |
-| UC-024 | Báo cáo xu hướng booking | (Có thể mở rộng tool/aggregation.) |
+| UC-023 | Tổng hợp thông tin bệnh nhân & EMR | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff. |
+| UC-024 | Hỗ trợ thêm lịch làm việc cho nhân viên | AI đề xuất ca làm (ngày/giờ/nhân sự) và có thể gọi tool tạo ca làm trên backend khi người dùng xác nhận. |
 | UC-025 | Gợi ý tối ưu lịch làm việc | (Có thể mở rộng tool.) |
+| UC-026 | Hỗ trợ setup phòng khám | AI hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp theo mô hình vận hành. |
+| UC-027 | Hỗ trợ thêm dịch vụ phòng khám | AI gợi ý danh mục dịch vụ phổ biến theo loại pet/nhu cầu, chuẩn hóa tên + mô tả + giá/đơn vị; có thể gọi tool để tạo/cập nhật service trên backend. |
+| UC-028 | Soạn mô tả phòng khám | AI viết/biên tập mô tả phòng khám (giới thiệu, thế mạnh, quy trình, lưu ý), đảm bảo văn phong rõ ràng, không sai sự thật, và phù hợp hiển thị trên app. |
 
 ### 2.3 Admin (Web)
 
@@ -101,13 +106,12 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 
 ```mermaid
 flowchart TB
-    subgraph Input["Đầu vào"]
-        UserQuery["User query (text / text + image)"]
-        SessionContext["Session ID, User ID (JWT)"]
+    subgraph Input["Input"]
+        UserMessage["User message (text / image)"]
         AgentConfig["Agent config (PostgreSQL)"]
     end
 
-    subgraph LoadConfig["Nạp cấu hình"]
+    subgraph LoadConfig["Load configuration"]
         LoadAgent["Load agent (enabled, prompt, model, params)"]
         LoadTools["Load enabled tools (FastMCP)"]
     end
@@ -119,27 +123,30 @@ flowchart TB
         Observe["Observe: tool result"]
     end
 
-    subgraph Tools["Tools sử dụng"]
+    subgraph Tools["Tools"]
         RAG["pet_care_qa → RAG"]
         Symptom["symptom_search"]
         Clinic["search_clinics, check_slots, create_booking"]
         Vision["analyze_pet_image"]
+        EmrTools["emr_summary, patient_timeline"]
+        StaffShiftTools["create_staff_shifts, get_shifts_by_clinic"]
+        ClinicSetup["clinic_setup_wizard, clinic_config_suggester"]
+        WebSearch["web_search (fallback confidence thấp)"]
     end
 
-    subgraph External["Dữ liệu ngoại vi"]
+    subgraph External["External data sources"]
         OpenRouter["OpenRouter (LLM)"]
         Cohere["Cohere (embeddings)"]
         Qdrant["Qdrant (vectors)"]
         SpringBoot["Spring Boot API (booking, clinic, pet)"]
+        DuckDuckGo["DuckDuckGo / Web API"]
     end
 
-    subgraph Persist["Lưu trữ"]
-        MongoChat["MongoDB: chat_history"]
-        PGChat["PostgreSQL: chat_sessions, chat_messages"]
+    subgraph Storage["Data storage"]
+        MongoChat["MongoDB: chat_sessions, chat_messages, chat_audit"]
     end
 
-    UserQuery --> LoadConfig
-    SessionContext --> LoadConfig
+    UserMessage --> LoadConfig
     AgentConfig --> LoadAgent
     LoadAgent --> LoadTools
     LoadTools --> ReActLoop
@@ -154,30 +161,43 @@ flowchart TB
     RAG --> Cohere
     RAG --> Qdrant
     Clinic --> SpringBoot
+    StaffShiftTools --> SpringBoot
     Vision --> OpenRouter
+    WebSearch --> DuckDuckGo
     Observe --> Think
-    Observe --> Persist
-    ReActLoop --> Persist
+    Observe --> Storage
+    ReActLoop --> Storage
 ```
 
 ### 3.2 Dữ liệu nội bộ AI sử dụng
 
-| Nguồn | Dữ liệu | Dùng để |
-|-------|---------|---------|
+| Source | Data | Purpose |
+|--------|------|---------|
 | **PostgreSQL (AI DB)** | `agents`, `tools`, `system_settings`, `knowledge_documents` | Cấu hình agent, danh sách tools, API keys, meta document RAG. |
 | **PostgreSQL (shared)** | (Tools gọi Spring Boot) | Booking, clinic, slot, pet – qua HTTP từ AI service tới backend. |
 | **Qdrant Cloud** | Vectors + payload (chunk text, document_id) | RAG: embedding query, tìm chunk tương tự, đưa context cho LLM. |
-| **MongoDB** | `chat_history` (session_id, user_id, messages với metadata) | Lưu lịch sử hội thoại, thoughts, tool_calls, sources để phân tích/audit. |
+| **MongoDB** | `chat_sessions`, `chat_messages` (session_id, user_id, messages với metadata) | Lưu lịch sử hội thoại, thoughts, tool_calls, sources để phân tích/audit. |
 | **OpenRouter** | LLM API | Generate thought, answer; Vision: multimodal (text + image). |
 | **Cohere** | Embeddings API | Embed query và chunk cho RAG. |
 
 ### 3.3 Giải quyết vấn đề (ReAct)
 
 1. **Thought:** LLM phân tích câu hỏi, quyết định cần tool nào hay trả lời luôn.
-2. **Action:** Gọi đúng tool (pet_care_qa, symptom_search, search_clinics, …); tool đọc dữ liệu nội bộ (RAG, DB) hoặc gọi Spring Boot.
+2. **Action:** Gọi đúng tool (pet_care_qa, symptom_search, search_clinics, …); tool xử lý logic nội bộ, có thể gọi RAG engine hoặc Spring Boot REST API khi cần dữ liệu domain.
 3. **Observation:** Kết quả tool được đưa lại vào state.
 4. **Loop:** Lặp Think → Act → Observe tối đa N lần (ví dụ 5), sau đó Generate final answer.
-5. **Answer:** Stream text về client; đồng thời lưu message (và metadata) vào MongoDB/PostgreSQL.
+5. **Answer:** Stream text về client; đồng thời lưu session + messages (và metadata) vào MongoDB.
+
+### 3.4 Fallback khi confidence thấp – Web search
+
+Khi kết quả từ RAG, `symptom_search` hoặc `analyze_pet_image` có **confidence thấp** (ít chunk liên quan, score thấp, hoặc không tìm thấy bệnh phù hợp), hoặc user hỏi **cẩm nang thú y / mẹo chăm sóc / thông tin cập nhật**, agent có thể gọi tool **web search** (ví dụ DuckDuckGo hoặc API tìm kiếm) để bổ sung thông tin cho người dùng:
+
+- **Điều kiện:** Confidence của tool trước đó dưới ngưỡng (cấu hình được), user hỏi ngoài phạm vi knowledge base, hoặc chủ đề yêu cầu thông tin cập nhật theo thời gian.
+- **Luồng:** Agent tạo query tìm kiếm từ câu hỏi user / mô tả triệu chứng → gọi `web_search(query)` → nhận danh sách snippet/title/URL → đưa vào context cho LLM tổng hợp câu trả lời.
+- **Trả lời:** LLM vẫn phải trích dẫn nguồn (URL hoặc "theo kết quả tìm kiếm"), và với câu hỏi sức khỏe phải **khuyên đi khám / không thay thế chẩn đoán bác sĩ**.
+- **Cấu hình:** `DUCKDUCKGO_MAX_RESULTS` (số kết quả tối đa lấy về, ví dụ 5).
+
+Tool web search **không thay thế** RAG hay symptom_search; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
 
 ---
 
@@ -355,6 +375,44 @@ sequenceDiagram
     Agent-->>API: Response + metadata
     API->>DB: Save chat message (session)
     API-->>Client: JSON Response (full content)
+```
+
+### 6.3 Web Clinic Staff chat với AI (WebSocket)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Staff as Clinic Staff (Web)
+    participant WebUI as React Web (Dashboard)
+    participant WS as AI WebSocket
+    participant Agent as Single Agent
+    participant Tools as Tool Registry
+    participant LLM as OpenRouter
+    participant Backend as Spring Boot API
+
+    Staff->>WebUI: Gõ câu hỏi về ca khám / vận hành
+    WebUI->>WS: Connect (JWT) + send message
+    WS->>Agent: Start ReAct loop (staff message)
+
+    Agent->>LLM: Generate thought
+    LLM-->>Agent: Thought (cần gọi tool nào)
+    Agent->>WS: emit("thinking", thought)
+    WS-->>WebUI: Hiển thị trạng thái đang suy nghĩ
+
+    Agent->>Tools: call_tool(...) (vd: emr_summary, search_clinics, check_slots, create_staff_shifts)
+    Tools->>Backend: Gọi REST API (pet/booking/EMR/clinic)
+    Backend-->>Tools: Trả dữ liệu
+    Tools-->>Agent: Observation (patient summary / booking options)
+
+    Agent->>LLM: Generate answer (streaming)
+    loop Streaming tokens
+        LLM-->>Agent: Token chunk
+        Agent->>WS: emit("response", delta=true)
+        WS-->>WebUI: Update đoạn text đang gõ
+    end
+    Agent->>WS: emit("done", content + suggestions)
+    WS-->>WebUI: Hiển thị câu trả lời + gợi ý hành động
+    WebUI-->>Staff: Staff đọc và quyết định thao tác (không auto thực hiện)
 ```
 
 ---

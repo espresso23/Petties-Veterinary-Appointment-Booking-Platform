@@ -12,6 +12,7 @@ import com.petties.petties.model.EmrRecord;
 import com.petties.petties.model.Pet;
 import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
+import com.petties.petties.model.enums.PetSpecies;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.BookingRepository;
 import com.petties.petties.repository.EmrRecordRepository;
@@ -179,7 +180,13 @@ public class PetService {
             // ADMIN: no filter, sees all
 
             if (species != null && !species.isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("species")), "%" + species.toLowerCase() + "%"));
+                try {
+                    PetSpecies speciesEnum = PetSpecies.valueOf(species.toUpperCase());
+                    predicates.add(cb.equal(root.get("species"), speciesEnum));
+                } catch (IllegalArgumentException e) {
+                    // Invalid species value, ignore filter
+                    log.warn("Invalid species filter value: {}", species);
+                }
             }
             if (breed != null && !breed.isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("breed")), "%" + breed.toLowerCase() + "%"));

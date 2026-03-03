@@ -38,7 +38,34 @@ class BookingWizardService {
     }
   }
 
-  /// Get clinic services
+  /// Get clinic services filtered by pet species and home visit capability
+  Future<List<ClinicServiceModel>> getClinicServicesFiltered({
+    required String clinicId,
+    required String petSpecies,
+    required bool isHomeVisit,
+  }) async {
+    try {
+      final response = await _apiClient.get(
+        '/services/by-clinic/$clinicId/compatible',
+        queryParameters: {
+          'petSpecies': petSpecies,
+          'isHomeVisit': isHomeVisit,
+        },
+      );
+
+      if (response.data is List) {
+        return (response.data as List)
+            .map((json) => ClinicServiceModel.fromJson(json))
+            .toList();
+      }
+
+      return [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get clinic services (all services, no filter)
   Future<List<ClinicServiceModel>> getClinicServices(String clinicId) async {
     try {
       final response = await _apiClient.get('/services/by-clinic/$clinicId');

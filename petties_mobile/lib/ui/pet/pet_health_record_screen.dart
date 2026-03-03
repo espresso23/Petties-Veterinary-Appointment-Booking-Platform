@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import '../../data/models/emr.dart';
 import '../../data/models/vaccination.dart';
 import '../../data/services/emr_service.dart';
 import '../../data/services/vaccination_service.dart';
 import '../../config/constants/app_colors.dart';
-import 'package:intl/intl.dart';
 import '../staff/patient/widgets/vaccination_roadmap_table.dart';
+import '../../providers/auth_provider.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 class PetHealthRecordScreen extends StatefulWidget {
   final String petId;
@@ -58,6 +62,9 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: AppBar(
@@ -84,6 +91,12 @@ class _PetHealthRecordScreenState extends State<PetHealthRecordScreen>
           _buildEmrList(),
         ],
       ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 

@@ -289,30 +289,8 @@ public class VaccinationService {
         if (t.getTargetSpecies() == null || t.getTargetSpecies().name().equalsIgnoreCase("BOTH")) {
             return true;
         }
-        String petSpecies = pet.getSpecies() != null ? pet.getSpecies().toLowerCase() : "";
-        String normalizedSpecies = java.text.Normalizer.normalize(petSpecies, java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
-
-        boolean isDog = normalizedSpecies.contains("dog") || normalizedSpecies.contains("cho")
-                || petSpecies.contains("chó");
-        boolean isCat = normalizedSpecies.contains("cat") || normalizedSpecies.contains("meo")
-                || petSpecies.contains("mèo");
-
-        if (isDog) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("DOG");
-        }
-        if (isCat) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("CAT");
-        }
-
-        // Fallback: check template name if pet species is unknown
-        String templateName = t.getName().toLowerCase();
-        if (templateName.contains("(chó)") && isCat)
-            return false;
-        if (templateName.contains("(mèo)") && isDog)
-            return false;
-
-        return false;
+        // Use SpeciesUtils for proper enum-based compatibility check
+        return com.petties.petties.util.SpeciesUtils.isVaccineCompatible(t.getTargetSpecies(), pet.getSpecies());
     }
 
     private VaccinationResponse predictNextDose(com.petties.petties.model.VaccineTemplate t,

@@ -195,7 +195,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         await _petService.updatePet(
           id: pet.id,
           name: pet.name,
-          species: pet.species,
+          species: pet.species.value,
           breed: pet.breed,
           dateOfBirth: pet.dateOfBirth,
           weight: pet.weight,
@@ -442,7 +442,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${pet.species} ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''} • ${_translateGender(pet.gender)} • ${_calculateAge(pet.dateOfBirth)}',
+                      '${pet.species.displayName} ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''} • ${_translateGender(pet.gender)} • ${_calculateAge(pet.dateOfBirth)}',
                       style: const TextStyle(color: AppColors.stone500, fontSize: 13),
                     ),
                     Text(

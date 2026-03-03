@@ -762,6 +762,12 @@ export const PlaygroundPage = () => {
         </div>
       </div>
 
+      {connectionStatus === 'error' && (
+        <div className="px-4 py-2 bg-red-100 border-b-2 border-stone-900 text-xs text-red-800 font-bold">
+          Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AGENT_SERVICE_URL (không thêm /ai, /api, /ws) và tải lại trang.
+        </div>
+      )}
+
       {/* Main Content - Split View */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Chat Panel */}

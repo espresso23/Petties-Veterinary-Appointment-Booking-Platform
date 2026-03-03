@@ -5,9 +5,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { getBookingsByStaff, getBookingById, checkInBooking, getAvailableServicesForAddOn, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
+import { getBookingsByStaff, getBookingById, checkInBooking, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
 import type { Booking, BookingStatus } from '../../types/booking'
-import type { ClinicServiceResponse } from '../../types/service'
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
 import { AddServiceModal } from '../../components/booking/AddServiceModal'
@@ -62,7 +61,6 @@ export const StaffBookingsPage = () => {
 
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
-    const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
     const [addingService, setAddingService] = useState(false);
     const [removeConfirmService, setRemoveConfirmService] = useState<{ bookingServiceId: string; serviceName: string } | null>(null);
     const [totalPages, setTotalPages] = useState(0)
@@ -176,16 +174,9 @@ export const StaffBookingsPage = () => {
         navigate(`/staff/vaccine/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
     }
 
-    const handleOpenAddServiceModal = async () => {
+    const handleOpenAddServiceModal = () => {
         if (!selectedBooking) return;
-        try {
-            const services = await getAvailableServicesForAddOn(selectedBooking.bookingId);
-            setAvailableServices(services);
-            setAddServiceModalOpen(true);
-        } catch (error) {
-            console.error('Error opening service modal:', error)
-            showToast('error', 'Không thể lấy danh sách dịch vụ')
-        }
+        setAddServiceModalOpen(true);
     };
 
     const handleAddService = async (serviceId: string) => {
@@ -694,13 +685,15 @@ export const StaffBookingsPage = () => {
                                     })()}
 
                                     {/* Add-on Service Modal */}
-                                    <AddServiceModal
-                                        isOpen={addServiceModalOpen}
-                                        onClose={() => setAddServiceModalOpen(false)}
-                                        availableServices={availableServices}
-                                        onAddService={handleAddService}
-                                        isAdding={addingService}
-                                    />
+                                    {selectedBooking && (
+                                        <AddServiceModal
+                                            isOpen={addServiceModalOpen}
+                                            onClose={() => setAddServiceModalOpen(false)}
+                                            booking={selectedBooking}
+                                            onAddService={handleAddService}
+                                            isAdding={addingService}
+                                        />
+                                    )}
 
                                     {/* Confirm remove add-on service */}
                                     <ConfirmModal

@@ -109,11 +109,11 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 // Create mock pets
                 Pet[] pets = {
-                                createPet(petOwner, "Buddy", "Chó", "Golden Retriever", LocalDate.of(2022, 3, 15), 25.5,
+                                createPet(petOwner, "Buddy", com.petties.petties.model.enums.PetSpecies.DOG, "Golden Retriever", LocalDate.of(2022, 3, 15), 25.5,
                                                 "Đực"),
-                                createPet(petOwner, "Mimi", "Mèo", "British Shorthair", LocalDate.of(2023, 6, 20), 4.2,
+                                createPet(petOwner, "Mimi", com.petties.petties.model.enums.PetSpecies.CAT, "British Shorthair", LocalDate.of(2023, 6, 20), 4.2,
                                                 "Cái"),
-                                createPet(petOwner, "Max", "Chó", "German Shepherd", LocalDate.of(2021, 1, 10), 32.0,
+                                createPet(petOwner, "Max", com.petties.petties.model.enums.PetSpecies.DOG, "German Shepherd", LocalDate.of(2021, 1, 10), 32.0,
                                                 "Đực")
                 };
 
@@ -125,7 +125,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
         }
 
-        private Pet createPet(User owner, String name, String species, String breed,
+        private Pet createPet(User owner, String name, com.petties.petties.model.enums.PetSpecies species, String breed,
                         LocalDate dob, double weight, String gender) {
                 Pet pet = new Pet();
                 pet.setName(name);

@@ -36,6 +36,7 @@ import com.petties.petties.model.enums.ServiceCategory;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
 import com.petties.petties.util.BookingScheduleUtil;
+import com.petties.petties.util.SpeciesUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.petties.petties.dto.booking.EstimatedCompletionResponse;
@@ -81,6 +82,23 @@ public class BookingService {
         private final TrackingService trackingService;
 
         // ========== HELPER METHODS ==========
+
+        /**
+         * Validate vaccine species compatibility between pet and service
+         * Throws BadRequestException if vaccine is not compatible with pet species
+         */
+        private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
+                if (service.getVaccineTemplate() != null) {
+                        var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
+                        if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
+                                String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
+                                throw new BadRequestException(
+                                        String.format("Vắc-xin '%s' chỉ dành cho %s, không phù hợp với thú cưng '%s' của bạn",
+                                                service.getName(), vaccineSpecies, pet.getName())
+                                );
+                        }
+                }
+        }
 
         /**
          * Get current user by userId (helper method for Controller to avoid direct
@@ -159,6 +177,8 @@ public class BookingService {
                                                 if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
                                                         throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
                                                 }
+                                                // Validate vaccine species compatibility
+                                                validateVaccineSpeciesCompatibility(p, svc);
                                                 petsToUse.add(p);
                                                 servicesToUse.add(svc);
                                         }
@@ -181,6 +201,8 @@ public class BookingService {
                                         if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
                                                 throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
                                         }
+                                        // Validate vaccine species compatibility
+                                        validateVaccineSpeciesCompatibility(pet, s);
                                         petsToUse.add(pet);
                                         servicesToUse.add(s);
                                 }
@@ -367,12 +389,14 @@ public class BookingService {
                                 }
                         }
 
-                        // Step 6: Calculate pricing - tổng theo từng (service, pet) pair
+                        // Step 6: Validate vaccine species compatibility + Calculate pricing
                         Pet firstPet = createdPets.get(0);
                         BigDecimal servicesTotal = BigDecimal.ZERO;
                         for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
                                 ClinicService svc = serviceById.get(pair.getKey());
                                 if (svc != null) {
+                                        // Validate vaccine species compatibility
+                                        validateVaccineSpeciesCompatibility(pair.getValue(), svc);
                                         servicesTotal = servicesTotal.add(
                                                         pricingService.calculateServicePrice(svc, pair.getValue()));
                                 }
@@ -474,13 +498,13 @@ public class BookingService {
          */
         private Pet createPetForRecipient(ProxyPetInfo petInfo, User owner) {
                 // Set default dateOfBirth to today if not provided (required field in DB)
-                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null 
-                                ? petInfo.getDateOfBirth() 
+                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null
+                                ? petInfo.getDateOfBirth()
                                 : LocalDate.now();
 
                 Pet pet = Pet.builder()
                                 .name(petInfo.getName())
-                                .species(petInfo.getSpecies()) // String type
+                                .species(petInfo.getSpecies()) // PetSpecies enum
                                 .breed(petInfo.getBreed())
                                 .gender(petInfo.getGender()) // String type
                                 .dateOfBirth(dateOfBirth)

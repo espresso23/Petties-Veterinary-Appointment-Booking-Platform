@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../config/constants/app_colors.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/user_provider.dart';
@@ -8,6 +9,7 @@ import '../../../routing/app_routes.dart';
 import '../../../data/models/user_profile.dart';
 import '../../widgets/profile/avatar_picker.dart';
 import '../../widgets/profile/profile_info_card.dart';
+import '../../common/pet_owner_bottom_nav.dart';
 
 /// Profile Screen - Main profile view
 /// Displays user profile with Neobrutalism style
@@ -208,6 +210,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: _buildAppBar(),
@@ -228,6 +233,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
       ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 

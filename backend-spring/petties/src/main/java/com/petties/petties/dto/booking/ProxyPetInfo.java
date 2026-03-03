@@ -1,6 +1,8 @@
 package com.petties.petties.dto.booking;
 
+import com.petties.petties.model.enums.PetSpecies;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,9 +25,10 @@ public class ProxyPetInfo {
     private String name;
 
     /**
-     * Species: DOG, CAT, etc.
+     * Species: DOG, CAT, BIRD, RABBIT, HAMSTER, FISH, OTHER
      */
-    private String species;
+    @NotNull(message = "Loài thú cưng không được để trống")
+    private PetSpecies species;
 
     private String breed;
 

@@ -81,7 +81,7 @@ class BookingServiceUnitTest {
         pet = new Pet();
         pet.setId(UUID.randomUUID());
         pet.setName("Test Pet");
-        pet.setSpecies("Dog");
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
         pet.setBreed("Golden Retriever");
         pet.setDateOfBirth(java.time.LocalDate.now().minusYears(2));
         pet.setWeight(10.0);

@@ -119,8 +119,13 @@ public class StaffShiftService {
         List<String> blockedDates = new ArrayList<>(); // Track dates blocked by active bookings
         int repeatWeeks = request.getRepeatWeeks() != null ? request.getRepeatWeeks() : 1;
 
+        // Normalize workDates to avoid processing the same date multiple times in one request
+        List<LocalDate> uniqueWorkDates = request.getWorkDates().stream()
+                .distinct()
+                .toList();
+
         for (int week = 0; week < repeatWeeks; week++) {
-            for (LocalDate baseDate : request.getWorkDates()) {
+            for (LocalDate baseDate : uniqueWorkDates) {
                 LocalDate workDate = baseDate.plusWeeks(week);
 
                 // 4. Validate workDate is not in the past
@@ -144,74 +149,83 @@ public class StaffShiftService {
                     log.info("Skipping operating hours validation for force update on {}", workDate);
                 }
 
-                Optional<StaffShift> existingShift = staffShiftRepository.findOneByStaff_UserIdAndWorkDate(
+                Optional<StaffShift> existingShiftOpt = staffShiftRepository.findOneByStaff_UserIdAndWorkDate(
                         staff.getUserId(), workDate);
 
-                log.info("📋 Processing date {}: forceUpdate={}, existingShift={}", 
-                        workDate, forceUpdate, existingShift.isPresent() ? "YES" : "NO");
+                log.info("📋 Processing date {}: forceUpdate={}, existingShift={}",
+                        workDate, forceUpdate, existingShiftOpt.isPresent() ? "YES" : "NO");
 
                 boolean isUpdating = false;
-                if (existingShift.isPresent()) {
-                    if (forceUpdate) {
-                        // Check if new time conflicts with existing bookings
-                        StaffShift oldShift = existingShift.get();
-                        List<Slot> bookedSlots = slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(
-                                oldShift.getShiftId(), SlotStatus.BOOKED);
-                        
-                        if (!bookedSlots.isEmpty()) {
-                            // Check if new time range conflicts with any booked slots
-                            LocalTime newStart = request.getStartTime();
-                            LocalTime newEnd = request.getEndTime();
-                            
-                            log.info("🔍 Checking conflict: New shift {}~{} vs {} booked slots on {}", 
-                                    newStart, newEnd, bookedSlots.size(), workDate);
-                            
-                            List<String> conflictTimes = new ArrayList<>();
-                            for (Slot bookedSlot : bookedSlots) {
-                                LocalTime slotStart = bookedSlot.getStartTime();
-                                LocalTime slotEnd = bookedSlot.getEndTime();
-                                
-                                // Check if booked slot is OUTSIDE new time range
-                                boolean isOutsideNewRange = slotEnd.isBefore(newStart) || 
-                                                            slotEnd.equals(newStart) ||
-                                                            slotStart.isAfter(newEnd) || 
-                                                            slotStart.equals(newEnd);
-                                
-                                log.info("  → Booked slot {}~{}: isOutside={}", slotStart, slotEnd, isOutsideNewRange);
-                                
-                                if (!isOutsideNewRange) {
-                                    // Conflict detected - booked slot overlaps with new time
-                                    conflictTimes.add(slotStart + "-" + slotEnd);
-                                    log.warn("  ❌ CONFLICT: Booked slot {}~{} overlaps with new time", slotStart, slotEnd);
-                                } else {
-                                    log.info("  ✅ OK: Booked slot {}~{} is outside new time range", slotStart, slotEnd);
-                                }
-                            }
-                            
-                            if (!conflictTimes.isEmpty()) {
-                                // Cannot update - new time conflicts with bookings
-                                String conflictStr = String.join(", ", conflictTimes);
-                                log.warn("Skipping day {}: New time {}~{} conflicts with bookings at: {}", 
-                                        workDate, newStart, newEnd, conflictStr);
-                                blockedDates.add(workDate + " (lịch hẹn: " + conflictStr + ")");
-                                continue;
-                            }
-                            
-                            // No conflict - safe to update
-                            log.info("Force update: New time {}~{} does not conflict with {} bookings on {}",
-                                    newStart, newEnd, bookedSlots.size(), workDate);
-                        }
-                        
-                        log.info("Force update: Deleting existing shift {} for staff {} on {}",
-                                oldShift.getShiftId(), staff.getFullName(), workDate);
-                        staffShiftRepository.delete(oldShift);
-                        isUpdating = true;
-                    } else {
+                StaffShift targetShift;
+
+                if (existingShiftOpt.isPresent()) {
+                    if (!forceUpdate) {
                         log.warn(
                                 "Skipping day {}: Shift already exists for staff {} (use forceUpdate=true to override)",
                                 workDate, staff.getFullName());
                         continue;
                     }
+
+                    // Overwrite existing shift in-place (avoid delete + insert to satisfy unique_staff_date)
+                    StaffShift existingShift = existingShiftOpt.get();
+
+                    // Check if new time conflicts with existing bookings
+                    List<Slot> bookedSlots = slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(
+                            existingShift.getShiftId(), SlotStatus.BOOKED);
+
+                    if (!bookedSlots.isEmpty()) {
+                        // Check if new time range conflicts with any booked slots
+                        LocalTime newStart = request.getStartTime();
+                        LocalTime newEnd = request.getEndTime();
+
+                        log.info("🔍 Checking conflict: New shift {}~{} vs {} booked slots on {}",
+                                newStart, newEnd, bookedSlots.size(), workDate);
+
+                        List<String> conflictTimes = new ArrayList<>();
+                        for (Slot bookedSlot : bookedSlots) {
+                            LocalTime slotStart = bookedSlot.getStartTime();
+                            LocalTime slotEnd = bookedSlot.getEndTime();
+
+                            // Check if booked slot is OUTSIDE new time range
+                            boolean isOutsideNewRange = slotEnd.isBefore(newStart) ||
+                                    slotEnd.equals(newStart) ||
+                                    slotStart.isAfter(newEnd) ||
+                                    slotStart.equals(newEnd);
+
+                            log.info("  → Booked slot {}~{}: isOutside={}", slotStart, slotEnd, isOutsideNewRange);
+
+                            if (!isOutsideNewRange) {
+                                // Conflict detected - booked slot overlaps with new time
+                                conflictTimes.add(slotStart + "-" + slotEnd);
+                                log.warn("  ❌ CONFLICT: Booked slot {}~{} overlaps with new time", slotStart, slotEnd);
+                            } else {
+                                log.info("  ✅ OK: Booked slot {}~{} is outside new time range", slotStart, slotEnd);
+                            }
+                        }
+
+                        if (!conflictTimes.isEmpty()) {
+                            // Cannot update - new time conflicts with bookings
+                            String conflictStr = String.join(", ", conflictTimes);
+                            log.warn("Skipping day {}: New time {}~{} conflicts with bookings at: {}",
+                                    workDate, newStart, newEnd, conflictStr);
+                            blockedDates.add(workDate + " (lịch hẹn: " + conflictStr + ")");
+                            continue;
+                        }
+
+                        // No conflict - safe to update
+                        log.info("Force update: New time {}~{} does not conflict with {} bookings on {}",
+                                newStart, newEnd, bookedSlots.size(), workDate);
+                    }
+
+                    targetShift = existingShift;
+                    isUpdating = true;
+                } else {
+                    // No existing shift for this staff + date → create new one
+                    targetShift = StaffShift.builder()
+                            .clinic(clinic)
+                            .staff(staff)
+                            .workDate(workDate)
+                            .build();
                 }
 
                 // 7. Determine break times - from clinic operating hours, intersect with shift
@@ -237,23 +251,22 @@ public class StaffShiftService {
                     }
                 }
 
-                // 8. Create Shift Entity
-                StaffShift shift = StaffShift.builder()
-                        .clinic(clinic)
-                        .staff(staff)
-                        .workDate(workDate)
-                        .startTime(request.getStartTime())
-                        .endTime(request.getEndTime())
-                        .breakStart(breakStart)
-                        .breakEnd(breakEnd)
-                        .isOvernight(isOvernight)
-                        .build();
+                // 8. Populate / update shift fields
+                targetShift.setStartTime(request.getStartTime());
+                targetShift.setEndTime(request.getEndTime());
+                targetShift.setBreakStart(breakStart);
+                targetShift.setBreakEnd(breakEnd);
+                targetShift.setIsOvernight(isOvernight);
+                targetShift.setNotes(request.getNotes());
 
-                // 9. Generate slots and save
-                List<Slot> slots = generateSlots(shift, breakStart, breakEnd);
-                shift.setSlots(slots);
+                // 9. Regenerate slots (clear old ones to respect new time range)
+                if (targetShift.getSlots() != null && !targetShift.getSlots().isEmpty()) {
+                    targetShift.getSlots().clear();
+                }
+                List<Slot> slots = generateSlots(targetShift, breakStart, breakEnd);
+                targetShift.getSlots().addAll(slots);
 
-                StaffShift savedShift = staffShiftRepository.save(shift);
+                StaffShift savedShift = staffShiftRepository.save(targetShift);
 
                 // 10. Collect shifts for batch notification (instead of notifying individually)
                 if (isUpdating) {

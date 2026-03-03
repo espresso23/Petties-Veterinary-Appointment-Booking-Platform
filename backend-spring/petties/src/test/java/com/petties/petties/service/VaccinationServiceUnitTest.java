@@ -127,7 +127,7 @@ class VaccinationServiceUnitTest {
         UUID petId = UUID.randomUUID();
         Pet pet = new Pet();
         pet.setId(petId);
-        pet.setSpecies("DOG");
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
 
         VaccineTemplate template = new VaccineTemplate();
         template.setId(UUID.randomUUID());

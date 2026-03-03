@@ -106,7 +106,7 @@ describe('Booking Happy Flow - End-to-End', () => {
     {
       id: 'pet-001',
       name: 'Milu',
-      species: 'Chó',
+      species: 'DOG',
       breed: 'Golden Retriever',
       dateOfBirth: '2020-05-15',
       weight: 25.5,
@@ -263,7 +263,7 @@ describe('Booking Happy Flow - End-to-End', () => {
     expect(petService.getMyPets).toHaveBeenCalled()
     expect(result).toHaveLength(1)
     expect(result[0].name).toBe('Milu')
-    expect(result[0].species).toBe('Chó')
+    expect(result[0].species).toBe('DOG')
     expect(result[0].weight).toBe(25.5)
   })
 

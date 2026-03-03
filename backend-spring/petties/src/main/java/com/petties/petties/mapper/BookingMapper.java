@@ -149,7 +149,7 @@ public class BookingMapper {
                     // Pet info
                     .petId(pet.getId())
                     .petName(pet.getName())
-                    .petSpecies(pet.getSpecies())
+                    .petSpecies(pet.getSpecies() != null ? pet.getSpecies().name() : null)
                     .petBreed(pet.getBreed())
                     .petAge(petAge)
                     .petPhotoUrl(pet.getImageUrl())
@@ -215,7 +215,7 @@ public class BookingMapper {
         User owner = booking.getPetOwner();
 
         String petName = pet != null ? pet.getName() : "N/A";
-        String petSpecies = pet != null ? pet.getSpecies() : null;
+        String petSpecies = pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null;
         String petPhotoUrl = pet != null ? pet.getImageUrl() : null;
         String ownerName = owner != null ? owner.getFullName() : "N/A";
         String ownerPhone = owner != null ? owner.getPhone() : null;
@@ -351,7 +351,7 @@ public class BookingMapper {
                     // Pet info
                     .petId(pet != null ? pet.getId() : null)
                     .petName(pet != null ? pet.getName() : "N/A")
-                    .petSpecies(pet != null ? pet.getSpecies() : null)
+                    .petSpecies(pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null)
                     .petBreed(pet != null ? pet.getBreed() : null)
                     .petAge(petAge)
                     .petPhotoUrl(pet != null ? pet.getImageUrl() : null)

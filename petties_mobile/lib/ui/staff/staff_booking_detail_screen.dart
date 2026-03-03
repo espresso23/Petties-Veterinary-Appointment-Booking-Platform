@@ -148,9 +148,9 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
 
   Future<void> _autoStartTrackingIfNeeded() async {
     if (_booking == null) return;
-    // Auto start tracking when booking is already IN_PROGRESS (SOS/HOME_VISIT)
+    // Auto start tracking when booking is already IN_PROGRESS (SOS only)
     if (_booking!.status == 'IN_PROGRESS' &&
-        (_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT') &&
+        _booking!.type == 'SOS' &&
         _booking!.arrivedAt == null &&
         !_isTracking) {
       await _startTracking(callStartMoving: false);
@@ -389,10 +389,13 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final b = _booking!;
+            final bool isSos = b.type == 'SOS';
+            final bool isHomeVisit = b.type == 'HOME_VISIT';
             double servicesTotal =
                 b.services.fold(0, (sum, item) => sum + (item.price ?? 0));
             double distanceFee = b.distanceFee ?? 0;
-            double currentTotal = servicesTotal + distanceFee + overriddenFee;
+            double currentTotal =
+                servicesTotal + distanceFee + (isSos ? overriddenFee : 0);
 
             return AlertDialog(
               title: Row(
@@ -429,7 +432,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                     ]),
                     const Divider(height: 24),
                     // Fee breakdown & Override
-                    if (b.type == 'SOS' || b.type == 'HOME_VISIT') ...[
+                    if (isSos) ...[
                       const Text('ĐIỀU CHỈNH PHÍ SOS',
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -440,8 +443,8 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                         controller: feeController,
                         keyboardType: TextInputType.number,
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.edit_note,
-                              color: AppColors.coral),
+                          prefixIcon:
+                              const Icon(Icons.edit_note, color: AppColors.coral),
                           suffixText: 'VNĐ',
                           labelText: 'Phí SOS thực tế',
                           isDense: true,
@@ -460,6 +463,11 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                           child:
                               _buildPriceSimple('Phí di chuyển', distanceFee),
                         ),
+                      const Divider(height: 16),
+                    ] else if (isHomeVisit &&
+                        b.distanceFee != null &&
+                        b.distanceFee! > 0) ...[
+                      _buildPriceSimple('Phí di chuyển', distanceFee),
                       const Divider(height: 16),
                     ],
                     // Total
@@ -505,8 +513,17 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     _stopTracking();
     setState(() => _isActionLoading = true);
     try {
-      await _bookingService.checkout(widget.bookingId,
-          overriddenSosFee: overriddenFee);
+      // Nếu vẫn đang khám thì hoàn tất khám trước khi thanh toán
+      if (_booking?.status == 'IN_PROGRESS') {
+        await _bookingService.complete(widget.bookingId);
+      }
+      // Với SOS, cho phép điều chỉnh phí SOS; các loại khác chỉ checkout bình thường
+      if (_booking?.type == 'SOS') {
+        await _bookingService.checkout(widget.bookingId,
+            overriddenSosFee: overriddenFee);
+      } else {
+        await _bookingService.checkout(widget.bookingId);
+      }
       await _fetchBookingDetail();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -713,9 +730,12 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                     _booking!.bookingDate ?? 'N/A'),
                 _buildInfoRow(
                     Icons.access_time, 'Giờ hẹn', _getBookingTimeRange()),
-                if (_booking!.type == 'HOME_VISIT')
-                  _buildInfoRow(Icons.home, 'Loại', 'Khám tại nhà',
-                      valueColor: Colors.blue),
+                _buildInfoRow(
+                  _getBookingTypeIcon(),
+                  'Hình thức',
+                  _getBookingTypeLabel(),
+                  valueColor: _getBookingTypeColor(),
+                ),
               ],
             ),
           ),
@@ -1034,6 +1054,40 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     return _booking?.bookingTime?.substring(0, 5) ?? 'N/A';
   }
 
+  String _getBookingTypeLabel() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return 'Khám tại nhà';
+    }
+    if (type == 'SOS') {
+      return 'Cấp cứu SOS';
+    }
+    // Mặc định: khám tại phòng khám
+    return 'Khám tại phòng khám';
+  }
+
+  IconData _getBookingTypeIcon() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return Icons.home;
+    }
+    if (type == 'SOS') {
+      return Icons.emergency;
+    }
+    return Icons.local_hospital;
+  }
+
+  Color _getBookingTypeColor() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return AppColors.primary;
+    }
+    if (type == 'SOS') {
+      return AppColors.coral;
+    }
+    return AppColors.successDark;
+  }
+
   Widget _buildStatusBadge() {
     final status = _booking!.status;
     Color bgColor;
@@ -1156,7 +1210,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
       actionButton = Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_booking!.type == 'SOS' || _booking!.type == 'HOME_VISIT') ...[
+          if (_booking!.type == 'SOS') ...[
             _buildActionButton(
               label: 'BẮT ĐẦU DI CHUYỂN',
               icon: Icons.location_on,
@@ -1164,6 +1218,24 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
               onPressed: () {
                 _startTracking(callStartMoving: true);
               },
+            ),
+            const SizedBox(height: 12),
+            _buildActionButton(
+              label: 'CHỈ ĐƯỜNG (MAPS)',
+              icon: Icons.directions,
+              color: Colors.green,
+              onPressed: () => _openMap(
+                _booking!.homeLat,
+                _booking!.homeLong,
+                _booking!.homeAddress ?? '',
+              ),
+            ),
+          ] else if (_booking!.type == 'HOME_VISIT') ...[
+            _buildActionButton(
+              label: 'BẮT ĐẦU KHÁM',
+              icon: Icons.play_arrow,
+              color: AppColors.primary,
+              onPressed: _handleCheckIn,
             ),
             const SizedBox(height: 12),
             _buildActionButton(
@@ -1191,7 +1263,9 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
       final actions = <Widget>[
         _buildActionButton(
           label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
-          icon: _existingEmr != null ? Icons.description_outlined : Icons.assignment_outlined,
+          icon: _existingEmr != null
+              ? Icons.description_outlined
+              : Icons.assignment_outlined,
           color: _existingEmr != null ? Colors.green : Colors.blue,
           onPressed: () async {
             if (_existingEmr != null) {
@@ -1217,57 +1291,93 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             if (mounted) await _fetchBookingDetail();
           },
         ),
-        const SizedBox(height: 12),
-        _buildActionButton(
-          label: 'TIÊM VACCINE',
-          icon: Icons.vaccines_outlined,
-          color: Colors.purple,
-          onPressed: () {
-            final petId = _booking!.petId;
-            if (petId != null) {
-              final petName = _booking!.petName ?? 'Thú cưng';
-              String? initialVaccineName;
-              try {
-                final vaccService = _booking!.services.firstWhere(
-                  (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
-                      s.serviceName?.toLowerCase().contains('vaccine') == true,
-                );
-                initialVaccineName = vaccService.serviceName;
-              } catch (_) {
-                initialVaccineName = null;
-              }
-              context.push(
-                Uri(
-                  path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
-                  queryParameters: {
-                    'petName': petName,
-                    'bookingId': _booking!.bookingId,
-                    'bookingCode': _booking!.bookingCode,
-                    if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
-                  },
-                ).toString(),
-              );
-            }
-          },
-        ),
       ];
-      // Thêm dịch vụ phát sinh: chỉ cho booking khám tại nhà (HOME_VISIT)
-      if (_booking!.type == 'HOME_VISIT') {
+
+      // Với SOS, không hiển thị shortcut TIÊM VACCINE
+      if (_booking!.type != 'SOS') {
         actions.addAll([
           const SizedBox(height: 12),
           _buildActionButton(
-            label: 'THÊM DỊCH VỤ PHÁT SINH',
+            label: 'TIÊM VACCINE',
+            icon: Icons.vaccines_outlined,
+            color: Colors.purple,
+            onPressed: () {
+              final petId = _booking!.petId;
+              if (petId != null) {
+                final petName = _booking!.petName ?? 'Thú cưng';
+                String? initialVaccineName;
+                try {
+                  final vaccService = _booking!.services.firstWhere(
+                    (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
+                        s.serviceName?.toLowerCase().contains('vaccine') == true,
+                  );
+                  initialVaccineName = vaccService.serviceName;
+                } catch (_) {
+                  initialVaccineName = null;
+                }
+                context.push(
+                  Uri(
+                    path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                    queryParameters: {
+                      'petName': petName,
+                      'bookingId': _booking!.bookingId,
+                      'bookingCode': _booking!.bookingCode,
+                      if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
+                    },
+                  ).toString(),
+                );
+              }
+            },
+          ),
+        ]);
+      }
+      // Thêm dịch vụ:
+      // - HOME_VISIT: hiển thị là "THÊM DỊCH VỤ PHÁT SINH"
+      // - SOS: hiển thị là "THÊM DỊCH VỤ"
+      if (_booking!.type == 'HOME_VISIT' || _booking!.type == 'SOS') {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: _booking!.type == 'SOS'
+                ? 'THÊM DỊCH VỤ'
+                : 'THÊM DỊCH VỤ PHÁT SINH',
             icon: Icons.add_circle_outline,
             color: AppColors.primary,
             onPressed: () async {
               final bid = _booking!.bookingId;
               final cid = _booking!.clinicId ?? '';
               if (bid != null) {
-                final path = AppRoutes.staffAddService.replaceAll(':bookingId', bid);
-                final result = await context.push<bool>('$path?clinicId=$cid');
+                final path =
+                    AppRoutes.staffAddService.replaceAll(':bookingId', bid);
+                final result =
+                    await context.push<bool>('$path?clinicId=$cid');
                 if (result == true && mounted) await _fetchBookingDetail();
               }
             },
+          ),
+        ]);
+      }
+      // Nút kết thúc flow theo từng loại booking
+      if (_booking!.type == 'HOME_VISIT' || _booking!.type == 'SOS') {
+        // HOME_VISIT & SOS: Hoàn tất khám và thanh toán gộp chung trong bước checkout
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'Xem lại hóa đơn & thanh toán',
+            icon: Icons.receipt_long,
+            color: AppColors.primary,
+            onPressed: _handleCheckout,
+          ),
+        ]);
+      } else {
+        // Các loại khác: có bước hoàn tất khám riêng
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'HOÀN TẤT KHÁM',
+            icon: Icons.check_circle_outline,
+            color: Colors.green,
+            onPressed: _handleComplete,
           ),
         ]);
       }

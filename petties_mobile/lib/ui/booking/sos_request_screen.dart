@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong_to_place/latlong_to_place.dart';
+
 import '../../config/constants/app_colors.dart';
 import '../../config/env/environment.dart';
 import '../../data/models/pet.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/services/pet_service.dart';
 import '../../data/services/sos_matching_service.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:latlong_to_place/latlong_to_place.dart';
 import '../../routing/app_routes.dart';
 import '../widgets/profile/location_picker.dart';
 import 'sos_radar_map_screen.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 /// SOS Request Pre-screen
 /// Allows user to select pet and enter symptoms before starting matching
@@ -461,7 +463,16 @@ class _SosRequestScreenState extends State<SosRequestScreen> {
           : _error != null
               ? _buildErrorView()
               : _buildContent(),
-      bottomNavigationBar: _buildBottomButton(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildBottomButton(),
+          PetOwnerBottomNav(
+            currentIndex: 2,
+            onTap: (index) => handlePetOwnerNavTap(context, index),
+          ),
+        ],
+      ),
     );
   }
 
