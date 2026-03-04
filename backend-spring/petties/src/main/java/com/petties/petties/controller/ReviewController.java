@@ -58,6 +58,21 @@ public class ReviewController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('PET_OWNER')")
+    @DeleteMapping("/{reviewId}")
+    public ResponseEntity<Void> deleteReview(
+            @PathVariable UUID reviewId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+
+        User user = userRepository.findById(userPrincipal.getUserId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        reviewService.deleteReview(reviewId, user);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/clinic/{clinicId}")
     public ResponseEntity<List<ReviewResponseDTO>> getClinicReviews(@PathVariable UUID clinicId) {
         log.info("CONTROLLER: Received request for clinic reviews. ID: {}", clinicId);

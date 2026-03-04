@@ -59,7 +59,7 @@ class PetServiceUnitTest {
         // Arrange
         PetRequest request = new PetRequest();
         request.setName("Buddy");
-        request.setSpecies("DOG");
+        request.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
 
         User user = new User();
         user.setUserId(UUID.randomUUID());

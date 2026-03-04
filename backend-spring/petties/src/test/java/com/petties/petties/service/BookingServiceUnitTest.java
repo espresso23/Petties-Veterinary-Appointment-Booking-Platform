@@ -81,7 +81,7 @@ class BookingServiceUnitTest {
         pet = new Pet();
         pet.setId(UUID.randomUUID());
         pet.setName("Test Pet");
-        pet.setSpecies("Dog");
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
         pet.setBreed("Golden Retriever");
         pet.setDateOfBirth(java.time.LocalDate.now().minusYears(2));
         pet.setWeight(10.0);
@@ -114,6 +114,7 @@ class BookingServiceUnitTest {
         service.setIsActive(true);
         service.setServiceCategory(ServiceCategory.SURGERY);
         service.setDurationTime(30);
+        service.setIsHomeVisit(true); // HOME_VISIT add-on tests: chỉ dịch vụ tại nhà
     }
 
     @Nested
@@ -189,6 +190,23 @@ class BookingServiceUnitTest {
             assertNotNull(response);
             verify(bookingRepository, times(1)).save(any());
         }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-08: HOME_VISIT cannot add clinic-only service (isHomeVisit=false)")
+        void addServiceToBooking_HomeVisit_ClinicOnlyService_Fail() {
+            service.setIsHomeVisit(false); // Dịch vụ chỉ tại phòng khám
+            User manager = new User();
+            manager.setRole(Role.CLINIC_MANAGER);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                bookingService.addServiceToBooking(bookingId, serviceId, manager);
+            });
+
+            assertTrue(exception.getMessage().contains("tại nhà"));
+        }
     }
 
     @Nested
@@ -206,11 +224,13 @@ class BookingServiceUnitTest {
             surgeryService.setServiceId(UUID.randomUUID());
             surgeryService.setServiceCategory(ServiceCategory.SURGERY);
             surgeryService.setName("Surgery");
+            surgeryService.setIsHomeVisit(true); // HOME_VISIT booking: chỉ dịch vụ tại nhà
 
             com.petties.petties.model.ClinicService dentalService = new com.petties.petties.model.ClinicService();
             dentalService.setServiceId(UUID.randomUUID());
             dentalService.setServiceCategory(ServiceCategory.DENTAL);
             dentalService.setName("Dental");
+            dentalService.setIsHomeVisit(true);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
@@ -237,10 +257,12 @@ class BookingServiceUnitTest {
             com.petties.petties.model.ClinicService service1 = new com.petties.petties.model.ClinicService();
             service1.setServiceId(serviceId);
             service1.setName("Existing");
+            service1.setIsHomeVisit(true); // booking type HOME_VISIT trong setUp
 
             com.petties.petties.model.ClinicService service2 = new com.petties.petties.model.ClinicService();
             service2.setServiceId(UUID.randomUUID());
             service2.setName("New");
+            service2.setIsHomeVisit(true);
 
             // Mock existing service in booking
             BookingServiceItem item = new BookingServiceItem();

@@ -45,6 +45,7 @@ export const NotificationsPage = () => {
 
   // SSE hook for real-time notifications
   useSseNotification({
+    silent: true,
     onNotification: () => {
       // Refresh when new notification arrives
       loadNotifications()

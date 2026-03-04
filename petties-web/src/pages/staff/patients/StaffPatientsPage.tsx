@@ -18,6 +18,7 @@ import { tokenStorage } from '../../../services/authService'
 import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
+import 'react-datepicker/dist/react-datepicker.css'
 import { getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
 import type { Booking } from '../../../types/booking'
 import { useAuthStore } from '../../../store/authStore'
@@ -300,12 +301,11 @@ export const StaffPatientsPage = () => {
     const filteredPatients = patients.filter((p) => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             p.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
+        const speciesUpper = p.species.toUpperCase()
         const matchesSpecies = speciesFilter === 'all' ||
-            (speciesFilter === 'dog' && p.species.toLowerCase().includes('chó')) ||
-            (speciesFilter === 'dog' && p.species.toLowerCase() === 'dog') ||
-            (speciesFilter === 'cat' && p.species.toLowerCase().includes('mèo')) ||
-            (speciesFilter === 'cat' && p.species.toLowerCase() === 'cat') ||
-            (speciesFilter === 'other' && !['chó', 'dog', 'mèo', 'cat'].some(s => p.species.toLowerCase().includes(s)))
+            (speciesFilter === 'dog' && speciesUpper === 'DOG') ||
+            (speciesFilter === 'cat' && speciesUpper === 'CAT') ||
+            (speciesFilter === 'other' && !['DOG', 'CAT'].includes(speciesUpper))
         return matchesSearch && matchesSpecies
     })
 
@@ -334,10 +334,13 @@ export const StaffPatientsPage = () => {
     const totalPages = Math.ceil(totalPatients / rowsPerPage) || 1
 
     const getSpeciesEmoji = (species: string) => {
-        const s = species.toLowerCase()
-        if (s.includes('chó') || s === 'dog') return 'Chó'
-        if (s.includes('mèo') || s === 'cat') return 'Mèo'
-        if (s.includes('thỏ') || s === 'rabbit') return 'Thỏ'
+        const s = species.toUpperCase()
+        if (s === 'DOG') return 'Chó'
+        if (s === 'CAT') return 'Mèo'
+        if (s === 'RABBIT') return 'Thỏ'
+        if (s === 'BIRD') return 'Chim'
+        if (s === 'HAMSTER') return 'Hamster'
+        if (s === 'FISH') return 'Cá'
         return 'Pet'
     }
 
@@ -476,7 +479,7 @@ export const StaffPatientsPage = () => {
                                                 <span className="text-stone-400 text-xs italic">Không có lịch</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-stone-600">{patient.species} / {patient.breed}</td>
+                                        <td className="px-4 py-3 text-stone-600">{getSpeciesEmoji(patient.species)} / {patient.breed}</td>
                                         <td className="px-4 py-3 text-stone-600">{patient.ownerName}</td>
                                         <td className="px-4 py-3 text-stone-600">{patient.weight ? `${patient.weight} kg` : '--'}</td>
                                     </tr>
@@ -572,7 +575,7 @@ export const StaffPatientsPage = () => {
                                     <div className="grid grid-cols-5 gap-4 bg-stone-50 rounded-xl p-4">
                                         <div>
                                             <p className="text-xs text-stone-500 uppercase font-bold">Loài</p>
-                                            <p className="font-bold text-stone-800">{selectedPatient.species}</p>
+                                            <p className="font-bold text-stone-800">{getSpeciesEmoji(selectedPatient.species)}</p>
                                         </div>
                                         <div>
                                             <p className="text-xs text-stone-500 uppercase font-bold">Giống</p>

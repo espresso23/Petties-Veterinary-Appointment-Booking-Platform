@@ -103,7 +103,6 @@ class AppointmentDetailScreen extends StatelessWidget {
         icon = Icons.hourglass_top;
         break;
       case 'CONFIRMED':
-      case 'ASSIGNED':
         color = Colors.blue;
         label = 'ĐÃ XÁC NHẬN';
         icon = Icons.check_circle;
@@ -814,7 +813,7 @@ class AppointmentDetailScreen extends StatelessWidget {
         ),
       );
     } else if (booking.type == 'SOS' &&
-        ['CONFIRMED', 'ASSIGNED', 'IN_PROGRESS'].contains(booking.status)) {
+      ['CONFIRMED', 'IN_PROGRESS'].contains(booking.status)) {
       // For SOS, if it's confirmed or in progress (moving), check if it can be cancelled
       // It can be cancelled if arrivedAt is null (still on the way)
       final bool canCancel =

@@ -81,7 +81,6 @@ const MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ id: string; name: string }
     { id: 'google/gemini-2.5-flash-preview', name: 'Gemini 2.5 Flash Preview' },
     { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B' },
     { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
     { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B' },
   ],
   deepseek: [
@@ -761,6 +760,12 @@ export const PlaygroundPage = () => {
           </div>
         </div>
       </div>
+
+      {connectionStatus === 'error' && (
+        <div className="px-4 py-2 bg-red-100 border-b-2 border-stone-900 text-xs text-red-800 font-bold">
+          Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AGENT_SERVICE_URL (không thêm /ai, /api, /ws) và tải lại trang.
+        </div>
+      )}
 
       {/* Main Content - Split View */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">

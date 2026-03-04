@@ -119,11 +119,8 @@ class ChatConversation extends BaseModel {
       lastMessage: json['lastMessage'] ?? json['last_message'],
       lastMessageSender:
           json['lastMessageSender'] ?? json['last_message_sender'],
-      lastMessageAt: json['lastMessageAt'] != null
-          ? DateTime.parse(json['lastMessageAt'])
-          : json['last_message_at'] != null
-              ? DateTime.parse(json['last_message_at'])
-              : null,
+      lastMessageAt:
+          _parseUtcDateConv(json['lastMessageAt'] ?? json['last_message_at']),
       // API returns unreadCount mapped by role (for Pet Owner, this is their unread count)
       unreadCount: (json['unreadCount'] ?? json['unread_count'] ?? 0) as int,
       unreadCountPetOwner: (json['unreadCountPetOwner'] ??
@@ -151,6 +148,18 @@ class ChatConversation extends BaseModel {
     if (value is bool) return value;
     if (value is String) return value.toLowerCase() == 'true';
     return null;
+  }
+
+  /// Parse date string from backend as UTC and convert to local time
+  static DateTime? _parseUtcDateConv(dynamic value) {
+    if (value == null) return null;
+    String dateStr = value.toString();
+    if (!dateStr.endsWith('Z') &&
+        !dateStr.contains('+') &&
+        !RegExp(r'-\d{2}:\d{2}$').hasMatch(dateStr)) {
+      dateStr += 'Z';
+    }
+    return DateTime.parse(dateStr).toLocal();
   }
 
   @override
@@ -246,6 +255,7 @@ class ChatMessage extends BaseModel {
   final DateTime? readAt;
   final DateTime createdAt;
   final bool isUploading; // Flag for upload state
+  final List<ActionButton>? actionButtons; // Add actionButtons
 
   ChatMessage({
     required this.id,
@@ -262,6 +272,7 @@ class ChatMessage extends BaseModel {
     this.readAt,
     required this.createdAt,
     this.isUploading = false,
+    this.actionButtons,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -277,22 +288,38 @@ class ChatMessage extends BaseModel {
       senderName: json['senderName'] ?? json['sender_name'],
       senderAvatar: json['senderAvatar'] ?? json['sender_avatar'],
       content: json['content'] ?? '',
-      messageType: MessageType.fromString(json['messageType'] ?? json['message_type']),
+      messageType:
+          MessageType.fromString(json['messageType'] ?? json['message_type']),
       imageUrl: json['imageUrl'] ?? json['image_url'],
       status: MessageStatus.fromString(json['status']),
       isRead: json['isRead'] ?? json['is_read'] ?? false,
-      readAt: json['readAt'] != null
-          ? DateTime.parse(json['readAt'])
-          : json['read_at'] != null
-              ? DateTime.parse(json['read_at'])
-              : null,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : json['created_at'] != null
-              ? DateTime.parse(json['created_at'])
-              : DateTime.now(),
-      isUploading: json['isUploading'] ?? false, // Default to false when parsing from JSON
+      readAt: _parseUtcDate(json['readAt'] ?? json['read_at']),
+      createdAt: _parseUtcDate(json['createdAt'] ?? json['created_at']) ??
+          DateTime.now(),
+      isUploading: json['isUploading'] ??
+          false, // Default to false when parsing from JSON
+      actionButtons: (json['actionButtons'] ?? json['action_buttons']) != null
+          ? ((json['actionButtons'] ?? json['action_buttons']) as List)
+              .map((e) =>
+                  ActionButton.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList()
+          : null,
     );
+  }
+
+  /// Parse date string from backend as UTC and convert to local time
+  /// Backend returns dates without timezone suffix (e.g., "2026-02-23T03:50:36.568")
+  /// which is actually UTC time
+  static DateTime? _parseUtcDate(dynamic value) {
+    if (value == null) return null;
+    String dateStr = value.toString();
+    // If no timezone info, treat as UTC by appending 'Z'
+    if (!dateStr.endsWith('Z') &&
+        !dateStr.contains('+') &&
+        !RegExp(r'-\d{2}:\d{2}$').hasMatch(dateStr)) {
+      dateStr += 'Z';
+    }
+    return DateTime.parse(dateStr).toLocal();
   }
 
   @override
@@ -309,11 +336,33 @@ class ChatMessage extends BaseModel {
       'isRead': isRead,
       'readAt': readAt?.toIso8601String(),
       'createdAt': createdAt.toIso8601String(),
+      if (actionButtons != null)
+        'actionButtons': actionButtons!.map((e) => e.toJson()).toList(),
     };
   }
 
   /// Kiểm tra tin nhắn có phải của mình không (Pet Owner)
   bool get isMine => senderType == SenderType.petOwner;
+
+  /// Get secure image URL with Cloudinary format optimization
+  /// Forces JPG format to avoid PNG rendering issues on some devices
+  String? get secureImageUrl {
+    if (imageUrl == null || imageUrl!.isEmpty) return null;
+    String url = imageUrl!;
+
+    // Force HTTPS
+    if (url.startsWith('http://')) {
+      url = url.replaceFirst('http://', 'https://');
+    }
+
+    // Transform Cloudinary URLs to force JPG format for better compatibility
+    if (url.contains('res.cloudinary.com') && url.contains('/upload/')) {
+      // Add f_jpg,q_auto transformation after /upload/
+      url = url.replaceFirst('/upload/', '/upload/f_jpg,q_auto/');
+    }
+
+    return url;
+  }
 
   /// Copy with updated fields
   ChatMessage copyWith({
@@ -331,6 +380,7 @@ class ChatMessage extends BaseModel {
     DateTime? readAt,
     DateTime? createdAt,
     bool? isUploading,
+    List<ActionButton>? actionButtons,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -347,6 +397,7 @@ class ChatMessage extends BaseModel {
       readAt: readAt ?? this.readAt,
       createdAt: createdAt ?? this.createdAt,
       isUploading: isUploading ?? this.isUploading,
+      actionButtons: actionButtons ?? this.actionButtons,
     );
   }
 }
@@ -377,5 +428,34 @@ class UnreadCountResponse {
 
   factory UnreadCountResponse.fromJson(Map<String, dynamic> json) {
     return UnreadCountResponse(count: json['count'] ?? 0);
+  }
+}
+
+/// Model cho Action Button trong tin nhắn
+class ActionButton {
+  final String id;
+  final String label;
+  final String type; // 'MENU', 'OFFER', 'BOOKING', 'CUSTOM'
+
+  ActionButton({
+    required this.id,
+    required this.label,
+    required this.type,
+  });
+
+  factory ActionButton.fromJson(Map<String, dynamic> json) {
+    return ActionButton(
+      id: json['id'] ?? '',
+      label: json['label'] ?? '',
+      type: json['type'] ?? 'CUSTOM',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'label': label,
+      'type': type,
+    };
   }
 }

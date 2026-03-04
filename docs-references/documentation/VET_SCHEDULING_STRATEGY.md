@@ -210,7 +210,7 @@ sequenceDiagram
 1. Lock tất cả slots cần thiết
 2. Đánh dấu slots = BOOKED
 3. Gắn booking_id vào các slots
-4. Update booking: `vet_id`, `status = ASSIGNED`
+4. Update booking: `vet_id`, `status = CONFIRMED`
 5. Notify Staff
 
 ```mermaid
@@ -226,7 +226,7 @@ flowchart TB
     E --> G
     
     G --> H["Lock 3 slots"]
-    H --> I["Status = ASSIGNED"]
+   H --> I["Status = CONFIRMED"]
     I --> J["Notify Staff"]
 
     subgraph REASSIGN["GÁN LẠI STAFF (v1.5.0)"]

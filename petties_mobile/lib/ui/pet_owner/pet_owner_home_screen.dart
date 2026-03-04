@@ -8,6 +8,7 @@ import '../../data/services/pet_service.dart';
 import '../../data/models/pet.dart';
 import '../clinics/clinic_search_view.dart';
 import '../booking/my_bookings_tab.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 /// Pet Owner Home Screen - Neobrutalism Style
 class PetOwnerHomeScreen extends StatefulWidget {
@@ -142,10 +143,12 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
                   : [],
             ),
       body: SafeArea(child: bodyContent),
-      bottomNavigationBar: _buildBrutalNavBar(context),
+      bottomNavigationBar: PetOwnerBottomNav(
+        currentIndex: _currentIndex,
+        onTap: _onTabTapped,
+      ),
     );
   }
-
   Widget _buildHomeTab(BuildContext context, AuthProvider authProvider) {
     final user = authProvider.user;
     return RefreshIndicator(
@@ -573,39 +576,4 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
     );
   }
 
-  Widget _buildBrutalNavBar(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.stone900, width: 2),
-        ),
-      ),
-      padding: EdgeInsets.only(
-        left: MediaQuery.of(context).padding.left,
-        right: MediaQuery.of(context).padding.right,
-        bottom: bottomPadding,
-      ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-        currentIndex: _currentIndex,
-        elevation: 0,
-        onTap: _onTabTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
-        ],
-      ),
-    );
-  }
 }

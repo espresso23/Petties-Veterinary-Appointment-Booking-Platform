@@ -42,7 +42,8 @@ export function MessageInput({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
+      const scrollH = textareaRef.current.scrollHeight
+      textareaRef.current.style.height = `${Math.max(44, Math.min(scrollH, 120))}px`
     }
   }, [text])
 
@@ -71,7 +72,6 @@ export function MessageInput({
 
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -138,6 +138,7 @@ export function MessageInput({
     else if (selectedImages.length > 0 && onImageUpload) {
       console.log('MessageInput: Sending only images, count:', selectedImages.length)
       setIsUploading(true)
+      let successCount = 0
       let failCount = 0
 
       try {
@@ -146,9 +147,10 @@ export function MessageInput({
           try {
             console.log('Uploading image:', image.name)
             await onImageUpload(image)
+            successCount++
             console.log('Upload success:', image.name)
-          } catch (error) {
-            console.error('Failed to upload image:', image.name, error)
+          } catch (imageError) {
+            console.error('Failed to upload image:', image.name, imageError)
             failCount++
           }
         }
@@ -288,9 +290,9 @@ export function MessageInput({
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white border-t-2 border-stone-900 p-4 flex items-end gap-3"
+        className="bg-white border-t-2 border-stone-900 p-4 flex items-center gap-3"
       >
-        <div className="flex-1 relative">
+        <div className="flex-1 relative translate-y-[2px]">
           <textarea
             ref={textareaRef}
             value={text}
@@ -299,7 +301,8 @@ export function MessageInput({
             placeholder={placeholder}
             disabled={disabled}
             rows={1}
-            className="w-full min-h-[48px] max-h-[120px] py-3 px-4 bg-stone-50 border-2 border-stone-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 resize-none disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            style={{ height: '44px' }}
+            className="w-full max-h-[120px] py-[9px] px-4 bg-stone-50 border-2 border-stone-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600/20 focus:border-amber-600 resize-none disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm leading-[22px]"
           />
         </div>
 
@@ -319,16 +322,16 @@ export function MessageInput({
             type="button"
             onClick={handleImageButtonClick}
             disabled={disabled || isUploading}
-            className="px-4 py-2 bg-white border-2 border-stone-900 rounded-lg text-sm font-bold shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[2px_2px_0_#1c1917] disabled:hover:translate-x-0 disabled:hover:translate-y-0 flex items-center justify-center"
+            className="flex-shrink-0 w-[44px] h-[44px] bg-white border-2 border-stone-900 rounded-xl shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[2px_2px_0_#1c1917] disabled:hover:translate-x-0 disabled:hover:translate-y-0 flex items-center justify-center"
           >
-            <PhotoIcon className="w-4 h-4" />
+            <PhotoIcon className="w-5 h-5" />
           </button>
         )}
 
         <button
           type="submit"
           disabled={(!text.trim() && selectedImages.length === 0) || disabled || isUploading}
-          className="flex-shrink-0 w-12 h-12 bg-amber-600 text-white rounded-full border-2 border-stone-900 shadow-[3px_3px_0_#1c1917] hover:shadow-[5px_5px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_#1c1917] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[3px_3px_0_#1c1917] disabled:hover:translate-x-0 disabled:hover:translate-y-0 transition-all flex items-center justify-center"
+          className="flex-shrink-0 w-[44px] h-[44px] bg-amber-600 text-white rounded-xl border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_#1c1917] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[2px_2px_0_#1c1917] disabled:hover:translate-x-0 disabled:hover:translate-y-0 transition-all flex items-center justify-center"
         >
           <PaperAirplaneIcon className="w-5 h-5" />
         </button>

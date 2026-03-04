@@ -13,6 +13,7 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -176,12 +177,10 @@ public class VaccinationService {
     }
 
     /**
-     * Auto-create draft vaccination records from booking
+     * Auto-create draft vaccination records from booking.
+     * Uses REQUIRES_NEW so failures don't roll back the parent transaction (e.g. check-in).
      */
-    /**
-     * Auto-create draft vaccination records from booking
-     */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createDraftFromBooking(com.petties.petties.model.Booking booking,
             com.petties.petties.model.BookingServiceItem item) {
         // Only create drafts for active/pending bookings
@@ -193,6 +192,12 @@ public class VaccinationService {
 
         if (item.getService() == null || item.getService()
                 .getServiceCategory() != com.petties.petties.model.enums.ServiceCategory.VACCINATION) {
+            return;
+        }
+
+        // Skip if clinic is null (e.g. SOS booking during matching phase)
+        if (booking.getClinic() == null) {
+            log.debug("Skipping vaccination draft creation: booking {} has no clinic", booking.getBookingId());
             return;
         }
 
@@ -288,30 +293,8 @@ public class VaccinationService {
         if (t.getTargetSpecies() == null || t.getTargetSpecies().name().equalsIgnoreCase("BOTH")) {
             return true;
         }
-        String petSpecies = pet.getSpecies() != null ? pet.getSpecies().toLowerCase() : "";
-        String normalizedSpecies = java.text.Normalizer.normalize(petSpecies, java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
-
-        boolean isDog = normalizedSpecies.contains("dog") || normalizedSpecies.contains("cho")
-                || petSpecies.contains("chó");
-        boolean isCat = normalizedSpecies.contains("cat") || normalizedSpecies.contains("meo")
-                || petSpecies.contains("mèo");
-
-        if (isDog) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("DOG");
-        }
-        if (isCat) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("CAT");
-        }
-
-        // Fallback: check template name if pet species is unknown
-        String templateName = t.getName().toLowerCase();
-        if (templateName.contains("(chó)") && isCat)
-            return false;
-        if (templateName.contains("(mèo)") && isDog)
-            return false;
-
-        return false;
+        // Use SpeciesUtils for proper enum-based compatibility check
+        return com.petties.petties.util.SpeciesUtils.isVaccineCompatible(t.getTargetSpecies(), pet.getSpecies());
     }
 
     private VaccinationResponse predictNextDose(com.petties.petties.model.VaccineTemplate t,

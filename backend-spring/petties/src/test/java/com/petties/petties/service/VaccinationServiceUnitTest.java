@@ -127,7 +127,7 @@ class VaccinationServiceUnitTest {
         UUID petId = UUID.randomUUID();
         Pet pet = new Pet();
         pet.setId(petId);
-        pet.setSpecies("DOG");
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
 
         VaccineTemplate template = new VaccineTemplate();
         template.setId(UUID.randomUUID());
@@ -223,9 +223,14 @@ class VaccinationServiceUnitTest {
         Pet pet = new Pet();
         pet.setId(petId);
 
+        com.petties.petties.model.Clinic clinic = new com.petties.petties.model.Clinic();
+        clinic.setClinicId(UUID.randomUUID());
+        clinic.setName("Test Clinic");
+
         com.petties.petties.model.Booking booking = new com.petties.petties.model.Booking();
         booking.setBookingId(bookingId);
         booking.setPet(pet);
+        booking.setClinic(clinic);
         booking.setStatus(com.petties.petties.model.enums.BookingStatus.PENDING);
 
         com.petties.petties.model.ClinicService service = new com.petties.petties.model.ClinicService();

@@ -1160,7 +1160,7 @@ class BookingControllerUnitTest {
 
                 ProxyPetInfo petInfo = ProxyPetInfo.builder()
                                 .name("Buddy")
-                                .species("DOG")
+                                .species(com.petties.petties.model.enums.PetSpecies.DOG)
                                 .breed("Golden Retriever")
                                 .weight(new BigDecimal("15.0"))
                                 .build();

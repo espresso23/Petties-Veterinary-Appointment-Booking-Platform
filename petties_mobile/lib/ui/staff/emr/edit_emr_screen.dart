@@ -260,7 +260,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         await _petService.updatePet(
           id: pet.id,
           name: pet.name,
-          species: pet.species,
+          species: pet.species.value,
           breed: pet.breed,
           dateOfBirth: pet.dateOfBirth,
           weight: pet.weight,
@@ -567,7 +567,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                         ],
                       ],
                     ),
-                    Text('${pet.species} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}', style: const TextStyle(color: Colors.grey)),
+                    Text('${pet.species.displayName} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}', style: const TextStyle(color: Colors.grey)),
                     Text(
                       '${_calculateAge(pet.dateOfBirth)} • ${_getGenderVietnamese(pet.gender)}',
                       style: const TextStyle(color: AppColors.stone800, fontWeight: FontWeight.w600, fontSize: 13),

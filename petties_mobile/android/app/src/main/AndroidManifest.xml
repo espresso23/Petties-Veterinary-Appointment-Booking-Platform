@@ -53,6 +53,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Disable Impeller to fix image rendering issues on some devices -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <!-- Google Map API Key -->
         <meta-data android:name="com.google.android.geo.API_KEY"
                android:value="${MAP_API_KEY}"/>

@@ -3,6 +3,7 @@ package com.petties.petties.controller;
 import com.petties.petties.dto.clinicService.ClinicServiceRequest;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceUpdateRequest;
+import com.petties.petties.model.enums.PetSpecies;
 import com.petties.petties.service.ClinicServiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -135,6 +136,25 @@ public class ClinicServiceController {
     @PreAuthorize("permitAll()")
     public ResponseEntity<List<ClinicServiceResponse>> getServicesByClinicId(@PathVariable UUID clinicId) {
         List<ClinicServiceResponse> services = serviceService.getPublicServicesByClinicId(clinicId);
+        return ResponseEntity.ok(services);
+    }
+
+    /**
+     * PUBLIC: Get services compatible with a specific pet species
+     * GET /api/services/by-clinic/{clinicId}/compatible
+     * Used by booking wizard to filter services for a specific pet
+     *
+     * @param clinicId    Clinic ID
+     * @param petSpecies  Pet species to filter (DOG, CAT, BIRD, RABBIT, HAMSTER, FISH, OTHER)
+     * @param isHomeVisit Only return home visit services
+     */
+    @GetMapping("/by-clinic/{clinicId}/compatible")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<List<ClinicServiceResponse>> getCompatibleServices(
+            @PathVariable UUID clinicId,
+            @RequestParam(required = false) PetSpecies petSpecies,
+            @RequestParam(required = false) Boolean isHomeVisit) {
+        List<ClinicServiceResponse> services = serviceService.getCompatibleServices(clinicId, petSpecies, isHomeVisit);
         return ResponseEntity.ok(services);
     }
 

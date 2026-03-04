@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../../routing/app_routes.dart';
+import '../../providers/auth_provider.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final String id;
@@ -46,7 +50,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         await _petService.updatePet(
           id: pet.id,
           name: pet.name,
-          species: pet.species,
+          species: pet.species.value,
           breed: pet.breed,
           dateOfBirth: pet.dateOfBirth,
           weight: pet.weight,
@@ -148,6 +152,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: AppBar(
@@ -264,7 +271,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                 border: Border.all(color: AppColors.stone200),
                               ),
                               child: Text(
-                                '${pet.species} • ${pet.breed}',
+                                '${pet.species.displayName} • ${pet.breed}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.stone700,
@@ -328,6 +335,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           );
         },
       ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 

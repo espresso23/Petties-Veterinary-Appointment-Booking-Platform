@@ -48,6 +48,11 @@ public class BookingMapper {
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
 
+            if (pet == null || owner == null) {
+                log.warn("Booking {} has null pet or owner - cannot map to response", booking.getBookingId());
+                throw new IllegalArgumentException("Dữ liệu lịch hẹn không hợp lệ: thiếu thông tin thú cưng hoặc chủ sở hữu");
+            }
+
             // Check if EMR already exists for this booking
             List<EmrRecord> emrs = emrRecordRepository
                     .findByBookingId(booking.getBookingId());
@@ -144,7 +149,7 @@ public class BookingMapper {
                     // Pet info
                     .petId(pet.getId())
                     .petName(pet.getName())
-                    .petSpecies(pet.getSpecies())
+                    .petSpecies(pet.getSpecies() != null ? pet.getSpecies().name() : null)
                     .petBreed(pet.getBreed())
                     .petAge(petAge)
                     .petPhotoUrl(pet.getImageUrl())
@@ -156,11 +161,11 @@ public class BookingMapper {
                     .ownerEmail(owner.getEmail())
                     .ownerAvatarUrl(owner.getAvatar())
                     .ownerAddress(owner.getAddress())
-                    // Clinic info
-                    .clinicId(clinic.getClinicId())
-                    .clinicName(clinic.getName())
-                    .clinicAddress(clinic.getAddress())
-                    .clinicPhone(clinic.getPhone())
+                    // Clinic info (nullable for SOS during matching)
+                    .clinicId(clinic != null ? clinic.getClinicId() : null)
+                    .clinicName(clinic != null ? clinic.getName() : null)
+                    .clinicAddress(clinic != null ? clinic.getAddress() : null)
+                    .clinicPhone(clinic != null ? clinic.getPhone() : null)
                     // Staff info
                     .assignedStaffId(staff != null ? staff.getUserId() : null)
                     .assignedStaffName(staff != null ? staff.getFullName() : null)
@@ -195,6 +200,11 @@ public class BookingMapper {
                     .symptoms(booking.getSymptoms())
                     // Timestamps
                     .createdAt(booking.getCreatedAt())
+                    // Review info
+                    .isReviewed(booking.getReview() != null)
+                    .reviewId(booking.getReview() != null ? booking.getReview().getReviewId() : null)
+                    .rating(booking.getReview() != null ? booking.getReview().getRating() : null)
+                    .reviewComment(booking.getReview() != null ? booking.getReview().getComment() : null)
                     .build();
         } catch (Exception e) {
             log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(), e);
@@ -210,7 +220,7 @@ public class BookingMapper {
         User owner = booking.getPetOwner();
 
         String petName = pet != null ? pet.getName() : "N/A";
-        String petSpecies = pet != null ? pet.getSpecies() : null;
+        String petSpecies = pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null;
         String petPhotoUrl = pet != null ? pet.getImageUrl() : null;
         String ownerName = owner != null ? owner.getFullName() : "N/A";
         String ownerPhone = owner != null ? owner.getPhone() : null;
@@ -346,7 +356,7 @@ public class BookingMapper {
                     // Pet info
                     .petId(pet != null ? pet.getId() : null)
                     .petName(pet != null ? pet.getName() : "N/A")
-                    .petSpecies(pet != null ? pet.getSpecies() : null)
+                    .petSpecies(pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null)
                     .petBreed(pet != null ? pet.getBreed() : null)
                     .petAge(petAge)
                     .petPhotoUrl(pet != null ? pet.getImageUrl() : null)

@@ -57,7 +57,7 @@ public class Booking {
 
     @Version
     @Column(name = "version")
-    private Long version;
+    private Long version; // Version number for optimistic locking
 
     @Column(name = "booking_code", unique = true, nullable = false, length = 20)
     private String bookingCode;

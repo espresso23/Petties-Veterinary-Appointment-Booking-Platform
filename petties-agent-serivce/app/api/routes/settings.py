@@ -186,7 +186,7 @@ async def seed_database(
 
     Changes from Multi-Agent:
     - Chi tao 1 agent (petties_agent) thay vi 4 agents
-    - Su dung OpenRouter model thay vi Ollama
+    - Su dung OpenRouter Cloud API
     - Tools duoc assign cho petties_agent
 
     Args:
@@ -447,61 +447,6 @@ Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
 
 
 # ===== TEST ENDPOINTS =====
-
-@router.post("/test-ollama", response_model=TestResult)
-async def test_ollama_connection(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
-):
-    """Test Ollama connection"""
-    base_url = await get_setting("OLLAMA_BASE_URL", db) or "http://localhost:11434"
-    
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(f"{base_url}/api/tags")
-            if response.status_code == 200:
-                data = response.json()
-                models = [m["name"] for m in data.get("models", [])]
-                return TestResult(
-                    status="success",
-                    message="Connected to Ollama",
-                    details={"models": models[:5]}
-                )
-            return TestResult(status="error", message=f"HTTP {response.status_code}")
-    except Exception as e:
-        return TestResult(status="error", message=str(e))
-
-
-@router.post("/test-embeddings", response_model=TestResult)
-async def test_openai_embeddings(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
-):
-    """Test OpenAI embeddings connection"""
-    api_key = await get_setting("OPENAI_API_KEY", db)
-    
-    if not api_key:
-        return TestResult(status="error", message="OpenAI API key not configured")
-    
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/embeddings",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"input": "test", "model": "text-embedding-ada-002"}
-            )
-            if response.status_code == 200:
-                data = response.json()
-                dim = len(data["data"][0]["embedding"])
-                return TestResult(
-                    status="success",
-                    message="OpenAI embeddings working",
-                    details={"dimension": dim, "model": "text-embedding-ada-002"}
-                )
-            return TestResult(status="error", message=response.json().get("error", {}).get("message", "Unknown error"))
-    except Exception as e:
-        return TestResult(status="error", message=str(e))
-
 
 @router.post("/test-qdrant", response_model=TestResult)
 async def test_qdrant_connection(

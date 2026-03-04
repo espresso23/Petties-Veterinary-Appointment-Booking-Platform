@@ -1,8 +1,8 @@
 # SOFTWARE DESIGN DOCUMENT (SDD)
 # PETTIES AI AGENT SERVICE
 
-**Document Version:** 1.6.0
-**Last Updated:** 2026-02-02
+**Document Version:** 1.7.0
+**Last Updated:** 2026-03-04
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Component:** AI Agent Service (FastAPI + LangGraph + ReAct Pattern)
 
@@ -247,7 +247,7 @@ class AgentConfig:
     max_tokens: int = 2000
     top_p: float = 0.9
 
-    # System Prompt (versioned)
+    # System Prompt
     system_prompt: str = """
     Bạn là trợ lý AI Petties, chuyên về chăm sóc thú cưng.
 
@@ -1000,9 +1000,6 @@ ws://localhost:8000/ws/chat/abc-123?token=eyJhbGciOiJIUzI1NiIs...
 
 ```mermaid
 erDiagram
-    AGENTS ||--o{ PROMPT_VERSIONS : has
-    AGENTS ||--o{ CHAT_SESSIONS : handles
-    CHAT_SESSIONS ||--o{ CHAT_MESSAGES : contains
     KNOWLEDGE_DOCUMENTS }o--|| AGENTS : "used_by"
     TOOLS }o--o{ AGENTS : "assigned_to"
 
@@ -1033,35 +1030,6 @@ erDiagram
         timestamp updated_at
     }
 
-    PROMPT_VERSIONS {
-        int id PK
-        int agent_id FK
-        int version "1,2,3..."
-        text prompt_text
-        boolean is_active "false"
-        string created_by "admin"
-        text notes
-        timestamp created_at
-    }
-
-    CHAT_SESSIONS {
-        int id PK
-        int agent_id FK
-        string user_id "from Spring Boot"
-        string session_id UK
-        timestamp started_at
-        timestamp ended_at
-    }
-
-    CHAT_MESSAGES {
-        int id PK
-        int session_id FK
-        string role "user/assistant/system"
-        text content
-        json message_metadata "tool_calls, ReAct steps"
-        timestamp timestamp
-    }
-
     KNOWLEDGE_DOCUMENTS {
         int id PK
         string filename
@@ -1087,6 +1055,8 @@ erDiagram
         timestamp updated_at
     }
 ```
+
+    > **Note:** Chat AI-user được lưu trên MongoDB với collections `ai_chat_sessions` và `ai_chat_messages`, không lưu trong PostgreSQL.
 
 ### 5.2 Table Specifications
 
@@ -1455,67 +1425,96 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    class SingleAgent {
-        +str agent_name
-        +AgentConfig config
-        +StateGraph graph
-        +ToolRegistry tool_registry
-        +invoke(query: str) Response
-        -_think_node(state: ReActState) ReActState
-        -_act_node(state: ReActState) ReActState
-        -_observe_node(state: ReActState) ReActState
-        -_should_continue(state: ReActState) str
-    }
+  class AgentFactory {
+    +get_agent(db_session, provider_override, model_override) SingleAgent
+    +get_agent_by_id(agent_id, db_session, provider_override, model_override) SingleAgent
+    +get_agent_config(db_session) dict
+  }
 
-    class AgentConfig {
-        +str agent_name
-        +str model
-        +float temperature
-        +int max_tokens
-        +float top_p
-        +str system_prompt
-        +int max_iterations
-        +bool enabled
-        +from_database(agent_id: int) AgentConfig
+    class SingleAgent {
+    +name: str
+    +agent_type: str
+    +system_prompt: str
+    +enabled_tools: List~str~
+    +invoke(message: str, session_id: str) str
+    +stream(message: str, session_id: str) AsyncIterator
+    -_think_node(state: ReActState) Dict
+    -_act_node(state: ReActState) Dict
+    -_observe_node(state: ReActState) Dict
+    -_should_continue(state: ReActState) str
     }
 
     class ReActState {
         +List~Message~ messages
-        +List~str~ thoughts
-        +List~ToolCall~ tool_calls
-        +List~str~ observations
+    +List~ReActStep~ react_steps
+    +dict pending_tool_call
+    +Any last_tool_result
+    +str final_answer
         +int iteration
-        +bool should_continue
-        +str final_answer
+    +bool should_end
+    +dict context
+    +str error
     }
 
-    class ToolRegistry {
-        +Dict~str, Tool~ tools
-        +get_enabled_tools() List~Tool~
-        +call_tool(name: str, params: dict) Any
-        +scan_tools() ScanResult
+  class BaseLLMClient {
+    <<abstract>>
+    +generate(prompt, system_prompt, **kwargs) LLMResponse
+    +stream(prompt, system_prompt, **kwargs) AsyncIterator
+    +chat(messages, system_prompt, **kwargs) LLMResponse
     }
 
-    class ToolCall {
-        +str tool_name
-        +dict parameters
-        +Any result
-        +float execution_time
+  class OpenRouterClient
+  class DeepSeekClient
+  class OllamaClient
+  class OpenAIClient
+
+  class LLMConfig {
+    +provider: str
+    +model: str
+    +temperature: float
+    +max_tokens: int
+    +top_p: float
+  }
+
+  class LLMResponse {
+    +content: str
+    +model: str
+    +usage: dict
+    +finish_reason: str
+  }
+
+  class Agent {
+    +id: int
+    +name: str
+    +model: str
+    +system_prompt: str
+    +enabled: bool
+  }
+
+  class Tool {
+    +id: int
+    +name: str
+    +enabled: bool
+    +input_schema: JSON
+    +assigned_agents: JSON
     }
 
-    class LLMClient {
-        +str provider
-        +str model
-        +generate(prompt: str, config: dict) str
-        +stream(prompt: str, config: dict) Iterator~str~
-    }
+  AgentFactory --> SingleAgent : builds
+  AgentFactory --> Agent : loads config
+  AgentFactory --> Tool : loads enabled tools
 
-    SingleAgent --> AgentConfig : uses
     SingleAgent --> ReActState : manages
-    SingleAgent --> ToolRegistry : uses
-    SingleAgent --> LLMClient : uses
-    ReActState --> ToolCall : contains
+  SingleAgent --> BaseLLMClient : uses
+  BaseLLMClient ..> LLMConfig : config
+  BaseLLMClient ..> LLMResponse : returns
+
+  OpenRouterClient --|> BaseLLMClient
+  DeepSeekClient --|> BaseLLMClient
+  OllamaClient --|> BaseLLMClient
+  OpenAIClient --|> BaseLLMClient
 ```
+
+**Code-based note:** Trong implementation hiện tại không có class `AgentConfig` hoặc `ToolRegistry` như bản cũ; thay vào đó là `AgentFactory` (load config/tools từ DB), `ToolExecutor` (thực thi tool), và các client kế thừa `BaseLLMClient`.
 
 ---
 
@@ -1584,56 +1583,44 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class FastMCP {
-        +str server_name
-        +Dict~str, MCPTool~ tools
-        +tool(func: Callable) Callable
-        +get_tools() Dict~str, MCPTool~
-        +run() void
-    }
-
-    class MCPTool {
-        +str name
-        +str description
-        +Callable fn
-        +dict input_schema
-        +dict output_schema
-        +execute(**kwargs) Any
-    }
-
     class ToolScanner {
         +scan_and_sync_tools() ScanResult
-        -_get_mcp_tools() List~MCPTool~
-        -_sync_to_database(tools: List~MCPTool~) void
+    +get_new_tools() List~dict~
+    +assign_tool_to_agent(tool_name, agent_name) dict
+    +enable_tool(tool_name) dict
     }
 
-    class Tool {
-        +int id
-        +str name
-        +str description
-        +ToolType tool_type
-        +json input_schema
-        +json output_schema
-        +bool enabled
-        +List~str~ assigned_agents
+  class ToolExecutor {
+    +execute(tool_name, parameters) dict
+    +execute_batch(tool_calls) List~dict~
+    -_load_tool(tool_name) Tool
+    -_validate_parameters(tool, parameters) void
+    -_execute_mcp_tool(tool_name, parameters) dict
     }
 
-    class PetCareQATool {
-        +query(query: str, top_k: int, min_score: float) dict
-        -_format_results(chunks: List~RetrievedChunk~) dict
+  class FastMCP {
+    +get_tools() Dict
+    +run() void
     }
 
-    class SymptomSearchTool {
-        +search(symptoms: List~str~, pet_type: str, top_k: int) dict
-        -_analyze_severity(chunks: List~RetrievedChunk~) str
+  class Tool {
+    +id: int
+    +name: str
+    +description: str
+    +tool_type: str
+    +input_schema: JSON
+    +output_schema: JSON
+    +enabled: bool
+    +assigned_agents: JSON
     }
 
-    FastMCP --> MCPTool : manages
     ToolScanner --> FastMCP : scans
     ToolScanner --> Tool : syncs
-    PetCareQATool --|> MCPTool : implements
-    SymptomSearchTool --|> MCPTool : implements
+  ToolExecutor --> Tool : validates/enforces
+  ToolExecutor ..> FastMCP : execute via mcp_server
 ```
+
+**Code-based note:** Tools domain đang triển khai theo hàm `@mcp_server.tool` (module `mcp_tools`) thay vì class `PetCareQATool`/`SymptomSearchTool`.
 
 ---
 
@@ -1653,51 +1640,19 @@ classDiagram
         +bool enabled
         +datetime created_at
         +datetime updated_at
-        +List~PromptVersion~ prompt_versions
-        +List~ChatSession~ chat_sessions
     }
 
     class Tool {
         +int id
         +str name
         +str description
-        +ToolType tool_type
+      +str tool_type
         +json input_schema
         +json output_schema
         +bool enabled
         +List~str~ assigned_agents
         +datetime created_at
         +datetime updated_at
-    }
-
-    class PromptVersion {
-        +int id
-        +int agent_id
-        +int version
-        +str prompt_text
-        +bool is_active
-        +str created_by
-        +str notes
-        +datetime created_at
-    }
-
-    class ChatSession {
-        +int id
-        +int agent_id
-        +str user_id
-        +str session_id
-        +datetime started_at
-        +datetime ended_at
-        +List~ChatMessage~ messages
-    }
-
-    class ChatMessage {
-        +int id
-        +int session_id
-        +str role
-        +str content
-        +json message_metadata
-        +datetime timestamp
     }
 
     class KnowledgeDocument {
@@ -1718,17 +1673,15 @@ classDiagram
         +int id
         +str key
         +str value
-        +SettingCategory category
+      +str category
         +bool is_sensitive
         +str description
         +datetime created_at
         +datetime updated_at
     }
-
-    Agent "1" --> "*" PromptVersion : has
-    Agent "1" --> "*" ChatSession : handles
-    ChatSession "1" --> "*" ChatMessage : contains
 ```
+
+  > Ghi chú: Chi tiết governance cho Prompt Version được trình bày tập trung tại `REPORT_4_SDD_SYSTEM_DESIGN.md` và `AI_SERVICE_TECHNICAL_SPECIFICATION.md`.
 
 ---
 

@@ -323,10 +323,6 @@ DEFAULT_SETTINGS = [
     {"key": "COHERE_API_KEY", "value": "", "category": "rag", "is_sensitive": True, "description": "Cohere API Key for multilingual embeddings (https://dashboard.cohere.com/api-keys)"},
     {"key": "COHERE_EMBEDDING_MODEL", "value": "embed-multilingual-v3.0", "category": "rag", "is_sensitive": False, "description": "Cohere embedding model (multilingual for Vietnamese)"},
 
-    # ===== RAG - OpenAI Embeddings (Backup) =====
-    {"key": "OPENAI_API_KEY", "value": "", "category": "embeddings", "is_sensitive": True, "description": "OpenAI API key (backup for embeddings)"},
-    {"key": "OPENAI_EMBEDDING_MODEL", "value": "text-embedding-3-small", "category": "embeddings", "is_sensitive": False, "description": "OpenAI embedding model"},
-
     # ===== Vector DB - Qdrant =====
     {"key": "QDRANT_URL", "value": "http://localhost:6333", "category": "vector_db", "is_sensitive": False, "description": "Qdrant server URL (local or Qdrant Cloud)"},
     {"key": "QDRANT_API_KEY", "value": "", "category": "vector_db", "is_sensitive": True, "description": "Qdrant API key (required for Qdrant Cloud)"},

@@ -31,7 +31,7 @@ Quản lý các thực thể nghiệp vụ: `users`, `clinics`, `pets`, `booking
 
 ## 2. AI Agent Service (Alembic)
 
-Quản lý các thực thể AI: `agents`, `tools`, `chat_sessions`, `knowledge_documents`, v.v.
+Quản lý các thực thể AI trên PostgreSQL: `agents`, `tools`, `prompt_versions`, `knowledge_documents`, `system_settings`, v.v. (chat AI-user lưu MongoDB).
 
 ### 📁 Thư mục lưu trữ
 `petties-agent-serivce/app/db/postgres/migrations/versions/`

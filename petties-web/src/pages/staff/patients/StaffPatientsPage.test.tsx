@@ -46,7 +46,8 @@ vi.mock('../../../store/authStore', () => ({
 }))
 
 vi.mock('../../../services/bookingService', () => ({
-    getBookingsByStaff: vi.fn().mockResolvedValue([])
+    getBookingsByStaff: vi.fn().mockResolvedValue([]),
+    getClinicTodayBookings: vi.fn().mockResolvedValue([])
 }))
 
 vi.mock('../../../services/api/vaccineTemplateService', () => ({
@@ -97,6 +98,7 @@ describe('StaffPatientsPage', () => {
             staffId: 'staff-002',
             staffName: 'Trần Văn B', // Target for verification
             status: 'Valid' as "Valid" | "Expiring Soon" | "Overdue" | "N/A",
+            workflowStatus: 'COMPLETED' as const, // Required for list view filter
             notes: 'Không có phản ứng phụ',
             createdAt: '2025-01-15T10:00:00Z'
         }

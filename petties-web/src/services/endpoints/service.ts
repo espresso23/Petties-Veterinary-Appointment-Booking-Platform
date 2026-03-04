@@ -150,3 +150,23 @@ export async function getServicesByClinicId(
   )
   return data
 }
+
+/**
+ * NEW: Get compatible services for a specific clinic filtered by pet species and booking type
+ * GET /api/services/by-clinic/{clinicId}/compatible?petSpecies={species}&isHomeVisit={boolean}
+ */
+export async function getCompatibleServices(
+  clinicId: string,
+  petSpecies?: string,
+  isHomeVisit?: boolean,
+): Promise<ClinicServiceResponse[]> {
+  const params: { petSpecies?: string; isHomeVisit?: boolean } = {}
+  if (petSpecies) params.petSpecies = petSpecies
+  if (isHomeVisit !== undefined) params.isHomeVisit = isHomeVisit
+
+  const { data } = await apiClient.get<ClinicServiceResponse[]>(
+    `/services/by-clinic/${clinicId}/compatible`,
+    { params },
+  )
+  return data
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/chat.dart';
 import 'package:intl/intl.dart';
@@ -31,11 +32,12 @@ class LoadingNetworkImage extends StatelessWidget {
         height: height,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          
+
           final progress = loadingProgress.expectedTotalBytes != null
-              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+              ? loadingProgress.cumulativeBytesLoaded /
+                  loadingProgress.expectedTotalBytes!
               : null;
-          
+
           return Container(
             width: width ?? 180,
             height: height ?? 140,
@@ -60,13 +62,16 @@ class LoadingNetworkImage extends StatelessWidget {
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
                           value: progress,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.primary),
                           backgroundColor: AppColors.stone200,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        progress != null ? '${(progress * 100).toInt()}%' : 'Đang tải...',
+                        progress != null
+                            ? '${(progress * 100).toInt()}%'
+                            : 'Đang tải...',
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppColors.stone500,
@@ -124,7 +129,8 @@ class _ShimmerEffect extends StatefulWidget {
   State<_ShimmerEffect> createState() => _ShimmerEffectState();
 }
 
-class _ShimmerEffectState extends State<_ShimmerEffect> with SingleTickerProviderStateMixin {
+class _ShimmerEffectState extends State<_ShimmerEffect>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -135,7 +141,7 @@ class _ShimmerEffectState extends State<_ShimmerEffect> with SingleTickerProvide
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat();
-    
+
     _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
@@ -206,7 +212,8 @@ class UploadingPlaceholder extends StatelessWidget {
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppColors.primary),
               backgroundColor: AppColors.stone200,
             ),
           ),
@@ -224,12 +231,14 @@ class UploadingPlaceholder extends StatelessWidget {
     );
   }
 }
+
 /// Widget hiển thị một tin nhắn trong chat
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool showAvatar;
   final Function(ChatMessage)? onImageTap;
   final String? clinicLogo;
+  final ChatConversation? conversation;
 
   const MessageBubble({
     super.key,
@@ -237,6 +246,7 @@ class MessageBubble extends StatelessWidget {
     this.showAvatar = true,
     this.onImageTap,
     this.clinicLogo,
+    this.conversation,
   });
 
   @override
@@ -262,7 +272,7 @@ class MessageBubble extends StatelessWidget {
           const SizedBox(width: 8),
 
           // Message bubble
-          Flexible(child: _buildBubble(isMine)),
+          Flexible(child: _buildBubble(context, isMine)),
         ],
       ),
     );
@@ -311,11 +321,15 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildBubble(bool isMine) {
+  Widget _buildBubble(BuildContext context, bool isMine) {
+    // Use secureImageUrl for Cloudinary JPG format transform
+    final displayImageUrl = message.secureImageUrl;
+
     // Show uploading placeholder when image is being uploaded
     if (message.isUploading && message.messageType == MessageType.image) {
       return Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           const UploadingPlaceholder(
             width: 220,
@@ -344,9 +358,11 @@ class MessageBubble extends StatelessWidget {
     }
 
     // Special rendering for IMAGE_TEXT: image without bubble, text WITH colored bubble
-    if (message.messageType == MessageType.imageText && message.imageUrl != null && message.imageUrl!.isNotEmpty) {
+    if (message.messageType == MessageType.imageText &&
+        displayImageUrl != null) {
       return Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           // Image without colored bubble (just border)
           GestureDetector(
@@ -354,9 +370,9 @@ class MessageBubble extends StatelessWidget {
               onImageTap?.call(message);
             },
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 180),
-              margin: const EdgeInsets.only(bottom: 8),
+              constraints: const BoxConstraints(maxWidth: 220),
               decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.stone900, width: 2),
                 boxShadow: [
@@ -366,10 +382,43 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ],
               ),
-              child: LoadingNetworkImage(
-                imageUrl: message.imageUrl!,
-                fit: BoxFit.cover,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  displayImageUrl!,
+                  width: 220,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 220,
+                      height: 180,
+                      color: AppColors.stone100,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 220,
+                      height: 180,
+                      color: AppColors.stone100,
+                      child: const Center(
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: AppColors.stone400,
+                          size: 32,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -449,14 +498,88 @@ class MessageBubble extends StatelessWidget {
               ],
             ),
           ],
+
+          // Render Action Buttons if available for IMAGE_TEXT
+          if (message.actionButtons != null &&
+              message.actionButtons!.isNotEmpty &&
+              !isMine) ...[
+            Container(
+              margin: const EdgeInsets.only(top: 6),
+              width: 220, // Match max width
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: message.actionButtons!
+                    .map((btn) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (message.actionButtons != null) {
+                                // Default navigation context, but using GoRouter from current context
+                                final routerContext = context;
+
+                                switch (btn.type) {
+                                  case 'MENU':
+                                    // Navigate to clinic services
+                                    if (conversation?.clinicId != null) {
+                                      routerContext.push(
+                                          '/clinics/${conversation!.clinicId}/services');
+                                    }
+                                    break;
+                                  case 'BOOKING':
+                                    // Navigate to booking flow
+                                    if (conversation?.clinicId != null) {
+                                      routerContext.push(
+                                          '/booking/${conversation!.clinicId}/pet');
+                                    }
+                                    break;
+                                  case 'OFFER':
+                                    // Just a placeholder or navigate somewhere
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Tính năng ưu đãi đang được phát triển')),
+                                    );
+                                    break;
+                                  default:
+                                    print('Kích hoạt: ${btn.label}');
+                                }
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  isMine ? AppColors.white : AppColors.primary,
+                              foregroundColor:
+                                  isMine ? AppColors.primary : AppColors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 12),
+                            ),
+                            child: Text(
+                              btn.label,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
         ],
       );
     }
 
     // Special rendering for IMAGE only (no text): image without colored bubble
-    if (message.messageType == MessageType.image && message.imageUrl != null && message.imageUrl!.isNotEmpty) {
+    if (message.messageType == MessageType.image && displayImageUrl != null) {
       return Column(
-        crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           // Image without colored bubble (just border)
           GestureDetector(
@@ -464,8 +587,9 @@ class MessageBubble extends StatelessWidget {
               onImageTap?.call(message);
             },
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 180),
+              constraints: const BoxConstraints(maxWidth: 220),
               decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.stone900, width: 2),
                 boxShadow: [
@@ -475,10 +599,43 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ],
               ),
-              child: LoadingNetworkImage(
-                imageUrl: message.imageUrl!,
-                fit: BoxFit.cover,
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  displayImageUrl!,
+                  width: 220,
+                  height: 180,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 220,
+                      height: 180,
+                      color: AppColors.stone100,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.primary),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 220,
+                      height: 180,
+                      color: AppColors.stone100,
+                      child: const Center(
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: AppColors.stone400,
+                          size: 32,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -505,111 +662,194 @@ class MessageBubble extends StatelessWidget {
     }
 
     // Default: TEXT messages with colored bubble
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isMine ? AppColors.primary : AppColors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(16),
-          topRight: const Radius.circular(16),
-          bottomLeft: Radius.circular(isMine ? 16 : 4),
-          bottomRight: Radius.circular(isMine ? 4 : 16),
-        ),
-        border: Border.all(
-          color: AppColors.stone900,
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.stone900,
-            offset: Offset(isMine ? -2 : 2, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Image content (only for IMAGE type now)
-          if (message.messageType == MessageType.image && message.imageUrl != null && message.imageUrl!.isNotEmpty) ...[
-            GestureDetector(
-              onTap: () {
-                // Call the callback to show image carousel
-                onImageTap?.call(message);
-              },
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 220, maxHeight: 180),
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    message.imageUrl!,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        width: 100,
-                        height: 100,
-                        color: AppColors.stone100,
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 100,
-                        height: 100,
-                        color: AppColors.stone100,
-                        child: const Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            color: AppColors.stone400,
-                            size: 32,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
+    return Column(
+      crossAxisAlignment:
+          isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isMine ? AppColors.primary : AppColors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isMine ? 16 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 16),
             ),
-          ],
-          // Text content (only show if there's actual text content)
-          if (message.content.isNotEmpty) ...[
-            Text(
-              message.content,
-              style: TextStyle(
-                fontSize: 15,
-                color: isMine ? AppColors.white : AppColors.stone900,
-                height: 1.3,
-              ),
+            border: Border.all(
+              color: AppColors.stone900,
+              width: 2,
             ),
-            const SizedBox(height: 4),
-          ],
-          // Time & Status
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _formatTime(message.createdAt),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isMine
-                      ? AppColors.white.withValues(alpha: 0.7)
-                      : AppColors.stone400,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.stone900,
+                offset: Offset(isMine ? -2 : 2, 2),
               ),
-              if (isMine) ...[
-                const SizedBox(width: 4),
-                _buildStatusIcon(),
-              ],
             ],
           ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Image content (only for IMAGE type now)
+              if (message.messageType == MessageType.image &&
+                  displayImageUrl != null) ...[
+                GestureDetector(
+                  onTap: () {
+                    // Call the callback to show image carousel
+                    onImageTap?.call(message);
+                  },
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 220),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        displayImageUrl,
+                        width: 220,
+                        height: 180,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            width: 220,
+                            height: 180,
+                            color: AppColors.stone100,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primary),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 220,
+                            height: 180,
+                            color: AppColors.stone100,
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                color: AppColors.stone400,
+                                size: 32,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              // Text content (only show if there's actual text content)
+              if (message.content.isNotEmpty) ...[
+                Text(
+                  message.content,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: isMine ? AppColors.white : AppColors.stone900,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              // Time & Status
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _formatTime(message.createdAt),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isMine
+                          ? AppColors.white.withValues(alpha: 0.7)
+                          : AppColors.stone400,
+                    ),
+                  ),
+                  if (isMine) ...[
+                    const SizedBox(width: 4),
+                    _buildStatusIcon(),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Render Action Buttons if available (OUTSIDE THE BUBBLE)
+        if (message.actionButtons != null &&
+            message.actionButtons!.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 220, // Match max width
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: message.actionButtons!
+                  .map((btn) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (message.actionButtons != null) {
+                              // Default navigation context, but using GoRouter from current context
+                              final routerContext = context;
+
+                              switch (btn.type) {
+                                case 'MENU':
+                                  // Navigate to clinic services
+                                  if (conversation?.clinicId != null) {
+                                    routerContext.push(
+                                        '/clinics/${conversation!.clinicId}/services');
+                                  }
+                                  break;
+                                case 'BOOKING':
+                                  // Navigate to booking flow
+                                  if (conversation?.clinicId != null) {
+                                    routerContext.push(
+                                        '/booking/${conversation!.clinicId}/pet');
+                                  }
+                                  break;
+                                case 'OFFER':
+                                  // Just a placeholder or navigate somewhere
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Tính năng ưu đãi đang được phát triển')),
+                                  );
+                                  break;
+                                default:
+                                  print('Kích hoạt: ${btn.label}');
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.white,
+                            foregroundColor: AppColors.stone900,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: const BorderSide(
+                                  color: AppColors.stone900, width: 2),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 12),
+                          ),
+                          child: Text(
+                            btn.label,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 

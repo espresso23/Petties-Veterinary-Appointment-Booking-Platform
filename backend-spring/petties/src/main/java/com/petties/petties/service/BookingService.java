@@ -32,9 +32,11 @@ import com.petties.petties.model.User;
 import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import com.petties.petties.model.enums.Role;
+import com.petties.petties.model.enums.ServiceCategory;
 import com.petties.petties.model.enums.StaffSpecialty;
 import com.petties.petties.repository.*;
 import com.petties.petties.util.BookingScheduleUtil;
+import com.petties.petties.util.SpeciesUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.petties.petties.dto.booking.EstimatedCompletionResponse;
@@ -80,6 +82,23 @@ public class BookingService {
         private final TrackingService trackingService;
 
         // ========== HELPER METHODS ==========
+
+        /**
+         * Validate vaccine species compatibility between pet and service
+         * Throws BadRequestException if vaccine is not compatible with pet species
+         */
+        private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
+                if (service.getVaccineTemplate() != null) {
+                        var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
+                        if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
+                                String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
+                                throw new BadRequestException(
+                                        String.format("Vắc-xin '%s' chỉ dành cho %s, không phù hợp với thú cưng '%s' của bạn",
+                                                service.getName(), vaccineSpecies, pet.getName())
+                                );
+                        }
+                }
+        }
 
         /**
          * Get current user by userId (helper method for Controller to avoid direct
@@ -163,6 +182,8 @@ public class BookingService {
                                                         throw new BadRequestException(
                                                                         "Dịch vụ không thuộc phòng khám đã chọn");
                                                 }
+                                                // Validate vaccine species compatibility
+                                                validateVaccineSpeciesCompatibility(p, svc);
                                                 petsToUse.add(p);
                                                 servicesToUse.add(svc);
                                         }
@@ -187,6 +208,8 @@ public class BookingService {
                                         if (!s.getClinic().getClinicId().equals(clinic.getClinicId())) {
                                                 throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
                                         }
+                                        // Validate vaccine species compatibility
+                                        validateVaccineSpeciesCompatibility(pet, s);
                                         petsToUse.add(pet);
                                         servicesToUse.add(s);
                                 }
@@ -376,12 +399,14 @@ public class BookingService {
                                 }
                         }
 
-                        // Step 6: Calculate pricing - tổng theo từng (service, pet) pair
+                        // Step 6: Validate vaccine species compatibility + Calculate pricing
                         Pet firstPet = createdPets.get(0);
                         BigDecimal servicesTotal = BigDecimal.ZERO;
                         for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
                                 ClinicService svc = serviceById.get(pair.getKey());
                                 if (svc != null) {
+                                        // Validate vaccine species compatibility
+                                        validateVaccineSpeciesCompatibility(pair.getValue(), svc);
                                         servicesTotal = servicesTotal.add(
                                                         pricingService.calculateServicePrice(svc, pair.getValue()));
                                 }
@@ -496,7 +521,7 @@ public class BookingService {
 
                 Pet pet = Pet.builder()
                                 .name(petInfo.getName())
-                                .species(petInfo.getSpecies()) // String type
+                                .species(petInfo.getSpecies()) // PetSpecies enum
                                 .breed(petInfo.getBreed())
                                 .gender(petInfo.getGender()) // String type
                                 .dateOfBirth(dateOfBirth)
@@ -1003,6 +1028,13 @@ public class BookingService {
                         throw new IllegalArgumentException("Dịch vụ này đã có trong đơn hàng");
                 }
 
+                // HOME_VISIT: chỉ cho thêm dịch vụ có thể thực hiện tại nhà (phòng API gọi trực tiếp)
+                if (booking.getType() == BookingType.HOME_VISIT
+                                && !Boolean.TRUE.equals(service.getIsHomeVisit())) {
+                        throw new IllegalArgumentException(
+                                        "Booking khám tại nhà chỉ có thể thêm dịch vụ thực hiện tại nhà");
+                }
+
                 // ============ SPECIALTY VALIDATION FOR HOME_VISIT STAFF ============
                 // If booking is HOME_VISIT and current user is STAFF,
                 // they can only add services within their specialty.
@@ -1208,14 +1240,21 @@ public class BookingService {
                         return allActiveServices.stream()
                                         .filter(service -> !existingServiceIds.contains(service.getServiceId()))
                                         .filter(service -> {
-                                                // 1. IN_CLINIC: Only show services with isHomeVisit = false
+                                                // 1. IN_CLINIC: Chỉ hiển thị dịch vụ tại phòng khám (isHomeVisit = false)
                                                 if (booking.getType() == BookingType.IN_CLINIC) {
                                                         if (Boolean.TRUE.equals(service.getIsHomeVisit())) {
                                                                 return false;
                                                         }
                                                 }
 
-                                                // 2. Specialty filtering for Staff in Home Visit
+                                                // 2. HOME_VISIT: Chỉ hiển thị dịch vụ có thể thực hiện tại nhà (isHomeVisit = true)
+                                                if (booking.getType() == BookingType.HOME_VISIT) {
+                                                        if (!Boolean.TRUE.equals(service.getIsHomeVisit())) {
+                                                                return false;
+                                                        }
+                                                }
+
+                                                // 3. Specialty filtering for Staff in Home Visit
                                                 if (booking.getType() == BookingType.HOME_VISIT
                                                                 && currentUser.getRole() == Role.STAFF) {
 
@@ -1228,8 +1267,7 @@ public class BookingService {
 
                                                         return staffSpecialty == requiredSpecialty;
                                                 }
-                                                return true; // Managers or In-Clinic bookings see all (subject to above
-                                                             // filter)
+                                                return true;
                                         })
                                         .map(bookingMapper::mapServiceToResponse)
                                         .collect(Collectors.toList());
@@ -1278,14 +1316,13 @@ public class BookingService {
         public BookingResponse checkIn(UUID bookingId) {
                 log.info("Check-in booking {}", bookingId);
 
-                Booking booking = bookingRepository.findById(bookingId)
+                Booking booking = bookingRepository.findByIdWithDetails(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                // Validate status - allow CONFIRMED or IN_PROGRESS (Staff has arrived)
-                if (booking.getStatus() != BookingStatus.CONFIRMED
-                                && booking.getStatus() != BookingStatus.IN_PROGRESS) {
+// Validate status - chỉ cho phép check-in khi CONFIRMED (check-in chuyển sang IN_PROGRESS)
+                if (booking.getStatus() != BookingStatus.CONFIRMED) {
                         throw new IllegalStateException(
-                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc IN_PROGRESS. Trạng thái hiện tại: "
+                                        "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED. Trạng thái hiện tại: "
                                                         + booking.getStatus());
                 }
 
@@ -1299,16 +1336,18 @@ public class BookingService {
                 bookingNotificationService.pushBookingUpdateToUsers(booking, "CHECK_IN");
 
                 // Notify pet owner
-                try {
-                        notificationService.sendCheckinNotification(booking);
-                } catch (Exception e) {
-                        log.warn("Failed to send check-in notification: {}", e.getMessage());
-                }
+                notificationService.sendCheckinNotification(booking);
 
-                // Auto-create draft vaccination records if missing
+                // Auto-create draft vaccination records chỉ khi booking có dịch vụ tiêm phòng
                 try {
-                        for (BookingServiceItem item : booking.getBookingServices()) {
-                                vaccinationService.createDraftFromBooking(booking, item);
+                        List<BookingServiceItem> services = booking.getBookingServices();
+                        if (services != null) {
+                                for (BookingServiceItem item : services) {
+                                        if (item.getService() != null
+                                                        && item.getService().getServiceCategory() == ServiceCategory.VACCINATION) {
+                                                vaccinationService.createDraftFromBooking(booking, item);
+                                        }
+                                }
                         }
                 } catch (Exception e) {
                         log.error("Failed to auto-create vaccination drafts during check-in: {}", e.getMessage());

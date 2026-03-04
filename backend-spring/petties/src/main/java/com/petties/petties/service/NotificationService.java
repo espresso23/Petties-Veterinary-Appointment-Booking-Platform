@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.petties.petties.model.enums.Role;
 
@@ -378,9 +379,14 @@ public class NotificationService {
          */
         @Transactional
         public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
-                // Find all managers of this clinic
+                // Find all managers of this clinic (deduplicate by userId to avoid duplicate notifications)
                 List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER)
+                                .stream()
+                                .collect(Collectors.toMap(User::getUserId, u -> u, (a, b) -> a))
+                                .values()
+                                .stream()
+                                .toList();
 
                 if (managers.isEmpty()) {
                         log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());

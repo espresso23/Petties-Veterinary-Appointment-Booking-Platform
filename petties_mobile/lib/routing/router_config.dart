@@ -257,7 +257,8 @@ class AppRouterConfig {
             final petName = state.uri.queryParameters['petName'] ?? 'Thú cưng';
             final bookingId = state.uri.queryParameters['bookingId'];
             final bookingCode = state.uri.queryParameters['bookingCode'];
-            final initialVaccineName = state.uri.queryParameters['initialVaccineName'];
+            final initialVaccineName =
+                state.uri.queryParameters['initialVaccineName'];
             return VaccinationFormScreen(
               petId: petId,
               petName: petName,
@@ -323,7 +324,10 @@ class AppRouterConfig {
           path: AppRoutes.clinicDetail,
           builder: (context, state) {
             final id = state.pathParameters['id']!;
-            return ClinicDetailView(clinicId: id);
+            final scrollToReviews =
+                state.uri.queryParameters['scrollToReviews'] == 'true';
+            return ClinicDetailView(
+                clinicId: id, scrollToReviews: scrollToReviews);
           },
         ),
 

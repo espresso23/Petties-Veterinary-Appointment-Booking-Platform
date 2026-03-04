@@ -169,8 +169,16 @@ class BookingResponse {
       emrId: json['emrId'],
       services: allServices,
       pets: petsList,
+      assignedStaffId: json['assignedStaffId'],
       assignedStaffName: json['assignedStaffName'],
+      assignedStaffPhone: json['assignedStaffPhone'],
+      assignedStaffSpecialty: json['assignedStaffSpecialty'],
       assignedStaffAvatarUrl: json['assignedStaffAvatarUrl'],
+      isReviewed: json['isReviewed'],
+      reviewId: json['reviewId'],
+      rating: json['rating'],
+      reviewComment: json['reviewComment'],
+      arrivedAt: json['arrivedAt'],
     );
   }
 }

@@ -13,6 +13,7 @@ import com.petties.petties.exception.BadRequestException;
 import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.repository.BlacklistedTokenRepository;
 import com.petties.petties.service.ClinicServiceService;
+import com.petties.petties.service.VaccineDosePriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class ClinicServiceControllerUnitTest {
 
         @MockitoBean
         private ClinicServiceService clinicServiceService;
+
+        @MockitoBean
+        private VaccineDosePriceService vaccineDosePriceService;
 
         // Security mocks required for WebMvcTest when JwtAuthenticationFilter is
         // present

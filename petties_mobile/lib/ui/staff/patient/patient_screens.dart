@@ -92,12 +92,8 @@ class _PatientListScreenState extends State<PatientListScreen> {
           (p.ownerName?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
               false);
       final matchesFilter = _filter == 'all' ||
-          (_filter == 'dogs' &&
-              (p.species.toLowerCase().contains('chó') ||
-                  p.species.toLowerCase() == 'dog')) ||
-          (_filter == 'cats' &&
-              (p.species.toLowerCase().contains('mèo') ||
-                  p.species.toLowerCase() == 'cat'));
+          (_filter == 'dogs' && p.species == PetSpecies.DOG) ||
+          (_filter == 'cats' && p.species == PetSpecies.CAT);
       return matchesSearch && matchesFilter;
     }).toList();
 
@@ -122,12 +118,17 @@ class _PatientListScreenState extends State<PatientListScreen> {
     return list;
   }
 
-  IconData _getSpeciesIcon(String species) {
-    final s = species.toLowerCase();
-    if (s.contains('chó') || s == 'dog') return Icons.pets;
-    if (s.contains('mèo') || s == 'cat') return Icons.pets;
-    if (s.contains('thỏ') || s == 'rabbit') return Icons.cruelty_free;
-    return Icons.pets;
+  IconData _getSpeciesIcon(PetSpecies species) {
+    switch (species) {
+      case PetSpecies.DOG:
+        return Icons.pets;
+      case PetSpecies.CAT:
+        return Icons.pets;
+      case PetSpecies.RABBIT:
+        return Icons.cruelty_free;
+      default:
+        return Icons.pets;
+    }
   }
 
   String _calculateAge(DateTime dateOfBirth) {
@@ -495,7 +496,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
                   _buildStatusBadge(patient.bookingStatus),
                   const SizedBox(height: 4),
                   Text(
-                    '${patient.species} ${patient.breed} • ${_calculateAge(patient.dateOfBirth)}',
+                    '${patient.species.displayName} ${patient.breed} • ${_calculateAge(patient.dateOfBirth)}',
                     style: const TextStyle(
                       color: AppColors.stone500,
                       fontSize: 13,
@@ -769,12 +770,17 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
     return species;
   }
 
-  IconData _getSpeciesIconForDetail(String species) {
-    final s = species.toLowerCase();
-    if (s.contains('chó') || s == 'dog') return Icons.pets;
-    if (s.contains('mèo') || s == 'cat') return Icons.pets;
-    if (s.contains('thỏ') || s == 'rabbit') return Icons.cruelty_free;
-    return Icons.pets;
+  IconData _getSpeciesIconForDetail(PetSpecies species) {
+    switch (species) {
+      case PetSpecies.DOG:
+        return Icons.pets;
+      case PetSpecies.CAT:
+        return Icons.pets;
+      case PetSpecies.RABBIT:
+        return Icons.cruelty_free;
+      default:
+        return Icons.pets;
+    }
   }
 
   String _getGenderVietnamese(String gender) {
@@ -972,7 +978,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 // Stats row
                 Row(
                   children: [
-                    _buildStatChip(patient.species),
+                    _buildStatChip(patient.species.displayName),
                     const SizedBox(width: 8),
                     _buildStatChip(
                         '${_calculateAge(patient.dateOfBirth)} / ${_getGenderVietnamese(patient.gender)}'),
@@ -1085,7 +1091,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           // Info cards
           _buildInfoCard('Thông tin thú cưng', [
             _buildInfoRow('Tên', patient.name),
-            _buildInfoRow('Loài', patient.species),
+            _buildInfoRow('Loài', patient.species.displayName),
             _buildInfoRow('Giống', patient.breed),
             _buildInfoRow('Tuổi', _calculateAge(patient.dateOfBirth)),
             _buildInfoRow('Giới tính', _getGenderVietnamese(patient.gender)),
@@ -1253,7 +1259,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                       FilledButton.icon(
                         onPressed: () async {
                           final result = await context.push<bool>(
-                            '/staff/emr/create/${widget.patient.id}?petName=${Uri.encodeComponent(widget.patient.name)}&petSpecies=${Uri.encodeComponent(widget.patient.species)}${widget.patient.bookingId != null ? '&bookingId=${widget.patient.bookingId}' : ''}${widget.patient.bookingCode != null ? '&bookingCode=${widget.patient.bookingCode}' : ''}',
+                            '/staff/emr/create/${widget.patient.id}?petName=${Uri.encodeComponent(widget.patient.name)}&petSpecies=${Uri.encodeComponent(widget.patient.species.value)}${widget.patient.bookingId != null ? '&bookingId=${widget.patient.bookingId}' : ''}${widget.patient.bookingCode != null ? '&bookingCode=${widget.patient.bookingCode}' : ''}',
                           );
                           if (result == true) {
                             setState(() {}); // Refresh EMR list
@@ -1296,7 +1302,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                           ElevatedButton.icon(
                             onPressed: () async {
                               final result = await context.push<bool>(
-                                '/staff/emr/create/${widget.patient.id}?petName=${Uri.encodeComponent(widget.patient.name)}&petSpecies=${Uri.encodeComponent(widget.patient.species)}${widget.patient.bookingId != null ? '&bookingId=${widget.patient.bookingId}' : ''}${widget.patient.bookingCode != null ? '&bookingCode=${widget.patient.bookingCode}' : ''}',
+                                '/staff/emr/create/${widget.patient.id}?petName=${Uri.encodeComponent(widget.patient.name)}&petSpecies=${Uri.encodeComponent(widget.patient.species.value)}${widget.patient.bookingId != null ? '&bookingId=${widget.patient.bookingId}' : ''}${widget.patient.bookingCode != null ? '&bookingCode=${widget.patient.bookingCode}' : ''}',
                               );
                               if (result == true) {
                                 setState(() {}); // Refresh EMR list

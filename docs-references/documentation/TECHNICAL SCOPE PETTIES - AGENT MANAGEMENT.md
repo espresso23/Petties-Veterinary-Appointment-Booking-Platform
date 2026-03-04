@@ -193,7 +193,8 @@ Quản lý dữ liệu kiến thức thú y mà Agent sử dụng để trả l�
 
 ### **Database & Storage**
 
-* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools, Prompt Versions, Logs chat.
+* **PostgreSQL:** Lưu trữ cấu hình Agent, **Encrypted API Keys**, danh sách Tools, Prompt Versions (không lưu message chat AI-user).
+* **MongoDB:** Lưu trữ lịch sử hội thoại AI-user (`ai_chat_sessions`, `ai_chat_messages`) và metadata để audit/phân tích.
 * **Qdrant Cloud (Managed Service):** Lưu trữ vector cho RAG (documents & knowledge base).
 
 

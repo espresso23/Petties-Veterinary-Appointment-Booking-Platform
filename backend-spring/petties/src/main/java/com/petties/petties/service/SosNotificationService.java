@@ -166,7 +166,7 @@ public class SosNotificationService {
                 // Pet info
                 if (booking.getPet() != null) {
                         builder.petName(booking.getPet().getName())
-                                        .petSpecies(booking.getPet().getSpecies())
+                                        .petSpecies(booking.getPet().getSpecies() != null ? booking.getPet().getSpecies().name() : null)
                                         .petBreed(booking.getPet().getBreed())
                                         .petWeight(booking.getPet().getWeight())
                                         .petAvatarUrl(booking.getPet().getImageUrl());

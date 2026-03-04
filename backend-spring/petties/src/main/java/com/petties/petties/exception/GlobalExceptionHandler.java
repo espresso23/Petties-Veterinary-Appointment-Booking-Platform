@@ -22,6 +22,9 @@ import java.util.Map;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.core.env.Environment;
+
+import java.util.Arrays;
 
 /**
  * Global Exception Handler for REST API
@@ -46,6 +49,12 @@ import org.springframework.web.context.request.async.AsyncRequestTimeoutExceptio
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+        private final Environment environment;
+
+        public GlobalExceptionHandler(Environment environment) {
+                this.environment = environment;
+        }
 
         @ExceptionHandler(IllegalStateException.class)
         public ResponseEntity<ErrorResponse> handleIllegalStateException(
@@ -326,6 +335,8 @@ public class GlobalExceptionHandler {
                                 message = "Lỗi trùng lặp mã booking. Vui lòng thử lại đặt lịch.";
                         } else if (rootCause.contains("bookings_") && rootCause.contains("_key")) {
                                 message = "Lỗi trùng lặp dữ liệu booking. Vui lòng thử lại.";
+                        } else if (rootCause.contains("unique_staff_date")) {
+                                message = "Nhân viên đã có ca làm việc trong ngày này. Vui lòng cập nhật ca hiện tại thay vì tạo mới.";
                         } else if (rootCause.contains("_key") || rootCause.contains("unique")) {
                                 message = "Dữ liệu trùng lặp. Vui lòng kiểm tra và thử lại.";
                         }
@@ -413,15 +424,22 @@ public class GlobalExceptionHandler {
         public ResponseEntity<ErrorResponse> handleGenericException(
                         Exception ex,
                         HttpServletRequest request) {
+                boolean isDev = environment != null
+                                && Arrays.stream(environment.getActiveProfiles()).anyMatch(p -> "dev".equals(p));
+
+                String userMessage = "Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ";
+                if (isDev && ex != null && ex.getMessage() != null) {
+                        userMessage = userMessage + " [DEV: " + ex.getClass().getSimpleName() + ": " + ex.getMessage() + "]";
+                }
+
                 ErrorResponse error = ErrorResponse.builder()
                                 .timestamp(LocalDateTime.now())
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                                 .error("Internal Server Error")
-                                .message("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ")
+                                .message(userMessage)
                                 .path(request.getRequestURI())
                                 .build();
 
-                // Log error with logger instead of printStackTrace()
                 log.error("Unexpected error occurred at {}: ", request.getRequestURI(), ex);
 
                 return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);

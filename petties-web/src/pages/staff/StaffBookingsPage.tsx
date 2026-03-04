@@ -5,9 +5,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { getBookingsByStaff, getBookingById, checkInBooking, getAvailableServicesForAddOn, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
+import { getBookingsByStaff, getBookingById, checkInBooking, addServiceToBooking, removeServiceFromBooking } from '../../services/bookingService'
 import type { Booking, BookingStatus } from '../../types/booking'
-import type { ClinicServiceResponse } from '../../types/service'
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG } from '../../types/booking'
 import { useSseNotification } from '../../hooks/useSseNotification'
 import { AddServiceModal } from '../../components/booking/AddServiceModal'
@@ -62,7 +61,6 @@ export const StaffBookingsPage = () => {
 
     // Add-on Service state
     const [addServiceModalOpen, setAddServiceModalOpen] = useState(false);
-    const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
     const [addingService, setAddingService] = useState(false);
     const [removeConfirmService, setRemoveConfirmService] = useState<{ bookingServiceId: string; serviceName: string } | null>(null);
     const [totalPages, setTotalPages] = useState(0)
@@ -110,6 +108,7 @@ export const StaffBookingsPage = () => {
 
     // Subscribe to SSE for real-time booking updates
     useSseNotification({
+        silent: true,
         onBookingUpdate: (data) => {
             console.log('[StaffBookingsPage] Booking update received:', data)
             showToast('info', `Có cập nhật booking: ${data.bookingCode}`)
@@ -176,16 +175,9 @@ export const StaffBookingsPage = () => {
         navigate(`/staff/vaccine/create/${selectedBooking.petId}?bookingId=${selectedBooking.bookingId}&bookingCode=${selectedBooking.bookingCode}`)
     }
 
-    const handleOpenAddServiceModal = async () => {
+    const handleOpenAddServiceModal = () => {
         if (!selectedBooking) return;
-        try {
-            const services = await getAvailableServicesForAddOn(selectedBooking.bookingId);
-            setAvailableServices(services);
-            setAddServiceModalOpen(true);
-        } catch (error) {
-            console.error('Error opening service modal:', error)
-            showToast('error', 'Không thể lấy danh sách dịch vụ')
-        }
+        setAddServiceModalOpen(true);
     };
 
     const handleAddService = async (serviceId: string) => {
@@ -518,7 +510,7 @@ export const StaffBookingsPage = () => {
                                                 disabled={actionLoading}
                                                 className="w-full bg-amber-600 text-white py-3 rounded-xl font-black uppercase text-sm tracking-widest border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#1c1917] active:translate-y-0 transition-all disabled:opacity-50"
                                             >
-                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU KHÁM'}
+                                                {actionLoading ? 'ĐANG XỬ LÝ...' : 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ'}
                                             </button>
                                         )}
                                         {selectedBooking.status === 'IN_PROGRESS' && (
@@ -694,13 +686,15 @@ export const StaffBookingsPage = () => {
                                     })()}
 
                                     {/* Add-on Service Modal */}
-                                    <AddServiceModal
-                                        isOpen={addServiceModalOpen}
-                                        onClose={() => setAddServiceModalOpen(false)}
-                                        availableServices={availableServices}
-                                        onAddService={handleAddService}
-                                        isAdding={addingService}
-                                    />
+                                    {selectedBooking && (
+                                        <AddServiceModal
+                                            isOpen={addServiceModalOpen}
+                                            onClose={() => setAddServiceModalOpen(false)}
+                                            booking={selectedBooking}
+                                            onAddService={handleAddService}
+                                            isAdding={addingService}
+                                        />
+                                    )}
 
                                     {/* Confirm remove add-on service */}
                                     <ConfirmModal

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
 import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../core/widgets/custom_button.dart';
 import '../../routing/app_routes.dart';
+import '../../providers/auth_provider.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 class PetListScreen extends StatefulWidget {
   const PetListScreen({super.key});
@@ -31,6 +35,9 @@ class _PetListScreenState extends State<PetListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: AppBar(
@@ -98,6 +105,12 @@ class _PetListScreenState extends State<PetListScreen> {
           );
         },
       ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 
@@ -160,7 +173,7 @@ class _PetListScreenState extends State<PetListScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${pet.species} • ${pet.breed}',
+                      '${pet.species.displayName} • ${pet.breed}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.stone600,

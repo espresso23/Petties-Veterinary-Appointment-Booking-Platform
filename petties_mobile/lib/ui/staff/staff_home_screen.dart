@@ -111,7 +111,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // 4. Upcoming Section
+                // 4. Lịch làm việc của tôi (entry point rõ ràng)
+                _buildMyScheduleEntry(context),
+
+                const SizedBox(height: 24),
+
+                // 5. Upcoming Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -124,7 +129,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => context.push(AppRoutes.staffSchedule),
+                      onPressed: () => context.push(AppRoutes.staffBookings),
                       child: const Text('Xem tất cả',
                           style: TextStyle(
                               color: AppColors.primary,
@@ -137,7 +142,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // 5. Quick Actions
+                // 6. Quick Actions
                 const Text(
                   'Thao tác nhanh',
                   style: TextStyle(
@@ -589,8 +594,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED' ||
-            booking.status == 'CONFIRMED') {
+        } else if (booking.status == 'CONFIRMED') {
           statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;
@@ -800,6 +804,72 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     );
   }
 
+  /// Entry point rõ ràng cho màn "Lịch làm việc của tôi" (ca trực, Day/Week/Month).
+  Widget _buildMyScheduleEntry(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push(AppRoutes.staffSchedule),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: AppColors.primary,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lịch làm việc của tôi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Xem ca trực theo ngày, tuần, tháng',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.stone500,
+              size: 24,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuickActions(BuildContext context) {
     return Row(
       children: [
@@ -932,6 +1002,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         children: [
           _buildNavItem(
               context, Icons.grid_view_rounded, 'Trang chủ', true, null),
+          _buildNavItem(
+              context,
+              Icons.calendar_month_rounded,
+              'Lịch làm việc',
+              false,
+              () => context.push(AppRoutes.staffSchedule)),
           _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch hẹn',
               false, () => context.push(AppRoutes.staffBookings)),
           _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,

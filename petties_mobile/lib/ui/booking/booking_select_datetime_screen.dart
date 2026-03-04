@@ -6,6 +6,7 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/clinic_service.dart';
 import '../../providers/booking_wizard_provider.dart';
 import '../../utils/format_utils.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 /// Step 3: Select Date and Time
 class BookingSelectDateTimeScreen extends StatefulWidget {
@@ -67,6 +68,10 @@ class _BookingSelectDateTimeScreenState
             ],
           );
         },
+      ),
+      bottomNavigationBar: PetOwnerBottomNav(
+        currentIndex: 2,
+        onTap: (index) => handlePetOwnerNavTap(context, index),
       ),
     );
   }
@@ -185,6 +190,7 @@ class _BookingSelectDateTimeScreenState
           provider.selectDate(selectedDay);
         },
         calendarFormat: CalendarFormat.month,
+        rowHeight: 38,
         headerStyle: const HeaderStyle(
           formatButtonVisible: false,
           titleCentered: true,
@@ -210,20 +216,20 @@ class _BookingSelectDateTimeScreenState
           ),
         ),
         calendarStyle: CalendarStyle(
-          todayDecoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.3),
+          todayDecoration: const BoxDecoration(
+            color: AppColors.primarySurface,
             shape: BoxShape.circle,
           ),
           todayTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: AppColors.stone900,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryDark,
           ),
           selectedDecoration: const BoxDecoration(
             color: AppColors.primary,
             shape: BoxShape.circle,
           ),
           selectedTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             color: AppColors.white,
           ),
           weekendTextStyle: const TextStyle(color: AppColors.coral),
@@ -253,17 +259,14 @@ class _BookingSelectDateTimeScreenState
               Text(
                 FormatUtils.formatDate(provider.selectedDate!),
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
                 ),
               ),
           ],
         ),
         const SizedBox(height: 8),
-        // Legend
-        _buildSlotsLegend(),
-        const SizedBox(height: 12),
         if (provider.selectedDate == null)
           _buildNoDateSelected()
         else if (provider.isLoadingSlots)
@@ -350,51 +353,6 @@ class _BookingSelectDateTimeScreenState
       );
     }
     return const SizedBox.shrink();
-  }
-
-  Widget _buildSlotsLegend() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.stone100,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildLegendItem(AppColors.white, AppColors.stone300, 'Trống'),
-          _buildLegendItem(AppColors.stone200, AppColors.stone300, 'Đã đặt'),
-          _buildLegendItem(AppColors.coral.withValues(alpha: 0.15),
-              AppColors.coral.withValues(alpha: 0.5), 'Nghỉ'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(Color bgColor, Color borderColor, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: borderColor, width: 1.5),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AppColors.stone600,
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildNoDateSelected() {
@@ -517,104 +475,109 @@ class _BookingSelectDateTimeScreenState
 
   Widget _buildSlotChips(
       BookingWizardProvider provider, List<AvailableSlot> slots) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: slots.map((slot) {
-        final isSelected = provider.selectedTimeSlots.contains(slot.startTime);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 8.0;
+        const columns = 5;
+        final chipWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
 
-        // Check if slot is in the past
-        bool isPastTime = false;
-        if (provider.selectedDate != null &&
-            isSameDay(provider.selectedDate!, DateTime.now())) {
-          try {
-            final parts = slot.startTime.split(':');
-            final slotHour = int.parse(parts[0]);
-            final slotMinute = int.parse(parts[1]);
-            final now = DateTime.now();
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: slots.map((slot) {
+            final isSelected =
+                provider.selectedTimeSlots.contains(slot.startTime);
 
-            if (now.hour > slotHour ||
-                (now.hour == slotHour && now.minute > slotMinute)) {
-              isPastTime = true;
+            bool isPastTime = false;
+            if (provider.selectedDate != null &&
+                isSameDay(provider.selectedDate!, DateTime.now())) {
+              try {
+                final parts = slot.startTime.split(':');
+                final slotHour = int.parse(parts[0]);
+                final slotMinute = int.parse(parts[1]);
+                final now = DateTime.now();
+
+                if (now.hour > slotHour ||
+                    (now.hour == slotHour && now.minute > slotMinute)) {
+                  isPastTime = true;
+                }
+              } catch (_) {}
             }
-          } catch (_) {}
-        }
 
-        final isAvailable = slot.available && !isPastTime;
-        final isBreakTime = slot.isBreakTime;
+            final isAvailable = slot.available && !isPastTime;
+            final isBreakTime = slot.isBreakTime;
 
-        // Determine colors based on state
-        Color bgColor;
-        Color borderColor;
-        Color textColor;
+            Color bgColor = AppColors.white;
+            Color borderColor = AppColors.stone300;
+            Color textColor = AppColors.stone700;
 
-        if (isSelected) {
-          // Single selected slot (drop-off time)
-          bgColor = AppColors.primary;
-          borderColor = AppColors.primary;
-          textColor = AppColors.white;
-        } else if (isBreakTime) {
-          bgColor = AppColors.coral.withValues(alpha: 0.15);
-          borderColor = AppColors.coral.withValues(alpha: 0.5);
-          textColor = AppColors.coral;
-        } else if (!isAvailable) {
-          bgColor = AppColors.stone200;
-          borderColor = AppColors.stone300;
-          textColor = AppColors.stone400;
-        } else {
-          bgColor = AppColors.white;
-          borderColor = AppColors.stone300;
-          textColor = AppColors.stone700;
-        }
+            if (isSelected) {
+              bgColor = AppColors.primary;
+              borderColor = AppColors.primaryDark;
+              textColor = AppColors.white;
+            } else if (isBreakTime) {
+              bgColor = AppColors.coral.withValues(alpha: 0.12);
+              borderColor = AppColors.coral.withValues(alpha: 0.5);
+              textColor = AppColors.coral;
+            } else if (!isAvailable) {
+              bgColor = AppColors.stone100;
+              borderColor = AppColors.stone300;
+              textColor = AppColors.stone500;
+            }
 
-        return Tooltip(
-          message: isPastTime
-              ? 'Đã qua giờ'
-              : slot.reason ?? (isAvailable ? 'Khả dụng' : ''),
-          child: GestureDetector(
-            onTap:
-                isAvailable ? () => provider.selectTime(slot.startTime) : null,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: borderColor, width: 2),
-                boxShadow: isSelected
-                    ? const [
-                        BoxShadow(
-                            color: AppColors.stone900, offset: Offset(2, 2))
-                      ]
+            return SizedBox(
+              width: chipWidth,
+              child: GestureDetector(
+                onTap: isAvailable
+                    ? () => provider.selectTime(slot.startTime)
                     : null,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    slot.startTime,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
-                    ),
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor, width: 2),
+                    boxShadow: isSelected
+                        ? const [
+                            BoxShadow(
+                              color: AppColors.stone900,
+                              offset: Offset(2, 2),
+                            ),
+                          ]
+                        : null,
                   ),
-                  if (isBreakTime) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Nghỉ',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: textColor.withValues(alpha: 0.8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        slot.startTime,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      if (isBreakTime)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'Nghỉ',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 

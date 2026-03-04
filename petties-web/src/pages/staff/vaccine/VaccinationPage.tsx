@@ -145,7 +145,6 @@ const VaccinationPage = () => {
         }
     }, [bookingId, records, templates, editingId, isLoading])
 
-
     const handleSubmit = async (data: VaccinationFormData) => {
         if (!petId) {
             showToast('error', 'Vui lòng điền các trường bắt buộc')

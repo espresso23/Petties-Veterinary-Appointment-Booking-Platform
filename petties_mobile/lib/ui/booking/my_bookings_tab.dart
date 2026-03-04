@@ -3,9 +3,9 @@ import 'package:go_router/go_router.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/models/booking.dart';
 import '../../data/services/booking_service.dart';
+import '../../data/services/review_service.dart';
 import '../../data/services/sos_matching_service.dart';
 import '../../utils/format_utils.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'write_review_screen.dart';
 
 /// Tab hiển thị lịch sử đặt lịch của Pet Owner
@@ -103,28 +103,28 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                           _filterByStatuses(_proxyBookings, const ['PENDING']),
                     ),
 
-                    // Tab 2: Đã duyệt (CONFIRMED, ASSIGNED)
+                    // Tab 2: Đã duyệt (CONFIRMED)
                     _buildStatusSection(
-                      myBookings: _filterByStatuses(
-                          _bookings, const ['CONFIRMED', 'ASSIGNED']),
+                      myBookings:
+                          _filterByStatuses(_bookings, const ['CONFIRMED']),
                       proxyBookings: _filterByStatuses(
-                          _proxyBookings, const ['CONFIRMED', 'ASSIGNED']),
+                          _proxyBookings, const ['CONFIRMED']),
                     ),
 
                     // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
                     _buildStatusSection(
                       myBookings: _filterByStatuses(_bookings,
-                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
                       proxyBookings: _filterByStatuses(_proxyBookings,
-                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
                     ),
 
                     // Tab 4: Hoàn thành
                     _buildStatusSection(
                       myBookings:
                           _filterByStatuses(_bookings, const ['COMPLETED']),
-                      proxyBookings:
-                          _filterByStatuses(_proxyBookings, const ['COMPLETED']),
+                      proxyBookings: _filterByStatuses(
+                          _proxyBookings, const ['COMPLETED']),
                     ),
 
                     // Tab 5: Đã hủy (CANCELLED, REJECTED, NO_SHOW)
@@ -162,8 +162,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
               labelColor: AppColors.primary,
               unselectedLabelColor: AppColors.stone500,
               indicatorColor: AppColors.primary,
-              labelStyle:
-                  TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               tabs: [
                 Tab(text: 'Lịch hẹn của tôi'),
                 Tab(text: 'Lịch hẹn đặt hộ'),
@@ -239,7 +238,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
       case 'PENDING':
         statusColor = Colors.orange;
         break;
-      case 'CONFIRMED':
       case 'CONFIRMED':
         statusColor = Colors.blue;
         break;
@@ -448,7 +446,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                         Expanded(
                             child: _buildCompactInfo(
                           Icons.medical_services_rounded,
-                          '${booking.services.length ?? 0} dịch vụ',
+                          '${booking.services.length} dịch vụ',
                           AppColors.teal600,
                         )),
                       ],
@@ -514,6 +512,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                       // Review Button or Rating Display (Left)
                       if (booking.status == 'COMPLETED')
                         if (booking.isReviewed != true)
+                          // === CHƯA ĐÁNH GIÁ ===
                           GestureDetector(
                             onTap: () {
                               Navigator.of(context)
@@ -531,25 +530,25 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                                  horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.1),
+                                color: Colors.amber.withOpacity(0.05),
                                 borderRadius: BorderRadius.circular(8),
-                                border:
-                                    Border.all(color: Colors.amber, width: 1.5),
+                                border: Border.all(
+                                    color: Colors.amber.shade300, width: 1),
                               ),
-                              child: const Row(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.star_rounded,
+                                  const Icon(Icons.star_border_rounded,
                                       size: 16, color: Colors.amber),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'ĐÁNH GIÁ',
+                                    'Đánh giá',
                                     style: TextStyle(
-                                      color: Colors.amber,
-                                      fontWeight: FontWeight.w800,
+                                      color: Colors.amber.shade700,
+                                      fontWeight: FontWeight.w600,
                                       fontSize: 12,
-                                      letterSpacing: 0.5,
                                     ),
                                   ),
                                 ],
@@ -557,59 +556,96 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                             ),
                           )
                         else if (booking.rating != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppColors.stone100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Text(
-                                  'Đã đánh giá:',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.stone500,
-                                    fontWeight: FontWeight.w500,
+                          // === ĐÃ ĐÁNH GIÁ ===
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () => _openClinicReviewSection(booking),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: Colors.amber, width: 1),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Icon(Icons.star_rounded,
-                                    size: 18, color: Colors.amber),
-                                const SizedBox(width: 2),
-                                Text(
-                                  '${booking.rating}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.stone900,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                InkWell(
-                                  onTap: () {
-                                    Navigator.of(context)
-                                        .push(
-                                      MaterialPageRoute(
-                                        builder: (_) => WriteReviewScreen(
-                                            booking: booking, isEditMode: true),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.star_rounded,
+                                          size: 16, color: Colors.amber),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        'Xem đánh giá',
+                                        style: TextStyle(
+                                          color: Colors.amber,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
                                       ),
-                                    )
-                                        .then((value) {
-                                      if (value == true) {
-                                        _fetchBookings();
-                                      }
-                                    });
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(4.0),
-                                    child: Icon(Icons.edit,
-                                        size: 16, color: AppColors.stone500),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              // Edit pen icon
+                              InkWell(
+                                onTap: () {
+                                  Navigator.of(context)
+                                      .push(
+                                    MaterialPageRoute(
+                                      builder: (_) => WriteReviewScreen(
+                                          booking: booking, isEditMode: true),
+                                    ),
+                                  )
+                                      .then((value) {
+                                    if (value == true) {
+                                      _fetchBookings();
+                                    }
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4.0),
+                                  child: Icon(Icons.edit_rounded,
+                                      size: 15, color: AppColors.stone400),
+                                ),
+                              ),
+                              // "..." menu to delete
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: PopupMenuButton<String>(
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.more_vert_rounded,
+                                      size: 16, color: AppColors.stone400),
+                                  iconSize: 16,
+                                  onSelected: (value) async {
+                                    if (value == 'delete') {
+                                      _showDeleteReviewDialog(context, booking);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem<String>(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete_outline_rounded,
+                                              size: 18, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('Xóa đánh giá',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                                fontSize: 14,
+                                              )),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
 
                       // Spacer to push everything else to the right
@@ -746,46 +782,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         ),
       ),
     );
-  }
-
-  Widget _buildInlineAction(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(left: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              offset: const Offset(2, 2),
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
-    if (await canLaunchUrl(launchUri)) {
-      await launchUrl(launchUri);
-    }
   }
 
   Future<void> _showCancelDialog(
@@ -972,6 +968,95 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
   }
 
+  Future<void> _showDeleteReviewDialog(
+      BuildContext context, BookingResponse booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa đánh giá?',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa đánh giá này không?\n\nHành động này không thể hoàn tác.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child:
+                const Text('HỦY', style: TextStyle(color: AppColors.stone500)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('XÓA', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      _showLoadingDialog(context);
+      try {
+        if (booking.reviewId != null) {
+          final reviewService = ReviewService();
+          await reviewService.deleteReview(reviewId: booking.reviewId!);
+        }
+        if (context.mounted) Navigator.pop(context); // Hide loading
+        await _fetchBookings();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã xóa đánh giá thành công'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) Navigator.pop(context); // Hide loading
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Lỗi: ${e.toString().replaceAll("Exception:", "").trim()}'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _openClinicReviewSection(BookingResponse booking) async {
+    String? clinicId = booking.clinicId?.trim();
+
+    if ((clinicId == null || clinicId.isEmpty) && booking.bookingId != null) {
+      try {
+        final detail = await _bookingService.getBookingById(booking.bookingId!);
+        clinicId = detail.clinicId?.trim();
+      } catch (_) {
+        // Fallback silently and show user-facing message below if still missing
+      }
+    }
+
+    if (!mounted) return;
+
+    if (clinicId == null || clinicId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin phòng khám để xem đánh giá'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final location = Uri(
+      path: '/clinics/$clinicId',
+      queryParameters: const {'scrollToReviews': 'true'},
+    ).toString();
+
+    context.push(location);
+  }
+
   void _showLoadingDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -987,25 +1072,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
   }
 
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.stone400),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.stone700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildStatusBadge(String? status) {
     Color color;
     String label;
@@ -1015,7 +1081,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         color = Colors.orange;
         label = 'Chờ xác nhận';
         break;
-      case 'CONFIRMED':
       case 'CONFIRMED':
         color = Colors.blue;
         label = 'Đã xác nhận';
@@ -1091,16 +1156,4 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     return timeStr;
   }
 
-  bool _isToday(String? dateStr) {
-    if (dateStr == null) return false;
-    try {
-      final date = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      return date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    } catch (e) {
-      return false;
-    }
-  }
 }

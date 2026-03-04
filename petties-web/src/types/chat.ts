@@ -43,6 +43,11 @@ export interface ChatMessage {
   createdAt: string
   isMe: boolean
   isUploading?: boolean // Used for optimistic UI during upload
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
 }
 
 export interface SendMessageRequest {
@@ -91,3 +96,34 @@ export interface PageResponse<T> {
 // Deprecated: Use Conversation instead
 export type ChatBox = Conversation
 export type CreateChatBoxRequest = CreateConversationRequest
+
+// ======================== AUTO REPLY SETTINGS ========================
+
+export type AutoReplyCondition = 'OFF_HOURS' | 'ALWAYS'
+
+export interface ChatAutoReplySettings {
+  clinicId: string
+  quickReplyEnabled: boolean
+  quickReplyMessage: string
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
+}
+
+export interface UpdateChatAutoReplySettingsRequest {
+  quickReplyEnabled: boolean
+  quickReplyMessage: string
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage: string
+  actionButtons?: {
+    id: string
+    label: string
+    type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+  }[]
+}

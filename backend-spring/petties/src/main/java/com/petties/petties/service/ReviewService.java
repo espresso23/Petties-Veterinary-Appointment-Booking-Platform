@@ -88,6 +88,24 @@ public class ReviewService {
         return mapToDTO(savedReview);
     }
 
+    @Transactional
+    public void deleteReview(UUID reviewId, User user) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new RuntimeException("Review not found"));
+
+        // Validate Ownership
+        if (!review.getUser().getUserId().equals(user.getUserId())) {
+            throw new RuntimeException("You are not allowed to delete this review");
+        }
+
+        com.petties.petties.model.Clinic clinic = review.getClinic();
+
+        reviewRepository.delete(review);
+        System.out.println("DELETED REVIEW: " + reviewId);
+
+        updateClinicStats(clinic);
+    }
+
     private void updateClinicStats(com.petties.petties.model.Clinic clinic) {
         Double avgRating = reviewRepository.getAverageRatingByClinicId(clinic.getClinicId());
         long count = reviewRepository.countByClinic_ClinicId(clinic.getClinicId());
