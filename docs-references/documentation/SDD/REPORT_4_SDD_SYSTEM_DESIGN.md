@@ -7019,6 +7019,26 @@ sequenceDiagram
 
 ---
 
+### 4.16 Use Case Alignment by Feature with SRS (Updated: 04/03/2026)
+
+Mục này ghi nhận các use case còn thiếu cần bổ sung thiết kế chi tiết để đồng bộ với SRS 2.5.
+
+| Feature | Use case còn thiếu | Planned Detailed Design Placement |
+|---|---|---|
+| Notification Management | Create Notification; Delete Notification | 4.13.x |
+| Payment Management | Process Withdraw; View List Withdraw request; View wallet's clinic | 4.12.x hoặc tách 4.17.x |
+| Report Management | Create Report Clinic; Create Report Pet Owner; View All Report; Active/Suspend Report | 4.15.x |
+| System Management | View platform statistics | 4.14.x / 4.15.x |
+| Clinic Management | View Clinic Statistics | 4.4.x / 4.15.x |
+| Clinic Discovery Management | Filter and Sort (rule set đầy đủ) | 4.4.x |
+| Chat Management | Delete Message | 4.10.x |
+| EMR & Vaccination Management | Receive Medication Reminders | 4.9.x |
+| AI Assistant (Clinic) | AI-Assisted Clinic Setup; AI Generate Service Descriptions; AI Pricing Suggestions | 4.12.x |
+
+> Synchronization rule: Tên feature và nhóm use case tại 4.16 phải khớp 1-1 với SRS mục 2.5.
+
+---
+
 ---
 
 ## 5. TECHNOLOGY STACK SUMMARY

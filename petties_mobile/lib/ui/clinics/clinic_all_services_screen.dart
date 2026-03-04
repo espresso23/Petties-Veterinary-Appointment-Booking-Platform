@@ -22,23 +22,24 @@ class ClinicAllServicesScreen extends StatefulWidget {
   });
 
   @override
-  State<ClinicAllServicesScreen> createState() => _ClinicAllServicesScreenState();
+  State<ClinicAllServicesScreen> createState() =>
+      _ClinicAllServicesScreenState();
 }
 
-class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen> 
+class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
     with SingleTickerProviderStateMixin {
   final BookingWizardService _bookingService = BookingWizardService();
-  
+
   List<ClinicServiceModel> _services = [];
   bool _isLoading = true;
   String? _error;
   Clinic? _clinic;
-  
+
   // Multi-selection state
   final Set<String> _selectedServiceIds = {};
   List<Pet> _myPets = [];
   bool _isLoadingPets = false;
-  
+
   // Tab state
   late TabController _tabController;
   int _currentTabIndex = 0; // 0 = AT_CLINIC, 1 = HOME_VISIT
@@ -50,17 +51,17 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
     _tabController.addListener(_onTabChanged);
     _loadData();
   }
-  
+
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
-  
+
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    
+
     final newIndex = _tabController.index;
     if (newIndex != _currentTabIndex) {
       setState(() {
@@ -81,7 +82,7 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
       // Load clinic details
       final clinicProvider = context.read<ClinicProvider>();
       _clinic = clinicProvider.getCachedClinic(widget.clinicId);
-      
+
       // Load services
       final services = await _bookingService.getClinicServices(widget.clinicId);
       setState(() {
@@ -106,24 +107,25 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
           children: [
             // Location Header
             _buildLocationHeader(),
-            
+
             // App Bar
             _buildAppBar(),
-            
+
             // Tab Bar
             _buildTabBar(),
-            
+
             // Content
             Expanded(
               child: _isLoading
                   ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
+                      child:
+                          CircularProgressIndicator(color: AppColors.primary),
                     )
                   : _error != null
                       ? _buildError()
                       : _buildServicesList(),
             ),
-            
+
             // Bottom bar for quick booking (only show when services selected)
             if (_selectedServiceIds.isNotEmpty) _buildQuickBookingBar(),
           ],
@@ -307,7 +309,8 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 border: Border.all(color: AppColors.stone300),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.arrow_back, size: 20, color: AppColors.stone900),
+              child: const Icon(Icons.arrow_back,
+                  size: 20, color: AppColors.stone900),
             ),
           ),
           const SizedBox(width: 12),
@@ -397,17 +400,18 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
 
   Widget _buildServicesList() {
     final filteredServices = _filteredServices;
-    
+
     if (filteredServices.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.medical_services_outlined, size: 48, color: AppColors.stone400),
+            const Icon(Icons.medical_services_outlined,
+                size: 48, color: AppColors.stone400),
             const SizedBox(height: 16),
             Text(
-              _currentTabIndex == 0 
+              _currentTabIndex == 0
                   ? 'Chưa có dịch vụ tại phòng khám'
                   : 'Chưa có dịch vụ tại nhà',
               style: const TextStyle(fontSize: 14, color: AppColors.stone500),
@@ -420,13 +424,14 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: filteredServices.length,
-      itemBuilder: (context, index) => _buildServiceCard(filteredServices[index]),
+      itemBuilder: (context, index) =>
+          _buildServiceCard(filteredServices[index]),
     );
   }
 
   Widget _buildServiceCard(ClinicServiceModel service) {
     final isSelected = _selectedServiceIds.contains(service.serviceId);
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -448,7 +453,9 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
             width: isSelected ? 2 : 1,
           ),
           boxShadow: isSelected
-              ? const [BoxShadow(color: AppColors.stone900, offset: Offset(3, 3))]
+              ? const [
+                  BoxShadow(color: AppColors.stone900, offset: Offset(3, 3))
+                ]
               : const [
                   BoxShadow(
                     color: Colors.black12,
@@ -495,7 +502,8 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                       const SizedBox(height: 2),
                       // Category tag
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.stone100,
                           borderRadius: BorderRadius.circular(4),
@@ -520,17 +528,19 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                     color: isSelected ? AppColors.primary : AppColors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? AppColors.primary : AppColors.stone300,
+                      color:
+                          isSelected ? AppColors.primary : AppColors.stone300,
                       width: 2,
                     ),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check, color: AppColors.white, size: 16)
+                      ? const Icon(Icons.check,
+                          color: AppColors.white, size: 16)
                       : null,
                 ),
               ],
             ),
-            
+
             // Home visit badge
             if (service.isHomeVisit) ...[
               const SizedBox(height: 8),
@@ -539,7 +549,8 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 decoration: BoxDecoration(
                   color: AppColors.teal100,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.teal600.withValues(alpha: 0.5)),
+                  border: Border.all(
+                      color: AppColors.teal600.withValues(alpha: 0.5)),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -558,9 +569,10 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 ),
               ),
             ],
-            
+
             // Description
-            if (service.description != null && service.description!.isNotEmpty) ...[
+            if (service.description != null &&
+                service.description!.isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(
                 service.description!,
@@ -572,18 +584,19 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 overflow: TextOverflow.ellipsis,
               ),
             ],
-            
+
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.stone200),
             const SizedBox(height: 12),
-            
+
             // Price and duration row
             Row(
               children: [
                 // Duration
                 Row(
                   children: [
-                    const Icon(Icons.schedule, size: 16, color: AppColors.stone500),
+                    const Icon(Icons.schedule,
+                        size: 16, color: AppColors.stone500),
                     const SizedBox(width: 4),
                     Text(
                       '${service.durationMinutes} phút',
@@ -701,7 +714,8 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
             GestureDetector(
               onTap: _showPetSelectionPopup,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(12),
@@ -734,7 +748,9 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
 
   /// Get selected services list
   List<ClinicServiceModel> get _selectedServices {
-    return _services.where((s) => _selectedServiceIds.contains(s.serviceId)).toList();
+    return _services
+        .where((s) => _selectedServiceIds.contains(s.serviceId))
+        .toList();
   }
 
   /// Calculate total price of selected services (base price only, weight surcharge calculated after pet selection)
@@ -750,7 +766,7 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
     return total;
   }
 
-  /// Show pet selection popup
+  /// Show pet selection popup (multi-select)
   void _showPetSelectionPopup() async {
     // Load pets if not loaded
     if (_myPets.isEmpty && !_isLoadingPets) {
@@ -766,138 +782,248 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
 
     if (!mounted) return;
 
+    // Local state for multi-select within the bottom sheet
+    final Set<String> selectedPetIds = {};
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.7,
-        ),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.stone300,
-                borderRadius: BorderRadius.circular(2),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
+          ),
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.stone300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Text(
-                    'Chọn thú cưng',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.stone900,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close, color: AppColors.stone500),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // Pet list
-            Flexible(
-              child: _isLoadingPets
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: CircularProgressIndicator(color: AppColors.primary),
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Chọn thú cưng',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.stone900,
+                        ),
                       ),
-                    )
-                  : _myPets.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.pets, size: 48, color: AppColors.stone400),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Bạn chưa có thú cưng nào',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.stone500,
+                    ),
+                    if (selectedPetIds.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${selectedPetIds.length}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(sheetContext),
+                      child: const Icon(Icons.close, color: AppColors.stone500),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Pet list
+              Flexible(
+                child: _isLoadingPets
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(
+                              color: AppColors.primary),
+                        ),
+                      )
+                    : _myPets.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.pets,
+                                    size: 48, color: AppColors.stone400),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Bạn chưa có thú cưng nào',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.stone500,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  context.push('/pets/add');
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Text(
-                                    'Thêm thú cưng',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.white,
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.pop(sheetContext);
+                                    context.push('/pets/add');
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      'Thêm thú cưng',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.white,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: _myPets.length,
+                            itemBuilder: (context, index) {
+                              final pet = _myPets[index];
+                              final isSelected =
+                                  selectedPetIds.contains(pet.id);
+                              return _buildPetCard(
+                                pet,
+                                isSelected: isSelected,
+                                onTap: () {
+                                  setSheetState(() {
+                                    if (isSelected) {
+                                      selectedPetIds.remove(pet.id);
+                                    } else {
+                                      selectedPetIds.add(pet.id);
+                                    }
+                                  });
+                                },
+                              );
+                            },
                           ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _myPets.length,
-                          itemBuilder: (context, index) {
-                            final pet = _myPets[index];
-                            return _buildPetCard(pet);
-                          },
+              ),
+              // Confirm button
+              if (_myPets.isNotEmpty) ...[
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SafeArea(
+                    top: false,
+                    child: GestureDetector(
+                      onTap: selectedPetIds.isNotEmpty
+                          ? () {
+                              Navigator.pop(sheetContext);
+                              final selectedPets = _myPets
+                                  .where((p) => selectedPetIds.contains(p.id))
+                                  .toList();
+                              _startBookingWithPets(selectedPets);
+                            }
+                          : null,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: selectedPetIds.isNotEmpty
+                              ? AppColors.primary
+                              : AppColors.stone300,
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppColors.stone900, width: 2),
+                          boxShadow: selectedPetIds.isNotEmpty
+                              ? const [
+                                  BoxShadow(
+                                      color: AppColors.stone900,
+                                      offset: Offset(3, 3)),
+                                ]
+                              : null,
                         ),
-            ),
-          ],
+                        child: Center(
+                          child: Text(
+                            selectedPetIds.isEmpty
+                                ? 'Chọn ít nhất 1 thú cưng'
+                                : 'Đặt lịch cho ${selectedPetIds.length} thú cưng',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Build pet card for selection popup
-  Widget _buildPetCard(Pet pet) {
+  /// Build pet card for selection popup (multi-select with checkbox)
+  Widget _buildPetCard(Pet pet,
+      {required bool isSelected, required VoidCallback onTap}) {
     return GestureDetector(
-      onTap: () {
-        Navigator.pop(context);
-        _startBookingWithPet(pet);
-      },
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: isSelected ? AppColors.primaryBackground : AppColors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.stone300),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.stone300,
+            width: 2,
+          ),
         ),
         child: Row(
           children: [
+            // Checkbox
+            Container(
+              width: 24,
+              height: 24,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : AppColors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.stone300,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, color: AppColors.white, size: 16)
+                  : null,
+            ),
             // Pet image
             Container(
               width: 56,
@@ -911,7 +1037,8 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 borderRadius: BorderRadius.circular(6),
                 child: pet.imageUrl != null
                     ? Image.network(pet.imageUrl!, fit: BoxFit.cover)
-                    : const Icon(Icons.pets, color: AppColors.stone400, size: 28),
+                    : const Icon(Icons.pets,
+                        color: AppColors.stone400, size: 28),
               ),
             ),
             const SizedBox(width: 12),
@@ -930,14 +1057,7 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${pet.species.displayName} • ${pet.breed}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone500,
-                    ),
-                  ),
-                  Text(
-                    '${pet.weight} kg',
+                    '${pet.species} • ${pet.breed} • ${pet.weight} kg',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.stone500,
@@ -946,30 +1066,27 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                 ],
               ),
             ),
-            // Arrow
-            const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.stone400),
           ],
         ),
       ),
     );
   }
 
-  /// Start booking with selected pet and services
-  void _startBookingWithPet(Pet pet) {
-    if (_clinic == null) return;
+  /// Start booking with selected pets and services
+  void _startBookingWithPets(List<Pet> pets) {
+    if (_clinic == null || pets.isEmpty) return;
 
     final clinicProvider = context.read<ClinicProvider>();
     final bookingProvider = context.read<BookingWizardProvider>();
 
     // Determine booking type from active tab
-    final bookingType = _currentTabIndex == 1 
-        ? BookingType.homeVisit 
-        : BookingType.atClinic;
+    final bookingType =
+        _currentTabIndex == 1 ? BookingType.homeVisit : BookingType.atClinic;
 
-    // Initialize booking with pre-selected services
+    // Initialize booking with pre-selected services for all pets
     bookingProvider.initBookingWithPreselectedServices(
       clinic: _clinic!,
-      pet: pet,
+      pets: pets,
       preselectedServices: _selectedServices,
       bookingType: bookingType,
       userAddress: clinicProvider.locationAddress,
@@ -978,6 +1095,6 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
     );
 
     // Navigate to services screen (step 2 of booking wizard)
-    context.push('/booking/services');
+    context.push('/booking/${widget.clinicId}/services');
   }
 }

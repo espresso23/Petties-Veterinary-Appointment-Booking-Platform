@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { StaffBookingsPage } from './StaffBookingsPage'
 import * as bookingService from '../../services/bookingService'
+import * as serviceEndpoints from '../../services/endpoints/service'
 import { useAuthStore } from '../../store/authStore'
 import type { Booking } from '../../types/booking'
 
@@ -41,7 +42,12 @@ vi.mock('../../services/bookingService', () => ({
     getBookingById: vi.fn(),
     checkInBooking: vi.fn(),
     addServiceToBooking: vi.fn(),
-    getAvailableServicesForAddOn: vi.fn()
+    removeServiceFromBooking: vi.fn()
+}))
+
+// Mock service endpoints (used by AddServiceModal)
+vi.mock('../../services/endpoints/service', () => ({
+    getCompatibleServices: vi.fn()
 }))
 
 describe('StaffBookingsPage - Add Service Feature', () => {
@@ -86,7 +92,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
         ...overrides
     })
 
-    const mockAvailableServices = [
+    const mockCompatibleServices = [
         {
             serviceId: 'svc-001',
             name: 'Cắt móng',
@@ -98,7 +104,6 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             isCustom: false,
             isActive: true,
             isHomeVisit: false,
-            imageUrl: '',
             description: 'Cắt móng cho thú cưng',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -114,7 +119,6 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             isCustom: false,
             isActive: true,
             isHomeVisit: false,
-            imageUrl: '',
             description: 'Tắm và vệ sinh thú cưng',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -357,7 +361,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
+            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
 
             render(<StaffBookingsPage />)
 
@@ -396,7 +400,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue([])
+            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue([])
 
             render(<StaffBookingsPage />)
 
@@ -415,7 +419,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             fireEvent.click(screen.getAllByRole('button', { name: /thêm dịch vụ phát sinh/i })[0])
 
             await waitFor(() => {
-                expect(screen.getByText('Không còn dịch vụ khả dụng')).toBeInTheDocument()
+                expect(screen.getByText(/Không có dịch vụ phù hợp/i)).toBeInTheDocument()
             })
         })
 
@@ -431,7 +435,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
+            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
 
             render(<StaffBookingsPage />)
 
@@ -483,7 +487,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             })
 
             vi.mocked(bookingService.getBookingById).mockResolvedValue(inProgressBooking)
-            vi.mocked(bookingService.getAvailableServicesForAddOn).mockResolvedValue(mockAvailableServices)
+            vi.mocked(serviceEndpoints.getCompatibleServices).mockResolvedValue(mockCompatibleServices)
             vi.mocked(bookingService.addServiceToBooking).mockResolvedValue(updatedBooking as Booking)
 
             render(<StaffBookingsPage />)
