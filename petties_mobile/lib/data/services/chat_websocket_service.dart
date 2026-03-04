@@ -116,9 +116,9 @@ class ChatWebSocketService {
     // Note: Mobile uses /api/ws-native endpoint (pure WebSocket, no SockJS)
     // Backend has context path /api, so WS endpoint is at /api/ws-native
     if (serverUrl.startsWith('https://')) {
-      return '${serverUrl.replaceFirst('https://', 'wss://')}/api/ws-native';
+      return serverUrl.replaceFirst('https://', 'wss://') + '/api/ws-native';
     } else if (serverUrl.startsWith('http://')) {
-      return '${serverUrl.replaceFirst('http://', 'ws://')}/api/ws-native';
+      return serverUrl.replaceFirst('http://', 'ws://') + '/api/ws-native';
     }
 
     // Fallback: assume http

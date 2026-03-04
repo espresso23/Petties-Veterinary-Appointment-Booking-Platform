@@ -79,6 +79,7 @@ function UploadingPlaceholder({ className }: { className?: string }) {
 export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }: MessageBubbleProps & { myAvatar?: string, partnerAvatar?: string }) {
   const [showImageModal, setShowImageModal] = useState(false)
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+
   const { showToast } = useToast()
 
   const isMe = message.isMe
@@ -133,15 +134,16 @@ export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }
   const handleActionButtonClick = (type: string, label: string) => {
     switch (type) {
       case 'MENU':
-        showToast('info', 'Hệ thống sẽ hiển thị danh sách dịch vụ cho khách hàng trên ứng dụng di động.')
-        break
+        showToast('info', `Hệ thống sẽ hiển thị danh sách dịch vụ cho khách hàng trên ứng dụng di động.`)
+        break;
       case 'BOOKING':
-        showToast('info', 'Hệ thống sẽ chuyển hướng khách hàng đến trang đặt lịch trên ứng dụng di động.')
-        break
+        showToast('info', `Hệ thống sẽ chuyển hướng khách hàng đến trang đặt lịch trên ứng dụng di động.`)
+        break;
       case 'OFFER':
-        showToast('info', 'Hệ thống sẽ hiển thị ưu đãi cho khách hàng trên ứng dụng di động.')
-        break
+        showToast('info', `Hệ thống sẽ hiển thị ưu đãi cho khách hàng trên ứng dụng di động.`)
+        break;
       default:
+        // CUSTOM action
         showToast('info', `Đã kích hoạt hành động "${label}".`)
     }
   }
@@ -255,14 +257,20 @@ export function MessageBubble({ message, onImageClick, myAvatar, partnerAvatar }
             </p>
           )}
 
+          {/* Action Buttons Render */}
           {message.actionButtons && message.actionButtons.length > 0 && !isMe && (
             <div className="mt-3 flex flex-col gap-2 border-t-2 border-stone-200 pt-3">
               {message.actionButtons.map((btn) => (
                 <button
                   key={btn.id}
-                  type="button"
                   onClick={() => handleActionButtonClick(btn.type, btn.label)}
-                  className="w-full py-2 px-4 rounded-lg border-2 font-bold text-sm transition-all text-center bg-white border-stone-900 text-stone-900 hover:bg-stone-50 shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5"
+                  className={`
+                    w-full py-2 px-4 rounded-lg border-2 font-bold text-sm transition-all text-center
+                    ${isMe
+                      ? 'bg-amber-600 border-amber-800 text-white hover:bg-amber-700 shadow-[2px_2px_0_#92400e]'
+                      : 'bg-white border-stone-900 text-stone-900 hover:bg-stone-50 shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-y-0.5'
+                    }
+                  `}
                 >
                   {btn.label}
                 </button>

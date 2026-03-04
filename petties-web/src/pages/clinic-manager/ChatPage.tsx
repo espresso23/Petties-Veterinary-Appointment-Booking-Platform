@@ -40,7 +40,7 @@ export function ChatPage() {
 
   // ======================== API CALLS ========================
 
-  const loadChatBoxes = useCallback(async () => {
+  const loadChatBoxes = async () => {
     try {
       setLoadingChatBoxes(true)
       const response = await chatService.getConversations(0, 50)
@@ -51,9 +51,9 @@ export function ChatPage() {
     } finally {
       setLoadingChatBoxes(false)
     }
-  }, [showToast])
+  }
 
-  const loadMessages = useCallback(async (chatBoxId: string, page: number, reset = false) => {
+  const loadMessages = async (chatBoxId: string, page: number, reset = false) => {
     try {
       setLoadingMessages(true)
       const response = await chatService.getMessages(chatBoxId, page, 50)
@@ -61,9 +61,28 @@ export function ChatPage() {
       // Map isMe based on senderType for Clinic staff
       // CLINIC messages are "mine", PET_OWNER messages are "theirs"
       // Note: API returns newest first (DESC), ChatBox component will reverse for display
+      const storedAutoReplies = (() => {
+        try {
+          const res = localStorage.getItem('mock_action_buttons')
+          return {
+            buttons: res ? JSON.parse(res) : [],
+            quick: localStorage.getItem('mock_quick_reply') || 'Xin chào, đây là hệ thống tự động',
+            away: localStorage.getItem('mock_away_message') || 'CHÚNG TÔI SẼ PHẢN HỒI'
+          }
+        } catch {
+          return { buttons: [], quick: '', away: '' }
+        }
+      })()
+
       const mappedMessages = response.content.map((msg: ChatMessage) => ({
         ...msg,
-        isMe: msg.senderType === 'CLINIC'
+        isMe: msg.senderType === 'CLINIC',
+        actionButtons: (msg.senderType === 'CLINIC' && storedAutoReplies.buttons.length > 0 && (
+          msg.content?.includes(storedAutoReplies.quick.substring(0, 10)) ||
+          msg.content?.includes(storedAutoReplies.away.substring(0, 10)) ||
+          msg.content?.includes('CHÚNG TÔI SẼ PHẢN HỒI') ||
+          msg.content?.includes('Xin chào, đây là hệ thống tự động')
+        )) ? storedAutoReplies.buttons : undefined
       }))
 
       if (reset) {
@@ -81,17 +100,17 @@ export function ChatPage() {
     } finally {
       setLoadingMessages(false)
     }
-  }, [showToast])
+  }
 
-  const loadMoreMessages = useCallback(() => {
+  const loadMoreMessages = () => {
     if (selectedChatBox && hasMoreMessages && !loadingMessages) {
       loadMessages(selectedChatBox.id, messagesPage + 1, false)
     }
-  }, [selectedChatBox, hasMoreMessages, loadingMessages, messagesPage, loadMessages])
+  }
 
   // ======================== WEBSOCKET ========================
 
-  const connectWebSocket = useCallback(async () => {
+  const connectWebSocket = async () => {
     try {
       await chatWebSocket.connect()
       setWsConnected(true)
@@ -101,7 +120,7 @@ export function ChatPage() {
       setWsConnected(false)
       showToast('error', 'Không thể kết nối real-time. Tin nhắn có thể bị trễ.')
     }
-  }, [showToast])
+  }
 
 
 
@@ -208,10 +227,30 @@ export function ChatPage() {
               return prev
             }
 
+            const storedAutoReplies = (() => {
+              try {
+                const res = localStorage.getItem('mock_action_buttons')
+                return {
+                  buttons: res ? JSON.parse(res) : [],
+                  quick: localStorage.getItem('mock_quick_reply') || 'Xin chào, đây là hệ thống tự động',
+                  away: localStorage.getItem('mock_away_message') || 'CHÚNG TÔI SẼ PHẢN HỒI'
+                }
+              } catch {
+                return { buttons: [], quick: '', away: '' }
+              }
+            })()
+
             // Map isMe based on senderType for Clinic staff
             const mappedMessage = {
               ...wsMessage.message!,
-              isMe: wsMessage.message!.senderType === 'CLINIC'
+              isMe: wsMessage.message!.senderType === 'CLINIC',
+              // Temporary mapping: inject action buttons based on content if they look like an auto reply
+              actionButtons: (wsMessage.message!.senderType === 'CLINIC' && storedAutoReplies.buttons.length > 0 && (
+                wsMessage.message!.content?.includes(storedAutoReplies.quick.substring(0, 10)) ||
+                wsMessage.message!.content?.includes(storedAutoReplies.away.substring(0, 10)) ||
+                wsMessage.message!.content?.includes('CHÚNG TÔI SẼ PHẢN HỒI') ||
+                wsMessage.message!.content?.includes('Xin chào, đây là hệ thống tự động')
+              )) ? storedAutoReplies.buttons : undefined
             }
             console.log('[WS DEBUG] Adding new message to chat')
             // Add to beginning of array because state stores DESC order (newest first)
@@ -279,7 +318,7 @@ export function ChatPage() {
       // Don't disconnect WebSocket as layout needs it for global updates
       // chatWebSocket.disconnect()
     }
-  }, [loadChatBoxes, refreshChatUnreadCount, connectWebSocket])
+  }, [])
 
   // Subscribe to ALL chat boxes for realtime updates in the list
   useEffect(() => {
@@ -302,8 +341,7 @@ export function ChatPage() {
       console.log('[WS DEBUG] Unsubscribing from all chat boxes, count:', unsubscribes.length)
       unsubscribes.forEach(unsub => unsub())
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsConnected, chatBoxes.length])
+  }, [wsConnected, chatBoxes.length, handleWebSocketMessage])
 
   // Load messages and send online status for the selected chat box
   useEffect(() => {
@@ -323,7 +361,6 @@ export function ChatPage() {
         chatWebSocket.sendOnlineStatus(selectedChatBox.id, false)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChatBox?.id, wsConnected])
 
   // ======================== HANDLERS ========================
@@ -497,7 +534,6 @@ export function ChatPage() {
             CHAT
           </h1>
           <button
-            type="button"
             onClick={() => setShowAutoReplyModal(true)}
             className="w-full mb-4 px-3 py-2 bg-amber-50 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] hover:shadow-[3px_3px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:bg-amber-100 transition-all flex items-center gap-2.5"
           >
@@ -554,6 +590,7 @@ export function ChatPage() {
         </div>
       )}
 
+      {/* Auto Reply Modal */}
       <AutoReplyModal
         isOpen={showAutoReplyModal}
         onClose={() => setShowAutoReplyModal(false)}
