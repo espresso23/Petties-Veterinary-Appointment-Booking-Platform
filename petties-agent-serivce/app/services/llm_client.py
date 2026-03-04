@@ -1,15 +1,14 @@
 """
 PETTIES AGENT SERVICE - LLM Client Wrapper
-Unified interface cho OpenRouter, Ollama va OpenAI
+Unified interface cho OpenRouter va DeepSeek
 
 Package: app.services
 Purpose: Abstract LLM calls voi support cho streaming
-Version: v1.0.0 (Added OpenRouter Cloud API)
+Version: v1.2.0 (Removed Ollama & OpenAI - OpenRouter + DeepSeek only)
 
 Supported Providers:
 - OpenRouter (RECOMMENDED): Cloud API voi multi-model routing
-- Ollama: Local LLM (backup)
-- OpenAI: Fallback
+- DeepSeek: Cloud API fallback
 
 OpenRouter Models:
 - google/gemini-2.0-flash-exp:free (1M context, FREE)
@@ -27,10 +26,7 @@ from loguru import logger
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
-try:
-    from langchain_openai import ChatOpenAI
-except ImportError:
-    ChatOpenAI = None
+
 
 
 # ============================================================
@@ -39,7 +35,7 @@ except ImportError:
 
 class LLMConfig(BaseModel):
     """Configuration cho LLM client"""
-    provider: str = "openrouter"  # openrouter | ollama | openai
+    provider: str = "openrouter"  # openrouter | deepseek | openai
     model: str = "google/gemini-2.0-flash-exp:free"  # Default: Free Gemini
     fallback_model: str = "meta-llama/llama-3.3-70b-instruct"  # Fallback model
     temperature: float = 0.7
@@ -357,178 +353,6 @@ class OpenRouterClient(BaseLLMClient):
 
 
 # ============================================================
-# OLLAMA CLIENT (BACKUP)
-# ============================================================
-
-class OllamaClient(BaseLLMClient):
-    """
-    Ollama LLM Client (Local or Cloud)
-
-    Purpose:
-        - Fallback to local Ollama instance
-        - Support streaming cho real-time responses
-
-    Usage:
-        ```python
-        # Local mode
-        client = OllamaClient(LLMConfig(
-            provider="ollama",
-            model="llama3.2",
-            base_url="http://localhost:11434"
-        ))
-        ```
-    """
-
-    def __init__(self, config: LLMConfig):
-        super().__init__(config)
-
-        self.base_url = config.base_url or "http://localhost:11434"
-        headers = {}
-
-        if config.api_key:
-            headers["Authorization"] = f"Bearer {config.api_key}"
-
-        self.client = httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=120.0,
-            headers=headers
-        )
-
-        logger.info(f"OllamaClient initialized: {config.model} @ {self.base_url}")
-
-    async def generate(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> LLMResponse:
-        """Generate response from Ollama"""
-        logger.debug(f"Generating with {self.config.model}: {prompt[:50]}...")
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": self.config.model,
-            "messages": messages,
-            "stream": False,
-            "options": {
-                "temperature": kwargs.get("temperature", self.config.temperature),
-                "num_predict": kwargs.get("max_tokens", self.config.max_tokens),
-            }
-        }
-
-        try:
-            response = await self.client.post("/api/chat", json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-            return LLMResponse(
-                content=data.get("message", {}).get("content", ""),
-                model=self.config.model,
-                usage={
-                    "prompt_tokens": data.get("prompt_eval_count", 0),
-                    "completion_tokens": data.get("eval_count", 0),
-                },
-                finish_reason="stop"
-            )
-
-        except httpx.HTTPError as e:
-            logger.error(f"Ollama HTTP error: {e}")
-            raise
-
-    async def stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream response tokens from Ollama"""
-        logger.debug(f"Streaming with {self.config.model}: {prompt[:50]}...")
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        payload = {
-            "model": self.config.model,
-            "messages": messages,
-            "stream": True,
-            "options": {
-                "temperature": kwargs.get("temperature", self.config.temperature),
-            }
-        }
-
-        try:
-            async with self.client.stream("POST", "/api/chat", json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line:
-                        data = json.loads(line)
-                        content = data.get("message", {}).get("content", "")
-                        if content:
-                            yield content
-
-        except httpx.HTTPError as e:
-            logger.error(f"Ollama stream error: {e}")
-            raise
-
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> LLMResponse:
-        """Chat voi full message history"""
-        formatted_messages = []
-
-        if system_prompt:
-            formatted_messages.append({"role": "system", "content": system_prompt})
-
-        for msg in messages:
-            formatted_messages.append({
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", "")
-            })
-
-        payload = {
-            "model": self.config.model,
-            "messages": formatted_messages,
-            "stream": False,
-            "options": {
-                "temperature": kwargs.get("temperature", self.config.temperature),
-                "num_predict": kwargs.get("max_tokens", self.config.max_tokens),
-            }
-        }
-
-        try:
-            response = await self.client.post("/api/chat", json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-            return LLMResponse(
-                content=data.get("message", {}).get("content", ""),
-                model=self.config.model,
-                usage={
-                    "prompt_tokens": data.get("prompt_eval_count", 0),
-                    "completion_tokens": data.get("eval_count", 0),
-                },
-                finish_reason="stop"
-            )
-
-        except httpx.HTTPError as e:
-            logger.error(f"Ollama chat error: {e}")
-            raise
-
-    async def close(self):
-        """Close HTTP client"""
-        await self.client.aclose()
-
-
-# ============================================================
 # DEEPSEEK CLIENT (FALLBACK)
 # ============================================================
 
@@ -745,122 +569,6 @@ class DeepSeekClient(BaseLLMClient):
 
 
 # ============================================================
-# OPENAI CLIENT (FALLBACK)
-# ============================================================
-
-class OpenAIClient(BaseLLMClient):
-    """
-    OpenAI LLM Client (for embeddings or backup)
-
-    Purpose:
-        - Fallback to OpenAI API
-        - Used for embeddings (text-embedding-3-small)
-    """
-
-    def __init__(self, config: LLMConfig):
-        super().__init__(config)
-
-        if ChatOpenAI is None:
-            raise ImportError("langchain_openai is not installed. Install with: pip install langchain-openai")
-
-        if not config.api_key:
-            logger.warning("OpenAI API key not provided")
-
-        self.llm = ChatOpenAI(
-            model=config.model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            api_key=config.api_key,
-        )
-
-        logger.info(f"OpenAIClient initialized: {config.model}")
-
-    async def generate(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> LLMResponse:
-        """Generate response from OpenAI"""
-        messages = []
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-        messages.append(HumanMessage(content=prompt))
-
-        try:
-            response = await self.llm.ainvoke(messages)
-
-            return LLMResponse(
-                content=response.content,
-                model=self.config.model,
-                usage=response.response_metadata.get("token_usage"),
-                finish_reason=response.response_metadata.get("finish_reason")
-            )
-
-        except Exception as e:
-            logger.error(f"OpenAI error: {e}")
-            raise
-
-    async def stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream response from OpenAI"""
-        messages = []
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-        messages.append(HumanMessage(content=prompt))
-
-        try:
-            async for chunk in self.llm.astream(messages):
-                if chunk.content:
-                    yield chunk.content
-
-        except Exception as e:
-            logger.error(f"OpenAI stream error: {e}")
-            raise
-
-    async def chat(
-        self,
-        messages: List[Dict[str, str]],
-        system_prompt: Optional[str] = None,
-        **kwargs
-    ) -> LLMResponse:
-        """Chat voi message history"""
-        formatted_messages = []
-
-        if system_prompt:
-            formatted_messages.append(SystemMessage(content=system_prompt))
-
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-
-            if role == "user":
-                formatted_messages.append(HumanMessage(content=content))
-            elif role == "assistant":
-                formatted_messages.append(AIMessage(content=content))
-            elif role == "system":
-                formatted_messages.append(SystemMessage(content=content))
-
-        try:
-            response = await self.llm.ainvoke(formatted_messages)
-
-            return LLMResponse(
-                content=response.content,
-                model=self.config.model,
-                usage=response.response_metadata.get("token_usage"),
-                finish_reason=response.response_metadata.get("finish_reason")
-            )
-
-        except Exception as e:
-            logger.error(f"OpenAI chat error: {e}")
-            raise
-
-
-# ============================================================
 # FACTORY FUNCTIONS
 # ============================================================
 
@@ -872,7 +580,7 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         config: LLMConfig (optional, will load from settings if None)
 
     Returns:
-        LLM client instance (OpenRouterClient, OllamaClient, or OpenAIClient)
+        LLM client instance (OpenRouterClient or DeepSeekClient)
     """
     from app.config.settings import settings
 
@@ -892,12 +600,8 @@ def create_llm_client(config: Optional[LLMConfig] = None) -> BaseLLMClient:
         return OpenRouterClient(config)
     elif provider == "deepseek":
         return DeepSeekClient(config)
-    elif provider == "ollama":
-        return OllamaClient(config)
-    elif provider == "openai":
-        return OpenAIClient(config)
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}")
+        raise ValueError(f"Unknown LLM provider: {provider}. Supported: openrouter, deepseek")
 
 
 async def create_llm_client_from_db(
@@ -914,7 +618,7 @@ async def create_llm_client_from_db(
         model_override: Override model selection
 
     Returns:
-        LLM client instance (OpenRouterClient, DeepSeekClient, or OllamaClient)
+        LLM client instance (OpenRouterClient or DeepSeekClient)
     """
     from app.api.routes.settings import get_setting
 
@@ -961,21 +665,11 @@ async def create_llm_client_from_db(
             logger.info(f"Using OpenRouter: model={model}")
             return OpenRouterClient(config)
 
-    # === Fallback to Ollama ===
-    logger.warning("No cloud API keys found, falling back to Ollama")
-    ollama_base_url = await get_setting("OLLAMA_BASE_URL", db_session) or "http://localhost:11434"
-    ollama_model = model_override or await get_setting("OLLAMA_MODEL", db_session) or "llama3.2"
-    ollama_api_key = await get_setting("OLLAMA_API_KEY", db_session)
-
-    config = LLMConfig(
-        provider="ollama",
-        model=ollama_model,
-        base_url=ollama_base_url,
-        api_key=ollama_api_key if ollama_api_key else None,
-        temperature=0.7,
-        max_tokens=2000
+    # === No cloud API keys found ===
+    raise ValueError(
+        "Không tìm thấy API key cho bất kỳ LLM provider nào. "
+        "Vui lòng cấu hình OPENROUTER_API_KEY hoặc DEEPSEEK_API_KEY trong Settings."
     )
-    return OllamaClient(config)
 
 
 # ============================================================
@@ -1016,8 +710,6 @@ __all__ = [
     "BaseLLMClient",
     "OpenRouterClient",
     "DeepSeekClient",
-    "OllamaClient",
-    "OpenAIClient",
     "create_llm_client",
     "create_llm_client_from_db",
     "get_llm_client",

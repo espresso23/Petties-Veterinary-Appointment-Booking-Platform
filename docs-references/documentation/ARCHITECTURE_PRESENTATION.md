@@ -45,7 +45,7 @@
 - Điểm quan trọng:
   - **AI chỉ gọi sang backend qua HTTP, không truy cập trực tiếp database** → dữ liệu nghiệp vụ vẫn do Spring Boot kiểm soát.
   - Nếu LLM hoặc tool lỗi/timeout, AI Service trả lỗi “ở lớp AI”, không thực hiện các hành động nguy hiểm như tạo/sửa booking.
-  - Mỗi lần hội thoại và tool‑call được lưu vào DB riêng của AI (`chat_sessions`, `chat_messages`…) để có thể audit, phân tích lại.
+  - Mỗi lần hội thoại và tool‑call được lưu vào MongoDB của AI (`ai_chat_sessions`, `ai_chat_messages`) để audit và phân tích lại.
 
 ### 2.4. Store Data – Postgres, MongoDB, Redis, Qdrant, Firebase
 
@@ -102,7 +102,7 @@ Mục tiêu của phần này là chứng minh **codebase bên trong không bị
   - `api`: FastAPI endpoint (REST/WebSocket) nhận request chat/AI.
   - `core`: engine ReAct/agent – định nghĩa state, graph, luồng Thought → Action → Observation.
   - `services`: LLM client (`OpenRouterClient`…), tool executor, tích hợp RAG (LlamaIndex + Qdrant + Cohere).
-  - `db`: truy cập Postgres/Mongo của AI để lưu cấu hình agent, tools, chat history.
+  - `db`: Postgres lưu cấu hình/governance AI (agent, tools, prompt/settings), MongoDB lưu chat history (`ai_chat_sessions`, `ai_chat_messages`).
   - `config`: cấu hình hệ thống (API key, model, provider).
   - `test`: unit/integration test, chỉ import xuống các layer dưới.
 - Ý chính: **luồng phụ thuộc đi từ trên xuống** – `api → core → services/db`, không có việc services gọi ngược lên api, nên dễ test và refactor.

@@ -88,7 +88,9 @@ flowchart TD
 
 - **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, VET_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
 - **MongoDB:** EMR_RECORD, VACCINATION_RECORD (và các embedded: prescriptions, images).
-- **AI Service (PostgreSQL):** AI_AGENT, AI_TOOL, AI_PROMPT_VERSION, AI_CHAT_SESSION, AI_CHAT_MESSAGE, AI_KNOWLEDGE_DOC, AI_SYSTEM_SETTING.
+- **AI Service (PostgreSQL + MongoDB):**
+    - **PostgreSQL:** AI_AGENT, AI_TOOL, AI_PROMPT_VERSION, AI_KNOWLEDGE_DOC, AI_SYSTEM_SETTING.
+    - **MongoDB:** AI_CHAT_SESSION (`ai_chat_sessions`), AI_CHAT_MESSAGE (`ai_chat_messages`).
 - **Quan hệ:** Đầy đủ cardinality (1-N, N-1, junction tables như BOOKING_SLOT, BOOKING_SERVICE), khóa ngoại và mô tả từng thực thể (mục đích, thuộc tính chính).
 
 **Bằng chứng:** `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §1 Complete Mermaid ERD, §2 Detailed Entities Description, §4 Relationship Matrix.
@@ -321,19 +323,19 @@ sequenceDiagram
 
 ### AI.4 Thiết kế database có hỗ trợ lưu dữ liệu gửi tới AI và kết quả AI trả về để phân tích/kiểm chứng sau không?
 
-**Đáp án:** Có. Cả PostgreSQL (AI service) và MongoDB (chat history) đều có schema lưu input/output và metadata của AI.
+**Đáp án:** Có. Thiết kế hiện tại tách rõ trách nhiệm: PostgreSQL cho cấu hình AI, MongoDB cho lịch sử hội thoại AI-user.
 
-- **PostgreSQL (AI Agent SDD §5.2):**  
-  - **chat_sessions:** id, agent_id, user_id (từ Core), session_id (unique), started_at, ended_at.  
-  - **chat_messages:** id, session_id, role (user | assistant | system), content, **message_metadata** (JSON – tool_calls, ReAct steps, thoughts), timestamp.  
-  Nhờ đó có thể lưu từng tin nhắn user/assistant và metadata (tool gọi, tham số, kết quả, bước suy luận).
+- **PostgreSQL (AI config/governance):** lưu `agents`, `tools`, `prompt_versions`, `knowledge_documents`, `system_settings` để quản trị Single Agent, tools và RAG config.
 
-- **MongoDB (AI Agent SDD §5.4):** Collection `chat_history`, document có session_id, user_id, agent_id, **messages** (mảng: role, content, timestamp; với assistant có thêm **metadata**: thoughts, tool_calls với params và result, sources). Phù hợp truy vấn theo session/user và phân tích sau.
+- **MongoDB (AI chat history):**
+    - **ai_chat_sessions:** session-level metadata (session_id, user_id, agent_name, started_at, ended_at).
+    - **ai_chat_messages:** message-level records (role, content, timestamp, **message_metadata** gồm tool_calls/thought/sources).
+    Cấu trúc này phù hợp truy vấn theo session/user và audit chất lượng phản hồi AI.
 
 - **ERD (PETTIES_ERD_DIAGRAM.md §2.24–2.25):** AI_CHAT_SESSION, AI_CHAT_MESSAGE với mô tả: session nhóm tin theo user/agent; message lưu content và message_metadata (tool_calls, thinking steps). Đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
 
 **Bằng chứng:**  
-- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §5.2 Table Specifications (chat_sessions, chat_messages), §5.4 MongoDB Schema.  
+- `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §5.1 PostgreSQL Schema (không lưu chat AI-user), §5.4 MongoDB Schema (`ai_chat_sessions`, `ai_chat_messages`).  
 - `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §2.24 AI_CHAT_SESSION, §2.25 AI_CHAT_MESSAGE.
 
 ---

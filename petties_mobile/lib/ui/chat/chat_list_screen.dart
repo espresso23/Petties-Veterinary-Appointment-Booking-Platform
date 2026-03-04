@@ -109,7 +109,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           if (msg.messageType == MessageType.image) {
             lastMessagePreview = '[Hình ảnh]';
           } else {
-            lastMessagePreview = msg.content ?? '';
+            lastMessagePreview = msg.content;
           }
 
           // Update last message and increment unread count

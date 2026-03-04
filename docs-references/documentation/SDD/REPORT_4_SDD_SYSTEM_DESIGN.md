@@ -873,8 +873,8 @@ Petties uses a **Polyglot Persistence** architecture with multiple database type
 | Database | Type | Use Case | Tables/Collections |
 |----------|------|----------|-------------------|
 | **PostgreSQL 16** (Backend) | Relational (RDBMS) | Structured data with strict relationships | 17 tables |
-| **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, chat history, RAG | 7 tables |
-| **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data | 4 collections |
+| **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, tool governance, RAG metadata | 5 tables |
+| **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data, AI chat history | 6 collections |
 
 ---
 
@@ -885,7 +885,7 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 > **Database Architecture:**
 > - **Shared PostgreSQL Instance**: Both services connect to the same PostgreSQL server
 > - **Separate Schemas (optional)**: AI Service tables can use `ai_` prefix for logical separation
-> - **Total Tables**: 24 tables (17 Backend + 7 AI Service)
+> - **Total Tables**: 22 tables (17 Backend + 5 AI Service)
 
 #### 2.1.1 Entity Relationship Diagram (Conceptual)
 
@@ -904,9 +904,9 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 | **Vaccination** | Sổ tiêm chủng (MongoDB) | 1 Vaccination → 1 Pet, 1 Staff |
 | **StaffShift** | Lịch làm việc của nhân viên | 1 Shift → 1 Staff, 1 Clinic, N Slots |
 | **Slot** | Khung giờ khám (30 phút) | 1 Slot → 1 Shift, N Bookings |
-| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions, N ChatSessions |
+| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions |
 | **Tool** | MCP Tools cho AI Agent | N Tools → M Agents (many-to-many) |
-| **ChatSession** | Phiên chat với AI | 1 Session → 1 User, N Messages |
+| **AIChatSession** (MongoDB) | Phiên chat với AI | 1 Session → 1 User, N Messages (document-based) |
 | **KnowledgeDocument** | Tài liệu RAG Knowledge Base | Standalone |
 
 ##### B. Entity Relationships Diagram (ERD)
@@ -917,7 +917,6 @@ erDiagram
     USER ||--o{ BOOKING : creates
     USER }o--|| CLINIC : works_at
     USER ||--o{ STAFF_SHIFT : has
-    USER ||--o{ CHAT_SESSION : has
 
     PET ||--o{ BOOKING : scheduled_for
     PET ||--o{ EMR_RECORD : has
@@ -948,10 +947,7 @@ erDiagram
     USER ||--o{ NOTIFICATION : receives
 
     AGENT ||--o{ PROMPT_VERSION : has
-    AGENT ||--o{ CHAT_SESSION : handles
     AGENT }o--o{ TOOL : uses
-
-    CHAT_SESSION ||--o{ CHAT_MESSAGE : contains
 ```
 
 ##### C. Entity Groups by Domain
@@ -965,7 +961,7 @@ erDiagram
 | **Scheduling** | StaffShift, Slot | Lịch làm việc nhân viên, khung giờ |
 | **Booking** | Booking, BookingServiceItem, BookingSlot, Payment | Đặt lịch, chi tiết dịch vụ, thanh toán |
 | **Notifications** | Notification | Thông báo hệ thống |
-| **AI Service** | Agent, Tool, PromptVersion, ChatSession, ChatMessage, KnowledgeDocument, SystemSetting | AI chatbot, RAG, cấu hình |
+| **AI Service** | Agent, Tool, PromptVersion, KnowledgeDocument, SystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo) | AI chatbot, RAG, cấu hình |
 
 ##### D. Detailed ERD (Database Design)
 
@@ -996,12 +992,11 @@ erDiagram
 | **Booking** | bookings, booking_service_items, booking_slots, payments | Appointments and payments |
 | **Notification** | notifications | System notifications |
 
-##### AI Agent Service Tables (7 tables)
+##### AI Agent Service Tables (5 tables)
 
 | Group | Tables | Description |
 |-------|--------|-------------|
 | **Agent Config** | agents, tools, prompt_versions | Single Agent and Tools configuration |
-| **Chat History** | chat_sessions, chat_messages | AI chat history |
 | **Knowledge Base** | knowledge_documents | RAG documents |
 | **Settings** | system_settings | API keys, LLM configs |
 
@@ -1392,6 +1387,11 @@ Alternative paths: CANCELLED, NO_SHOW
 
 **Purpose:** Version control for system prompts enabling rollback, A/B testing, and audit trail. Only one version can be active per agent at a time.
 
+**Có cần thiết không?**
+- **MVP nhỏ (1 prompt ổn định, ít thay đổi):** Có thể chạy mà không cần quy trình version đầy đủ.
+- **Môi trường thực tế (nhiều lần tuning prompt, nhiều admin):** **Nên có** để rollback nhanh khi prompt mới làm giảm chất lượng.
+- **Với Petties:** Khuyến nghị giữ `prompt_versions` vì có dashboard admin, nhiều tool và cần truy vết thay đổi hành vi agent theo thời gian.
+
 | Column | Type | Constraints | Purpose & Business Context |
 |--------|------|-------------|---------------------------|
 | id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
@@ -1403,39 +1403,13 @@ Alternative paths: CANCELLED, NO_SHOW
 | notes | TEXT | | Change notes describing what was modified. Helps with version comparison |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Version creation timestamp |
 
-###### Table: chat_sessions
+###### AI Chat History Storage (MongoDB)
 
-**Purpose:** Tracks conversation boundaries between users and AI agent. Groups related messages together and enables conversation history retrieval.
+**Decision:** Chat giữa AI và người dùng được lưu tại MongoDB để phù hợp dữ liệu hội thoại có cấu trúc linh hoạt, nested metadata (thought/tool_calls/sources), và tốc độ ghi cao theo luồng streaming.
 
-**Cross-Service Reference:** `user_id` references `users.user_id` from Spring Boot Backend (logical reference, not enforced FK due to separate service).
-
-| Column | Type | Constraints | Purpose & Business Context |
-|--------|------|-------------|---------------------------|
-| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
-| agent_id | INT | FK→agents (SET NULL) | Foreign key to agents table. Records which agent handled this session. SET NULL on agent deletion |
-| user_id | VARCHAR(100) | NOT NULL | User UUID from Spring Boot backend. Links AI conversations to pet owners |
-| session_id | VARCHAR(100) | UNIQUE, NOT NULL | Unique session identifier (UUID). Used by frontend to maintain conversation context |
-| started_at | TIMESTAMPTZ | DEFAULT now() | Session start timestamp. For analytics and timeout management |
-| ended_at | TIMESTAMPTZ | | Session end timestamp. NULL if session still active. Used for session cleanup |
-
-###### Table: chat_messages
-
-**Purpose:** Stores individual messages within chat sessions including user queries, AI responses, and tool execution results. Preserves complete conversation history for context and debugging.
-
-| Column | Type | Constraints | Purpose & Business Context |
-|--------|------|-------------|---------------------------|
-| id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
-| session_id | INT | FK→chat_sessions, NOT NULL | Foreign key to chat_sessions. Groups messages into conversations |
-| role | VARCHAR(20) | NOT NULL | Message sender type: `user` (pet owner), `assistant` (AI), `system` (instructions), `tool` (tool results) |
-| content | TEXT | NOT NULL | Actual message content. For tool role, contains serialized tool output |
-| message_metadata | JSON | | Additional data: tool calls made, ReAct reasoning steps, token counts, latency metrics |
-| timestamp | TIMESTAMPTZ | DEFAULT now() | Message timestamp for ordering and analytics |
-
-**Message Roles:**
-- `user`: Messages from Pet Owner
-- `assistant`: Responses from AI Agent
-- `system`: System instructions
-- `tool`: Results from tool execution
+**Scope:**
+- PostgreSQL giữ phần cấu hình và quản trị (agents/tools/prompt_versions/knowledge_documents/system_settings).
+- MongoDB giữ lịch sử chat AI-user (sessions + messages + trace metadata).
 
 ###### Table: knowledge_documents
 
@@ -1539,17 +1513,11 @@ JWT_SECRET
 | agents | idx_agents_name | name | UNIQUE | Agent lookup by name |
 | tools | idx_tools_name | name | UNIQUE | Tool lookup by name |
 | tools | idx_tools_enabled | enabled | B-TREE | Filter enabled tools |
-| chat_sessions | idx_chat_sessions_user_id | user_id | B-TREE | User's sessions |
-| chat_sessions | idx_chat_sessions_session_id | session_id | UNIQUE | Session lookup |
 | system_settings | idx_system_settings_key | key | UNIQUE | Setting lookup |
 
 ##### Cross-Service References
 
-> **Note:** AI Agent Service và Spring Boot Backend share the same PostgreSQL server nhưng có thể dùng schemas riêng biệt. Các references giữa 2 services là **logical references** (không có FK constraint).
-
-| AI Service Table | Column | References Backend Table | Notes |
-|-----------------|--------|-------------------------|-------|
-| chat_sessions | user_id | users.user_id | User UUID stored as VARCHAR(100) |
+> **Note:** Với quyết định lưu AI chat trên MongoDB, mapping `user_id` từ Spring Boot backend được lưu như logical reference trong document Mongo (`ai_chat_sessions.user_id`).
 
 #### 2.1.6 Complete ERD (All Tables)
 
@@ -1581,14 +1549,18 @@ flowchart LR
         direction TB
         EMR["emr_records<br/>Electronic Medical Records"]
         VAX["vaccination_records<br/>Vaccination History"]
-        CONV["chat_conversations<br/>Chat Sessions"]
-        MSG["chat_messages<br/>Messages"]
+        CONV["chat_conversations<br/>Chat Sessions (Owner-Clinic)"]
+        MSG["chat_messages<br/>Messages (Owner-Clinic)"]
+        AICONV["ai_chat_sessions<br/>AI Chat Sessions"]
+        AIMSG["ai_chat_messages<br/>AI Chat Messages"]
     end
 
     style EMR fill:#90EE90
     style VAX fill:#87CEEB
     style CONV fill:#FFB6C1
     style MSG fill:#DDA0DD
+    style AICONV fill:#FFDAB9
+    style AIMSG fill:#E6E6FA
 ```
 
 | Collection | Description | Avg Doc Size | Reference to PostgreSQL |
@@ -1597,6 +1569,8 @@ flowchart LR
 | vaccination_records | Vaccination history | ~500B | pet_id, booking_id, vet_id |
 | chat_conversations | 1-1 chat sessions | ~300B | pet_owner_id, clinic_id |
 | chat_messages | Messages | ~200B | sender_id, chat_box_id (MongoDB _id) |
+| ai_chat_sessions | AI-user chat sessions | ~500B | user_id, agent_id (logical ref) |
+| ai_chat_messages | AI-user chat messages + metadata | ~1KB | session_id (MongoDB _id) |
 
 #### 2.2.2 Collection Descriptions
 
@@ -1758,6 +1732,50 @@ flowchart LR
 **Message Types:** TEXT, IMAGE, SYSTEM
 
 **Message Status:** SENT, DELIVERED, READ
+
+##### Collection: ai_chat_sessions
+
+**Description:** Session-level data cho hội thoại AI với người dùng.
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439015"),
+    "session_id": "ai-sess-9e5a",
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "agent_name": "petties_agent",
+    "started_at": ISODate("2026-03-04T09:00:00Z"),
+    "ended_at": null,
+    "status": "ACTIVE"
+}
+```
+
+**Indexes:**
+- `{ session_id: 1 }` unique - session lookup
+- `{ user_id: 1, started_at: -1 }` - user session history
+
+##### Collection: ai_chat_messages
+
+**Description:** Message-level data cho chat AI-user, bao gồm trace metadata từ ReAct/tool execution.
+
+**Sample Document:**
+```json
+{
+    "_id": ObjectId("507f1f77bcf86cd799439016"),
+    "session_id": ObjectId("507f1f77bcf86cd799439015"),
+    "role": "assistant",
+    "content": "Bé có thể đang bị viêm dạ dày nhẹ...",
+    "message_metadata": {
+        "tool_calls": ["symptom_search"],
+        "sources": ["doc_12_chunk_3"]
+    },
+    "timestamp": ISODate("2026-03-04T09:00:05Z")
+}
+```
+
+**Indexes:**
+- `{ session_id: 1, timestamp: 1 }` - ordered conversation replay
+- `{ role: 1, timestamp: -1 }` - analytics by role
 
 **Indexes:**
 - `{ chat_box_id: 1, created_at: -1 }` - Messages in conversation

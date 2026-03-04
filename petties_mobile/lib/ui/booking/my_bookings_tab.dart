@@ -6,7 +6,6 @@ import '../../data/services/booking_service.dart';
 import '../../data/services/review_service.dart';
 import '../../data/services/sos_matching_service.dart';
 import '../../utils/format_utils.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'write_review_screen.dart';
 
 /// Tab hiển thị lịch sử đặt lịch của Pet Owner
@@ -106,18 +105,18 @@ class _MyBookingsTabState extends State<MyBookingsTab>
 
                     // Tab 2: Đã duyệt (CONFIRMED)
                     _buildStatusSection(
-                      myBookings: _filterByStatuses(
-                        _bookings, const ['CONFIRMED']),
+                      myBookings:
+                          _filterByStatuses(_bookings, const ['CONFIRMED']),
                       proxyBookings: _filterByStatuses(
-                        _proxyBookings, const ['CONFIRMED']),
+                          _proxyBookings, const ['CONFIRMED']),
                     ),
 
                     // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
                     _buildStatusSection(
                       myBookings: _filterByStatuses(_bookings,
-                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
                       proxyBookings: _filterByStatuses(_proxyBookings,
-                          const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
                     ),
 
                     // Tab 4: Hoàn thành
@@ -239,7 +238,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
       case 'PENDING':
         statusColor = Colors.orange;
         break;
-      case 'CONFIRMED':
       case 'CONFIRMED':
         statusColor = Colors.blue;
         break;
@@ -448,7 +446,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                         Expanded(
                             child: _buildCompactInfo(
                           Icons.medical_services_rounded,
-                          '${booking.services.length ?? 0} dịch vụ',
+                          '${booking.services.length} dịch vụ',
                           AppColors.teal600,
                         )),
                       ],
@@ -563,13 +561,7 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               GestureDetector(
-                                onTap: () {
-                                  if (booking.clinicId != null) {
-                                    context.push(
-                                      '/clinics/${booking.clinicId}?scrollToReviews=true',
-                                    );
-                                  }
-                                },
+                                onTap: () => _openClinicReviewSection(booking),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 8),
@@ -790,46 +782,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         ),
       ),
     );
-  }
-
-  Widget _buildInlineAction(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(left: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              offset: const Offset(2, 2),
-            ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
-    if (await canLaunchUrl(launchUri)) {
-      await launchUrl(launchUri);
-    }
   }
 
   Future<void> _showCancelDialog(
@@ -1073,6 +1025,38 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
   }
 
+  Future<void> _openClinicReviewSection(BookingResponse booking) async {
+    String? clinicId = booking.clinicId?.trim();
+
+    if ((clinicId == null || clinicId.isEmpty) && booking.bookingId != null) {
+      try {
+        final detail = await _bookingService.getBookingById(booking.bookingId!);
+        clinicId = detail.clinicId?.trim();
+      } catch (_) {
+        // Fallback silently and show user-facing message below if still missing
+      }
+    }
+
+    if (!mounted) return;
+
+    if (clinicId == null || clinicId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin phòng khám để xem đánh giá'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final location = Uri(
+      path: '/clinics/$clinicId',
+      queryParameters: const {'scrollToReviews': 'true'},
+    ).toString();
+
+    context.push(location);
+  }
+
   void _showLoadingDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -1088,25 +1072,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
   }
 
-  Widget _buildInfoRow(IconData icon, String text) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.stone400),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.stone700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildStatusBadge(String? status) {
     Color color;
     String label;
@@ -1116,7 +1081,6 @@ class _MyBookingsTabState extends State<MyBookingsTab>
         color = Colors.orange;
         label = 'Chờ xác nhận';
         break;
-      case 'CONFIRMED':
       case 'CONFIRMED':
         color = Colors.blue;
         label = 'Đã xác nhận';
@@ -1192,16 +1156,4 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     return timeStr;
   }
 
-  bool _isToday(String? dateStr) {
-    if (dateStr == null) return false;
-    try {
-      final date = DateTime.parse(dateStr);
-      final now = DateTime.now();
-      return date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day;
-    } catch (e) {
-      return false;
-    }
-  }
 }

@@ -3493,7 +3493,7 @@ Figure 42. Screen SOS Travel Logistics (Staff Side - Mobile)
     - If **Action based:** Trigger FastMCP Tool (Call Spring Boot APIs).
 3. **ReAct Loop:** Agent repeats "Thought → Action → Observation" until a final answer is formed.
 4. **Streaming Delivery:** Response tokens are sent back live to the mobile app UI.
-5. **Context Persistence:** Chat history is saved in PostgreSQL for multi-turn conversation.
+5. **Context Persistence:** Chat history is saved in MongoDB (`ai_chat_sessions`, `ai_chat_messages`) for multi-turn conversation.
 
 **Screen layout**
 Figure 43. AI Chat Interface with Streaming Response (Mobile)

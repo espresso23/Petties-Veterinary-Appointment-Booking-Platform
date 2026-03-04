@@ -102,15 +102,48 @@ class BookingWizardService {
       );
 
       if (response.data is Map && response.data['availableSlots'] != null) {
-        return (response.data['availableSlots'] as List)
-            .map((e) => AvailableSlot.fromString(e.toString()))
-            .toList();
+        final rawSlots = response.data['availableSlots'];
+        if (rawSlots is List) {
+          return rawSlots
+              .map((entry) {
+                if (entry is Map<String, dynamic>) {
+                  final parsed = AvailableSlot.fromJson(entry);
+                  return AvailableSlot(
+                    startTime: _normalizeTimeString(parsed.startTime),
+                    available: parsed.available,
+                    isBreakTime: parsed.isBreakTime,
+                    reason: parsed.reason,
+                  );
+                }
+
+                final normalized = _normalizeTimeString(entry.toString());
+                return AvailableSlot.fromString(normalized);
+              })
+              .where((slot) => slot.startTime.isNotEmpty)
+              .toList();
+        }
       }
 
       return [];
     } catch (e) {
       rethrow;
     }
+  }
+
+  String _normalizeTimeString(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+
+    final parts = value.split(':');
+    if (parts.length < 2) return value;
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) {
+      return value;
+    }
+
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
   }
 
   /// Create booking
@@ -183,13 +216,13 @@ class BookingWizardService {
 
       debugPrint('body booking proxy: $body');
 
-      final response =
-          await _apiClient.post('/bookings/proxy', data: body);
+      final response = await _apiClient.post('/bookings/proxy', data: body);
       return response.data['bookingId'] ?? '';
     } catch (e) {
       rethrow;
     }
   }
+
   /// Get estimated completion time.
   /// POST /bookings/public/estimated-completion?clinicId={clinicId}
   /// Body: startDateTime (yyyy-MM-ddTHH:mm:ss), type, pets: [{ petId, petWeight, serviceIds }]

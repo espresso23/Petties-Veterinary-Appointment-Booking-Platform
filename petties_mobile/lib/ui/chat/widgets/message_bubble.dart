@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../data/models/chat.dart';
 import 'package:intl/intl.dart';
-import '../chat_detail_screen.dart';
 
 /// Widget hiển thị ảnh với loading animation
 class LoadingNetworkImage extends StatelessWidget {

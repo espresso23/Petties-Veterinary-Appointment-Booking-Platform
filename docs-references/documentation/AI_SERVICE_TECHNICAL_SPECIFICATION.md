@@ -1,7 +1,7 @@
 # Tài liệu Kỹ thuật – AI Agent Service (Petties)
 
-**Phiên bản:** 1.1  
-**Cập nhật:** 2026-03-03  
+**Phiên bản:** 1.2  
+**Cập nhật:** 2026-03-04  
 **Tham chiếu:** AI_AGENT_SERVICE_SRS.md, AI_AGENT_SERVICE_SDD.md, REPORT_4_SDD_SYSTEM_DESIGN.md
 
 ---
@@ -143,7 +143,7 @@ flowchart TB
     end
 
     subgraph Storage["Data storage"]
-        MongoChat["MongoDB: chat_sessions, chat_messages, chat_audit"]
+        MongoChat["MongoDB: ai_chat_sessions, ai_chat_messages, chat_audit"]
     end
 
     UserMessage --> LoadConfig
@@ -178,7 +178,7 @@ flowchart TB
 | **PostgreSQL (AI DB)** | `agents`, `tools`, `system_settings`, `knowledge_documents` | Cấu hình agent, danh sách tools, API keys, meta document RAG. |
 | **PostgreSQL (shared)** | (Tools gọi Spring Boot) | Booking, clinic, slot, pet – qua HTTP từ AI service tới backend. |
 | **Qdrant Cloud** | Vectors + payload (chunk text, document_id) | RAG: embedding query, tìm chunk tương tự, đưa context cho LLM. |
-| **MongoDB** | `chat_sessions`, `chat_messages` (session_id, user_id, messages với metadata) | Lưu lịch sử hội thoại, thoughts, tool_calls, sources để phân tích/audit. |
+| **MongoDB** | `ai_chat_sessions`, `ai_chat_messages` (session_id, user_id, messages với metadata) | Lưu lịch sử hội thoại, thoughts, tool_calls, sources để phân tích/audit. |
 | **OpenRouter** | LLM API | Generate thought, answer; Vision: multimodal (text + image). |
 | **Cohere** | Embeddings API | Embed query và chunk cho RAG. |
 
@@ -219,6 +219,24 @@ Tool web search **không thay thế** RAG hay symptom_search; nó dùng để **
     - Admin upload tài liệu mới → chunking → embedding → upsert Qdrant.
     - Re-index định kỳ hoặc khi tài liệu thay đổi.
     - Dọn dữ liệu chat cũ theo chính sách retention.
+
+### 3.6 Prompt Version có cần thiết không?
+
+**Câu trả lời ngắn:** Có, nhưng mức độ phụ thuộc giai đoạn sản phẩm.
+
+- **Không bắt buộc tuyệt đối cho MVP** nếu chỉ có 1 prompt ổn định và team nhỏ.
+- **Rất cần cho production** khi có nhiều lần tinh chỉnh prompt, nhiều admin, và yêu cầu audit/revert.
+
+**Vì sao nên dùng Prompt Version trong Petties:**
+1. Dễ rollback khi prompt mới làm giảm chất lượng trả lời.
+2. So sánh hiệu quả giữa các phiên bản prompt theo KPI (tool success, helpful rate).
+3. Truy vết ai sửa gì, khi nào (phục vụ vận hành và review).
+
+**Nguyên tắc vận hành khuyến nghị:**
+- Mỗi thay đổi prompt tạo một version mới, không ghi đè trực tiếp.
+- Chỉ 1 version active tại một thời điểm cho mỗi agent.
+- Gắn notes cho từng version (mục tiêu thay đổi, rủi ro, kỳ vọng).
+- Đánh giá qua một tập câu hỏi chuẩn trước khi activate toàn hệ thống.
 
 ```mermaid
 sequenceDiagram
@@ -346,7 +364,7 @@ flowchart TB
 | **core/tools** | FastMCP server, executor, scanner, mcp_tools (pet_care_qa, symptom_search, …). |
 | **core/rag** | LlamaIndex RAG engine, Cohere, Qdrant. |
 | **services** | LLM client (OpenRouter), streaming. |
-| **db/postgres** | Agent, Tool, ChatSession, ChatMessage, KnowledgeDocument, SystemSetting. |
+| **db/postgres** | Agent, Tool, PromptVersion, KnowledgeDocument, SystemSetting (không lưu message chat). |
 
 ---
 
@@ -515,18 +533,18 @@ Thiết kế hiện tại **có hỗ trợ** lưu dữ liệu gửi tới AI và
 
 | Bảng | Nội dung liên quan gửi/nhận AI |
 |------|--------------------------------|
-| **chat_sessions** | session_id, user_id, agent_id, started_at, ended_at – phiên hội thoại. |
-| **chat_messages** | Từng message trong session: role (user/assistant), content, có thể mở rộng metadata (tool_calls, thoughts). |
+| **agents / tools / prompt_versions** | Cấu hình agent, cấu hình tools, version prompt để vận hành và rollback. |
+| **knowledge_documents** | Metadata tài liệu RAG (file, trạng thái xử lý, vector_count). |
+| **system_settings** | API keys, model config, embedding/vector settings. |
 
-→ Có thể lưu **nội dung user gửi** (content user) và **nội dung AI trả về** (content assistant), cùng metadata (tool_calls, sources).
+→ PostgreSQL dùng cho **configuration + governance**, không phải nơi lưu message chat AI-user.
 
-### 8.2 MongoDB (chat_history)
+### 8.2 MongoDB (AI chat history)
 
-Collection `chat_history` lưu từng document theo session:
+Collections `ai_chat_sessions` và `ai_chat_messages` lưu hội thoại AI-user:
 
-- **session_id, user_id, agent_id**
-- **messages[]:** mảng message, mỗi phần tử có role, content, timestamp
-- **metadata** cho assistant message: thoughts, tool_calls (tool name, params, result), sources (RAG documents)
+- **ai_chat_sessions:** session_id, user_id, agent_name, started_at, ended_at
+- **ai_chat_messages:** role, content, timestamp, message_metadata (thought/tool_calls/sources)
 
 → Đủ để:
 - Phân tích sau: câu hỏi nào, tool nào được gọi, kết quả tool, nguồn RAG.
@@ -534,8 +552,8 @@ Collection `chat_history` lưu từng document theo session:
 
 ### 8.3 Kết luận
 
-- **Dữ liệu gửi tới AI:** Lưu dưới dạng message user (content + session_id, user_id) trong PostgreSQL và MongoDB.
-- **Kết quả AI trả về:** Lưu dưới dạng message assistant (content + metadata: thoughts, tool_calls, sources) trong cả hai.
+- **Dữ liệu gửi tới AI:** Lưu trong MongoDB (`ai_chat_messages`, role=`user`).
+- **Kết quả AI trả về:** Lưu trong MongoDB (`ai_chat_messages`, role=`assistant`) kèm metadata ReAct/tool/sources.
 - **RAG/vector:** Chunk và embedding lưu ở Qdrant; metadata document ở PostgreSQL (knowledge_documents). Có thể trace từ tool_calls/sources về document và chunk.
 
 ---
@@ -548,38 +566,43 @@ Gọi AI và xử lý kết quả được gói trong các lớp/mô-đun riêng
 
 ```mermaid
 classDiagram
-    class ChatWebSocket {
-        <<FastAPI WebSocket>>
-        +connect(websocket, user_id)
-        +receive_message(message)
-        +send_stream_response(chunks)
-        +send_error(error, code)
+    class ConnectionManager {
+        +connect(websocket, session_id)
+        +disconnect(session_id)
+        +send_message(session_id, message)
+        +broadcast(message)
+    }
+
+    class AgentFactory {
+        +get_agent(db_session, provider_override, model_override) SingleAgent
+        +get_agent_by_id(agent_id, db_session, provider_override, model_override) SingleAgent
+        +get_agent_config(db_session) dict
     }
 
     class SingleAgent {
-        -llm_client: LLMClient
-        -tool_registry: ToolRegistry
-        -config: AgentConfig
-        +invoke(query: str, context: dict) Response
-        +stream(query: str) AsyncIterator
+        -llm_client: BaseLLMClient
+        +invoke(message: str, session_id: str) str
+        +stream(message: str, session_id: str) AsyncIterator
         -_think_node(state) ReActState
         -_act_node(state) ReActState
         -_observe_node(state) ReActState
     }
 
-    class LLMClient {
-        <<External API Client>>
-        -api_key: str
-        -model: str
-        +generate(prompt: str, config: dict) str
-        +stream(prompt: str) AsyncIterator
-        +generate_with_image(prompt, image_url) str
+    class BaseLLMClient {
+        <<abstract>>
+        +generate(prompt, system_prompt, **kwargs) LLMResponse
+        +stream(prompt, system_prompt, **kwargs) AsyncIterator
+        +chat(messages, system_prompt, **kwargs) LLMResponse
     }
 
-    class ToolRegistry {
-        +get_enabled_tools() List~Tool~
-        +call_tool(name: str, params: dict) Any
-        +scan_tools() ScanResult
+    class OpenRouterClient
+    class DeepSeekClient
+    class OllamaClient
+    class OpenAIClient
+
+    class ToolExecutor {
+        +execute(tool_name, parameters) dict
+        +execute_batch(tool_calls) List~dict~
     }
 
     class LlamaIndexRAGEngine {
@@ -587,33 +610,36 @@ classDiagram
         +index_document(content: bytes, filename: str) int
     }
 
-    class AgentConfig {
-        +from_database(agent_id: int) AgentConfig
-        +model: str
-        +system_prompt: str
-        +temperature: float
-        +enabled: bool
+    class ToolScanner {
+        +scan_and_sync_tools() dict
+        +get_new_tools() List~dict~
     }
 
-    ChatWebSocket --> SingleAgent
-    SingleAgent --> LLMClient
-    SingleAgent --> ToolRegistry
-    SingleAgent --> AgentConfig
-    ToolRegistry --> LlamaIndexRAGEngine
-    SingleAgent --> LlamaIndexRAGEngine
+    AgentFactory --> SingleAgent
+    ConnectionManager ..> AgentFactory
+    SingleAgent --> BaseLLMClient
+    SingleAgent ..> ToolExecutor
+    ToolExecutor ..> LlamaIndexRAGEngine
+    ToolScanner ..> ToolExecutor
+
+    OpenRouterClient --|> BaseLLMClient
+    DeepSeekClient --|> BaseLLMClient
+    OllamaClient --|> BaseLLMClient
+    OpenAIClient --|> BaseLLMClient
 ```
 
 ### 9.2 Tách biệt module
 
 | Module / Class | Vai trò |
 |----------------|--------|
-| **LLMClient (services/llm_client)** | Gói toàn bộ gọi OpenRouter: generate, stream, multimodal. Xử lý retry/timeout có thể đặt tại đây. |
-| **SingleAgent (core/agents/single_agent)** | Điều phối ReAct: think → act → observe; gọi ToolRegistry và LLMClient; không chứa logic nghiệp vụ Spring Boot. |
-| **ToolRegistry + Executor (core/tools)** | Gói đăng ký và thực thi tools; tools gọi RAG hoặc HTTP tới Spring Boot. |
+| **BaseLLMClient + OpenRouterClient/DeepSeekClient/OllamaClient/OpenAIClient (services/llm_client)** | Đóng gói gọi provider LLM theo interface thống nhất `generate/stream/chat`. |
+| **SingleAgent (core/agents/single_agent)** | Điều phối ReAct: think → act → observe; gọi LLM client và thực thi tools; không chứa logic nghiệp vụ Spring Boot. |
+| **AgentFactory (core/agents/factory)** | Load cấu hình agent + tools từ PostgreSQL, tạo `SingleAgent` runtime theo cấu hình động. |
+| **ToolExecutor + ToolScanner + mcp_server (core/tools)** | Scan/sync tool metadata, validate input, thực thi tool qua FastMCP, quản trị enable/disable từ DB. |
 | **LlamaIndexRAGEngine (core/rag)** | Gói RAG: embed, query Qdrant, trả chunk; tách biệt với agent và tools. |
-| **ChatWebSocket / REST routes (api/)** | Nhận request từ client, gọi SingleAgent, trả stream hoặc JSON; xử lý lỗi và emit event `error`. |
+| **ConnectionManager + WebSocket handlers (api/websocket/chat.py)** | Quản lý kết nối realtime, gửi event `thinking/tool_call/tool_result/stream/complete/error` cho client. |
 
-→ **Kết luận:** Gọi AI và xử lý (ReAct, tools, RAG) được đóng gói trong các lớp/mô-đun riêng (LLMClient, SingleAgent, ToolRegistry, RAG Engine); không nằm trong Spring Boot. Spring Boot chỉ đóng vai trò API backend được tools gọi khi cần (booking, clinic, pet).
+→ **Kết luận:** Gọi AI và xử lý (ReAct, tools, RAG) được đóng gói trong các lớp/mô-đun riêng bám sát code hiện tại (`AgentFactory`, `SingleAgent`, `BaseLLMClient` family, `ToolExecutor`, `LlamaIndexRAGEngine`, `ConnectionManager`); không nằm trong Spring Boot. Spring Boot chỉ đóng vai trò API backend được tools gọi khi cần (booking, clinic, pet).
 
 ---
 

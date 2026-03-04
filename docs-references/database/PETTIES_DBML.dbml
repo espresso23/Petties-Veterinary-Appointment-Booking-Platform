@@ -30,9 +30,8 @@ Project Petties {
     - **Booking**: bookings, booking_service_items, booking_slots, payments
     - **Notification**: notifications
 
-    ### AI Agent Service (7 tables):
+    ### AI Agent Service (5 tables):
     - **Agent Config**: ai_agents, ai_tools, ai_prompt_versions
-    - **Chat History**: ai_chat_sessions, ai_chat_messages
     - **RAG**: ai_knowledge_documents
     - **Settings**: ai_system_settings
   '''
@@ -658,11 +657,6 @@ TableGroup ai_agent_config {
   ai_prompt_versions
 }
 
-TableGroup ai_chat_history {
-  ai_chat_sessions
-  ai_chat_messages
-}
-
 TableGroup ai_knowledge_base {
   ai_knowledge_documents
 }
@@ -749,42 +743,6 @@ Table ai_prompt_versions {
   Note: 'Version control for System Prompts'
 }
 
-Table ai_chat_sessions {
-  id int [pk, increment]
-  agent_id int [note: 'FK -> ai_agents.id (SET NULL on delete)']
-  user_id uuid [not null, note: 'FK -> users.user_id (Logical reference to Spring Boot Backend)']
-  session_id varchar(100) [unique, not null, note: 'Session identifier']
-
-  // Timestamps
-  started_at timestamptz [default: `now()`]
-  ended_at timestamptz [note: 'Session end time']
-
-  indexes {
-    (session_id) [unique, name: 'idx_ai_chat_sessions_session_id']
-    (user_id) [name: 'idx_ai_chat_sessions_user_id']
-    (agent_id) [name: 'idx_ai_chat_sessions_agent_id']
-  }
-
-  Note: 'Chat sessions between users and AI agents'
-}
-
-Table ai_chat_messages {
-  id int [pk, increment]
-  session_id int [not null, note: 'FK -> ai_chat_sessions.id']
-  role ai_message_role [not null, note: 'user, assistant, system, tool']
-  content text [not null, note: 'Message content']
-  message_metadata json [note: 'Tool calls, ReAct steps, etc.']
-
-  // Timestamp
-  timestamp timestamptz [default: `now()`]
-
-  indexes {
-    (session_id, timestamp) [name: 'idx_ai_chat_messages_session_time']
-  }
-
-  Note: 'Individual messages in chat sessions'
-}
-
 Table ai_knowledge_documents {
   id int [pk, increment]
   filename varchar(255) [not null, note: 'Original filename']
@@ -836,14 +794,3 @@ Table ai_system_settings {
 
 // Agent -> Prompt Versions (1:N)
 Ref: ai_prompt_versions.agent_id > ai_agents.id
-
-// Agent -> Chat Sessions (1:N)
-Ref: ai_chat_sessions.agent_id > ai_agents.id
-
-// Chat Session -> Chat Messages (1:N)
-Ref: ai_chat_messages.session_id > ai_chat_sessions.id
-
-// ==================== CROSS-SERVICE REFERENCE ====================
-// AI Service <-> Spring Boot Backend (Logical - Same PostgreSQL Server)
-
-Ref: ai_chat_sessions.user_id > users.user_id

@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -11,7 +10,6 @@ import '../../data/services/chat_service.dart';
 import '../../data/services/chat_websocket_service.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/message_input.dart';
-import '../../utils/fcm_service.dart';
 
 /// Màn hình chi tiết chat - Pet Owner
 class ChatDetailScreen extends StatefulWidget {
@@ -1564,43 +1562,4 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  /// Build message timestamp
-  Widget _buildMessageTimestamp(ChatMessage message) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          DateFormat('HH:mm').format(message.createdAt),
-          style: TextStyle(
-            fontSize: 11,
-            color: message.isMine ? AppColors.white : AppColors.stone500,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        if (message.isMine && message.status == MessageStatus.seen)
-          const Padding(
-            padding: EdgeInsets.only(left: 4),
-            child: Icon(
-              Icons.done_all,
-              size: 12,
-              color: Colors.blue,
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Scroll to a specific message
-  void _scrollToMessage(String messageId) {
-    final messageIndex = _messages.indexWhere((msg) => msg.id == messageId);
-    if (messageIndex != -1) {
-      // Calculate approximate position
-      final estimatedHeight = messageIndex * 80.0; // Rough estimate per message
-      _scrollController.animateTo(
-        estimatedHeight.clamp(0, _scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeOut,
-      );
-    }
-  }
 }

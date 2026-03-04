@@ -99,22 +99,6 @@ class ChatConversationItem extends StatelessWidget {
     );
   }
 
-  Widget _buildDefaultAvatar() {
-    return Container(
-      color: AppColors.primarySurface,
-      child: Center(
-        child: Text(
-          (conversation.clinicName ?? 'C')[0].toUpperCase(),
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: AppColors.primary,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
