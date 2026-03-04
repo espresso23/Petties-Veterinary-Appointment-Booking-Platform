@@ -166,6 +166,7 @@ export const StaffSchedulePage = () => {
 
     // Subscribe to SSE for real-time booking updates
     useSseNotification({
+        silent: true,
         onBookingUpdate: (data) => {
             console.log('[StaffSchedulePage] Booking update received:', data)
             showToast('info', `Có cập nhật booking: ${data.bookingCode}`)

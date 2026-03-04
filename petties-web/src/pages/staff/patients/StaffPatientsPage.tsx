@@ -243,7 +243,7 @@ export const StaffPatientsPage = () => {
                 // CREATE - Find active booking
                 const activeBooking = bookings.find(b =>
                     b.petId === selectedPatient.id &&
-                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
+                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                 )
 
                 await vaccinationService.createVaccination({
@@ -819,7 +819,7 @@ export const StaffPatientsPage = () => {
                                                 bookingCode={(() => {
                                                     const activeBooking = bookings.find(b =>
                                                         b.petId === selectedPatient?.id &&
-                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
+                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                                     )
                                                     return activeBooking?.bookingCode
                                                 })()}

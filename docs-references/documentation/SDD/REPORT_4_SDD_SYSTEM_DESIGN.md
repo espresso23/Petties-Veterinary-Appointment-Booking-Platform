@@ -1,8 +1,8 @@
 # II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform  
-**Version:** 1.9.0 (Updated SOS Emergency Flow with BR references)  
-**Last Updated:** 2026-02-09  
+**Version:** 2.0.0 (Booking lifecycle/status and SSE behavior aligned with implementation)  
+**Last Updated:** 2026-03-04  
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -1257,7 +1257,7 @@ erDiagram
 | pet_id | UUID | FK→pets, NOT NULL | Pet being treated |
 | pet_owner_id | UUID | FK→users, NOT NULL | Pet owner |
 | clinic_id | UUID | FK→clinics, NOT NULL | Target clinic |
-| assigned_vet_id | UUID | FK→users | Assigned veterinarian |
+| assigned_staff_id | UUID | FK→users | Assigned staff |
 | booking_date | DATE | NOT NULL | Appointment date |
 | booking_time | TIME | NOT NULL | Appointment time |
 | type | ENUM | NOT NULL, DEFAULT 'IN_CLINIC' | IN_CLINIC, HOME_VISIT, SOS |
@@ -1275,7 +1275,7 @@ erDiagram
 
 **Booking Status State Machine:**
 ```
-PENDING → CONFIRMED → IN_PROGRESS → CHECK_OUT → COMPLETED
+PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
 ```
 Alternative paths: CANCELLED, NO_SHOW
 
@@ -1288,7 +1288,7 @@ Alternative paths: CANCELLED, NO_SHOW
 | booking_service_id | UUID | PK | Primary Key |
 | booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
 | service_id | UUID | FK→clinic_services, NOT NULL | Clinic service |
-| assigned_vet_id | UUID | FK→users | Staff assigned to this service |
+| assigned_staff_id | UUID | FK→users | Staff assigned to this service |
 | unit_price | DECIMAL(12,2) | | Price snapshot at booking time |
 | base_price | DECIMAL(12,2) | | Base price |
 | weight_price | DECIMAL(12,2) | | Weight-based price |
@@ -1497,7 +1497,7 @@ JWT_SECRET
 | **staff_specialty** | VET, GROOMER |
 | **clinic_status** | PENDING, APPROVED, REJECTED, SUSPENDED |
 | **booking_type** | IN_CLINIC, HOME_VISIT, SOS |
-| **booking_status** | PENDING, CONFIRMED, IN_PROGRESS, CHECK_OUT, COMPLETED, CANCELLED, NO_SHOW |
+| **booking_status** | PENDING, SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED, NO_SHOW |
 | **slot_status** | AVAILABLE, BOOKED, BLOCKED |
 | **service_category** | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
 | **payment_method** | CASH, QR, CARD |
@@ -3395,20 +3395,23 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 | 10 | GET | `/bookings/{id}/services/{serviceId}/available-vets` | MANAGER, ADMIN | Lấy danh sách vet có thể reassign | ✅ Done |
 | 11 | POST | `/bookings/{id}/services/{serviceId}/reassign` | MANAGER, ADMIN | Đổi vet cho dịch vụ | ✅ Done |
 | 12 | POST | `/bookings/{id}/add-service` | STAFF, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
-| 13 | PATCH | `/bookings/{id}/check-in` | STAFF, MANAGER | Check-in bắt đầu khám | ⏳ Pending |
-| 14 | PATCH | `/bookings/{id}/check-out` | STAFF, MANAGER | Check-out kết thúc khám | ⏳ Pending |
-| 15 | PATCH | `/bookings/{id}/complete` | MANAGER | Hoàn thành sau thanh toán | ⏳ Pending |
+| 13 | POST | `/bookings/{id}/check-in` | STAFF, ADMIN | Bắt đầu thực hiện dịch vụ (CONFIRMED → IN_PROGRESS) | ✅ Done |
+| 14 | POST | `/bookings/{id}/start-moving` | STAFF, CLINIC_MANAGER, ADMIN | Bắt đầu di chuyển cho SOS/HOME_VISIT (CONFIRMED → IN_PROGRESS) | ✅ Done |
+| 15 | POST | `/bookings/{id}/arrived` | STAFF, CLINIC_MANAGER, ADMIN | Đánh dấu đã đến nơi (giữ IN_PROGRESS, cập nhật arrivedAt) | ✅ Done |
+| 16 | POST | `/bookings/{id}/checkout` | STAFF, ADMIN | Chốt hóa đơn + thanh toán + COMPLETED | ✅ Done |
+| 17 | POST | `/bookings/{id}/complete` | STAFF, CLINIC_MANAGER, ADMIN | Hoàn thành lịch hẹn (IN_PROGRESS → COMPLETED) | ✅ Done |
 
 **Booking Status Flow:**
 ```
-PENDING → CONFIRMED → ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT → COMPLETED
-                                                           ↓
-                                                       CANCELLED / NO_SHOW
+PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
+          ↓            ↓
+      CANCELLED      NO_SHOW
 ```
 
 **Notes:**
-- IN_CLINIC & HOME_VISIT: Bỏ qua ON_THE_WAY, ARRIVED (đi thẳng từ ASSIGNED → CHECK_IN)
-- SOS: Sử dụng ON_THE_WAY → ARRIVED với GPS tracking tự động
+- IN_CLINIC/HOME_VISIT: Staff bắt đầu thực hiện dịch vụ bằng check-in (`CONFIRMED → IN_PROGRESS`)
+- SOS: Staff dùng start-moving (`CONFIRMED → IN_PROGRESS`) và có GPS tracking real-time
+- HOME_VISIT tiêu chuẩn không bật GPS tracking real-time
 
 #### 4.7.1 Class Diagram - Booking & Appointment
 
@@ -3770,7 +3773,7 @@ sequenceDiagram
     activate BS
     BS->>DB: 4. findById(id)
     activate DB
-    DB-->>BS: 5. Booking Entity (Status: CHECK_OUT)
+    DB-->>BS: 5. Booking Entity (Status: IN_PROGRESS)
     deactivate DB
     BS->>PR: 6. findByBooking(booking)
     activate PR
@@ -3821,7 +3824,7 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, ASSIGNED, CHECK_IN, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
+- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
 - Empty state shown if no bookings exist
 - Pet Owner can click on any booking to view details
 
@@ -3854,8 +3857,8 @@ sequenceDiagram
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate: status < CHECK_IN
-    alt Status < CHECK_IN
+    SVC->>SVC: 10. Validate: status != IN_PROGRESS && status != COMPLETED
+    alt Status allows cancellation
         SVC->>SVC: 11. Update booking.status = CANCELLED
         SVC->>SR: 12. findByBooking(booking)
         activate SR
@@ -3891,7 +3894,7 @@ sequenceDiagram
         API-->>UI: 26. 200 OK
         deactivate API
         UI-->>PO: 27. Show success toast + update UI
-    else Status >= CHECK_IN
+    else Status = IN_PROGRESS/COMPLETED
         SVC-->>API: 11. Throw BadRequestException
         deactivate SVC
         API-->>UI: 12. 400 Bad Request
@@ -3902,7 +3905,7 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status < CHECK_IN can be cancelled
+- Only bookings with status trước IN_PROGRESS can be cancelled
 - Slots are restored to AVAILABLE status
 - Notifications sent to Clinic Manager and assigned Staff (if any)
 - If payment method is ONLINE, refund request is created (handled by UC-CM-07)
@@ -3919,9 +3922,9 @@ sequenceDiagram
 
     V->>UI: 1. Navigate to "Lịch hẹn" screen
     activate UI
-    UI->>API: 2. GET /api/bookings/assigned
+    UI->>API: 2. GET /api/bookings/staff/{staffId}
     activate API
-    API->>SVC: 3. getAssignedBookings(vetId, filters)
+    API->>SVC: 3. getBookingsByStaff(staffId, status, pageable)
     activate SVC
     SVC->>DB: 4. SELECT * FROM bookings WHERE vet_id = ? AND status IN (...)
     activate DB
@@ -3939,7 +3942,7 @@ sequenceDiagram
 
 **Notes:**
 - Filters available: Today, Upcoming, Completed, All
-- Status badges: ASSIGNED (yellow), CHECK_IN (blue), IN_PROGRESS (green), CHECK_OUT (purple)
+- Status badges: CONFIRMED (yellow), IN_PROGRESS (purple), COMPLETED (green), CANCELLED/NO_SHOW (gray/red)
 - Empty state shown if no assigned bookings
 - Staff can click on booking to view details and take actions
 
@@ -3958,8 +3961,8 @@ sequenceDiagram
     V->>UI: 1. View booking detail
     activate UI
     UI->>UI: 2. Show action button based on status
-    V->>UI: 3. Click action button (Check-in, Start Exam, Finish)
-    UI->>API: 4. POST /api/bookings/{id}/update-status
+    V->>UI: 3. Click action button (Check-in / Start moving / Checkout / Complete)
+    UI->>API: 4. POST /api/bookings/{id}/{action}
     activate API
     API->>SVC: 5. updateBookingStatus(bookingId, newStatus)
     activate SVC
@@ -3971,9 +3974,9 @@ sequenceDiagram
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate status transition
+    SVC->>SVC: 10. Validate status transition (CONFIRMED→IN_PROGRESS hoặc IN_PROGRESS→COMPLETED)
     alt Status transition valid
-        alt New Status = CHECK_IN
+        alt Action = check-in hoặc start-moving
             SVC->>ER: 11. createEMRShell(bookingId, petId, vetId)
             activate ER
             ER->>DB: 12. INSERT INTO emr (booking_id, pet_id, vet_id)
@@ -3981,7 +3984,7 @@ sequenceDiagram
             DB-->>ER: 13. EMR created
             deactivate DB
             deactivate ER
-        else New Status = CHECK_OUT
+        else Action = checkout/complete
             SVC->>ER: 14. findByBooking(bookingId)
             activate ER
             ER->>DB: 15. SELECT * FROM emr WHERE booking_id = ?
@@ -4023,9 +4026,9 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Valid status transitions: ASSIGNED → CHECK_IN → IN_PROGRESS → CHECK_OUT
-- EMR shell is created when status changes to CHECK_IN
-- EMR must have Assessment and Plan before CHECK_OUT is allowed
+- Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
+- EMR shell is created when booking starts execution (check-in/start-moving)
+- Checkout/complete requires valid trạng thái hiện tại là IN_PROGRESS
 - Notifications sent to Pet Owner and Clinic Manager on status changes
 
 #### 4.7.13 Check-in Patient (UC-VT-05)
@@ -4053,16 +4056,16 @@ sequenceDiagram
     activate BR
     BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
     activate DB
-    DB-->>BR: 8. Booking entity (Status: ASSIGNED)
+    DB-->>BR: 8. Booking entity (Status: CONFIRMED)
     deactivate DB
     BR-->>SVC: 9. Booking
     deactivate BR
-    SVC->>SVC: 10. Validate: status = ASSIGNED
-    alt Status = ASSIGNED
-        SVC->>SVC: 11. Update booking.status = CHECK_IN
+    SVC->>SVC: 10. Validate: status = CONFIRMED
+    alt Status = CONFIRMED
+        SVC->>SVC: 11. Update booking.status = IN_PROGRESS
         SVC->>BR: 12. save(booking)
         activate BR
-        BR->>DB: 13. UPDATE bookings SET status = 'CHECK_IN'
+        BR->>DB: 13. UPDATE bookings SET status = 'IN_PROGRESS'
         activate DB
         DB-->>BR: 14. OK
         deactivate DB
@@ -4081,7 +4084,7 @@ sequenceDiagram
         DB-->>NR: 20. OK
         deactivate DB
         deactivate NR
-        SVC-->>API: 21. BookingResponse (CHECK_IN)
+        SVC-->>API: 21. BookingResponse (IN_PROGRESS)
         deactivate SVC
         API-->>UI: 22. 200 OK
         deactivate API
@@ -4097,7 +4100,7 @@ sequenceDiagram
 ```
 
 **Notes:**
-- Only bookings with status ASSIGNED can be checked in
+- Only bookings with status CONFIRMED can be checked in
 - EMR shell is created with booking_id, pet_id, vet_id, created_at
 - Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
 - After check-in, Staff can start filling EMR (UC-VT-06)
@@ -4141,10 +4144,10 @@ sequenceDiagram
     deactivate ER
     SVC->>SVC: 14. Validate EMR completeness
     alt EMR has Assessment AND Plan
-        SVC->>SVC: 15. Update booking.status = CHECK_OUT
+        SVC->>SVC: 15. Update booking.status = COMPLETED
         SVC->>BR: 16. save(booking)
         activate BR
-        BR->>DB: 17. UPDATE bookings SET status = 'CHECK_OUT'
+        BR->>DB: 17. UPDATE bookings SET status = 'COMPLETED'
         activate DB
         DB-->>BR: 18. OK
         deactivate DB
@@ -4156,7 +4159,7 @@ sequenceDiagram
         DB-->>NR: 21. OK
         deactivate DB
         deactivate NR
-        SVC-->>API: 22. BookingResponse (CHECK_OUT)
+        SVC-->>API: 22. BookingResponse (COMPLETED)
         deactivate SVC
         API-->>UI: 23. 200 OK
         deactivate API
@@ -4173,9 +4176,9 @@ sequenceDiagram
 
 **Notes:**
 - EMR must have Assessment and Plan fields filled before treatment can be marked finished
-- Booking status changes from IN_PROGRESS to CHECK_OUT
-- Notification sent to Clinic Manager: "Cần thanh toán & checkout"
-- Notification sent to Pet Owner: "Khám xong, vui lòng thanh toán"
+- Booking status changes from IN_PROGRESS to COMPLETED
+- Notification sent to Clinic Manager: "Booking đã hoàn tất"
+- Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
 
 #### 4.7.15 Handle Cancellations & Refunds (UC-CM-07)
 

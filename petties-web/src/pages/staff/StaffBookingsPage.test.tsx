@@ -234,7 +234,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
                 expect(screen.getByText('Chi tiết lịch hẹn')).toBeInTheDocument()
             })
 
-            // Should show "BẮT ĐẦU KHÁM" instead of "THÊM DỊCH VỤ PHÁT SINH"
+            // Should show "BẮT ĐẦU THỰC HIỆN DỊCH VỤ" instead of "THÊM DỊCH VỤ PHÁT SINH"
             expect(screen.queryByRole('button', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
         })
 
@@ -267,7 +267,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
             expect(screen.queryByRole('button', { name: /thêm dịch vụ phát sinh/i })).not.toBeInTheDocument()
         })
 
-        it('should show "BẮT ĐẦU KHÁM" when booking status is CONFIRMED and staff is assigned', async () => {
+        it('should show "BẮT ĐẦU THỰC HIỆN DỊCH VỤ" when booking status is CONFIRMED and staff is assigned', async () => {
             const confirmedBooking = createMockBooking({ status: 'CONFIRMED' })
 
             vi.mocked(bookingService.getBookingsByStaff).mockResolvedValue({
@@ -291,7 +291,7 @@ describe('StaffBookingsPage - Add Service Feature', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('Chi tiết lịch hẹn')).toBeInTheDocument()
-                expect(screen.getByRole('button', { name: /bắt đầu khám/i })).toBeInTheDocument()
+                expect(screen.getByRole('button', { name: /bắt đầu thực hiện dịch vụ/i })).toBeInTheDocument()
             })
         })
 

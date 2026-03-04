@@ -1105,11 +1105,6 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         textColor = AppColors.primaryDark;
         label = 'Đã xác nhận';
         break;
-      case 'ASSIGNED':
-        bgColor = AppColors.primarySurface;
-        textColor = AppColors.primary;
-        label = 'Đã gán BS';
-        break;
       case 'IN_PROGRESS':
         bgColor = AppColors.primarySurface;
         textColor = AppColors.primary;
@@ -1232,7 +1227,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             ),
           ] else if (_booking!.type == 'HOME_VISIT') ...[
             _buildActionButton(
-              label: 'BẮT ĐẦU KHÁM',
+              label: 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ',
               icon: Icons.play_arrow,
               color: AppColors.primary,
               onPressed: _handleCheckIn,
@@ -1250,7 +1245,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             ),
           ] else
             _buildActionButton(
-              label: 'BẮT ĐẦU KHÁM',
+              label: 'BẮT ĐẦU THỰC HIỆN DỊCH VỤ',
               icon: Icons.play_arrow,
               color: AppColors.primary,
               onPressed: _handleCheckIn,

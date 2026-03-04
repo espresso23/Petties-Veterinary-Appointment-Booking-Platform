@@ -104,12 +104,12 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                           _filterByStatuses(_proxyBookings, const ['PENDING']),
                     ),
 
-                    // Tab 2: Đã duyệt (CONFIRMED, ASSIGNED)
+                    // Tab 2: Đã duyệt (CONFIRMED)
                     _buildStatusSection(
                       myBookings: _filterByStatuses(
-                          _bookings, const ['CONFIRMED', 'ASSIGNED']),
+                        _bookings, const ['CONFIRMED']),
                       proxyBookings: _filterByStatuses(
-                          _proxyBookings, const ['CONFIRMED', 'ASSIGNED']),
+                        _proxyBookings, const ['CONFIRMED']),
                     ),
 
                     // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
