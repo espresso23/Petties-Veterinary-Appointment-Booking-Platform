@@ -1,6 +1,6 @@
 # Tài liệu Kỹ thuật – AI Agent Service (Petties)
 
-**Phiên bản:** 1.2  
+**Phiên bản:** 1.3  
 **Cập nhật:** 2026-03-04  
 **Tham chiếu:** AI_AGENT_SERVICE_SRS.md, AI_AGENT_SERVICE_SDD.md, REPORT_4_SDD_SYSTEM_DESIGN.md
 
@@ -53,42 +53,43 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 
 | UC-ID | Tên | Mô tả ngắn |
 |-------|-----|-------------|
-| UC-001 | Chat với AI Agent | Gửi tin nhắn qua WebSocket, nhận stream response + ReAct trace (thought/tool/observation). |
-| UC-002 | Hỏi đáp chăm sóc pet (RAG) | Agent gọi `pet_care_qa` → RAG query → trả lời kèm citation. |
-| UC-003 | Tìm bệnh theo triệu chứng | Agent gọi `symptom_search` → trả gợi ý bệnh, khuyên đến phòng khám nếu cần. |
-| UC-004 | Đặt lịch qua chat | Agent gọi `search_clinics` → `check_slots` → `create_booking` (gọi Spring Boot). |
-| UC-019 | Phân tích hình ảnh (Vision) | User gửi ảnh + text; Agent gọi `analyze_pet_image` → LLM multimodal → severity + gợi ý booking. |
-| UC-029 | Tra cứu cẩm nang & mẹo thú y từ web (fallback) | Khi RAG nội bộ không đủ hoặc user hỏi thông tin cập nhật, agent gọi `web_search` để lấy nguồn tham khảo và tóm tắt hướng dẫn/mẹo chăm sóc (kèm trích dẫn nguồn). |
+| UC-001 | Chat with AI Agent | Gửi tin nhắn qua WebSocket, nhận stream response + ReAct trace (thought/tool/observation). |
+| UC-002 | Ask pet care questions (RAG) | Agent gọi `pet_care_qa` → RAG query → trả lời kèm citation. |
+| UC-003 | Search diseases by symptoms | Agent gọi `symptom_search` → trả gợi ý bệnh, khuyên đến phòng khám nếu cần. |
+| UC-004 | Book appointment via chat | Agent gọi `search_clinics` → `check_slots` → `create_booking` (gọi Spring Boot). |
+| UC-019 | Analyze pet health images (Vision) | User gửi ảnh + text; Agent gọi `analyze_pet_image` → LLM multimodal → severity + gợi ý booking. |
+| UC-029 | Retrieve vet tips from web (fallback) | Khi RAG nội bộ không đủ hoặc user hỏi thông tin cập nhật, agent gọi `web_search` để lấy nguồn tham khảo và tóm tắt hướng dẫn/mẹo chăm sóc (kèm trích dẫn nguồn). |
 
 ### 2.2 Clinic Staff / Manager (Web)
 
 | UC-ID | Tên | Mô tả ngắn |
 |-------|-----|-------------|
-| UC-020 | Hỗ trợ xử lý booking | Hỏi AI về tình huống booking, gợi ý thao tác. |
-| UC-021 | Gợi ý reassign staff | AI gợi ý nhân viên phù hợp (dựa trên tools gọi backend). |
-| UC-022 | Trả lời FAQ cho khách | RAG + tools trả lời câu hỏi thường gặp. |
-| UC-023 | Tổng hợp thông tin bệnh nhân & EMR | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff. |
-| UC-024 | Hỗ trợ thêm lịch làm việc cho nhân viên | AI đề xuất ca làm (ngày/giờ/nhân sự) và có thể gọi tool tạo ca làm trên backend khi người dùng xác nhận. |
-| UC-025 | Gợi ý tối ưu lịch làm việc | (Có thể mở rộng tool.) |
-| UC-026 | Hỗ trợ setup phòng khám | AI hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp theo mô hình vận hành. |
-| UC-027 | Hỗ trợ thêm dịch vụ phòng khám | AI gợi ý danh mục dịch vụ phổ biến theo loại pet/nhu cầu, chuẩn hóa tên + mô tả + giá/đơn vị; có thể gọi tool để tạo/cập nhật service trên backend. |
-| UC-028 | Soạn mô tả phòng khám | AI viết/biên tập mô tả phòng khám (giới thiệu, thế mạnh, quy trình, lưu ý), đảm bảo văn phong rõ ràng, không sai sự thật, và phù hợp hiển thị trên app. |
+| UC-020 | Assist booking handling | Hỏi AI về tình huống booking, gợi ý thao tác. |
+| UC-021 | Suggest reassigning staff | AI gợi ý nhân viên phù hợp (dựa trên tools gọi backend). |
+| UC-022 | Answer FAQs for customers | RAG + tools trả lời câu hỏi thường gặp. |
+| UC-023 | Summarize patient info & EMR | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff. |
+| UC-024 | Assist creating staff work schedules | AI đề xuất ca làm (ngày/giờ/nhân sự) và có thể gọi tool tạo ca làm trên backend khi người dùng xác nhận. |
+| UC-025 | Suggest optimizing work schedules | (Có thể mở rộng tool.) |
+| UC-026 | Assist setting up clinic | AI hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp theo mô hình vận hành. |
+| UC-027 | Assist adding clinic services | AI gợi ý danh mục dịch vụ phổ biến theo loại pet/nhu cầu, chuẩn hóa tên + mô tả + giá/đơn vị; có thể gọi tool để tạo/cập nhật service trên backend. |
+| UC-028 | Compose clinic description | AI viết/biên tập mô tả phòng khám (giới thiệu, thế mạnh, quy trình, lưu ý), đảm bảo văn phong rõ ràng, không sai sự thật, và phù hợp hiển thị trên app. |
+| UC-030 | Auto-assign staff to bookings | AI reviews unassigned bookings, analyzes staff availability (free slots) and specialties, then **suggests** the best-fit staff for each booking. **Human-in-the-loop required:** Clinic Manager must review and approve suggestions before the system executes the assignment — AI never acts autonomously. |
 
 ### 2.3 Admin (Web)
 
 | UC-ID | Tên | Mô tả ngắn |
 |-------|-----|-------------|
-| UC-005 | Cấu hình Agent | Bật/tắt agent, chọn model, hyperparameters. |
-| UC-006 | Chỉnh sửa System Prompt | Sửa prompt, version (lưu PostgreSQL). |
-| UC-007 | Điều chỉnh Hyperparameters | Temperature, Max Tokens, Top-P. |
-| UC-008 | Chọn LLM Model | OpenRouter: gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet. |
-| UC-009 | Xem danh sách Tools | Danh sách @mcp.tool, enable/disable. |
+| UC-005 | Configure Agent | Bật/tắt agent, chọn model, hyperparameters. |
+| UC-006 | Edit System Prompt | Sửa prompt, version (lưu PostgreSQL). |
+| UC-007 | Adjust Hyperparameters | Temperature, Max Tokens, Top-P. |
+| UC-008 | Select LLM Model | OpenRouter: gemini-2.0-flash, llama-3.3-70b, claude-3.5-sonnet. |
+| UC-009 | View Tools list | Danh sách @mcp.tool, enable/disable. |
 | UC-010 | Enable/Disable Tool | Bật/tắt từng tool cho agent. |
-| UC-011 | Xem Tool Schema | Input/output schema của từng tool. |
-| UC-012 | Upload tài liệu | Upload PDF/DOCX → RAG index (LlamaIndex + Qdrant). |
-| UC-013 | Xóa tài liệu | Xóa document và vectors tương ứng. |
+| UC-011 | View Tool Schema | Input/output schema của từng tool. |
+| UC-012 | Upload documents | Upload PDF/DOCX → RAG index (LlamaIndex + Qdrant). |
+| UC-013 | Delete documents | Xóa document và vectors tương ứng. |
 | UC-014 | Test RAG Retrieval | Gửi query test, xem chunks trả về. |
-| UC-015 | Cấu hình API Keys | OpenRouter, Cohere, Qdrant (lưu system_settings). |
+| UC-015 | Configure API Keys | OpenRouter, Cohere, Qdrant (lưu system_settings). |
 | UC-016 | Test Connections | Kiểm tra kết nối LLM/Cohere/Qdrant. |
 
 ### 2.4 System (Background)
@@ -96,7 +97,7 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-ID | Tên | Mô tả ngắn |
 |-------|-----|-------------|
 | UC-017 | Auto-index documents | Index tài liệu mới (nếu có pipeline). |
-| UC-018 | Cleanup chat history | Dọn session/message cũ (ví dụ TTL 90 ngày). |
+| UC-018 | Clean up chat history | Dọn session/message cũ (ví dụ TTL 90 ngày). |
 
 ---
 
