@@ -564,18 +564,11 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                             children: [
                               GestureDetector(
                                 onTap: () {
-                                  Navigator.of(context)
-                                      .push(
-                                    MaterialPageRoute(
-                                      builder: (_) => WriteReviewScreen(
-                                          booking: booking, isEditMode: true),
-                                    ),
-                                  )
-                                      .then((value) {
-                                    if (value == true) {
-                                      _fetchBookings();
-                                    }
-                                  });
+                                  if (booking.clinicId != null) {
+                                    context.push(
+                                      '/clinics/${booking.clinicId}?scrollToReviews=true',
+                                    );
+                                  }
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(

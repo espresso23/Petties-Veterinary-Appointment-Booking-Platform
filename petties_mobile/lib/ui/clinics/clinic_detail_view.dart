@@ -17,10 +17,12 @@ import 'package:intl/intl.dart';
 /// Clinic Detail View - Neobrutalism Style
 class ClinicDetailView extends StatefulWidget {
   final String clinicId;
+  final bool scrollToReviews;
 
   const ClinicDetailView({
     super.key,
     required this.clinicId,
+    this.scrollToReviews = false,
   });
 
   @override
@@ -47,6 +49,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
   double? _localRatingAvg;
   int? _localRatingCount;
 
+  // Key for scrolling to review section
+  final GlobalKey _reviewSectionKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +77,13 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           _localRatingCount = reviews.length;
           _isLoadingReviews = false;
         });
+
+        // Auto-scroll to review section if requested
+        if (widget.scrollToReviews) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToReviewSection();
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error fetching reviews: $e');
@@ -80,6 +92,17 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           _isLoadingReviews = false;
         });
       }
+    }
+  }
+
+  void _scrollToReviewSection() {
+    final context = _reviewSectionKey.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -378,7 +401,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (clinic.ratingAvg != null && clinic.ratingAvg! > 0) ...[
-                      const Icon(Icons.star, color: AppColors.warning, size: 18),
+                      const Icon(Icons.star,
+                          color: AppColors.warning, size: 18),
                       const SizedBox(width: 4),
                       Text(
                         clinic.ratingAvg!.toStringAsFixed(1),
@@ -403,7 +427,8 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                         ),
                       ],
                     ] else ...[
-                      const Icon(Icons.star_border, color: AppColors.stone400, size: 18),
+                      const Icon(Icons.star_border,
+                          color: AppColors.stone400, size: 18),
                       const SizedBox(width: 4),
                       const Text(
                         '0.0',
@@ -587,10 +612,13 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
     );
   }
 
-  Widget _buildLocationSection(BuildContext context, Clinic clinic, ClinicProvider provider) {
+  Widget _buildLocationSection(
+      BuildContext context, Clinic clinic, ClinicProvider provider) {
     // Ưu tiên tính khoảng cách từ vị trí hiện tại để tránh hiển thị sai (do cache/API trả về lat-lng nhầm thứ tự hoặc đơn vị).
     double? displayKm;
-    if (provider.currentPosition != null && clinic.latitude != null && clinic.longitude != null) {
+    if (provider.currentPosition != null &&
+        clinic.latitude != null &&
+        clinic.longitude != null) {
       displayKm = MapUtils.distanceKm(
         provider.currentPosition!.latitude,
         provider.currentPosition!.longitude,
@@ -729,15 +757,14 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           onMapCreated: (controller) =>
                               _mapController = controller,
                           initialCameraPosition: CameraPosition(
-                            target: LatLng(
-                                clinic.latitude!, clinic.longitude!),
+                            target: LatLng(clinic.latitude!, clinic.longitude!),
                             zoom: 15,
                           ),
                           markers: {
                             Marker(
                               markerId: const MarkerId('clinic'),
-                              position: LatLng(
-                                  clinic.latitude!, clinic.longitude!),
+                              position:
+                                  LatLng(clinic.latitude!, clinic.longitude!),
                             ),
                           },
                           zoomControlsEnabled: false,
@@ -1280,6 +1307,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
     final displayReviews = _reviews.take(3).toList();
 
     return Container(
+      key: _reviewSectionKey,
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
