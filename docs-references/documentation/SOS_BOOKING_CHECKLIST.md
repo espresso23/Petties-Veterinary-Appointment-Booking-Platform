@@ -74,5 +74,18 @@ Tài liệu này tổng hợp tất cả các hạng mục công việc đã tri
     - [x] **Detailed Checkout Confirmation**: Hiển thị đầy đủ thông tin khách hàng, phí SOS, phí di chuyển và danh sách dịch vụ trước khi hoàn tất.
     - [x] Mobile: Tự động dừng GPS tracking khi Staff nhấn "Đã đến nơi" hoặc "Checkout".
 
+## 7. Booking Lifecycle & Realtime Consistency (04/03/2026)
+- [x] **Status model alignment**:
+    - [x] Chuẩn hóa flow code-based: `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`.
+    - [x] Loại bỏ phụ thuộc `ASSIGNED` khỏi web/mobile runtime booking UI.
+- [x] **Home Visit behavior clarification**:
+    - [x] Home Visit không dùng GPS tracking realtime (tracking chỉ cho SOS).
+    - [x] Đồng bộ tài liệu workflow và SRS/SDD theo rule trên.
+- [x] **Staff action label standardization**:
+    - [x] Đổi toàn bộ "BẮT ĐẦU KHÁM" → "BẮT ĐẦU THỰC HIỆN DỊCH VỤ" (Web + Mobile).
+- [x] **SSE Web duplicate toast mitigation**:
+    - [x] Bổ sung `silent` mode cho page-level SSE subscriptions.
+    - [x] Giữ callback refresh dữ liệu realtime nhưng tránh duplicate toast/unread increment.
+
 ---
-*Cập nhật lần cuối: 24/02/2026 bởi Antigravity*
+*Cập nhật lần cuối: 04/03/2026 bởi Copilot (GPT-5.3-Codex)*

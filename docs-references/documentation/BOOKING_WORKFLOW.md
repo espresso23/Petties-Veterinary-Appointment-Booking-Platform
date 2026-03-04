@@ -1,7 +1,7 @@
 # Booking Workflow - Petties
 
-**Version:** 1.5.0  
-**Last Updated:** 2026-01-22  
+**Version:** 1.6.0  
+**Last Updated:** 2026-03-04  
 
 ---
 
@@ -14,15 +14,14 @@ stateDiagram-v2
     PENDING --> CONFIRMED: Clinic xác nhận
     PENDING --> CANCELLED: Pet Owner/Clinic hủy
     
-    CONFIRMED --> ASSIGNED: Clinic assign Staff
+    CONFIRMED --> CONFIRMED: Clinic assign/reassign Staff
     CONFIRMED --> CANCELLED: Hủy
-    
-    ASSIGNED --> ASSIGNED: Manager Reassign Staff (v1.5.0)
-    
-    ASSIGNED --> IN_PROGRESS: Staff check-in (IN_CLINIC)
-    ASSIGNED --> IN_PROGRESS: Staff bắt đầu di chuyển (HOME_VISIT/SOS)
-    ASSIGNED --> NO_SHOW: Khách không đến
-    ASSIGNED --> CANCELLED: Hủy
+
+    CONFIRMED --> IN_PROGRESS: Staff check-in (IN_CLINIC)
+    CONFIRMED --> IN_PROGRESS: Staff bắt đầu thực hiện dịch vụ (IN_CLINIC/HOME_VISIT)
+    CONFIRMED --> IN_PROGRESS: Staff bắt đầu di chuyển (SOS)
+    CONFIRMED --> NO_SHOW: Khách không đến
+    CONFIRMED --> CANCELLED: Hủy
     
     IN_PROGRESS --> COMPLETED: Staff checkout + Thanh toán
     
@@ -40,8 +39,7 @@ stateDiagram-v2
 | Status | Mô tả | Actor | Booking Type |
 |--------|-------|-------|--------------|
 | `PENDING` | Chờ xác nhận | Pet Owner tạo | All |
-| `CONFIRMED` | Đã xác nhận | Clinic Manager | All |
-| `ASSIGNED` | Đã phân công Staff | Clinic Manager | All |
+| `CONFIRMED` | Đã xác nhận + đã gán Staff ban đầu | Clinic Manager | All |
 | `IN_PROGRESS` | Đang khám / Đang di chuyển (SOS) | Staff | All |
 | `COMPLETED` | Hoàn thành (sau checkout + thanh toán) | Staff | All |
 | `CANCELLED` | Đã hủy | Pet Owner/Clinic | All |
@@ -51,8 +49,8 @@ stateDiagram-v2
 
 | Action | Trigger | Transition |
 |--------|---------|------------|
-| `check-in` | Staff bấm check-in | ASSIGNED → IN_PROGRESS |
-| `start-moving` | Staff bắt đầu di chuyển | ASSIGNED → IN_PROGRESS |
+| `check-in` | Staff bấm check-in | CONFIRMED → IN_PROGRESS |
+| `start-moving` | Staff bắt đầu di chuyển (SOS) | CONFIRMED → IN_PROGRESS |
 | `checkout` | Staff bấm checkout | IN_PROGRESS → COMPLETED |
 
 ---
@@ -61,17 +59,17 @@ stateDiagram-v2
 
 ### 3.1 IN_CLINIC (Khám tại phòng khám)
 ```
-PENDING → CONFIRMED → ASSIGNED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
+PENDING → CONFIRMED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 ### 3.2 HOME_VISIT (Khám tại nhà)
 ```
-PENDING → CONFIRMED → ASSIGNED → (check-in / start-moving) → IN_PROGRESS → (checkout) → COMPLETED
+PENDING → CONFIRMED → (check-in) → IN_PROGRESS → (checkout) → COMPLETED
 ```
 
 ### 3.3 SOS (Cấp cứu)
 ```
-PENDING → CONFIRMED → ASSIGNED → (start-moving) → IN_PROGRESS (GPS Tracking) → (checkout) → COMPLETED
+PENDING → CONFIRMED → (start-moving) → IN_PROGRESS (GPS Tracking) → (checkout) → COMPLETED
 ```
 
 > **Note:** SOS có thêm GPS tracking real-time qua Redis
@@ -99,7 +97,7 @@ sequenceDiagram
 
     CM->>S: Assign Staff
     S-->>V: 🔔 Được phân công
-    S-->>PO: 🔔 Booking ASSIGNED
+    S-->>PO: 🔔 Booking CONFIRMED (đã gán Staff)
 
     Note over PO: Pet Owner đến phòng khám
 
@@ -130,9 +128,9 @@ sequenceDiagram
     CM->>S: Xác nhận + Assign Staff
     S-->>V: 🔔 Được phân công
 
-    V->>S: Bắt đầu di chuyển
+    V->>S: Bắt đầu thực hiện dịch vụ (check-in)
     S->>S: Status = IN_PROGRESS
-    S-->>PO: 🔔 Staff đang đến (Real-time tracking nếu là SOS)
+    S-->>PO: 🔔 Staff bắt đầu thực hiện dịch vụ
 
     V->>S: Đã đến nơi (action arrived - sets timestamp)
     S->>S: arrivedAt = NOW
@@ -156,7 +154,7 @@ sequenceDiagram
     PO->>S: 🆘 Tạo SOS booking
     S->>S: Auto-assign nearest Staff
     S-->>V: 🚨 SOS Alert
-    S->>S: Status = ASSIGNED
+    S->>S: Status = CONFIRMED
 
     V->>S: Accept + Start moving
     S->>S: Status = IN_PROGRESS
@@ -210,8 +208,8 @@ PAYMENT {
 |-----------|--------|-----------|
 | Status = PENDING | Pet Owner | Free cancel |
 | Status = CONFIRMED | Pet Owner | Có thể tính phí |
-| Status = ASSIGNED | Pet Owner | Cần thông báo Staff |
-| Status ≥ CHECK_IN | Không thể | Đã bắt đầu khám |
+| Status = CONFIRMED | Pet Owner | Cần thông báo Staff |
+| Status = IN_PROGRESS | Không thể | Đã bắt đầu thực hiện dịch vụ |
 
 ---
 

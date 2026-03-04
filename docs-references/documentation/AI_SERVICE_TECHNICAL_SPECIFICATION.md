@@ -10,7 +10,7 @@
 
 1. [Tổng quan và phạm vi AI trong project](#1-tổng-quan-và-phạm-vị-ai-trong-project)
 2. [Use cases AI](#2-use-cases-ai)
-3. [Vòng đời hoạt động của AI và dữ liệu nội bộ](#3-vòng-đời-hoạt-động-của-ai-và-dữ-liệu-nội-bộ)
+3. [AI giúp tính năng nào “xịn” hơn](#3-ai-giúp-tính-năng-nào-xịn-hơn)
 4. [System Architecture – AI là thành phần tách biệt](#4-system-architecture--ai-là-thành-phần-tách-biệt)
 5. [Package diagram – AI Service](#5-package-diagram--ai-service)
 6. [Sequence diagrams – Gửi/nhận dữ liệu với AI](#6-sequence-diagrams--gửinhận-dữ-liệu-với-ai)
@@ -100,9 +100,9 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 
 ---
 
-## 3. Vòng đời hoạt động của AI và dữ liệu nội bộ
+## 3. AI giúp tính năng nào “xịn” hơn
 
-### 3.1 Vòng đời tổng thể (AI Lifecycle)
+### 3.1 Luồng giá trị AI theo tính năng
 
 ```mermaid
 flowchart TB
@@ -171,6 +171,8 @@ flowchart TB
 
 ### 3.2 Dữ liệu nội bộ AI sử dụng
 
+> Trọng tâm trình bày: dữ liệu này giúp AI cải thiện chất lượng trả lời (RAG), độ chính xác nghiệp vụ (tools gọi Spring Boot) và khả năng audit (chat metadata).
+
 | Source | Data | Purpose |
 |--------|------|---------|
 | **PostgreSQL (AI DB)** | `agents`, `tools`, `system_settings`, `knowledge_documents` | Cấu hình agent, danh sách tools, API keys, meta document RAG. |
@@ -198,6 +200,45 @@ Khi kết quả từ RAG, `symptom_search` hoặc `analyze_pet_image` có **conf
 - **Cấu hình:** `DUCKDUCKGO_MAX_RESULTS` (số kết quả tối đa lấy về, ví dụ 5).
 
 Tool web search **không thay thế** RAG hay symptom_search; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
+
+### 3.5 AI được phát triển/vận hành và cập nhật dữ liệu theo thời gian
+
+Để trả lời đúng mối quan tâm của reviewer/mentor, AI được vận hành theo 3 vòng:
+
+1. **Vòng phát triển (Development):**
+    - Thêm/cập nhật tool bằng code (`@mcp.tool`).
+    - Version hóa prompt, model, hyperparameters trong PostgreSQL.
+    - Kiểm thử API/tool và regression theo use case.
+
+2. **Vòng vận hành (Operations):**
+    - Runtime lấy config động từ DB (không hard-code).
+    - Ghi log + trace (thought/tool/observation) vào chat metadata để audit.
+    - Theo dõi lỗi LLM/tool, áp dụng retry và fallback an toàn.
+
+3. **Vòng cập nhật tri thức (Knowledge Refresh):**
+    - Admin upload tài liệu mới → chunking → embedding → upsert Qdrant.
+    - Re-index định kỳ hoặc khi tài liệu thay đổi.
+    - Dọn dữ liệu chat cũ theo chính sách retention.
+
+```mermaid
+sequenceDiagram
+     participant Admin as Admin Web
+     participant API as AI Service API
+     participant Indexer as RAG Indexer
+     participant Cohere as Cohere Embedding
+     participant Qdrant as Qdrant Cloud
+     participant Agent as Runtime Agent
+
+     Admin->>API: Upload tài liệu mới
+     API->>Indexer: Parse + Chunk
+     Indexer->>Cohere: Embed chunks
+     Cohere-->>Indexer: Vectors
+     Indexer->>Qdrant: Upsert vectors + metadata
+     Qdrant-->>Indexer: OK
+     Indexer-->>API: Index thành công
+     API-->>Admin: Trạng thái cập nhật tri thức
+     Agent->>Qdrant: Query context mới ở lần hỏi tiếp theo
+```
 
 ---
 

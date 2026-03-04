@@ -158,6 +158,7 @@ export const BookingDashboardPage = () => {
 
     // Handle real-time booking updates
     useSseNotification({
+        silent: true,
         onBookingUpdate: (data) => {
             console.log('[BookingDashboardPage] Real-time update:', data);
 

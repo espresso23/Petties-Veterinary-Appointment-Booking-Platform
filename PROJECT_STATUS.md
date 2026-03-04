@@ -1,8 +1,8 @@
 # 🐾 PETTIES Project Status
 
-> **Last Updated:** 2026-02-02
-> **Current Sprint:** Sprint 8 (03/02 - 09/02/2026) - EMR + Patient Management
-> **Overall Progress:** 83%
+> **Last Updated:** 2026-03-04
+> **Current Sprint:** Sprint 13 (04/03 - 11/03/2026) - Stabilization & Documentation Alignment
+> **Overall Progress:** 85.2% (theo SRS mục 2.3)
 
 ---
 
@@ -16,33 +16,26 @@
 | Staff Scheduling | ✅ Done | 100% |
 | Notifications | ✅ Done | 100% |
 | AI Assistant | ✅ Done | 100% |
-| Booking Flow | ✅ Done | 95% |
+| Booking Flow | ✅ Done | 100% |
 | EMR (Medical Records) | ✅ Done | 100% |
 | Vaccination System | ✅ Done | 100% |
 | Payment System | ✅ Done | 90% |
-| SOS Emergency | ❌ Not Started | 0% |
+| SOS Emergency | 🔄 Active | 85% |
 
 ---
 
-## 📋 Use Case Implementation Status
+## 📋 Use Case Implementation Status (Code-based)
 
-### Summary by Boundary (69 UCs Total)
+**Nguồn chuẩn:** `docs-references/documentation/SRS/PETTIES_SRS.md` mục **2.3 Use Case Implementation Status Reference**
 
-| # | Boundary | UCs | Status | Progress |
-|---|----------|-----|--------|----------|
-| 1 | Authentication & Onboarding | 7 | ✅ Done | 100% |
-| 2 | User Profile & Account Setup | 4 | ✅ Done | 100% |
-| 3 | Pet Records & Health Hub | 6 | ✅ Done | 100% |
-| 4 | Clinic Discovery & Search | 2 | ✅ Done | 100% |
-| 5 | Booking & Appointment Lifecycle | 16 | 🔄 Active | 88% |
-| 6 | Staffing & Scheduling | 8 | ✅ Done | 100% |
-| 7 | Clinical Operations & Service Setup | 10 | ✅ Done | 100% |
-| 8 | Electronic Medical Records (EMR) | 6 | ✅ Done | 100% |
-| 9 | SOS Emergency Services | 8 | ❌ Not Started | 0% |
-| 10 | AI Assistance & Agents | 8 | ✅ Done | 100% |
-| 11 | Platform Administration & Governance | 8 | 🔄 Active | 75% |
+| Status | Count | Percentage |
+|--------|-------|------------|
+| ✅ Done | 104 | 85.2% |
+| 🔄 In Progress | 5 | 4.1% |
+| ❌ Not Started | 13 | 10.7% |
+| **Total** | **122** | **100%** |
 
-**Total: 57/69 UCs Implemented (83%)**
+**Ghi chú:** Booking lifecycle, SOS flow và SSE realtime đã được chuẩn hóa lại theo code hiện tại trong đợt cập nhật 2026-03-04.
 
 ---
 
@@ -81,6 +74,7 @@
 - **Booking Management Dashboard** ✅ NEW
 - **Patient Management Dashboard** ✅ NEW
 - **EMR Creation/Edit Forms** ✅ NEW
+- **SSE Notification dedupe bằng silent page subscriptions** ✅ NEW (giảm duplicate toast)
 
 ### Mobile (Flutter)
 - Google Sign-In
@@ -92,40 +86,48 @@
 - **Booking Flow (Multi-step)** ✅ NEW
 - **EMR Viewer** ✅ NEW
 - **Vaccination Records** ✅ NEW
+- **Staff Booking Action label chuẩn hóa “BẮT ĐẦU THỰC HIỆN DỊCH VỤ”** ✅ NEW
 
 ---
 
-## 🔄 In Progress (Sprint 8)
+## ✅ Checklist Đồng Bộ Code-based (04/03/2026)
 
-### Current Focus: EMR + Patient Management
-1. **EMR Finalization**
-   - [x] SOAP Notes Backend (MongoDB)
-   - [x] Prescription management
-   - [x] Vaccination Record tracking
-   - [x] EMR form Web
-   - [x] View Mobile
-   - [ ] Cross-clinic EMR History (Verification pending)
+- [x] Chuẩn hóa booking status theo code: bỏ `ASSIGNED`/`CHECK_IN`/`CHECK_OUT`
+- [x] Đồng bộ `Booking Workflow` theo flow `PENDING → CONFIRMED → IN_PROGRESS → COMPLETED`
+- [x] Home Visit không tracking realtime (chỉ SOS tracking)
+- [x] Đồng bộ nhãn action staff web/mobile: “BẮT ĐẦU THỰC HIỆN DỊCH VỤ”
+- [x] Fix duplicate toast SSE trên web bằng `silent` mode ở page-level subscriptions
+- [x] Cập nhật SRS theo endpoint/status hiện tại
+- [x] Cập nhật SDD theo endpoint/status/schema hiện tại
 
-2. **Payment Flow Completion**
+---
+
+## 🔄 In Progress (Sprint 13)
+
+### Current Focus: Stabilization + Consistency
+1. **Payment Flow Completion**
    - [x] SePay QR Backend API
    - [x] Payment Controller
    - [ ] Mobile Payment Screen
-   - [ ] Webhook handling
+   - [ ] Webhook handling production verification
+
+2. **Manager Refund/Cancel Ops**
+   - [x] View request cancel booking
+   - [ ] Approve/Reject request (end-to-end UI + API)
+   - [ ] Process refund flow hoàn chỉnh
+
+3. **SOS & Tracking Hardening**
+   - [x] SOS booking + matching + tracking cơ bản
+   - [ ] Track staff location stabilization (in-progress theo SRS)
 
 ---
 
-## ⏳ Upcoming (Sprint 9-10)
+## ⏳ Upcoming
 
-### Sprint 9: Reviews & Rating System (10/02 - 16/02)
+### Next: Reviews & Rating System
 - [ ] Rate Clinic after Visit
 - [ ] Rate Staff after Service
 - [ ] Review listing & moderation
-
-### Sprint 10: SOS Emergency + GPS Tracking (17/02 - 23/02)
-- [ ] Emergency Clinic Filter
-- [ ] Live GPS Tracking (WebSocket)
-- [ ] SOS Tracking Map UI
-- [ ] Staff location sharing
 
 ---
 
@@ -143,6 +145,7 @@
 ## 🐛 Known Issues
 - Payment webhook cần verify kỹ trước khi production
 - Cross-clinic EMR cần test với nhiều clinic data
+- Một số tài liệu lịch sử còn thuật ngữ `vet`/flow cũ ngoài phạm vi Booking module (cần dọn đồng bộ toàn cục)
 
 ---
 
