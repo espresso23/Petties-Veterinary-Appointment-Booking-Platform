@@ -1,0 +1,702 @@
+﻿[
+    {
+        "UseCase":  "Register Account",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "register account",
+        "KeySDD":  "register"
+    },
+    {
+        "UseCase":  "Login",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "login",
+        "KeySDD":  "login"
+    },
+    {
+        "UseCase":  "Login by Google",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "login by google",
+        "KeySDD":  "google login"
+    },
+    {
+        "UseCase":  "Logout",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "logout",
+        "KeySDD":  "logout"
+    },
+    {
+        "UseCase":  "Forgot Password",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "forgot password",
+        "KeySDD":  "forgot password"
+    },
+    {
+        "UseCase":  "Reset Password",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "reset password",
+        "KeySDD":  "reset password"
+    },
+    {
+        "UseCase":  "View Profile",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view profile",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Profile",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "edit profile",
+        "KeySDD":  "update profile"
+    },
+    {
+        "UseCase":  "View Staff\u0027s Profile",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view staff s profile",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Staff\u0027s Profile",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "update staff s profile",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Add Staff",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "add staff",
+        "KeySDD":  "create staff"
+    },
+    {
+        "UseCase":  "Delete Staff",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "delete staff",
+        "KeySDD":  "remove staff"
+    },
+    {
+        "UseCase":  "View List of Staffs",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "staff list",
+        "KeySDD":  "staff list"
+    },
+    {
+        "UseCase":  "View Own Work Schedule",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "my schedule",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Staff Shift",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view staff shift",
+        "KeySDD":  "staff shift"
+    },
+    {
+        "UseCase":  "Create Staff Shift",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create staff shift",
+        "KeySDD":  "create staff shift"
+    },
+    {
+        "UseCase":  "Edit Staff Shift",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "edit shift",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Delete Staff Shift",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "delete shift",
+        "KeySDD":  "delete shift"
+    },
+    {
+        "UseCase":  "View Pet Profile",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view pet profile",
+        "KeySDD":  "pet profile"
+    },
+    {
+        "UseCase":  "Create Pet Profile",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create pet profile",
+        "KeySDD":  "add pet"
+    },
+    {
+        "UseCase":  "Edit Pet Profile",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "edit pet profile",
+        "KeySDD":  "edit pet"
+    },
+    {
+        "UseCase":  "Delete Pet Profile",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "delete pet profile",
+        "KeySDD":  "delete pet"
+    },
+    {
+        "UseCase":  "View Patient History List",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view patient history list",
+        "KeySDD":  "patient history"
+    },
+    {
+        "UseCase":  "View Patient Details",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view patient details",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Pet’s Medical Record",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view pet s medical record",
+        "KeySDD":  "medical record"
+    },
+    {
+        "UseCase":  "Update Pet’s Medical Record",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "update pet s medical record",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Pet’s Medical Record",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Pet’s Vaccination Record",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view pet s vaccination record",
+        "KeySDD":  "vaccination record"
+    },
+    {
+        "UseCase":  "Update Pet’s Vaccination Record",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "update pet s vaccination record",
+        "KeySDD":  "update vaccination"
+    },
+    {
+        "UseCase":  "Create Pet’s Vaccination Record",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Receive Medication Reminders",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "receive medication reminders",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Service",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create service",
+        "KeySDD":  "create service"
+    },
+    {
+        "UseCase":  "Create Master Service",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create master service",
+        "KeySDD":  "master service"
+    },
+    {
+        "UseCase":  "Update Service",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "edit service",
+        "KeySDD":  "update service"
+    },
+    {
+        "UseCase":  "Update Master Service",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "update master service",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Delete Service",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "delete service",
+        "KeySDD":  "delete service"
+    },
+    {
+        "UseCase":  "Delete Master Service",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "delete master service",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View All Service",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "list service",
+        "KeySDD":  "list service"
+    },
+    {
+        "UseCase":  "View All Master Service",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Detail Service",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "service detail",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Detail Master Service",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Inheritance Master Service For Clinics",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Conversation",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View All Coversation",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Delete Message",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Send Message",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "send message",
+        "KeySDD":  "send message"
+    },
+    {
+        "UseCase":  "View Chat History",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "chat history",
+        "KeySDD":  "chat history"
+    },
+    {
+        "UseCase":  "Create Auto Reply",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Auto Reply Message",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Review",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Delete Review",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Review",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Clinic Review",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Clinic Details",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view clinic details",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Clinic",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create clinic",
+        "KeySDD":  "create clinic"
+    },
+    {
+        "UseCase":  "View Clinic",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view clinic",
+        "KeySDD":  "view clinic"
+    },
+    {
+        "UseCase":  "Delete Clinic",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "delete clinic",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Clinic",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "update clinic",
+        "KeySDD":  "update clinic"
+    },
+    {
+        "UseCase":  "View clinic pending list",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "pending clinic",
+        "KeySDD":  "pending clinic"
+    },
+    {
+        "UseCase":  "Approve/Reject Clinic",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "approve reject clinic",
+        "KeySDD":  "approve reject clinic"
+    },
+    {
+        "UseCase":  "Active/ Suspend Clinic",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "active suspend clinic",
+        "KeySDD":  "suspend clinic"
+    },
+    {
+        "UseCase":  "View Clinic Statistics",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Book an appointment",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "book an appointment",
+        "KeySDD":  "book appointment"
+    },
+    {
+        "UseCase":  "Book on behalf",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View my booking",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view my booking",
+        "KeySDD":  "view my booking"
+    },
+    {
+        "UseCase":  "View booking history",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "booking history",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Cancel booking",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "cancel booking",
+        "KeySDD":  "cancel booking"
+    },
+    {
+        "UseCase":  "Create SOS Booking",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create sos booking",
+        "KeySDD":  "sos booking"
+    },
+    {
+        "UseCase":  "Track Staff location",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "track staff location",
+        "KeySDD":  "track staff location"
+    },
+    {
+        "UseCase":  "Reassign Staff",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "reassign staff",
+        "KeySDD":  "reassign staff"
+    },
+    {
+        "UseCase":  "Assign Staff to Booking",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "assign staff to booking",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Check-in Patient",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "check in patient",
+        "KeySDD":  "check in patient"
+    },
+    {
+        "UseCase":  "Check-out Patient",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "check out patient",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View New Bookings",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view new bookings",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Clinic On Map",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view clinic on map",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Search clinics",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "search clinics",
+        "KeySDD":  "search clinics"
+    },
+    {
+        "UseCase":  "View Clinic\u0027s List",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view clinic s list",
+        "KeySDD":  "clinic list"
+    },
+    {
+        "UseCase":  "Filter and Sort",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "filter",
+        "KeySDD":  "filter"
+    },
+    {
+        "UseCase":  "View Clinic Details",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view clinic details",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Update Notification",
+        "SRS":  false,
+        "SDD":  true,
+        "KeySRS":  "",
+        "KeySDD":  "update notification"
+    },
+    {
+        "UseCase":  "View Notification",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "view notification",
+        "KeySDD":  "notifications"
+    },
+    {
+        "UseCase":  "Create Notification",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "create notification",
+        "KeySDD":  "create notification"
+    },
+    {
+        "UseCase":  "Delete Notification",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "delete notification",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create QR Payment",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "qr payment",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Invoice",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view invoice",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View Payment Transactions History",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view payment transactions history",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Process Withdraw",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View List Withdraw request",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View wallet\u0027s clinic",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View platform statistics",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "view platform statistics",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Report Clinic",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "report clinic",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Create Report Pet Owner",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "View All Report",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Active/Suspend Report",
+        "SRS":  false,
+        "SDD":  false,
+        "KeySRS":  "",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Ask ChatBot To Pet Care",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "ask chatbot to pet care",
+        "KeySDD":  "chatbot"
+    },
+    {
+        "UseCase":  "Booking With ChatBot",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "booking with chatbot",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Config Agent Parameter",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "config agent parameter",
+        "KeySDD":  "temperature"
+    },
+    {
+        "UseCase":  "Test Agent Playground",
+        "SRS":  true,
+        "SDD":  false,
+        "KeySRS":  "test agent playground",
+        "KeySDD":  ""
+    },
+    {
+        "UseCase":  "Turn On/Off Agent Tools",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "turn on off agent tools",
+        "KeySDD":  "disable tool"
+    },
+    {
+        "UseCase":  "Upload Document To Knowledge Base",
+        "SRS":  true,
+        "SDD":  true,
+        "KeySRS":  "upload document to knowledge base",
+        "KeySDD":  "knowledge base"
+    }
+]

@@ -158,202 +158,114 @@ graph TB
 | **CLINIC_OWNER** | Web only | Chủ phòng khám, quản lý dịch vụ, doanh thu |
 | **ADMIN** | Web only | Admin nền tảng, duyệt phòng khám, quản lý AI |
 
-### 2.2 Use Cases (Organized by Boundary/Feature Module)
+### 2.2 Use Cases (Organized by Feature Module)
 
-> **Approach:** Use Cases được nhóm theo **Boundary** (nhóm tính năng) thay vì theo Actor.
-> Mỗi Boundary chứa nhiều Use Cases với nhiều Actors khác nhau tham gia.
-> Cách tiếp cận này giúp nhìn nhận hệ thống theo góc độ chức năng, phù hợp với Business Workflow.
+> **Approach:** Trình bày đúng theo bảng **Feature - Function** đã thống nhất, không hiển thị trạng thái.
 
-#### 2.2.1 Authentication & Onboarding (Boundary)
+| Feature | Function |
+|---|---|
+| Authentication | Register Account |
+| Authentication | Login |
+| Authentication | Login by Google |
+| Authentication | Logout |
+| Authentication | Forgot Password |
+| Authentication | Reset Password |
+| User Profile Management | View Profile |
+| User Profile Management | Update Profile |
+| User Profile Management | View Staff's Profile |
+| User Profile Management | Update Staff's Profile |
+| Staff and Scheduling Management | Add Staff |
+| Staff and Scheduling Management | Delete Staff |
+| Staff and Scheduling Management | View List of Staffs |
+| Staff and Scheduling Management | View Own Work Schedule |
+| Staff and Scheduling Management | View Staff Shift |
+| Staff and Scheduling Management | Create Staff Shift |
+| Staff and Scheduling Management | Edit Staff Shift |
+| Staff and Scheduling Management | Delete Staff Shift |
+| Pet Profile Management | View Pet Profile |
+| Pet Profile Management | Create Pet Profile |
+| Pet Profile Management | Edit Pet Profile |
+| Pet Profile Management | Delete Pet Profile |
+| Patient Management | View Patient History List |
+| Patient Management | View Patient Details |
+| EMR & Vaccination Management | View Pet’s Medical Record |
+| EMR & Vaccination Management | Update Pet’s Medical Record |
+| EMR & Vaccination Management | Create Pet’s Medical Record |
+| EMR & Vaccination Management | View Pet’s Vaccination Record |
+| EMR & Vaccination Management | Update Pet’s Vaccination Record |
+| EMR & Vaccination Management | Create Pet’s Vaccination Record |
+| EMR & Vaccination Management | Receive Medication Reminders |
+| Service Management | Create Service |
+| Service Management | Create Master Service |
+| Service Management | Update Service |
+| Service Management | Update Master Service |
+| Service Management | Delete Service |
+| Service Management | Delete Master Service |
+| Service Management | View All Service |
+| Service Management | View All Master Service |
+| Service Management | View Detail Service |
+| Service Management | View Detail Master Service |
+| Service Management | Inheritance Master Service For Clinics |
+| Chat Management | Create Conversation |
+| Chat Management | View All Coversation |
+| Chat Management | Delete Message |
+| Chat Management | Send Message |
+| Chat Management | View Chat History |
+| Chat Management | Create Auto Reply |
+| Chat Management | Update Auto Reply Message |
+| Booking Review Management | Create Review |
+| Booking Review Management | Delete Review |
+| Booking Review Management | Update Review |
+| Booking Review Management | View Clinic Review |
+| Clinic Management | View Clinic Details |
+| Clinic Management | Create Clinic |
+| Clinic Management | View Clinic |
+| Clinic Management | Delete Clinic |
+| Clinic Management | Update Clinic |
+| Clinic Management | View clinic pending list |
+| Clinic Management | Approve/Reject Clinic |
+| Clinic Management | Active/ Suspend Clinic |
+| Clinic Management | View Clinic Statistics |
+| Booking Management | Book an appointment |
+| Booking Management | Book on behalf |
+| Booking Management | View my booking |
+| Booking Management | View booking history |
+| Booking Management | Cancel booking |
+| Booking Management | Create SOS Booking |
+| Booking Management | Track Staff location |
+| Booking Management | Reassign Staff |
+| Booking Management | Assign Staff to Booking |
+| Booking Management | Check-in Patient |
+| Booking Management | Check-out Patient |
+| Booking Management | View New Bookings |
+| Clinic Discovery Management | View Clinic On Map |
+| Clinic Discovery Management | Search clinics |
+| Clinic Discovery Management | View Clinic's List |
+| Clinic Discovery Management | Filter and Sort |
+| Clinic Discovery Management | View Clinic Details |
+| Notification Management | Update Notification |
+| Notification Management | View Notification |
+| Notification Management | Create Notification |
+| Notification Management | Delete Notification |
+| Payment Management | Create QR Payment |
+| Payment Management | View Invoice |
+| Payment Management | View Payment Transactions History |
+| Payment Management | Process Withdraw |
+| Payment Management | View List Withdraw request |
+| Payment Management | View wallet's clinic |
+| System Management | View platform statistics |
+| Report Management | Create Report Clinic |
+| Report Management | Create Report Pet Owner |
+| Report Management | View All Report |
+| Report Management | Active/Suspend Report |
+| AI Assistant | Ask ChatBot To Pet Care |
+| AI Assistant | Booking With ChatBot |
+| AI Assistant | Config Agent Parameter |
+| AI Assistant | Test Agent Playground |
+| AI Assistant | Turn On/Off Agent Tools |
+| AI Assistant | Upload Document To Knowledge Base |
 
-**Actors involved:** Pet Owner, Staff, Clinic Manager, Clinic Owner, Admin
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-AUTH-01 | Register Account (Email/OTP) | Pet Owner | - | High |
-| UC-AUTH-02 | Login by Google OAuth | Pet Owner, Staff | - | High |
-| UC-AUTH-03 | Staff Login (Invited Account) | Staff | Clinic Manager | High |
-| UC-AUTH-04 | Manager Login | Clinic Manager | - | High |
-| UC-AUTH-05 | Invite Staff (Quick Add by Email) | Clinic Manager | Staff | High |
-| UC-AUTH-06 | Register Clinic (Pending Approval) | Clinic Owner | Admin | High |
-| UC-AUTH-07 | Admin Login | Admin | - | High |
-
-#### 2.2.2 User Profile & Account Setup (Boundary)
-
-**Actors involved:** Pet Owner, Staff
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-PROFILE-01 | Manage Personal Profile (Update Info, Avatar) | Pet Owner, Staff | - | Medium |
-| UC-PROFILE-02 | Change Password | Pet Owner, Staff | - | Medium |
-| UC-PROFILE-03 | Change Email | Pet Owner | - | Low |
-| UC-PROFILE-04 | Cancel Email Change Request | Pet Owner | - | Low |
-
-#### 2.2.3 Pet Records & Health Hub (Boundary)
-
-**Actors involved:** Pet Owner, Staff, System
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-PET-01 | Manage Pet Profiles (Add/Edit/Delete) | Pet Owner | - | High |
-| UC-PET-02 | View Pet EMR Records | Pet Owner | Staff | Medium |
-| UC-PET-03 | View Vaccination Records | Pet Owner | Staff | Medium |
-| UC-PET-04 | View Patient History (Mobile) | Staff | - | High |
-| UC-PET-05 | Update Pet Allergies | Pet Owner | - | Low |
-| UC-PET-06 | Update Pet Weight (Quick update) | Pet Owner | - | Low |
-| UC-VAC-01 | Schedule Vaccination Reminder | System | Pet Owner | Medium |
-| UC-VAC-02 | Send Vaccination Due Notification | System | Pet Owner | Medium |
-| UC-VAC-03 | View Upcoming Vaccination Schedule | Pet Owner | - | Medium |
-| UC-VAC-04 | Mark Vaccination as Completed | Staff | - | Low |
-
-#### 2.2.4 Clinic Discovery & Search (Boundary)
-
-**Actors involved:** Pet Owner
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-CLINIC-01 | Search Clinics (Location/Filter) | Pet Owner | - | High |
-| UC-CLINIC-02 | View Clinic Details | Pet Owner | - | High |
-
-#### 2.2.5 Booking & Appointment Lifecycle (Boundary)
-
-**Actors involved:** Pet Owner, Staff, Clinic Manager
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-BOOK-01 | Book Clinic Visit | Pet Owner | Clinic Manager | High |
-| UC-BOOK-02 | Book Home Visit | Pet Owner | Clinic Manager | High |
-| UC-BOOK-03 | View My Bookings | Pet Owner | - | High |
-| UC-BOOK-04 | Cancel Booking | Pet Owner | Clinic Manager | Medium |
-| UC-BOOK-05 | Online Payment (Stripe) | Pet Owner | - | High |
-| UC-BOOK-06 | View Assigned Bookings | Staff | - | High |
-| UC-BOOK-07 | Update Appointment Progress | Staff | - | High |
-| UC-BOOK-08 | Check-in Patient | Staff | - | High |
-| UC-BOOK-09 | Mark Treatment Finished | Staff | - | High |
-| UC-BOOK-10 | Staff Home Dashboard Summary | Staff | - | Medium |
-| UC-BOOK-11 | View New Bookings | Clinic Manager | - | High |
-| UC-BOOK-12 | Assign Staff to Booking | Clinic Manager | Staff | High |
-| UC-BOOK-13 | Handle Cancellations & Refunds | Clinic Manager | Pet Owner | Medium |
-| UC-BOOK-14 | Receive Payment & Checkout | Clinic Manager | Pet Owner | High |
-| UC-BOOK-15 | Check Staff Availability | Clinic Manager | Staff | Medium |
-| UC-BOOK-16 | Reassign Staff to Service | Clinic Manager | Staff | Medium |
-
-#### 2.2.6 Staffing & Scheduling (Boundary)
-
-**Actors involved:** Staff, Clinic Manager, Clinic Owner
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-SCHED-01 | View Personal Schedule | Staff | - | High |
-| UC-SCHED-02 | View Staff List | Clinic Manager | - | High |
-| UC-SCHED-03 | Create Staff Shift (Manual Scheduling) | Clinic Manager | Staff | High |
-| UC-SCHED-04 | Manage Shifts (Delete/Edit) | Clinic Manager | Staff | Medium |
-| UC-SCHED-05 | Quick Add Staff by Email | Clinic Owner | Staff | Medium |
-| UC-SCHED-06 | Manage Clinic Staff | Clinic Owner | Staff, Manager | Medium |
-| UC-SCHED-07 | Block/Unblock Slot | Clinic Manager | - | Low |
-| UC-SCHED-08 | Bulk Shift Delete | Clinic Manager | - | Low |
-
-#### 2.2.7 Clinical Operations & Service Setup (Boundary)
-
-**Actors involved:** Clinic Owner, Clinic Manager
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-OPS-01 | Manage Clinic Info | Clinic Owner | - | High |
-| UC-OPS-02 | Configure Clinic Services | Clinic Owner | - | High |
-| UC-OPS-03 | Configure Pricing & Weights | Clinic Owner | - | High |
-| UC-OPS-04 | Manage Master Services | Clinic Owner | - | High |
-| UC-OPS-05 | View Revenue Reports | Clinic Owner | - | Medium |
-| UC-OPS-06 | Clinic Geocode (Convert address to GPS) | Clinic Owner | - | Medium |
-| UC-OPS-07 | Clinic Distance Calculation | Clinic Owner | - | Medium |
-| UC-OPS-08 | Service Home Visit Toggle | Clinic Owner | - | Low |
-| UC-OPS-09 | Service Price Per KM | Clinic Owner | - | Low |
-| UC-OPS-10 | Bulk Price Per KM Update | Clinic Owner | - | Low |
-
-#### 2.2.8 Electronic Medical Records - EMR (Boundary)
-
-**Actors involved:** Staff, Clinic Manager, Pet Owner
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-EMR-01 | Create EMR Record (SOAP) | Staff | - | High |
-| UC-EMR-02 | Prescribe Medication | Staff | - | Medium |
-| UC-EMR-03 | Add Vaccination Record | Staff | - | Medium |
-| UC-EMR-04 | Patient Lookup | Staff | - | Medium |
-| UC-EMR-05 | View Patient List | Clinic Manager | - | Medium |
-| UC-EMR-06 | View Patient Records | Clinic Manager, Pet Owner | Staff | Medium |
-
-#### 2.2.9 SOS Emergency Services (Boundary)
-
-**Actors involved:** Pet Owner, Staff, Clinic Manager
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-SOS-01 | Request SOS | Pet Owner | Clinic Manager | High |
-| UC-SOS-02 | Track Staff Location | Pet Owner | Staff | High |
-| UC-SOS-03 | View ETA & Route | Pet Owner | Staff | High |
-| UC-SOS-04 | Receive Arrival Alert | Pet Owner | Staff | High |
-| UC-SOS-05 | Receive SOS Assignment | Staff | Clinic Manager | High |
-| UC-SOS-06 | Start Emergency Travel (Manual Click) | Staff | - | High |
-| UC-SOS-07 | Confirm SOS Arrival | Staff | Pet Owner | High |
-| UC-SOS-08 | Dispatch SOS (Manual) | Clinic Manager | Staff | Medium |
-| UC-SOS-09 | **Auto-Match: Find Nearest Clinic** | System | Pet Owner | High |
-| UC-SOS-10 | **Auto-Match: Accept/Decline SOS Request** | Clinic Manager | Pet Owner | High |
-| UC-SOS-11 | **Auto-Match: Escalate to Next Clinic** | System | Clinic Manager | High |
-| UC-SOS-12 | **Auto-Match: Notify No Clinic Available** | System | Pet Owner | Medium |
-| UC-SOS-13 | **Configure SOS Auto-Match Settings** | Clinic Owner | - | Medium |
-
-> [!NOTE]
-> **Auto-Match Flow (UC-SOS-09 → UC-SOS-12)**: Hệ thống tự động tìm phòng khám gần nhất và gửi yêu cầu SOS. Nếu không có phản hồi trong 60 giây, yêu cầu sẽ được chuyển sang phòng khám tiếp theo (tối đa 5 lần). Nếu không có phòng khám nào nhận → hiển thị số hotline.
-
-
-#### 2.2.10 AI Assistance & Agents (Boundary)
-
-**Actors involved:** Pet Owner, Admin
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-AI-01 | Ask Pet Care Advice (RAG) | Pet Owner | - | Medium |
-| UC-AI-02 | Symptom Check | Pet Owner | - | Medium |
-| UC-AI-03 | AI Booking Assistant | Pet Owner | - | Medium |
-| UC-AI-04 | Real-time Chat (WebSocket) | Pet Owner | - | Medium |
-| UC-AI-05 | Chat Images Gallery | Pet Owner | - | Low |
-| UC-AI-06 | Manage Agent Tools | Admin | - | Low |
-| UC-AI-07 | Manage Knowledge Base | Admin | - | Low |
-| UC-AI-08 | Test Agent Playground | Admin | - | Low |
-
-#### 2.2.11 Platform Administration & Governance (Boundary)
-
-**Actors involved:** Admin, Pet Owner, System
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-GOV-01 | View Pending Clinics | Admin | - | High |
-| UC-GOV-02 | Approve/Reject Clinic | Admin | Clinic Owner | High |
-| UC-GOV-03 | View Platform Stats | Admin | - | Medium |
-| UC-GOV-04 | View User Reports | Admin | - | Medium |
-| UC-GOV-05 | Moderate Users (Ban/Suspend) | Admin | - | Medium |
-| UC-GOV-06 | SSE Real-time Notifications | Admin | - | Low |
-| UC-GOV-07 | Rate & Review | Pet Owner | Staff, Clinic | Low |
-| UC-GOV-08 | Report Violation | Pet Owner | Admin | Low |
-| UC-NOTIF-01 | Send FCM Push Notification | System | Pet Owner, Staff | High |
-| UC-NOTIF-02 | Subscribe to FCM Topic | Mobile App | - | High |
-| UC-NOTIF-03 | Send SSE Real-time Event | System | Web Client | Medium |
-| UC-NOTIF-04 | Subscribe to SSE Stream | Web Client | - | Medium |
-| UC-NOTIF-05 | Send Batch Notifications | System | Multiple Users | Low |
-
-#### 2.2.12 File & Media Management (Boundary)
-
-**Actors involved:** Pet Owner, Staff, Clinic Owner, Admin
-
-| UC-ID | Use Case Name | Primary Actor | Other Actors | Priority |
-|-------|---------------|---------------|--------------|----------|
-| UC-FILE-01 | Upload Pet Image | Pet Owner | - | High |
-| UC-FILE-02 | Upload Medical Document | Staff | - | High |
-| UC-FILE-03 | Upload Clinic Logo/Banner | Clinic Owner | - | Medium |
-| UC-FILE-04 | Upload Knowledge Base Document | Admin | - | Medium |
-| UC-FILE-05 | Delete Uploaded File | Pet Owner, Staff | - | Low |
-| UC-FILE-06 | View File Gallery | Pet Owner, Staff | - | Low |
+---
 
 ### 2.3 Use Case Implementation Status Reference
 
@@ -670,6 +582,28 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-GOV-08 | Report Violation | Reporting System | 3.12.2 |
 
 > **Note:** Các section đánh dấu "(New)" cần được bổ sung vào SDD Document. Tham khảo existing sections để maintain consistency về format và structure.
+
+---
+
+### 2.5 Use Case Alignment by Feature (Updated: 04/03/2026)
+
+Mục này ghi nhận **các use case còn thiếu** theo feature, đối chiếu từ code đã implement hiện tại (backend + AI service + web).
+
+| Feature | Use case còn thiếu (mức tổng quát) | Hướng placement SDD |
+|---|---|---|
+| Notification Management | Create Notification; Delete Notification | 4.13.x |
+| Payment Management | Process Withdraw; View List Withdraw request; View wallet's clinic | 4.12.x (hoặc tách 4.17.x Wallet/Settlement) |
+| Report Management | Create Report Clinic; Create Report Pet Owner; View All Report; Active/Suspend Report | 4.15.x |
+| System Management | View platform statistics (dashboard-level tổng hợp) | 4.14.x / 4.15.x |
+| Clinic Management | View Clinic Statistics (analytics theo clinic) | 4.4.x / 4.15.x |
+| Clinic Discovery Management | Filter and Sort (business rule/filter set đầy đủ theo spec) | 4.4.x |
+| Chat Management | Delete Message (hard/soft delete ở level message) | 4.10.x |
+| EMR & Vaccination Management | Receive Medication Reminders (luồng nhắc thuốc rõ ràng cho người dùng) | 4.9.x |
+| AI Assistant (Clinic) | AI-Assisted Clinic Setup; AI Generate Service Descriptions; AI Pricing Suggestions | 4.12.x (AI Management cho clinic) |
+
+> Ghi chú: Các use case không nằm trong bảng trên được xem là đã có implementation nền tảng trong code hiện tại ở mức feature-function.
+
+> Alignment rule: Từ mốc 04/03/2026, mọi use case mới phải đặt theo feature group ở mục 2.5 và đồng bộ tên 1-1 giữa SRS và SDD.
 
 ---
 
