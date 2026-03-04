@@ -221,10 +221,10 @@ class BookingWizardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Initialize booking with pre-selected services and pet (for quick booking from All Services screen)
+  /// Initialize booking with pre-selected services and pets (for quick booking from All Services screen)
   void initBookingWithPreselectedServices({
     required Clinic clinic,
-    required Pet pet,
+    required List<Pet> pets,
     required List<ClinicServiceModel> preselectedServices,
     BookingType? bookingType,
     String? userAddress,
@@ -236,9 +236,11 @@ class BookingWizardProvider extends ChangeNotifier {
     _userLatitude = userLatitude;
     _userLongitude = userLongitude;
     _selectedPets.clear();
-    _selectedPets.add(pet);
+    _selectedPets.addAll(pets);
     _petServices.clear();
-    _petServices[pet.id] = List.from(preselectedServices);
+    for (final pet in pets) {
+      _petServices[pet.id] = List.from(preselectedServices);
+    }
     _bookingType = bookingType ?? BookingType.atClinic;
     _notes = '';
     _selectedDate = null;
@@ -248,7 +250,7 @@ class BookingWizardProvider extends ChangeNotifier {
     _bookingError = null;
 
     // Set current pet for service selection
-    _currentPetIdForServiceSelection = pet.id;
+    _currentPetIdForServiceSelection = pets.isNotEmpty ? pets.first.id : null;
 
     notifyListeners();
     // Load all available services for clinic (to show in services screen)
@@ -427,14 +429,14 @@ class BookingWizardProvider extends ChangeNotifier {
         _availableServices = services.where((s) => s.isActive).toList();
       } else {
         // No pet selected yet, load all services
-        final services =
-            await _bookingService.getClinicServices(_clinic!.clinicId);
-        // Filter by booking type
+      final services =
+          await _bookingService.getClinicServices(_clinic!.clinicId);
+      // Filter by booking type
         if (isHomeVisit) {
-          _availableServices =
-              services.where((s) => s.isHomeVisit && s.isActive).toList();
-        } else {
-          _availableServices = services.where((s) => s.isActive).toList();
+        _availableServices =
+            services.where((s) => s.isHomeVisit && s.isActive).toList();
+      } else {
+        _availableServices = services.where((s) => s.isActive).toList();
         }
       }
     } catch (e) {
