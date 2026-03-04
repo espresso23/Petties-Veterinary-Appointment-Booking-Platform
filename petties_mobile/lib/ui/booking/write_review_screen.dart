@@ -9,7 +9,8 @@ class WriteReviewScreen extends StatefulWidget {
   final BookingResponse booking;
   final bool isEditMode;
 
-  const WriteReviewScreen({super.key, required this.booking, this.isEditMode = false});
+  const WriteReviewScreen(
+      {super.key, required this.booking, this.isEditMode = false});
 
   @override
   State<WriteReviewScreen> createState() => _WriteReviewScreenState();
@@ -38,7 +39,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
 
   Future<void> _submitReview() async {
     if (widget.booking.bookingId == null) return;
-    
+
     setState(() => _isLoading = true);
 
     try {
@@ -74,9 +75,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 
   Future<void> _updateReview() async {
-     if (widget.booking.reviewId == null) return;
+    if (widget.booking.reviewId == null) return;
 
-     setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
     try {
       await _reviewService.updateReview(
@@ -96,8 +97,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         context.pop(true);
       }
     } catch (e) {
-        // Handle error
-         if (mounted) {
+      // Handle error
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi: ${e.toString()}'),
@@ -106,7 +107,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         );
       }
     } finally {
-       if (mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -132,7 +133,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Clinic Info
-            widget.booking.clinicLogo != null && widget.booking.clinicLogo!.isNotEmpty
+            widget.booking.clinicLogo != null &&
+                    widget.booking.clinicLogo!.isNotEmpty
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.network(
@@ -140,10 +142,14 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.storefront_rounded, size: 64, color: AppColors.primary),
+                      errorBuilder: (_, __, ___) => const Icon(
+                          Icons.storefront_rounded,
+                          size: 64,
+                          color: AppColors.primary),
                     ),
                   )
-                : const Icon(Icons.storefront_rounded, size: 64, color: AppColors.primary),
+                : const Icon(Icons.storefront_rounded,
+                    size: 64, color: AppColors.primary),
             const SizedBox(height: 16),
             Text(
               widget.booking.clinicName ?? 'Phòng khám',
@@ -162,7 +168,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 color: AppColors.stone500,
               ),
             ),
-            
+
             const SizedBox(height: 48),
 
             // Rating Bar
@@ -176,7 +182,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             ),
             const SizedBox(height: 16),
             RatingBar.builder(
-              initialRating: 5,
+              initialRating: _rating,
               minRating: 1,
               direction: Axis.horizontal,
               allowHalfRating: false,
@@ -199,6 +205,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
             TextField(
               controller: _commentController,
               maxLines: 4,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              enableIMEPersonalizedLearning: true,
               decoration: InputDecoration(
                 hintText: 'Nhập đánh giá của bạn (tùy chọn)...',
                 border: OutlineInputBorder(
@@ -225,7 +234,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : (widget.isEditMode ? _updateReview : _submitReview),
+                onPressed: _isLoading
+                    ? null
+                    : (widget.isEditMode ? _updateReview : _submitReview),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
@@ -244,7 +255,9 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                         ),
                       )
                     : Text(
-                        widget.isEditMode ? 'CẬP NHẬT ĐÁNH GIÁ' : 'GỬI ĐÁNH GIÁ',
+                        widget.isEditMode
+                            ? 'CẬP NHẬT ĐÁNH GIÁ'
+                            : 'GỬI ĐÁNH GIÁ',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

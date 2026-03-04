@@ -200,6 +200,11 @@ public class BookingMapper {
                     .symptoms(booking.getSymptoms())
                     // Timestamps
                     .createdAt(booking.getCreatedAt())
+                    // Review info
+                    .isReviewed(booking.getReview() != null)
+                    .reviewId(booking.getReview() != null ? booking.getReview().getReviewId() : null)
+                    .rating(booking.getReview() != null ? booking.getReview().getRating() : null)
+                    .reviewComment(booking.getReview() != null ? booking.getReview().getComment() : null)
                     .build();
         } catch (Exception e) {
             log.error("Error mapping booking {} to response: {}", booking.getBookingId(), e.getMessage(), e);
