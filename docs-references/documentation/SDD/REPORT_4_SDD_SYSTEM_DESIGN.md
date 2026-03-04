@@ -124,6 +124,78 @@ flowchart TD
     class Firebase,Stripe planned
 ```
 
+**Layered view (FE → BE → AI → DB)** – Sơ đồ dưới thể hiện cùng kiến trúc theo luồng từ trái sang phải: Frontend → Core Backend → AI Agent Service (cùng cấp với Backend) → Data & External. AI được tách thành một layer độc lập để làm rõ trách nhiệm và luồng request.
+
+```mermaid
+flowchart LR
+    subgraph FE["FRONTEND"]
+        direction TB
+        U["User<br/>Web & Mobile"]
+        F["Flutter 3.5<br/>Mobile"]
+        R["React 19<br/>Web"]
+        U --> F
+        U --> R
+    end
+
+    subgraph BE["CORE BACKEND"]
+        direction TB
+        NGINX["API Gateway<br/>NGINX"]
+        SB["Spring Boot 3.4<br/>REST · Auth · Biz"]
+        NGINX --> SB
+    end
+
+    subgraph AI["AI AGENT SERVICE"]
+        direction TB
+        FA["FastAPI<br/>Single Agent · ReAct"]
+        RAG["RAG Pipeline<br/>LlamaIndex"]
+        MCP["Tools<br/>FastMCP"]
+        FA --> RAG
+        FA --> MCP
+    end
+
+    subgraph DB["DATA & KNOWLEDGE"]
+        direction TB
+        PG[("PostgreSQL 16")]
+        MDB[("MongoDB 7")]
+        RD[("Redis 7")]
+        QD[("Qdrant Cloud")]
+        CL["Cloudinary"]
+        PG
+        MDB
+        RD
+        QD
+        CL
+    end
+
+    subgraph EXT["EXTERNAL SERVICES"]
+        direction TB
+        OR["OpenRouter<br/>LLM"]
+        CO["Cohere<br/>Embeddings"]
+        GM["Google Maps"]
+        OR
+        CO
+        GM
+    end
+
+    FE -->|"HTTPS / WSS"| BE
+    BE -->|"Proxy / API"| AI
+    AI -->|"Query · Config"| PG
+    AI -->|"Vectors"| QD
+    BE -->|"CRUD"| PG
+    BE --> RD
+    BE --> MDB
+    BE --> CL
+    BE --> GM
+    AI --> OR
+    AI --> CO
+
+    style AI fill:#c4b5fd,stroke:#6d28d9,stroke-width:3px
+    style FE fill:#dbeafe,stroke:#3b82f6
+    style BE fill:#fed7aa,stroke:#f97316
+    style DB fill:#d1fae5,stroke:#10b981
+    style EXT fill:#f3f4f6,stroke:#6b7280
+```
+
 **The Petties Platform** is designed with a modern, scalable, and modular architecture, clearly separating frontend and backend responsibilities. This ensures high performance, flexibility for scaling, and easy integration with third-party services.
 
 **1. User Role:**
