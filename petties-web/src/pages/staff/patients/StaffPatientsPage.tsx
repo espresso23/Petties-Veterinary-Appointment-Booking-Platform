@@ -8,6 +8,9 @@ import {
     PencilSquareIcon,
     TrashIcon,
     LockClosedIcon,
+    Squares2X2Icon,
+    ListBulletIcon,
+    ClockIcon,
 } from '@heroicons/react/24/outline'
 import { emrService } from '../../../services/emrService'
 import { getStaffPatients, type StaffPatient } from '../../../services/api/petService'
@@ -15,14 +18,10 @@ import { tokenStorage } from '../../../services/authService'
 import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
-import DatePicker, { registerLocale } from 'react-datepicker'
-import { vi } from 'date-fns/locale'
-import 'react-datepicker/dist/react-datepicker.css'
 import { getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
 import type { Booking } from '../../../types/booking'
 import { useAuthStore } from '../../../store/authStore'
 import { VaccinationRoadmap } from '../vaccine/components/VaccinationRoadmap'
-import { Squares2X2Icon, ListBulletIcon, PencilIcon, ClockIcon } from '@heroicons/react/24/outline'
 import { SmartVaccinationForm, type VaccinationFormData } from '../../../components/vaccination/SmartVaccinationForm'
 import { ConfirmModal } from '../../../components/ConfirmModal'
 import type { Pet } from '../../../services/api/petService'
@@ -65,7 +64,7 @@ export const StaffPatientsPage = () => {
         const fetchActiveBookings = async () => {
             if (!user?.workingClinicId) return
             try {
-                // Use clinic today bookings - shared visibility
+                // Use clinic today bookings-shared visibility
                 const todayBookings = await getClinicTodayBookings(user.workingClinicId)
                 // Filter to only active statuses
                 const activeBookings = todayBookings.filter(b =>
@@ -147,7 +146,7 @@ export const StaffPatientsPage = () => {
                 // Use the new prioritized API
                 const staffPatients = await getStaffPatients(user.workingClinicId, user.userId)
 
-                console.log('API Response - staffPatients:', JSON.stringify(staffPatients, null, 2))
+                console.log('API Response-staffPatients:', JSON.stringify(staffPatients, null, 2))
 
                 const mappedPatients: Patient[] = staffPatients.map((pet: StaffPatient) => {
                     console.log('Mapping pet:', pet.petName, 'bookingStatus:', pet.bookingStatus, 'bookingCode:', pet.bookingCode, 'isAssignedToMe:', pet.isAssignedToMe)
@@ -226,7 +225,7 @@ export const StaffPatientsPage = () => {
 
         setIsSubmittingVaccination(true)
         try {
-            if (isEditingVaccination && selectedVaccination) {
+            if (selectedVaccination) {
                 // UPDATE
                 await vaccinationService.updateVaccination(selectedVaccination.id, {
                     petId: selectedPatient.id,
@@ -239,13 +238,13 @@ export const StaffPatientsPage = () => {
                     workflowStatus: 'COMPLETED'
                 })
                 showToast('success', 'Đã cập nhật hồ sơ tiêm chủng')
-                setIsEditingVaccination(false)
-                setSelectedVaccination(null)
+                setIsEditingVaccination(false);
+                setSelectedVaccination(null); // Reset state
             } else {
-                // CREATE - Find active booking
+                // CREATE-Find active booking
                 const activeBooking = bookings.find(b =>
                     b.petId === selectedPatient.id &&
-                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
+                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                 )
 
                 await vaccinationService.createVaccination({
@@ -464,7 +463,8 @@ export const StaffPatientsPage = () => {
                                                             case 'CONFIRMED': return 'bg-orange-100 text-orange-700 border-orange-200'
                                                             default: return 'bg-stone-100 text-stone-600 border-stone-200'
                                                         }
-                                                    })()}`}>
+                                                    })()
+                                                        } `}>
                                                         {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
                                                             (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
                                                     </span>
@@ -555,7 +555,7 @@ export const StaffPatientsPage = () => {
                                         {selectedPatient.ownerPhone && <span>SĐT: {selectedPatient.ownerPhone}</span>}
                                     </div>
 
-                                    {/* Allergies Section - Read Only */}
+                                    {/* Allergies Section-Read Only */}
                                     <div className="flex items-center gap-2 mb-4 flex-wrap">
                                         {selectedPatient.allergies ? (
                                             <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-300">
@@ -609,7 +609,7 @@ export const StaffPatientsPage = () => {
                                         className={`px-4 py-3 font-semibold text-sm transition-colors border-b-2 ${activeTab === tab.key
                                             ? 'text-blue-600 border-blue-600'
                                             : 'text-stone-500 border-transparent hover:text-stone-700'
-                                            }`}
+                                            } `}
                                     >
                                         {tab.label}
                                     </button>
@@ -662,16 +662,16 @@ export const StaffPatientsPage = () => {
                                                     if (existingEmr) {
                                                         // If exists, go to Detail or Edit depending on lock status
                                                         if (!existingEmr.isLocked && String(user?.userId) === String(existingEmr.staffId)) {
-                                                            navigate(`/staff/emr/edit/${existingEmr.id}`)
+                                                            navigate(`/staff/emr/edit/ ${existingEmr.id} `)
                                                         } else {
-                                                            navigate(`/staff/emr/detail/${existingEmr.id}`)
+                                                            navigate(`/staff/emr/detail/ ${existingEmr.id} `)
                                                         }
                                                         return
                                                     }
 
-                                                    let url = `/staff/emr/create/${selectedPatient.id}`
+                                                    let url = `/staff/emr/create/ ${selectedPatient.id} `
                                                     if (activeBooking) {
-                                                        url += `?bookingId=${activeBooking.bookingId}&bookingCode=${activeBooking.bookingCode}`
+                                                        url += `? bookingId=${activeBooking.bookingId}& bookingCode=${activeBooking.bookingCode} `
                                                     }
                                                     navigate(url)
                                                 }}
@@ -690,7 +690,7 @@ export const StaffPatientsPage = () => {
                                         <div className="text-center py-12 bg-stone-50 rounded-xl">
                                             <p className="text-stone-500 mb-4">Chưa có bệnh án nào</p>
                                             <button
-                                                onClick={() => navigate(`/staff/emr/create/${selectedPatient.id}`)}
+                                                onClick={() => navigate(`/staff/emr/create/ ${selectedPatient.id} `)}
                                                 className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg"
                                             >
                                                 Tạo Bệnh án Đầu tiên
@@ -705,7 +705,7 @@ export const StaffPatientsPage = () => {
                                                         <div className="flex items-start justify-between">
                                                             <div>
                                                                 <button
-                                                                    onClick={() => navigate(`/staff/emr/detail/${emr.id}`)}
+                                                                    onClick={() => navigate(`/staff/emr/detail/ ${emr.id} `)}
                                                                     className="font-bold text-stone-800 text-lg hover:text-blue-600 hover:underline text-left transition-colors line-clamp-1 w-full block"
                                                                     title={emr.assessment}
                                                                 >
@@ -723,7 +723,7 @@ export const StaffPatientsPage = () => {
                                                                 </p>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                {/* Edit Button - Only if not locked and owned by current staff */}
+                                                                {/* Edit Button-Only if not locked and owned by current staff */}
                                                                 {(() => {
                                                                     const isWithin24h = (new Date().getTime() - new Date(emr.createdAt).getTime()) < 24 * 60 * 60 * 1000;
                                                                     const isOwner = String(tokenStorage.getUser()?.userId) === String(emr.staffId);
@@ -731,7 +731,7 @@ export const StaffPatientsPage = () => {
 
                                                                     return canEdit ? (
                                                                         <button
-                                                                            onClick={() => navigate(`/staff/emr/edit/${emr.id}`)}
+                                                                            onClick={() => navigate(`/staff/emr/edit/ ${emr.id} `)}
                                                                             className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
                                                                             title="Chỉnh sửa bệnh án (Trong vòng 24h)"
                                                                         >
@@ -760,7 +760,7 @@ export const StaffPatientsPage = () => {
                                                         {emr.subjective && (
                                                             <div>
                                                                 <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                    S - Chủ quan
+                                                                    S-Chủ quan
                                                                 </h5>
                                                                 <p className="text-stone-700 text-sm">{emr.subjective}</p>
                                                             </div>
@@ -769,7 +769,7 @@ export const StaffPatientsPage = () => {
                                                         {/* Assessment */}
                                                         <div>
                                                             <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                A - Chẩn đoán
+                                                                A-Chẩn đoán
                                                             </h5>
                                                             <p className="text-stone-700 text-sm">{emr.assessment}</p>
                                                         </div>
@@ -778,7 +778,7 @@ export const StaffPatientsPage = () => {
                                                         {emr.objective && (
                                                             <div>
                                                                 <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                    O - Khách quan
+                                                                    O-Khách quan
                                                                 </h5>
                                                                 <p className="text-stone-700 text-sm whitespace-pre-line">{emr.objective}</p>
                                                             </div>
@@ -787,7 +787,7 @@ export const StaffPatientsPage = () => {
                                                         {/* Plan */}
                                                         <div>
                                                             <h5 className="text-sm font-bold text-amber-600 uppercase mb-2">
-                                                                P - Kế hoạch
+                                                                P-Kế hoạch
                                                             </h5>
                                                             <p className="text-stone-700 text-sm whitespace-pre-line">{emr.plan}</p>
                                                         </div>
@@ -819,7 +819,7 @@ export const StaffPatientsPage = () => {
                                                 bookingCode={(() => {
                                                     const activeBooking = bookings.find(b =>
                                                         b.petId === selectedPatient?.id &&
-                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
+                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
                                                     )
                                                     return activeBooking?.bookingCode
                                                 })()}
@@ -877,7 +877,7 @@ export const StaffPatientsPage = () => {
                                                         const isPending = 'workflowStatus' in rec && rec.workflowStatus === 'PENDING';
                                                         return (
                                                             <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border transition-all group ${isPending ? 'bg-amber-50/40 border-amber-200 hover:border-amber-400' : 'bg-orange-50/30 border-orange-100 hover:border-orange-300'
-                                                                }`}>
+                                                                } `}>
                                                                 <div>
                                                                     <div className="font-bold text-stone-800 flex items-center gap-2">
                                                                         {rec.vaccineName}
@@ -885,8 +885,8 @@ export const StaffPatientsPage = () => {
                                                                             <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded uppercase font-black">Chờ Tiêm</span>
                                                                         )}
                                                                     </div>
-                                                                    <div className={`text-xs font-bold mt-1 ${isPending ? 'text-amber-700' : 'text-orange-600'}`}>
-                                                                        {rec.doseNumber === 4 ? 'Hàng năm' : `Mũi ${rec.doseNumber}`} • {vaccinationService.formatDate(rec.nextDueDate)}
+                                                                    <div className={`text-xs font-bold mt-1 ${isPending ? 'text-amber-700' : 'text-orange-600'} `}>
+                                                                        {rec.doseNumber === 4 ? 'Hàng năm' : `Mũi ${rec.doseNumber} `} • {vaccinationService.formatDate(rec.nextDueDate)}
                                                                     </div>
                                                                     <div className="text-[10px] text-stone-400 mt-0.5 italic line-clamp-1">
                                                                         {rec.notes && rec.notes !== 'Tự động tạo từ lịch hẹn' ? rec.notes : (isPending ? 'Mũi tiêm đã được đặt lịch' : 'Theo lộ trình dự kiến')}
@@ -928,10 +928,10 @@ export const StaffPatientsPage = () => {
                                                                         const container = document.querySelector('.overflow-y-auto');
                                                                         if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
                                                                     }}
-                                                                    className={`p-2 rounded-lg border shadow-sm transition-all opacity-0 group-hover:opacity-100 ${isPending
+                                                                    className={`p-2 rounded-lg border shadow-sm transition-all opacity-0 group-hover: opacity-100 ${isPending
                                                                         ? 'bg-white text-amber-600 border-amber-200 hover:bg-amber-600 hover:text-white'
                                                                         : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white'
-                                                                        }`}
+                                                                        } `}
                                                                     title={isPending ? "Xác nhận thực hiện mũi tiêm này" : "Ghi nhận theo gợi ý"}
                                                                 >
                                                                     <PlusIcon className="w-4 h-4" />
@@ -958,7 +958,7 @@ export const StaffPatientsPage = () => {
                                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'list'
                                                         ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
                                                         : 'text-stone-500 hover:text-stone-700'
-                                                        }`}
+                                                        } `}
                                                 >
                                                     <ListBulletIcon className="w-4 h-4" />
                                                     DANH SÁCH
@@ -968,7 +968,7 @@ export const StaffPatientsPage = () => {
                                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${viewMode === 'roadmap'
                                                         ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
                                                         : 'text-stone-500 hover:text-stone-700'
-                                                        }`}
+                                                        } `}
                                                 >
                                                     <Squares2X2Icon className="w-4 h-4" />
                                                     LỘ TRÌNH
@@ -1014,18 +1014,39 @@ export const StaffPatientsPage = () => {
 
                                                                         <div>
                                                                             <div className="flex items-center gap-2">
-                                                                                <div className="font-bold text-stone-900">{record.vaccineName}</div>
+                                                                                <div
+                                                                                    className="font-bold text-stone-900 hover:text-blue-600 transition-colors cursor-pointer"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setFormInitialData({
+                                                                                            vaccineName: record.vaccineName,
+                                                                                            vaccineTemplateId: record.vaccineTemplateId || undefined,
+                                                                                            vaccinationDate: record.vaccinationDate ? new Date(record.vaccinationDate) : new Date(),
+                                                                                            nextDueDate: record.nextDueDate ? new Date(record.nextDueDate) : undefined,
+                                                                                            doseSequence: record.doseNumber === 4 ? 'ANNUAL' : String(record.doseNumber || 1),
+                                                                                            notes: record.notes || ''
+                                                                                        });
+                                                                                        setSelectedVaccination(record);
+                                                                                        setIsEditingVaccination(true);
+                                                                                        setFormKey(prev => prev + 1);
+
+                                                                                        const container = document.querySelector('.overflow-y-auto');
+                                                                                        if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                                    }}
+                                                                                >
+                                                                                    {record.vaccineName}
+                                                                                </div>
                                                                                 {record.doseNumber && (
                                                                                     <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-wider rounded border border-orange-200">
                                                                                         Mũi {record.doseNumber}
                                                                                         {(() => {
                                                                                             const tpl = vaccineTemplates.find(t => t.id === record.vaccineTemplateId);
-                                                                                            return tpl && tpl.seriesDoses > 1 ? ` / ${tpl.seriesDoses}` : '';
+                                                                                            return tpl && tpl.seriesDoses > 1 ? ` / ${tpl.seriesDoses} ` : '';
                                                                                         })()}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
-                                                                            {/* Subtitle if needed, e.g. "Core Vaccine" - currently mocked */}
+                                                                            {/* Subtitle if needed, e.g. "Core Vaccine"-currently mocked */}
                                                                             <div className="text-xs text-stone-400">Vaccine</div>
                                                                         </div>
                                                                     </div>
@@ -1049,7 +1070,7 @@ export const StaffPatientsPage = () => {
                                                                             {record.staffName ? record.staffName.charAt(0) : '?'}
                                                                         </div>
                                                                         <div className="text-sm font-medium text-stone-700">
-                                                                            {record.staffName ? `Dr. ${record.staffName.split(' ').pop()}` : 'Chưa phân công'}
+                                                                            {record.staffName ? `Dr.${record.staffName.split(' ').pop()} ` : 'Chưa phân công'}
                                                                         </div>
                                                                     </div>
                                                                 </td>
@@ -1060,7 +1081,7 @@ export const StaffPatientsPage = () => {
                                                                         </span>
                                                                     ) : (
                                                                         new Date(record.vaccinationDate || '').getFullYear() > 1970 ? (
-                                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(vaccinationService.calculateStatus(record.nextDueDate))}`}>
+                                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(vaccinationService.calculateStatus(record.nextDueDate))} `}>
                                                                                 {vaccinationService.calculateStatus(record.nextDueDate) === 'Valid' ? 'Hiệu lực' :
                                                                                     vaccinationService.calculateStatus(record.nextDueDate) === 'Overdue' ? 'Quá hạn' :
                                                                                         vaccinationService.calculateStatus(record.nextDueDate) === 'Expiring Soon' ? 'Sắp hết hạn' : 'N/A'}
@@ -1095,145 +1116,6 @@ export const StaffPatientsPage = () => {
                             )}
                         </div>
                     </div>
-                </div >
-            )
-            }
-
-
-
-            {/* ============= VACCINATION DETAIL/EDIT MODAL (Level 2) ============= */}
-            {selectedVaccination && (
-                <div
-                    className="fixed inset-0 bg-stone-900/40 backdrop-blur-xl z-[60] flex items-center justify-center p-4 animate-in fade-in duration-500"
-                    onClick={() => {
-                        setSelectedVaccination(null)
-                        setIsEditingVaccination(false)
-                    }}
-                >
-                    <div
-                        className="bg-white/95 w-full max-w-lg rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 border border-white/20"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="px-10 py-8 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
-                            <div>
-                                <h2 className="text-2xl font-black text-stone-900 tracking-tight">
-                                    {isEditingVaccination ? 'Chỉnh Sửa Hồ Sơ' : 'Chi Tiết Mũi Tiêm'}
-                                </h2>
-                                <p className="text-[10px] text-stone-400 font-bold uppercase tracking-[0.2em] opacity-70">Thông tin quản lý tiêm chủng</p>
-                            </div>
-                            <button
-                                onClick={() => {
-                                    setSelectedVaccination(null)
-                                    setIsEditingVaccination(false)
-                                }}
-                                className="p-2.5 hover:bg-stone-100 rounded-full transition-all text-stone-300 hover:text-stone-600 active:scale-90"
-                            >
-                                <XMarkIcon className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        {/* Content Area */}
-                        <div className="px-10 py-10 overflow-y-auto max-h-[70vh]">
-                            {isEditingVaccination ? (
-                                <SmartVaccinationForm
-                                    pet={selectedPatient as unknown as Pet}
-                                    records={vaccinationRecords}
-                                    templates={vaccineTemplates}
-                                    isSubmitting={isSubmittingVaccination}
-                                    onSubmit={handleAddVaccination}
-                                    initialData={{
-                                        vaccineName: selectedVaccination.vaccineName,
-                                        vaccineTemplateId: selectedVaccination.vaccineTemplateId || undefined,
-                                        vaccinationDate: selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate) : new Date(),
-                                        nextDueDate: selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate) : undefined,
-                                        doseSequence: selectedVaccination.doseNumber === 4 ? 'ANNUAL' : String(selectedVaccination.doseNumber || 1),
-                                        notes: selectedVaccination.notes || ''
-                                    }}
-                                    isEditing={true}
-                                    onCancel={() => setIsEditingVaccination(false)}
-                                />
-                            ) : (
-                                <div className="space-y-8">
-                                    {/* Vaccine Hero Section */}
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-[2rem] shadow-xl shadow-blue-100 flex items-center justify-center text-4xl">
-                                            💉
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h3 className="text-2xl font-black text-stone-900 tracking-tight leading-tight">{selectedVaccination.vaccineName}</h3>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(selectedVaccination.status)}`}>
-                                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedVaccination.status === 'Valid' ? 'bg-green-600' : 'bg-red-600'}`} />
-                                                    {selectedVaccination.status === 'Valid' ? 'Đang Hiệu lực' : selectedVaccination.status === 'Overdue' ? 'Đã Quá hạn' : 'Sắp hết hạn'}
-                                                </span>
-                                                {selectedVaccination.doseNumber && (
-                                                    <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-lg border border-orange-100 uppercase tracking-widest">
-                                                        Mũi {selectedVaccination.doseNumber === 4 ? 'HÀNG NĂM' : selectedVaccination.doseNumber}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Info Grid */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
-                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Ngày tiêm</p>
-                                            <p className="font-black text-stone-800 text-lg">
-                                                {selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate).toLocaleDateString('vi-VN') : '—'}
-                                            </p>
-                                        </div>
-                                        <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
-                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Tái chủng</p>
-                                            <p className={`font-black text-lg ${selectedVaccination.nextDueDate ? 'text-blue-600' : 'text-stone-300'}`}>
-                                                {selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate).toLocaleDateString('vi-VN') : 'KHÔNG CÓ'}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2 bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
-                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Bác sĩ thực hiện</p>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-[10px] font-black text-orange-600">
-                                                    {selectedVaccination.staffName ? selectedVaccination.staffName.charAt(0) : '?'}
-                                                </div>
-                                                <p className="font-black text-stone-800 uppercase tracking-tight">
-                                                    {selectedVaccination.staffName || 'Chưa cập nhật'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Notes */}
-                                    {selectedVaccination.notes && (
-                                        <div className="space-y-2">
-                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest ml-1 text-center">Ghi chú & Phản ứng</p>
-                                            <div className="bg-white p-6 rounded-[2.5rem] border border-stone-100 text-stone-500 font-medium italic text-sm text-center leading-relaxed shadow-inner">
-                                                "{selectedVaccination.notes}"
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Footer Actions */}
-                                    <div className="flex items-center justify-center gap-6 pt-4">
-                                        <button
-                                            onClick={() => setIsEditingVaccination(true)}
-                                            className="px-8 py-3 bg-white border border-stone-200 text-stone-600 font-black text-xs uppercase tracking-widest rounded-full shadow-sm hover:shadow-md hover:bg-stone-50 transition-all flex items-center gap-2 active:scale-95"
-                                        >
-                                            <PencilIcon className="w-4 h-4" />
-                                            Sửa Hồ Sơ
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleDeleteVaccination(selectedVaccination.id, e)}
-                                            className="px-8 py-3 bg-red-50 border border-red-100 text-red-500 font-black text-xs uppercase tracking-widest rounded-full shadow-sm hover:bg-red-100 transition-all flex items-center gap-2 active:scale-95"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                            Xóa Hồ Sơ
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
                 </div>
             )}
 
@@ -1248,7 +1130,7 @@ export const StaffPatientsPage = () => {
                 onConfirm={confirmDelete}
                 onCancel={() => setIsDeleteModalOpen(false)}
             />
-        </div >
+        </div>
     )
 }
 

@@ -62,6 +62,10 @@ public class VaccinationService {
         }
         if (template != null) {
             log.info("Matched vaccine template: {} (ID: {})", template.getName(), template.getId());
+            // Species suitability check
+            if (!isTemplateSuitableForPet(template, pet)) {
+                throw new IllegalArgumentException("Loại vắc-xin này không phù hợp với loài của thú cưng.");
+            }
         } else {
             log.warn("No vaccine template matched for: {}", request.getVaccineName());
         }
@@ -402,6 +406,13 @@ public class VaccinationService {
             com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
                     .findById(request.getVaccineTemplateId()).orElse(null);
             if (template != null) {
+                Pet pet = petRepository.findById(record.getPetId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Pet not found"));
+
+                if (!isTemplateSuitableForPet(template, pet)) {
+                    throw new IllegalArgumentException("Loại vắc-xin này không phù hợp với loài của thú cưng.");
+                }
+
                 record.setVaccineTemplateId(template.getId());
                 record.setVaccineName(template.getName());
                 record.setTotalDoses(template.getSeriesDoses());

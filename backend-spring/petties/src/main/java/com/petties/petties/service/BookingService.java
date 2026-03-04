@@ -98,7 +98,8 @@ public class BookingService {
 
         /**
          * Create a new booking (from pet owner).
-         * Supports single-pet (petId + serviceIds) and multi-pet (items: list of petId + serviceIds).
+         * Supports single-pet (petId + serviceIds) and multi-pet (items: list of petId
+         * + serviceIds).
          */
         @Transactional
         public BookingResponse createBooking(BookingRequest request, UUID petOwnerId) {
@@ -125,7 +126,8 @@ public class BookingService {
                         }
 
                         User petOwner = userRepository.findById(petOwnerId)
-                                        .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chủ thú cưng"));
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Không tìm thấy chủ thú cưng"));
                         Clinic clinic = clinicRepository.findById(request.getClinicId())
                                         .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy phòng khám"));
 
@@ -141,7 +143,8 @@ public class BookingService {
                                                         .orElseThrow(() -> new ResourceNotFoundException(
                                                                         "Không tìm thấy thú cưng: " + it.getPetId()));
                                         if (!p.getUser().getUserId().equals(petOwnerId)) {
-                                                throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
+                                                throw new ForbiddenException(
+                                                                "Thú cưng không thuộc quyền sở hữu của bạn");
                                         }
                                         allServiceIds.addAll(it.getServiceIds());
                                 }
@@ -153,10 +156,12 @@ public class BookingService {
                                         for (UUID sid : it.getServiceIds()) {
                                                 ClinicService svc = serviceMap.get(sid);
                                                 if (svc == null) {
-                                                        throw new ResourceNotFoundException("Dịch vụ không tồn tại: " + sid);
+                                                        throw new ResourceNotFoundException(
+                                                                        "Dịch vụ không tồn tại: " + sid);
                                                 }
                                                 if (!svc.getClinic().getClinicId().equals(clinic.getClinicId())) {
-                                                        throw new BadRequestException("Dịch vụ không thuộc phòng khám đã chọn");
+                                                        throw new BadRequestException(
+                                                                        "Dịch vụ không thuộc phòng khám đã chọn");
                                                 }
                                                 petsToUse.add(p);
                                                 servicesToUse.add(svc);
@@ -164,12 +169,14 @@ public class BookingService {
                                 }
                         } else {
                                 Pet pet = petRepository.findById(request.getPetId())
-                                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thú cưng"));
+                                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                                "Không tìm thấy thú cưng"));
                                 if (!pet.getUser().getUserId().equals(petOwnerId)) {
                                         throw new ForbiddenException("Thú cưng không thuộc quyền sở hữu của bạn");
                                 }
                                 primaryPetId = pet.getId();
-                                List<ClinicService> services = clinicServiceRepository.findAllById(request.getServiceIds());
+                                List<ClinicService> services = clinicServiceRepository
+                                                .findAllById(request.getServiceIds());
                                 if (services.isEmpty()) {
                                         throw new BadRequestException("Vui lòng chọn ít nhất một dịch vụ hợp lệ");
                                 }
@@ -298,10 +305,13 @@ public class BookingService {
 
         /**
          * Create a proxy booking on behalf of someone else.
-         * The logged-in user (proxyBooker) creates a booking for a recipient who may not have an account.
+         * The logged-in user (proxyBooker) creates a booking for a recipient who may
+         * not have an account.
          *
-         * @param request      ProxyBookingRequest with recipient info, pet info, and booking details
-         * @param proxyBookerId UUID of the logged-in user who is booking on behalf of the recipient
+         * @param request       ProxyBookingRequest with recipient info, pet info, and
+         *                      booking details
+         * @param proxyBookerId UUID of the logged-in user who is booking on behalf of
+         *                      the recipient
          * @return BookingResponse
          */
         @Transactional
@@ -394,13 +404,17 @@ public class BookingService {
                                         .distanceFee(distanceFee)
                                         .status(BookingStatus.PENDING)
                                         .notes(request.getNotes())
-                                        .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress() : recipientInfo.getAddress())
-                                        .homeLat(request.getHomeLat() != null ? request.getHomeLat() : recipientInfo.getLat())
-                                        .homeLong(request.getHomeLong() != null ? request.getHomeLong() : recipientInfo.getLng())
+                                        .homeAddress(request.getHomeAddress() != null ? request.getHomeAddress()
+                                                        : recipientInfo.getAddress())
+                                        .homeLat(request.getHomeLat() != null ? request.getHomeLat()
+                                                        : recipientInfo.getLat())
+                                        .homeLong(request.getHomeLong() != null ? request.getHomeLong()
+                                                        : recipientInfo.getLng())
                                         .distanceKm(distanceKm)
                                         .build();
 
-                        // Step 8: Add services to booking - each (serviceId, pet) creates a BookingServiceItem
+                        // Step 8: Add services to booking - each (serviceId, pet) creates a
+                        // BookingServiceItem
                         for (AbstractMap.SimpleEntry<UUID, Pet> pair : servicePetPairs) {
                                 ClinicService service = serviceById.get(pair.getKey());
                                 if (service == null) {
@@ -427,7 +441,8 @@ public class BookingService {
                         booking.setBookingCode(bookingCode);
                         Booking savedBooking = bookingRepository.save(booking);
                         log.info("Proxy booking created successfully: {} by user {} for recipient {} with {} pets",
-                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(), createdPets.size());
+                                        savedBooking.getBookingCode(), proxyBookerId, recipientInfo.getPhone(),
+                                        createdPets.size());
 
                         // Step 10: Send notification to clinic
                         try {
@@ -449,12 +464,13 @@ public class BookingService {
 
         /**
          * Create a new guest user for proxy booking.
-         * In proxy booking flow, we always create a new guest user without checking existing records.
+         * In proxy booking flow, we always create a new guest user without checking
+         * existing records.
          */
         private User createRecipientUser(ProxyRecipientInfo recipientInfo) {
                 // Generate a unique username using phone + timestamp to avoid conflicts
                 String uniqueUsername = "proxy_" + recipientInfo.getPhone() + "_" + System.currentTimeMillis();
-                
+
                 User newUser = new User();
                 newUser.setFullName(recipientInfo.getFullName());
                 newUser.setPhone(null); // Don't set phone to avoid unique constraint issues
@@ -464,7 +480,8 @@ public class BookingService {
                 newUser.setPassword(""); // No password for guest users
 
                 newUser = userRepository.save(newUser);
-                log.info("Created new guest user for proxy booking: {} ({})", newUser.getUserId(), recipientInfo.getPhone());
+                log.info("Created new guest user for proxy booking: {} ({})", newUser.getUserId(),
+                                recipientInfo.getPhone());
                 return newUser;
         }
 
@@ -473,8 +490,8 @@ public class BookingService {
          */
         private Pet createPetForRecipient(ProxyPetInfo petInfo, User owner) {
                 // Set default dateOfBirth to today if not provided (required field in DB)
-                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null 
-                                ? petInfo.getDateOfBirth() 
+                LocalDate dateOfBirth = petInfo.getDateOfBirth() != null
+                                ? petInfo.getDateOfBirth()
                                 : LocalDate.now();
 
                 Pet pet = Pet.builder()
@@ -733,33 +750,60 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse cancelBooking(UUID bookingId, String reason, UUID cancelledBy) {
+                log.info("Starting cancelBooking for ID: {}, reason: {}, cancelledBy: {}", bookingId, reason,
+                                cancelledBy);
+
                 Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+                                .orElseThrow(() -> {
+                                        log.error("Booking not found for ID: {}", bookingId);
+                                        return new ResourceNotFoundException("Không tìm thấy lịch hẹn");
+                                });
+
+                log.info("Found booking {}. Current status: {}, Type: {}", booking.getBookingCode(),
+                                booking.getStatus(), booking.getType());
 
                 if (!booking.canBeCancelled()) {
+                        log.warn("Booking {} cannot be cancelled in status {}", booking.getBookingCode(),
+                                        booking.getStatus());
                         throw new IllegalStateException("Booking cannot be cancelled in current status");
                 }
 
                 // If SOS booking, clear matching session from Redis
                 if (booking.getType() == BookingType.SOS) {
                         log.info("SOS booking {} being cancelled, clearing matching session", bookingId);
-                        sosSessionManager.clearSession(bookingId);
-                        // Also release user lock if still held
-                        sosSessionManager.releaseUserLock(booking.getPetOwner().getUserId());
+                        try {
+                                sosSessionManager.clearSession(bookingId);
+                                // Also release user lock if still held
+                                sosSessionManager.releaseUserLock(booking.getPetOwner().getUserId());
+                        } catch (Exception e) {
+                                log.warn("Failed to clear SOS session or release lock: {}", e.getMessage());
+                        }
                 }
 
                 // Release slots back to AVAILABLE before cancelling
-                staffAssignmentService.releaseSlotsForBooking(booking);
+                log.info("Releasing slots for booking {}", booking.getBookingCode());
+                try {
+                        staffAssignmentService.releaseSlotsForBooking(booking);
+                } catch (Exception e) {
+                        log.warn("Failed to release slots for booking {}: {}. Continuing with cancellation.",
+                                        booking.getBookingCode(), e.getMessage());
+                }
 
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancellationReason(reason);
                 booking.setCancelledBy(cancelledBy);
 
+                log.info("Saving cancelled booking {}", booking.getBookingCode());
                 Booking savedBooking = bookingRepository.save(booking);
-                log.info("Booking {} cancelled", savedBooking.getBookingCode());
+                log.info("Booking {} cancelled and saved successfully", savedBooking.getBookingCode());
 
                 // Push SSE event for real-time sync
-                bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
+                try {
+                        bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "CANCELLED");
+                } catch (Exception e) {
+                        log.warn("Failed to push SSE notification for cancelled booking {}: {}",
+                                        savedBooking.getBookingCode(), e.getMessage());
+                }
 
                 return bookingMapper.mapToResponse(savedBooking);
         }
@@ -994,7 +1038,8 @@ public class BookingService {
                 BigDecimal basePrice = service.getBasePrice();
                 BigDecimal weightPrice = pricingService.calculateServicePrice(service, pet);
 
-                // Create new service item (dịch vụ phát sinh không gán staff - ai thực hiện không cần xác định)
+                // Create new service item (dịch vụ phát sinh không gán staff - ai thực hiện
+                // không cần xác định)
                 BookingServiceItem newItem = BookingServiceItem.builder()
                                 .booking(booking)
                                 .pet(pet)
@@ -1237,7 +1282,8 @@ public class BookingService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
                 // Validate status - allow CONFIRMED or IN_PROGRESS (Staff has arrived)
-                if (booking.getStatus() != BookingStatus.CONFIRMED && booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                if (booking.getStatus() != BookingStatus.CONFIRMED
+                                && booking.getStatus() != BookingStatus.IN_PROGRESS) {
                         throw new IllegalStateException(
                                         "Chỉ có thể check-in khi booking ở trạng thái CONFIRMED hoặc IN_PROGRESS. Trạng thái hiện tại: "
                                                         + booking.getStatus());
@@ -1332,7 +1378,8 @@ public class BookingService {
                 booking.setArrivedAt(LocalDateTime.now());
                 Booking savedBooking = bookingRepository.save(booking);
 
-                log.info("Booking {} arrival recorded at {}", savedBooking.getBookingCode(), savedBooking.getArrivedAt());
+                log.info("Booking {} arrival recorded at {}", savedBooking.getBookingCode(),
+                                savedBooking.getArrivedAt());
 
                 // Push SSE event for real-time sync
                 bookingNotificationService.pushBookingUpdateToUsers(savedBooking, "ARRIVED");
@@ -1570,7 +1617,8 @@ public class BookingService {
         // ========== ESTIMATED COMPLETION TIME ==========
 
         /**
-         * Calculate estimated completion time based on pet info, services, and start time
+         * Calculate estimated completion time based on pet info, services, and start
+         * time
          * Supports multi-pet format: pets: [{ petId, petWeight, serviceIds: [...] }]
          *
          * @param clinicId Clinic ID to fetch services from
@@ -1589,10 +1637,12 @@ public class BookingService {
 
                 // Get operating hours for the specific day
                 String dayOfWeek = request.getStartDateTime().getDayOfWeek().name();
-                OperatingHours oh = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek) : null;
+                OperatingHours oh = clinic.getOperatingHours() != null ? clinic.getOperatingHours().get(dayOfWeek)
+                                : null;
 
                 if (oh != null && Boolean.TRUE.equals(oh.getIsClosed())) {
-                        throw new com.petties.petties.exception.BadRequestException("Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
+                        throw new com.petties.petties.exception.BadRequestException(
+                                        "Phòng khám đóng cửa vào ngày này (" + dayOfWeek + ")");
                 }
 
                 LocalDateTime currentStartDateTime = request.getStartDateTime();
@@ -1605,7 +1655,8 @@ public class BookingService {
                         List<ClinicService> services = clinicServiceRepository.findAllById(petEst.getServiceIds());
 
                         if (services.isEmpty()) {
-                                throw new ResourceNotFoundException("Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
+                                throw new ResourceNotFoundException(
+                                                "Không tìm thấy dịch vụ nào cho pet: " + petEst.getPetId());
                         }
 
                         // Validate all services belong to the same clinic
@@ -1620,7 +1671,8 @@ public class BookingService {
                         int petTotalDuration = 0;
 
                         for (ClinicService service : services) {
-                                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime() : 30;
+                                int durationMinutes = service.getDurationTime() != null ? service.getDurationTime()
+                                                : 30;
                                 int slotsRequired = (int) Math.ceil(durationMinutes / 30.0);
 
                                 // Logic for Clinic Breaks (only if IN_CLINIC)
@@ -1635,7 +1687,8 @@ public class BookingService {
                                                 currentStartDateTime = currentStartDateTime.with(oh.getBreakEnd());
                                         }
 
-                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime
+                                                        .plusMinutes(durationMinutes);
                                         LocalTime endStartTime = serviceEndDateTime.toLocalTime();
 
                                         // 2. If service starts before break but finishes after break starts
@@ -1661,7 +1714,8 @@ public class BookingService {
                                         currentStartDateTime = serviceEndDateTime;
                                 } else {
                                         // HOME_VISIT, SOS or no operating hours/breaks defined
-                                        LocalDateTime serviceEndDateTime = currentStartDateTime.plusMinutes(durationMinutes);
+                                        LocalDateTime serviceEndDateTime = currentStartDateTime
+                                                        .plusMinutes(durationMinutes);
 
                                         serviceDurations.add(EstimatedCompletionResponse.ServiceDuration.builder()
                                                         .serviceId(service.getServiceId().toString())
@@ -1704,4 +1758,3 @@ public class BookingService {
                                 .build();
         }
 }
-

@@ -513,7 +513,7 @@ export const EditEmrPage = () => {
                                                 <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] text-stone-400 font-medium uppercase tracking-widest">
                                                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                                                         <span className="w-1 h-1 rounded-full bg-stone-200"></span>
-                                                        {p.dosage.toLowerCase().includes('viên') ? p.dosage : `${p.dosage} viên/lần`}
+                                                        {p.dosage ? (p.dosage.toLowerCase().includes('viên') ? p.dosage : `${p.dosage} viên/lần`) : 'N/A'}
                                                     </span>
                                                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                                                         <span className="w-1 h-1 rounded-full bg-stone-200"></span>

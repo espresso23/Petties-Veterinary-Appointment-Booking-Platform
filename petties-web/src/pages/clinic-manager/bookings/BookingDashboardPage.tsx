@@ -307,9 +307,10 @@ export const BookingDashboardPage = () => {
             setSelectedBooking(null);
             setCancelModalOpen(false);
             setBookingIdToCancel(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to cancel booking:', error);
-            showToast('error', 'Không thể hủy lịch hẹn. Vui lòng thử lại.');
+            const errorMessage = error.response?.data?.message || error.message || 'Không thể hủy lịch hẹn. Vui lòng thử lại.';
+            showToast('error', errorMessage);
         } finally {
             setCancelling(null);
         }
@@ -964,147 +965,147 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                                                 </div>
                                             </div>
                                             {service.assignedStaffName ? (
-                                    <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
-                                        <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
-                                            {service.assignedStaffAvatarUrl ? (
-                                                <img
-                                                    src={service.assignedStaffAvatarUrl}
-                                                    alt={service.assignedStaffName}
-                                                    className="w-full h-full object-cover"
-                                                />
+                                                <div className="mt-2 flex items-center gap-2 bg-mint-100 px-2 py-1 rounded border border-stone-300">
+                                                    <div className="w-6 h-6 rounded-full overflow-hidden border border-stone-400 bg-white flex-shrink-0">
+                                                        {service.assignedStaffAvatarUrl ? (
+                                                            <img
+                                                                src={service.assignedStaffAvatarUrl}
+                                                                alt={service.assignedStaffName}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
+                                                                {service.assignedStaffName?.charAt(0) || '?'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-xs flex-1">
+                                                        <span className="font-medium">{service.assignedStaffName}</span>
+                                                        {service.assignedStaffSpecialty && (
+                                                            <span className="text-stone-500 ml-1">
+                                                                ({STAFF_SPECIALTY_LABELS[service.assignedStaffSpecialty] || service.assignedStaffSpecialty})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && booking.status !== 'IN_PROGRESS' && (
+                                                        <button
+                                                            onClick={() => handleOpenReassignModal(service)}
+                                                            className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors flex items-center gap-1"
+                                                        >
+                                                            Đổi
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : booking.status === 'PENDING' ? (
+                                                (() => {
+                                                    const serviceId = service.bookingServiceId || service.serviceId;
+                                                    const serviceStaff = availableStaffByService[serviceId] || [];
+                                                    const selectedStaffId = selectedStaffByService[serviceId];
+                                                    const isDropdownOpen = openDropdownServiceId === serviceId;
+
+                                                    if (loadingStaff) return <div className="mt-2 text-xs text-stone-400 italic">Đang tải nhân viên...</div>;
+                                                    if (serviceStaff.length === 0) return <div className="mt-2 text-xs font-bold text-amber-800 bg-amber-50 p-1 border border-amber-600">Không có nhân viên phù hợp</div>;
+
+                                                    const selectedStaff = serviceStaff.find(s => s.staffId === selectedStaffId);
+
+                                                    return (
+                                                        <div className="mt-2 relative">
+                                                            <button
+                                                                onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)}
+                                                                className="w-full flex items-center justify-between px-2 py-1.5 bg-green-50 border-2 border-green-600 text-xs font-medium"
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    {selectedStaff && (
+                                                                        <div className="w-5 h-5 rounded-full overflow-hidden border border-green-200 bg-white flex-shrink-0">
+                                                                            {selectedStaff.avatarUrl ? (
+                                                                                <img src={selectedStaff.avatarUrl} alt={selectedStaff.fullName} className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-green-100 text-green-700">
+                                                                                    {selectedStaff.fullName?.charAt(0) || '?'}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                    <span>{selectedStaff ? selectedStaff.fullName : 'Chọn nhân viên...'}</span>
+                                                                </div>
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
+                                                            </button>
+                                                            {isDropdownOpen && (
+                                                                <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
+                                                                    {serviceStaff.map((staff) => {
+                                                                        const isAvailableForThisService = staff.availableServiceItemIds?.includes(serviceId);
+
+                                                                        return (
+                                                                            <button
+                                                                                key={staff.staffId}
+                                                                                type="button"
+                                                                                disabled={!isAvailableForThisService}
+                                                                                onClick={() => {
+                                                                                    setSelectedStaffByService(prev => ({
+                                                                                        ...prev,
+                                                                                        [serviceId]: staff.staffId
+                                                                                    }));
+                                                                                    setOpenDropdownServiceId(null);
+                                                                                }}
+                                                                                className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedStaffId === staff.staffId
+                                                                                    ? 'bg-mint-100 border-l-4 border-l-mint-600'
+                                                                                    : isAvailableForThisService
+                                                                                        ? 'hover:bg-stone-50'
+                                                                                        : 'opacity-50 cursor-not-allowed bg-stone-100'
+                                                                                    }`}
+                                                                            >
+                                                                                <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
+                                                                                    {staff.avatarUrl ? (
+                                                                                        <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                                                    ) : (
+                                                                                        <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">
+                                                                                            {staff.fullName?.charAt(0) || '?'}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="text-xs font-bold text-stone-900 truncate">
+                                                                                        {staff.fullName}
+                                                                                        {staff.isSuggested && (
+                                                                                            <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1 py-0.5 border border-green-600">Gợi ý</span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-stone-500 truncate">
+                                                                                        {staff.specialtyLabel || staff.specialty}
+                                                                                    </div>
+                                                                                    {!isAvailableForThisService && (
+                                                                                        <div className="text-[10px] text-red-600 font-medium italic">
+                                                                                            {staff.unavailableReason || "Không đủ slot trống cho khung giờ này"}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xs font-bold bg-mint-200">
-                                                    {service.assignedStaffName?.charAt(0) || '?'}
+                                                <div className="mt-2 flex items-center justify-between">
+                                                    <span className="text-xs text-stone-400 italic">
+                                                        Chưa phân công bác sĩ
+                                                    </span>
+                                                    {booking.status === 'CONFIRMED' && (
+                                                        <button
+                                                            onClick={() => handleOpenReassignModal(service)}
+                                                            className="px-3 py-1 text-xs font-bold bg-coral-400 text-stone-900 border border-stone-900 hover:bg-coral-500 transition-colors"
+                                                        >
+                                                            Phân công BS
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-xs flex-1">
-                                            <span className="font-medium">{service.assignedStaffName}</span>
-                                            {service.assignedStaffSpecialty && (
-                                                <span className="text-stone-500 ml-1">
-                                                    ({STAFF_SPECIALTY_LABELS[service.assignedStaffSpecialty] || service.assignedStaffSpecialty})
-                                                </span>
-                                            )}
-                                        </div>
-                                        {booking.status !== 'PENDING' && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && booking.status !== 'IN_PROGRESS' && (
-                                            <button
-                                                onClick={() => handleOpenReassignModal(service)}
-                                                className="px-2 py-1 text-xs font-bold bg-amber-200 border border-stone-900 hover:bg-amber-300 transition-colors flex items-center gap-1"
-                                            >
-                                                Đổi
-                                            </button>
-                                        )}
-                                    </div>
-                                ) : booking.status === 'PENDING' ? (
-                                    (() => {
-                                        const serviceId = service.bookingServiceId || service.serviceId;
-                                        const serviceStaff = availableStaffByService[serviceId] || [];
-                                        const selectedStaffId = selectedStaffByService[serviceId];
-                                        const isDropdownOpen = openDropdownServiceId === serviceId;
-
-                                        if (loadingStaff) return <div className="mt-2 text-xs text-stone-400 italic">Đang tải nhân viên...</div>;
-                                        if (serviceStaff.length === 0) return <div className="mt-2 text-xs font-bold text-amber-800 bg-amber-50 p-1 border border-amber-600">Không có nhân viên phù hợp</div>;
-
-                                        const selectedStaff = serviceStaff.find(s => s.staffId === selectedStaffId);
-
-                                        return (
-                                            <div className="mt-2 relative">
-                                                <button
-                                                    onClick={() => setOpenDropdownServiceId(isDropdownOpen ? null : serviceId)}
-                                                    className="w-full flex items-center justify-between px-2 py-1.5 bg-green-50 border-2 border-green-600 text-xs font-medium"
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        {selectedStaff && (
-                                                            <div className="w-5 h-5 rounded-full overflow-hidden border border-green-200 bg-white flex-shrink-0">
-                                                                {selectedStaff.avatarUrl ? (
-                                                                    <img src={selectedStaff.avatarUrl} alt={selectedStaff.fullName} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold bg-green-100 text-green-700">
-                                                                        {selectedStaff.fullName?.charAt(0) || '?'}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        <span>{selectedStaff ? selectedStaff.fullName : 'Chọn nhân viên...'}</span>
-                                                    </div>
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" /></svg>
-                                                </button>
-                                                {isDropdownOpen && (
-                                                    <div className="absolute z-20 w-full mt-1 bg-white border-2 border-stone-900 shadow-[4px_4px_0_#1c1917] max-h-48 overflow-y-auto">
-                                                        {serviceStaff.map((staff) => {
-                                                            const isAvailableForThisService = staff.availableServiceItemIds?.includes(serviceId);
-
-                                                            return (
-                                                                <button
-                                                                    key={staff.staffId}
-                                                                    type="button"
-                                                                    disabled={!isAvailableForThisService}
-                                                                    onClick={() => {
-                                                                        setSelectedStaffByService(prev => ({
-                                                                            ...prev,
-                                                                            [serviceId]: staff.staffId
-                                                                        }));
-                                                                        setOpenDropdownServiceId(null);
-                                                                    }}
-                                                                    className={`w-full flex items-center gap-2 px-2 py-2 text-left transition-colors ${selectedStaffId === staff.staffId
-                                                                        ? 'bg-mint-100 border-l-4 border-l-mint-600'
-                                                                        : isAvailableForThisService
-                                                                            ? 'hover:bg-stone-50'
-                                                                            : 'opacity-50 cursor-not-allowed bg-stone-100'
-                                                                        }`}
-                                                                >
-                                                                <div className="w-8 h-8 rounded-full border-2 border-stone-400 overflow-hidden bg-stone-200 flex-shrink-0">
-                                                                    {staff.avatarUrl ? (
-                                                                        <img src={staff.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center font-bold text-stone-600 text-sm">
-                                                                            {staff.fullName?.charAt(0) || '?'}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <div className="text-xs font-bold text-stone-900 truncate">
-                                                                        {staff.fullName}
-                                                                        {staff.isSuggested && (
-                                                                            <span className="ml-1 text-[10px] bg-green-200 text-green-800 px-1 py-0.5 border border-green-600">Gợi ý</span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-[10px] text-stone-500 truncate">
-                                                                        {staff.specialtyLabel || staff.specialty}
-                                                                    </div>
-                                                                    {!isAvailableForThisService && (
-                                                                        <div className="text-[10px] text-red-600 font-medium italic">
-                                                                            {staff.unavailableReason || "Không đủ slot trống cho khung giờ này"}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </button>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()
-                                ) : (
-                                    <div className="mt-2 flex items-center justify-between">
-                                        <span className="text-xs text-stone-400 italic">
-                                            Chưa phân công bác sĩ
-                                        </span>
-                                        {booking.status === 'CONFIRMED' && (
-                                            <button
-                                                onClick={() => handleOpenReassignModal(service)}
-                                                className="px-3 py-1 text-xs font-bold bg-coral-400 text-stone-900 border border-stone-900 hover:bg-coral-500 transition-colors"
-                                            >
-                                                Phân công BS
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
+                            ))
                         ) : (
                             getAllServices(booking).map((service: BookingServiceItem, idx: number) => (
                                 <div key={service.bookingServiceId || idx} className="py-3 border-b border-stone-200 last:border-0">
