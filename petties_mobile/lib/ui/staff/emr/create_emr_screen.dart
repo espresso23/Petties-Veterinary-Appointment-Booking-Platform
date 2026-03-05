@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
@@ -7,6 +6,7 @@ import '../../../data/models/emr.dart';
 import '../../../data/models/pet.dart';
 import '../../../data/services/emr_service.dart';
 import '../../../data/services/pet_service.dart';
+import '../../common/staff_bottom_nav.dart';
 
 /// Create EMR Screen - Mobile version of web CreateEmrPage
 class CreateEmrScreen extends StatefulWidget {
@@ -49,13 +49,13 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   final _heartRateController = TextEditingController();
   final _notesController = TextEditingController();
   final _allergiesController = TextEditingController();
-  
+
   int? _bcs; // Body Condition Score 1-9
   DateTime? _reExaminationDate;
 
   // Re-examination Date
   bool _enableReExam = false;
-  
+
   // Dynamic Re-exam Input
   final _reExamAmountController = TextEditingController(text: '1');
   String _reExamUnit = 'Tuần'; // Ngày, Tuần, Tháng, Năm
@@ -84,7 +84,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     setState(() => _isLoadingPet = true);
     try {
       final pet = await _petService.getPetById(widget.petId);
-      final emrs = await _emrService.getEmrsByPetId(widget.petId).catchError((_) => <EmrRecord>[]);
+      final emrs = await _emrService
+          .getEmrsByPetId(widget.petId)
+          .catchError((_) => <EmrRecord>[]);
       setState(() {
         _petInfo = pet;
         _weightController.text = pet.weight.toString();
@@ -102,7 +104,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     final now = DateTime.now();
     final years = now.year - dateOfBirth.year;
     if (years < 1) {
-      final months = (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
+      final months =
+          (now.year - dateOfBirth.year) * 12 + now.month - dateOfBirth.month;
       return '$months tháng';
     }
     return '$years tuổi';
@@ -133,7 +136,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       final request = CreateEmrRequest(
         petId: widget.petId,
         bookingId: widget.bookingId,
-        subjective: _subjectiveController.text.isEmpty ? null : _subjectiveController.text,
+        subjective: _subjectiveController.text.isEmpty
+            ? null
+            : _subjectiveController.text,
         objective: objectiveParts.isEmpty ? null : objectiveParts.join('. '),
         assessment: _assessmentController.text,
         plan: _planController.text,
@@ -150,14 +155,16 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       await _emrService.createEmr(request);
 
       // Update allergies if changed
-      if (_petInfo != null && _allergiesController.text != (_petInfo!.allergies ?? '')) {
-         try {
-           await _petService.updateAllergies(widget.petId, _allergiesController.text);
-         } catch (e) {
-            debugPrint('Error updating allergies: $e');
-         }
+      if (_petInfo != null &&
+          _allergiesController.text != (_petInfo!.allergies ?? '')) {
+        try {
+          await _petService.updateAllergies(
+              widget.petId, _allergiesController.text);
+        } catch (e) {
+          debugPrint('Error updating allergies: $e');
+        }
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -240,7 +247,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             const SizedBox(height: 20),
             Text(
               'Ảnh đại diện cho ${pet.name}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900),
             ),
             const SizedBox(height: 24),
             Row(
@@ -271,7 +281,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     );
   }
 
-  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildPickerOption(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -289,7 +302,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.stone700),
           ),
         ],
       ),
@@ -343,7 +359,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         ],
       ),
       body: _isLoadingPet
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -353,19 +370,17 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   children: [
                     _buildPetInfoCard(),
                     const SizedBox(height: 16),
-
                     if (_medicalHistory.isNotEmpty) ...[
                       _buildMedicalHistorySummary(),
                       const SizedBox(height: 16),
                     ],
-
                     _buildSoapForm(),
-                    
                     const SizedBox(height: 100),
                   ],
                 ),
               ),
             ),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 3),
     );
   }
 
@@ -403,8 +418,13 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     child: pet.imageUrl == null
                         ? Center(
                             child: Text(
-                              pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.stone400),
+                              pet.name.isNotEmpty
+                                  ? pet.name[0].toUpperCase()
+                                  : 'P',
+                              style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.stone400),
                             ),
                           )
                         : null,
@@ -421,7 +441,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
                         ),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                        child: const Icon(Icons.camera_alt,
+                            color: Colors.white, size: 12),
                       ),
                     ),
                   ),
@@ -443,16 +464,19 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     const SizedBox(height: 4),
                     Text(
                       '${pet.species.displayName} ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''} • ${_translateGender(pet.gender)} • ${_calculateAge(pet.dateOfBirth)}',
-                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                      style: const TextStyle(
+                          color: AppColors.stone500, fontSize: 13),
                     ),
                     Text(
                       'Cân nặng: ${pet.weight} kg',
-                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                      style: const TextStyle(
+                          color: AppColors.stone500, fontSize: 13),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Chủ: ${pet.ownerName ?? 'N/A'} • ${pet.ownerPhone ?? ''}',
-                      style: const TextStyle(color: AppColors.stone400, fontSize: 12),
+                      style: const TextStyle(
+                          color: AppColors.stone400, fontSize: 12),
                     ),
                   ],
                 ),
@@ -462,15 +486,19 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           const SizedBox(height: 16),
           const Divider(height: 1),
           const SizedBox(height: 12),
-          
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Row(
                 children: [
-                   Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
-                   SizedBox(width: 4),
-                   Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
+                  Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Colors.amber),
+                  SizedBox(width: 4),
+                  Text('Dị ứng / Lưu ý:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.stone600)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -529,7 +557,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   '${DateFormat('dd/MM/yyyy').format(emr.examinationDate)}: ${emr.assessment ?? 'N/A'}',
-                  style: const TextStyle(color: AppColors.stone600, fontSize: 13),
+                  style:
+                      const TextStyle(color: AppColors.stone600, fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -563,7 +592,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
               ),
               if (widget.bookingCode != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -605,15 +635,17 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           // O - Objective (Vital signs)
           _buildSectionHeader('O - Khách quan (Objective)', Colors.teal, false),
           const SizedBox(height: 12),
-          
+
           Row(
             children: [
               Expanded(
-                child: _buildVitalField('Cân nặng (kg)', _weightController, '0.0'),
+                child:
+                    _buildVitalField('Cân nặng (kg)', _weightController, '0.0'),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildVitalField('Nhiệt độ (°C)', _temperatureController, '38.5'),
+                child: _buildVitalField(
+                    'Nhiệt độ (°C)', _temperatureController, '38.5'),
               ),
             ],
           ),
@@ -621,12 +653,13 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildVitalField('Nhịp tim', _heartRateController, '120'),
+                child:
+                    _buildVitalField('Nhịp tim', _heartRateController, '120'),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          
+
           const Text(
             'BCS (Điểm thể trạng 1-9):',
             style: TextStyle(fontSize: 13, color: AppColors.stone600),
@@ -646,10 +679,13 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primary : AppColors.stone100,
+                        color:
+                            isSelected ? AppColors.primary : AppColors.stone100,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isSelected ? AppColors.primary : AppColors.stone300,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.stone300,
                         ),
                       ),
                       child: Center(
@@ -657,7 +693,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                           '$score',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? AppColors.white : AppColors.stone600,
+                            color: isSelected
+                                ? AppColors.white
+                                : AppColors.stone600,
                           ),
                         ),
                       ),
@@ -668,7 +706,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          
+
           TextFormField(
             controller: _objectiveController,
             maxLines: 3,
@@ -688,7 +726,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           TextFormField(
             controller: _assessmentController,
             maxLines: 3,
-            validator: (v) => v == null || v.isEmpty ? 'Không được bỏ trống' : null,
+            validator: (v) =>
+                v == null || v.isEmpty ? 'Không được bỏ trống' : null,
             decoration: InputDecoration(
               hintText: 'Chẩn đoán sơ bộ và đánh giá tình trạng bệnh...',
               hintStyle: TextStyle(color: AppColors.stone400),
@@ -705,9 +744,11 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           TextFormField(
             controller: _planController,
             maxLines: 3,
-            validator: (v) => v == null || v.isEmpty ? 'Không được bỏ trống' : null,
+            validator: (v) =>
+                v == null || v.isEmpty ? 'Không được bỏ trống' : null,
             decoration: InputDecoration(
-              hintText: 'Kế hoạch điều trị, xét nghiệm đề xuất, hướng dẫn chăm sóc...',
+              hintText:
+                  'Kế hoạch điều trị, xét nghiệm đề xuất, hướng dẫn chăm sóc...',
               hintStyle: TextStyle(color: AppColors.stone400),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -737,14 +778,17 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(child: _buildSectionHeader('Hẹn tái khám (Tuỳ chọn)', Colors.blue, false)),
-               Switch(
+              Flexible(
+                  child: _buildSectionHeader(
+                      'Hẹn tái khám (Tuỳ chọn)', Colors.blue, false)),
+              Switch(
                 value: _enableReExam,
                 onChanged: (val) {
                   setState(() {
                     _enableReExam = val;
                     if (val && _reExaminationDate == null) {
-                       _reExaminationDate = DateTime.now().add(const Duration(days: 7));
+                      _reExaminationDate =
+                          DateTime.now().add(const Duration(days: 7));
                     }
                   });
                 },
@@ -755,158 +799,177 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
 
           // Dynamic Date Input
           if (_enableReExam)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.timer_outlined, color: Colors.blue, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Tái khám sau:',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                Row(
-                  children: [
-                    // Amount Input
-                    Expanded(
-                      flex: 2,
-                      child: Container(
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: AppColors.stone100,
-                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: TextField(
-                          controller: _reExamAmountController,
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                           decoration: const InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 12),
-                            hintText: '0',
+                        child: const Icon(Icons.timer_outlined,
+                            color: Colors.blue, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Tái khám sau:',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    children: [
+                      // Amount Input
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.stone100,
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          onChanged: (v) => _updateReExamDate(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    
-                    // Unit Dropdown
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.stone100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _reExamUnit,
-                            isExpanded: true,
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                            items: ['Ngày', 'Tuần', 'Tháng', 'Năm'].map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
-                              );
-                            }).toList(),
-                            onChanged: (newValue) {
-                              setState(() {
-                                _reExamUnit = newValue!;
-                                _updateReExamDate();
-                              });
-                            },
+                          child: TextField(
+                            controller: _reExamAmountController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 12),
+                              hintText: '0',
+                            ),
+                            onChanged: (v) => _updateReExamDate(),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Divider(height: 1),
-                ),
-                
-                // Calculated Date Display
-                InkWell(
-                   onTap: () async {
+                      const SizedBox(width: 12),
+
+                      // Unit Dropdown
+                      Expanded(
+                        flex: 3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.stone100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _reExamUnit,
+                              isExpanded: true,
+                              icon: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.grey),
+                              items: ['Ngày', 'Tuần', 'Tháng', 'Năm']
+                                  .map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500)),
+                                );
+                              }).toList(),
+                              onChanged: (newValue) {
+                                setState(() {
+                                  _reExamUnit = newValue!;
+                                  _updateReExamDate();
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(height: 1),
+                  ),
+
+                  // Calculated Date Display
+                  InkWell(
+                    onTap: () async {
                       final date = await showDatePicker(
                         context: context,
-                        initialDate: _reExaminationDate ?? DateTime.now().add(const Duration(days: 7)),
+                        initialDate: _reExaminationDate ??
+                            DateTime.now().add(const Duration(days: 7)),
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 365 * 2)),
                       );
                       if (date != null) {
                         setState(() {
-                           _reExaminationDate = date;
-                           _reExamAmountController.text = ''; // Clear auto fields
+                          _reExaminationDate = date;
+                          _reExamAmountController.text =
+                              ''; // Clear auto fields
                         });
                       }
                     },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: _reExaminationDate != null ? Colors.blue.shade50 : Colors.transparent,
-                      border: Border.all(
-                        color: _reExaminationDate != null ? Colors.blue.shade200 : Colors.grey.shade300
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: _reExaminationDate != null
+                            ? Colors.blue.shade50
+                            : Colors.transparent,
+                        border: Border.all(
+                            color: _reExaminationDate != null
+                                ? Colors.blue.shade200
+                                : Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                         Icon(
-                           Icons.calendar_month_rounded, 
-                           size: 20, 
-                           color: _reExaminationDate != null ? Colors.blue : Colors.grey
-                         ),
-                         const SizedBox(width: 12),
-                         Text(
-                           _reExaminationDate != null
-                               ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(_reExaminationDate!)}'
-                               : 'Chọn ngày thủ công...',
-                           style: TextStyle(
-                             color: _reExaminationDate != null ? Colors.blue.shade700 : Colors.grey,
-                             fontWeight: FontWeight.bold,
-                             fontSize: 15,
-                           ),
-                         ),
-                         const Spacer(),
-                         Icon(Icons.edit_outlined, size: 18, color: Colors.grey.shade400),
-                      ],
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_month_rounded,
+                              size: 20,
+                              color: _reExaminationDate != null
+                                  ? Colors.blue
+                                  : Colors.grey),
+                          const SizedBox(width: 12),
+                          Text(
+                            _reExaminationDate != null
+                                ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(_reExaminationDate!)}'
+                                : 'Chọn ngày thủ công...',
+                            style: TextStyle(
+                              color: _reExaminationDate != null
+                                  ? Colors.blue.shade700
+                                  : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(Icons.edit_outlined,
+                              size: 18, color: Colors.grey.shade400),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 20),
 
           // Prescriptions
@@ -919,7 +982,6 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       ),
     );
   }
-
 
   Widget _buildSectionHeader(String title, Color color, bool required) {
     return Padding(
@@ -944,7 +1006,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
     );
   }
 
-  Widget _buildVitalField(String label, TextEditingController controller, String hint) {
+  Widget _buildVitalField(
+      String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -959,7 +1022,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: AppColors.stone400, fontSize: 14),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: AppColors.stone300),
@@ -994,12 +1058,15 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   setState(() => _isEditingPrescription = true);
                 },
                 icon: const Icon(Icons.add_circle_outline, size: 20),
-                label: const Text('KÊ ĐƠN', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                label: const Text('KÊ ĐƠN',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ),
@@ -1032,13 +1099,15 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         icon: Icon(icon, size: 20),
         label: Text(
           label.toUpperCase(),
-          style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+          style:
+              const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: AppColors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
@@ -1057,7 +1126,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         ),
         child: Column(
           children: const [
-            Icon(Icons.medication_liquid_outlined, size: 40, color: AppColors.stone300),
+            Icon(Icons.medication_liquid_outlined,
+                size: 40, color: AppColors.stone300),
             SizedBox(height: 12),
             Text(
               'Chưa có đơn thuốc nào được kê.',
@@ -1074,93 +1144,99 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
 
     return Column(
       children: [
-        ..._prescriptions.map((p) => Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.stone200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4)
-              ),
-            ],
-          ),
-          child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Medicine Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.medicineName.toUpperCase(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
-                          color: AppColors.stone900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          _buildDetailLabel('${p.dosage ?? "0"} viên/lần'),
-                          _buildDetailLabel('${p.frequency} lần/ngày'),
-                          _buildDetailLabel('${p.durationDays ?? "0"} ngày', isHighlight: true),
-                        ],
-                      ),
+        ..._prescriptions
+            .map((p) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.stone200),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4)),
                     ],
                   ),
-                ),
-                
-                // Instructions box (if any)
-                if (p.instructions != null && p.instructions!.isNotEmpty) ...[
-                  const VerticalDivider(width: 24, thickness: 1, color: AppColors.stone200),
-                  Container(
-                    width: 80,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.stone50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Hướng dẫn:',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.stone400,
-                            letterSpacing: 0.5,
-                          ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Medicine Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.medicineName.toUpperCase(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                _buildDetailLabel(
+                                    '${p.dosage ?? "0"} viên/lần'),
+                                _buildDetailLabel('${p.frequency} lần/ngày'),
+                                _buildDetailLabel(
+                                    '${p.durationDays ?? "0"} ngày',
+                                    isHighlight: true),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          p.instructions!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.stone600,
-                            fontStyle: FontStyle.italic,
+                      ),
+
+                      // Instructions box (if any)
+                      if (p.instructions != null &&
+                          p.instructions!.isNotEmpty) ...[
+                        const VerticalDivider(
+                            width: 24, thickness: 1, color: AppColors.stone200),
+                        Container(
+                          width: 80,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.stone50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.stone200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Hướng dẫn:',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.stone400,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                p.instructions!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.stone600,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
-              ],
-            ),
-        )).toList(),
+                ))
+            .toList(),
       ],
     );
   }
@@ -1214,7 +1290,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             children: [
               const Text(
                 'DANH SÁCH THUỐC',
-                style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone500, fontSize: 13),
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.stone500,
+                    fontSize: 13),
               ),
               _buildPremiumConfirmButton(
                 label: 'Xong',
@@ -1226,8 +1305,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           ),
           const SizedBox(height: 16),
           const Divider(height: 32, color: AppColors.stone100),
-          ..._prescriptions.asMap().entries.map((entry) => _buildInlinePrescriptionCard(entry.key)),
-          
+          ..._prescriptions
+              .asMap()
+              .entries
+              .map((entry) => _buildInlinePrescriptionCard(entry.key)),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -1239,7 +1320,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                 foregroundColor: AppColors.stone700,
                 side: BorderSide(color: AppColors.stone300),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -1248,7 +1330,11 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _showDeleteAllPrescriptionsDialog(),
-                child: const Text('XÓA TẤT CẢ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 11)),
+                child: const Text('XÓA TẤT CẢ',
+                    style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11)),
               ),
             ),
         ],
@@ -1284,7 +1370,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   color: Colors.red.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_outlined, color: Colors.red, size: 32),
+                child: const Icon(Icons.delete_sweep_outlined,
+                    color: Colors.red, size: 32),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -1321,7 +1408,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                         child: Center(
                           child: Text(
                             'HỦY',
-                            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone600),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.stone600),
                           ),
                         ),
                       ),
@@ -1346,7 +1435,9 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                         child: const Center(
                           child: Text(
                             'XÓA HẾT',
-                            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white),
                           ),
                         ),
                       ),
@@ -1457,13 +1548,19 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.medication_outlined, size: 18, color: AppColors.primary),
+                child: Icon(Icons.medication_outlined,
+                    size: 18, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
-              Text('Thuốc ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.stone600)),
+              Text('Thuốc ${index + 1}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.stone600)),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close_rounded, size: 20, color: Colors.red),
+                icon: const Icon(Icons.close_rounded,
+                    size: 20, color: Colors.red),
                 onPressed: () => setState(() => _prescriptions.removeAt(index)),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1471,97 +1568,105 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Medicine Name (required)
           // Medicine Name (required) with Autocomplete
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Tên thuốc *',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
-                  ),
-                  const SizedBox(height: 4),
-                  Autocomplete<String>(
-                    initialValue: TextEditingValue(text: p.medicineName),
-                    optionsBuilder: (TextEditingValue textEditingValue) {
-                      if (textEditingValue.text == '') {
-                        return const Iterable<String>.empty();
-                      }
-                      return _medicineSuggestions.where((String option) {
-                        return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
-                      });
-                    },
-                    onSelected: (String selection) {
-                      _updatePrescriptionField(index, 'medicineName', selection);
-                    },
-                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                      // Sync controller with state if needed, though initialValue handles start
-                      // We need to ensure onChanged updates state
-                      return TextFormField(
-                        controller: textEditingController,
-                        focusNode: focusNode,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Amoxicillin 500mg',
-                          hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          isDense: true,
-                          filled: true,
-                          fillColor: AppColors.stone50,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.stone200),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.stone200),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          LayoutBuilder(builder: (context, constraints) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tên thuốc *',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500),
+                ),
+                const SizedBox(height: 4),
+                Autocomplete<String>(
+                  initialValue: TextEditingValue(text: p.medicineName),
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text == '') {
+                      return const Iterable<String>.empty();
+                    }
+                    return _medicineSuggestions.where((String option) {
+                      return option
+                          .toLowerCase()
+                          .contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  onSelected: (String selection) {
+                    _updatePrescriptionField(index, 'medicineName', selection);
+                  },
+                  fieldViewBuilder: (context, textEditingController, focusNode,
+                      onFieldSubmitted) {
+                    // Sync controller with state if needed, though initialValue handles start
+                    // We need to ensure onChanged updates state
+                    return TextFormField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Amoxicillin 500mg',
+                        hintStyle:
+                            TextStyle(color: AppColors.stone400, fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        isDense: true,
+                        filled: true,
+                        fillColor: AppColors.stone50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.stone200),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.stone200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              BorderSide(color: AppColors.primary, width: 1.5),
+                        ),
+                      ),
+                      onChanged: (v) =>
+                          _updatePrescriptionField(index, 'medicineName', v),
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4.0,
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final String option = options.elementAt(index);
+                              return InkWell(
+                                onTap: () {
+                                  onSelected(option);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(option),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                        onChanged: (v) => _updatePrescriptionField(index, 'medicineName', v),
-                      );
-                    },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      return Align(
-                        alignment: Alignment.topLeft,
-                        child: Material(
-                          elevation: 4.0,
-                          child: SizedBox(
-                            width: constraints.maxWidth,
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: options.length,
-                              itemBuilder: (BuildContext context, int index) {
-                                final String option = options.elementAt(index);
-                                return InkWell(
-                                  onTap: () {
-                                    onSelected(option);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Text(option),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            }
-          ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 10),
-          
+
           // Dosage and Frequency row
           Row(
             children: [
@@ -1570,7 +1675,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   label: 'Liều lượng',
                   value: p.dosage ?? '',
                   hint: '1 viên',
-                  onChanged: (v) => _updatePrescriptionField(index, 'dosage', v.isEmpty ? null : v),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'dosage', v.isEmpty ? null : v),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1579,13 +1685,14 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   label: 'Tần suất *',
                   value: p.frequency,
                   hint: '2 lần/ngày',
-                  onChanged: (v) => _updatePrescriptionField(index, 'frequency', v),
+                  onChanged: (v) =>
+                      _updatePrescriptionField(index, 'frequency', v),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          
+
           // Duration and Instructions row
           Row(
             children: [
@@ -1596,7 +1703,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   value: p.durationDays?.toString() ?? '',
                   hint: '7',
                   isNumber: true,
-                  onChanged: (v) => _updatePrescriptionField(index, 'durationDays', int.tryParse(v)),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'durationDays', int.tryParse(v)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1605,7 +1713,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   label: 'Hướng dẫn',
                   value: p.instructions ?? '',
                   hint: 'Uống sau ăn',
-                  onChanged: (v) => _updatePrescriptionField(index, 'instructions', v.isEmpty ? null : v),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'instructions', v.isEmpty ? null : v),
                 ),
               ),
             ],
@@ -1627,7 +1736,10 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
+          style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone500),
         ),
         const SizedBox(height: 4),
         TextFormField(
@@ -1637,7 +1749,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             isDense: true,
             filled: true,
             fillColor: AppColors.stone50,
@@ -1666,7 +1779,7 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       // Don't clear date, just don't update if invalid
       return;
     }
-    
+
     DateTime now = DateTime.now();
     DateTime newDate = now;
 
@@ -1686,22 +1799,21 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
         int monthInYear = (newMonth - 1) % 12 + 1;
         // Fix day overflow (e.g. 31 Jan + 1 month -> 28 Feb)
         int day = now.day;
-        int daysInNewMonth = DateTime(now.year + yearsToAdd, monthInYear + 1, 0).day;
+        int daysInNewMonth =
+            DateTime(now.year + yearsToAdd, monthInYear + 1, 0).day;
         if (day > daysInNewMonth) day = daysInNewMonth;
-        
+
         newDate = DateTime(now.year + yearsToAdd, monthInYear, day);
         break;
       case 'Năm':
         newDate = DateTime(now.year + amount, now.month, now.day);
         break;
     }
-    
+
     setState(() {
       _reExaminationDate = newDate;
     });
   }
-
-
 
   Widget _buildImagesSection() {
     return Column(
@@ -1733,12 +1845,14 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
             decoration: BoxDecoration(
               color: AppColors.stone50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone200, style: BorderStyle.solid),
+              border: Border.all(
+                  color: AppColors.stone200, style: BorderStyle.solid),
             ),
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.photo_library_outlined, size: 40, color: AppColors.stone400),
+                  Icon(Icons.photo_library_outlined,
+                      size: 40, color: AppColors.stone400),
                   const SizedBox(height: 8),
                   Text(
                     'Chưa có hình ảnh nào',
@@ -1765,21 +1879,21 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                 children: [
                   Stack(
                     children: [
-                        GestureDetector(
-                          onTap: () => _showFullScreenImage(img),
-                          child: Container(
-                            height: 80,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              image: DecorationImage(
-                                image: NetworkImage(img.url),
-                                fit: BoxFit.contain,
-                              ),
-                              color: AppColors.stone200,
-                              border: Border.all(color: AppColors.stone300),
+                      GestureDetector(
+                        onTap: () => _showFullScreenImage(img),
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            image: DecorationImage(
+                              image: NetworkImage(img.url),
+                              fit: BoxFit.contain,
                             ),
+                            color: AppColors.stone200,
+                            border: Border.all(color: AppColors.stone300),
                           ),
                         ),
+                      ),
                       Positioned(
                         top: 4,
                         right: 4,
@@ -1793,7 +1907,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                               color: Colors.white,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.close, size: 14, color: Colors.red),
+                            child: const Icon(Icons.close,
+                                size: 14, color: Colors.red),
                           ),
                         ),
                       ),
@@ -1804,13 +1919,15 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Mô tả hình ảnh...',
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                       border: OutlineInputBorder(),
                     ),
                     style: const TextStyle(fontSize: 11),
                     onChanged: (value) {
                       setState(() {
-                        _images[index] = EmrImage(url: img.url, description: value);
+                        _images[index] =
+                            EmrImage(url: img.url, description: value);
                       });
                     },
                   ),
@@ -1825,7 +1942,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
     try {
-      final XFile? image = await picker.pickImage(source: source, imageQuality: 70);
+      final XFile? image =
+          await picker.pickImage(source: source, imageQuality: 70);
       if (image != null) {
         _uploadImage(image);
       }
@@ -1875,7 +1993,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                   ),
                   child: const Icon(Icons.camera_alt, color: AppColors.blue600),
                 ),
-                title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text('Chụp ảnh mới',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -1888,9 +2007,11 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
                     color: AppColors.teal100,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.photo_library, color: AppColors.teal600),
+                  child:
+                      const Icon(Icons.photo_library, color: AppColors.teal600),
                 ),
-                title: const Text('Chọn từ thư viện', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text('Chọn từ thư viện',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -1916,7 +2037,8 @@ class _CreateEmrScreenState extends State<CreateEmrScreen> {
       setState(() => _isSubmitting = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi upload ảnh: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Lỗi upload ảnh: $e'), backgroundColor: Colors.red),
         );
       }
     }

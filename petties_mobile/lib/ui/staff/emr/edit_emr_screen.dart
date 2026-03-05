@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
@@ -7,6 +6,7 @@ import '../../../data/models/emr.dart';
 import '../../../data/models/pet.dart';
 import '../../../data/services/emr_service.dart';
 import '../../../data/services/pet_service.dart';
+import '../../common/staff_bottom_nav.dart';
 
 /// Edit EMR Screen - Allows Staff to edit their own EMR within 24h
 class EditEmrScreen extends StatefulWidget {
@@ -43,14 +43,14 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   final _notesController = TextEditingController();
   final _bcsController = TextEditingController();
   final _allergiesController = TextEditingController();
-  
+
   DateTime? _reExaminationDate;
   bool _enableReExam = false;
 
   // Dynamic Re-exam Input
   final _reExamAmountController = TextEditingController(text: '1');
   String _reExamUnit = 'Tuần'; // Ngày, Tuần, Tháng, Năm
-  
+
   List<Prescription> _prescriptions = [];
   List<EmrImage> _images = [];
   bool _isSubmitting = false;
@@ -106,7 +106,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     try {
       // 1. Fetch EMR
       final emr = await _emrService.getEmrById(widget.emrId);
-      
+
       // 2. Fetch Pet
       final pet = await _petService.getPetById(emr.petId);
 
@@ -114,7 +114,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       _subjectiveController.text = emr.subjective ?? '';
       _assessmentController.text = emr.assessment ?? '';
       _planController.text = emr.plan ?? '';
-      
+
       if (emr.temperatureC != null) {
         _temperatureController.text = emr.temperatureC.toString();
       }
@@ -124,33 +124,33 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       if (emr.bcs != null) {
         _bcsController.text = emr.bcs.toString();
       }
-      
+
       _objectiveController.text = emr.objective ?? '';
       _notesController.text = emr.notes ?? '';
       _allergiesController.text = pet.allergies ?? '';
 
       const List<String> _medicineSuggestions = [
-    'Amoxicillin 500mg',
-    'Amoxicillin 250mg',
-    'Metronidazole 250mg',
-    'Doxycycline 100mg',
-    'Prednisone 5mg',
-    'Cephalexin 500mg',
-    'Enrofloxacin 50mg',
-  ];
+        'Amoxicillin 500mg',
+        'Amoxicillin 250mg',
+        'Metronidazole 250mg',
+        'Doxycycline 100mg',
+        'Prednisone 5mg',
+        'Cephalexin 500mg',
+        'Enrofloxacin 50mg',
+      ];
 
-  // Prescription Form State
+      // Prescription Form State
       // Prescriptions
       _prescriptions = List.from(emr.prescriptions);
-    
+
       // Images
       _images = List.from(emr.images);
-    
+
       // Client-side lock check (backup for backend timezone issues)
       final now = DateTime.now();
       final createdAt = emr.createdAt;
       final isActuallyLocked = now.difference(createdAt).inHours >= 24;
-      
+
       debugPrint('🔒 EMR Lock Check:');
       debugPrint('   - createdAt: $createdAt');
       debugPrint('   - now: $now');
@@ -196,14 +196,18 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     try {
       final request = CreateEmrRequest(
         petId: _originalEmr!.petId,
-        subjective: _subjectiveController.text.isEmpty ? null : _subjectiveController.text,
-        objective: _objectiveController.text.isEmpty ? null : _objectiveController.text,
+        subjective: _subjectiveController.text.isEmpty
+            ? null
+            : _subjectiveController.text,
+        objective: _objectiveController.text.isEmpty
+            ? null
+            : _objectiveController.text,
         assessment: _assessmentController.text,
         bcs: int.tryParse(_bcsController.text),
         plan: _planController.text,
         weightKg: double.tryParse(_weightController.text),
         temperatureC: double.tryParse(_temperatureController.text),
-        heartRate: int.tryParse(_heartRateController.text), 
+        heartRate: int.tryParse(_heartRateController.text),
         prescriptions: _prescriptions.isEmpty ? null : _prescriptions,
         images: _images.isEmpty ? null : _images,
         reExaminationDate: _enableReExam ? _reExaminationDate : null,
@@ -211,14 +215,16 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       );
 
       await _emrService.updateEmr(widget.emrId, request);
-      
+
       // Update allergies if changed
-      if (_petInfo != null && _allergiesController.text != (_petInfo!.allergies ?? '')) {
-         try {
-           await _petService.updateAllergies(_originalEmr!.petId, _allergiesController.text);
-         } catch (e) {
-            debugPrint('Error updating allergies: $e');
-         }
+      if (_petInfo != null &&
+          _allergiesController.text != (_petInfo!.allergies ?? '')) {
+        try {
+          await _petService.updateAllergies(
+              _originalEmr!.petId, _allergiesController.text);
+        } catch (e) {
+          debugPrint('Error updating allergies: $e');
+        }
       }
 
       if (mounted) {
@@ -304,7 +310,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             const SizedBox(height: 20),
             Text(
               'Ảnh đại diện cho ${pet.name}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900),
             ),
             const SizedBox(height: 24),
             Row(
@@ -335,7 +344,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     );
   }
 
-  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildPickerOption(
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -353,7 +365,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.stone700),
           ),
         ],
       ),
@@ -408,32 +423,34 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         ],
       ),
       body: _buildBody(),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 3),
     );
   }
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary));
     }
 
     if (_error != null) {
-       return Center(
-         child: Column(
-           mainAxisAlignment: MainAxisAlignment.center,
-           children: [
-             const Icon(Icons.error_outline, color: Colors.red, size: 48),
-             const SizedBox(height: 16),
-             Text('Lỗi: $_error', textAlign: TextAlign.center),
-             TextButton(onPressed: _loadData, child: const Text('Thử lại')),
-           ],
-         ),
-       );
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text('Lỗi: $_error', textAlign: TextAlign.center),
+            TextButton(onPressed: _loadData, child: const Text('Thử lại')),
+          ],
+        ),
+      );
     }
 
     if (_originalEmr?.isLocked == true) {
-       return const Center(
-         child: Text('Bệnh án này đã bị khóa (quá 24h), không thể chỉnh sửa.'),
-       );
+      return const Center(
+        child: Text('Bệnh án này đã bị khóa (quá 24h), không thể chỉnh sửa.'),
+      );
     }
 
     return SingleChildScrollView(
@@ -459,8 +476,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             ),
 
             if (_petInfo != null) ...[
-               _buildPetInfoCard(),
-               const SizedBox(height: 16),
+              _buildPetInfoCard(),
+              const SizedBox(height: 16),
             ],
 
             _buildSoapForm(),
@@ -472,155 +489,174 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       ),
     );
   }
-  
+
   Widget _buildPetInfoCard() {
     final pet = _petInfo!;
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.stone200),
-      ),
-      child: Column(
-        children: [
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.stone200),
+        ),
+        child: Column(
+          children: [
             Row(
-            children: [
-              Stack(
-                children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: AppColors.stone100,
-                      borderRadius: BorderRadius.circular(35),
-                      border: Border.all(color: AppColors.stone200),
-                      image: pet.imageUrl != null
-                          ? DecorationImage(
-                              image: NetworkImage(pet.imageUrl!),
-                              fit: BoxFit.cover,
+              children: [
+                Stack(
+                  children: [
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: AppColors.stone100,
+                        borderRadius: BorderRadius.circular(35),
+                        border: Border.all(color: AppColors.stone200),
+                        image: pet.imageUrl != null
+                            ? DecorationImage(
+                                image: NetworkImage(pet.imageUrl!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: pet.imageUrl == null
+                          ? Center(
+                              child: Text(
+                                pet.name.isNotEmpty
+                                    ? pet.name[0].toUpperCase()
+                                    : 'P',
+                                style: const TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.stone400),
+                              ),
                             )
                           : null,
                     ),
-                    child: pet.imageUrl == null
-                        ? Center(
-                            child: Text(
-                              pet.name.isNotEmpty ? pet.name[0].toUpperCase() : 'P',
-                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.stone400),
-                            ),
-                          )
-                        : null,
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () => _showPetImagePickerSheet(pet),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(pet.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                        ),
-                        if (_originalEmr?.bookingCode != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange.shade200),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.confirmation_number, size: 10, color: Colors.orange.shade700),
-                                const SizedBox(width: 4),
-                                Text(
-                                  _originalEmr!.bookingCode!,
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () => _showPetImagePickerSheet(pet),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
-                        ],
-                      ],
-                    ),
-                    Text('${pet.species.displayName} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}', style: const TextStyle(color: Colors.grey)),
-                    Text(
-                      '${_calculateAge(pet.dateOfBirth)} • ${_getGenderVietnamese(pet.gender)}',
-                      style: const TextStyle(color: AppColors.stone800, fontWeight: FontWeight.w600, fontSize: 13),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 12),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                   Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
-                   SizedBox(width: 4),
-                   Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _allergiesController,
-                maxLines: 2,
-                style: const TextStyle(fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Không có ghi nhận dị ứng.',
-                  hintStyle: TextStyle(color: AppColors.stone400),
-                  filled: true,
-                  fillColor: Colors.amber.shade50,
-                  contentPadding: const EdgeInsets.all(12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.amber.shade200),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.amber.shade200),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.amber),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(pet.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 18)),
+                          ),
+                          if (_originalEmr?.bookingCode != null) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.confirmation_number,
+                                      size: 10, color: Colors.orange.shade700),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _originalEmr!.bookingCode!,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Text(
+                          '${pet.species.displayName} • ${pet.breed}${pet.color != null ? ' • ${pet.color}' : ''}',
+                          style: const TextStyle(color: Colors.grey)),
+                      Text(
+                        '${_calculateAge(pet.dateOfBirth)} • ${_getGenderVietnamese(pet.gender)}',
+                        style: const TextStyle(
+                            color: AppColors.stone800,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      )
-    );
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded,
+                        size: 16, color: Colors.amber),
+                    SizedBox(width: 4),
+                    Text('Dị ứng / Lưu ý:',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.stone600)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _allergiesController,
+                  maxLines: 2,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Không có ghi nhận dị ứng.',
+                    hintStyle: TextStyle(color: AppColors.stone400),
+                    filled: true,
+                    fillColor: Colors.amber.shade50,
+                    contentPadding: const EdgeInsets.all(12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.amber.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.amber.shade200),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.amber),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ));
   }
 
   String _getGenderVietnamese(String? gender) {
@@ -639,7 +675,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
     }
     return '$years tuổi';
   }
-  
+
   Widget _buildSoapForm() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -651,14 +687,16 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Biểu mẫu SOAP (Chỉnh sửa)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Biểu mẫu SOAP (Chỉnh sửa)',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
-          
+
           _buildSectionHeader('S - Chủ quan', Colors.blue),
           TextFormField(
             controller: _subjectiveController,
             maxLines: 3,
-            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Triệu chứng...'),
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(), hintText: 'Triệu chứng...'),
           ),
           const SizedBox(height: 16),
 
@@ -666,15 +704,20 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-               Expanded(child: _buildVitalField('Cân nặng (kg)', _weightController)),
-               const SizedBox(width: 12),
-               Expanded(child: _buildVitalField('Nhiệt độ (°C)', _temperatureController)),
+              Expanded(
+                  child: _buildVitalField('Cân nặng (kg)', _weightController)),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: _buildVitalField(
+                      'Nhiệt độ (°C)', _temperatureController)),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-               Expanded(child: _buildVitalField('Nhịp tim (bpm)', _heartRateController)),
+              Expanded(
+                  child:
+                      _buildVitalField('Nhịp tim (bpm)', _heartRateController)),
             ],
           ),
           const SizedBox(height: 12),
@@ -683,7 +726,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           TextFormField(
             controller: _objectiveController,
             maxLines: 3,
-            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Khám lâm sàng chi tiết...'),
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Khám lâm sàng chi tiết...'),
           ),
           const SizedBox(height: 16),
 
@@ -692,7 +737,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             controller: _assessmentController,
             maxLines: 3,
             validator: (v) => v!.isEmpty ? 'Không được bỏ trống' : null,
-            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Chẩn đoán...'),
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(), hintText: 'Chẩn đoán...'),
           ),
           const SizedBox(height: 16),
 
@@ -701,31 +747,36 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             controller: _planController,
             maxLines: 3,
             validator: (v) => v!.isEmpty ? 'Không được bỏ trống' : null,
-            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Điều trị...'),
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(), hintText: 'Điều trị...'),
           ),
           const SizedBox(height: 16),
           _buildSectionHeader('Ghi chú', Colors.grey),
           TextFormField(
             controller: _notesController,
             maxLines: 2,
-            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'Ghi chú thêm...'),
+            decoration: const InputDecoration(
+                border: OutlineInputBorder(), hintText: 'Ghi chú thêm...'),
           ),
           const SizedBox(height: 16),
 
           const SizedBox(height: 16),
-          
+
           // Re-examination Date
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(child: _buildSectionHeader('Hẹn tái khám (Tuỳ chọn)', Colors.blue)),
+              Flexible(
+                  child: _buildSectionHeader(
+                      'Hẹn tái khám (Tuỳ chọn)', Colors.blue)),
               Switch(
                 value: _enableReExam,
                 onChanged: (val) {
                   setState(() {
                     _enableReExam = val;
                     if (val && _reExaminationDate == null) {
-                       _reExaminationDate = DateTime.now().add(const Duration(days: 7));
+                      _reExaminationDate =
+                          DateTime.now().add(const Duration(days: 7));
                     }
                   });
                 },
@@ -747,7 +798,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('Tái khám sau: ', style: TextStyle(fontWeight: FontWeight.w500)),
+                      const Text('Tái khám sau: ',
+                          style: TextStyle(fontWeight: FontWeight.w500)),
                       const SizedBox(width: 8),
                       // Amount Input
                       SizedBox(
@@ -756,9 +808,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                           controller: _reExamAmountController,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                           decoration: const InputDecoration(
+                          decoration: const InputDecoration(
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 4),
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (v) => _updateReExamDate(),
@@ -771,19 +824,25 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                           initialValue: _reExamUnit,
                           offset: const Offset(0, 40),
                           onSelected: (newValue) {
-                             setState(() {
-                               _reExamUnit = newValue;
-                               _updateReExamDate();
-                             });
+                            setState(() {
+                              _reExamUnit = newValue;
+                              _updateReExamDate();
+                            });
                           },
-                          itemBuilder: (context) => ['Ngày', 'Tuần', 'Tháng', 'Năm'].map((String value) {
+                          itemBuilder: (context) => [
+                            'Ngày',
+                            'Tuần',
+                            'Tháng',
+                            'Năm'
+                          ].map((String value) {
                             return PopupMenuItem<String>(
                               value: value,
                               child: Text(value),
                             );
                           }).toList(),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey.shade400),
                               borderRadius: BorderRadius.circular(4),
@@ -805,36 +864,42 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   const SizedBox(height: 8),
                   // Calculated Date Display
                   InkWell(
-                     onTap: () async {
-                        final date = await showDatePicker(
-                          context: context,
-                          initialDate: _reExaminationDate ?? DateTime.now().add(const Duration(days: 7)),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
-                        );
-                        if (date != null) {
-                          setState(() {
-                             _reExaminationDate = date;
-                             _reExamAmountController.text = ''; // Clear auto fields
-                          });
-                        }
-                      },
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: _reExaminationDate ??
+                            DateTime.now().add(const Duration(days: 7)),
+                        firstDate: DateTime.now(),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 365 * 2)),
+                      );
+                      if (date != null) {
+                        setState(() {
+                          _reExaminationDate = date;
+                          _reExamAmountController.text =
+                              ''; // Clear auto fields
+                        });
+                      }
+                    },
                     child: Row(
                       children: [
-                         const Icon(Icons.calendar_today, size: 20, color: Colors.blue),
-                         const SizedBox(width: 8),
-                         Text(
-                           _reExaminationDate != null
-                               ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(_reExaminationDate!)}'
-                               : 'Chọn ngày thủ công',
-                           style: TextStyle(
-                             color: _reExaminationDate != null ? Colors.blue : Colors.grey,
-                             fontWeight: FontWeight.bold,
-                           ),
-                         ),
-                         const Spacer(),
-                         if (_reExaminationDate != null)
-                            const Icon(Icons.edit, size: 16, color: Colors.grey),
+                        const Icon(Icons.calendar_today,
+                            size: 20, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          _reExaminationDate != null
+                              ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(_reExaminationDate!)}'
+                              : 'Chọn ngày thủ công',
+                          style: TextStyle(
+                            color: _reExaminationDate != null
+                                ? Colors.blue
+                                : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_reExaminationDate != null)
+                          const Icon(Icons.edit, size: 16, color: Colors.grey),
                       ],
                     ),
                   ),
@@ -852,7 +917,7 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   void _updateReExamDate() {
     int amount = int.tryParse(_reExamAmountController.text) ?? 0;
     if (amount <= 0) return;
-    
+
     DateTime now = DateTime.now();
     DateTime newDate = now;
 
@@ -868,7 +933,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         int yearsToAdd = (newMonth - 1) ~/ 12;
         int monthInYear = (newMonth - 1) % 12 + 1;
         int day = now.day;
-        int daysInNewMonth = DateTime(now.year + yearsToAdd, monthInYear + 1, 0).day;
+        int daysInNewMonth =
+            DateTime(now.year + yearsToAdd, monthInYear + 1, 0).day;
         if (day > daysInNewMonth) day = daysInNewMonth;
         newDate = DateTime(now.year + yearsToAdd, monthInYear, day);
         break;
@@ -876,17 +942,19 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         newDate = DateTime(now.year + amount, now.month, now.day);
         break;
     }
-    
+
     setState(() {
       _reExaminationDate = newDate;
     });
   }
 
   Widget _buildSectionHeader(String title, Color color) {
-    return Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold));
+    return Text(title,
+        style: TextStyle(color: color, fontWeight: FontWeight.bold));
   }
-  
-  Widget _buildVitalField(String label, TextEditingController controller, [String? hint]) {
+
+  Widget _buildVitalField(String label, TextEditingController controller,
+      [String? hint]) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -901,7 +969,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: AppColors.stone400, fontSize: 14),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: AppColors.stone300),
@@ -936,12 +1005,15 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   setState(() => _isEditingPrescription = true);
                 },
                 icon: const Icon(Icons.add_circle_outline, size: 20),
-                label: const Text('KÊ ĐƠN', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                label: const Text('KÊ ĐƠN',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ),
@@ -974,13 +1046,15 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         icon: Icon(icon, size: 20),
         label: Text(
           label.toUpperCase(),
-          style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+          style:
+              const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: AppColors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
       ),
@@ -999,7 +1073,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
         ),
         child: Column(
           children: const [
-            Icon(Icons.medication_liquid_outlined, size: 40, color: AppColors.stone300),
+            Icon(Icons.medication_liquid_outlined,
+                size: 40, color: AppColors.stone300),
             SizedBox(height: 12),
             Text(
               'Chưa có đơn thuốc nào được kê.',
@@ -1016,93 +1091,99 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
 
     return Column(
       children: [
-        ..._prescriptions.map((p) => Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.stone200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4)
-              ),
-            ],
-          ),
-          child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Medicine Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        p.medicineName.toUpperCase(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
-                          color: AppColors.stone900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          _buildDetailLabel('${p.dosage ?? "0"} viên/lần'),
-                          _buildDetailLabel('${p.frequency} lần/ngày'),
-                          _buildDetailLabel('${p.durationDays ?? "0"} ngày', isHighlight: true),
-                        ],
-                      ),
+        ..._prescriptions
+            .map((p) => Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.stone200),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4)),
                     ],
                   ),
-                ),
-                
-                // Instructions box (if any)
-                if (p.instructions != null && p.instructions!.isNotEmpty) ...[
-                  const VerticalDivider(width: 24, thickness: 1, color: AppColors.stone200),
-                  Container(
-                    width: 80,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.stone50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.stone200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Hướng dẫn:',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.stone400,
-                            letterSpacing: 0.5,
-                          ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Medicine Info
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.medicineName.toUpperCase(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                                color: AppColors.stone900,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                _buildDetailLabel(
+                                    '${p.dosage ?? "0"} viên/lần'),
+                                _buildDetailLabel('${p.frequency} lần/ngày'),
+                                _buildDetailLabel(
+                                    '${p.durationDays ?? "0"} ngày',
+                                    isHighlight: true),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          p.instructions!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.stone600,
-                            fontStyle: FontStyle.italic,
+                      ),
+
+                      // Instructions box (if any)
+                      if (p.instructions != null &&
+                          p.instructions!.isNotEmpty) ...[
+                        const VerticalDivider(
+                            width: 24, thickness: 1, color: AppColors.stone200),
+                        Container(
+                          width: 80,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.stone50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.stone200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Hướng dẫn:',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.stone400,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                p.instructions!,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.stone600,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
-              ],
-            ),
-        )).toList(),
+                ))
+            .toList(),
       ],
     );
   }
@@ -1156,7 +1237,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             children: [
               const Text(
                 'DANH SÁCH THUỐC',
-                style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone500, fontSize: 13),
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.stone500,
+                    fontSize: 13),
               ),
               _buildPremiumConfirmButton(
                 label: 'Xong',
@@ -1168,8 +1252,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           ),
           const SizedBox(height: 16),
           const Divider(height: 32, color: AppColors.stone100),
-          ..._prescriptions.asMap().entries.map((entry) => _buildInlinePrescriptionCard(entry.key)),
-          
+          ..._prescriptions
+              .asMap()
+              .entries
+              .map((entry) => _buildInlinePrescriptionCard(entry.key)),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -1181,7 +1267,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                 foregroundColor: AppColors.stone700,
                 side: BorderSide(color: AppColors.stone300),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -1190,13 +1277,16 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => _showDeleteAllPrescriptionsDialog(),
-                child: const Text('XÓA TẤT CẢ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w900, fontSize: 11)),
+                child: const Text('XÓA TẤT CẢ',
+                    style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11)),
               ),
             ),
         ],
       ),
     );
-
   }
 
   void _showDeleteAllPrescriptionsDialog() {
@@ -1227,7 +1317,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   color: Colors.red.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.delete_sweep_outlined, color: Colors.red, size: 32),
+                child: const Icon(Icons.delete_sweep_outlined,
+                    color: Colors.red, size: 32),
               ),
               const SizedBox(height: 20),
               const Text(
@@ -1264,7 +1355,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                         child: Center(
                           child: Text(
                             'HỦY',
-                            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.stone600),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.stone600),
                           ),
                         ),
                       ),
@@ -1289,7 +1382,9 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                         child: const Center(
                           child: Text(
                             'XÓA HẾT',
-                            style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white),
                           ),
                         ),
                       ),
@@ -1400,13 +1495,19 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.medication_outlined, size: 18, color: AppColors.primary),
+                child: Icon(Icons.medication_outlined,
+                    size: 18, color: AppColors.primary),
               ),
               const SizedBox(width: 8),
-              Text('Thuốc ${index + 1}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.stone600)),
+              Text('Thuốc ${index + 1}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.stone600)),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.close_rounded, size: 20, color: Colors.red),
+                icon: const Icon(Icons.close_rounded,
+                    size: 20, color: Colors.red),
                 onPressed: () => setState(() => _prescriptions.removeAt(index)),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1414,95 +1515,103 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Medicine Name (required)
           // Medicine Name (required) with Autocomplete
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Tên thuốc *',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
-                  ),
-                  const SizedBox(height: 4),
-                  Autocomplete<String>(
-                    initialValue: TextEditingValue(text: p.medicineName),
-                    optionsBuilder: (TextEditingValue textEditingValue) {
-                      if (textEditingValue.text == '') {
-                        return const Iterable<String>.empty();
-                      }
-                      return _medicineSuggestions.where((String option) {
-                        return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
-                      });
-                    },
-                    onSelected: (String selection) {
-                      _updatePrescriptionField(index, 'medicineName', selection);
-                    },
-                    fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                       return TextFormField(
-                        controller: textEditingController,
-                        focusNode: focusNode,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Amoxicillin 500mg',
-                          hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          isDense: true,
-                          filled: true,
-                          fillColor: AppColors.stone50,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.stone200),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.stone200),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+          LayoutBuilder(builder: (context, constraints) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tên thuốc *',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.stone500),
+                ),
+                const SizedBox(height: 4),
+                Autocomplete<String>(
+                  initialValue: TextEditingValue(text: p.medicineName),
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text == '') {
+                      return const Iterable<String>.empty();
+                    }
+                    return _medicineSuggestions.where((String option) {
+                      return option
+                          .toLowerCase()
+                          .contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  onSelected: (String selection) {
+                    _updatePrescriptionField(index, 'medicineName', selection);
+                  },
+                  fieldViewBuilder: (context, textEditingController, focusNode,
+                      onFieldSubmitted) {
+                    return TextFormField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      style: const TextStyle(fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Amoxicillin 500mg',
+                        hintStyle:
+                            TextStyle(color: AppColors.stone400, fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        isDense: true,
+                        filled: true,
+                        fillColor: AppColors.stone50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.stone200),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.stone200),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              BorderSide(color: AppColors.primary, width: 1.5),
+                        ),
+                      ),
+                      onChanged: (v) =>
+                          _updatePrescriptionField(index, 'medicineName', v),
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4.0,
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final String option = options.elementAt(index);
+                              return InkWell(
+                                onTap: () {
+                                  onSelected(option);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(option),
+                                ),
+                              );
+                            },
                           ),
                         ),
-                        onChanged: (v) => _updatePrescriptionField(index, 'medicineName', v),
-                      );
-                    },
-                    optionsViewBuilder: (context, onSelected, options) {
-                      return Align(
-                        alignment: Alignment.topLeft,
-                        child: Material(
-                          elevation: 4.0,
-                          child: SizedBox(
-                            width: constraints.maxWidth,
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              shrinkWrap: true,
-                              itemCount: options.length,
-                              itemBuilder: (BuildContext context, int index) {
-                                final String option = options.elementAt(index);
-                                return InkWell(
-                                  onTap: () {
-                                    onSelected(option);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Text(option),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            }
-          ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          }),
           const SizedBox(height: 10),
-          
+
           // Dosage and Frequency row
           Row(
             children: [
@@ -1511,7 +1620,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   label: 'Liều lượng',
                   value: p.dosage ?? '',
                   hint: '1 viên',
-                  onChanged: (v) => _updatePrescriptionField(index, 'dosage', v.isEmpty ? null : v),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'dosage', v.isEmpty ? null : v),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1520,13 +1630,14 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   label: 'Tần suất *',
                   value: p.frequency,
                   hint: '2 lần/ngày',
-                  onChanged: (v) => _updatePrescriptionField(index, 'frequency', v),
+                  onChanged: (v) =>
+                      _updatePrescriptionField(index, 'frequency', v),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          
+
           // Duration and Instructions row
           Row(
             children: [
@@ -1537,7 +1648,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   value: p.durationDays?.toString() ?? '',
                   hint: '7',
                   isNumber: true,
-                  onChanged: (v) => _updatePrescriptionField(index, 'durationDays', int.tryParse(v)),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'durationDays', int.tryParse(v)),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1546,7 +1658,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   label: 'Hướng dẫn',
                   value: p.instructions ?? '',
                   hint: 'Uống sau ăn',
-                  onChanged: (v) => _updatePrescriptionField(index, 'instructions', v.isEmpty ? null : v),
+                  onChanged: (v) => _updatePrescriptionField(
+                      index, 'instructions', v.isEmpty ? null : v),
                 ),
               ),
             ],
@@ -1568,7 +1681,10 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.stone500),
+          style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone500),
         ),
         const SizedBox(height: 4),
         TextFormField(
@@ -1578,7 +1694,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: AppColors.stone400, fontSize: 13),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             isDense: true,
             filled: true,
             fillColor: AppColors.stone50,
@@ -1600,7 +1717,6 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
       ],
     );
   }
-
 
   Widget _buildImagesSection() {
     return Column(
@@ -1632,12 +1748,14 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
             decoration: BoxDecoration(
               color: AppColors.stone50,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone200, style: BorderStyle.solid),
+              border: Border.all(
+                  color: AppColors.stone200, style: BorderStyle.solid),
             ),
             child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.photo_library_outlined, size: 40, color: AppColors.stone400),
+                  Icon(Icons.photo_library_outlined,
+                      size: 40, color: AppColors.stone400),
                   const SizedBox(height: 8),
                   Text(
                     'Chưa có hình ảnh nào',
@@ -1691,7 +1809,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                               color: Colors.white,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.close, size: 14, color: Colors.red),
+                            child: const Icon(Icons.close,
+                                size: 14, color: Colors.red),
                           ),
                         ),
                       ),
@@ -1703,13 +1822,15 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Mô tả hình ảnh...',
                       isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                       border: OutlineInputBorder(),
                     ),
                     style: const TextStyle(fontSize: 11),
                     onChanged: (value) {
                       // Directly update the object in the list
-                      _images[index] = EmrImage(url: img.url, description: value);
+                      _images[index] =
+                          EmrImage(url: img.url, description: value);
                     },
                   ),
                 ],
@@ -1723,7 +1844,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
     try {
-      final XFile? image = await picker.pickImage(source: source, imageQuality: 70);
+      final XFile? image =
+          await picker.pickImage(source: source, imageQuality: 70);
       if (image != null) {
         _uploadImage(image);
       }
@@ -1773,7 +1895,8 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                   ),
                   child: const Icon(Icons.camera_alt, color: AppColors.blue600),
                 ),
-                title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text('Chụp ảnh mới',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -1786,9 +1909,11 @@ class _EditEmrScreenState extends State<EditEmrScreen> {
                     color: AppColors.teal100,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.photo_library, color: AppColors.teal600),
+                  child:
+                      const Icon(Icons.photo_library, color: AppColors.teal600),
                 ),
-                title: const Text('Chọn từ thư viện', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: const Text('Chọn từ thư viện',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);

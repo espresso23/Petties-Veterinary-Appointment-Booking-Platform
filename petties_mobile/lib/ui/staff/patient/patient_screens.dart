@@ -11,6 +11,7 @@ import '../../../data/services/auth_service.dart';
 import '../../../data/services/vaccination_service.dart';
 import '../../../data/models/vaccine_template.dart';
 import '../../../data/services/vaccine_template_service.dart';
+import '../../common/staff_bottom_nav.dart';
 import 'widgets/vaccination_roadmap_table.dart';
 
 /// Staff Patient List Screen - Fetches real data from API
@@ -340,6 +341,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
             ),
         ],
       ),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 3),
     );
   }
 
@@ -673,17 +675,21 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       if (_selectedVaccination != null) {
         // Update mode
         final Map<String, dynamic> updateData = {
-          'vaccineName': _selectedTemplate?.name ?? _vaccineDetailNameController.text,
+          'vaccineName':
+              _selectedTemplate?.name ?? _vaccineDetailNameController.text,
           'vaccinationDate': _vaccinationDate.toIso8601String().split('T')[0],
           'nextDueDate': _nextDueDate?.toIso8601String().split('T')[0],
-          'notes': _notesDetailController.text.isEmpty ? null : _notesDetailController.text,
+          'notes': _notesDetailController.text.isEmpty
+              ? null
+              : _notesDetailController.text,
           'vaccineTemplateId': _selectedTemplate?.id,
           'doseSequence': _doseSequence,
           'workflowStatus': 'COMPLETED',
           'status': 'COMPLETED',
         };
 
-        await _vaccinationService.updateVaccination(_selectedVaccination!.id, updateData);
+        await _vaccinationService.updateVaccination(
+            _selectedVaccination!.id, updateData);
       } else {
         // Create mode
         final request = CreateVaccinationRequest(
@@ -707,7 +713,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(_selectedVaccination != null ? 'Cập nhật thành công!' : 'Lưu thông tin tiêm chủng thành công!'),
+              content: Text(_selectedVaccination != null
+                  ? 'Cập nhật thành công!'
+                  : 'Lưu thông tin tiêm chủng thành công!'),
               backgroundColor: Colors.green),
         );
         _resetVaccinationForm();
@@ -901,6 +909,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           ],
         ),
       ),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 3),
     );
   }
 
@@ -1740,7 +1749,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           _notesDetailController.text = sug.notes ?? '';
           _selectedVaccination = null; // Suggestions are for new records
         });
-        _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+        _scrollController.animateTo(0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut);
       },
       child: Container(
         width: 220,
@@ -2049,7 +2060,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.notes, size: 14, color: AppColors.stone400),
+                    const Icon(Icons.notes,
+                        size: 14, color: AppColors.stone400),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -2127,16 +2139,23 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               decoration: BoxDecoration(
                 color: Colors.orange.withOpacity(0.03),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Row(
                 children: [
-                  Icon(_selectedVaccination != null ? Icons.edit_note : Icons.add_circle_outline,
-                      size: 18, color: Colors.orange),
+                  Icon(
+                      _selectedVaccination != null
+                          ? Icons.edit_note
+                          : Icons.add_circle_outline,
+                      size: 18,
+                      color: Colors.orange),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _selectedVaccination != null ? 'Chỉnh Sửa Hồ Sơ' : 'Ghi Nhận Mũi Tiêm Mới',
+                      _selectedVaccination != null
+                          ? 'Chỉnh Sửa Hồ Sơ'
+                          : 'Ghi Nhận Mũi Tiêm Mới',
                       style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 13,
@@ -2152,7 +2171,11 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text('Hủy', style: TextStyle(color: AppColors.stone400, fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: const Text('Hủy',
+                          style: TextStyle(
+                              color: AppColors.stone400,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold)),
                     ),
                   ],
                   const SizedBox(width: 8),
@@ -2188,7 +2211,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                 children: [
                   // Section 1: Thông tin mũi tiêm
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppColors.stone100,
                       borderRadius: BorderRadius.circular(8),
@@ -2196,7 +2220,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.format_list_bulleted, size: 12, color: AppColors.stone500),
+                        Icon(Icons.format_list_bulleted,
+                            size: 12, color: AppColors.stone500),
                         const SizedBox(width: 6),
                         const Text(
                           'TRÌNH TỰ MŨI TIÊM',
@@ -2231,12 +2256,18 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   const SizedBox(height: 24),
 
                   // Fields: Vaccine Name + Icon
-                  const Text('LOẠI VACCINE *', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400, letterSpacing: 0.5)),
+                  const Text('LOẠI VACCINE *',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.stone400,
+                          letterSpacing: 0.5)),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: _showVaccineSelectionSheet,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
                       decoration: BoxDecoration(
                         color: AppColors.stone50,
                         borderRadius: BorderRadius.circular(16),
@@ -2323,18 +2354,31 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                   const SizedBox(height: 24),
 
                   // Notes
-                  const Text('GHI CHÚ / PHẢN ỨNG SAU TIÊM', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppColors.stone400, letterSpacing: 0.5)),
+                  const Text('GHI CHÚ / PHẢN ỨNG SAU TIÊM',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.stone400,
+                          letterSpacing: 0.5)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _notesDetailController,
                     maxLines: 2,
                     decoration: InputDecoration(
-                      hintText: 'VD: Không có phản ứng phụ, thú cưng khỏe mạnh...',
-                      hintStyle: const TextStyle(fontSize: 12, color: AppColors.stone400),
+                      hintText:
+                          'VD: Không có phản ứng phụ, thú cưng khỏe mạnh...',
+                      hintStyle: const TextStyle(
+                          fontSize: 12, color: AppColors.stone400),
                       filled: true,
                       fillColor: AppColors.stone50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.stone200)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.stone200)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide:
+                              const BorderSide(color: AppColors.stone200)),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide:
+                              const BorderSide(color: AppColors.stone200)),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -2350,8 +2394,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange.shade800,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
                         child: _isSubmittingVaccination
@@ -2387,7 +2433,14 @@ class _PatientDetailScreenState extends State<PatientDetailScreen>
           decoration: BoxDecoration(
             color: isSelected ? AppColors.white : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))] : null,
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2))
+                  ]
+                : null,
           ),
           child: Center(
             child: Text(

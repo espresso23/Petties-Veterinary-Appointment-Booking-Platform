@@ -7,6 +7,7 @@ import '../../../data/models/pet.dart';
 import '../../../data/services/emr_service.dart';
 import '../../../data/services/auth_service.dart';
 import '../../../data/services/pet_service.dart';
+import '../../common/staff_bottom_nav.dart';
 
 class EmrDetailScreen extends StatefulWidget {
   final String emrId;
@@ -24,7 +25,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
   final _emrService = EmrService();
   final _authService = AuthService();
   final _petService = PetService();
-  
+
   late Future<EmrRecord> _emrFuture;
   String? _currentUserId;
   Pet? _pet;
@@ -66,7 +67,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.stone100,
       appBar: AppBar(
-        title: const Text('Chi tiết Bệnh án', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Chi tiết Bệnh án',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -79,7 +81,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         future: _emrFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary));
           }
 
           if (snapshot.hasError) {
@@ -110,7 +113,12 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                   ),
                   child: Column(
                     children: [
-                      _buildInfoRow('Ngày khám', DateFormat('dd/MM/yyyy HH:mm').format(emr.examinationDate.isUtc ? emr.examinationDate.toLocal() : emr.examinationDate)),
+                      _buildInfoRow(
+                          'Ngày khám',
+                          DateFormat('dd/MM/yyyy HH:mm').format(
+                              emr.examinationDate.isUtc
+                                  ? emr.examinationDate.toLocal()
+                                  : emr.examinationDate)),
                       _buildInfoRow('Bác sĩ', emr.staffName ?? 'N/A'),
                       _buildInfoRow('Phòng khám', emr.clinicName ?? 'N/A'),
                     ],
@@ -138,17 +146,23 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const SizedBox.shrink();
           final emr = snapshot.data!;
-           // Simplified lock check
-           final now = DateTime.now();
-           final createdAt = emr.createdAt.isUtc ? emr.createdAt.toLocal() : emr.createdAt;
-           final diff = now.difference(createdAt).inHours;
-           final isActuallyLocked = diff >= 24;
+          // Simplified lock check
+          final now = DateTime.now();
+          final createdAt =
+              emr.createdAt.isUtc ? emr.createdAt.toLocal() : emr.createdAt;
+          final diff = now.difference(createdAt).inHours;
+          final isActuallyLocked = diff >= 24;
 
-           if (!isActuallyLocked && !emr.isLocked && emr.staffId == _currentUserId) {
+          if (!isActuallyLocked &&
+              !emr.isLocked &&
+              emr.staffId == _currentUserId) {
             return Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+                  colors: [
+                    AppColors.primary,
+                    AppColors.primary.withOpacity(0.8)
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -166,17 +180,22 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(30),
                   onTap: () async {
-                     final result = await context.push('/staff/emr/edit/${emr.id}');
-                     if (result == true) {
-                       setState(() { _loadData(); });
-                     }
+                    final result =
+                        await context.push('/staff/emr/edit/${emr.id}');
+                    if (result == true) {
+                      setState(() {
+                        _loadData();
+                      });
+                    }
                   },
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                        Icon(Icons.edit_outlined,
+                            color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Chỉnh sửa',
@@ -193,9 +212,10 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
               ),
             );
           }
-           return const SizedBox.shrink();
+          return const SizedBox.shrink();
         },
       ),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 3),
     );
   }
 
@@ -228,7 +248,10 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                     ? Center(
                         child: Text(
                           emr.petName?[0] ?? 'P',
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.stone400),
+                          style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.stone400),
                         ),
                       )
                     : null,
@@ -253,7 +276,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                         if (emr.bookingCode != null) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(8),
@@ -262,7 +286,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.confirmation_number, size: 12, color: Colors.orange.shade700),
+                                Icon(Icons.confirmation_number,
+                                    size: 12, color: Colors.orange.shade700),
                                 const SizedBox(width: 4),
                                 Text(
                                   emr.bookingCode!,
@@ -281,17 +306,20 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                     const SizedBox(height: 4),
                     Text(
                       '${emr.petSpecies} • ${emr.petBreed}',
-                      style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                      style: const TextStyle(
+                          color: AppColors.stone500, fontSize: 13),
                     ),
                     if (_pet != null)
                       Text(
                         '${_pet!.gender == 'MALE' ? 'Đực' : 'Cái'} • ${_calculateAge(_pet!.dateOfBirth)}',
-                        style: const TextStyle(color: AppColors.stone500, fontSize: 13),
+                        style: const TextStyle(
+                            color: AppColors.stone500, fontSize: 13),
                       ),
                     const SizedBox(height: 4),
                     Text(
                       'Chủ: ${emr.ownerName ?? 'N/A'}',
-                      style: const TextStyle(color: AppColors.stone400, fontSize: 12),
+                      style: const TextStyle(
+                          color: AppColors.stone400, fontSize: 12),
                     ),
                   ],
                 ),
@@ -307,9 +335,14 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber),
+                    Icon(Icons.warning_amber_rounded,
+                        size: 16, color: Colors.amber),
                     SizedBox(width: 4),
-                    Text('Dị ứng / Lưu ý:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.stone600)),
+                    Text('Dị ứng / Lưu ý:',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.stone600)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -323,7 +356,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
                   ),
                   child: Text(
                     _pet!.allergies!,
-                    style: const TextStyle(fontSize: 13, color: AppColors.stone800),
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.stone800),
                   ),
                 ),
               ],
@@ -347,63 +381,83 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         children: [
           const Text(
             'Chi tiết khám (SOAP)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: AppColors.stone900),
           ),
           const SizedBox(height: 20),
 
           // S
-          _buildContextSection('S - Chủ quan (Subjective)', Colors.blue, emr.subjective),
-          
+          _buildContextSection(
+              'S - Chủ quan (Subjective)', Colors.blue, emr.subjective),
+
           const SizedBox(height: 20),
 
           // O - Vitals
           Row(
             children: [
-              Text('O - Khách quan (Objective)', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w800, fontSize: 14)),
+              Text('O - Khách quan (Objective)',
+                  style: TextStyle(
+                      color: Colors.teal,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14)),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-               Expanded(child: _buildVitalBox('Cân nặng', '${emr.weightKg ?? "-"} kg')),
-               const SizedBox(width: 8),
-               Expanded(child: _buildVitalBox('Nhiệt độ', '${emr.temperatureC ?? "-"} °C')),
-               const SizedBox(width: 8),
-               Expanded(child: _buildVitalBox('Nhịp tim', '${emr.heartRate ?? "-"} bpm')),
+              Expanded(
+                  child:
+                      _buildVitalBox('Cân nặng', '${emr.weightKg ?? "-"} kg')),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _buildVitalBox(
+                      'Nhiệt độ', '${emr.temperatureC ?? "-"} °C')),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _buildVitalBox(
+                      'Nhịp tim', '${emr.heartRate ?? "-"} bpm')),
             ],
           ),
           const SizedBox(height: 8),
           if (emr.bcs != null)
-             Align(
-               alignment: Alignment.centerLeft,
-               child: Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                 decoration: BoxDecoration(
-                   color: AppColors.stone100,
-                   borderRadius: BorderRadius.circular(20),
-                 ),
-                 child: Text('BCS: ${emr.bcs}/9', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone700)),
-               ),
-             ),
-          
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.stone100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('BCS: ${emr.bcs}/9',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.stone700)),
+              ),
+            ),
+
           if (emr.objective != null && emr.objective!.isNotEmpty) ...[
-             const SizedBox(height: 12),
-             Container(
-               width: double.infinity,
-               padding: const EdgeInsets.all(12),
-               decoration: BoxDecoration(
-                 color: AppColors.stone50,
-                 borderRadius: BorderRadius.circular(12),
-                 border: Border.all(color: AppColors.stone200),
-               ),
-               child: Text(emr.objective!, style: const TextStyle(color: AppColors.stone800)),
-             ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.stone50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.stone200),
+              ),
+              child: Text(emr.objective!,
+                  style: const TextStyle(color: AppColors.stone800)),
+            ),
           ],
 
           const SizedBox(height: 20),
 
           // A
-          _buildContextSection('A - Đánh giá (Assessment)', Colors.purple, emr.assessment),
+          _buildContextSection(
+              'A - Đánh giá (Assessment)', Colors.purple, emr.assessment),
 
           const SizedBox(height: 20),
 
@@ -411,37 +465,41 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
           _buildContextSection('P - Kế hoạch (Plan)', Colors.orange, emr.plan),
 
           const SizedBox(height: 20),
-          
+
           if (emr.notes != null && emr.notes!.isNotEmpty)
             _buildContextSection('Ghi chú', Colors.grey, emr.notes),
 
           if (emr.reExaminationDate != null) ...[
-             const SizedBox(height: 20),
-             Container(
-               padding: const EdgeInsets.all(12),
-               decoration: BoxDecoration(
-                 color: Colors.blue.shade50,
-                 borderRadius: BorderRadius.circular(12),
-                 border: Border.all(color: Colors.blue.shade100),
-               ),
-               child: Row(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   const Icon(Icons.calendar_month, color: Colors.blue),
-                   const SizedBox(width: 8),
-                   Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                     children: [
-                       const Text('Hẹn tái khám', style: TextStyle(fontSize: 12, color: Colors.blue)),
-                       Text(
-                         DateFormat('dd/MM/yyyy').format(emr.reExaminationDate!),
-                         style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 16),
-                       ),
-                     ],
-                   )
-                 ],
-               ),
-             ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.calendar_month, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Hẹn tái khám',
+                          style: TextStyle(fontSize: 12, color: Colors.blue)),
+                      Text(
+                        DateFormat('dd/MM/yyyy').format(emr.reExaminationDate!),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                            fontSize: 16),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
           ]
         ],
       ),
@@ -453,17 +511,20 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(title,
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w800, fontSize: 14)),
         const SizedBox(height: 8),
         Container(
-           width: double.infinity,
-           padding: const EdgeInsets.all(12),
-           decoration: BoxDecoration(
-             color: AppColors.stone50,
-             borderRadius: BorderRadius.circular(12),
-             border: Border.all(color: AppColors.stone200),
-           ),
-           child: Text(content, style: const TextStyle(color: AppColors.stone800, height: 1.5)),
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.stone50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.stone200),
+          ),
+          child: Text(content,
+              style: const TextStyle(color: AppColors.stone800, height: 1.5)),
         ),
       ],
     );
@@ -479,9 +540,14 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
       ),
       child: Column(
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.stone500)),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: AppColors.stone500)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.stone800)),
+          Text(value,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: AppColors.stone800)),
         ],
       ),
     );
@@ -489,7 +555,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
 
   Widget _buildPrescriptions(EmrRecord emr) {
     if (emr.prescriptions.isEmpty) return const SizedBox.shrink();
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -500,79 +566,105 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Đơn thuốc', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.stone900)),
+          const Text('Đơn thuốc',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900)),
           const SizedBox(height: 12),
           ...emr.prescriptions.map((p) => Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.stone50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.stone200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(p.medicineName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 4),
-                Row(
-                   children: [
-                     Container(
-                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                       decoration: BoxDecoration(
-                         color: Colors.white,
-                         borderRadius: BorderRadius.circular(8),
-                         border: Border.all(color: AppColors.stone200),
-                       ),
-                       child: Row(
-                         children: [
-                           Text(
-                             '${p.dosage ?? "0"} viên/lần',
-                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.stone800),
-                           ),
-                           const Padding(
-                             padding: EdgeInsets.symmetric(horizontal: 8),
-                             child: Text('•', style: TextStyle(color: AppColors.stone300)),
-                           ),
-                           Text(
-                             '${p.frequency} lần/ngày',
-                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.stone800),
-                           ),
-                           const Padding(
-                             padding: EdgeInsets.symmetric(horizontal: 8),
-                             child: Text('•', style: TextStyle(color: AppColors.stone300)),
-                           ),
-                           Text(
-                             '${p.durationDays} ngày',
-                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange),
-                           ),
-                         ],
-                       ),
-                     ),
-                   ],
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.stone50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.stone200),
                 ),
-                if (p.instructions != null && p.instructions!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(p.medicineName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Row(
                       children: [
-                        const Text(
-                          'Hướng dẫn sử dụng: ',
-                          style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.stone500, fontSize: 12),
-                        ),
-                        Expanded(
-                          child: Text(
-                            p.instructions!,
-                            style: const TextStyle(fontStyle: FontStyle.italic, color: AppColors.stone600, fontSize: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.stone200),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${p.dosage ?? "0"} viên/lần',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.stone800),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('•',
+                                    style:
+                                        TextStyle(color: AppColors.stone300)),
+                              ),
+                              Text(
+                                '${p.frequency} lần/ngày',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.stone800),
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8),
+                                child: Text('•',
+                                    style:
+                                        TextStyle(color: AppColors.stone300)),
+                              ),
+                              Text(
+                                '${p.durationDays} ngày',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.orange),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-              ],
-            ),
-          )),
+                    if (p.instructions != null && p.instructions!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Hướng dẫn sử dụng: ',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.stone500,
+                                  fontSize: 12),
+                            ),
+                            Expanded(
+                              child: Text(
+                                p.instructions!,
+                                style: const TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.stone600,
+                                    fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              )),
         ],
       ),
     );
@@ -582,8 +674,8 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     if (emr.images.isEmpty) return const SizedBox.shrink();
 
     return Container(
-       padding: const EdgeInsets.all(16),
-       decoration: BoxDecoration(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.stone200),
@@ -591,7 +683,11 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Hình ảnh lâm sàng', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.stone900)),
+          const Text('Hình ảnh lâm sàng',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.stone900)),
           const SizedBox(height: 12),
           GridView.builder(
             shrinkWrap: true,
@@ -622,7 +718,7 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
       ),
     );
   }
-  
+
   void _showFullScreenImage(BuildContext context, EmrImage img) {
     showDialog(
       context: context,
@@ -670,7 +766,6 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
     );
   }
 
-
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -678,7 +773,9 @@ class _EmrDetailScreenState extends State<EmrDetailScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: AppColors.stone500)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone900)),
+          Text(value,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, color: AppColors.stone900)),
         ],
       ),
     );

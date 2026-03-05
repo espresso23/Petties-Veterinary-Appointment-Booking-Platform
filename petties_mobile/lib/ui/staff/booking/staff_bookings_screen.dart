@@ -155,6 +155,7 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -592,6 +593,69 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                 iconSize: 20,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.stone900, width: 2)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+              context, Icons.grid_view_rounded, 'Trang chủ', false, () {
+            context.push(AppRoutes.staffHome);
+          }),
+          _buildNavItem(
+              context, Icons.calendar_month_rounded, 'Lịch làm việc', false,
+              () {
+            context.push(AppRoutes.staffSchedule);
+          }),
+          _buildNavItem(
+              context, Icons.calendar_today_rounded, 'Lịch hẹn', true, null),
+          _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false, () {
+            context.push(AppRoutes.staffPatients);
+          }),
+          _buildNavItem(context, Icons.person_rounded, 'Cá nhân', false, () {
+            context.push(AppRoutes.profile);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(BuildContext context, IconData icon, String label,
+      bool isActive, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isActive ? AppColors.primary : AppColors.stone400,
+            size: 26,
+            shadows: isActive
+                ? const [
+                    Shadow(color: AppColors.stone900, offset: Offset(1, 1))
+                  ]
+                : [],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: isActive ? AppColors.primary : AppColors.stone400,
+            ),
           ),
         ],
       ),

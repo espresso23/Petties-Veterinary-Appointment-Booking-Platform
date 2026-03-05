@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/constants/app_colors.dart';
 import '../../config/constants/app_constants.dart';
 import '../../data/models/chat.dart';
 import '../../data/services/chat_service.dart';
 import '../../data/services/chat_websocket_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
+import '../common/pet_owner_bottom_nav.dart';
 import 'widgets/chat_conversation_item.dart';
 
 /// Màn hình danh sách tin nhắn - Pet Owner
@@ -178,26 +181,47 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          Expanded(child: _buildBody()),
-        ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildSearchBar(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+      bottomNavigationBar:
+          isPetOwner ? _buildBottomNavigationBar(context) : null,
+    );
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: PetOwnerBottomNav(
+        currentIndex: 3,
+        onTap: (index) => handlePetOwnerNavTap(context, index),
       ),
     );
   }
 
   AppBar _buildAppBar() {
+    final canPop = Navigator.of(context).canPop();
+
     return AppBar(
       backgroundColor: AppColors.primary,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.white),
-        onPressed: () => context.pop(),
-      ),
+      leading: canPop
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.white),
+              onPressed: () => context.pop(),
+            )
+          : null,
       title: const Text(
         'TIN NHẮN',
         style: TextStyle(

@@ -81,12 +81,12 @@
 				<string>Editor</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>com.googleusercontent.apps.YOUR_IOS_CLIENT_ID</string>
+					<string>com.googleusercontent.apps.620454234596-i6r63vqld6s6cvbbek8eteoqnf53ehic</string>
 				</array>
 			</dict>
 		</array>
 		<key>GIDClientID</key>
-		<string>YOUR_IOS_CLIENT_ID.apps.googleusercontent.com</string>
+		<string>620454234596-i6r63vqld6s6cvbbek8eteoqnf53ehic.apps.googleusercontent.com</string>
 		<key>UIBackgroundModes</key>
 		<array>
 		<string>location</string>

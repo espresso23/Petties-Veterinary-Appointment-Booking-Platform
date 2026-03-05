@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../config/constants/app_colors.dart';
 import '../../../data/services/booking_service.dart';
 import '../../../data/models/clinic_service.dart';
+import '../../common/staff_bottom_nav.dart';
 
 class StaffAddServiceScreen extends StatefulWidget {
   final String bookingId;
@@ -266,6 +267,7 @@ class _StaffAddServiceScreenState extends State<StaffAddServiceScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: const StaffBottomNav(currentIndex: 2),
     );
   }
 }

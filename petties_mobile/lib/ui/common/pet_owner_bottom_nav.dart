@@ -31,24 +31,35 @@ class PetOwnerBottomNav extends StatelessWidget {
         right: MediaQuery.of(context).padding.right,
         bottom: bottomPadding,
       ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppColors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.stone400,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-        currentIndex: currentIndex,
-        elevation: 0,
-        onTap: onTap,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
-        ],
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.noScaling,
+        ),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.white,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.stone400,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 10,
+          ),
+          unselectedLabelStyle: const TextStyle(fontSize: 10),
+          currentIndex: currentIndex,
+          elevation: 0,
+          onTap: onTap,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'TRANG CHỦ'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.explore), label: 'KHÁM PHÁ'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.calendar_today), label: 'LỊCH HẸN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.chat_bubble_outline), label: 'TIN NHẮN'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person), label: 'TÀI KHOẢN'),
+          ],
+        ),
       ),
     );
   }
@@ -67,11 +78,10 @@ void handlePetOwnerNavTap(BuildContext context, int index) {
       context.go('${AppRoutes.petOwnerHome}?tab=2');
       break;
     case 3:
-      context.push(AppRoutes.chatList);
+      context.go(AppRoutes.chatList);
       break;
     case 4:
-      context.push(AppRoutes.profile);
+      context.go(AppRoutes.profile);
       break;
   }
 }
-
