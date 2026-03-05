@@ -288,6 +288,18 @@ public class PetService {
 
         validateOwnership(pet, currentUser);
 
+        List<BookingStatus> activeStatuses = List.of(
+                BookingStatus.PENDING,
+                BookingStatus.SEARCHING,
+                BookingStatus.PENDING_CLINIC_CONFIRM,
+                BookingStatus.CONFIRMED,
+                BookingStatus.IN_PROGRESS);
+
+        boolean hasActiveBookings = bookingRepository.existsByPet_IdAndStatusIn(id, activeStatuses);
+        if (hasActiveBookings) {
+            throw new ForbiddenException("Không thể xóa thú cưng vì đang có lịch hẹn chưa hoàn tất");
+        }
+
         if (pet.getImagePublicId() != null) {
             cloudinaryService.deleteFile(pet.getImagePublicId());
         }

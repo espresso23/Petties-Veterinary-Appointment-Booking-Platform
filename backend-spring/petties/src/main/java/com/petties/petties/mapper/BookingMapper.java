@@ -43,14 +43,13 @@ public class BookingMapper {
      */
     public BookingResponse mapToResponse(Booking booking) {
         try {
-            Pet pet = booking.getPet();
+                        Pet pet = safeGetBookingPet(booking);
             User owner = booking.getPetOwner();
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
 
-            if (pet == null || owner == null) {
-                log.warn("Booking {} has null pet or owner - cannot map to response", booking.getBookingId());
-                throw new IllegalArgumentException("Dữ liệu lịch hẹn không hợp lệ: thiếu thông tin thú cưng hoặc chủ sở hữu");
+                        if (owner == null) {
+                                log.warn("Booking {} has null owner while mapping response", booking.getBookingId());
             }
 
             // Check if EMR already exists for this booking
@@ -70,7 +69,13 @@ public class BookingMapper {
             // Map services with assigned staff info and calculate scheduled times
             // Multi-pet: parallel schedule (cùng thời điểm cho các pet khác nhau)
             // Single-pet: sequential (giữ tương thích)
-            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                        Map<UUID, LocalTime[]> schedule;
+                        try {
+                                schedule = BookingScheduleUtil.computeSchedule(booking);
+                        } catch (Exception ex) {
+                                log.warn("Could not compute schedule for booking {}: {}", booking.getBookingId(), ex.getMessage());
+                                schedule = new LinkedHashMap<>();
+                        }
             List<BookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
             List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
@@ -82,7 +87,10 @@ public class BookingMapper {
                     log.warn("BookingServiceItem {} has null service, skipping", item.getBookingServiceId());
                     continue;
                 }
-                Pet itemPet = item.getPet() != null ? item.getPet() : booking.getPet();
+                                Pet itemPet = safeGetItemPet(item);
+                                if (itemPet == null) {
+                                        itemPet = pet;
+                                }
                 User itemStaff = item.getAssignedStaff();
                 int durationMinutes = item.getService().getDurationTime() != null
                         ? item.getService().getDurationTime()
@@ -147,20 +155,20 @@ public class BookingMapper {
                     .bookingCode(booking.getBookingCode())
                     .emrId(emrId)
                     // Pet info
-                    .petId(pet.getId())
-                    .petName(pet.getName())
-                    .petSpecies(pet.getSpecies() != null ? pet.getSpecies().name() : null)
-                    .petBreed(pet.getBreed())
+                    .petId(pet != null ? pet.getId() : null)
+                    .petName(pet != null ? pet.getName() : "Thú cưng đã xóa")
+                    .petSpecies(pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : null)
+                    .petBreed(pet != null ? pet.getBreed() : null)
                     .petAge(petAge)
-                    .petPhotoUrl(pet.getImageUrl())
-                    .petWeight(pet.getWeight())
+                    .petPhotoUrl(pet != null ? pet.getImageUrl() : null)
+                    .petWeight(pet != null ? pet.getWeight() : null)
                     // Owner info
-                    .ownerId(owner.getUserId())
-                    .ownerName(owner.getFullName())
-                    .ownerPhone(owner.getPhone())
-                    .ownerEmail(owner.getEmail())
-                    .ownerAvatarUrl(owner.getAvatar())
-                    .ownerAddress(owner.getAddress())
+                    .ownerId(owner != null ? owner.getUserId() : null)
+                    .ownerName(owner != null ? owner.getFullName() : null)
+                    .ownerPhone(owner != null ? owner.getPhone() : null)
+                    .ownerEmail(owner != null ? owner.getEmail() : null)
+                    .ownerAvatarUrl(owner != null ? owner.getAvatar() : null)
+                    .ownerAddress(owner != null ? owner.getAddress() : null)
                     // Clinic info (nullable for SOS during matching)
                     .clinicId(clinic != null ? clinic.getClinicId() : null)
                     .clinicName(clinic != null ? clinic.getName() : null)
@@ -211,6 +219,25 @@ public class BookingMapper {
             throw new RuntimeException("Error mapping booking " + booking.getBookingCode(), e);
         }
     }
+
+        private Pet safeGetBookingPet(Booking booking) {
+                try {
+                        return booking.getPet();
+                } catch (Exception ex) {
+                        log.warn("Booking {} references a deleted/unavailable pet: {}", booking.getBookingId(), ex.getMessage());
+                        return null;
+                }
+        }
+
+        private Pet safeGetItemPet(BookingServiceItem item) {
+                try {
+                        return item.getPet();
+                } catch (Exception ex) {
+                        log.warn("BookingServiceItem {} references a deleted/unavailable pet: {}", item.getBookingServiceId(),
+                                        ex.getMessage());
+                        return null;
+                }
+        }
 
     /**
      * Map Booking entity to UpcomingBookingDTO for home screen display
@@ -278,7 +305,7 @@ public class BookingMapper {
      */
     public ClinicTodayBookingResponse mapToClinicTodayResponse(Booking booking, UUID currentStaffId) {
         try {
-            Pet pet = booking.getPet();
+                        Pet pet = safeGetBookingPet(booking);
             User owner = booking.getPetOwner();
             Clinic clinic = booking.getClinic();
             User staff = booking.getAssignedStaff();
@@ -296,10 +323,24 @@ public class BookingMapper {
             }
 
             boolean isMyAssignment = false;
-            Map<UUID, LocalTime[]> schedule = BookingScheduleUtil.computeSchedule(booking);
+                        Map<UUID, LocalTime[]> schedule;
+                        try {
+                                schedule = BookingScheduleUtil.computeSchedule(booking);
+                        } catch (Exception ex) {
+                                log.warn("Could not compute clinic schedule for booking {}: {}", booking.getBookingId(), ex.getMessage());
+                                schedule = new LinkedHashMap<>();
+                        }
             List<ClinicTodayBookingResponse.BookingServiceItemResponse> serviceResponses = new ArrayList<>();
 
-            for (BookingServiceItem item : booking.getBookingServices()) {
+                        List<BookingServiceItem> bookingServices = booking.getBookingServices() != null
+                                        ? booking.getBookingServices()
+                                        : new ArrayList<>();
+
+                        for (BookingServiceItem item : bookingServices) {
+                                if (item.getService() == null) {
+                                        log.warn("BookingServiceItem {} has null service, skipping in clinic mapping", item.getBookingServiceId());
+                                        continue;
+                                }
                 User itemStaff = item.getAssignedStaff();
 
                 if (itemStaff != null && itemStaff.getUserId().equals(currentStaffId)) {
