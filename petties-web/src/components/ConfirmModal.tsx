@@ -17,7 +17,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     title,
     message,
     confirmLabel = 'XÁC NHẬN',
-    cancelLabel = 'HỦY BỎ',
+    cancelLabel = 'QUAY LẠI',
     onConfirm,
     onCancel,
     isDanger = false,
@@ -25,42 +25,51 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     if (!isOpen) return null
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/20 backdrop-blur-sm animate-in fade-in duration-300">
             <div
-                className="w-full max-w-md bg-white border-2 border-stone-900 shadow-[4px_4px_0px_0px_rgba(28,25,23,1)] rounded-2xl transform transition-all overflow-hidden"
+                className="w-full max-w-lg bg-white border-[3px] border-stone-900 shadow-[12px_12px_0_0_#1c1917] flex flex-col animate-in zoom-in-95 duration-200"
                 role="dialog"
                 aria-modal="true"
             >
                 {/* Header */}
-                <div className={`p-5 border-b-2 border-stone-900 flex items-center justify-between ${isDanger ? 'bg-red-100' : 'bg-amber-100'}`}>
-                    <div className="flex items-center gap-3 text-stone-900">
-                        <div className={`p-2 rounded-full border-2 border-stone-900 bg-white ${isDanger ? 'text-red-500' : 'text-amber-500'}`}>
+                <div className="px-8 py-6 flex items-start justify-between border-b-[3px] border-stone-900 bg-stone-50">
+                    <div className="flex items-center gap-4">
+                        <div className={`p-3 border-2 border-stone-900 shadow-[3px_3px_0_0_#1c1917] ${isDanger ? 'bg-red-500 text-white' : 'bg-orange-400 text-white'}`}>
                             <ExclamationTriangleIcon className="w-6 h-6" />
                         </div>
-                        <h3 className="font-bold text-lg">{title}</h3>
+                        <div>
+                            <h3 className="font-black text-stone-900 text-xl tracking-tight leading-none uppercase">{title}</h3>
+                            <p className="text-stone-500 text-[10px] uppercase tracking-[0.2em] font-black mt-1">Yêu cầu xác nhận</p>
+                        </div>
                     </div>
-                    <button onClick={onCancel} className="text-stone-900 hover:rotate-90 transition-transform bg-white rounded-full p-1 border-2 border-stone-900">
+                    <button
+                        onClick={onCancel}
+                        className="p-1.5 border-2 border-stone-900 hover:bg-red-500 hover:text-white transition-colors text-stone-900 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none shadow-[2px_2px_0_0_#1c1917]"
+                    >
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-6">
-                    <p className="text-stone-700 font-medium mb-8 text-base leading-relaxed">
+                <div className="p-10">
+                    <p className="text-stone-900 font-bold text-lg leading-relaxed text-center mb-10 italic">
                         {message}
                     </p>
 
                     {/* Actions */}
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex items-center justify-center gap-6">
                         <button
                             onClick={onCancel}
-                            className="flex-1 py-3 px-4 bg-white text-stone-900 border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all"
+                            className="py-3 px-8 border-[3px] border-stone-900 bg-white text-stone-900 font-black text-sm uppercase tracking-widest hover:bg-stone-100 transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none shadow-[4px_4px_0_0_#1c1917]"
                         >
                             {cancelLabel}
                         </button>
                         <button
                             onClick={onConfirm}
-                            className={`flex-1 py-3 px-4 text-white border-2 border-stone-900 rounded-xl font-bold text-sm shadow-[2px_2px_0px_0px_rgba(28,25,23,1)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none transition-all ${isDanger ? 'bg-red-500' : 'bg-stone-900'}`}
+                            className={`py-3 px-10 border-[3px] border-stone-900 text-white font-black text-sm uppercase tracking-widest transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-none shadow-[4px_4px_0_0_#1c1917] ${isDanger
+                                ? 'bg-red-600 hover:bg-red-700'
+                                : 'bg-orange-500 hover:bg-orange-600'
+                                }`}
                         >
                             {confirmLabel}
                         </button>

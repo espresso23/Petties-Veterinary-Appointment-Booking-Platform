@@ -41,23 +41,19 @@ class StaffMember {
 
   String _getSpecialtyLabel() {
     switch (specialty) {
-      case 'VET_GENERAL':
-        return 'Bác sĩ thú y tổng quát';
-      case 'VET_SURGERY':
-        return 'Bác sĩ phẫu thuật';
-      case 'VET_DENTAL':
-        return 'Bác sĩ nha khoa thú y';
-      case 'VET_DERMATOLOGY':
-        return 'Bác sĩ da liễu thú y';
+      case 'VET':
+        return 'Bác sĩ thú y';
       case 'GROOMER':
         return 'Nhân viên chăm sóc thú cưng';
       default:
+        // Legacy (VET_GENERAL, VET_SURGERY...) hoặc null
+        if (specialty != null && specialty!.startsWith('VET')) return 'Bác sĩ thú y';
         return 'Nhân viên';
     }
   }
 
   /// Check if this staff is a Vet (not Groomer)
-  bool get isVet => specialty != null && specialty!.startsWith('VET_');
+  bool get isVet => specialty != null && (specialty == 'VET' || specialty!.startsWith('VET_'));
 
   /// Check if this staff is a Groomer
   bool get isGroomer => specialty == 'GROOMER';

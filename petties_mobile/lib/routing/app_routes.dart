@@ -43,7 +43,9 @@ class AppRoutes {
 
   // Booking Flow (Pet Owner)
   static const String bookingSelectPet = '/booking/:clinicId/pet';
-  static const String bookingSelectServices = '/booking/services';
+  static const String bookingForOthersInfo =
+      '/booking/:clinicId/for-others-info';
+  static const String bookingSelectServices = '/booking/:clinicId/services';
   static const String bookingSelectDateTime = '/booking/datetime';
   static const String bookingConfirm = '/booking/confirm';
   static const String bookingSuccess = '/booking/success';
@@ -67,6 +69,11 @@ class AppRoutes {
   // Chat
   static const String chatList = '/chat';
   static const String chatDetail = '/chat/detail';
+
+  // SOS Emergency Booking (Pet Owner)
+  static const String sosRequest = '/sos/request';
+  static const String sosMatching = '/sos/matching';
+  static const String sosTracking = '/sos/tracking/:bookingId';
 
   // Other
   static const String aboutUs = '/about';

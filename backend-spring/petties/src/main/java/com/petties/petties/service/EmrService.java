@@ -253,7 +253,7 @@ public class EmrService {
          */
         private EmrResponse mapToResponse(EmrRecord emr, Pet pet) {
                 String petName = pet != null ? pet.getName() : "Unknown";
-                String petSpecies = pet != null ? pet.getSpecies() : "";
+                String petSpecies = pet != null && pet.getSpecies() != null ? pet.getSpecies().name() : "";
                 String petBreed = pet != null ? pet.getBreed() : "";
                 String ownerName = pet != null && pet.getUser() != null ? pet.getUser().getFullName() : "";
 

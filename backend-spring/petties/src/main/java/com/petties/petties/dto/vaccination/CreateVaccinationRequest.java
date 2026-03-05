@@ -36,4 +36,6 @@ public class CreateVaccinationRequest {
     private String batchNumber; // Vaccine batch number for tracking
 
     private String notes;
+
+    private String workflowStatus; // Values: "PENDING", "COMPLETED"
 }

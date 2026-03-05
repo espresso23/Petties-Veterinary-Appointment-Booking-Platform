@@ -110,12 +110,12 @@ public class Clinic {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
-    @Column(name = "rating_avg", precision = 2, scale = 1)
     @Builder.Default
+    @Column(name = "rating_avg", precision = 2, scale = 1)
     private BigDecimal ratingAvg = BigDecimal.ZERO;
 
-    @Column(name = "rating_count")
     @Builder.Default
+    @Column(name = "rating_count")
     private Integer ratingCount = 0;
 
     @Column(name = "approved_at")
@@ -133,12 +133,12 @@ public class Clinic {
     private LocalDateTime deletedAt;
 
     // Relationships
-    @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
+    @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClinicImage> images = new ArrayList<>();
 
-    @OneToMany(mappedBy = "clinic")
     @Builder.Default
+    @OneToMany(mappedBy = "clinic")
     private List<ClinicService> services = new ArrayList<>();
 
 }

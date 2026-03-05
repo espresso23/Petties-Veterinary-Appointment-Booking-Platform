@@ -71,6 +71,7 @@ export function ProtectedRoute({
 /**
  * Get role-based dashboard path
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getRoleDashboard(role?: string): string {
     const dashboards: Record<string, string> = {
         'ADMIN': '/admin',

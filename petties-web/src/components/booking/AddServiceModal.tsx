@@ -1,12 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { ClinicServiceResponse } from '../../types/service';
+import type { Booking } from '../../types/booking';
 import { SERVICE_CATEGORY_LABELS } from '../../types/booking';
+import { getCompatibleServices } from '../../services/endpoints/service';
 import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface AddServiceModalProps {
     isOpen: boolean;
     onClose: () => void;
-    availableServices: ClinicServiceResponse[];
+    booking: Booking; // Pass full booking object to extract species and type
     onAddService: (serviceId: string) => Promise<void>;
     isAdding: boolean;
 }
@@ -14,13 +16,42 @@ interface AddServiceModalProps {
 export const AddServiceModal = ({
     isOpen,
     onClose,
-    availableServices,
+    booking,
     onAddService,
     isAdding
 }: AddServiceModalProps) => {
+    const [availableServices, setAvailableServices] = useState<ClinicServiceResponse[]>([]);
+    const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
     const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+
+    // Fetch compatible services when modal opens
+    useEffect(() => {
+        if (!isOpen || !booking) return;
+
+        const fetchServices = async () => {
+            setLoading(true);
+            try {
+                const isHomeVisit = booking.type === 'HOME_VISIT' || booking.type === 'SOS';
+                const petSpecies = booking.petSpecies; // Get species from booking's primary pet
+
+                const services = await getCompatibleServices(
+                    booking.clinicId,
+                    petSpecies,
+                    isHomeVisit
+                );
+                setAvailableServices(services);
+            } catch (error) {
+                console.error('Failed to fetch compatible services:', error);
+                setAvailableServices([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchServices();
+    }, [isOpen, booking]);
 
     // Extract unique categories from available services
     const categories = useMemo(() => {
@@ -44,10 +75,15 @@ export const AddServiceModal = ({
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
-            <div className="bg-white border-2 border-stone-900 rounded-2xl shadow-[8px_8px_0_#1c1917] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="add-service-title"
+                className="bg-white border-2 border-stone-900 rounded-2xl shadow-[8px_8px_0_#1c1917] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200"
+            >
                 {/* Header */}
                 <div className="p-5 border-b-2 border-stone-900 bg-white flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-black uppercase tracking-tight text-stone-900">Thêm dịch vụ phát sinh</h2>
+                    <h2 id="add-service-title" className="text-xl font-black uppercase tracking-tight text-stone-900">Thêm dịch vụ phát sinh</h2>
                     <button
                         onClick={onClose}
                         className="p-1 hover:bg-stone-100 rounded-lg transition-colors text-stone-900"
@@ -91,18 +127,29 @@ export const AddServiceModal = ({
                         Chọn dịch vụ bổ sung cho đơn hàng. Giá sẽ được tính dựa trên cân nặng của thú cưng hiện tại.
                     </p>
 
-                    <div className="space-y-4">
-                        {filteredServices.length === 0 ? (
-                            <div className="py-12 flex flex-col items-center justify-center text-stone-400 bg-stone-50 border-2 border-dashed border-stone-200 rounded-xl">
-                                <MagnifyingGlassIcon className="w-12 h-12 mb-2 opacity-20" />
-                                <p className="font-bold text-sm">
-                                    {availableServices.length === 0
-                                        ? 'Không còn dịch vụ khả dụng'
-                                        : 'Không tìm thấy dịch vụ'}
-                                </p>
-                            </div>
-                        ) : (
-                            filteredServices.map((service) => (
+                    {loading ? (
+                        <div className="py-12 flex flex-col items-center justify-center">
+                            <div className="animate-spin w-8 h-8 border-4 border-stone-200 border-t-amber-600 rounded-full mb-3"></div>
+                            <p className="text-sm text-stone-500 font-bold">Đang tải dịch vụ phù hợp...</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {filteredServices.length === 0 ? (
+                                <div className="py-12 flex flex-col items-center justify-center text-stone-400 bg-stone-50 border-2 border-dashed border-stone-200 rounded-xl">
+                                    <MagnifyingGlassIcon className="w-12 h-12 mb-2 opacity-20" />
+                                    <p className="font-bold text-sm">
+                                        {availableServices.length === 0
+                                            ? `Không có dịch vụ phù hợp cho ${booking.petSpecies === 'DOG' ? 'chó' : booking.petSpecies === 'CAT' ? 'mèo' : booking.petSpecies.toLowerCase()}`
+                                            : 'Không tìm thấy dịch vụ'}
+                                    </p>
+                                    {availableServices.length === 0 && (
+                                        <p className="text-xs text-stone-400 mt-1">
+                                            Các dịch vụ khả dụng đã được lọc theo loài thú cưng và loại khám
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                filteredServices.map((service) => (
                                 <div
                                     key={service.serviceId}
                                     onClick={() => setSelectedServiceId(service.serviceId)}
@@ -172,7 +219,8 @@ export const AddServiceModal = ({
                                 </div>
                             ))
                         )}
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer */}

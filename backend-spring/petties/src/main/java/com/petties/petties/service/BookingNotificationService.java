@@ -51,12 +51,14 @@ public class BookingNotificationService {
                 log.debug("Pushed BOOKING_UPDATE to staff: {}", booking.getAssignedStaff().getUserId());
             }
 
-            // Push to all managers of the clinic
-            List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                    booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
-            for (User manager : managers) {
-                sseEmitterService.pushToUser(manager.getUserId(), event);
-                log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
+            // Push to all managers of the clinic (skip if clinic is null, e.g. SOS during matching)
+            if (booking.getClinic() != null) {
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                        booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+                for (User manager : managers) {
+                    sseEmitterService.pushToUser(manager.getUserId(), event);
+                    log.debug("Pushed BOOKING_UPDATE to manager: {}", manager.getUserId());
+                }
             }
 
             log.info("BOOKING_UPDATE event pushed for booking {} action {}", booking.getBookingCode(),

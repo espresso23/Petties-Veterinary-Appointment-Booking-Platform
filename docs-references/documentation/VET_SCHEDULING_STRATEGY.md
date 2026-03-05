@@ -1,8 +1,8 @@
 # Staff Scheduling & Dispatching Strategy
 
-**Version:** 1.6.0
-**Last Updated:** 2026-01-27
-**Update Note:** Đổi Role.STAFF → Role.STAFF để phù hợp với kiến trúc mới (StaffSpecialty: VET_GENERAL, GROOMER, etc.)
+**Version:** 1.7.0
+**Last Updated:** 2026-02-28
+**Update Note:** StaffSpecialty đơn giản hóa còn 2 loại: **VET** (bác sĩ thú y) và **GROOMER** (nhân viên grooming). Cập nhật 2026-02-28.
 
 ## 1. Nguyên Tắc Cốt Lõi
 

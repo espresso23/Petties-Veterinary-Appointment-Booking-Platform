@@ -1,5 +1,6 @@
 package com.petties.petties.dto.pet;
 
+import com.petties.petties.model.enums.PetSpecies;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,7 +21,7 @@ import java.util.UUID;
 public class StaffPatientDTO {
     private UUID petId;
     private String petName;
-    private String species;
+    private PetSpecies species;
     private String breed;
     private String gender;
     private int ageYears; // Calculated

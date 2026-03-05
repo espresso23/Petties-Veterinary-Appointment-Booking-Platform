@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../routing/app_routes.dart';
 import '../../providers/notification_provider.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/models/booking.dart';
+import '../../utils/fcm_service.dart';
 
 /// Staff Home Screen - Redesigned based on Image 0
 /// Uses optimized single API call for home summary data
@@ -23,6 +25,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
   bool _isLoading = true;
   StaffHomeSummaryResponse? _summary;
   String? _errorMessage;
+  StreamSubscription? _fcmSubscription;
 
   @override
   void initState() {
@@ -31,6 +34,21 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchData();
     });
+
+    // Listen for FCM messages to refresh home data
+    _fcmSubscription = FcmService().messageStream.listen((message) {
+      if (mounted) {
+        debugPrint(
+            'FCM message received in StaffHomeScreen, refreshing data...');
+        _fetchData();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _fcmSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
@@ -93,7 +111,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // 4. Upcoming Section
+                // 4. Lịch làm việc của tôi (entry point rõ ràng)
+                _buildMyScheduleEntry(context),
+
+                const SizedBox(height: 24),
+
+                // 5. Upcoming Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -106,7 +129,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => context.push(AppRoutes.staffSchedule),
+                      onPressed: () => context.push(AppRoutes.staffBookings),
                       child: const Text('Xem tất cả',
                           style: TextStyle(
                               color: AppColors.primary,
@@ -119,7 +142,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // 5. Quick Actions
+                // 6. Quick Actions
                 const Text(
                   'Thao tác nhanh',
                   style: TextStyle(
@@ -536,8 +559,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       );
     }
 
+    // Sort: SOS bookings first, then by original order
+    final sortedBookings = List<UpcomingBookingDTO>.from(upcomingBookings);
+    sortedBookings.sort((a, b) {
+      final aIsSos = a.type == 'SOS' ? 0 : 1;
+      final bIsSos = b.type == 'SOS' ? 0 : 1;
+      return aIsSos.compareTo(bIsSos);
+    });
+
     // Limit to 2 items for home screen
-    final displayBookings = upcomingBookings.take(2).toList();
+    final displayBookings = sortedBookings.take(2).toList();
 
     return Column(
       children: displayBookings.map((booking) {
@@ -550,16 +581,21 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
               endTime.isNotEmpty ? '$startTime - $endTime' : startTime;
         }
 
-        // Determine status tag
+        // Determine status tag - SOS takes priority
         String statusTag = 'BOOKED';
         Color tagColor = AppColors.warningLight;
         Color tagTextColor = AppColors.primaryDark;
 
-        if (booking.status == 'IN_PROGRESS') {
+        if (booking.type == 'SOS') {
+          statusTag = 'SOS CẤP CỨU';
+          tagColor = const Color(0xFFFCA5A5);
+          tagTextColor = const Color(0xFF991B1B);
+        } else if (booking.status == 'IN_PROGRESS') {
           statusTag = 'ĐANG KHÁM';
           tagColor = AppColors.successLight;
           tagTextColor = AppColors.successDark;
-        } else if (booking.status == 'ASSIGNED' || booking.status == 'CONFIRMED') {
+        } else if (booking.status == 'ASSIGNED' ||
+            booking.status == 'CONFIRMED') {
           statusTag = 'CHỜ KHÁM';
           tagColor = AppColors.warningLight;
           tagTextColor = AppColors.primaryDark;
@@ -600,6 +636,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             tagTextColor: tagTextColor,
             dateDisplay: dateDisplay,
             isHomeVisit: booking.type == 'HOME_VISIT',
+            isSOS: booking.type == 'SOS',
           ),
         );
       }).toList(),
@@ -618,6 +655,7 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
     required Color tagTextColor,
     String? dateDisplay,
     bool isHomeVisit = false,
+    bool isSOS = false,
   }) {
     return GestureDetector(
       onTap: bookingId != null
@@ -630,13 +668,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: isSOS ? Colors.red.shade50 : AppColors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.stone900, width: 2),
-          boxShadow: const [
+          border: Border.all(
+            color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+            width: isSOS ? 3 : 2,
+          ),
+          boxShadow: [
             BoxShadow(
-              color: AppColors.stone900,
-              offset: Offset(4, 4),
+              color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+              offset: const Offset(4, 4),
             )
           ],
         ),
@@ -646,9 +687,16 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                color: isHomeVisit ? AppColors.infoLight : AppColors.stone100,
+                color: isSOS
+                    ? Colors.red.shade100
+                    : isHomeVisit
+                        ? AppColors.infoLight
+                        : AppColors.stone100,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.stone900, width: 1.5),
+                border: Border.all(
+                  color: isSOS ? Colors.red.shade700 : AppColors.stone900,
+                  width: 1.5,
+                ),
               ),
               child: Column(
                 children: [
@@ -658,13 +706,24 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color:
-                            isHomeVisit ? AppColors.info : AppColors.stone600,
+                        color: isSOS
+                            ? Colors.red.shade700
+                            : isHomeVisit
+                                ? AppColors.info
+                                : AppColors.stone600,
                       ),
                     ),
                   Icon(
-                    isHomeVisit ? Icons.home : Icons.pets,
-                    color: isHomeVisit ? AppColors.info : AppColors.stone500,
+                    isSOS
+                        ? Icons.emergency_rounded
+                        : isHomeVisit
+                            ? Icons.home
+                            : Icons.pets,
+                    color: isSOS
+                        ? Colors.red.shade700
+                        : isHomeVisit
+                            ? AppColors.info
+                            : AppColors.stone500,
                     size: 20,
                   ),
                 ],
@@ -739,6 +798,72 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Entry point rõ ràng cho màn "Lịch làm việc của tôi" (ca trực, Day/Week/Month).
+  Widget _buildMyScheduleEntry(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push(AppRoutes.staffSchedule),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(color: AppColors.stone900, offset: Offset(3, 3)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.primary, width: 1.5),
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: AppColors.primary,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lịch làm việc của tôi',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.stone900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Xem ca trực theo ngày, tuần, tháng',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.stone500,
+              size: 24,
             ),
           ],
         ),
@@ -878,6 +1003,12 @@ class _StaffHomeScreenState extends State<StaffHomeScreen> {
         children: [
           _buildNavItem(
               context, Icons.grid_view_rounded, 'Trang chủ', true, null),
+          _buildNavItem(
+              context,
+              Icons.calendar_month_rounded,
+              'Lịch làm việc',
+              false,
+              () => context.push(AppRoutes.staffSchedule)),
           _buildNavItem(context, Icons.calendar_today_rounded, 'Lịch hẹn',
               false, () => context.push(AppRoutes.staffBookings)),
           _buildNavItem(context, Icons.pets_rounded, 'Bệnh nhân', false,

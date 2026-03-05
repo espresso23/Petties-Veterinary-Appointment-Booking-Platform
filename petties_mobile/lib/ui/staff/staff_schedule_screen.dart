@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/models/staff_shift.dart';
 import '../../data/services/staff_shift_service.dart';
@@ -21,12 +22,14 @@ class StaffScheduleScreen extends StatefulWidget {
   State<StaffScheduleScreen> createState() => _StaffScheduleScreenState();
 }
 
+enum StaffScheduleViewMode { day, week, month }
+
 class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
   final StaffShiftService _shiftService = StaffShiftService();
   DateTime _focusedDate = DateTime.now();
   DateTime _selectedDate = DateTime.now();
   late List<DateTime> _weekDates;
-  String _viewMode = 'Day'; // 'Day' or 'Week'
+  StaffScheduleViewMode _viewMode = StaffScheduleViewMode.day;
 
   List<StaffShiftResponse> _shifts = [];
   bool _isLoading = false;
@@ -54,8 +57,22 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
   Future<void> _fetchShifts() async {
     setState(() => _isLoading = true);
     try {
-      final startDate = DateFormat('yyyy-MM-dd').format(_weekDates.first);
-      final endDate = DateFormat('yyyy-MM-dd').format(_weekDates.last);
+      late DateTime rangeStart;
+      late DateTime rangeEnd;
+
+      if (_viewMode == StaffScheduleViewMode.month) {
+        // Lấy toàn bộ ca trong tháng đang focus
+        rangeStart = DateTime(_focusedDate.year, _focusedDate.month, 1);
+        rangeEnd =
+            DateTime(_focusedDate.year, _focusedDate.month + 1, 0); // last day
+      } else {
+        // Day / Week: giữ nguyên logic range theo tuần hiện tại
+        rangeStart = _weekDates.first;
+        rangeEnd = _weekDates.last;
+      }
+
+      final startDate = DateFormat('yyyy-MM-dd').format(rangeStart);
+      final endDate = DateFormat('yyyy-MM-dd').format(rangeEnd);
 
       final data = await _shiftService.getMyShifts(
         startDate: startDate,
@@ -147,20 +164,32 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
           children: [
             _buildHeader(userName, avatarUrl, clinicName),
             _buildViewModeToggle(),
-            _buildWeekPicker(),
+            if (_viewMode == StaffScheduleViewMode.day ||
+                _viewMode == StaffScheduleViewMode.week)
+              _buildWeekPicker(),
             Expanded(
               child: _isLoading
                   ? const Center(
                       child:
                           CircularProgressIndicator(color: AppColors.primary))
-                  : _viewMode == 'Day'
-                      ? _buildTimelineView()
-                      : _buildWeekView(),
+                  : _buildBodyByViewMode(),
             ),
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomNav(context),
     );
+  }
+
+  Widget _buildBodyByViewMode() {
+    switch (_viewMode) {
+      case StaffScheduleViewMode.day:
+        return _buildTimelineView();
+      case StaffScheduleViewMode.week:
+        return _buildWeekView();
+      case StaffScheduleViewMode.month:
+        return _buildMonthView();
+    }
   }
 
   Widget _buildHeader(String userName, String? avatarUrl, String? clinicName) {
@@ -266,45 +295,68 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.stone100,
-          borderRadius: BorderRadius.circular(25),
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stone900, width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: AppColors.stone900,
+              offset: Offset(3, 3),
+            ),
+          ],
         ),
         padding: const EdgeInsets.all(4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildToggleButton('Day', _viewMode == 'Day'),
-            _buildToggleButton('Week', _viewMode == 'Week'),
+            _buildToggleButton(
+              label: 'Ngày',
+              mode: StaffScheduleViewMode.day,
+            ),
+            const SizedBox(width: 6),
+            _buildToggleButton(
+              label: 'Tuần',
+              mode: StaffScheduleViewMode.week,
+            ),
+            const SizedBox(width: 6),
+            _buildToggleButton(
+              label: 'Tháng',
+              mode: StaffScheduleViewMode.month,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildToggleButton(String label, bool isActive) {
+  Widget _buildToggleButton({
+    required String label,
+    required StaffScheduleViewMode mode,
+  }) {
+    final bool isActive = _viewMode == mode;
     return GestureDetector(
-      onTap: () => setState(() => _viewMode = label),
+      onTap: () {
+        setState(() {
+          _viewMode = mode;
+        });
+        _fetchShifts();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  )
-                ]
-              : null,
+          color: isActive ? AppColors.primary : AppColors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppColors.stone900,
+            width: 2,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isActive ? AppColors.stone900 : AppColors.stone500,
+            fontWeight: FontWeight.w700,
+            color: isActive ? AppColors.white : AppColors.stone700,
           ),
         ),
       ),
@@ -326,8 +378,8 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
                     _focusedDate =
                         _focusedDate.subtract(const Duration(days: 7));
                     _updateWeekDates();
-                    _fetchShifts();
                   });
+                  _fetchShifts();
                 },
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -352,8 +404,8 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
                   setState(() {
                     _focusedDate = _focusedDate.add(const Duration(days: 7));
                     _updateWeekDates();
-                    _fetchShifts();
                   });
+                  _fetchShifts();
                 },
                 child: Container(
                   padding: const EdgeInsets.all(8),
@@ -379,6 +431,107 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
             itemBuilder: (context, index) => _buildDayItem(_weekDates[index]),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildMonthView() {
+    return Column(
+      children: [
+        TableCalendar(
+          firstDay: DateTime.now().subtract(const Duration(days: 365)),
+          lastDay: DateTime.now().add(const Duration(days: 365)),
+          focusedDay: _focusedDate,
+          calendarFormat: CalendarFormat.month,
+          rowHeight: 34,
+          headerStyle: const HeaderStyle(
+            formatButtonVisible: false,
+            titleCentered: true,
+            titleTextStyle: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.stone900,
+            ),
+            leftChevronIcon:
+                Icon(Icons.chevron_left, color: AppColors.stone700),
+            rightChevronIcon:
+                Icon(Icons.chevron_right, color: AppColors.stone700),
+          ),
+          daysOfWeekStyle: const DaysOfWeekStyle(
+            weekdayStyle: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.stone500,
+            ),
+            weekendStyle: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.coral,
+            ),
+          ),
+          calendarStyle: const CalendarStyle(
+            todayDecoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              shape: BoxShape.circle,
+            ),
+            todayTextStyle: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: AppColors.stone900,
+            ),
+            selectedDecoration: BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            selectedTextStyle: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          selectedDayPredicate: (day) =>
+              DateUtils.isSameDay(day, _selectedDate),
+          eventLoader: (day) {
+            final dateStr = DateFormat('yyyy-MM-dd').format(day);
+            final hasShift = _shifts.any((s) =>
+                (s.displayDate ?? s.workDate) == dateStr && !s.isContinuation);
+            return hasShift ? [1] : [];
+          },
+          calendarBuilders: CalendarBuilders(
+            markerBuilder: (context, day, events) {
+              if (events.isEmpty) return const SizedBox.shrink();
+              final isSelected = DateUtils.isSameDay(day, _selectedDate);
+              // Ngày đang chọn đã có vòng tròn cam rõ ràng, bỏ chấm để tránh cảm giác lệch.
+              if (isSelected) return const SizedBox.shrink();
+              return Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 4),
+                  width: 5,
+                  height: 5,
+                  decoration: const BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            },
+          ),
+          onDaySelected: (selectedDay, focusedDay) {
+            setState(() {
+              _selectedDate = selectedDay;
+              _focusedDate = focusedDay;
+            });
+            _updateSelectedShift();
+          },
+          onPageChanged: (focusedDay) {
+            setState(() {
+              _focusedDate = focusedDay;
+              _updateWeekDates();
+            });
+            _fetchShifts();
+          },
+        ),
+        const SizedBox(height: 8),
+        Expanded(child: _buildTimelineView()),
       ],
     );
   }
@@ -569,16 +722,19 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: Colors.indigo.shade50,
+                                              color: AppColors.primarySurface,
                                               borderRadius:
                                                   BorderRadius.circular(8),
+                                              border: Border.all(
+                                                  color: AppColors.primary,
+                                                  width: 1.5),
                                             ),
-                                            child: Text(
+                                            child: const Text(
                                               'Ca đêm',
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w600,
-                                                color: Colors.indigo.shade700,
+                                                color: AppColors.primaryDark,
                                               ),
                                             ),
                                           ),
@@ -658,7 +814,7 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
       children: [
         ...slots.map((slot) {
           final isBooked = slot.status == SlotStatus.BOOKED;
-          final isAvailable = slot.status == SlotStatus.AVAILABLE;
+          // final isAvailable = slot.status == SlotStatus.AVAILABLE;
           final isBlocked = slot.status == SlotStatus.BLOCKED;
 
           Color statusColor = Colors.green;
@@ -741,7 +897,7 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
               ),
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -810,7 +966,6 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
 
     for (var group in groupedSlots) {
       final firstSlot = group.first;
-      final lastSlot = group.last;
       final slotStartTime = firstSlot.startTime.substring(0, 5);
 
       // Check if lunch break should be inserted before this group
@@ -840,14 +995,13 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
 
   Widget _buildTimelineSlotGroupCard(List<SlotResponse> group) {
     final firstSlot = group.first;
-    final lastSlot = group.last;
     final bool isBooked = firstSlot.status == SlotStatus.BOOKED;
     final bool isBlocked = firstSlot.status == SlotStatus.BLOCKED;
 
-    Color statusColor = Colors.green;
+    Color statusColor = AppColors.successDark;
     String statusText = 'Trống';
     if (isBlocked) {
-      statusColor = Colors.red;
+      statusColor = AppColors.error;
       statusText = 'Đã khóa';
     } else if (isBooked) {
       statusColor = AppColors.primary;
@@ -855,7 +1009,7 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
     }
 
     final timeLabel = group.length > 1
-        ? '${firstSlot.startTime.substring(0, 5)} - ${lastSlot.endTime.substring(0, 5)}'
+        ? '${firstSlot.startTime.substring(0, 5)} - ${group.last.endTime.substring(0, 5)}'
         : '${firstSlot.startTime.substring(0, 5)} - ${firstSlot.endTime.substring(0, 5)}';
 
     return Padding(
@@ -905,19 +1059,18 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isBooked
-                        ? AppColors.primary.withOpacity(0.3)
-                        : AppColors.stone100,
-                    width: isBooked ? 2 : 1,
+                        ? AppColors.primary
+                        : (isBlocked ? AppColors.error : AppColors.stone900),
+                    width: 2,
                   ),
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: AppColors.stone900,
+                      offset: Offset(3, 3),
                     ),
                   ],
                 ),
@@ -1112,6 +1265,87 @@ class _StaffScheduleScreenState extends State<StaffScheduleScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        border: Border(top: BorderSide(color: AppColors.stone900, width: 2)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            context,
+            Icons.grid_view_rounded,
+            'Trang chủ',
+            false,
+            () => context.push(AppRoutes.staffHome),
+          ),
+          _buildNavItem(
+            context,
+            Icons.calendar_month_rounded,
+            'Lịch làm việc',
+            true,
+            null,
+          ),
+          _buildNavItem(
+            context,
+            Icons.calendar_today_rounded,
+            'Lịch hẹn',
+            false,
+            () => context.push(AppRoutes.staffBookings),
+          ),
+          _buildNavItem(
+            context,
+            Icons.pets_rounded,
+            'Bệnh nhân',
+            false,
+            () => context.push(AppRoutes.staffPatients),
+          ),
+          _buildNavItem(
+            context,
+            Icons.person_rounded,
+            'Cá nhân',
+            false,
+            () => context.push(AppRoutes.profile),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(BuildContext context, IconData icon, String label,
+      bool isActive, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isActive ? AppColors.primary : AppColors.stone400,
+            size: 26,
+            shadows: isActive
+                ? const [
+                    Shadow(color: AppColors.stone900, offset: Offset(1, 1))
+                  ]
+                : [],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: isActive ? AppColors.primary : AppColors.stone400,
             ),
           ),
         ],

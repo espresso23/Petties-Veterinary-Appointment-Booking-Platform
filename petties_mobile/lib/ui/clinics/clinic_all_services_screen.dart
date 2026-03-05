@@ -930,7 +930,7 @@ class _ClinicAllServicesScreenState extends State<ClinicAllServicesScreen>
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${pet.species} • ${pet.breed}',
+                    '${pet.species.displayName} • ${pet.breed}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.stone500,

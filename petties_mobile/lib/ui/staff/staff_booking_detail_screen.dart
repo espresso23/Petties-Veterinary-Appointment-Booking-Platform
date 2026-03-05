@@ -1,14 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/constants/app_colors.dart';
 import '../../data/services/booking_service.dart';
 import '../../data/services/emr_service.dart';
+import '../../data/services/tracking_websocket_service.dart';
 import '../../data/models/booking.dart';
 import '../../data/models/emr.dart';
 import '../../providers/auth_provider.dart';
 import '../../routing/app_routes.dart';
+import '../../utils/storage_service.dart';
+import '../../config/constants/app_constants.dart';
 
 /// StaffBookingDetailScreen - Displays booking details for Staff with check-in/checkout actions
 class StaffBookingDetailScreen extends StatefulWidget {
@@ -36,11 +42,24 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     symbol: 'đ',
     decimalDigits: 0,
   );
+  bool _isEMRLoading = false;
+  List<EmrRecord> _emrs = [];
+
+  // Tracking state
+  StreamSubscription<Position>? _positionSubscription;
+  bool _isTracking = false;
+  final _trackingService = trackingWebsocket;
 
   @override
   void initState() {
     super.initState();
     _fetchBookingDetail();
+  }
+
+  @override
+  void dispose() {
+    _stopTracking();
+    super.dispose();
   }
 
   Future<void> _fetchBookingDetail() async {
@@ -56,16 +75,255 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         // EMR might not exist yet, ignore error
         emr = null;
       }
+      await _fetchEmrs(booking); // Call to fetch EMRs after booking is loaded
 
       setState(() {
         _booking = booking;
         _existingEmr = emr;
         _error = null;
       });
+      // Auto resume tracking for active SOS/HOME_VISIT bookings
+      await _autoStartTrackingIfNeeded();
     } catch (e) {
-      setState(() => _error = 'Không thể tải chi tiết lịch hẹn: $e');
+      if (mounted) {
+        setState(() => _error = 'Không thể tải chi tiết lịch hẹn: $e');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _openMap(double? lat, double? lng, String address) async {
+    Uri url;
+    if (lat != null && lng != null) {
+      // Use coordinates if available
+      final String googleMapsUrl =
+          "https://www.google.com/maps/search/?api=1&query=$lat,$lng";
+      final String appleMapsUrl = "https://maps.apple.com/?q=$lat,$lng";
+
+      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
+        url = Uri.parse(googleMapsUrl);
+      } else if (await canLaunchUrl(Uri.parse(appleMapsUrl))) {
+        url = Uri.parse(appleMapsUrl);
+      } else {
+        url = Uri.parse(
+            "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}");
+      }
+    } else {
+      // Fallback to address search
+      url = Uri.parse(
+          "https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}");
+    }
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể mở ứng dụng bản đồ.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchEmrs(BookingResponse? booking) async {
+    if (booking == null || booking.petId == null) return;
+    setState(() => _isEMRLoading = true);
+    try {
+      final response = await EmrService().getEmrsByPetId(booking.petId!);
+      if (mounted) {
+        setState(() {
+          _emrs = response;
+          _isEMRLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isEMRLoading = false);
+      }
+    }
+  }
+
+  // --- Tracking Methods ---
+
+  Future<void> _autoStartTrackingIfNeeded() async {
+    if (_booking == null) return;
+    // Auto start tracking when booking is already IN_PROGRESS (SOS only)
+    if (_booking!.status == 'IN_PROGRESS' &&
+        _booking!.type == 'SOS' &&
+        _booking!.arrivedAt == null &&
+        !_isTracking) {
+      await _startTracking(callStartMoving: false);
+    }
+  }
+
+  Future<bool> _checkLocationPermission() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dịch vụ định vị đã bị tắt.')),
+        );
+      }
+      return false;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quyển truy cập vị trí bị từ chối.')),
+          );
+        }
+        return false;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Quyền truy cập vị trí bị từ chối vĩnh viễn, chúng tôi không thể yêu cầu quyền.',
+            ),
+          ),
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _startTracking({required bool callStartMoving}) async {
+    final hasPermission = await _checkLocationPermission();
+    if (!hasPermission) return;
+
+    setState(() => _isActionLoading = true);
+    try {
+      // Transition status to IN_PROGRESS if it's currently CONFIRMED
+      if (callStartMoving && _booking?.status == 'CONFIRMED') {
+        await _bookingService.startMoving(_booking!.bookingId!);
+        await _fetchBookingDetail(); // Reload to update status in UI
+      }
+
+      setState(() => _isTracking = true);
+
+      // Set access token for WebSocket before sending any location updates
+      final storage = StorageService();
+      final token = await storage.getString(AppConstants.accessTokenKey);
+      if (token != null) {
+        _trackingService.setAccessToken(token);
+      }
+
+      // Send initial location immediately so pet owner sees icon right away
+      try {
+        final currentPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        if (_booking?.bookingId != null) {
+          _trackingService.updateLocation(
+            _booking!.bookingId!,
+            currentPosition.latitude,
+            currentPosition.longitude,
+            status: 'MOVING',
+          );
+        }
+      } catch (e) {
+        // Non-blocking: initial location send failure should not stop tracking
+      }
+
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 3, // Giảm xuống 3m để cập nhật liên tục hơn khi ở gần
+        ),
+      ).listen((Position position) {
+        if (_booking?.bookingId != null) {
+          _trackingService.updateLocation(
+            _booking!.bookingId!,
+            position.latitude,
+            position.longitude,
+            status: 'MOVING',
+          );
+        }
+      });
+
+      if (mounted && callStartMoving) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bắt đầu di chuyển và chia sẻ vị trí.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  void _stopTracking() {
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
+    if (mounted) {
+      setState(() => _isTracking = false);
+    }
+  }
+
+  Future<void> _handleArrived() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận đã đến nơi'),
+        content: const Text('Bạn đã đến địa chỉ của khách hàng?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child:
+                const Text('Đã đến nơi', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() => _isActionLoading = true);
+    try {
+      await _bookingService.arrived(widget.bookingId);
+      _stopTracking();
+      await _fetchBookingDetail();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật trạng thái: Đến nơi!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
     }
   }
 
@@ -97,11 +355,12 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     setState(() => _isActionLoading = true);
     try {
       await _bookingService.complete(widget.bookingId);
+      _stopTracking(); // Stop tracking on completion
       await _fetchBookingDetail();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Hoàn thành thành công!'),
+              content: Text('Cập nhật trạng thái hoàn thành!'),
               backgroundColor: Colors.green),
         );
       }
@@ -109,12 +368,218 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Lỗi hoàn thành: $e'), backgroundColor: Colors.red),
+              content: Text('Lỗi cập nhật hoàn thành: $e'),
+              backgroundColor: Colors.red),
         );
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
     }
+  }
+
+  Future<void> _handleCheckout() async {
+    double overriddenFee = _booking?.sosFee ?? 0;
+    final feeController =
+        TextEditingController(text: overriddenFee.toStringAsFixed(0));
+
+    // Show confirmation dialog with full booking summary
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final b = _booking!;
+            final bool isSos = b.type == 'SOS';
+            final bool isHomeVisit = b.type == 'HOME_VISIT';
+            double servicesTotal =
+                b.services.fold(0, (sum, item) => sum + (item.price ?? 0));
+            double distanceFee = b.distanceFee ?? 0;
+            double currentTotal =
+                servicesTotal + distanceFee + (isSos ? overriddenFee : 0);
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.payment, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Text('Xác nhận thanh toán'),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Customer info
+                    _buildCheckoutSection(
+                        Icons.person_outline, 'Thông tin khách hàng', [
+                      if (b.ownerName != null) 'Tên: ${b.ownerName}',
+                      if (b.ownerPhone != null) 'SĐT: ${b.ownerPhone}',
+                      if (b.homeAddress != null) 'Địa chỉ: ${b.homeAddress}',
+                    ]),
+                    const SizedBox(height: 12),
+                    // Pet info
+                    _buildCheckoutSection(Icons.pets, 'Thú cưng', [
+                      if (b.petName != null) 'Tên: ${b.petName}',
+                      if (b.petSpecies != null) 'Loài: ${b.petSpecies}',
+                    ]),
+                    const SizedBox(height: 12),
+                    // Services
+                    _buildCheckoutSection(
+                        Icons.assignment_outlined, 'Dịch vụ', [
+                      ...b.services.map((s) =>
+                          '${s.serviceName ?? "Dịch vụ"}: ${_currencyFormat.format(s.price ?? 0)}'),
+                    ]),
+                    const Divider(height: 24),
+                    // Fee breakdown & Override
+                    if (isSos) ...[
+                      const Text('ĐIỀU CHỈNH PHÍ SOS',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: AppColors.stone500)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: feeController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          prefixIcon:
+                              const Icon(Icons.edit_note, color: AppColors.coral),
+                          suffixText: 'VNĐ',
+                          labelText: 'Phí SOS thực tế',
+                          isDense: true,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onChanged: (val) {
+                          setDialogState(() {
+                            overriddenFee = double.tryParse(val) ?? 0;
+                          });
+                        },
+                      ),
+                      if (b.distanceFee != null && b.distanceFee! > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child:
+                              _buildPriceSimple('Phí di chuyển', distanceFee),
+                        ),
+                      const Divider(height: 16),
+                    ] else if (isHomeVisit &&
+                        b.distanceFee != null &&
+                        b.distanceFee! > 0) ...[
+                      _buildPriceSimple('Phí di chuyển', distanceFee),
+                      const Divider(height: 16),
+                    ],
+                    // Total
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('TỔNG CỘNG',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(
+                          _currencyFormat.format(currentTotal),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  child: const Text('Xác nhận thanh toán',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirm != true) return;
+
+    _stopTracking();
+    setState(() => _isActionLoading = true);
+    try {
+      // Nếu vẫn đang khám thì hoàn tất khám trước khi thanh toán
+      if (_booking?.status == 'IN_PROGRESS') {
+        await _bookingService.complete(widget.bookingId);
+      }
+      // Với SOS, cho phép điều chỉnh phí SOS; các loại khác chỉ checkout bình thường
+      if (_booking?.type == 'SOS') {
+        await _bookingService.checkout(widget.bookingId,
+            overriddenSosFee: overriddenFee);
+      } else {
+        await _bookingService.checkout(widget.bookingId);
+      }
+      await _fetchBookingDetail();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Thanh toán thành công!'),
+              backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Lỗi thanh toán: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  Widget _buildCheckoutSection(
+      IconData icon, String title, List<String> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.stone600),
+            const SizedBox(width: 8),
+            Text(title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ...items.map((item) => Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 2),
+              child: Text(item, style: const TextStyle(fontSize: 13)),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildPriceSimple(String label, double amount) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(color: AppColors.stone500, fontSize: 13)),
+          Text(_currencyFormat.format(amount),
+              style: const TextStyle(fontSize: 13)),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleRemoveService(String serviceId) async {
@@ -213,8 +678,9 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         .where((s) => s.assignedStaffId != currentUserId && s.isAddOn != true)
         .toList();
 
-    // Check if this is my booking or colleague's booking
-    final isMyBooking = myServices.isNotEmpty;
+    // Check if this is my booking or colleague's booking (same logic as _buildActionBar)
+    final isMyBooking = _booking!.assignedStaffId == currentUserId ||
+        _booking!.services.any((s) => s.assignedStaffId == currentUserId);
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -264,9 +730,12 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
                     _booking!.bookingDate ?? 'N/A'),
                 _buildInfoRow(
                     Icons.access_time, 'Giờ hẹn', _getBookingTimeRange()),
-                if (_booking!.type == 'HOME_VISIT')
-                  _buildInfoRow(Icons.home, 'Loại', 'Khám tại nhà',
-                      valueColor: Colors.blue),
+                _buildInfoRow(
+                  _getBookingTypeIcon(),
+                  'Hình thức',
+                  _getBookingTypeLabel(),
+                  valueColor: _getBookingTypeColor(),
+                ),
               ],
             ),
           ),
@@ -486,13 +955,68 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
             const SizedBox(height: 12),
           const SizedBox(height: 12),
 
-          // Notes
           if (_booking!.notes != null && _booking!.notes!.isNotEmpty)
             _buildInfoCard(
               title: 'Ghi chú',
               child:
                   Text(_booking!.notes!, style: const TextStyle(fontSize: 14)),
             ),
+          const SizedBox(height: 12),
+
+          // Payment Summary Card
+          _buildInfoCard(
+            title: 'Tóm tắt thanh toán',
+            child: Column(
+              children: [
+                _buildPriceRow(
+                  'Tổng phí dịch vụ',
+                  (_booking!.totalPrice ?? 0) -
+                      (_booking!.sosFee ?? 0) -
+                      (_booking!.distanceFee ?? 0),
+                ),
+                if (_booking!.distanceFee != null && _booking!.distanceFee! > 0)
+                  _buildPriceRow('Phí di chuyển', _booking!.distanceFee!),
+                if (_booking!.sosFee != null && _booking!.sosFee! > 0)
+                  _buildPriceRow('Phí cấp cứu (SOS)', _booking!.sosFee!,
+                      isHighlight: true),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(),
+                ),
+                _buildPriceRow('Tổng cộng', _booking!.totalPrice ?? 0,
+                    isTotal: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 100), // Space for action bar
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(String label, double amount,
+      {bool isHighlight = false, bool isTotal = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isTotal ? 16 : 14,
+              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w500,
+              color: isHighlight ? AppColors.coral : AppColors.stone600,
+            ),
+          ),
+          Text(
+            _currencyFormat.format(amount),
+            style: TextStyle(
+              fontSize: isTotal ? 18 : 14,
+              fontWeight: isTotal ? FontWeight.w800 : FontWeight.w700,
+              color: isTotal ? AppColors.primary : AppColors.stone900,
+            ),
+          ),
         ],
       ),
     );
@@ -530,6 +1054,40 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     return _booking?.bookingTime?.substring(0, 5) ?? 'N/A';
   }
 
+  String _getBookingTypeLabel() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return 'Khám tại nhà';
+    }
+    if (type == 'SOS') {
+      return 'Cấp cứu SOS';
+    }
+    // Mặc định: khám tại phòng khám
+    return 'Khám tại phòng khám';
+  }
+
+  IconData _getBookingTypeIcon() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return Icons.home;
+    }
+    if (type == 'SOS') {
+      return Icons.emergency;
+    }
+    return Icons.local_hospital;
+  }
+
+  Color _getBookingTypeColor() {
+    final type = _booking?.type;
+    if (type == 'HOME_VISIT') {
+      return AppColors.primary;
+    }
+    if (type == 'SOS') {
+      return AppColors.coral;
+    }
+    return AppColors.successDark;
+  }
+
   Widget _buildStatusBadge() {
     final status = _booking!.status;
     Color bgColor;
@@ -538,38 +1096,33 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
 
     switch (status) {
       case 'PENDING':
-        bgColor = AppColors.stone100; // #F5F5F4
-        textColor = AppColors.stone700; // #44403C
+        bgColor = AppColors.stone100;
+        textColor = AppColors.stone700;
         label = 'Chờ xác nhận';
         break;
       case 'CONFIRMED':
-        bgColor = AppColors.amber50; // #FFFBEB
-        textColor = AppColors.primaryDark; // #B45309
+        bgColor = AppColors.amber50;
+        textColor = AppColors.primaryDark;
         label = 'Đã xác nhận';
         break;
       case 'ASSIGNED':
-        bgColor = AppColors.primarySurface; // #FEF3C7
-        textColor = AppColors.primary; // #D97706
+        bgColor = AppColors.primarySurface;
+        textColor = AppColors.primary;
         label = 'Đã gán BS';
         break;
-      case 'ARRIVED':
-        bgColor = AppColors.primarySurface; // #FEF3C7
-        textColor = AppColors.primary; // #D97706
-        label = 'Đã đến';
-        break;
       case 'IN_PROGRESS':
-        bgColor = AppColors.primarySurface; // #FEF3C7
-        textColor = AppColors.primary; // #D97706
+        bgColor = AppColors.primarySurface;
+        textColor = AppColors.primary;
         label = 'Đang khám';
         break;
       case 'COMPLETED':
-        bgColor = AppColors.successLight; // #DCFCE7
-        textColor = AppColors.successDark; // #16A34A
+        bgColor = AppColors.successLight;
+        textColor = AppColors.successDark;
         label = 'Hoàn thành';
         break;
       case 'CANCELLED':
-        bgColor = AppColors.stone100; // #F5F5F4
-        textColor = AppColors.stone600; // #57534E
+        bgColor = AppColors.stone100;
+        textColor = AppColors.stone600;
         label = 'Đã hủy';
         break;
       default:
@@ -647,24 +1200,187 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
     final currentUserId = authProvider.user?.userId;
 
     final status = _booking!.status;
-    final myServices = _booking!.services
-        .where((s) => s.assignedStaffId == currentUserId)
-        .toList();
-    final isMyBooking = myServices.isNotEmpty;
+    final isMyBooking = _booking!.assignedStaffId == currentUserId ||
+        _booking!.services.any((s) => s.assignedStaffId == currentUserId);
 
     Widget? actionButton;
 
-    // ASSIGNED or ARRIVED -> Check-in (start examination) - only for assigned staff
-    if ((status == 'ASSIGNED' || status == 'ARRIVED') && isMyBooking) {
-      actionButton = _buildActionButton(
-        label: 'Bắt đầu khám',
-        icon: Icons.play_arrow,
-        color: AppColors.primary,
-        onPressed: _handleCheckIn,
+    // 1. Logic for CONFIRMED bookings (Waiting to start)
+    if (status == 'CONFIRMED' && isMyBooking) {
+      actionButton = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_booking!.type == 'SOS') ...[
+            _buildActionButton(
+              label: 'BẮT ĐẦU DI CHUYỂN',
+              icon: Icons.location_on,
+              color: AppColors.coral,
+              onPressed: () {
+                _startTracking(callStartMoving: true);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildActionButton(
+              label: 'CHỈ ĐƯỜNG (MAPS)',
+              icon: Icons.directions,
+              color: Colors.green,
+              onPressed: () => _openMap(
+                _booking!.homeLat,
+                _booking!.homeLong,
+                _booking!.homeAddress ?? '',
+              ),
+            ),
+          ] else if (_booking!.type == 'HOME_VISIT') ...[
+            _buildActionButton(
+              label: 'BẮT ĐẦU KHÁM',
+              icon: Icons.play_arrow,
+              color: AppColors.primary,
+              onPressed: _handleCheckIn,
+            ),
+            const SizedBox(height: 12),
+            _buildActionButton(
+              label: 'CHỈ ĐƯỜNG (MAPS)',
+              icon: Icons.directions,
+              color: Colors.green,
+              onPressed: () => _openMap(
+                _booking!.homeLat,
+                _booking!.homeLong,
+                _booking!.homeAddress ?? '',
+              ),
+            ),
+          ] else
+            _buildActionButton(
+              label: 'BẮT ĐẦU KHÁM',
+              icon: Icons.play_arrow,
+              color: AppColors.primary,
+              onPressed: _handleCheckIn,
+            ),
+        ],
       );
     }
-    // IN_PROGRESS -> Show EMR and Vaccination buttons for ALL staff (Shared Visibility)
+    // 2. Logic for IN_PROGRESS bookings (Active care)
     else if (status == 'IN_PROGRESS') {
+      final actions = <Widget>[
+        _buildActionButton(
+          label: _existingEmr != null ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN',
+          icon: _existingEmr != null
+              ? Icons.description_outlined
+              : Icons.assignment_outlined,
+          color: _existingEmr != null ? Colors.green : Colors.blue,
+          onPressed: () async {
+            if (_existingEmr != null) {
+              await context.push('/staff/emr/${_existingEmr!.id}');
+            } else {
+              final petId = _booking!.petId;
+              if (petId != null) {
+                final petName = _booking!.petName ?? '';
+                final petSpecies = _booking!.petSpecies ?? '';
+                await context.push(
+                  Uri(
+                    path: AppRoutes.staffCreateEmr.replaceAll(':petId', petId),
+                    queryParameters: {
+                      'petName': petName,
+                      'petSpecies': petSpecies,
+                      'bookingId': _booking!.bookingId,
+                      'bookingCode': _booking!.bookingCode,
+                    },
+                  ).toString(),
+                );
+              }
+            }
+            if (mounted) await _fetchBookingDetail();
+          },
+        ),
+      ];
+
+      // Với SOS, không hiển thị shortcut TIÊM VACCINE
+      if (_booking!.type != 'SOS') {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'TIÊM VACCINE',
+            icon: Icons.vaccines_outlined,
+            color: Colors.purple,
+            onPressed: () {
+              final petId = _booking!.petId;
+              if (petId != null) {
+                final petName = _booking!.petName ?? 'Thú cưng';
+                String? initialVaccineName;
+                try {
+                  final vaccService = _booking!.services.firstWhere(
+                    (s) => s.serviceName?.toLowerCase().contains('vắc-xin') == true ||
+                        s.serviceName?.toLowerCase().contains('vaccine') == true,
+                  );
+                  initialVaccineName = vaccService.serviceName;
+                } catch (_) {
+                  initialVaccineName = null;
+                }
+                context.push(
+                  Uri(
+                    path: AppRoutes.staffVaccinationForm.replaceAll(':petId', petId),
+                    queryParameters: {
+                      'petName': petName,
+                      'bookingId': _booking!.bookingId,
+                      'bookingCode': _booking!.bookingCode,
+                      if (initialVaccineName != null) 'initialVaccineName': initialVaccineName,
+                    },
+                  ).toString(),
+                );
+              }
+            },
+          ),
+        ]);
+      }
+      // Thêm dịch vụ:
+      // - HOME_VISIT: hiển thị là "THÊM DỊCH VỤ PHÁT SINH"
+      // - SOS: hiển thị là "THÊM DỊCH VỤ"
+      if (_booking!.type == 'HOME_VISIT' || _booking!.type == 'SOS') {
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: _booking!.type == 'SOS'
+                ? 'THÊM DỊCH VỤ'
+                : 'THÊM DỊCH VỤ PHÁT SINH',
+            icon: Icons.add_circle_outline,
+            color: AppColors.primary,
+            onPressed: () async {
+              final bid = _booking!.bookingId;
+              final cid = _booking!.clinicId ?? '';
+              if (bid != null) {
+                final path =
+                    AppRoutes.staffAddService.replaceAll(':bookingId', bid);
+                final result =
+                    await context.push<bool>('$path?clinicId=$cid');
+                if (result == true && mounted) await _fetchBookingDetail();
+              }
+            },
+          ),
+        ]);
+      }
+      // Nút kết thúc flow theo từng loại booking
+      if (_booking!.type == 'HOME_VISIT' || _booking!.type == 'SOS') {
+        // HOME_VISIT & SOS: Hoàn tất khám và thanh toán gộp chung trong bước checkout
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'Xem lại hóa đơn & thanh toán',
+            icon: Icons.receipt_long,
+            color: AppColors.primary,
+            onPressed: _handleCheckout,
+          ),
+        ]);
+      } else {
+        // Các loại khác: có bước hoàn tất khám riêng
+        actions.addAll([
+          const SizedBox(height: 12),
+          _buildActionButton(
+            label: 'HOÀN TẤT KHÁM',
+            icon: Icons.check_circle_outline,
+            color: Colors.green,
+            onPressed: _handleComplete,
+          ),
+        ]);
+      }
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -675,81 +1391,7 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              // Shared Visibility: Always show EMR button for IN_PROGRESS bookings
-              _buildActionButton(
-                label: 'TẠO BỆNH ÁN',
-                icon: Icons.assignment_outlined,
-                color: Colors.blue,
-                onPressed: () {
-                  // Navigate to create EMR - any staff can create for IN_PROGRESS booking
-                  final petId = _booking!.petId;
-                  if (petId != null) {
-                    final petName = _booking!.petName ?? '';
-                    final petSpecies = _booking!.petSpecies ?? '';
-                    context.push(
-                      Uri(
-                        path: AppRoutes.staffCreateEmr
-                            .replaceAll(':petId', petId),
-                        queryParameters: {
-                          'petName': petName,
-                          'petSpecies': petSpecies,
-                          'bookingId': _booking!.bookingId,
-                          'bookingCode': _booking!.bookingCode,
-                        },
-                      ).toString(),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildActionButton(
-                label: 'TIÊM VACCINE',
-                icon: Icons.vaccines_outlined,
-                color: Colors.purple,
-                onPressed: () {
-                  final petId = _booking!.petId;
-                  if (petId != null) {
-                    final petName = _booking!.petName ?? 'Thú cưng';
-                    context.push(
-                      Uri(
-                        path: AppRoutes.staffVaccinationForm
-                            .replaceAll(':petId', petId),
-                        queryParameters: {
-                          'petName': petName,
-                          'bookingId': _booking!.bookingId,
-                          'bookingCode': _booking!.bookingCode,
-                        },
-                      ).toString(),
-                    );
-                  }
-                },
-              ),
-              if (_booking!.type == 'HOME_VISIT') ...[
-                const SizedBox(height: 12),
-                _buildActionButton(
-                  label: 'THÊM DỊCH VỤ',
-                  icon: Icons.add_circle_outline,
-                  color: Colors.teal,
-                  onPressed: () async {
-                    final result = await context.push(
-                      Uri(
-                        path: AppRoutes.staffAddService
-                            .replaceAll(':bookingId', _booking!.bookingId!),
-                        queryParameters: {
-                          'clinicId': _booking!.clinicId,
-                        },
-                      ).toString(),
-                    );
-
-                    if (result == true) {
-                      _fetchBookingDetail();
-                    }
-                  },
-                ),
-              ],
-              // Note: Checkout removed - staff doesn't have checkout permission for IN_CLINIC
-            ],
+            children: actions,
           ),
         ),
       );
@@ -768,7 +1410,23 @@ class _StaffBookingDetailScreenState extends State<StaffBookingDetailScreen> {
         child: _isActionLoading
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.primary))
-            : actionButton,
+            : ExpansionTile(
+                title: Row(
+                  children: [
+                    Icon(Icons.touch_app, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    const Text('Thao tác',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                initiallyExpanded: false,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: actionButton,
+                  ),
+                ],
+              ),
       ),
     );
   }

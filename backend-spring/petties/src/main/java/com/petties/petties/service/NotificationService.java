@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.petties.petties.model.enums.Role;
 
@@ -378,9 +379,14 @@ public class NotificationService {
          */
         @Transactional
         public void sendBookingNotificationToClinic(com.petties.petties.model.Booking booking) {
-                // Find all managers of this clinic
+                // Find all managers of this clinic (deduplicate by userId to avoid duplicate notifications)
                 List<User> managers = userRepository.findByWorkingClinicIdAndRole(
-                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER)
+                                .stream()
+                                .collect(Collectors.toMap(User::getUserId, u -> u, (a, b) -> a))
+                                .values()
+                                .stream()
+                                .toList();
 
                 if (managers.isEmpty()) {
                         log.warn("No managers found for clinic: {}", booking.getClinic().getClinicId());
@@ -517,6 +523,43 @@ public class NotificationService {
         }
 
         /**
+         * Notify all clinic managers of a booking about a specific event
+         */
+        private void notifyClinicManagersForBooking(
+                        com.petties.petties.model.Booking booking,
+                        NotificationType type,
+                        String message) {
+                if (booking.getClinic() == null) {
+                        log.warn("No clinic found for booking: {} when notifying managers", booking.getBookingCode());
+                        return;
+                }
+
+                List<User> managers = userRepository.findByWorkingClinicIdAndRole(
+                                booking.getClinic().getClinicId(), Role.CLINIC_MANAGER);
+
+                if (managers.isEmpty()) {
+                        log.debug("No clinic managers to notify for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                for (User manager : managers) {
+                        Notification notification = Notification.builder()
+                                        .user(manager)
+                                        .clinic(booking.getClinic())
+                                        .type(type)
+                                        .message(message)
+                                        .read(false)
+                                        .build();
+
+                        notification = notificationRepository.save(notification);
+                        log.info("Booking notification for managers created: {} for manager: {} type: {}",
+                                        notification.getNotificationId(), manager.getUserId(), type);
+
+                        pushNotificationToUser(manager.getUserId(), notification);
+                }
+        }
+
+        /**
          * Notify pet owner when staff checks in (starts the service)
          */
         @Transactional
@@ -549,6 +592,12 @@ public class NotificationService {
                                 notification.getNotificationId(), petOwner.getUserId());
 
                 pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.BOOKING_CHECKIN,
+                                message);
         }
 
         /**
@@ -580,13 +629,20 @@ public class NotificationService {
                                 notification.getNotificationId(), petOwner.getUserId());
 
                 pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.BOOKING_COMPLETED,
+                                message);
         }
 
         @Transactional
         public void sendStaffOnWayNotification(com.petties.petties.model.Booking booking) {
                 // Only send for SOS bookings
-                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS) {
-                        log.debug("STAFF_ON_WAY notification skipped - only applicable for SOS bookings");
+                if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS &&
+                                booking.getType() != com.petties.petties.model.enums.BookingType.HOME_VISIT) {
+                        log.debug("STAFF_ON_WAY notification skipped - only applicable for SOS/HOME_VISIT bookings");
                         return;
                 }
 
@@ -614,6 +670,90 @@ public class NotificationService {
 
                 notification = notificationRepository.save(notification);
                 log.info("Staff on way notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers with manager-appropriate message
+                String managerMessage = String.format(
+                                "Nhân viên %s đã bắt đầu di chuyển đến địa chỉ khách hàng (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.STAFF_ON_WAY,
+                                managerMessage);
+        }
+
+        @Transactional
+        public void sendStaffArrivedNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String staffName = booking.getAssignedStaff() != null
+                                ? booking.getAssignedStaff().getFullName()
+                                : "Nhân viên";
+                String message = String.format(
+                                "Nhân viên %s đã đến địa chỉ của bạn (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.STAFF_ARRIVED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Staff arrived notification created: {} for owner: {}",
+                                notification.getNotificationId(), petOwner.getUserId());
+
+                pushNotificationToUser(petOwner.getUserId(), notification);
+
+                // Also notify clinic managers with manager-appropriate message
+                String managerArrivalMessage = String.format(
+                                "Nhân viên %s đã đến địa chỉ khách hàng (Booking #%s)",
+                                staffName,
+                                booking.getBookingCode());
+                notifyClinicManagersForBooking(
+                                booking,
+                                NotificationType.STAFF_ARRIVED,
+                                managerArrivalMessage);
+        }
+
+        /**
+         * Notify pet owner when their booking is auto-cancelled
+         * due to clinic not confirming within the timeout period.
+         */
+        @Transactional
+        public void sendBookingAutoCancelledNotification(com.petties.petties.model.Booking booking) {
+                User petOwner = booking.getPetOwner();
+                if (petOwner == null) {
+                        log.warn("No pet owner found for auto-cancelled booking: {}", booking.getBookingCode());
+                        return;
+                }
+
+                String clinicName = booking.getClinic() != null ? booking.getClinic().getName() : "Phòng khám";
+                String message = String.format(
+                                "Lịch hẹn #%s tại %s đã bị hủy tự động do không được xác nhận trong thời gian quy định. Vui lòng đặt lịch lại hoặc liên hệ phòng khám.",
+                                booking.getBookingCode(),
+                                clinicName);
+
+                Notification notification = Notification.builder()
+                                .user(petOwner)
+                                .clinic(booking.getClinic())
+                                .type(NotificationType.BOOKING_CANCELLED)
+                                .message(message)
+                                .read(false)
+                                .build();
+
+                notification = notificationRepository.save(notification);
+                log.info("Auto-cancellation notification created: {} for owner: {}",
                                 notification.getNotificationId(), petOwner.getUserId());
 
                 pushNotificationToUser(petOwner.getUserId(), notification);
@@ -669,6 +809,8 @@ public class NotificationService {
                         case BOOKING_CREATED -> "Lịch hẹn mới";
                         case BOOKING_CONFIRMED -> "Lịch hẹn đã xác nhận";
                         case BOOKING_CANCELLED -> "Lịch hẹn đã bị hủy";
+                        case STAFF_ON_WAY -> "Nhân viên đang đến";
+                        case STAFF_ARRIVED -> "Nhân viên đã đến nơi";
                         case CLINIC_VERIFIED, APPROVED -> "Phòng khám đã được xác minh";
                         case REJECTED -> "Phòng khám bị từ chối";
                         default -> "Thông báo từ Petties";

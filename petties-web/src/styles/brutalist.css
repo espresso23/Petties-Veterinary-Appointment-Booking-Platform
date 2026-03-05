@@ -534,3 +534,45 @@
   background-color: #d6d3d1; /* stone-300 */
   margin: 1rem 0;
 }
+
+/* ============================================
+   MOBILE SAFE AREA (iOS / Android)
+   Khi có menu bar (status bar, home/back) hoặc khi ẩn (fullscreen)
+   ============================================ */
+
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Chiều cao màn hình động: thích ứng khi browser UI (address bar, tab bar) ẩn/hiện */
+.min-h-screen-safe {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Layout chính: padding tránh notch + home indicator (có hay không có menu bar đều an toàn) */
+.safe-area-padding {
+  padding-top: var(--sat);
+  padding-right: var(--sar);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+}
+
+/* Sidebar cố định mobile: nằm trong safe area (tránh notch, home indicator) */
+.sidebar-mobile-safe {
+  position: fixed;
+  top: var(--sat);
+  right: auto;
+  bottom: var(--sab);
+  left: var(--sal);
+  height: calc(100vh - var(--sat) - var(--sab));
+  height: calc(100dvh - var(--sat) - var(--sab));
+}

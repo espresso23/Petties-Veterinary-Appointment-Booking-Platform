@@ -1,6 +1,7 @@
 package com.petties.petties.dto.booking;
 
 import lombok.*;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -54,9 +55,14 @@ public class StaffOptionDTO {
     private int bookingCount;
 
     /**
-     * True if staff has available slots at the booking time
+     * True if staff has available slots for at least one service in the booking
      */
     private boolean hasAvailableSlots;
+
+    /**
+     * List of BookingServiceItem IDs that this staff is available for
+     */
+    private List<UUID> availableServiceItemIds;
 
     /**
      * If not available, reason why (e.g., "Không có ca làm việc", "Không đủ slot trống")

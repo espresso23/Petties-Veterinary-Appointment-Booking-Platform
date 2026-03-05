@@ -3,6 +3,12 @@ import { useAuthStore } from '../../store/authStore'
 import { useState, useEffect } from 'react'
 import { petService } from '../../services/api/petService'
 
+import { type Pet as ApiPet } from '../../services/api/petService'
+
+interface Pet extends ApiPet {
+  ageYears?: number
+}
+
 export function HomePage() {
   const { isAuthenticated, user } = useAuthStore()
 
@@ -28,12 +34,12 @@ export function HomePage() {
 }
 
 function PetList() {
-  const [pets, setPets] = useState<any[]>([])
+  const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     petService.getMyPets()
-      .then(setPets)
+      .then(res => setPets(res as Pet[]))
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])

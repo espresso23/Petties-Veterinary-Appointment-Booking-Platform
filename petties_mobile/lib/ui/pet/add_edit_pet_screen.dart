@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
 import '../../data/models/pet.dart';
 import '../../data/services/pet_service.dart';
 import '../../config/constants/app_colors.dart';
 import '../core/widgets/custom_button.dart';
 import '../core/widgets/custom_text_field.dart';
+import '../../providers/auth_provider.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 class AddEditPetScreen extends StatefulWidget {
   final String? id; // If null, it's Add mode. If not, Edit mode.
@@ -25,7 +29,6 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   // Controllers
   final _nameController = TextEditingController();
-  final _speciesController = TextEditingController();
   final _breedController = TextEditingController();
   final _weightController = TextEditingController();
   final _colorController = TextEditingController();
@@ -33,6 +36,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   DateTime? _selectedDateOfBirth;
   String _selectedGender = 'MALE';
+  PetSpecies _selectedSpecies = PetSpecies.DOG;
   XFile? _selectedImage;
   String? _currentImageUrl;
 
@@ -49,7 +53,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
     try {
       final pet = await _petService.getPet(id);
       _nameController.text = pet.name;
-      _speciesController.text = pet.species;
+      _selectedSpecies = pet.species;
       _breedController.text = pet.breed;
       _weightController.text = pet.weight.toString();
       _selectedDateOfBirth = pet.dateOfBirth;
@@ -66,14 +70,99 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
     if (image != null) {
       setState(() {
         _selectedImage = image;
       });
     }
+  }
+
+  void _showImagePickerSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.stone300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Chọn ảnh đại diện',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.stone900),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildPickerOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Chụp ảnh',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                _buildPickerOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Thư viện',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerOption({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.stone200),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.stone700),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -117,7 +206,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
         // Create
         await _petService.createPet(
           name: _nameController.text,
-          species: _speciesController.text,
+          species: _selectedSpecies.value,
           breed: _breedController.text,
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
@@ -131,7 +220,7 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
         await _petService.updatePet(
           id: widget.id!,
           name: _nameController.text,
-          species: _speciesController.text,
+          species: _selectedSpecies.value,
           breed: _breedController.text,
           dateOfBirth: _selectedDateOfBirth!,
           weight: double.parse(_weightController.text),
@@ -155,6 +244,9 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isPetOwner = auth.user?.role == 'PET_OWNER';
+
     return Scaffold(
       backgroundColor: AppColors.stone50,
       appBar: AppBar(
@@ -174,21 +266,22 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                     // Image Picker
                     Center(
                       child: GestureDetector(
-                        onTap: _pickImage,
+                        onTap: _showImagePickerSheet,
                         child: Stack(
                           children: [
                             Container(
                               width: 120,
                               height: 120,
                               decoration: BoxDecoration(
-                                color: AppColors.stone200,
-                                border: Border.all(
-                                    color: AppColors.stone900, width: 2),
+                                color: AppColors.white,
+                                border: Border.all(color: AppColors.stone200, width: 2),
                                 shape: BoxShape.circle,
-                                boxShadow: const [
+                                boxShadow: [
                                   BoxShadow(
-                                      color: AppColors.stone900,
-                                      offset: Offset(2, 2)),
+                                    color: AppColors.stone900.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
                                 ],
                                 image: _selectedImage != null
                                     ? DecorationImage(
@@ -206,8 +299,10 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                               ),
                               child: (_selectedImage == null &&
                                       _currentImageUrl == null)
-                                  ? const Icon(Icons.add_a_photo,
-                                      size: 40, color: AppColors.stone400)
+                                  ? const Center(
+                                      child: Icon(Icons.pets,
+                                          size: 40, color: AppColors.stone300),
+                                    )
                                   : null,
                             ),
                             Positioned(
@@ -216,15 +311,22 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: AppColors.stone200,
+                                  color: AppColors.primary,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                      color: AppColors.stone900, width: 2),
+                                      color: AppColors.white, width: 3),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
                                 child: const Icon(
-                                  Icons.camera_alt,
+                                  Icons.add_a_photo,
                                   size: 18,
-                                  color: AppColors.stone900,
+                                  color: AppColors.white,
                                 ),
                               ),
                             ),
@@ -243,16 +345,62 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Species & Breed
+                    // Species Dropdown & Breed
                     Row(
                       children: [
                         Expanded(
-                          child: CustomTextField(
-                            controller: _speciesController,
-                            label: 'Loài (Chó/Mèo...)',
-                            validator: (value) => value?.isEmpty ?? true
-                                ? 'Vui lòng nhập loài'
-                                : null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Loài',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.stone900,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.stone900, width: 2),
+                                  boxShadow: const [
+                                    BoxShadow(color: AppColors.stone900, offset: Offset(2, 2)),
+                                  ],
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<PetSpecies>(
+                                    value: _selectedSpecies,
+                                    isExpanded: true,
+                                    items: PetSpecies.values.map((species) {
+                                      return DropdownMenuItem(
+                                        value: species,
+                                        child: Row(
+                                          children: [
+                                            Text(species.icon, style: const TextStyle(fontSize: 18)),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              species.displayName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.stone900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() => _selectedSpecies = value);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -296,10 +444,12 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                             label: 'Cân nặng (kg)',
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value == null || value.isEmpty)
+                              if (value == null || value.isEmpty) {
                                 return 'Vui lòng nhập cân nặng';
-                              if (double.tryParse(value) == null)
+                              }
+                              if (double.tryParse(value) == null) {
                                 return 'Cân nặng không hợp lệ';
+                              }
                               return null;
                             },
                           ),
@@ -353,6 +503,12 @@ class _AddEditPetScreenState extends State<AddEditPetScreen> {
                 ),
               ),
             ),
+      bottomNavigationBar: isPetOwner
+          ? PetOwnerBottomNav(
+              currentIndex: 4,
+              onTap: (index) => handlePetOwnerNavTap(context, index),
+            )
+          : null,
     );
   }
 

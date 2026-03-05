@@ -67,13 +67,11 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
 
   Future<void> _initUserInfo() async {
     final user = await AuthService().getCurrentUser();
-    if (user != null) {
-      setState(() {
-        _currentUserId = user.userId;
-        _clinicId = user.workingClinicId;
-      });
+    setState(() {
+      _currentUserId = user.userId;
+      _clinicId = user.workingClinicId;
+    });
     }
-  }
 
   Future<void> _loadBookings() async {
     setState(() => _isLoading = true);
@@ -85,7 +83,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
       );
 
       final List<dynamic> content = response['content'] ?? [];
-      final bookings = content.map((json) => BookingResponse.fromJson(json)).toList();
+      final bookings =
+          content.map((json) => BookingResponse.fromJson(json)).toList();
 
       setState(() {
         _bookings = bookings;
@@ -139,19 +138,22 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
           indicatorWeight: 3,
           labelColor: AppColors.white,
           unselectedLabelColor: AppColors.white.withOpacity(0.7),
-          labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+          labelStyle:
+              const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
           tabs: const [
             Tab(text: 'CỦA TÔI'),
             Tab(text: 'TẤT CẢ CLINIC'),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildMyBookingsTab(),
-          _buildClinicBookingsTab(),
-        ],
+      body: SafeArea(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildMyBookingsTab(),
+            _buildClinicBookingsTab(),
+          ],
+        ),
       ),
     );
   }
@@ -193,7 +195,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                       side: BorderSide(
-                        color: isActive ? AppColors.stone900 : AppColors.stone200,
+                        color:
+                            isActive ? AppColors.stone900 : AppColors.stone200,
                         width: 1,
                       ),
                     ),
@@ -207,7 +210,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
         // Bookings list
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary))
               : _bookings.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
@@ -217,7 +221,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                         padding: const EdgeInsets.all(16),
                         itemCount: _bookings.length,
                         itemBuilder: (context, index) {
-                          return _buildBookingCard(_bookings[index], isClinicView: false);
+                          return _buildBookingCard(_bookings[index],
+                              isClinicView: false);
                         },
                       ),
                     ),
@@ -259,7 +264,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
         // Bookings list
         Expanded(
           child: _isLoadingClinic
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary))
               : _clinicBookings.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
@@ -269,7 +275,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _clinicBookings.length,
                         itemBuilder: (context, index) {
-                          return _buildBookingCard(_clinicBookings[index], isClinicView: true);
+                          return _buildBookingCard(_clinicBookings[index],
+                              isClinicView: true);
                         },
                       ),
                     ),
@@ -283,7 +290,8 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.calendar_today_outlined, size: 64, color: AppColors.stone300),
+          Icon(Icons.calendar_today_outlined,
+              size: 64, color: AppColors.stone300),
           const SizedBox(height: 16),
           Text(
             'Không tìm thấy lịch hẹn nào',
@@ -294,9 +302,12 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
     );
   }
 
-  Widget _buildBookingCard(BookingResponse booking, {required bool isClinicView}) {
+  Widget _buildBookingCard(BookingResponse booking,
+      {required bool isClinicView}) {
     // Format time display
-    String timeDisplay = booking.bookingTime != null ? booking.bookingTime!.substring(0, 5) : '--:--';
+    String timeDisplay = booking.bookingTime != null
+        ? booking.bookingTime!.substring(0, 5)
+        : '--:--';
 
     // Format date display
     String dateDisplay = '--/--';
@@ -313,15 +324,20 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
         : true;
 
     return GestureDetector(
-      onTap: () => context.push(AppRoutes.staffBookingDetail.replaceAll(':bookingId', booking.bookingId ?? '')),
+      onTap: () => context.push(AppRoutes.staffBookingDetail
+          .replaceAll(':bookingId', booking.bookingId ?? '')),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isClinicView && isMyBooking ? Colors.amber.shade50 : AppColors.white,
+          color: isClinicView && isMyBooking
+              ? Colors.amber.shade50
+              : AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isClinicView && isMyBooking ? Colors.amber.shade400 : AppColors.stone900,
+            color: isClinicView && isMyBooking
+                ? Colors.amber.shade400
+                : AppColors.stone900,
             width: 2,
           ),
           boxShadow: const [
@@ -345,11 +361,13 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                     children: [
                       Text(
                         dateDisplay.split('/')[0],
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w900, fontSize: 18),
                       ),
                       Text(
                         'Th ${dateDisplay.split('/')[1]}',
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -366,22 +384,53 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                           Expanded(
                             child: Text(
                               booking.petName ?? 'N/A',
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w900, fontSize: 16),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           _buildStatusBadge(booking.status ?? ''),
+                          if (booking.type == 'SOS') ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.coral,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.flash_on,
+                                      color: Colors.white, size: 10),
+                                  SizedBox(width: 2),
+                                  Text(
+                                    'SOS',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           if (isClinicView && isMyBooking) ...[
                             const SizedBox(width: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.amber.shade600,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Text(
                                 'Của tôi',
-                                style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900),
                               ),
                             ),
                           ],
@@ -390,23 +439,29 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
                       const SizedBox(height: 4),
                       Text(
                         'Chủ: ${booking.ownerName ?? 'N/A'}',
-                        style: TextStyle(color: AppColors.stone500, fontSize: 13),
+                        style:
+                            TextStyle(color: AppColors.stone500, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                          const Icon(Icons.access_time,
+                              size: 14, color: AppColors.primary),
                           const SizedBox(width: 4),
                           Text(
                             timeDisplay,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                           const SizedBox(width: 12),
-                          const Icon(Icons.medical_services_outlined, size: 14, color: AppColors.primary),
+                          const Icon(Icons.medical_services_outlined,
+                              size: 14, color: AppColors.primary),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              booking.services.isNotEmpty ? booking.services[0].serviceName ?? 'Dịch vụ' : 'Dịch vụ',
+                              booking.services.isNotEmpty
+                                  ? booking.services[0].serviceName ?? 'Dịch vụ'
+                                  : 'Dịch vụ',
                               style: const TextStyle(fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -419,21 +474,26 @@ class _StaffBookingsScreenState extends State<StaffBookingsScreen>
               ],
             ),
             // Show assigned staff for clinic view (if not my booking)
-            if (isClinicView && !isMyBooking && booking.assignedStaffName != null) ...[
+            if (isClinicView &&
+                !isMyBooking &&
+                booking.assignedStaffName != null) ...[
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.stone100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.person_outline, size: 14, color: AppColors.stone500),
+                    const Icon(Icons.person_outline,
+                        size: 14, color: AppColors.stone500),
                     const SizedBox(width: 6),
                     Text(
                       'Phụ trách: ${booking.assignedStaffName}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.stone600),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.stone600),
                     ),
                   ],
                 ),

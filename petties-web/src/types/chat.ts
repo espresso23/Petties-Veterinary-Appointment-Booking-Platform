@@ -27,6 +27,13 @@ export interface CreateConversationRequest {
 
 // ======================== MESSAGE ========================
 
+/** Action button on a message (e.g. from auto-reply) */
+export interface ChatActionButton {
+  id: string
+  label: string
+  type: 'MENU' | 'OFFER' | 'BOOKING' | 'CUSTOM'
+}
+
 export interface ChatMessage {
   id: string
   conversationId: string
@@ -43,6 +50,8 @@ export interface ChatMessage {
   createdAt: string
   isMe: boolean
   isUploading?: boolean // Used for optimistic UI during upload
+  /** Interactive action buttons (e.g. from auto-reply) */
+  actionButtons?: ChatActionButton[] | null
 }
 
 export interface SendMessageRequest {
@@ -85,6 +94,29 @@ export interface PageResponse<T> {
   first: boolean
   last: boolean
   empty: boolean
+}
+
+// ======================== AUTO-REPLY (CLINIC) ========================
+
+export type AutoReplyCondition = 'OFF_HOURS' | 'ALWAYS'
+
+export interface ChatAutoReplySettings {
+  clinicId: string
+  quickReplyEnabled: boolean
+  quickReplyMessage: string | null
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage: string | null
+  actionButtons: ChatActionButton[] | null
+}
+
+export interface UpdateChatAutoReplySettingsRequest {
+  quickReplyEnabled: boolean
+  quickReplyMessage?: string
+  awayMessageEnabled: boolean
+  awayCondition: AutoReplyCondition
+  awayMessage?: string
+  actionButtons?: ChatActionButton[] | null
 }
 
 // ======================== BACKWARD COMPATIBILITY ========================

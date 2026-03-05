@@ -41,8 +41,8 @@ public class ClinicService {
     private MasterService masterService;
 
     // NEW: Phân biệt Custom vs Inherited
-    @Column(name = "is_custom", nullable = false)
     @Builder.Default
+    @Column(name = "is_custom", nullable = false)
     private Boolean isCustom = true;
 
     @Column(name = "name", nullable = false, length = 200)
@@ -60,12 +60,12 @@ public class ClinicService {
     @Column(name = "slots_required", nullable = false)
     private Integer slotsRequired;
 
-    @Column(name = "is_active", nullable = false)
     @Builder.Default
+    @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    @Column(name = "is_home_visit", nullable = false)
     @Builder.Default
+    @Column(name = "is_home_visit", nullable = false)
     private Boolean isHomeVisit = false;
 
     // NEW: Reminder schedule for vaccination
@@ -82,9 +82,18 @@ public class ClinicService {
     @Column(name = "pet_type", length = 100)
     private String petType;
 
-    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    // Link to VaccineTemplate for vaccination services
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vaccine_template_id")
+    private VaccineTemplate vaccineTemplate;
+
     @Builder.Default
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ServiceWeightPrice> weightPrices = new ArrayList<>();
+
+    // Vaccine dose prices - giá theo số mũi tiêm
+    @OneToMany(mappedBy = "service", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<VaccineDosePrice> dosePrices = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

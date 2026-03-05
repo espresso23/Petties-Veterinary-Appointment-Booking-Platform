@@ -8,6 +8,7 @@ import com.petties.petties.service.LocationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -15,7 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
-
+import java.util.stream.Collectors;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -30,8 +31,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component
+@ConditionalOnProperty(name = "app.init.seed-booking-data", havingValue = "true")
 @RequiredArgsConstructor
-@Order(2) // Run after DataInitializer (default order 0)
+@Order(2)
 public class BookingDataSeeder implements CommandLineRunner {
 
         private static final Logger log = LoggerFactory.getLogger(BookingDataSeeder.class);
@@ -44,6 +46,15 @@ public class BookingDataSeeder implements CommandLineRunner {
         private final StaffShiftRepository staffShiftRepository;
         private final PricingService pricingService;
         private final LocationService locationService;
+        private final VaccineTemplateRepository vaccineTemplateRepository;
+        private final VaccineDosePriceRepository vaccineDosePriceRepository;
+        private final com.petties.petties.service.VaccinationService vaccinationService;
+        private final SlotRepository slotRepository;
+        private final BookingSlotRepository bookingSlotRepository;
+        private final VaccinationRecordRepository vaccinationRecordRepository;
+        private final com.petties.petties.service.NotificationService notificationService;
+
+        private long bookingSequenceCounter = 1;
 
         @Override
         @Transactional
@@ -58,6 +69,17 @@ public class BookingDataSeeder implements CommandLineRunner {
                 log.info("📦 Seeding booking mock data...");
 
                 try {
+                        log.info("   Cleaning up old data to ensure fresh seeding...");
+                        // Order of deletion to avoid FK constraints
+                        bookingSlotRepository.deleteAll();
+                        slotRepository.deleteAll();
+                        vaccinationRecordRepository.deleteAll();
+                        bookingRepository.deleteAll();
+                        staffShiftRepository.deleteAll();
+
+                        bookingRepository.flush();
+                        staffShiftRepository.flush();
+
                         seedMockPets();
                         seedMockStaffShifts();
                         seedMockServices(); // Add services with required categories
@@ -65,7 +87,7 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                         log.info("✅ Booking mock data seeded successfully!");
                 } catch (Exception e) {
-                        log.error("❌ Failed to seed booking mock data: {}", e.getMessage());
+                        log.error("❌ Failed to seed booking mock data: ", e);
                 }
         }
 
@@ -87,11 +109,11 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 // Create mock pets
                 Pet[] pets = {
-                                createPet(petOwner, "Buddy", "Chó", "Golden Retriever", LocalDate.of(2022, 3, 15), 25.5,
+                                createPet(petOwner, "Buddy", com.petties.petties.model.enums.PetSpecies.DOG, "Golden Retriever", LocalDate.of(2022, 3, 15), 25.5,
                                                 "Đực"),
-                                createPet(petOwner, "Mimi", "Mèo", "British Shorthair", LocalDate.of(2023, 6, 20), 4.2,
+                                createPet(petOwner, "Mimi", com.petties.petties.model.enums.PetSpecies.CAT, "British Shorthair", LocalDate.of(2023, 6, 20), 4.2,
                                                 "Cái"),
-                                createPet(petOwner, "Max", "Chó", "German Shepherd", LocalDate.of(2021, 1, 10), 32.0,
+                                createPet(petOwner, "Max", com.petties.petties.model.enums.PetSpecies.DOG, "German Shepherd", LocalDate.of(2021, 1, 10), 32.0,
                                                 "Đực")
                 };
 
@@ -103,7 +125,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
         }
 
-        private Pet createPet(User owner, String name, String species, String breed,
+        private Pet createPet(User owner, String name, com.petties.petties.model.enums.PetSpecies species, String breed,
                         LocalDate dob, double weight, String gender) {
                 Pet pet = new Pet();
                 pet.setName(name);
@@ -121,66 +143,72 @@ public class BookingDataSeeder implements CommandLineRunner {
          * Extends to 21:00 to cover evening test bookings
          */
         private void seedMockStaffShifts() {
-                User staff = userRepository.findByUsername("vet").orElse(null);
-                if (staff == null) {
-                        log.warn("staff user not found, skipping shift seeding");
+                Clinic clinic = clinicRepository.findAll().stream()
+                                .filter(c -> c.getName() != null && c.getName().contains("Central"))
+                                .findFirst()
+                                .orElse(null);
+                if (clinic == null)
                         return;
-                }
 
-                Clinic clinic = staff.getWorkingClinic();
-                if (clinic == null) {
-                        log.warn("staff has no working clinic, skipping shift seeding");
+                List<User> staffMembers = userRepository.findAll().stream()
+                                .filter(u -> u.getRole() == Role.STAFF && u.getWorkingClinic() != null
+                                                && u.getWorkingClinic().getClinicId().equals(clinic.getClinicId()))
+                                .toList();
+
+                if (staffMembers.isEmpty()) {
+                        log.warn("No staff found for clinic {}, skipping shift seeding", clinic.getName());
                         return;
                 }
 
                 LocalDate today = LocalDate.now();
 
-                // 1. Ensure TODAY has a shift for testing (even if Sunday)
-                List<StaffShift> shiftsToday = staffShiftRepository.findByStaff_UserIdAndWorkDate(staff.getUserId(),
-                                today);
-                if (shiftsToday.isEmpty()) {
-                        StaffShift todayShift = StaffShift.builder()
-                                        .staff(staff)
-                                        .clinic(clinic)
-                                        .workDate(today)
-                                        .startTime(LocalTime.of(8, 0))
-                                        .endTime(LocalTime.of(21, 0)) // Extended for testing
-                                        .isOvernight(false)
-                                        .build();
-
-                        // Generate slots for today's shift manually since we're bypassing
-                        // StaffShiftService
-                        todayShift.setSlots(generateSlots(todayShift, null, null));
-                        staffShiftRepository.save(todayShift);
-                        log.info("   + Created/Forced shift for TODAY (Sunday testing): 08:00-21:00");
-                } else {
-                        // Update existing shift to ensure it covers test times
-                        StaffShift existing = shiftsToday.get(0);
-                        if (existing.getEndTime().isBefore(LocalTime.of(21, 0))) {
-                                existing.setEndTime(LocalTime.of(21, 0));
-                                staffShiftRepository.save(existing);
-                                log.info("   + Extended existing Today shift to 21:00 for testing");
-                        }
-                }
-
-                // 2. Ensure next 6 days have shifts
-                for (int i = 1; i <= 6; i++) {
-                        LocalDate shiftDate = today.plusDays(i);
-                        if (staffShiftRepository.findByStaff_UserIdAndWorkDate(staff.getUserId(), shiftDate)
-                                        .isEmpty()) {
-                                StaffShift shift = StaffShift.builder()
+                for (User staff : staffMembers) {
+                        log.info("   - Seeding shifts for staff: {}", staff.getFullName());
+                        // 1. Ensure TODAY has a shift for testing (even if Sunday)
+                        List<StaffShift> shiftsToday = staffShiftRepository.findByStaff_UserIdAndWorkDate(
+                                        staff.getUserId(),
+                                        today);
+                        if (shiftsToday.isEmpty()) {
+                                StaffShift todayShift = StaffShift.builder()
                                                 .staff(staff)
                                                 .clinic(clinic)
-                                                .workDate(shiftDate)
+                                                .workDate(today)
                                                 .startTime(LocalTime.of(8, 0))
-                                                .endTime(LocalTime.of(21, 0))
+                                                .endTime(LocalTime.of(21, 0)) // Extended for testing
                                                 .isOvernight(false)
                                                 .build();
-                                shift.setSlots(generateSlots(shift, null, null));
-                                staffShiftRepository.save(shift);
+                                StaffShift savedShift = staffShiftRepository.save(todayShift);
+                                generateSlots(savedShift);
+                                log.info("   + Created/Forced shift for TODAY (Sunday testing): 08:00-21:00 with slots");
+                        } else {
+                                // Update existing shift to ensure it covers test times
+                                StaffShift existing = shiftsToday.get(0);
+                                if (existing.getEndTime().isBefore(LocalTime.of(21, 0))) {
+                                        existing.setEndTime(LocalTime.of(21, 0));
+                                        staffShiftRepository.save(existing);
+                                        log.info("   + Extended existing Today shift to 21:00 for testing");
+                                }
+                        }
+
+                        // 2. Ensure next 6 days have shifts
+                        for (int i = 1; i <= 6; i++) {
+                                LocalDate shiftDate = today.plusDays(i);
+                                if (staffShiftRepository.findByStaff_UserIdAndWorkDate(staff.getUserId(), shiftDate)
+                                                .isEmpty()) {
+                                        StaffShift shift = StaffShift.builder()
+                                                        .staff(staff)
+                                                        .clinic(clinic)
+                                                        .workDate(shiftDate)
+                                                        .startTime(LocalTime.of(8, 0))
+                                                        .endTime(LocalTime.of(21, 0))
+                                                        .isOvernight(false)
+                                                        .build();
+                                        StaffShift saved = staffShiftRepository.save(shift);
+                                        generateSlots(saved);
+                                }
                         }
                 }
-                log.info("   + Verified staff shifts for next 7 days");
+                log.info("   + Verified staff shifts for ALL staff for next 7 days");
         }
 
         private List<Slot> generateSlots(StaffShift shift, LocalTime breakStart, LocalTime breakEnd) {
@@ -274,6 +302,29 @@ public class BookingDataSeeder implements CommandLineRunner {
                         ServiceCategory category = entry.getKey();
                         String[] data = entry.getValue();
 
+                        // Special handling for VACCINATION - create the extra "Tiêm phòng dại" service
+                        // first
+                        if (category == ServiceCategory.VACCINATION) {
+                                // Check if "Tiêm phòng dại" specifically exists
+                                boolean rabiesExists = existingServices.stream()
+                                                .anyMatch(s -> "Tiêm phòng dại".equals(s.getName()));
+                                if (!rabiesExists) {
+                                        ClinicService service = new ClinicService();
+                                        service.setClinic(clinic);
+                                        service.setName("Tiêm phòng dại");
+                                        service.setBasePrice(new BigDecimal("180000"));
+                                        service.setDurationTime(30);
+                                        service.setSlotsRequired(1);
+                                        service.setIsActive(true);
+                                        service.setIsHomeVisit(true);
+                                        service.setIsCustom(true);
+                                        service.setServiceCategory(ServiceCategory.VACCINATION);
+                                        clinicServiceRepository.save(service);
+                                }
+                                seedVaccinationServices(clinic);
+                                continue;
+                        }
+
                         // Check if service with this category already exists
                         boolean exists = existingServices.stream()
                                         .anyMatch(s -> category.equals(s.getServiceCategory()));
@@ -286,14 +337,12 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 service.setDurationTime(30);
                                 service.setSlotsRequired(1);
                                 service.setIsActive(true);
-                                service.setIsHomeVisit(category == ServiceCategory.VACCINATION
-                                                || category == ServiceCategory.GROOMING_SPA
+                                service.setIsHomeVisit(category == ServiceCategory.GROOMING_SPA
                                                 || category == ServiceCategory.CHECK_UP);
                                 service.setIsCustom(true);
                                 service.setServiceCategory(category);
                                 // Set pricePerKm for home visit services
-                                boolean supportsHomeVisit = category == ServiceCategory.VACCINATION
-                                                || category == ServiceCategory.GROOMING_SPA
+                                boolean supportsHomeVisit = category == ServiceCategory.GROOMING_SPA
                                                 || category == ServiceCategory.CHECK_UP;
 
                                 // pricePerKm is now managed at clinic level via ClinicPriceService
@@ -332,6 +381,98 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
         }
 
+        private void seedVaccinationServices(Clinic clinic) {
+                List<VaccineTemplate> templates = vaccineTemplateRepository.findAll();
+                if (templates.isEmpty()) {
+                        log.warn("   ! No vaccine templates found to seed services.");
+                        return;
+                }
+
+                for (VaccineTemplate template : templates) {
+                        // Check if service for this template already exists
+                        ClinicService existingService = clinicServiceRepository
+                                        .findByClinicClinicIdAndIsActiveTrue(clinic.getClinicId())
+                                        .stream()
+                                        .filter(s -> s.getVaccineTemplate() != null
+                                                        && s.getVaccineTemplate().getId().equals(template.getId()))
+                                        .findFirst()
+                                        .orElse(null);
+
+                        if (existingService != null) {
+                                // Force duration to 30 mins
+                                if (existingService.getDurationTime() != 30) {
+                                        existingService.setDurationTime(30);
+                                        clinicServiceRepository.save(existingService);
+                                }
+
+                                // If exists but has old name prefix "Tiêm " or doesn't match template name,
+                                // rename it
+                                String currentName = existingService.getName();
+                                String correctName = template.getName();
+
+                                if (!currentName.equals(correctName) && currentName.startsWith("Tiêm ")) {
+                                        existingService.setName(correctName);
+                                        clinicServiceRepository.save(existingService);
+                                        log.info("   ! Renamed legacy service: '{}' -> '{}'", currentName, correctName);
+                                }
+                                continue;
+                        }
+
+                        String serviceName = template.getName();
+
+                        ClinicService service = new ClinicService();
+                        service.setClinic(clinic);
+                        service.setName(serviceName);
+                        service.setServiceCategory(ServiceCategory.VACCINATION);
+                        service.setBasePrice(template.getDefaultPrice() != null ? template.getDefaultPrice()
+                                        : BigDecimal.valueOf(100000));
+                        service.setDurationTime(30); // Standardized to 30 mins
+                        service.setSlotsRequired(1);
+                        service.setIsActive(true);
+                        service.setIsHomeVisit(true);
+                        service.setIsCustom(false);
+                        service.setVaccineTemplate(template);
+                        service.setReminderInterval(template.getRepeatIntervalDays());
+                        service.setReminderUnit("DAYS");
+                        service.setPetType(template.getTargetSpecies() != null ? template.getTargetSpecies().name()
+                                        : "BOTH");
+
+                        ClinicService savedService = clinicServiceRepository.save(service);
+
+                        // Create Dose Prices
+                        createDosePrices(savedService, template);
+
+                        log.info("   + Created Vaccine Service: {} (Base: {}đ)", serviceName, service.getBasePrice());
+                }
+        }
+
+        private void createDosePrices(ClinicService service, VaccineTemplate template) {
+                int doses = template.getSeriesDoses() != null ? template.getSeriesDoses() : 1;
+                BigDecimal basePrice = service.getBasePrice();
+
+                for (int i = 1; i <= doses; i++) {
+                        VaccineDosePrice price = new VaccineDosePrice();
+                        price.setService(service);
+                        price.setDoseNumber(i);
+                        price.setDoseLabel("Mũi " + i);
+                        price.setPrice(basePrice); // Same price for series doses usually
+                        price.setIsActive(true);
+                        vaccineDosePriceRepository.save(price);
+                }
+
+                // Annual Booster (Dose 4 convention)
+                if (Boolean.TRUE.equals(template.getIsAnnualRepeat())) {
+                        VaccineDosePrice booster = new VaccineDosePrice();
+                        booster.setService(service);
+                        booster.setDoseNumber(4);
+                        booster.setDoseLabel("Tiêm nhắc lại (Hằng năm)");
+                        booster.setPrice(basePrice.add(BigDecimal.valueOf(0))); // Can adjustment price if needed
+                        booster.setIsActive(true);
+                        vaccineDosePriceRepository.save(booster);
+                }
+
+        }
+
         /**
          * Create mock bookings with different service categories
          * Includes multi-service bookings for testing multi-specialty assignment
@@ -358,6 +499,14 @@ public class BookingDataSeeder implements CommandLineRunner {
                         return;
                 }
 
+                // Ensure clinic has coordinates for distance calculation
+                if (clinic.getLatitude() == null || clinic.getLongitude() == null) {
+                        log.info("   - Clinic missing coordinates, setting defaults for Hanoi");
+                        clinic.setLatitude(BigDecimal.valueOf(21.0285));
+                        clinic.setLongitude(BigDecimal.valueOf(105.8542));
+                        clinicRepository.saveAndFlush(clinic);
+                }
+
                 log.info("   - Seeding bookings for clinic: {} (ID: {})", clinic.getName(), clinic.getClinicId());
 
                 List<Pet> pets = petRepository.findByUser_UserId(petOwner.getUserId());
@@ -369,8 +518,6 @@ public class BookingDataSeeder implements CommandLineRunner {
 
                 LocalDate today = LocalDate.now();
                 LocalDate tomorrow = today.plusDays(1);
-                LocalDate dayAfter = today.plusDays(2);
-                LocalDate day3 = today.plusDays(3);
 
                 // Check if bookings already exist for today to avoid resetting user's work
                 long todayBookingsCount = bookingRepository.countByClinicAndDate(clinic.getClinicId(), today);
@@ -379,6 +526,8 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         todayBookingsCount);
                         return;
                 }
+                log.info("   Start fresh seeding...");
+                bookingSequenceCounter = 1;
 
                 // Get services by category
                 List<ClinicService> allServices = clinicServiceRepository
@@ -389,209 +538,91 @@ public class BookingDataSeeder implements CommandLineRunner {
                         return;
                 }
 
-                Pet pet1 = pets.get(0);
-                Pet pet2 = pets.size() > 1 ? pets.get(1) : pet1;
-                Pet pet3 = pets.size() > 2 ? pets.get(2) : pet1;
+                Pet pet1 = pets.get(0); // Lu (Chó)
+                Pet pet2 = pets.size() > 1 ? pets.get(1) : pet1; // Miu (Mèo)
+                Pet pet3 = pets.size() > 2 ? pets.get(2) : pet1; // Bella (Chó)
 
-                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Staff) ==========
+                // ========== TODAY'S BOOKINGS (Normal seeding as requested) ==========
 
-                // ========== TODAY'S BOOKINGS (CONFIRMED - Assigned to Staff) ==========
-
-                // 1. Check-up (08:00) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
-                 * "Khám định kỳ sáng",
-                 * findServicesByCategory(allServices, "CHECK_UP", 1),
-                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
-                 * BookingType.IN_CLINIC);
-                 */
-
-                // 2. Vaccination (09:30) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(9, 30),
-                 * "Tiêm ngừa vaccine",
-                 * findServicesByCategory(allServices, "VACCINATION", 1),
-                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
-                 * BookingType.IN_CLINIC);
-                 */
-
-                // 3. Grooming (11:00) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(11, 0),
-                 * "Tắm spa tại nhà",
-                 * findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                 * "123 Nguyễn Văn Linh, Q.7, HCM", 5.5, 5.5, BigDecimal.valueOf(50),
-                 * BookingStatus.CONFIRMED, "staff", BookingType.HOME_VISIT);
-                 */
-
-                // 4. Check-up (14:00) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(14, 0),
-                 * "Khám sức khỏe tổng quát",
-                 * findServicesByCategory(allServices, "CHECK_UP", 1),
-                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.IN_PROGRESS, "staff",
-                 * BookingType.IN_CLINIC);
-                 */
-
-                // 5. Dental (15:30) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
-                 * "Cạo vôi răng",
-                 * findServicesByCategory(allServices, "DENTAL", 1),
-                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
-                 * BookingType.IN_CLINIC);
-                 */
-
-                // 6. Dermatology (17:00) - COMMENTED OUT
-                /*
-                 * createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(17, 0),
-                 * "Khám da liễu",
-                 * findServicesByCategory(allServices, "DERMATOLOGY", 1),
-                 * null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, "staff",
-                 * BookingType.IN_CLINIC);
-                 */
-
-                // ========== TODAY'S BOOKINGS (PENDING - Waiting for Clinic Assignment)
-                // ==========
-
-                // 1. Vaccination (15:00) - PENDING
-                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(15, 0),
-                                "Tiêm ngừa 5 bệnh (cần gán bác sĩ)",
-                                findServicesByCategory(allServices, "VACCINATION", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                // 1. Tiêm phòng 5 bệnh - CONFIRMED (17:00)
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(17, 0),
+                                "Tiêm mũi 1 nhắc lại",
+                                findServicesByNameOrCategory(allServices, "5 bệnh", "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
                                 BookingType.IN_CLINIC);
 
-                // ========== DAY AFTER TOMORROW BOOKINGS ==========
+                // 2. Tiêm phòng 4 bệnh - CONFIRMED (18:00)
+                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(18, 0),
+                                "Mèo con tiêm chủng lần đầu",
+                                findServicesByNameOrCategory(allServices, "4 bệnh", "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
+                                BookingType.IN_CLINIC);
 
-                // BOOKING 5: MULTI-SERVICE (DENTAL + DERMATOLOGY)
-                createBooking(clinic, pet1, petOwner, dayAfter, LocalTime.of(9, 30),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Combo nha khoa + da liễu",
-                                findServicesByCategories(allServices, new String[] { "DENTAL", "DERMATOLOGY" }));
+                // 3. Tiêm phòng dại - CONFIRMED (19:00)
+                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(19, 0),
+                                "Tiêm phòng dại định kỳ",
+                                findServicesByNameOrCategory(allServices, "Tiêm phòng dại", "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
+                                BookingType.IN_CLINIC);
 
-                // BOOKING 6: Single DENTAL
-                createBooking(clinic, pet2, petOwner, dayAfter, LocalTime.of(11, 0),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Cạo vôi răng chó lớn",
-                                findServicesByCategory(allServices, "DENTAL", 1));
-
-                // BOOKING 7: Triple services (CHECK_UP + VACCINATION + GROOMING)
-                createBooking(clinic, pet3, petOwner, dayAfter, LocalTime.of(14, 30),
-                                BookingType.IN_CLINIC, "[+2 DAYS] Combo 3 dịch vụ",
-                                findServicesByCategories(allServices,
-                                                new String[] { "CHECK_UP", "VACCINATION", "GROOMING_SPA" }));
-
-                // ========== 3 DAYS LATER BOOKINGS ==========
-
-                // BOOKING 8: Morning slot for testing reassign
-                createBooking(clinic, pet1, petOwner, day3, LocalTime.of(8, 30),
-                                BookingType.IN_CLINIC, "[+3 DAYS] Khám sớm - test reassign",
-                                findServicesByCategory(allServices, "CHECK_UP", 1));
-
-                // BOOKING 9: HOME VISIT with multiple services - calculate real distance
-                double homeLat9 = 15.9925, homeLng9 = 108.2564;
-                double distKm9 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat9), BigDecimal.valueOf(homeLng9));
-                createBookingWithHomeVisit(clinic, pet2, petOwner, day3, LocalTime.of(10, 0),
-                                String.format("[+3 DAYS] Khám + tiêm tại nhà - %.1fkm", distKm9),
-                                findServicesByCategories(allServices, new String[] { "CHECK_UP", "VACCINATION" }),
-                                "456 Trần Đại Nghĩa, Hòa Hải, Ngũ Hành Sơn, Đà Nẵng", homeLat9, homeLng9,
-                                BigDecimal.valueOf(distKm9));
-
-                // BOOKING 10: Late afternoon booking
-                createBooking(clinic, pet3, petOwner, day3, LocalTime.of(16, 0),
-                                BookingType.IN_CLINIC, "[+3 DAYS] Khám da liễu chiều muộn",
-                                findServicesByCategory(allServices, "DERMATOLOGY", 1));
-
-                // ========== BOOKING 11: HOME VISIT với pet nặng để test weight-based +
-                // distance pricing ==========
-                double homeLat11 = 16.0321, homeLng11 = 108.2395;
-                double distKm11 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat11), BigDecimal.valueOf(homeLng11));
-                createBookingWithHomeVisit(clinic, pet3, petOwner, day3, LocalTime.of(14, 0),
-                                String.format("[+3 DAYS] Tắm spa tại nhà - chó lớn 32kg, %.1fkm (TEST WEIGHT)",
-                                                distKm11),
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                                "789 Võ Chí Công, Mỹ An, Ngũ Hành Sơn, Đà Nẵng", homeLat11, homeLng11,
-                                BigDecimal.valueOf(distKm11));
-
-                // =========================================================================================
-                // ========== TODAY (COMPREHENSIVE TEST CASES) ==========
-                // =========================================================================================
-
-                // 2. Check-up (15:30) - PENDING
-                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(15, 30),
-                                "Kiểm tra định kỳ (cần gán bác sĩ)",
+                // 4. Khám tổng quát - CONFIRMED (20:00)
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(20, 0),
+                                "Khám định kỳ buổi tối",
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
                                 BookingType.IN_CLINIC);
 
-                // 2. TODAY - CONFIRMED (Home Visit - Assigned staff, ready for staff to
-                // check-in)
-                double homeLat13 = 16.0280, homeLng13 = 108.2380;
-                double distKm13 = locationService.calculateDistance(
+                // 5. Tiêm phòng dại (Extra) - CONFIRMED (16:00)
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(16, 0),
+                                "Tiêm phòng dại bổ sung",
+                                findServicesByNameOrCategory(allServices, "Tiêm phòng dại", "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
+                                BookingType.IN_CLINIC);
+
+                // 6. Tiêm vắc-xin 5 bệnh - CONFIRMED (16:30) for testing
+                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(16, 30),
+                                "Tiêm vắc-xin 5 bệnh - Kiểm tra Check-in",
+                                findServicesByNameOrCategory(allServices, "5 bệnh", "VACCINATION", 1),
+                                null, 0, 0, BigDecimal.ZERO,
+                                BookingStatus.CONFIRMED,
+                                null,
+                                BookingType.IN_CLINIC);
+
+                // ========== FUTURE BOOKINGS ==========
+
+                // Tomorrow: Vaccination 7-in-1
+                createBooking(clinic, pet3, petOwner, tomorrow, LocalTime.of(9, 30),
+                                BookingType.IN_CLINIC, "Tiêm vắc-xin 7 bệnh cho chó",
+                                findServicesByNameOrCategory(allServices, "7 bệnh", "VACCINATION", 1));
+
+                // Tomorrow: Home visit check-up
+                double homeLatT = 16.0678, homeLngT = 108.2201;
+                double distKmT = locationService.calculateDistance(
                                 clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat13), BigDecimal.valueOf(homeLng13));
-                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(14, 0),
-                                String.format("[TODAY] Đã xác nhận - Chờ BS check-in (%.1fkm)", distKm13),
-                                findServicesByCategory(allServices, "VACCINATION", 1),
-                                "456 Ngô Quyền, Sơn Trà, Đà Nẵng", homeLat13, homeLng13,
-                                BigDecimal.valueOf(distKm13), BookingStatus.CONFIRMED, null,
-                                BookingType.HOME_VISIT);
-
-                // 3. TODAY - CONFIRMED (In Clinic - Waiting for Staff to start service)
-                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(10, 30),
-                                "[TODAY] Khách đã đến - Chờ BS bắt đầu khám",
-                                findServicesByCategory(allServices, "DERMATOLOGY", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, null,
-                                BookingType.IN_CLINIC);
-
-                // 4. TODAY - COMPLETED (Finished earlier)
-                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(8, 0),
-                                "[TODAY] Khám xong lúc sáng sớm",
+                                BigDecimal.valueOf(homeLatT), BigDecimal.valueOf(homeLngT));
+                createBookingWithHomeVisit(clinic, pet1, petOwner, tomorrow, LocalTime.of(14, 0),
+                                "Khám sức khỏe tại nhà",
                                 findServicesByCategory(allServices, "CHECK_UP", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.COMPLETED, null,
-                                BookingType.IN_CLINIC);
+                                "123 Nguyễn Văn Linh, Đà Nẵng", homeLatT, homeLngT,
+                                BigDecimal.valueOf(distKmT));
+        }
 
-                // 5. TODAY - ON_THE_WAY (Staff is driving)
-                double homeLat16 = 16.0400, homeLng16 = 108.2300;
-                double distKm16 = locationService.calculateDistance(
-                                clinic.getLatitude(), clinic.getLongitude(),
-                                BigDecimal.valueOf(homeLat16), BigDecimal.valueOf(homeLng16));
-                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(11, 0),
-                                String.format("[TODAY] Bác sĩ đang di chuyển - ON WAY (%.1fkm)", distKm16),
-                                findServicesByCategory(allServices, "CHECK_UP", 1),
-                                "99 Nguyễn Văn Linh, Đà Nẵng", homeLat16, homeLng16,
-                                BigDecimal.valueOf(distKm16), BookingStatus.ON_THE_WAY, null,
-                                BookingType.HOME_VISIT);
-
-                // 6. TODAY - SOS (PENDING ASSIGNMENT - EMERGENCY)
-                // Use custom creation for SOS to set correct type
-                // createSosBooking(clinic, pet3, petOwner, today,
-                // LocalTime.now().plusMinutes(30),
-                // "🚨 [TODAY] SOS CẤP CỨU - Chó khó thở (Cần Assign gấp)",
-                // findServicesByCategory(allServices, "CHECK_UP", 1));
-
-                // 7. TODAY - CANCELLED (By user)
-                createBookingWithStatus(clinic, pet1, petOwner, today, LocalTime.of(9, 30),
-                                "[TODAY] Đã hủy do bận đột xuất",
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CANCELLED, null,
-                                BookingType.IN_CLINIC);
-
-                // 8. TODAY - CONFIRMED (Upcoming later today)
-                createBookingWithStatus(clinic, pet2, petOwner, today, LocalTime.of(16, 30),
-                                "[TODAY] Lịch hẹn chiều muộn (Đã xác nhận)",
-                                findServicesByCategory(allServices, "VACCINATION", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.CONFIRMED, null,
-                                BookingType.IN_CLINIC);
-
-                // 3. Grooming (16:00) - PENDING
-                createBookingWithStatus(clinic, pet3, petOwner, today, LocalTime.of(16, 0),
-                                "Spa làm đẹp (cần gán bác sĩ)",
-                                findServicesByCategory(allServices, "GROOMING_SPA", 1),
-                                null, 0, 0, BigDecimal.ZERO, BookingStatus.PENDING, null,
-                                BookingType.IN_CLINIC);
+        /**
+         * Check if booking already exists to avoid duplicate key violation
+         */
+        private boolean bookingExists(Pet pet, Clinic clinic, LocalDate date, LocalTime time) {
+                return bookingRepository.existsByPetAndClinicAndDateAndTime(
+                        pet.getId(), clinic.getClinicId(), date, time);
         }
 
         /**
@@ -599,19 +630,14 @@ public class BookingDataSeeder implements CommandLineRunner {
          */
         private void createBooking(Clinic clinic, Pet pet, User petOwner, LocalDate date,
                         LocalTime time, BookingType type, String notes, List<ClinicService> services) {
-                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
                         log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
 
-                // Check for duplicate booking
-                boolean exists = bookingRepository.findByClinicIdAndDate(clinic.getClinicId(), date).stream()
-                                .anyMatch(b -> b.getPet().getId().equals(pet.getId())
-                                                && b.getBookingTime().equals(time)
-                                                && b.getStatus() != BookingStatus.CANCELLED);
-                if (exists) {
-                        log.info("   🔒 Booking already exists for pet {} at {} {}, skipping.", pet.getName(), date,
-                                        time);
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing booking: {} at {} {}", pet.getName(), date, time);
                         return;
                 }
 
@@ -628,8 +654,14 @@ public class BookingDataSeeder implements CommandLineRunner {
                                         .toList());
                 }
 
-                long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
-                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                // Generate unique booking code
+                String bookingCode = generateUniqueBookingCode(clinic.getClinicId(), date);
+
+                // Nếu booking_code này đã tồn tại (do user đã tạo booking thật trước đó) thì bỏ qua seeding
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded booking because booking_code already exists: {}", bookingCode);
+                        return;
+                }
 
                 // Calculate total price: sum of service prices
                 BigDecimal totalPrice = BigDecimal.ZERO;
@@ -670,6 +702,16 @@ public class BookingDataSeeder implements CommandLineRunner {
                 bookingRepository.save(booking);
                 log.info("   + Created booking: {} with {} service(s) - {} (total: {})",
                                 bookingCode, services.size(), notes, totalPrice);
+
+                // Auto-create draft vaccination records
+                for (BookingServiceItem item : booking.getBookingServices()) {
+                        try {
+                                vaccinationService.createDraftFromBooking(booking, item);
+                        } catch (Exception e) {
+                                log.warn("   ! Failed to create draft vaccination for booking {}: {}",
+                                                bookingCode, e.getMessage());
+                        }
+                }
         }
 
         /**
@@ -679,7 +721,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                         LocalDate date, LocalTime time, String notes, List<ClinicService> services,
                         String address, double lat, double lng, BigDecimal distanceKm) {
 
-                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
                         log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
@@ -687,8 +729,20 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing home visit booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
+
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded HOME VISIT booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate single distance fee for the whole booking (using clinic-level
                 // pricePerKm)
@@ -743,6 +797,16 @@ public class BookingDataSeeder implements CommandLineRunner {
                 bookingRepository.save(booking);
                 log.info("   + Created HOME VISIT booking: {} - {} (distance: {}km, total: {}đ)",
                                 bookingCode, notes, distanceKm, totalPrice);
+
+                // Auto-create draft vaccination records
+                for (BookingServiceItem item : booking.getBookingServices()) {
+                        try {
+                                vaccinationService.createDraftFromBooking(booking, item);
+                        } catch (Exception e) {
+                                log.warn("   ! Failed to create draft vaccination for booking {}: {}",
+                                                bookingCode, e.getMessage());
+                        }
+                }
         }
 
         /**
@@ -754,7 +818,7 @@ public class BookingDataSeeder implements CommandLineRunner {
                         String address, double lat, double lng, BigDecimal distanceKm, BookingStatus status,
                         String staffUsername, BookingType type) {
 
-                if (bookingRepository.existsByPetAndClinicAndBookingDateAndBookingTime(pet, clinic, date, time)) {
+                if (bookingRepository.existsByPetAndClinicAndDateAndTime(pet.getId(), clinic.getClinicId(), date, time)) {
                         log.info("   🔒 Booking already exists for {} at {} {}. Skipping.", pet.getName(), date, time);
                         return;
                 }
@@ -762,8 +826,20 @@ public class BookingDataSeeder implements CommandLineRunner {
                 if (services.isEmpty())
                         return;
 
+                // Check if booking already exists
+                if (bookingExists(pet, clinic, date, time)) {
+                        log.info("   - Skipping existing status booking: {} at {} {}", pet.getName(), date, time);
+                        return;
+                }
+
                 long sequence = bookingRepository.countByClinicAndDate(clinic.getClinicId(), date) + 1;
                 String bookingCode = Booking.generateBookingCode(date, (int) sequence);
+
+                if (bookingRepository.findByBookingCode(bookingCode).isPresent()) {
+                        log.info("   - Skipping seeded status booking because booking_code already exists: {}",
+                                        bookingCode);
+                        return;
+                }
 
                 // Calculate distance fee (using clinic-level pricePerKm)
                 BigDecimal distanceFee = pricingService.calculateBookingDistanceFee(clinic.getClinicId(), distanceKm,
@@ -781,10 +857,10 @@ public class BookingDataSeeder implements CommandLineRunner {
                 User assignedStaff = null;
                 if (status == BookingStatus.CONFIRMED || status == BookingStatus.IN_PROGRESS
                                 || status == BookingStatus.COMPLETED) {
-                        String username = (staffUsername != null && !staffUsername.isEmpty()) ? staffUsername : "vet";
+                        String username = (staffUsername != null && !staffUsername.isEmpty()) ? staffUsername : "staff";
                         assignedStaff = userRepository.findByUsername(username).orElse(null);
                         if (assignedStaff == null) {
-                                log.warn("{} user not found, booking will have no assigned staff", username);
+                                log.warn("{} user not found, booking will have no assigned staff", staffUsername);
                         }
                 }
 
@@ -824,9 +900,59 @@ public class BookingDataSeeder implements CommandLineRunner {
                 }
 
                 bookingRepository.save(booking);
+
+                // Assign to slots if staff is assigned
+                if (assignedStaff != null && status != BookingStatus.PENDING && status != BookingStatus.CANCELLED) {
+                        assignBookingToSlots(booking, services);
+                        // Send notification as well so the UI/SSE works
+                        try {
+                                notificationService.sendBookingAssignedNotificationToStaff(booking);
+                        } catch (Exception e) {
+                                log.warn("   ! Failed to send notification for {}: {}", bookingCode, e.getMessage());
+                        }
+                }
+
+                // Auto-create draft vaccination records for CONFIRMED/ASSIGNED etc.
+                if (status != BookingStatus.PENDING && status != BookingStatus.CANCELLED) {
+                        for (BookingServiceItem item : booking.getBookingServices()) {
+                                try {
+                                        vaccinationService.createDraftFromBooking(booking, item);
+                                } catch (Exception e) {
+                                        log.warn("   ! Failed to create draft vaccination for booking {}: {}",
+                                                        bookingCode, e.getMessage());
+                                }
+                        }
+                }
+
                 log.info("   + Created {} booking: {} - {} (staff: {}, total: {}đ)",
                                 status, bookingCode, notes,
                                 assignedStaff != null ? assignedStaff.getFullName() : "NONE", totalPrice);
+        }
+
+        /**
+         * Find services by name substring, fallback to category if not found
+         */
+        private List<ClinicService> findServicesByNameOrCategory(List<ClinicService> services, String namePart,
+                        String categoryName, int limit) {
+                // Try to find by name first
+                List<ClinicService> byName = services.stream()
+                                .filter(s -> s.getName() != null
+                                                && s.getName().toLowerCase().contains(namePart.toLowerCase()))
+                                .limit(limit)
+                                .collect(Collectors.toList());
+
+                if (!byName.isEmpty()) {
+                        return byName;
+                }
+
+                // Fallback to category
+                log.warn("   ! Service with name containing '{}' not found. Falling back to category '{}'", namePart,
+                                categoryName);
+                return services.stream()
+                                .filter(s -> s.getServiceCategory() != null
+                                                && categoryName.equals(s.getServiceCategory().name()))
+                                .limit(limit)
+                                .collect(Collectors.toList());
         }
 
         /**
@@ -838,34 +964,75 @@ public class BookingDataSeeder implements CommandLineRunner {
                                 .filter(s -> s.getServiceCategory() != null
                                                 && categoryName.equals(s.getServiceCategory().name()))
                                 .limit(limit)
-                                .toList();
+                                .collect(Collectors.toList());
+        }
+
+        private void generateSlots(StaffShift shift) {
+                LocalTime current = shift.getStartTime();
+                LocalTime end = shift.getEndTime();
+                while (current.plusMinutes(30).isBefore(end) || current.plusMinutes(30).equals(end)) {
+                        Slot slot = new Slot();
+                        slot.setShift(shift);
+                        slot.setStartTime(current);
+                        slot.setEndTime(current.plusMinutes(30));
+                        slot.setStatus(SlotStatus.AVAILABLE);
+                        slotRepository.save(slot);
+                        current = current.plusMinutes(30);
+                }
+        }
+
+        private void assignBookingToSlots(Booking booking, List<ClinicService> services) {
+                if (booking.getAssignedStaff() == null)
+                        return;
+
+                List<Slot> staffSlots = slotRepository.findByShift_ShiftIdAndStatusOrderByStartTime(
+                                staffShiftRepository.findOneByStaff_UserIdAndWorkDate(
+                                                booking.getAssignedStaff().getUserId(), booking.getBookingDate())
+                                                .map(StaffShift::getShiftId).orElse(null),
+                                SlotStatus.AVAILABLE);
+
+                if (staffSlots.isEmpty())
+                        return;
+
+                LocalTime currentTime = booking.getBookingTime();
+                for (int i = 0; i < services.size(); i++) {
+                        BookingServiceItem item = booking.getBookingServices().get(i);
+
+                        // Find slots for this service
+                        final LocalTime serviceStartTime = currentTime;
+                        List<Slot> bookedSlots = staffSlots.stream()
+                                        .filter(s -> !s.getStartTime().isBefore(serviceStartTime))
+                                        .limit(1) // Simplify to 1 slot per service for seeding
+                                        .collect(Collectors.toList());
+
+                        for (Slot slot : bookedSlots) {
+                                slot.setStatus(SlotStatus.BOOKED);
+                                slotRepository.save(slot);
+
+                                BookingSlot bs = BookingSlot.builder()
+                                                .booking(booking)
+                                                .slot(slot)
+                                                .bookingServiceItem(item)
+                                                .build();
+                                bookingSlotRepository.save(bs);
+                                currentTime = slot.getEndTime();
+                        }
+                }
         }
 
         /**
-         * Find one service for each category
+         * Generate a unique booking code that doesn't exist in database
          */
-        private List<ClinicService> findServicesByCategories(List<ClinicService> services, String[] categories) {
-                log.info("   >> findServicesByCategories: looking for {} in {} services",
-                                java.util.Arrays.toString(categories), services.size());
+        private String generateUniqueBookingCode(java.util.UUID clinicId, LocalDate date) {
+                long sequence = bookingRepository.countByClinicAndDate(clinicId, date) + 1;
+                String bookingCode = Booking.generateBookingCode(date, (int) sequence);
 
-                // Log all available categories
-                log.info("   >> Available categories: {}",
-                                services.stream()
-                                                .map(s -> s.getServiceCategory() != null ? s.getServiceCategory().name()
-                                                                : "NULL")
-                                                .distinct()
-                                                .toList());
+                // Keep incrementing until we find a unique code
+                while (bookingRepository.existsByBookingCode(bookingCode)) {
+                        sequence++;
+                        bookingCode = Booking.generateBookingCode(date, (int) sequence);
+                }
 
-                List<ClinicService> result = java.util.Arrays.stream(categories)
-                                .map(cat -> services.stream()
-                                                .filter(s -> s.getServiceCategory() != null
-                                                                && cat.equals(s.getServiceCategory().name()))
-                                                .findFirst()
-                                                .orElse(null))
-                                .filter(s -> s != null)
-                                .toList();
-
-                log.info("   >> Found {} services matching categories", result.size());
-                return result;
+                return bookingCode;
         }
 }

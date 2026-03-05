@@ -1,11 +1,14 @@
 package com.petties.petties.model;
 
+import com.petties.petties.model.enums.PetSpecies;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -16,6 +19,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "pets")
 @EntityListeners(AuditingEntityListener.class)
+@SQLDelete(sql = "UPDATE pets SET deleted_at = CURRENT_TIMESTAMP WHERE pet_id = ?")
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,8 +35,9 @@ public class Pet {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false)
-    private String species;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PetSpecies species;
 
     @Column(nullable = false)
     private String breed;
@@ -69,36 +75,30 @@ public class Pet {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // Manual Getters/Setters for Lombok workaround
-    public String getName() {
-        return this.name;
+    /**
+     * Soft delete timestamp - if not null, pet is considered deleted
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    /**
+     * Check if this pet has been soft deleted
+     */
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    /**
+     * Soft delete this pet
+     */
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
     }
 
-    public void setSpecies(String species) {
-        this.species = species;
-    }
-
-    public void setBreed(String breed) {
-        this.breed = breed;
-    }
-
-    public void setDateOfBirth(java.time.LocalDate dateOfBirth) {
-        this.dateOfBirth = dateOfBirth;
-    }
-
-    public void setWeight(double weight) {
-        this.weight = weight;
-    }
-
-    public void setGender(String gender) {
-        this.gender = gender;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
+    /**
+     * Restore soft deleted pet
+     */
+    public void restore() {
+        this.deletedAt = null;
     }
 }

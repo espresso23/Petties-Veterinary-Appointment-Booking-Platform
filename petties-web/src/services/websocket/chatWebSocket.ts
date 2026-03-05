@@ -149,8 +149,8 @@ class ChatWebSocketService {
           handlers?.forEach((h) => h(wsMessage))
           // Dispatch to global handlers
           this.globalMessageHandlers.forEach((h) => h(wsMessage))
-        } catch (e) {
-          console.error('[WS] Failed to parse message:', e)
+        } catch (err) {
+          console.error('[WS] Failed to parse message:', err)
         }
       })
 

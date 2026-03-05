@@ -124,7 +124,7 @@ docker-compose -f docker-compose.dev.yml down -v         # Reset (deletes data)
 
 ## Design System
 
-**Style: Soft Neobrutalism** (Updated January 2025)
+**Style: Soft Neobrutalism** (Updated March 2025)
 
 Friendly Brutalist - Giữ bản sắc brutalist nhưng mềm mại, thân thiện hơn.
 
@@ -172,7 +172,7 @@ hover:box-shadow: 5px 5px 0 #1c1917;
 - **No border-radius > 12px** except for badges/avatars (use `rounded-full`)
 - **No blur shadows** - always offset shadows only
 - CSS file: `petties-web/src/styles/brutalist.css`
-- Style guide: `docs-references/design/design-style-guide.md`
+- Style guide: `docs-references/design/design-style-guide.md` (Reference Implementation: Sidebar, typography scale nav/sidebar, icon system)
 
 ## Environment & Deployment
 
@@ -819,7 +819,7 @@ petties-report-writer (Sequence Diagrams) + petties-report-writer (Test Cases) +
 - `docs-references/deployment/TEST_ENVIRONMENT_SETUP.md` - Test Env setup guide
 
 **Design:**
-- `docs-references/design/design-style-guide.md` - Neobrutalism UI guide
+- `docs-references/design/design-style-guide.md` - Soft Neobrutalism UI guide; Reference Implementation: Sidebar (UI/UX, typography, icon)
 
 ## UML Diagram Standards (Petties SDD)
 
@@ -949,6 +949,67 @@ User → UI → Controller → Service → Repository → Database
 | CM | Clinic Manager |
 | CO | Clinic Owner |
 | A | Admin |
+
+---
+
+## SRS-SDD Alignment Rules (Documentation Consistency)
+
+**Quy tắc BẮT BUỘC để đảm bảo tính nhất quán giữa các tài liệu SRS và SDD:**
+
+### 1. Functional Details (SDD) ↔ Functional Requirements (SRS)
+- Mỗi Functional Requirement trong SRS 3.2.X **PHẢI** có Detailed Design tương ứng trong SDD 3.X
+- Function trigger → Method signatures trong Class Diagram
+- Data processing steps → Flow trong Sequence Diagram
+- Validation/Business rules → Logic trong Service class
+- Normal/Abnormal case → alt/else trong Sequence Diagram
+
+### 2. Use Case Grouping by Feature
+```
+SRS Use Cases (Grouped):
+├── UC-AUTH-001 → UC-AUTH-005 (Authentication)
+├── UC-CLINIC-001 → UC-CLINIC-010 (Clinic Management)
+├── UC-BOOKING-001 → UC-BOOKING-008 (Booking Management)
+└── UC-SOS-001 → UC-SOS-006 (SOS Emergency Booking)
+
+SDD Detailed Design (Matching):
+├── 3.1 Authentication → maps to UC-AUTH-*
+├── 3.2 Clinic Management → maps to UC-CLINIC-*
+├── 3.3 Booking Management → maps to UC-BOOKING-*
+└── 3.5 SOS Emergency Booking → maps to UC-SOS-*
+```
+
+### 3. One Class Diagram Per Module/Feature
+- Mỗi module **PHẢI** có DUY NHẤT một Class Diagram tổng thể
+- Bao gồm: Controller, Service, Repository, Entity, DTOs, Enums
+- Thể hiện relationships giữa các classes
+
+### 4. One Sequence Diagram Per Action
+| Action Type | Sequence Diagram |
+|-------------|------------------|
+| Create | 3.X.3 Sequence Diagram: Create [Feature] Flow |
+| Read (List) | 3.X.4 Sequence Diagram: List [Feature] Flow |
+| Read (Single) | 3.X.5 Sequence Diagram: Get [Feature] Details Flow |
+| Update | 3.X.6 Sequence Diagram: Update [Feature] Flow |
+| Delete | 3.X.7 Sequence Diagram: Delete [Feature] Flow |
+| Special Actions | 3.X.8+ Sequence Diagram: [Action Name] Flow |
+
+### 5. Cross-Reference Matrix (Required in SDD)
+```markdown
+#### Cross-Reference to SRS
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 3.5.1 Class Diagram | 3.2.5 SOS Emergency Booking | Overall module structure |
+| 3.5.3 Start Matching | UC-SOS-001, FR-SOS-001 | Start matching process |
+```
+
+### 6. Validation Checklist
+- [ ] Số features trong SRS 3.2.X = Số sections trong SDD 3.X
+- [ ] Tên feature trong SRS = Tên section trong SDD
+- [ ] Mỗi Use Case có ít nhất 1 Sequence Diagram
+- [ ] Tất cả entities trong SRS được thể hiện trong Class Diagram
+- [ ] Mỗi SDD section có bảng cross-reference về SRS
+
+**Full documentation rules:** Xem `.claude/agents/petties-report-writer.md`
 
 ---
 

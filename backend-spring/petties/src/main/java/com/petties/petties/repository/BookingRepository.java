@@ -5,6 +5,7 @@ import com.petties.petties.model.enums.BookingStatus;
 import com.petties.petties.model.enums.BookingType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -55,14 +56,120 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
          * Find all bookings assigned to a staff member with pagination
          */
         @Query("SELECT DISTINCT b FROM Booking b " +
-                        "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId " +
+                        "LEFT JOIN b.bookingServices bs " +
+                        "WHERE (b.assignedStaff.userId = :staffId OR bs.assignedStaff.userId = :staffId) " +
                         "AND (:status IS NULL OR b.status = :status) " +
                         "ORDER BY b.bookingDate ASC, b.bookingTime ASC")
         Page<Booking> findByAssignedStaffIdAndStatus(
                         @Param("staffId") UUID staffId,
                         @Param("status") BookingStatus status,
                         Pageable pageable);
+
+        /**
+         * Find bookings for a staff on a specific date
+         * Checks if staff is assigned to any service in the booking
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "JOIN b.bookingServices bs " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
+                        "com.petties.petties.model.enums.BookingStatus.NO_SHOW) " +
+                        "ORDER BY b.bookingTime ASC")
+        List<Booking> findByStaffIdAndDate(
+                        @Param("staffId") UUID staffId,
+                        @Param("date") LocalDate date);
+
+        /**
+         * Count active bookings for a staff on a specific date (for load balancing)
+         * Checks if staff is assigned to any service in the booking
+         */
+        @Query("SELECT COUNT(DISTINCT b) FROM Booking b " +
+                        "JOIN b.bookingServices bs " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
+                        "com.petties.petties.model.enums.BookingStatus.NO_SHOW)")
+        long countActiveBookingsByStaffAndDate(
+                        @Param("staffId") UUID staffId,
+                        @Param("date") LocalDate date);
+
+        // ========== FIND BY PET OWNER ==========
+
+        /**
+         * Find all bookings for a pet owner
+         */
+        @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :ownerId " +
+                        "ORDER BY b.createdAt DESC")
+        Page<Booking> findByPetOwnerId(
+                        @Param("ownerId") UUID ownerId,
+                        Pageable pageable);
+
+        /**
+         * Delete all bookings for a pet owner (for cleanup/seeding)
+         */
+        void deleteAllByPetOwner_UserId(UUID userId);
+
+        // ========== UTILITY QUERIES ==========
+
+        /**
+         * Find booking by ID with all relations loaded (for check-in, map to response).
+         * Uses JOIN FETCH to avoid LazyInitializationException.
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "LEFT JOIN FETCH b.clinic " +
+                        "LEFT JOIN FETCH b.assignedStaff " +
+                        "LEFT JOIN FETCH b.bookingServices bs " +
+                        "LEFT JOIN FETCH bs.service " +
+                        "LEFT JOIN FETCH bs.pet " +
+                        "LEFT JOIN FETCH bs.assignedStaff " +
+                        "LEFT JOIN FETCH b.payment " +
+                        "WHERE b.bookingId = :id")
+        Optional<Booking> findByIdWithDetails(@Param("id") UUID id);
+
+        /**
+         * Find booking by booking code
+         */
+        Optional<Booking> findByBookingCode(String bookingCode);
+
+        /**
+         * Count bookings for a clinic on a date (for generating booking code)
+         */
+        @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId " +
+                        "AND b.bookingDate = :date")
+        long countByClinicAndDate(
+                        @Param("clinicId") UUID clinicId,
+                        @Param("date") LocalDate date);
+
+        /**
+         * Find pending bookings for a clinic (for notifications)
+         */
+        @Query("SELECT b FROM Booking b WHERE b.clinic.clinicId = :clinicId " +
+                        "AND b.status = com.petties.petties.model.enums.BookingStatus.PENDING " +
+                        "ORDER BY b.createdAt DESC")
+        List<Booking> findPendingByClinicId(@Param("clinicId") UUID clinicId);
+
+        // ========== STAFF HOME SUMMARY QUERIES ==========
+
+        /**
+         * Find all bookings assigned to a staff on a specific date
+         * Uses booking-service-level assignedStaff to ensure all staff assigned to the
+         * booking can see it
+         * JOIN FETCH pet, petOwner to avoid LazyInitializationException
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "JOIN b.bookingServices bs " +
+                        "WHERE bs.assignedStaff.userId = :staffId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.status NOT IN (com.petties.petties.model.enums.BookingStatus.CANCELLED, " +
+                        "com.petties.petties.model.enums.BookingStatus.NO_SHOW)")
+        List<Booking> findByAssignedStaffIdAndBookingDate(
+                        @Param("staffId") UUID staffId,
+                        @Param("date") LocalDate date);
 
         /**
          * Find all bookings assigned to a staff for a specific period with specific
@@ -72,8 +179,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Query("SELECT DISTINCT b FROM Booking b " +
                         "LEFT JOIN FETCH b.pet " +
                         "LEFT JOIN FETCH b.petOwner " +
-                        "JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId " +
+                        "LEFT JOIN b.bookingServices bs " +
+                        "WHERE (b.assignedStaff.userId = :staffId OR bs.assignedStaff.userId = :staffId) " +
                         "AND b.bookingDate BETWEEN :startDate AND :endDate " +
                         "AND b.status IN :statuses")
         List<Booking> findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(
@@ -119,44 +226,83 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
                         @Param("clinicId") UUID clinicId,
                         @Param("date") LocalDate date);
 
+        /**
+         * Find all IN_PROGRESS bookings for a clinic (any date) - for patient list status
+         * so "Đang khám" is always shown when pet is being examined.
+         */
+        @Query("SELECT DISTINCT b FROM Booking b " +
+                        "LEFT JOIN FETCH b.pet " +
+                        "LEFT JOIN FETCH b.petOwner " +
+                        "WHERE b.clinic.clinicId = :clinicId " +
+                        "AND b.status = com.petties.petties.model.enums.BookingStatus.IN_PROGRESS " +
+                        "ORDER BY b.bookingDate ASC, b.bookingTime ASC")
+        List<Booking> findByClinicIdAndStatusInProgressWithDetails(
+                        @Param("clinicId") UUID clinicId);
+
         // ========== FIND BY CODE ==========
 
         /**
-         * Find booking by code
+         * Check if booking code exists
          */
-        Optional<Booking> findByBookingCode(String bookingCode);
+        boolean existsByBookingCode(String bookingCode);
 
-        // ========== FIND BY OWNER ==========
+        // ========== FIND BY PROXY BOOKER ==========
 
         /**
-         * Find all bookings for a pet owner with pagination
+         * Find all bookings created by a user on behalf of others (proxy bookings).
+         * Uses EntityGraph to load multi-pet data: bookingServices, each item's pet and service.
          */
-        @Query("SELECT b FROM Booking b WHERE b.petOwner.userId = :petOwnerId ORDER BY b.createdAt DESC")
-        Page<Booking> findByPetOwnerId(@Param("petOwnerId") UUID petOwnerId, Pageable pageable);
-
-        @Query("SELECT COUNT(b) FROM Booking b WHERE b.clinic.clinicId = :clinicId AND b.bookingDate = :date")
-        long countByClinicAndDate(@Param("clinicId") UUID clinicId, @Param("date") LocalDate date);
-
-        @Query("SELECT COUNT(DISTINCT b) FROM Booking b JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date " +
-                        "AND b.status IN (com.petties.petties.model.enums.BookingStatus.CONFIRMED, " +
-                        "com.petties.petties.model.enums.BookingStatus.IN_PROGRESS, " +
-                        "com.petties.petties.model.enums.BookingStatus.ARRIVED, " +
-                        "com.petties.petties.model.enums.BookingStatus.ON_THE_WAY)")
-        long countActiveBookingsByStaffAndDate(@Param("staffId") UUID staffId, @Param("date") LocalDate date);
-
-        @Query("SELECT DISTINCT b FROM Booking b JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
-        List<Booking> findByStaffIdAndDate(@Param("staffId") UUID staffId, @Param("date") LocalDate date);
+        @EntityGraph(value = "Booking.withDetails", type = EntityGraph.EntityGraphType.FETCH)
+        @Query("SELECT b FROM Booking b WHERE b.proxyBooker.userId = :proxyBookerId ORDER BY b.createdAt DESC")
+        Page<Booking> findByProxyBookerId(@Param("proxyBookerId") UUID proxyBookerId, Pageable pageable);
 
         /**
-         * Find all bookings assigned to a staff for a specific date
-         * Using join with booking services
+         * Check if booking exists for a specific pet, clinic, date and time.
+         * Used by BookingDataSeeder to avoid duplicate key violations.
          */
-        @Query("SELECT DISTINCT b FROM Booking b JOIN b.bookingServices bs " +
-                        "WHERE bs.assignedStaff.userId = :staffId AND b.bookingDate = :date")
-        List<Booking> findByAssignedStaffIdAndBookingDate(@Param("staffId") UUID staffId,
-                        @Param("date") LocalDate date);
+        @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.pet.id = :petId " +
+                        "AND b.clinic.clinicId = :clinicId " +
+                        "AND b.bookingDate = :date " +
+                        "AND b.bookingTime = :time")
+        boolean existsByPetAndClinicAndDateAndTime(
+                        @Param("petId") UUID petId,
+                        @Param("clinicId") UUID clinicId,
+                        @Param("date") LocalDate date,
+                        @Param("time") java.time.LocalTime time);
 
-        boolean existsByPetAndClinicAndBookingDateAndBookingTime(com.petties.petties.model.Pet pet, com.petties.petties.model.Clinic clinic, LocalDate bookingDate, java.time.LocalTime bookingTime);
+        // ========== AUTO-CANCELLATION ==========
+
+        /**
+         * Find PENDING bookings created before the cutoff time.
+         * Used by BookingAutoCancellationScheduler to auto-cancel stale bookings.
+         */
+        @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.createdAt < :cutoff")
+        List<Booking> findByStatusAndCreatedAtBefore(
+                        @Param("status") BookingStatus status,
+                        @Param("cutoff") java.time.LocalDateTime cutoff);
+
+        // ========== SOS AUTO-MATCH ==========
+
+        /**
+         * Find all bookings by status and type
+         * Used for SOS Auto-Match timeout checking
+         */
+        @Query("SELECT b FROM Booking b WHERE b.status = :status AND b.type = :type")
+        List<Booking> findByStatusAndBookingType(
+                        @Param("status") BookingStatus status,
+                        @Param("type") BookingType type);
+
+        /**
+         * Find active SOS booking for a pet owner
+         * Used to check if user already has an ongoing SOS request
+         */
+        @Query("SELECT b FROM Booking b LEFT JOIN FETCH b.clinic LEFT JOIN FETCH b.pet LEFT JOIN FETCH b.assignedStaff WHERE b.petOwner.userId = :petOwnerId "
+                        +
+                        "AND b.type = com.petties.petties.model.enums.BookingType.SOS " +
+                        "AND b.status IN (com.petties.petties.model.enums.BookingStatus.SEARCHING, " +
+                        "com.petties.petties.model.enums.BookingStatus.PENDING_CLINIC_CONFIRM, " +
+                        "com.petties.petties.model.enums.BookingStatus.CONFIRMED, " +
+                        "com.petties.petties.model.enums.BookingStatus.IN_PROGRESS) " +
+                        "ORDER BY b.createdAt DESC")
+        List<Booking> findActiveSosBookingsByPetOwner(@Param("petOwnerId") UUID petOwnerId);
 }

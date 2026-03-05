@@ -1,7 +1,52 @@
+/// Pet species enum matching backend PetSpecies
+enum PetSpecies {
+  DOG('DOG', 'Chó'),
+  CAT('CAT', 'Mèo'),
+  BIRD('BIRD', 'Chim'),
+  RABBIT('RABBIT', 'Thỏ'),
+  HAMSTER('HAMSTER', 'Hamster'),
+  FISH('FISH', 'Cá'),
+  OTHER('OTHER', 'Khác');
+
+  final String value;
+  final String displayName;
+
+  const PetSpecies(this.value, this.displayName);
+
+  /// Get PetSpecies from string value
+  static PetSpecies fromString(String? value) {
+    if (value == null || value.isEmpty) return PetSpecies.OTHER;
+    return PetSpecies.values.firstWhere(
+      (e) => e.value.toUpperCase() == value.toUpperCase(),
+      orElse: () => PetSpecies.OTHER,
+    );
+  }
+
+  /// Get icon for species
+  String get icon {
+    switch (this) {
+      case PetSpecies.DOG:
+        return '🐕';
+      case PetSpecies.CAT:
+        return '🐈';
+      case PetSpecies.BIRD:
+        return '🐦';
+      case PetSpecies.RABBIT:
+        return '🐇';
+      case PetSpecies.HAMSTER:
+        return '🐹';
+      case PetSpecies.FISH:
+        return '🐟';
+      case PetSpecies.OTHER:
+        return '🐾';
+    }
+  }
+}
+
 class Pet {
   final String id;
   final String name;
-  final String species;
+  final PetSpecies species;
   final String breed;
   final DateTime dateOfBirth;
   final double weight;
@@ -43,10 +88,10 @@ class Pet {
     return Pet(
       id: json['id'] ?? json['petId'] ?? '',
       name: json['name'] ?? json['petName'] ?? '',
-      species: json['species'] ?? '',
+      species: PetSpecies.fromString(json['species'] as String?),
       breed: json['breed'] ?? '',
-      dateOfBirth: json['dateOfBirth'] != null 
-        ? DateTime.parse(json['dateOfBirth']) 
+      dateOfBirth: json['dateOfBirth'] != null
+        ? DateTime.parse(json['dateOfBirth'])
         : (json['dob'] != null ? DateTime.parse(json['dob']) : DateTime.now()),
       weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
       gender: json['gender'] ?? '',
@@ -68,7 +113,7 @@ class Pet {
     return {
       'id': id,
       'name': name,
-      'species': species,
+      'species': species.value,
       'breed': breed,
       'dateOfBirth': dateOfBirth.toIso8601String().split('T')[0],
       'weight': weight,

@@ -27,7 +27,7 @@ export interface User {
     workingClinicId?: string    // For CLINIC_MANAGER and STAFF
     workingClinicName?: string  // Clinic name for display
     avatar?: string             // Profile picture URL
-    specialty?: string          // For STAFF (VET_GENERAL, VET_SURGERY, etc.)
+    specialty?: string          // For STAFF (VET, GROOMER)
     createdAt?: string
 }
 

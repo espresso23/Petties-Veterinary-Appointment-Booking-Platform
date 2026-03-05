@@ -24,6 +24,8 @@ export interface ClinicService {
   petType?: string
   description?: string
   weightPrices?: WeightPriceDto[]
+  vaccineTemplateId?: string
+  dosePrices?: any[] // Using any array to match DTO loosely or import type
 }
 
 interface ServiceCardProps {
@@ -45,9 +47,24 @@ export function ServiceCard({
 }: ServiceCardProps) {
   const [showPriceModal, setShowPriceModal] = useState(false)
 
-  // Calculate price range from base price + weight prices
+  // Calculate price range: với VACCINATION có dosePrices thì ưu tiên giá theo mũi, còn lại basePrice + weight
   const calculatePriceRange = () => {
     const basePrice = service.price
+    const isVaccinationWithDoses = service.serviceCategory === 'VACCINATION' && service.dosePrices && service.dosePrices.length > 0
+
+    if (isVaccinationWithDoses) {
+      const prices = service.dosePrices!.map((d: { price?: number }) => Number(d?.price ?? 0)).filter(Boolean)
+      if (prices.length > 0) {
+        const minDose = Math.min(...prices)
+        const maxDose = Math.max(...prices)
+        return {
+          min: minDose,
+          max: maxDose,
+          hasRange: minDose !== maxDose
+        }
+      }
+    }
+
     if (!service.weightPrices || service.weightPrices.length === 0) {
       return {
         min: basePrice,
@@ -76,7 +93,8 @@ export function ServiceCard({
       const maxFormatted = new Intl.NumberFormat('vi-VN').format(priceRange.max)
       return `${minFormatted} - ${maxFormatted} đ`
     }
-    return new Intl.NumberFormat('vi-VN').format(service.price) + ' đ'
+    const value = priceRange.min ?? service.price
+    return new Intl.NumberFormat('vi-VN').format(value) + ' đ'
   }
 
   const formattedPrice = getPriceDisplay()

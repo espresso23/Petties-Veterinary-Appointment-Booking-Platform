@@ -1,5 +1,5 @@
 import { useAuthStore } from '../../store/authStore'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { env } from '../../config/env'
 import { DashboardCard, DashboardStatsGrid, DashboardSection } from '../../components/dashboard/DashboardCard'
 import '../../styles/brutalist.css'
@@ -19,12 +19,12 @@ export const AdminDashboardPage = () => {
     const [aiHealth, setAiHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
     const [springHealth, setSpringHealth] = useState<ServiceHealth>({ status: 'checking', message: 'Checking...' })
 
-    const checkServices = async () => {
+    const checkServices = useCallback(async () => {
         // Check AI Service
         try {
             const res = await fetch(`${env.AGENT_SERVICE_URL}/health`, { method: 'GET' })
             if (res.ok) {
-                const data = await res.json()
+                const data = await res.json() as { service?: string; version?: string }
                 setAiHealth({ status: 'healthy', message: data.service || 'AI Service', version: data.version })
             } else {
                 setAiHealth({ status: 'error', message: `HTTP ${res.status}` })
@@ -37,7 +37,7 @@ export const AdminDashboardPage = () => {
         try {
             const res = await fetch(`${env.API_BASE_URL}/actuator/health`, { method: 'GET' })
             if (res.ok) {
-                const data = await res.json()
+                const data = await res.json() as { status?: string }
                 setSpringHealth({ status: 'healthy', message: data.status || 'UP' })
             } else {
                 setSpringHealth({ status: 'error', message: `HTTP ${res.status}` })
@@ -45,12 +45,11 @@ export const AdminDashboardPage = () => {
         } catch {
             setSpringHealth({ status: 'error', message: 'Connection failed' })
         }
-    }
+    }, [])
 
     useEffect(() => {
         checkServices()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [checkServices])
 
     const getStatusStyle = (status: ServiceHealth['status']) => {
         switch (status) {

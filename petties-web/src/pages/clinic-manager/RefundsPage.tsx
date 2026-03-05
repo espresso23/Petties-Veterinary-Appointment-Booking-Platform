@@ -6,15 +6,19 @@ import {
     type ClinicPaymentItem,
     type RevenueSummaryItem,
 } from '../../services/paymentService';
+import { createRefundApplication } from '../../services/refundApplicationService';
 import { PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '../../types/booking';
 import {
     CurrencyDollarIcon,
     FunnelIcon,
     TableCellsIcon,
     ArrowPathIcon,
+    DocumentPlusIcon,
+    XMarkIcon,
 } from '@heroicons/react/24/outline';
 import ReactApexChart from 'react-apexcharts';
 import type { ApexOptions } from 'apexcharts';
+import { useToast } from '../../components/Toast';
 import '../../styles/brutalist.css';
 
 const BOOKING_STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -62,8 +66,11 @@ function formatDateTime(iso?: string): string {
  * Refunds / Transactions page - Clinic Manager
  * Xem tất cả giao dịch của phòng khám, filter theo trạng thái booking/thanh toán, bảng tổng doanh thu theo kỳ.
  */
+const WEB_DEDUCTION_PERCENT = 5;
+
 export const RefundsPage = () => {
     const { user } = useAuthStore();
+    const { showToast } = useToast();
     const [payments, setPayments] = useState<ClinicPaymentItem[]>([]);
     const [revenueItems, setRevenueItems] = useState<RevenueSummaryItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -73,7 +80,49 @@ export const RefundsPage = () => {
     const [period, setPeriod] = useState<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
     const [clinicName, setClinicName] = useState('');
 
+    const [refundModalOpen, setRefundModalOpen] = useState(false);
+    const [monthRevenueInput, setMonthRevenueInput] = useState<string>('');
+    const [refundSubmitting, setRefundSubmitting] = useState(false);
+
     const clinicId = user?.workingClinicId;
+
+    const monthRevenue = useMemo(() => {
+        const n = parseFloat(monthRevenueInput.replace(/\s/g, '').replace(',', '.')) || 0;
+        return Number.isFinite(n) && n >= 0 ? n : 0;
+    }, [monthRevenueInput]);
+    const webDeductionAmount = useMemo(() => (monthRevenue * WEB_DEDUCTION_PERCENT) / 100, [monthRevenue]);
+    const amountAfterDeduction = useMemo(() => monthRevenue - webDeductionAmount, [monthRevenue, webDeductionAmount]);
+
+    const openRefundModal = () => {
+        setMonthRevenueInput('');
+        setRefundModalOpen(true);
+    };
+    const closeRefundModal = () => {
+        setRefundModalOpen(false);
+        setRefundSubmitting(false);
+    };
+    const submitRefundApplication = async () => {
+        if (monthRevenue <= 0) {
+            showToast('warning', 'Vui lòng nhập doanh thu tháng lớn hơn 0.');
+            return;
+        }
+        setRefundSubmitting(true);
+        try {
+            await createRefundApplication({
+                monthRevenue: Math.round(monthRevenue * 100) / 100,
+                periodYearMonth: new Date().toISOString().slice(0, 7),
+            });
+            showToast('success', 'Đã nộp đơn hoàn tiền thành công. Đơn đang chờ admin duyệt.');
+            closeRefundModal();
+        } catch (e: unknown) {
+            const msg = e && typeof e === 'object' && 'response' in e && e.response && typeof (e.response as { data?: { message?: string } }).data?.message === 'string'
+                ? (e.response as { data: { message: string } }).data.message
+                : 'Không thể nộp đơn. Vui lòng thử lại.';
+            showToast('error', msg);
+        } finally {
+            setRefundSubmitting(false);
+        }
+    };
 
     const fetchPayments = useCallback(async () => {
         if (!clinicId) return;
@@ -204,7 +253,15 @@ export const RefundsPage = () => {
                         <TableCellsIcon className="w-5 h-5" />
                         Tổng doanh thu theo kỳ
                     </h2>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={openRefundModal}
+                            className="px-4 py-2 rounded-lg font-bold uppercase text-sm border-2 border-stone-900 shadow-[3px_3px_0_#1c1917] bg-amber-500 text-stone-900 hover:bg-amber-600 hover:shadow-[5px_5px_0_#1c1917] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                        >
+                            <DocumentPlusIcon className="w-5 h-5" />
+                            Nộp đơn hoàn tiền
+                        </button>
                         {PERIOD_OPTIONS.map((opt) => (
                             <button
                                 key={opt.value}
@@ -387,6 +444,73 @@ export const RefundsPage = () => {
                     )}
                 </div>
             </section>
+
+            {/* Modal đơn hoàn tiền */}
+            {refundModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60">
+                    <div
+                        className="relative w-full max-w-md bg-white border-2 border-stone-900 rounded-xl shadow-[6px_6px_0_#1c1917]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-6 border-b-2 border-stone-900 flex items-center justify-between bg-amber-100">
+                            <h3 className="text-lg font-bold text-stone-900">Nộp đơn hoàn tiền</h3>
+                            <button
+                                type="button"
+                                onClick={closeRefundModal}
+                                className="p-2 rounded-lg border-2 border-stone-900 hover:bg-stone-200 transition-colors"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form
+                            className="p-6 space-y-4"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                submitRefundApplication();
+                            }}
+                        >
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-stone-600 mb-1">
+                                    Doanh thu tháng này (VND)
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={1000}
+                                    value={monthRevenueInput}
+                                    onChange={(e) => setMonthRevenueInput(e.target.value)}
+                                    className="w-full px-3 py-2 border-2 border-stone-900 rounded-lg shadow-[2px_2px_0_#1c1917] focus:outline-none focus:border-amber-600 font-medium"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div className="bg-stone-50 border-2 border-stone-900 rounded-lg p-3">
+                                <p className="text-xs font-bold uppercase text-stone-600">Tiền web khấu trừ (5% mỗi tháng)</p>
+                                <p className="text-lg font-bold text-stone-900">{formatCurrency(webDeductionAmount)}</p>
+                            </div>
+                            <div className="bg-stone-50 border-2 border-stone-900 rounded-lg p-3">
+                                <p className="text-xs font-bold uppercase text-stone-600">Số tiền nhận được sau khấu trừ</p>
+                                <p className="text-lg font-bold text-amber-700">{formatCurrency(amountAfterDeduction)}</p>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={closeRefundModal}
+                                    className="flex-1 px-4 py-2 rounded-lg font-bold uppercase text-sm border-2 border-stone-900 shadow-[2px_2px_0_#1c1917] bg-white text-stone-800 hover:bg-stone-100"
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={refundSubmitting || monthRevenue <= 0}
+                                    className="flex-1 px-4 py-2 rounded-lg font-bold uppercase text-sm border-2 border-stone-900 shadow-[3px_3px_0_#1c1917] bg-amber-500 text-stone-900 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {refundSubmitting ? 'Đang gửi...' : 'Nộp đơn'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

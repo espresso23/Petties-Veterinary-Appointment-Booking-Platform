@@ -9,7 +9,23 @@ import type {
   ClinicServiceResponse,
   ClinicServiceRequest,
   ClinicServiceUpdateRequest,
+  VaccineDosePriceDTO,
 } from '../../types/service'
+
+/**
+ * Update dose prices for a vaccination service
+ * PUT /api/services/{serviceId}/dose-prices
+ */
+export async function updateDosePrices(
+  serviceId: string,
+  dosePrices: VaccineDosePriceDTO[],
+): Promise<ClinicServiceResponse> {
+  const { data } = await apiClient.put<ClinicServiceResponse>(
+    `/services/${serviceId}/dose-prices`,
+    dosePrices,
+  )
+  return data
+}
 
 /**
  * Get all services for the authenticated clinic owner
@@ -131,6 +147,26 @@ export async function getServicesByClinicId(
 ): Promise<ClinicServiceResponse[]> {
   const { data } = await apiClient.get<ClinicServiceResponse[]>(
     `/services/by-clinic/${clinicId}`,
+  )
+  return data
+}
+
+/**
+ * NEW: Get compatible services for a specific clinic filtered by pet species and booking type
+ * GET /api/services/by-clinic/{clinicId}/compatible?petSpecies={species}&isHomeVisit={boolean}
+ */
+export async function getCompatibleServices(
+  clinicId: string,
+  petSpecies?: string,
+  isHomeVisit?: boolean,
+): Promise<ClinicServiceResponse[]> {
+  const params: { petSpecies?: string; isHomeVisit?: boolean } = {}
+  if (petSpecies) params.petSpecies = petSpecies
+  if (isHomeVisit !== undefined) params.isHomeVisit = isHomeVisit
+
+  const { data } = await apiClient.get<ClinicServiceResponse[]>(
+    `/services/by-clinic/${clinicId}/compatible`,
+    { params },
   )
   return data
 }

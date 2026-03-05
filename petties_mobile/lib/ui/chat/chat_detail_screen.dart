@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -11,7 +10,6 @@ import '../../data/services/chat_service.dart';
 import '../../data/services/chat_websocket_service.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/message_input.dart';
-import '../../utils/fcm_service.dart';
 
 /// Màn hình chi tiết chat - Pet Owner
 class ChatDetailScreen extends StatefulWidget {
@@ -477,8 +475,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                             fit: BoxFit.cover,
                                             loadingBuilder: (context, child,
                                                 loadingProgress) {
-                                              if (loadingProgress == null)
+                                              if (loadingProgress == null) {
                                                 return child;
+                                              }
                                               return Container(
                                                 height: 150,
                                                 color: AppColors.stone100,
@@ -950,6 +949,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       _showImageGroupCarousel(allImages, imageIndex);
                     }
                   },
+                  onActionButtonTap: (msg, button) {
+                    if (!mounted) return;
+                    switch (button.type.toUpperCase()) {
+                      case 'BOOKING':
+                        if (_conversation?.clinicId != null) {
+                          context.push('/booking/${_conversation!.clinicId}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Chọn phòng khám để đặt lịch.')),
+                          );
+                        }
+                        break;
+                      case 'MENU':
+                        if (_conversation?.clinicId != null) {
+                          context.push('/clinics/${_conversation!.clinicId}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(button.label)),
+                          );
+                        }
+                        break;
+                      default:
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(button.label)),
+                        );
+                    }
+                  },
                 );
               }
             },
@@ -1259,7 +1285,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Container(
+          child: SizedBox(
             width: double.infinity,
             height: double.infinity,
             child: Image.network(

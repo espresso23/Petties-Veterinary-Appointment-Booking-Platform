@@ -2,8 +2,8 @@
 // PETTIES DATABASE SCHEMA - PostgreSQL
 // =============================================================================
 // Project: Petties - Veterinary Appointment Booking Platform
-// Generated: 2025-01-26
-// Version: 1.0
+// Generated: 2025-01-26 | Updated: 2026-03-04
+// Version: 1.1 - Added Chat tables
 //
 // Instructions:
 // 1. Copy this entire file content
@@ -29,6 +29,7 @@ Project Petties {
     - **Scheduling**: staff_shifts, slots
     - **Booking**: bookings, booking_service_items, booking_slots, payments
     - **Notification**: notifications
+    - **Chat**: chat_auto_reply_settings (PostgreSQL), chat_conversations + chat_messages (MongoDB)
 
     ### AI Agent Service (7 tables):
     - **Agent Config**: ai_agents, ai_tools, ai_prompt_versions
@@ -56,10 +57,7 @@ Enum staff_role {
 }
 
 Enum staff_specialty {
-  VET_GENERAL [note: 'General veterinarian']
-  VET_SURGERY [note: 'Surgical specialist']
-  VET_DENTAL [note: 'Veterinary dentist']
-  VET_DERMATOLOGY [note: 'Veterinary dermatologist']
+  VET [note: 'Veterinarian - covers all medical services']
   GROOMER [note: 'Grooming staff']
 }
 
@@ -190,6 +188,12 @@ TableGroup notification_management {
   notifications
 }
 
+TableGroup chat_management {
+  chat_auto_reply_settings
+  chat_conversations_mongo
+  chat_messages_mongo
+}
+
 // =============================================================================
 // TABLES - AUTH & USER
 // =============================================================================
@@ -204,7 +208,7 @@ Table users {
   avatar varchar(500)
   avatar_public_id varchar(100)
   role role [not null, note: 'PET_OWNER, STAFF, CLINIC_MANAGER, CLINIC_OWNER, ADMIN']
-  specialty staff_specialty [note: 'Only for STAFF (VET_GENERAL, GROOMER, etc.)']
+  specialty staff_specialty [note: 'Only for STAFF (VET, GROOMER)']
   rating_avg decimal(2,1) [default: 0.0]
   rating_count int [default: 0]
   fcm_token varchar(500) [note: 'Firebase Cloud Messaging token']
@@ -573,6 +577,87 @@ Table notifications {
 }
 
 // =============================================================================
+// TABLES - CHAT (PostgreSQL - Spring Boot)
+// =============================================================================
+
+Table chat_auto_reply_settings {
+  setting_id uuid [pk]
+  clinic_id uuid [not null, unique, note: 'FK - 1 row per clinic']
+  quick_reply_enabled boolean [not null, default: true]
+  quick_reply_message text [note: 'Lời chào tự động khi khách nhắn lần đầu']
+  away_message_enabled boolean [not null, default: false]
+  away_condition varchar(50) [not null, default: 'OFF_HOURS', note: 'OFF_HOURS | ALWAYS']
+  away_message text [note: 'Tin nhắn khi ngoài giờ làm việc']
+  action_buttons text [note: 'JSON array of {id, label, type}']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp
+
+  indexes {
+    (clinic_id) [unique, name: 'idx_chat_auto_reply_settings_clinic_id']
+  }
+
+  Note: 'Cấu hình tin nhắn tự động (quick reply, away message) theo phòng khám'
+}
+
+// =============================================================================
+// MONGODB COLLECTIONS - CHAT (Document structure reference)
+// =============================================================================
+// Lưu ý: chat_conversations và chat_messages nằm trên MongoDB (petties-agent-service hoặc
+// Spring Boot với spring-data-mongodb). Cấu trúc dưới đây chỉ để tham khảo documentation.
+
+Table chat_conversations_mongo {
+  _id varchar [pk, note: 'MongoDB ObjectId']
+  pet_owner_id uuid [not null, note: 'FK → users.user_id (logical)']
+  clinic_id uuid [not null, note: 'FK → clinics.clinic_id (logical)']
+  clinic_name varchar
+  clinic_logo varchar
+  pet_owner_name varchar
+  pet_owner_avatar varchar
+  last_message text
+  last_message_sender varchar [note: 'PET_OWNER | CLINIC']
+  last_message_at timestamp
+  unread_count_pet_owner int [default: 0]
+  unread_count_clinic int [default: 0]
+  pet_owner_online boolean [default: false]
+  clinic_online boolean [default: false]
+  last_auto_reply_at timestamp
+  last_auto_reply_type varchar [note: 'QUICK_REPLY | AWAY_MESSAGE']
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (pet_owner_id, clinic_id) [unique, name: 'pet_owner_clinic_idx']
+    (last_message_at) [name: 'last_message_idx']
+  }
+
+  Note: 'MongoDB collection: chat_conversations - 1 cuộc hội thoại 1-1 giữa Pet Owner và Clinic'
+}
+
+Table chat_messages_mongo {
+  _id varchar [pk, note: 'MongoDB ObjectId']
+  chat_box_id varchar [not null, note: 'Reference to chat_conversations._id']
+  sender_id uuid [not null, note: 'FK → users.user_id (logical)']
+  sender_type varchar [not null, note: 'PET_OWNER | CLINIC']
+  sender_name varchar
+  sender_avatar varchar
+  content text [not null]
+  message_type varchar [default: 'TEXT', note: 'TEXT | IMAGE | IMAGE_TEXT']
+  image_url varchar
+  status varchar [default: 'SENT', note: 'SENT | DELIVERED | SEEN']
+  is_read boolean [default: false]
+  read_at timestamp
+  action_buttons json [note: 'Array of {id, label, type} from Auto-Reply']
+  created_at timestamp
+
+  indexes {
+    (chat_box_id, created_at) [name: 'chatbox_time_idx']
+    (chat_box_id, is_read) [name: 'chatbox_unread_idx']
+  }
+
+  Note: 'MongoDB collection: chat_messages - Tin nhắn trong cuộc hội thoại chat'
+}
+
+// =============================================================================
 // RELATIONSHIPS
 // =============================================================================
 
@@ -617,6 +702,9 @@ Ref payments_booking: payments.booking_id - bookings.booking_id
 Ref notifications_user: notifications.user_id > users.user_id
 Ref notifications_clinic: notifications.clinic_id > clinics.clinic_id
 Ref notifications_shift: notifications.shift_id > staff_shifts.shift_id
+
+// --- Chat (PostgreSQL) ---
+Ref chat_auto_reply_settings_clinic: chat_auto_reply_settings.clinic_id > clinics.clinic_id
 
 // =============================================================================
 // AI AGENT SERVICE TABLES (petties-agent-serivce - Separate PostgreSQL schema)

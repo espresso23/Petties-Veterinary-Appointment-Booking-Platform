@@ -32,4 +32,10 @@ class VaccinationService {
   Future<void> deleteVaccination(String id) async {
     await _apiClient.delete('/vaccinations/$id');
   }
+
+  /// Update a vaccination record
+  Future<VaccinationRecord> updateVaccination(String id, Map<String, dynamic> data) async {
+    final response = await _apiClient.put('/vaccinations/$id', data: data);
+    return VaccinationRecord.fromJson(response.data);
+  }
 }

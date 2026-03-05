@@ -59,7 +59,7 @@ class PetServiceUnitTest {
         // Arrange
         PetRequest request = new PetRequest();
         request.setName("Buddy");
-        request.setSpecies("DOG");
+        request.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
 
         User user = new User();
         user.setUserId(UUID.randomUUID());
@@ -150,5 +150,43 @@ class PetServiceUnitTest {
         assertEquals(1, patients.size());
         assertEquals("My Patient", patients.get(0).getPetName());
         assertTrue(patients.get(0).isAssignedToMe());
+    }
+
+    @Test
+    @DisplayName("Update Pet - With Avatar Upload - Success")
+    void updatePet_WithAvatarUpload_Success() {
+        // Arrange
+        UUID petId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+
+        User owner = new User();
+        owner.setUserId(ownerId);
+
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setUser(owner);
+        pet.setName("Old Name");
+
+        PetRequest request = new PetRequest();
+        request.setName("New Name");
+
+        MultipartFile mockFile = mock(MultipartFile.class);
+        UploadResponse uploadResponse = new UploadResponse();
+        uploadResponse.setUrl("http://cloudinary.com/new_avatar.jpg");
+
+        when(authService.getCurrentUser()).thenReturn(owner);
+        when(petRepository.findById(petId)).thenReturn(Optional.of(pet));
+        when(cloudinaryService.uploadFile(eq(mockFile), anyString())).thenReturn(uploadResponse);
+        when(petRepository.save(any(Pet.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        PetResponse response = petService.updatePet(petId, request, mockFile);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals("New Name", response.getName());
+        assertEquals("http://cloudinary.com/new_avatar.jpg", response.getImageUrl());
+        verify(cloudinaryService).uploadFile(eq(mockFile), anyString());
+        verify(petRepository).save(pet);
     }
 }

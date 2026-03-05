@@ -13,6 +13,7 @@ import com.petties.petties.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -172,8 +173,79 @@ public class VaccinationService {
     }
 
     /**
-     * Auto-create draft vaccination records from booking
+     * Auto-create draft vaccination records from booking.
+     * Uses REQUIRES_NEW so failures don't roll back the parent transaction (e.g. check-in).
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void createDraftFromBooking(com.petties.petties.model.Booking booking,
+            com.petties.petties.model.BookingServiceItem item) {
+        // Only create drafts for active/pending bookings
+        if (booking.getStatus() == com.petties.petties.model.enums.BookingStatus.COMPLETED ||
+                booking.getStatus() == com.petties.petties.model.enums.BookingStatus.CANCELLED ||
+                booking.getStatus() == com.petties.petties.model.enums.BookingStatus.NO_SHOW) {
+            return;
+        }
+
+        if (item.getService() == null || item.getService()
+                .getServiceCategory() != com.petties.petties.model.enums.ServiceCategory.VACCINATION) {
+            return;
+        }
+
+        // Skip if clinic is null (e.g. SOS booking during matching phase)
+        if (booking.getClinic() == null) {
+            log.debug("Skipping vaccination draft creation: booking {} has no clinic", booking.getBookingId());
+            return;
+        }
+
+        // Check if record already exists for this booking item
+        // Since we don't have item identifier in record, we check by bookingId and
+        // vaccineName
+        List<VaccinationRecord> existing = vaccinationRecordRepository
+                .findByPetIdOrderByVaccinationDateDesc(booking.getPet().getId());
+        boolean alreadyCreated = existing.stream()
+                .anyMatch(r -> r.getBookingId() != null && r.getBookingId().equals(booking.getBookingId())
+                        && r.getVaccineName() != null && r.getVaccineName().equals(item.getService().getName()));
+
+        if (alreadyCreated) {
+            log.info("Draft vaccination record already exists for booking {}", booking.getBookingId());
+            return;
+        }
+
+        com.petties.petties.model.VaccineTemplate template = item.getService().getVaccineTemplate();
+
+        // Predict dose
+        int doseNumber = 1;
+        String notes = "Tự động tạo từ lịch hẹn";
+
+        if (template != null) {
+            VaccinationResponse prediction = predictNextDose(template, existing, booking.getPet().getId());
+            if (prediction != null) {
+                doseNumber = prediction.getDoseNumber();
+                notes = prediction.getNotes();
+            }
+        }
+
+        VaccinationRecord record = VaccinationRecord.builder()
+                .petId(booking.getPet().getId())
+                .bookingId(booking.getBookingId())
+                .staffId(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getUserId() : null)
+                .staffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getFullName() : null)
+                .clinicId(booking.getClinic().getClinicId())
+                .clinicName(booking.getClinic().getName())
+                .vaccineName(item.getService().getName()) // Use service name as vaccine name (e.g. "Tiêm Dại")
+                .vaccineTemplateId(template != null ? template.getId() : null)
+                .vaccinationDate(booking.getBookingDate())
+                .status("PENDING") // Draft status
+                .doseNumber(doseNumber)
+                .totalDoses(template != null ? template.getSeriesDoses() : 1)
+                .notes(notes)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        vaccinationRecordRepository.save(record);
+        log.info("Auto-created DRAFT vaccination record for booking {}", booking.getBookingCode());
+    }
+
     private String normalizeName(String name) {
         if (name == null)
             return "";
@@ -217,30 +289,8 @@ public class VaccinationService {
         if (t.getTargetSpecies() == null || t.getTargetSpecies().name().equalsIgnoreCase("BOTH")) {
             return true;
         }
-        String petSpecies = pet.getSpecies() != null ? pet.getSpecies().toLowerCase() : "";
-        String normalizedSpecies = java.text.Normalizer.normalize(petSpecies, java.text.Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "").toLowerCase();
-
-        boolean isDog = normalizedSpecies.contains("dog") || normalizedSpecies.contains("cho")
-                || petSpecies.contains("chó");
-        boolean isCat = normalizedSpecies.contains("cat") || normalizedSpecies.contains("meo")
-                || petSpecies.contains("mèo");
-
-        if (isDog) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("DOG");
-        }
-        if (isCat) {
-            return t.getTargetSpecies().name().equalsIgnoreCase("CAT");
-        }
-
-        // Fallback: check template name if pet species is unknown
-        String templateName = t.getName().toLowerCase();
-        if (templateName.contains("(chó)") && isCat)
-            return false;
-        if (templateName.contains("(mèo)") && isDog)
-            return false;
-
-        return false;
+        // Use SpeciesUtils for proper enum-based compatibility check
+        return com.petties.petties.util.SpeciesUtils.isVaccineCompatible(t.getTargetSpecies(), pet.getSpecies());
     }
 
     private VaccinationResponse predictNextDose(com.petties.petties.model.VaccineTemplate t,
@@ -260,9 +310,9 @@ public class VaccinationService {
         if (vaccineHistory.isEmpty()) {
             // Suggest Dose 1
             doseNumber = 1;
-            // For new pets, suggest today or 1 week out
-            nextDueDate = LocalDate.now().plusDays(7);
-            notes = "Dự kiến: Mùi 1 (Chưa có lịch sử)";
+            // No default date for first dose to avoid confusion
+            nextDueDate = null;
+            notes = "Dự kiến: Mũi 1 (Chưa có lịch sử)";
         } else {
             VaccinationRecord lastRecord = vaccineHistory.get(0);
             int lastDose = lastRecord.getDoseNumber() != null ? lastRecord.getDoseNumber() : 1;
@@ -310,6 +360,87 @@ public class VaccinationService {
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public VaccinationResponse updateVaccination(String id, CreateVaccinationRequest request, UUID staffId) {
+        VaccinationRecord record = vaccinationRecordRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Vaccination record not found"));
+
+        // Update staff info if provided
+        if (staffId != null) {
+            User staff = userRepository.findById(staffId).orElse(null);
+            if (staff != null) {
+                record.setStaffId(staffId);
+                record.setStaffName(staff.getFullName());
+                if (staff.getWorkingClinic() != null) {
+                    record.setClinicId(staff.getWorkingClinic().getClinicId());
+                    record.setClinicName(staff.getWorkingClinic().getName());
+                }
+            }
+        }
+
+        // Update vaccine template if provided
+        if (request.getVaccineTemplateId() != null) {
+            com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
+                    .findById(request.getVaccineTemplateId()).orElse(null);
+            if (template != null) {
+                record.setVaccineTemplateId(template.getId());
+                record.setVaccineName(template.getName());
+                record.setTotalDoses(template.getSeriesDoses());
+            }
+        } else if (request.getVaccineName() != null) {
+            record.setVaccineName(request.getVaccineName());
+        }
+
+        // Update dates
+        if (request.getVaccinationDate() != null) {
+            if (request.getVaccinationDate().isAfter(LocalDate.now())) {
+                throw new IllegalArgumentException("Ngày tiêm không thể ở tương lai.");
+            }
+            record.setVaccinationDate(request.getVaccinationDate());
+        }
+        if (request.getNextDueDate() != null) {
+            record.setNextDueDate(request.getNextDueDate());
+        }
+
+        // Update dose sequence
+        if (request.getDoseSequence() != null) {
+            int doseNumber;
+            switch (request.getDoseSequence().toUpperCase()) {
+                case "1":
+                    doseNumber = 1;
+                    break;
+                case "2":
+                    doseNumber = 2;
+                    break;
+                case "3":
+                    doseNumber = 3;
+                    break;
+                case "BOOSTER":
+                case "ANNUAL":
+                    doseNumber = 4;
+                    break;
+                default:
+                    doseNumber = record.getDoseNumber() != null ? record.getDoseNumber() : 1;
+            }
+            record.setDoseNumber(doseNumber);
+        }
+
+        // Update notes
+        if (request.getNotes() != null) {
+            record.setNotes(request.getNotes());
+        }
+
+        // Update status (workflow)
+        if (request.getWorkflowStatus() != null) {
+            record.setStatus(request.getWorkflowStatus());
+        }
+
+        VaccinationRecord saved = vaccinationRecordRepository.save(record);
+        log.info("Updated vaccination record {}", saved.getId());
+
+        return mapToResponse(saved);
     }
 
     @Transactional

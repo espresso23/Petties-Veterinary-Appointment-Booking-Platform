@@ -3,6 +3,7 @@
  */
 import axios from './api/client';
 import type { Booking, CreateBookingRequest, ConfirmBookingRequest, AvailableStaffResponse, StaffAvailabilityCheckResponse, ConfirmBookingWithOptionsRequest } from '../types/booking';
+import type { SosAlertMessage } from './websocket/sosWebSocket';
 import type { BookingStatus } from '../types/booking';
 import type { ClinicServiceResponse } from '../types/service';
 
@@ -25,6 +26,7 @@ export interface StaffOption {
     isSuggested: boolean;
     bookingCount: number;
     hasAvailableSlots: boolean;
+    availableServiceItemIds: string[];
     unavailableReason?: string;
 }
 
@@ -100,7 +102,7 @@ export const confirmBooking = async (
     bookingId: string,
     request?: ConfirmBookingRequest
 ): Promise<Booking> => {
-    const response = await axios.patch(`${BOOKING_API}/${bookingId}/confirm`, request || {});
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/confirm`, request || {});
     return response.data;
 };
 
@@ -111,7 +113,7 @@ export const confirmBooking = async (
 export const checkStaffAvailability = async (
     bookingId: string
 ): Promise<StaffAvailabilityCheckResponse> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/check-staff-availability`);
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/availability`);
     return response.data;
 };
 
@@ -123,7 +125,7 @@ export const confirmBookingWithOptions = async (
     bookingId: string,
     request: ConfirmBookingWithOptionsRequest
 ): Promise<Booking> => {
-    const response = await axios.patch(`${BOOKING_API}/${bookingId}/confirm`, request);
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/confirm`, request);
     return response.data;
 };
 
@@ -131,7 +133,7 @@ export const confirmBookingWithOptions = async (
  * Cancel booking
  */
 export const cancelBooking = async (bookingId: string, reason: string): Promise<Booking> => {
-    const response = await axios.patch(`${BOOKING_API}/${bookingId}/cancel`, null, {
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/cancel`, null, {
         params: { reason }
     });
     return response.data;
@@ -144,7 +146,7 @@ export const getAvailableStaffForReassign = async (
     bookingId: string,
     serviceId: string
 ): Promise<AvailableStaffResponse[]> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/services/${serviceId}/available-staff`);
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/services/${serviceId}/alternatives`);
     return response.data;
 };
 
@@ -163,7 +165,7 @@ export const reassignStaffForService = async (
 };
 
 /**
- * Add a service to an active booking (IN_PROGRESS or ARRIVED)
+ * Add a service to an active booking (IN_PROGRESS or CONFIRMED)
  * Used when staff wants to add extra services during home visit
  * Distance fee is NOT recalculated
  */
@@ -171,9 +173,21 @@ export const addServiceToBooking = async (
     bookingId: string,
     serviceId: string
 ): Promise<Booking> => {
-    const response = await axios.post(`${BOOKING_API}/${bookingId}/add-service`, {
+    // Backend endpoint is /services (not /add-service)
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/services`, {
         serviceId
     });
+    return response.data;
+};
+
+/**
+ * Remove an add-on service from a booking
+ */
+export const removeServiceFromBooking = async (
+    bookingId: string,
+    bookingServiceId: string
+): Promise<Booking> => {
+    const response = await axios.delete(`${BOOKING_API}/${bookingId}/services/${bookingServiceId}`);
     return response.data;
 };
 
@@ -184,7 +198,8 @@ export const addServiceToBooking = async (
 export const getAvailableServicesForAddOn = async (
     bookingId: string
 ): Promise<ClinicServiceResponse[]> => {
-    const response = await axios.get(`${BOOKING_API}/${bookingId}/available-services`);
+    // Backend endpoint is /available-add-ons (not /available-services)
+    const response = await axios.get(`${BOOKING_API}/${bookingId}/available-add-ons`);
     return response.data;
 };
 
@@ -209,11 +224,16 @@ export const checkInBooking = async (bookingId: string): Promise<Booking> => {
 };
 
 /**
+<<<<<<< HEAD
  * Complete booking (Checkout) with payment method selection
  * - CASH: Creates payment as PAID → booking COMPLETED immediately
  * - QR: Creates payment as PENDING → returns QR info for polling
  * - undefined: Legacy behavior → booking COMPLETED without payment
  * Transitions: IN_PROGRESS → COMPLETED (for CASH/undefined)
+=======
+ * Complete booking
+ * Transitions: IN_PROGRESS → COMPLETED
+>>>>>>> 22a81d38772a380aec5f7855c90f58a0b7452dcc
  */
 export const completeBooking = async (
     bookingId: string,
@@ -225,13 +245,16 @@ export const completeBooking = async (
 };
 
 /**
- * Remove an add-on service from booking
+ * Checkout booking (Staff action – thanh toán)
+ * Chỉ gọi khi status IN_PROGRESS. Backend chuyển sang COMPLETED và xử lý thanh toán.
+ * @param overriddenSosFee Optional: ghi đè phí SOS (cho booking SOS)
  */
-export const removeServiceFromBooking = async (
+export const checkoutBooking = async (
     bookingId: string,
-    serviceId: string
+    overriddenSosFee?: number | null
 ): Promise<Booking> => {
-    const response = await axios.delete(`${BOOKING_API}/${bookingId}/services/${serviceId}`);
+    const body = overriddenSosFee != null ? { overriddenSosFee } : {};
+    const response = await axios.post(`${BOOKING_API}/${bookingId}/checkout`, body);
     return response.data;
 };
 
@@ -259,3 +282,86 @@ export const getClinicTodayBookings = async (
     return response.data;
 };
 
+// ========== SOS AUTO-MATCH ==========
+
+const SOS_API = '/sos';
+
+/**
+ * Confirm SOS request (Clinic Manager)
+ * The clinic agrees to handle this SOS booking
+ */
+export const confirmSosRequest = async (
+    bookingId: string,
+    assignedStaffId?: string
+): Promise<Booking> => {
+    const response = await axios.post(`${SOS_API}/${bookingId}/confirm`, {
+        accepted: true,
+        assignedStaffId
+    });
+    return response.data;
+};
+
+/**
+ * Decline SOS request (Clinic Manager)
+ * The clinic declines, system will try the next clinic
+ * NOTE: Uses the same /confirm endpoint as confirmSosRequest.
+ * Backend uses the `accepted` flag (true/false) to distinguish confirm vs decline.
+ */
+export const declineSosRequest = async (
+    bookingId: string,
+    reason?: string
+): Promise<void> => {
+    await axios.post(`${SOS_API}/${bookingId}/confirm`, {
+        accepted: false,
+        declineReason: reason
+    });
+};
+
+/**
+ * Get SOS matching status
+ */
+export const getSosMatchingStatus = async (bookingId: string): Promise<{
+    status: string;
+    clinicId?: string;
+    clinicName?: string;
+    message?: string;
+}> => {
+    const response = await axios.get(`${SOS_API}/${bookingId}/status`);
+    return response.data;
+};
+
+/**
+ * Get active SOS alerts for a clinic (Clinic Manager)
+ * Used to sync alerts on mount (catch-up mechanism)
+ */
+export const getActiveSosAlerts = async (): Promise<SosAlertMessage[]> => {
+    const response = await axios.get(`${SOS_API}/alerts`);
+    return response.data;
+};
+
+// Named export for backwards compatibility and object-style imports
+export const bookingService = {
+    getBookingsByClinic,
+    getBookingsByStaff,
+    getBookingById,
+    getBookingByCode,
+    createBooking,
+    confirmBooking,
+    checkStaffAvailability,
+    confirmBookingWithOptions,
+    cancelBooking,
+    getAvailableStaffForReassign,
+    reassignStaffForService,
+    addServiceToBooking,
+    getAvailableServicesForAddOn,
+    getAvailableStaffForConfirm,
+    checkInBooking,
+    completeBooking,
+    checkoutBooking,
+    removeServiceFromBooking,
+    getClinicTodayBookings,
+    confirmSosRequest,
+    declineSosRequest,
+    getSosMatchingStatus,
+    getActiveSosAlerts,
+};

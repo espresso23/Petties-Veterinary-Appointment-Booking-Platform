@@ -27,7 +27,7 @@ vi.mock('../../../services/vaccinationService', () => ({
         getVaccinationsByPet: vi.fn(),
         getUpcomingVaccinations: vi.fn(),
         formatDate: vi.fn((d: string) => d || '—'),
-        calculateStatus: vi.fn((_d: string) => 'Valid')
+        calculateStatus: vi.fn(() => 'Valid')
     }
 }))
 
@@ -46,7 +46,8 @@ vi.mock('../../../store/authStore', () => ({
 }))
 
 vi.mock('../../../services/bookingService', () => ({
-    getBookingsByStaff: vi.fn().mockResolvedValue([])
+    getBookingsByStaff: vi.fn().mockResolvedValue([]),
+    getClinicTodayBookings: vi.fn().mockResolvedValue([])
 }))
 
 vi.mock('../../../services/api/vaccineTemplateService', () => ({
@@ -57,9 +58,13 @@ vi.mock('../../../services/api/vaccineTemplateService', () => ({
 }))
 
 // Mock DatePicker since it can be problematic in JSDOM
+interface DatePickerProps {
+    onChange: (date: Date) => void;
+    selected: Date | null;
+}
 vi.mock('react-datepicker', () => {
     return {
-        default: (props: any) => <input data-testid="datepicker" onChange={e => props.onChange(new Date(e.target.value))} value={props.selected ? props.selected.toISOString().substr(0, 10) : ''} />,
+        default: (props: DatePickerProps) => <input data-testid="datepicker" onChange={e => props.onChange(new Date(e.target.value))} value={props.selected ? props.selected.toISOString().substr(0, 10) : ''} />,
         registerLocale: vi.fn()
     }
 })
@@ -72,6 +77,8 @@ describe('StaffPatientsPage', () => {
             species: 'CAT',
             breed: 'Mướp',
             age: '1 tuổi',
+            ageYears: 1,
+            ageMonths: 0,
             ownerName: 'Lê Thị B',
             ownerPhone: '0909090909',
             isAssignedToMe: true
@@ -81,14 +88,19 @@ describe('StaffPatientsPage', () => {
     const mockVaccinations = [
         {
             id: 'vac-1',
+            petId: 'pet-1',
+            clinicId: 'clinic-001',
+            clinicName: 'Test Clinic',
             vaccineName: 'Rabies',
             vaccinationDate: '2025-01-15',
             nextDueDate: '2026-01-15',
             batchNumber: 'RB-123',
             staffId: 'staff-002',
             staffName: 'Trần Văn B', // Target for verification
-            status: 'Valid',
-            notes: 'Không có phản ứng phụ'
+            status: 'Valid' as "Valid" | "Expiring Soon" | "Overdue" | "N/A",
+            workflowStatus: 'COMPLETED' as const, // Required for list view filter
+            notes: 'Không có phản ứng phụ',
+            createdAt: '2025-01-15T10:00:00Z'
         }
     ]
 
@@ -102,20 +114,20 @@ describe('StaffPatientsPage', () => {
                 workingClinicId: 'clinic-001',
                 role: 'STAFF'
             }
-        } as any)
+        } as ReturnType<typeof useAuthStore>)
 
         // Mock tokenStorage
         vi.mocked(tokenStorage.getUser).mockReturnValue({
             userId: 'staff-001',
             role: 'STAFF'
-        } as any)
+        } as ReturnType<typeof tokenStorage.getUser>)
     })
 
     it('renders list of patients and opens vaccination tab correctly', async () => {
         // Setup initial load
-        vi.mocked(petService.getStaffPatients).mockResolvedValue(mockPatients as any)
+        vi.mocked(petService.getStaffPatients).mockResolvedValue(mockPatients)
         vi.mocked(emrService.getEmrsByPetId).mockResolvedValue([])
-        vi.mocked(vaccinationService.getVaccinationsByPet).mockResolvedValue(mockVaccinations as any)
+        vi.mocked(vaccinationService.getVaccinationsByPet).mockResolvedValue(mockVaccinations)
         vi.mocked(vaccinationService.getUpcomingVaccinations).mockResolvedValue([])
 
         render(<StaffPatientsPage />)

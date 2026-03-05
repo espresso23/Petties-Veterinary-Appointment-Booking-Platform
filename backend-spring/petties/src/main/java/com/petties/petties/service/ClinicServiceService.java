@@ -12,10 +12,12 @@ import com.petties.petties.model.ClinicService;
 import com.petties.petties.model.MasterService;
 import com.petties.petties.model.ServiceWeightPrice;
 import com.petties.petties.model.User;
+import com.petties.petties.model.enums.PetSpecies;
 import com.petties.petties.model.enums.Role;
 import com.petties.petties.repository.ClinicRepository;
 import com.petties.petties.repository.ClinicServiceRepository;
 import com.petties.petties.repository.MasterServiceRepository;
+import com.petties.petties.util.SpeciesUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class ClinicServiceService {
     private final ClinicRepository clinicRepository;
     private final AuthService authService;
     private final MasterServiceRepository masterServiceRepository;
+    private final com.petties.petties.repository.VaccineTemplateRepository vaccineTemplateRepository;
 
     /**
      * Get current authenticated user
@@ -51,9 +54,18 @@ public class ClinicServiceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy dịch vụ với ID: " + serviceId));
 
         User currentUser = getCurrentUser();
-        // Strictly for the Owner of the clinic associated with the service
-        if (service.getClinic().getOwner() == null
-                || !service.getClinic().getOwner().getUserId().equals(currentUser.getUserId())) {
+
+        // Ownership check:
+        // 1. User is the Owner of the clinic
+        boolean isOwner = service.getClinic().getOwner() != null
+                && service.getClinic().getOwner().getUserId().equals(currentUser.getUserId());
+
+        // 2. User is Staff/Manager of this clinic
+        boolean isStaffOfClinic = (currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER)
+                && currentUser.getWorkingClinic() != null
+                && currentUser.getWorkingClinic().getClinicId().equals(service.getClinic().getClinicId());
+
+        if (!isOwner && !isStaffOfClinic) {
             throw new ForbiddenException("Bạn không có quyền thao tác trên dịch vụ này");
         }
         return service;
@@ -64,13 +76,21 @@ public class ClinicServiceService {
      */
     private Clinic getCurrentUserClinic() {
         User currentUser = getCurrentUser();
-        if (currentUser.getRole() != Role.CLINIC_OWNER) {
-            throw new ForbiddenException("Chỉ Clinic Owner mới có quyền thực hiện thao tác này");
+
+        // If Owner: get their primary clinic
+        if (currentUser.getRole() == Role.CLINIC_OWNER) {
+            return clinicRepository.findFirstByOwnerUserId(currentUser.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy clinic cho user này. Vui lòng tạo clinic trước."));
         }
 
-        return clinicRepository.findFirstByOwnerUserId(currentUser.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy clinic cho user này. Vui lòng tạo clinic trước."));
+        // If Staff/Manager: get their working clinic
+        if ((currentUser.getRole() == Role.STAFF || currentUser.getRole() == Role.CLINIC_MANAGER)
+                && currentUser.getWorkingClinic() != null) {
+            return currentUser.getWorkingClinic();
+        }
+
+        throw new ForbiddenException("Chỉ Clinic Owner hoặc nhân viên phòng khám mới có quyền thực hiện thao tác này");
     }
 
     /**
@@ -82,9 +102,13 @@ public class ClinicServiceService {
                 .orElseThrow(
                         () -> new ResourceNotFoundException("Không tìm thấy clinic với ID: " + request.getClinicId()));
 
-        // Validate ownership
+        // Validate ownership - Only Owner or Manager can create services
         User currentUser = getCurrentUser();
-        if (clinic.getOwner() == null || !clinic.getOwner().getUserId().equals(currentUser.getUserId())) {
+        boolean isOwner = clinic.getOwner() != null && clinic.getOwner().getUserId().equals(currentUser.getUserId());
+        boolean isManager = currentUser.getRole() == Role.CLINIC_MANAGER && currentUser.getWorkingClinic() != null
+                && currentUser.getWorkingClinic().getClinicId().equals(clinic.getClinicId());
+
+        if (!isOwner && !isManager) {
             throw new ForbiddenException("Bạn không có quyền thêm dịch vụ cho clinic này");
         }
 
@@ -106,6 +130,14 @@ public class ClinicServiceService {
         service.setReminderInterval(request.getReminderInterval());
         service.setReminderUnit(request.getReminderUnit());
 
+        // Set Vaccine Template
+        if (request.getVaccineTemplateId() != null) {
+            com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
+                    .findById(request.getVaccineTemplateId())
+                    .orElse(null);
+            service.setVaccineTemplate(template);
+        }
+
         // Handle weight prices
         if (request.getWeightPrices() != null && !request.getWeightPrices().isEmpty()) {
             for (WeightPriceDto dto : request.getWeightPrices()) {
@@ -115,6 +147,19 @@ public class ClinicServiceService {
                 weightPrice.setMaxWeight(dto.getMaxWeight());
                 weightPrice.setPrice(dto.getPrice());
                 service.getWeightPrices().add(weightPrice);
+            }
+        }
+
+        // Handle dose prices
+        if (request.getDosePrices() != null && !request.getDosePrices().isEmpty()) {
+            for (com.petties.petties.dto.clinicService.VaccineDosePriceDTO dto : request.getDosePrices()) {
+                com.petties.petties.model.VaccineDosePrice dosePrice = new com.petties.petties.model.VaccineDosePrice();
+                dosePrice.setService(service);
+                dosePrice.setDoseNumber(dto.doseNumber());
+                dosePrice.setDoseLabel(dto.doseLabel());
+                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
+                dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
+                service.getDosePrices().add(dosePrice);
             }
         }
 
@@ -198,6 +243,31 @@ public class ClinicServiceService {
                 weightPrice.setMaxWeight(dto.getMaxWeight());
                 weightPrice.setPrice(dto.getPrice());
                 service.getWeightPrices().add(weightPrice);
+            }
+        }
+
+        // Handle vaccine template update
+        if (request.getVaccineTemplateId() != null) {
+            com.petties.petties.model.VaccineTemplate template = vaccineTemplateRepository
+                    .findById(request.getVaccineTemplateId())
+                    .orElse(null);
+            service.setVaccineTemplate(template);
+        }
+
+        // Handle dose prices update
+        if (request.getDosePrices() != null) {
+            // Clear existing dose prices
+            service.getDosePrices().clear();
+
+            // Add new dose prices
+            for (com.petties.petties.dto.clinicService.VaccineDosePriceDTO dto : request.getDosePrices()) {
+                com.petties.petties.model.VaccineDosePrice dosePrice = new com.petties.petties.model.VaccineDosePrice();
+                dosePrice.setService(service);
+                dosePrice.setDoseNumber(dto.doseNumber());
+                dosePrice.setDoseLabel(dto.doseLabel());
+                dosePrice.setPrice(dto.price() != null ? dto.price() : BigDecimal.ZERO);
+                dosePrice.setIsActive(dto.isActive() != null ? dto.isActive() : true);
+                service.getDosePrices().add(dosePrice);
             }
         }
 
@@ -378,6 +448,44 @@ public class ClinicServiceService {
     }
 
     /**
+     * PUBLIC: Get services compatible with a specific pet species
+     * Filters out vaccines that are not compatible with the pet's species
+     *
+     * @param clinicId    Clinic ID
+     * @param petSpecies  Pet species to filter by (optional, if null returns all)
+     * @param isHomeVisit Only return home visit services (optional)
+     * @return List of compatible services
+     */
+    @Transactional(readOnly = true)
+    public List<ClinicServiceResponse> getCompatibleServices(UUID clinicId, PetSpecies petSpecies, Boolean isHomeVisit) {
+        // Verify clinic exists
+        if (!clinicRepository.existsById(clinicId)) {
+            throw new ResourceNotFoundException("Không tìm thấy clinic với ID: " + clinicId);
+        }
+
+        List<ClinicService> services = clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId);
+
+        return services.stream()
+                // Filter by home visit if specified
+                .filter(s -> isHomeVisit == null || !isHomeVisit || Boolean.TRUE.equals(s.getIsHomeVisit()))
+                // Filter by species compatibility
+                .filter(s -> {
+                    // If no vaccine template, service is compatible with all species
+                    if (s.getVaccineTemplate() == null) {
+                        return true;
+                    }
+                    // If no petSpecies specified, return all services
+                    if (petSpecies == null) {
+                        return true;
+                    }
+                    // Check vaccine compatibility
+                    return SpeciesUtils.isVaccineCompatible(s.getVaccineTemplate().getTargetSpecies(), petSpecies);
+                })
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * INTERNAL: Get all services for a specific clinic (including inactive)
      * Admin hoặc Clinic Owner/Manager có thể xem tất cả services
      */
@@ -413,6 +521,14 @@ public class ClinicServiceService {
                         .build())
                 .collect(Collectors.toList());
 
+        // Map vaccine dose prices
+        List<com.petties.petties.dto.clinicService.VaccineDosePriceDTO> dosePriceDtos = service.getDosePrices() != null
+                ? service.getDosePrices().stream()
+                        .filter(dp -> dp.getIsActive() != null && dp.getIsActive())
+                        .map(com.petties.petties.dto.clinicService.VaccineDosePriceDTO::fromEntity)
+                        .collect(Collectors.toList())
+                : java.util.Collections.emptyList();
+
         return ClinicServiceResponse.builder()
                 .serviceId(service.getServiceId())
                 .clinicId(service.getClinic().getClinicId())
@@ -431,6 +547,8 @@ public class ClinicServiceService {
                 .reminderInterval(service.getReminderInterval())
                 .reminderUnit(service.getReminderUnit())
                 .weightPrices(weightPriceDtos)
+                .vaccineTemplateId(service.getVaccineTemplate() != null ? service.getVaccineTemplate().getId() : null)
+                .dosePrices(dosePriceDtos)
                 .createdAt(service.getCreatedAt())
                 .updatedAt(service.getUpdatedAt())
                 .build();

@@ -6,6 +6,7 @@ import '../../config/constants/app_colors.dart';
 import '../../data/models/clinic_service.dart';
 import '../../providers/booking_wizard_provider.dart';
 import '../../utils/format_utils.dart';
+import '../common/pet_owner_bottom_nav.dart';
 
 /// Step 3: Select Date and Time
 class BookingSelectDateTimeScreen extends StatefulWidget {
@@ -67,6 +68,10 @@ class _BookingSelectDateTimeScreenState
             ],
           );
         },
+      ),
+      bottomNavigationBar: PetOwnerBottomNav(
+        currentIndex: 2,
+        onTap: (index) => handlePetOwnerNavTap(context, index),
       ),
     );
   }
@@ -185,6 +190,7 @@ class _BookingSelectDateTimeScreenState
           provider.selectDate(selectedDay);
         },
         calendarFormat: CalendarFormat.month,
+        rowHeight: 38,
         headerStyle: const HeaderStyle(
           formatButtonVisible: false,
           titleCentered: true,
@@ -210,20 +216,20 @@ class _BookingSelectDateTimeScreenState
           ),
         ),
         calendarStyle: CalendarStyle(
-          todayDecoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.3),
+          todayDecoration: const BoxDecoration(
+            color: AppColors.primarySurface,
             shape: BoxShape.circle,
           ),
           todayTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
-            color: AppColors.stone900,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryDark,
           ),
           selectedDecoration: const BoxDecoration(
             color: AppColors.primary,
             shape: BoxShape.circle,
           ),
           selectedTextStyle: const TextStyle(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             color: AppColors.white,
           ),
           weekendTextStyle: const TextStyle(color: AppColors.coral),
@@ -253,9 +259,9 @@ class _BookingSelectDateTimeScreenState
               Text(
                 FormatUtils.formatDate(provider.selectedDate!),
                 style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.stone900,
                 ),
               ),
           ],
@@ -276,17 +282,80 @@ class _BookingSelectDateTimeScreenState
         else if (provider.availableSlots.isEmpty ||
             !_hasAvailableSlots(provider.availableSlots))
           Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (provider.availableSlots.isNotEmpty) _buildSlotsGrid(provider),
               if (provider.availableSlots.isNotEmpty)
                 const SizedBox(height: 16),
               _buildNoSlotsAvailable(),
+              if (provider.selectedTime != null) ...[
+                const SizedBox(height: 16),
+                _buildEstimatedPickupBlock(provider),
+              ],
             ],
           )
         else
           _buildSlotsGrid(provider),
       ],
     );
+  }
+
+  Widget _buildEstimatedPickupBlock(BookingWizardProvider provider) {
+    if (provider.isLoadingExpectedPickup) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.primaryBackground,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Đang tính giờ nhận pet dự kiến...',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.stone600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (provider.expectedPickupTime != null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.teal100,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.teal600.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.pets, size: 20, color: AppColors.teal700),
+            const SizedBox(width: 10),
+            Text(
+              'Giờ nhận pet dự kiến: ${FormatUtils.formatTime(provider.expectedPickupTime!)}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.stone900,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _buildSlotsLegend() {
@@ -454,24 +523,22 @@ class _BookingSelectDateTimeScreenState
 
   Widget _buildSlotChips(
       BookingWizardProvider provider, List<AvailableSlot> slots) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return Column(
       children: slots.map((slot) {
-        // Check if this slot is in the selected slots list
         final isSelected = provider.selectedTimeSlots.contains(slot.startTime);
-        final isStartSlot = provider.selectedTime == slot.startTime;
-        
+
         // Check if slot is in the past
         bool isPastTime = false;
-        if (provider.selectedDate != null && isSameDay(provider.selectedDate!, DateTime.now())) {
+        if (provider.selectedDate != null &&
+            isSameDay(provider.selectedDate!, DateTime.now())) {
           try {
             final parts = slot.startTime.split(':');
             final slotHour = int.parse(parts[0]);
             final slotMinute = int.parse(parts[1]);
             final now = DateTime.now();
-            
-            if (now.hour > slotHour || (now.hour == slotHour && now.minute > slotMinute)) {
+
+            if (now.hour > slotHour ||
+                (now.hour == slotHour && now.minute > slotMinute)) {
               isPastTime = true;
             }
           } catch (_) {}
@@ -484,76 +551,89 @@ class _BookingSelectDateTimeScreenState
         Color bgColor;
         Color borderColor;
         Color textColor;
+        String statusLabel;
 
         if (isSelected) {
-          // Selected slot (either start or auto-selected)
-          if (isStartSlot) {
-            // Start slot - full primary color with shadow
-            bgColor = AppColors.primary;
-            borderColor = AppColors.primary;
-            textColor = AppColors.white;
-          } else {
-            // Auto-selected subsequent slot - lighter primary
-            bgColor = AppColors.primary.withValues(alpha: 0.7);
-            borderColor = AppColors.primary;
-            textColor = AppColors.white;
-          }
+          // Single selected slot (drop-off time)
+          bgColor = AppColors.primaryBackground;
+          borderColor = AppColors.primary;
+          textColor = AppColors.primaryDark;
+          statusLabel = 'Đã chọn';
         } else if (isBreakTime) {
           bgColor = AppColors.coral.withValues(alpha: 0.15);
           borderColor = AppColors.coral.withValues(alpha: 0.5);
           textColor = AppColors.coral;
+          statusLabel = 'Nghỉ';
         } else if (!isAvailable) {
           bgColor = AppColors.stone200;
           borderColor = AppColors.stone300;
-          textColor = AppColors.stone400;
+          textColor = AppColors.stone500;
+          statusLabel = isPastTime ? 'Đã qua giờ' : 'Đã đầy';
         } else {
-          bgColor = AppColors.white;
-          borderColor = AppColors.stone300;
-          textColor = AppColors.stone700;
+          bgColor = AppColors.successLight;
+          borderColor = AppColors.successDark;
+          textColor = AppColors.successDark;
+          statusLabel = 'Khả dụng';
         }
 
         return Tooltip(
-          message: isPastTime 
-              ? 'Đã qua giờ' 
+          message: isPastTime
+              ? 'Đã qua giờ'
               : slot.reason ?? (isAvailable ? 'Khả dụng' : ''),
           child: GestureDetector(
             onTap:
                 isAvailable ? () => provider.selectTime(slot.startTime) : null,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: bgColor,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: borderColor, width: 2),
-                boxShadow: isStartSlot
+                boxShadow: isSelected
                     ? const [
                         BoxShadow(
-                            color: AppColors.stone900, offset: Offset(2, 2))
+                          color: AppColors.stone900,
+                          offset: Offset(2, 2),
+                        ),
                       ]
                     : null,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
+                  Icon(
+                    isBreakTime
+                        ? Icons.free_breakfast
+                        : (isAvailable ? Icons.radio_button_unchecked : Icons.block),
+                    size: 18,
+                    color: textColor,
+                  ),
+                  const SizedBox(width: 10),
                   Text(
                     slot.startTime,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: textColor,
                     ),
                   ),
-                  if (isBreakTime) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Nghỉ',
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: textColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: textColor.withValues(alpha: 0.8),
+                        color: textColor,
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -582,8 +662,8 @@ class _BookingSelectDateTimeScreenState
                 decoration: BoxDecoration(
                   color: AppColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -625,7 +705,7 @@ class _BookingSelectDateTimeScreenState
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${FormatUtils.formatDate(provider.selectedDate!)}',
+                            FormatUtils.formatDate(provider.selectedDate!),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
@@ -660,9 +740,83 @@ class _BookingSelectDateTimeScreenState
                         ),
                       ],
                     ),
+                    // Giờ nhận pet dự kiến (trong cùng ô)
+                    if (provider.isLoadingExpectedPickup) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Đang tính giờ nhận pet dự kiến...',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.stone500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else if (provider.expectedPickupTime != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.pets,
+                              color: AppColors.stone500, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Giờ nhận pet dự kiến: ${FormatUtils.formatTime(provider.expectedPickupTime!)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.stone700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
+
+            // Chat với phòng khám (action triển khai sau)
+            GestureDetector(
+              onTap: () {
+                // TODO: Chat với phòng khám - triển khai sau
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.stone400, width: 2),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.chat_bubble_outline,
+                        size: 20, color: AppColors.stone700),
+                    SizedBox(width: 8),
+                    Text(
+                      'Chat với phòng khám',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.stone700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             GestureDetector(
               onTap: provider.canConfirmBooking

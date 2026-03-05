@@ -29,6 +29,7 @@ export function AvatarUpload({
   // Update avatar version when currentAvatar changes (after upload/delete/refetch)
   useEffect(() => {
     if (currentAvatar) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAvatarVersion(Date.now())
     }
   }, [currentAvatar])

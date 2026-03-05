@@ -2,7 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import EmrDetailPage from './EmrDetailPage'
 import { emrService } from '../../../services/emrService'
+import { petService } from '../../../services/api/petService'
 import { tokenStorage } from '../../../services/authService'
+import type { User } from '../../../services/authService'
 
 // Mock dependencies
 vi.mock('react-router-dom', () => ({
@@ -19,6 +21,12 @@ vi.mock('../../../services/emrService', () => ({
 vi.mock('../../../services/authService', () => ({
     tokenStorage: {
         getUser: vi.fn()
+    }
+}))
+
+vi.mock('../../../services/api/petService', () => ({
+    petService: {
+        getPetById: vi.fn()
     }
 }))
 
@@ -47,7 +55,14 @@ describe('EmrDetailPage', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         // Default staff is NOT different from viewer
-        vi.mocked(tokenStorage.getUser).mockReturnValue({ userId: 'staff-999', role: 'STAFF' } as any)
+        vi.mocked(tokenStorage.getUser).mockReturnValue({
+            userId: 'staff-999',
+            role: 'STAFF',
+            username: 'staff999',
+            fullName: 'Test Staff',
+            email: 'staff@petties.com',
+            enabled: true
+        } as User)
     })
 
     it('renders loading state initially', () => {
@@ -58,6 +73,16 @@ describe('EmrDetailPage', () => {
 
     it('renders EMR details including Staff Name correctly', async () => {
         vi.mocked(emrService.getEmrById).mockResolvedValue(mockEmrData)
+        vi.mocked(petService.getPetById).mockResolvedValue({
+            id: 'pet-456',
+            name: 'Buddy',
+            species: 'Chó',
+            breed: 'Golden Retriever',
+            gender: 'MALE',
+            dateOfBirth: '2020-01-01',
+            ownerName: 'Chủ pet',
+            ownerPhone: '0123456789'
+        } as { id: string; name: string; species: string; breed: string; gender: string; dateOfBirth: string; ownerName: string; ownerPhone: string })
 
         render(<EmrDetailPage />)
 

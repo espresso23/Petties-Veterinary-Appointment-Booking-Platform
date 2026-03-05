@@ -84,7 +84,7 @@ class ClinicStaffControllerUnitTest {
                                                 .fullName("Dr. Nguyen")
                                                 .email("dr.nguyen@gmail.com")
                                                 .role(Role.STAFF)
-                                                .specialty(StaffSpecialty.VET_GENERAL)
+                                                .specialty(StaffSpecialty.VET)
                                                 .build(),
                                 StaffResponse.builder()
                                                 .userId(UUID.randomUUID())
@@ -123,7 +123,7 @@ class ClinicStaffControllerUnitTest {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("vet@gmail.com");
                 request.setRole(Role.STAFF);
-                request.setSpecialty(StaffSpecialty.VET_SURGERY);
+                request.setSpecialty(StaffSpecialty.VET);
 
                 doNothing().when(staffService).inviteByEmail(eq(clinicId), any(InviteByEmailRequest.class));
 
@@ -145,7 +145,7 @@ class ClinicStaffControllerUnitTest {
                 InviteByEmailRequest request = new InviteByEmailRequest();
                 request.setEmail("newvet@gmail.com");
                 request.setRole(Role.STAFF);
-                request.setSpecialty(StaffSpecialty.VET_GENERAL);
+                request.setSpecialty(StaffSpecialty.VET);
 
                 doNothing().when(staffService).inviteByEmail(eq(clinicId), any(InviteByEmailRequest.class));
 
@@ -248,12 +248,12 @@ class ClinicStaffControllerUnitTest {
         @DisplayName("TC-UNIT-STAFF-010: Success - update specialty")
         void updateStaffSpecialty_validRequest_returns200() throws Exception {
                 doNothing().when(staffService).updateStaffSpecialty(eq(clinicId), eq(userId),
-                                eq("VET_SURGERY"));
+                                eq("GROOMER"));
 
                 mockMvc.perform(patch("/clinics/{clinicId}/staff/{userId}/specialty", clinicId, userId)
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"specialty\": \"VET_SURGERY\"}"))
+                                .content("{\"specialty\": \"GROOMER\"}"))
                                 .andExpect(status().isOk())
                                 .andExpect(content().string("Staff specialty updated successfully"));
         }
@@ -263,12 +263,12 @@ class ClinicStaffControllerUnitTest {
         @DisplayName("TC-UNIT-STAFF-011: Success - update specialty as manager")
         void updateStaffSpecialty_asManager_returns200() throws Exception {
                 doNothing().when(staffService).updateStaffSpecialty(eq(clinicId), eq(userId),
-                                eq("VET_GENERAL"));
+                                eq("VET"));
 
                 mockMvc.perform(patch("/clinics/{clinicId}/staff/{userId}/specialty", clinicId, userId)
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"specialty\": \"VET_GENERAL\"}"))
+                                .content("{\"specialty\": \"VET\"}"))
                                 .andExpect(status().isOk());
         }
 

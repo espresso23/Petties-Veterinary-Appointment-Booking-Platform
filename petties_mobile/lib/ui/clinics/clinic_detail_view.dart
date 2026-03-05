@@ -9,6 +9,9 @@ import '../../data/services/clinic_service.dart';
 import '../../providers/clinic_provider.dart';
 import '../../data/services/review_service.dart';
 import '../../data/models/review.dart';
+import '../../routing/app_routes.dart';
+import '../../utils/format_utils.dart';
+import '../../utils/map_utils.dart';
 import 'package:intl/intl.dart';
 
 /// Clinic Detail View - Neobrutalism Style
@@ -59,7 +62,9 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
         double? localAvg;
         if (reviews.isNotEmpty) {
            double total = 0;
-           for (var r in reviews) total += r.rating;
+           for (var r in reviews) {
+             total += r.rating;
+           }
            localAvg = total / reviews.length;
         }
 
@@ -127,7 +132,7 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                         _buildActionButtons(clinic),
 
                         // Location Section
-                        _buildLocationSection(clinic),
+                        _buildLocationSection(context, clinic, provider),
 
                         // Services Section
                         _buildServicesSection(clinic),
@@ -367,54 +372,68 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           ),
           const SizedBox(height: 12),
 
-          // Rating & Open Status
+          // Rating & Open Status (tránh overflow: rating/closing time co lại, badge giữ nguyên)
           Row(
             children: [
-              // Rating logic
-              if (clinic.ratingAvg != null && clinic.ratingAvg! > 0) ...[
-                const Icon(Icons.star, color: AppColors.warning, size: 18),
-                const SizedBox(width: 4),
-                Text(
-                  clinic.ratingAvg!.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.stone900,
-                  ),
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (clinic.ratingAvg != null && clinic.ratingAvg! > 0) ...[
+                      const Icon(Icons.star, color: AppColors.warning, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        clinic.ratingAvg!.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.stone900,
+                        ),
+                      ),
+                      if (clinic.ratingCount != null) ...[
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '(${clinic.ratingCount} đánh giá)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.stone500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ] else ...[
+                      const Icon(Icons.star_border, color: AppColors.stone400, size: 18),
+                      const SizedBox(width: 4),
+                      const Text(
+                        '0.0',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.stone500,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '(Chưa có đánh giá)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.stone500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                if (clinic.ratingCount != null) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '(${clinic.ratingCount} đánh giá)',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone500,
-                    ),
-                  ),
-                ],
-              ] else ...[
-                 const Icon(Icons.star_border, color: AppColors.stone400, size: 18),
-                 const SizedBox(width: 4),
-                 const Text(
-                   '0.0',
-                    style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.stone500,
-                  ),
-                 ),
-                 const SizedBox(width: 4),
-                 const Text(
-                    '(Chưa có đánh giá)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.stone500,
-                    ),
-                  ),
-              ],
-              const SizedBox(width: 16),
+              ),
+              const SizedBox(width: 8),
 
-              // Open Status
+              // Open Status (badge cố định, không co)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -450,17 +469,18 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                 ),
               ),
 
-              // Closing time
+              // Closing time (ellipsis nếu thiếu chỗ)
               if (clinic.isOpen && clinic.closingTimeString != null) ...[
-                const Text(
-                  ' • ',
-                  style: TextStyle(color: AppColors.stone400),
-                ),
-                Text(
-                  'Đóng lúc ${clinic.closingTimeString}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.stone600,
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'Đóng lúc ${clinic.closingTimeString}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.stone600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ],
@@ -520,11 +540,13 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
           ),
           const SizedBox(width: 12),
 
-          // Message Button
+          // Message Button - mở chat với phòng khám
           Expanded(
             child: GestureDetector(
               onTap: () {
-                // TODO: Message clinic
+                context.push(
+                  '${AppRoutes.chatDetail}?clinicId=${widget.clinicId}',
+                );
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -567,7 +589,20 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
     );
   }
 
-  Widget _buildLocationSection(Clinic clinic) {
+  Widget _buildLocationSection(BuildContext context, Clinic clinic, ClinicProvider provider) {
+    // Ưu tiên tính khoảng cách từ vị trí hiện tại để tránh hiển thị sai (do cache/API trả về lat-lng nhầm thứ tự hoặc đơn vị).
+    double? displayKm;
+    if (provider.currentPosition != null && clinic.latitude != null && clinic.longitude != null) {
+      displayKm = MapUtils.distanceKm(
+        provider.currentPosition!.latitude,
+        provider.currentPosition!.longitude,
+        clinic.latitude!,
+        clinic.longitude!,
+      );
+    } else if (clinic.distance != null && clinic.distance! <= 200) {
+      // Chỉ dùng distance từ API khi hợp lý (< 200 km), tránh hiển thị giá trị lỗi (vd. 7000+ km).
+      displayKm = clinic.distance;
+    }
     final hasLocation = clinic.latitude != null && clinic.longitude != null;
 
     return Container(
@@ -657,10 +692,10 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
                           color: AppColors.stone500,
                         ),
                       ),
-                      if (clinic.distance != null) ...[
+                      if (displayKm != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          '${clinic.distance!.toStringAsFixed(1)} km',
+                          FormatUtils.formatDistance(displayKm),
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -677,39 +712,61 @@ class _ClinicDetailViewState extends State<ClinicDetailView> {
 
           const SizedBox(height: 12),
 
-          // Mini Map
-          if (hasLocation)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          // Mini Map (cần kích thước rõ ràng để GoogleMap render trong ScrollView)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
               height: 140,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.stone900, width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: GoogleMap(
-                  onMapCreated: (controller) => _mapController = controller,
-                  initialCameraPosition: CameraPosition(
-                    target: LatLng(clinic.latitude!, clinic.longitude!),
-                    zoom: 15,
-                  ),
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('clinic'),
-                      position: LatLng(clinic.latitude!, clinic.longitude!),
-                    ),
-                  },
-                  zoomControlsEnabled: false,
-                  scrollGesturesEnabled: false,
-                  zoomGesturesEnabled: false,
-                  rotateGesturesEnabled: false,
-                  tiltGesturesEnabled: false,
-                  myLocationButtonEnabled: false,
-                  mapToolbarEnabled: false,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.stone900, width: 2),
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: hasLocation
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: GoogleMap(
+                          onMapCreated: (controller) =>
+                              _mapController = controller,
+                          initialCameraPosition: CameraPosition(
+                            target: LatLng(
+                                clinic.latitude!, clinic.longitude!),
+                            zoom: 15,
+                          ),
+                          markers: {
+                            Marker(
+                              markerId: const MarkerId('clinic'),
+                              position: LatLng(
+                                  clinic.latitude!, clinic.longitude!),
+                            ),
+                          },
+                          zoomControlsEnabled: false,
+                          scrollGesturesEnabled: false,
+                          zoomGesturesEnabled: false,
+                          rotateGesturesEnabled: false,
+                          tiltGesturesEnabled: false,
+                          myLocationButtonEnabled: false,
+                          mapToolbarEnabled: false,
+                        ),
+                      )
+                    : ColoredBox(
+                        color: AppColors.stone100,
+                        child: Center(
+                          child: Text(
+                            'Chưa có vị trí bản đồ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.stone500,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
               ),
             ),
+          ),
         ],
       ),
     );

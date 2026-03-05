@@ -2,10 +2,10 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
-import com.petties.petties.exception.ResourceNotFoundException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
 import com.petties.petties.repository.*;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +50,8 @@ class BookingServiceUnitTest {
     @Mock
     private EmrRecordRepository emrRecordRepository;
     @Mock
+    private VaccinationService vaccinationService;
+    @Mock
     private com.petties.petties.mapper.BookingMapper bookingMapper;
     @Mock
     private BookingNotificationService bookingNotificationService;
@@ -76,7 +81,7 @@ class BookingServiceUnitTest {
         pet = new Pet();
         pet.setId(UUID.randomUUID());
         pet.setName("Test Pet");
-        pet.setSpecies("Dog");
+        pet.setSpecies(com.petties.petties.model.enums.PetSpecies.DOG);
         pet.setBreed("Golden Retriever");
         pet.setDateOfBirth(java.time.LocalDate.now().minusYears(2));
         pet.setWeight(10.0);
@@ -109,6 +114,7 @@ class BookingServiceUnitTest {
         service.setIsActive(true);
         service.setServiceCategory(ServiceCategory.SURGERY);
         service.setDurationTime(30);
+        service.setIsHomeVisit(true); // HOME_VISIT add-on tests: chỉ dịch vụ tại nhà
     }
 
     @Nested
@@ -137,7 +143,7 @@ class BookingServiceUnitTest {
         void addServiceToBooking_StaffHomeVisitMatch_Success() {
             User staff = new User();
             staff.setRole(Role.STAFF);
-            staff.setSpecialty(StaffSpecialty.VET_SURGERY);
+            staff.setSpecialty(StaffSpecialty.VET);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -155,7 +161,7 @@ class BookingServiceUnitTest {
         void addServiceToBooking_StaffHomeVisitMismatch_Fail() {
             User staff = new User();
             staff.setRole(Role.STAFF);
-            staff.setSpecialty(StaffSpecialty.VET_DENTAL); // Service is SURGERY
+            staff.setSpecialty(StaffSpecialty.GROOMER); // Service is SURGERY
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -172,7 +178,7 @@ class BookingServiceUnitTest {
         void addServiceToBooking_StaffGeneral_Success() {
             User staff = new User();
             staff.setRole(Role.STAFF);
-            staff.setSpecialty(StaffSpecialty.VET_GENERAL);
+            staff.setSpecialty(StaffSpecialty.VET);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -183,6 +189,23 @@ class BookingServiceUnitTest {
 
             assertNotNull(response);
             verify(bookingRepository, times(1)).save(any());
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-08: HOME_VISIT cannot add clinic-only service (isHomeVisit=false)")
+        void addServiceToBooking_HomeVisit_ClinicOnlyService_Fail() {
+            service.setIsHomeVisit(false); // Dịch vụ chỉ tại phòng khám
+            User manager = new User();
+            manager.setRole(Role.CLINIC_MANAGER);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
+
+            Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+                bookingService.addServiceToBooking(bookingId, serviceId, manager);
+            });
+
+            assertTrue(exception.getMessage().contains("tại nhà"));
         }
     }
 
@@ -195,28 +218,34 @@ class BookingServiceUnitTest {
         void getAvailableServicesForAddOn_FilterBySpecialty() {
             User staff = new User();
             staff.setRole(Role.STAFF);
-            staff.setSpecialty(StaffSpecialty.VET_SURGERY);
+            staff.setSpecialty(StaffSpecialty.VET);
 
             com.petties.petties.model.ClinicService surgeryService = new com.petties.petties.model.ClinicService();
             surgeryService.setServiceId(UUID.randomUUID());
             surgeryService.setServiceCategory(ServiceCategory.SURGERY);
             surgeryService.setName("Surgery");
+            surgeryService.setIsHomeVisit(true); // HOME_VISIT booking: chỉ dịch vụ tại nhà
 
             com.petties.petties.model.ClinicService dentalService = new com.petties.petties.model.ClinicService();
             dentalService.setServiceId(UUID.randomUUID());
             dentalService.setServiceCategory(ServiceCategory.DENTAL);
             dentalService.setName("Dental");
+            dentalService.setIsHomeVisit(true);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
                     .thenReturn(Arrays.asList(surgeryService, dentalService));
             when(bookingMapper.mapServiceToResponse(surgeryService))
                     .thenReturn(ClinicServiceResponse.builder().name("Surgery").build());
+            when(bookingMapper.mapServiceToResponse(dentalService))
+                    .thenReturn(ClinicServiceResponse.builder().name("Dental").build());
 
             List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, staff);
 
-            assertEquals(1, result.size());
-            assertEquals("Surgery", result.get(0).getName());
+            // VET staff sees both SURGERY and DENTAL (both map to VET specialty)
+            assertEquals(2, result.size());
+            assertTrue(result.stream().anyMatch(r -> "Surgery".equals(r.getName())));
+            assertTrue(result.stream().anyMatch(r -> "Dental".equals(r.getName())));
         }
 
         @Test
@@ -228,10 +257,12 @@ class BookingServiceUnitTest {
             com.petties.petties.model.ClinicService service1 = new com.petties.petties.model.ClinicService();
             service1.setServiceId(serviceId);
             service1.setName("Existing");
+            service1.setIsHomeVisit(true); // booking type HOME_VISIT trong setUp
 
             com.petties.petties.model.ClinicService service2 = new com.petties.petties.model.ClinicService();
             service2.setServiceId(UUID.randomUUID());
             service2.setName("New");
+            service2.setIsHomeVisit(true);
 
             // Mock existing service in booking
             BookingServiceItem item = new BookingServiceItem();
@@ -248,6 +279,132 @@ class BookingServiceUnitTest {
 
             assertEquals(1, result.size());
             assertEquals("New", result.get(0).getName());
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-07: SOS booking should return all services regardless of staff specialty")
+        void getAvailableServicesForAddOn_SOS_AllServices() {
+            booking.setType(com.petties.petties.model.enums.BookingType.SOS);
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setSpecialty(StaffSpecialty.VET); // Only derma, but SOS
+
+            com.petties.petties.model.ClinicService surgery = new com.petties.petties.model.ClinicService();
+            surgery.setServiceCategory(ServiceCategory.SURGERY);
+            surgery.setName("Surgery");
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(clinicServiceRepository.findByClinicClinicIdAndIsActiveTrue(clinicId))
+                    .thenReturn(Arrays.asList(surgery));
+            when(bookingMapper.mapServiceToResponse(surgery))
+                    .thenReturn(ClinicServiceResponse.builder().name("Surgery").build());
+
+            List<ClinicServiceResponse> result = bookingService.getAvailableServicesForAddOn(bookingId, staff);
+
+            assertEquals(1, result.size());
+            assertEquals("Surgery", result.get(0).getName());
+        }
+    }
+
+    @Nested
+    @DisplayName("processCheckout Tests")
+    class ProcessCheckoutTests {
+
+        @Mock
+        private com.petties.petties.dto.booking.CheckoutRequest checkoutRequest;
+
+        @Test
+        @DisplayName("TC-UNIT-BS-08: Standard checkout success")
+        void processCheckout_Standard_Success() {
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+            booking.setStatus(BookingStatus.IN_PROGRESS);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(bookingMapper.mapToResponse(any()))
+                    .thenReturn(BookingResponse.builder().status(BookingStatus.COMPLETED).build());
+
+            BookingResponse response = bookingService.processCheckout(bookingId, checkoutRequest, staff);
+
+            assertEquals(BookingStatus.COMPLETED, response.getStatus());
+            verify(bookingRepository).save(booking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-09: SOS checkout with fee override")
+        void processCheckout_SOS_WithOverride() {
+            User staff = new User();
+            staff.setUserId(UUID.randomUUID());
+            booking.setType(BookingType.SOS);
+            booking.setStatus(BookingStatus.IN_PROGRESS);
+            booking.setSosFee(new BigDecimal("100000"));
+            booking.setTotalPrice(new BigDecimal("100000")); // Only fee, no services yet
+
+            BigDecimal newFee = new BigDecimal("150000");
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(checkoutRequest.getOverriddenSosFee()).thenReturn(newFee);
+            when(bookingMapper.mapToResponse(any())).thenAnswer(invocation -> {
+                Booking b = invocation.getArgument(0);
+                return BookingResponse.builder()
+                        .status(b.getStatus())
+                        .sosFee(b.getSosFee())
+                        .totalPrice(b.getTotalPrice())
+                        .build();
+            });
+
+            BookingResponse response = bookingService.processCheckout(bookingId, checkoutRequest, staff);
+
+            assertEquals(BookingStatus.COMPLETED, response.getStatus());
+            assertEquals(newFee, response.getSosFee());
+            assertEquals(newFee, response.getTotalPrice());
+            verify(bookingRepository).save(booking);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-10: Checkout fails for invalid status")
+        void processCheckout_InvalidStatus_Fails() {
+            User staff = new User();
+            booking.setStatus(BookingStatus.PENDING); // Not valid for checkout
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+            assertThrows(IllegalStateException.class, () -> {
+                bookingService.processCheckout(bookingId, checkoutRequest, staff);
+            });
+        }
+    }
+
+    @Nested
+    @DisplayName("confirmBooking Logic")
+    class ConfirmBookingTests {
+
+        @Test
+        @DisplayName("Confirm Booking - Success and Trigger Vaccination Draft")
+        void confirmBooking_Success_TriggersVaccinationDraft() {
+            // Arrange
+            booking.setStatus(BookingStatus.PENDING);
+            booking.setBookingDate(LocalDate.now().plusDays(1)); // Future
+
+            com.petties.petties.model.ClinicService vaccineService = new com.petties.petties.model.ClinicService();
+            vaccineService.setName("Rabies");
+            vaccineService.setServiceCategory(ServiceCategory.VACCINATION);
+
+            BookingServiceItem item = new BookingServiceItem();
+            item.setService(vaccineService);
+            booking.getBookingServices().add(item);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(bookingRepository.save(any())).thenReturn(booking);
+            when(staffAssignmentService.assignStaffToAllServices(any()))
+                    .thenReturn(Map.of(UUID.randomUUID(), new User()));
+
+            // Act
+            bookingService.confirmBooking(bookingId, null);
+
+            // Assert
+            assertEquals(com.petties.petties.model.enums.BookingStatus.CONFIRMED, booking.getStatus());
+            verify(vaccinationService, times(1)).createDraftFromBooking(eq(booking), eq(item));
+            verify(bookingRepository).save(booking);
         }
     }
 }

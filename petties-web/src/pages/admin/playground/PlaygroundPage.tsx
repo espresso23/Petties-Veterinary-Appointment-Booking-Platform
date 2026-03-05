@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, type Agent } from '../../../services/agentService'
+import { agentApi, type Agent, type PromptVersion } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -57,16 +57,16 @@ interface ReActStep {
   timestamp: string
 }
 
-interface PromptVersion {
-  version: number
-  prompt_text: string
-  notes?: string
-  created_by: string
-  created_at: string
-}
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 type LLMProvider = 'openrouter' | 'deepseek'
+
+interface DebugLog {
+  id: string
+  type: string
+  data: unknown
+  timestamp: string
+}
 
 // Available LLM providers
 const PROVIDERS: Array<{ id: LLMProvider; name: string; description: string }> = [
@@ -148,7 +148,7 @@ export const PlaygroundPage = () => {
   // ReAct trace state
   const [reactSteps, setReactSteps] = useState<ReActStep[]>([])
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set())
-  const [debugLogs, setDebugLogs] = useState<any[]>([])
+  const [debugLogs, setDebugLogs] = useState<DebugLog[]>([])
   const [showDebug, setShowDebug] = useState(false)
   const [showTracePanel, setShowTracePanel] = useState(true)
   const [debugPanelHeight, setDebugPanelHeight] = useState(40) // Default 40% height
@@ -158,12 +158,30 @@ export const PlaygroundPage = () => {
 
   // ==================== LOAD DATA ====================
 
-  // Load agents and settings on mount
-  useEffect(() => {
-    loadAgentData()
-  }, [])
+  const loadProviderSettings = useCallback(async (currentProvider?: LLMProvider) => {
+    try {
+      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
+        headers: getAuthHeaders(),
+      })
+      if (!response.ok) throw new Error('Failed to fetch settings')
 
-  const loadAgentData = async () => {
+      const data = await response.json()
+      const settingsList = Array.isArray(data) ? data : (data.settings || [])
+
+      const openrouterKey = settingsList.find((s: { key: string }) => s.key === 'OPENROUTER_API_KEY')?.value || ''
+      const deepseekKey = settingsList.find((s: { key: string }) => s.key === 'DEEPSEEK_API_KEY')?.value || ''
+
+      const newKeys = { openrouter: openrouterKey, deepseek: deepseekKey }
+      setProviderKeys(newKeys)
+
+      const provider = currentProvider || selectedProvider
+      setApiKey(newKeys[provider])
+    } catch (err) {
+      console.error('Failed to load provider settings:', err)
+    }
+  }, [selectedProvider])
+
+  const loadAgentData = useCallback(async () => {
     try {
       setLoadingAgents(true)
       const response = await agentApi.getAgents()
@@ -191,35 +209,17 @@ export const PlaygroundPage = () => {
         // Load API keys
         await loadProviderSettings(provider)
       }
-    } catch (error) {
-      console.error('Failed to load agents:', error)
+    } catch (err) {
+      console.error('Failed to load agents:', err)
     } finally {
       setLoadingAgents(false)
     }
-  }
+  }, [loadProviderSettings])
 
-  const loadProviderSettings = async (currentProvider?: LLMProvider) => {
-    try {
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
-        headers: getAuthHeaders(),
-      })
-      if (!response.ok) throw new Error('Failed to fetch settings')
-
-      const data = await response.json()
-      const settingsList = Array.isArray(data) ? data : (data.settings || [])
-
-      const openrouterKey = settingsList.find((s: { key: string }) => s.key === 'OPENROUTER_API_KEY')?.value || ''
-      const deepseekKey = settingsList.find((s: { key: string }) => s.key === 'DEEPSEEK_API_KEY')?.value || ''
-
-      const newKeys = { openrouter: openrouterKey, deepseek: deepseekKey }
-      setProviderKeys(newKeys)
-
-      const provider = currentProvider || selectedProvider
-      setApiKey(newKeys[provider])
-    } catch (err) {
-      console.error('Failed to load provider settings:', err)
-    }
-  }
+  // Load agents and settings on mount
+  useEffect(() => {
+    loadAgentData()
+  }, [loadAgentData])
 
   const handleSeedDatabase = async () => {
     setShowSeedConfirm(false)
@@ -358,7 +358,7 @@ export const PlaygroundPage = () => {
   }
 
   const handleRestorePrompt = (version: PromptVersion) => {
-    setSystemPrompt(version.prompt_text)
+    setSystemPrompt(version.prompt)
     setPromptNotes(`Restored from version ${version.version}`)
     toast.showToast('info', `Đã khôi phục version ${version.version}`)
   }
@@ -419,18 +419,20 @@ export const PlaygroundPage = () => {
       try {
         const data = JSON.parse(event.data)
         // Add to debug logs
-        setDebugLogs(prev => [{
+        const logEntry: DebugLog = {
           id: crypto.randomUUID(),
-          type: data.type,
+          type: typeof (data as { type?: string })?.type === 'string' ? (data as { type: string }).type : 'unknown',
           data: data,
           timestamp: new Date().toISOString()
-        }, ...prev].slice(0, 100))
+        }
+        setDebugLogs(prev => [logEntry, ...prev].slice(0, 100))
         handleWebSocketMessage(data)
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err)
       }
     }
     wsRef.current = ws
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
   const handleWebSocketMessage = useCallback((data: {
@@ -760,6 +762,12 @@ export const PlaygroundPage = () => {
         </div>
       </div>
 
+      {connectionStatus === 'error' && (
+        <div className="px-4 py-2 bg-red-100 border-b-2 border-stone-900 text-xs text-red-800 font-bold">
+          Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AGENT_SERVICE_URL (không thêm /ai, /api, /ws) và tải lại trang.
+        </div>
+      )}
+
       {/* Main Content - Split View */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Chat Panel */}
@@ -803,7 +811,7 @@ export const PlaygroundPage = () => {
                     content={msg.content}
                     timestamp={msg.timestamp}
                     thinkingProcess={msg.thinkingProcess}
-                    toolCalls={msg.toolCalls}
+                    toolCalls={msg.toolCalls?.map(t => ({ ...t, input: (t.input ?? {}) as Record<string, unknown> }))}
                     feedback={msg.feedback}
                     onFeedback={(feedback) => handleFeedback(msg.id, feedback)}
                   />
@@ -1210,7 +1218,7 @@ export const PlaygroundPage = () => {
                                 Restore
                               </button>
                             </div>
-                            <p className="text-xs font-mono text-stone-600 line-clamp-2">{v.prompt_text}</p>
+                            <p className="text-xs font-mono text-stone-600 line-clamp-2">{v.prompt}</p>
                           </div>
                         ))
                       )}

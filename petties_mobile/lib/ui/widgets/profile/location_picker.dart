@@ -229,7 +229,7 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
         ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           // Handle bar
           Container(
@@ -338,100 +338,94 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
 
           const SizedBox(height: 8),
 
-          // Loading overlay
-          if (_isLoadingDetails)
-            Container(
-              padding: const EdgeInsets.all(24),
-              child: const Column(
-                children: [
-                  CircularProgressIndicator(color: AppColors.primary),
-                  SizedBox(height: 12),
-                  Text('Đang lấy thông tin...'),
-                ],
-              ),
-            )
-          else
-            // Results
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.4,
-              ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _predictions.length,
-                itemBuilder: (context, index) {
-                  final prediction = _predictions[index];
-                  return GestureDetector(
-                    onTap: () => _onPlaceSelected(prediction),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: AppColors.stone200,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryBackground,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.place,
-                              size: 18,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  prediction.mainText,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.stone900,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (prediction.secondaryText.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    prediction.secondaryText,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.stone500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: AppColors.stone400,
-                          ),
-                        ],
-                      ),
+          // Danh sách kết quả / loading area – chiếm toàn bộ phần còn lại,
+          // tự co lại khi bàn phím xuất hiện để tránh overflow.
+          Expanded(
+            child: _isLoadingDetails
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: AppColors.primary),
+                        SizedBox(height: 12),
+                        Text('Đang lấy thông tin...'),
+                      ],
                     ),
-                  );
-                },
-              ),
-            ),
-
-          const SizedBox(height: 16),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _predictions.length,
+                    itemBuilder: (context, index) {
+                      final prediction = _predictions[index];
+                      return GestureDetector(
+                        onTap: () => _onPlaceSelected(prediction),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.stone200,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryBackground,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  Icons.place,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      prediction.mainText,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.stone900,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    if (prediction.secondaryText.isNotEmpty)
+                                      ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          prediction.secondaryText,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.stone500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                                color: AppColors.stone400,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );

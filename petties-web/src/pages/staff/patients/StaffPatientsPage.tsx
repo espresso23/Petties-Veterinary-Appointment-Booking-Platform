@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../../components/Toast'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -6,7 +6,6 @@ import {
     PlusIcon,
     XMarkIcon,
     PencilSquareIcon,
-    CalendarIcon,
     TrashIcon,
     LockClosedIcon,
 } from '@heroicons/react/24/outline'
@@ -16,30 +15,15 @@ import { tokenStorage } from '../../../services/authService'
 import type { EmrRecord } from '../../../services/emrService'
 import { vaccinationService, type VaccinationRecord } from '../../../services/vaccinationService'
 import { vaccineTemplateService, type VaccineTemplate } from '../../../services/api/vaccineTemplateService'
-import DatePicker, { registerLocale } from 'react-datepicker'
-import { vi } from 'date-fns/locale'
 import 'react-datepicker/dist/react-datepicker.css'
 import { getBookingsByStaff, getClinicTodayBookings } from '../../../services/bookingService'
 import type { Booking } from '../../../types/booking'
 import { useAuthStore } from '../../../store/authStore'
 import { VaccinationRoadmap } from '../vaccine/components/VaccinationRoadmap'
-import { Squares2X2Icon, ListBulletIcon } from '@heroicons/react/24/outline'
-
-// Register Vietnamese locale
-registerLocale('vi', vi)
-
-const VACCINE_TYPES = [
-    'Dại (Rabies)',
-    'Đa giá (DHPP)',
-    'Ho cũi chó (Bordetella)',
-    'Xoắn khuẩn (Lepto)',
-    'Bệnh Lyme',
-    'Đa giá Mèo (FVRCP)',
-    'Bạch cầu Mèo (FeLV)',
-    'Khác'
-]
-
-// ============= INTERFACES =============
+import { Squares2X2Icon, ListBulletIcon, PencilIcon, ClockIcon } from '@heroicons/react/24/outline'
+import { SmartVaccinationForm, type VaccinationFormData } from '../../../components/vaccination/SmartVaccinationForm'
+import { ConfirmModal } from '../../../components/ConfirmModal'
+import type { Pet } from '../../../services/api/petService'
 interface Patient {
     id: string
     name: string
@@ -83,7 +67,7 @@ export const StaffPatientsPage = () => {
                 const todayBookings = await getClinicTodayBookings(user.workingClinicId)
                 // Filter to only active statuses
                 const activeBookings = todayBookings.filter(b =>
-                    b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ARRIVED'
+                    b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED'
                 )
                 setBookings(activeBookings)
                 console.log('Loaded clinic today bookings:', activeBookings)
@@ -121,7 +105,6 @@ export const StaffPatientsPage = () => {
 
     // Vaccine Templates
     const [vaccineTemplates, setVaccineTemplates] = useState<VaccineTemplate[]>([])
-    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
     // Modal states
     const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
@@ -133,17 +116,19 @@ export const StaffPatientsPage = () => {
     const [vaccinationRecords, setVaccinationRecords] = useState<VaccinationRecord[]>([])
     const [upcomingRecords, setUpcomingRecords] = useState<VaccinationRecord[]>([]) // Add state
     const [isLoadingVaccinations, setIsLoadingVaccinations] = useState(false)
-    const [isAddVaccinationModalOpen, setIsAddVaccinationModalOpen] = useState(false)
     const [selectedVaccination, setSelectedVaccination] = useState<VaccinationRecord | null>(null)
     const [viewMode, setViewMode] = useState<'list' | 'roadmap'>('list')
+    const [formKey, setFormKey] = useState(0) // To reset SmartForm
 
-    // Add Vaccination Form State
-    const [vaccineName, setVaccineName] = useState('')
-    const [vaccinationDate, setVaccinationDate] = useState<Date | null>(null)
-    const [nextDueDate, setNextDueDate] = useState<Date | null>(null)
-    const [vaccinationNotes, setVaccinationNotes] = useState('')
-    const [doseSequence, setDoseSequence] = useState<string>('1')
     const [isSubmittingVaccination, setIsSubmittingVaccination] = useState(false)
+
+    const [isEditingVaccination, setIsEditingVaccination] = useState(false)
+    // Add initial data for form population
+    const [formInitialData, setFormInitialData] = useState<Partial<VaccinationFormData> | undefined>(undefined)
+
+    // Delete Confirmation State
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+    const [recordIdToDelete, setRecordIdToDelete] = useState<string | null>(null)
 
     // Fetch Templates on mount
     useEffect(() => {
@@ -198,22 +183,7 @@ export const StaffPatientsPage = () => {
         }
     }, [user?.userId, user?.workingClinicId])
 
-    // Load Data based on Tab
-    useEffect(() => {
-        if (!selectedPatient) return
-
-        if (activeTab === 'emr') {
-            setIsLoadingEmr(true)
-            emrService.getEmrsByPetId(selectedPatient.id)
-                .then(records => setEmrRecords(records))
-                .catch(() => setEmrRecords([]))
-                .finally(() => setIsLoadingEmr(false))
-        } else if (activeTab === 'vaccinations') {
-            fetchVaccinations()
-        }
-    }, [selectedPatient, activeTab])
-
-    const fetchVaccinations = async () => {
+    const fetchVaccinations = useCallback(async () => {
         if (!selectedPatient) return
         setIsLoadingVaccinations(true)
         try {
@@ -229,68 +199,99 @@ export const StaffPatientsPage = () => {
         } finally {
             setIsLoadingVaccinations(false)
         }
-    }
+    }, [selectedPatient, showToast])
 
-    const handleAddVaccination = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!selectedPatient || !vaccineName || !vaccinationDate) {
-            showToast('error', 'Vui lòng điền các trường bắt buộc')
+    // Load Data based on Tab
+    useEffect(() => {
+        if (!selectedPatient) return
+
+        if (activeTab === 'emr') {
+            setIsLoadingEmr(true)
+            emrService.getEmrsByPetId(selectedPatient.id)
+                .then(records => setEmrRecords(records))
+                .catch(() => setEmrRecords([]))
+                .finally(() => setIsLoadingEmr(false))
+        } else if (activeTab === 'vaccinations') {
+            fetchVaccinations()
+        }
+    }, [selectedPatient, activeTab, fetchVaccinations])
+
+    const handleAddVaccination = async (data: VaccinationFormData) => {
+        if (!selectedPatient) {
+            showToast('error', 'Vui lòng chọn bệnh nhân')
             return
         }
 
         setIsSubmittingVaccination(true)
         try {
-            // Find active booking
-            const activeBooking = bookings.find(b =>
-                b.petId === selectedPatient.id &&
-                (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
-            )
+            if (isEditingVaccination && selectedVaccination) {
+                // UPDATE
+                await vaccinationService.updateVaccination(selectedVaccination.id, {
+                    petId: selectedPatient.id,
+                    vaccineName: data.vaccineName,
+                    vaccineTemplateId: data.vaccineTemplateId,
+                    vaccinationDate: data.vaccinationDate.toISOString().split('T')[0],
+                    nextDueDate: data.nextDueDate ? data.nextDueDate.toISOString().split('T')[0] : undefined,
+                    doseSequence: data.doseSequence,
+                    notes: data.notes || '',
+                    workflowStatus: 'COMPLETED'
+                })
+                showToast('success', 'Đã cập nhật hồ sơ tiêm chủng')
+                setIsEditingVaccination(false)
+                setSelectedVaccination(null)
+            } else {
+                // CREATE - Find active booking
+                const activeBooking = bookings.find(b =>
+                    b.petId === selectedPatient.id &&
+                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
+                )
 
-            await vaccinationService.createVaccination({
-                petId: selectedPatient.id,
-                bookingId: activeBooking?.bookingId,
-                vaccineName,
-                // batchNumber removed from Service but kept in UI if user wants to log in notes
-                vaccineTemplateId: selectedTemplateId !== 'manual' ? selectedTemplateId : undefined,
-                vaccinationDate: vaccinationDate.toISOString().split('T')[0],
-                nextDueDate: nextDueDate ? nextDueDate.toISOString().split('T')[0] : undefined,
-                doseSequence,
-                notes: vaccinationNotes
-            })
+                await vaccinationService.createVaccination({
+                    petId: selectedPatient.id,
+                    bookingId: activeBooking?.bookingId,
+                    vaccineName: data.vaccineName,
+                    vaccineTemplateId: data.vaccineTemplateId,
+                    vaccinationDate: data.vaccinationDate.toISOString().split('T')[0],
+                    nextDueDate: data.nextDueDate ? data.nextDueDate.toISOString().split('T')[0] : undefined,
+                    doseSequence: data.doseSequence,
+                    notes: data.notes || '',
+                    workflowStatus: 'COMPLETED'
+                })
+                showToast('success', 'Đã thêm hồ sơ tiêm chủng')
+            }
 
-            showToast('success', 'Đã thêm hồ sơ tiêm chủng')
-            resetVaccinationForm()
-            setIsAddVaccinationModalOpen(false)
+            setFormKey(prev => prev + 1) // Reset form
+            setFormInitialData(undefined) // Clear initial data
             fetchVaccinations()
         } catch (error) {
             console.error(error)
-            showToast('error', 'Lỗi khi thêm hồ sơ')
+            showToast('error', 'Lỗi khi lưu hồ sơ')
+            const errorMessage = (error as any)?.response?.data?.message || (error as any)?.message || 'Lỗi khi lưu hồ sơ'
+            showToast('error', errorMessage)
         } finally {
             setIsSubmittingVaccination(false)
         }
     }
 
-    const resetVaccinationForm = () => {
-        setVaccineName('')
-        setSelectedTemplateId('')
-        setDoseSequence('1')
-        setVaccinationDate(new Date())
-        setNextDueDate(null)
-        setVaccinationNotes('')
+    const handleDeleteVaccination = (id: string, e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        setRecordIdToDelete(id)
+        setIsDeleteModalOpen(true)
     }
 
-    const handleDeleteVaccination = async (id: string, e?: React.MouseEvent) => {
-        e?.stopPropagation()
-        if (!confirm('Bạn có chắc chắn muốn xóa hồ sơ này?')) return
-
+    const confirmDelete = async () => {
+        if (!recordIdToDelete) return
         try {
-            await vaccinationService.deleteVaccination(id)
+            await vaccinationService.deleteVaccination(recordIdToDelete)
             showToast('success', 'Đã xóa hồ sơ')
-            if (selectedVaccination?.id === id) setSelectedVaccination(null)
+            if (selectedVaccination?.id === recordIdToDelete) setSelectedVaccination(null)
             fetchVaccinations()
         } catch (error) {
             console.error(error)
             showToast('error', 'Xóa thất bại')
+        } finally {
+            setIsDeleteModalOpen(false)
+            setRecordIdToDelete(null)
         }
     }
 
@@ -298,12 +299,11 @@ export const StaffPatientsPage = () => {
     const filteredPatients = patients.filter((p) => {
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             p.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
+        const speciesUpper = p.species.toUpperCase()
         const matchesSpecies = speciesFilter === 'all' ||
-            (speciesFilter === 'dog' && p.species.toLowerCase().includes('chó')) ||
-            (speciesFilter === 'dog' && p.species.toLowerCase() === 'dog') ||
-            (speciesFilter === 'cat' && p.species.toLowerCase().includes('mèo')) ||
-            (speciesFilter === 'cat' && p.species.toLowerCase() === 'cat') ||
-            (speciesFilter === 'other' && !['chó', 'dog', 'mèo', 'cat'].some(s => p.species.toLowerCase().includes(s)))
+            (speciesFilter === 'dog' && speciesUpper === 'DOG') ||
+            (speciesFilter === 'cat' && speciesUpper === 'CAT') ||
+            (speciesFilter === 'other' && !['DOG', 'CAT'].includes(speciesUpper))
         return matchesSearch && matchesSpecies
     })
 
@@ -332,10 +332,13 @@ export const StaffPatientsPage = () => {
     const totalPages = Math.ceil(totalPatients / rowsPerPage) || 1
 
     const getSpeciesEmoji = (species: string) => {
-        const s = species.toLowerCase()
-        if (s.includes('chó') || s === 'dog') return 'Chó'
-        if (s.includes('mèo') || s === 'cat') return 'Mèo'
-        if (s.includes('thỏ') || s === 'rabbit') return 'Thỏ'
+        const s = species.toUpperCase()
+        if (s === 'DOG') return 'Chó'
+        if (s === 'CAT') return 'Mèo'
+        if (s === 'RABBIT') return 'Thỏ'
+        if (s === 'BIRD') return 'Chim'
+        if (s === 'HAMSTER') return 'Hamster'
+        if (s === 'FISH') return 'Cá'
         return 'Pet'
     }
 
@@ -453,19 +456,17 @@ export const StaffPatientsPage = () => {
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            {patient.bookingStatus && ['IN_PROGRESS', 'ARRIVED', 'CONFIRMED'].includes(patient.bookingStatus) ? (
+                                            {patient.bookingStatus && ['IN_PROGRESS', 'CONFIRMED'].includes(patient.bookingStatus) ? (
                                                 <div className="flex flex-col gap-1">
                                                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-block w-fit ${(() => {
                                                         switch (patient.bookingStatus) {
                                                             case 'IN_PROGRESS': return 'bg-blue-100 text-blue-700 border-blue-200'
-                                                            case 'ARRIVED': return 'bg-teal-100 text-teal-700 border-teal-200'
                                                             case 'CONFIRMED': return 'bg-orange-100 text-orange-700 border-orange-200'
                                                             default: return 'bg-stone-100 text-stone-600 border-stone-200'
                                                         }
                                                     })()}`}>
                                                         {patient.bookingStatus === 'IN_PROGRESS' ? 'Đang khám' :
-                                                            patient.bookingStatus === 'ARRIVED' ? 'Đã đến' :
-                                                                (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
+                                                            (patient.bookingStatus === 'CONFIRMED') ? 'Chờ khám' : ''}
                                                     </span>
                                                     {patient.bookingCode && (
                                                         <span className="text-[10px] font-mono text-stone-500">{patient.bookingCode}</span>
@@ -475,7 +476,7 @@ export const StaffPatientsPage = () => {
                                                 <span className="text-stone-400 text-xs italic">Không có lịch</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-stone-600">{patient.species} / {patient.breed}</td>
+                                        <td className="px-4 py-3 text-stone-600">{getSpeciesEmoji(patient.species)} / {patient.breed}</td>
                                         <td className="px-4 py-3 text-stone-600">{patient.ownerName}</td>
                                         <td className="px-4 py-3 text-stone-600">{patient.weight ? `${patient.weight} kg` : '--'}</td>
                                     </tr>
@@ -571,7 +572,7 @@ export const StaffPatientsPage = () => {
                                     <div className="grid grid-cols-5 gap-4 bg-stone-50 rounded-xl p-4">
                                         <div>
                                             <p className="text-xs text-stone-500 uppercase font-bold">Loài</p>
-                                            <p className="font-bold text-stone-800">{selectedPatient.species}</p>
+                                            <p className="font-bold text-stone-800">{getSpeciesEmoji(selectedPatient.species)}</p>
                                         </div>
                                         <div>
                                             <p className="text-xs text-stone-500 uppercase font-bold">Giống</p>
@@ -809,190 +810,139 @@ export const StaffPatientsPage = () => {
                                             <h3 className="text-lg font-bold text-stone-800">Ghi Nhận Mũi Tiêm Mới</h3>
                                         </div>
 
-                                        <form onSubmit={handleAddVaccination} className="space-y-6">
-                                            {/* Show Active Booking if found */}
-                                            {(() => {
-                                                const activeBooking = bookings.find(b =>
-                                                    b.petId === selectedPatient.id &&
-                                                    (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
-                                                )
-
-                                                if (activeBooking) {
-                                                    return (
-                                                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                                                                <span className="text-sm font-bold text-orange-800">
-                                                                    Đang có lịch hẹn: #{activeBooking.bookingCode}
-                                                                </span>
-                                                            </div>
-                                                            <div className="text-xs text-orange-600 font-medium">
-                                                                Sẽ được liên kết vào hồ sơ này
-                                                            </div>
-                                                        </div>
+                                        <div className="pt-2">
+                                            <SmartVaccinationForm
+                                                key={formKey}
+                                                pet={selectedPatient as unknown as Pet}
+                                                records={vaccinationRecords}
+                                                templates={vaccineTemplates}
+                                                bookingCode={(() => {
+                                                    const activeBooking = bookings.find(b =>
+                                                        b.petId === selectedPatient?.id &&
+                                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED' || b.status === 'ASSIGNED')
                                                     )
-                                                }
-                                                return null
-                                            })()}
-
-                                            {/* Dose Sequence Selector */}
-                                            <div className="space-y-2 mt-4">
-                                                <label className="block text-[10px] font-black text-stone-400 uppercase tracking-widest">Loại mũi tiêm</label>
-                                                <div className="flex bg-stone-100 p-1 rounded-xl border border-stone-200 w-fit">
-                                                    {['1', '2', '3', 'BOOSTER'].map((seq) => (
-                                                        <button
-                                                            key={seq}
-                                                            type="button"
-                                                            onClick={() => setDoseSequence(seq)}
-                                                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${doseSequence === seq
-                                                                ? 'bg-white text-orange-600 shadow-sm border border-stone-200'
-                                                                : 'text-stone-400 hover:text-stone-600'
-                                                                }`}
-                                                        >
-                                                            {seq === 'BOOSTER' ? 'TIÊM NHẮC' : `MŨI ${seq}`}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-4 gap-4">
-                                                {/* Vaccine Type */}
-                                                {/* Vaccine Template Selection */}
-                                                <div className="space-y-1.5 col-span-1">
-                                                    <label className="block text-xs font-bold text-stone-600 uppercase">Loại Vaccine</label>
-                                                    <select
-                                                        value={selectedTemplateId}
-                                                        onChange={(e) => {
-                                                            const tmplId = e.target.value
-                                                            setSelectedTemplateId(tmplId)
-
-                                                            const tmpl = vaccineTemplates.find(t => t.id === tmplId)
-                                                            if (tmpl) {
-                                                                setVaccineName(tmpl.name)
-
-                                                                // Smart Dose Prediction (Locally)
-                                                                const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-                                                                const normalizedInput = normalize(tmpl.name);
-                                                                const existingCount = vaccinationRecords.filter(r =>
-                                                                    r.workflowStatus === 'COMPLETED' && normalize(r.vaccineName) === normalizedInput
-                                                                ).length;
-
-                                                                if (existingCount >= (tmpl.seriesDoses || 1)) {
-                                                                    setDoseSequence('BOOSTER');
-                                                                } else {
-                                                                    setDoseSequence(String(existingCount + 1));
-                                                                }
-
-                                                                // Auto-calculate next due date if vaccination date is set
-                                                                const vDate = vaccinationDate || new Date();
-                                                                if (!vaccinationDate) setVaccinationDate(vDate);
-
-                                                                if (tmpl.repeatIntervalDays) {
-                                                                    const nextDate = new Date(vDate)
-                                                                    nextDate.setDate(nextDate.getDate() + tmpl.repeatIntervalDays)
-                                                                    setNextDueDate(nextDate)
-                                                                }
-                                                            } else {
-                                                                setVaccineName('')
-                                                                setDoseSequence('1')
-                                                            }
-                                                        }}
-                                                        className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-orange-500 font-medium cursor-pointer"
-                                                    >
-                                                        <option value="">-- Chọn Vaccine Mẫu --</option>
-                                                        {vaccineTemplates.map(t => (
-                                                            <option key={t.id} value={t.id}>
-                                                                {t.name} ({t.manufacturer})
-                                                            </option>
-                                                        ))}
-                                                        <option value="manual">Nhập thủ công...</option>
-                                                    </select>
-                                                </div>
-
-                                                {/* Manual Name Input (if needed or manual selected) */}
-                                                {(selectedTemplateId === 'manual' || !selectedTemplateId) && (
-                                                    <div className="space-y-1.5 col-span-1">
-                                                        <label className="block text-xs font-bold text-stone-600 uppercase">Tên Vaccine (Thủ công)</label>
-                                                        <input
-                                                            type="text"
-                                                            value={vaccineName}
-                                                            onChange={(e) => setVaccineName(e.target.value)}
-                                                            placeholder="Nhập tên..."
-                                                            className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium"
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* Date Administered */}
-                                                <div className="space-y-1.5 col-span-1">
-                                                    <label className="block text-xs font-bold text-stone-600 uppercase">Ngày Tiêm</label>
-                                                    <div className="relative">
-                                                        <DatePicker
-                                                            selected={vaccinationDate}
-                                                            onChange={(date: Date | null) => setVaccinationDate(date)}
-                                                            dateFormat="dd/MM/yyyy"
-                                                            locale="vi"
-                                                            placeholderText="dd/mm/yyyy"
-                                                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium"
-                                                        />
-                                                        <CalendarIcon className="w-5 h-5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                                    </div>
-                                                </div>
-
-                                                {/* Next Due Date */}
-                                                <div className="space-y-1.5 col-span-1">
-                                                    <label className="block text-xs font-bold text-stone-600 uppercase">Ngày Tái Chủng</label>
-                                                    <div className="relative">
-                                                        <DatePicker
-                                                            selected={nextDueDate}
-                                                            onChange={(date: Date | null) => setNextDueDate(date)}
-                                                            dateFormat="dd/MM/yyyy"
-                                                            locale="vi"
-                                                            placeholderText="dd/mm/yyyy"
-                                                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium"
-                                                            minDate={vaccinationDate || undefined}
-                                                        />
-                                                        <CalendarIcon className="w-5 h-5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                                    </div>
-                                                </div>
-
-                                                {/* Batch No - HIDDEN per requirement */}
-                                                {/*
-                                                <div className="space-y-1.5 col-span-1">
-                                                    <label className="block text-xs font-bold text-stone-600 uppercase">Số Lô (Batch)</label>
-                                                    <input
-                                                        type="text"
-                                                        value={batchNumber}
-                                                        onChange={(e) => setBatchNumber(e.target.value)}
-                                                        placeholder="VD: RB-992"
-                                                        className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500 font-medium font-mono"
-                                                    />
-                                                </div>
-                                                */}
-                                            </div>
-
-                                            {/* Notes & Button */}
-                                            <div className="flex gap-4 items-end">
-                                                <div className="space-y-1.5 flex-1">
-                                                    <label className="block text-xs font-bold text-stone-600 uppercase">Ghi Chú / Phản Ứng</label>
-                                                    <input
-                                                        type="text"
-                                                        value={vaccinationNotes}
-                                                        onChange={(e) => setVaccinationNotes(e.target.value)}
-                                                        placeholder="Ghi chú thêm về phản ứng sau tiêm..."
-                                                        className="w-full px-4 py-2.5 bg-white border border-stone-300 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="submit"
-                                                    disabled={isSubmittingVaccination}
-                                                    className="px-6 py-2.5 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50 shadow-lg shadow-orange-100 flex items-center gap-2 whitespace-nowrap h-[42px]"
-                                                >
-                                                    {isSubmittingVaccination ? 'Đang lưu...' : 'Lưu Hồ Sơ'}
-                                                </button>
-                                            </div>
-                                        </form>
+                                                    return activeBooking?.bookingCode
+                                                })()}
+                                                isSubmitting={isSubmittingVaccination}
+                                                onSubmit={handleAddVaccination}
+                                                // Pass initial data and edit mode
+                                                initialData={formInitialData}
+                                                isEditing={isEditingVaccination && !!selectedVaccination && selectedVaccination.workflowStatus === 'COMPLETED'}
+                                            // Note: We might be "editing" a PENDING record (which acts like create flow but with ID), 
+                                            // or "editing" a COMPLETED record (true edit). 
+                                            // SmartVaccinationForm handles isEditing mostly for button text and title. 
+                                            // If we are confirming a pending record, we might want it to look like "Create" but with pre-filled ID logic. 
+                                            // However, SmartVaccinationForm relies on parent to handle API call distinction.
+                                            // Let's keep isEditing related to COMPLETED records for now to avoid confusion, 
+                                            // OR we can pass it as true if we have selectedVaccination.
+                                            />
+                                        </div>
                                     </div>
+
+                                    {/* SECTION 1.5: UPCOMING / PENDING SUGGESTIONS (New) */}
+                                    {(() => {
+                                        const pendingRecords = vaccinationRecords.filter(r => r.workflowStatus === 'PENDING');
+
+                                        // Merge logic: If a vaccine has a PENDING record, use it. Otherwise use upcoming suggestions.
+                                        const combinedFutures = [...upcomingRecords];
+
+                                        pendingRecords.forEach(pending => {
+                                            const idx = combinedFutures.findIndex(u => u.vaccineName === pending.vaccineName);
+                                            if (idx !== -1) {
+                                                // Replace suggestion with actual pending record
+                                                combinedFutures[idx] = pending;
+                                            } else {
+                                                combinedFutures.push(pending);
+                                            }
+                                        });
+
+                                        if (combinedFutures.length === 0) return null;
+
+                                        return (
+                                            <div className="bg-white rounded-2xl shadow-sm border border-orange-200 overflow-hidden mb-6">
+                                                <div className="bg-orange-50 px-6 py-3 border-b border-orange-100 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <ClockIcon className="w-5 h-5 text-orange-600" />
+                                                        <h3 className="text-sm font-bold text-orange-800 uppercase tracking-wider">Mũi Tiêm Tiếp Theo & Gợi Ý</h3>
+                                                        <span className="ml-2 px-2 py-0.5 bg-orange-200 text-orange-800 text-xs font-bold rounded-full">
+                                                            {combinedFutures.length}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[10px] text-orange-600 font-bold uppercase tracking-widest hidden md:block">
+                                                        Tự động gợi ý dựa trên lịch sử tiêm
+                                                    </div>
+                                                </div>
+                                                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {combinedFutures.map((rec, idx) => {
+                                                        const isPending = 'workflowStatus' in rec && rec.workflowStatus === 'PENDING';
+                                                        return (
+                                                            <div key={idx} className={`flex items-center justify-between p-4 rounded-xl border transition-all group ${isPending ? 'bg-amber-50/40 border-amber-200 hover:border-amber-400' : 'bg-orange-50/30 border-orange-100 hover:border-orange-300'
+                                                                }`}>
+                                                                <div>
+                                                                    <div className="font-bold text-stone-800 flex items-center gap-2">
+                                                                        {rec.vaccineName}
+                                                                        {isPending && (
+                                                                            <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded uppercase font-black">Chờ Tiêm</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className={`text-xs font-bold mt-1 ${isPending ? 'text-amber-700' : 'text-orange-600'}`}>
+                                                                        {rec.doseNumber === 4 ? 'Hàng năm' : `Mũi ${rec.doseNumber}`} • {vaccinationService.formatDate(rec.nextDueDate)}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-stone-400 mt-0.5 italic line-clamp-1">
+                                                                        {rec.notes && rec.notes !== 'Tự động tạo từ lịch hẹn' ? rec.notes : (isPending ? 'Mũi tiêm đã được đặt lịch' : 'Theo lộ trình dự kiến')}
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (isPending && (rec as any).id) {
+                                                                            setSelectedVaccination(rec as VaccinationRecord);
+                                                                            setIsEditingVaccination(true); // Treat as edit to update PENDING -> COMPLETED
+                                                                        } else {
+                                                                            setSelectedVaccination(null);
+                                                                            setIsEditingVaccination(false);
+                                                                        }
+
+                                                                        const newVaccDate = rec.nextDueDate ? new Date(rec.nextDueDate) : new Date();
+                                                                        let nextDueDateObj = undefined;
+
+                                                                        if (rec.vaccineTemplateId) {
+                                                                            const tpl = vaccineTemplates.find(t => t.id === rec.vaccineTemplateId);
+                                                                            if (tpl && tpl.repeatIntervalDays) {
+                                                                                const nextDate = new Date(newVaccDate);
+                                                                                nextDate.setDate(nextDate.getDate() + tpl.repeatIntervalDays);
+                                                                                nextDueDateObj = nextDate;
+                                                                            }
+                                                                        }
+
+                                                                        setFormInitialData({
+                                                                            vaccineName: rec.vaccineName,
+                                                                            vaccineTemplateId: rec.vaccineTemplateId || undefined,
+                                                                            doseSequence: rec.doseNumber === 4 ? 'ANNUAL' : String(rec.doseNumber || 1),
+                                                                            vaccinationDate: newVaccDate,
+                                                                            nextDueDate: nextDueDateObj,
+                                                                            notes: isPending ? (rec.notes || '') : ''
+                                                                        });
+
+                                                                        // Scroll to form (top of tab content)
+                                                                        // Since we are in a modal, we might need to scroll the container
+                                                                        const container = document.querySelector('.overflow-y-auto');
+                                                                        if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                    }}
+                                                                    className={`p-2 rounded-lg border shadow-sm transition-all opacity-0 group-hover:opacity-100 ${isPending
+                                                                        ? 'bg-white text-amber-600 border-amber-200 hover:bg-amber-600 hover:text-white'
+                                                                        : 'bg-white text-orange-600 border-orange-200 hover:bg-orange-600 hover:text-white'
+                                                                        }`}
+                                                                    title={isPending ? "Xác nhận thực hiện mũi tiêm này" : "Ghi nhận theo gợi ý"}
+                                                                >
+                                                                    <PlusIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* SECTION 2: HISTORY TABLE */}
                                     <div>
@@ -1029,10 +979,13 @@ export const StaffPatientsPage = () => {
                                         {isLoadingVaccinations ? (
                                             <div className="p-12 text-center text-stone-500 bg-stone-50 rounded-xl border border-stone-200">Đang tải dữ liệu...</div>
                                         ) : viewMode === 'roadmap' ? (
-                                            <VaccinationRoadmap records={vaccinationRecords} upcomingRecords={upcomingRecords} />
-                                        ) : vaccinationRecords.length === 0 ? (
+                                            <VaccinationRoadmap
+                                                records={vaccinationRecords.filter(r => r.workflowStatus === 'COMPLETED')}
+                                                upcomingRecords={upcomingRecords}
+                                            />
+                                        ) : vaccinationRecords.filter(r => r.workflowStatus === 'COMPLETED').length === 0 ? (
                                             <div className="p-12 text-center text-stone-500 bg-stone-50 rounded-xl border border-stone-200">
-                                                Chưa có lịch sử tiêm chủng. Hãy thêm mũi tiêm đầu tiên bên trên.
+                                                Chưa có lịch sử tiêm chủng. Hãy thêm mũi tiêm cấu tiên bên trên.
                                             </div>
                                         ) : (
                                             <div className="border border-stone-200 rounded-xl overflow-hidden shadow-sm bg-white">
@@ -1050,7 +1003,7 @@ export const StaffPatientsPage = () => {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-stone-100">
-                                                        {vaccinationRecords.map((record) => (
+                                                        {vaccinationRecords.filter(r => r.workflowStatus === 'COMPLETED').map((record) => (
                                                             <tr
                                                                 key={record.id}
                                                                 className="hover:bg-blue-50 cursor-pointer transition-colors group"
@@ -1146,198 +1099,155 @@ export const StaffPatientsPage = () => {
             )
             }
 
-            {/* ============= ADD VACCINATION MODAL (Level 2) ============= */}
-            {
-                isAddVaccinationModalOpen && (
-                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                        <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                            <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
-                                <h2 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-                                    <PlusIcon className="w-6 h-6 text-blue-600" />
-                                    Thêm Mũi Tiêm
+
+
+            {/* ============= VACCINATION DETAIL/EDIT MODAL (Level 2) ============= */}
+            {selectedVaccination && (
+                <div
+                    className="fixed inset-0 bg-stone-900/40 backdrop-blur-xl z-[60] flex items-center justify-center p-4 animate-in fade-in duration-500"
+                    onClick={() => {
+                        setSelectedVaccination(null)
+                        setIsEditingVaccination(false)
+                    }}
+                >
+                    <div
+                        className="bg-white/95 w-full max-w-lg rounded-[3rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 border border-white/20"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="px-10 py-8 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+                            <div>
+                                <h2 className="text-2xl font-black text-stone-900 tracking-tight">
+                                    {isEditingVaccination ? 'Chỉnh Sửa Hồ Sơ' : 'Chi Tiết Mũi Tiêm'}
                                 </h2>
-                                <button onClick={() => setIsAddVaccinationModalOpen(false)} className="p-2 hover:bg-stone-200 rounded-full">
-                                    <XMarkIcon className="w-6 h-6 text-stone-500" />
-                                </button>
+                                <p className="text-[10px] text-stone-400 font-bold uppercase tracking-[0.2em] opacity-70">Thông tin quản lý tiêm chủng</p>
                             </div>
+                            <button
+                                onClick={() => {
+                                    setSelectedVaccination(null)
+                                    setIsEditingVaccination(false)
+                                }}
+                                className="p-2.5 hover:bg-stone-100 rounded-full transition-all text-stone-300 hover:text-stone-600 active:scale-90"
+                            >
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
 
-                            <form onSubmit={handleAddVaccination} className="p-6 space-y-4">
-                                {/* Active Booking Banner */}
-                                {(() => {
-                                    const activeBooking = bookings.find(b =>
-                                        b.petId === selectedPatient?.id &&
-                                        (b.status === 'IN_PROGRESS' || b.status === 'CONFIRMED')
-                                    )
-                                    if (activeBooking) {
-                                        return (
-                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                                                    <span className="text-sm font-bold text-blue-800">
-                                                        Liên kết với Booking #{activeBooking.bookingCode}
+                        {/* Content Area */}
+                        <div className="px-10 py-10 overflow-y-auto max-h-[70vh]">
+                            {isEditingVaccination ? (
+                                <SmartVaccinationForm
+                                    pet={selectedPatient as unknown as Pet}
+                                    records={vaccinationRecords}
+                                    templates={vaccineTemplates}
+                                    isSubmitting={isSubmittingVaccination}
+                                    onSubmit={handleAddVaccination}
+                                    initialData={{
+                                        vaccineName: selectedVaccination.vaccineName,
+                                        vaccineTemplateId: selectedVaccination.vaccineTemplateId || undefined,
+                                        vaccinationDate: selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate) : new Date(),
+                                        nextDueDate: selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate) : undefined,
+                                        doseSequence: selectedVaccination.doseNumber === 4 ? 'ANNUAL' : String(selectedVaccination.doseNumber || 1),
+                                        notes: selectedVaccination.notes || ''
+                                    }}
+                                    isEditing={true}
+                                    onCancel={() => setIsEditingVaccination(false)}
+                                />
+                            ) : (
+                                <div className="space-y-8">
+                                    {/* Vaccine Hero Section */}
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-[2rem] shadow-xl shadow-blue-100 flex items-center justify-center text-4xl">
+                                            💉
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h3 className="text-2xl font-black text-stone-900 tracking-tight leading-tight">{selectedVaccination.vaccineName}</h3>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(selectedVaccination.status)}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${selectedVaccination.status === 'Valid' ? 'bg-green-600' : 'bg-red-600'}`} />
+                                                    {selectedVaccination.status === 'Valid' ? 'Đang Hiệu lực' : selectedVaccination.status === 'Overdue' ? 'Đã Quá hạn' : 'Sắp hết hạn'}
+                                                </span>
+                                                {selectedVaccination.doseNumber && (
+                                                    <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-lg border border-orange-100 uppercase tracking-widest">
+                                                        Mũi {selectedVaccination.doseNumber === 4 ? 'HÀNG NĂM' : selectedVaccination.doseNumber}
                                                     </span>
-                                                </div>
+                                                )}
                                             </div>
-                                        )
-                                    }
-                                })()}
-                                {/* Vaccine Type */}
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-bold text-stone-700">Loại Vaccine *</label>
-                                    <input
-                                        type="text"
-                                        list="vaccine-types"
-                                        value={vaccineName}
-                                        onChange={(e) => setVaccineName(e.target.value)}
-                                        placeholder="Chọn hoặc nhập tên..."
-                                        className="input-brutal w-full"
-                                        required
-                                        autoFocus
-                                    />
-                                    <datalist id="vaccine-types">
-                                        {VACCINE_TYPES.map(type => (
-                                            <option key={type} value={type} />
-                                        ))}
-                                    </datalist>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    {/* Date Administered */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-bold text-stone-700">Ngày Tiêm *</label>
-                                        <div className="relative">
-                                            <DatePicker
-                                                selected={vaccinationDate}
-                                                onChange={(date: Date | null) => setVaccinationDate(date || new Date())}
-                                                dateFormat="dd/MM/yyyy"
-                                                locale="vi"
-                                                className="input-brutal w-full pl-10"
-                                            />
-                                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
                                         </div>
                                     </div>
 
-                                    {/* Next Due Date */}
-                                    <div className="space-y-1">
-                                        <label className="block text-sm font-bold text-stone-700">Tái Chủng</label>
-                                        <div className="relative">
-                                            <DatePicker
-                                                selected={nextDueDate}
-                                                onChange={(date: Date | null) => setNextDueDate(date)}
-                                                dateFormat="dd/MM/yyyy"
-                                                locale="vi"
-                                                placeholderText="dd/mm/yyyy"
-                                                className="input-brutal w-full pl-10"
-                                                minDate={vaccinationDate ?? undefined}
-                                            />
-                                            <CalendarIcon className="w-5 h-5 text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    {/* Info Grid */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
+                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Ngày tiêm</p>
+                                            <p className="font-black text-stone-800 text-lg">
+                                                {selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate).toLocaleDateString('vi-VN') : '—'}
+                                            </p>
+                                        </div>
+                                        <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
+                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Tái chủng</p>
+                                            <p className={`font-black text-lg ${selectedVaccination.nextDueDate ? 'text-blue-600' : 'text-stone-300'}`}>
+                                                {selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate).toLocaleDateString('vi-VN') : 'KHÔNG CÓ'}
+                                            </p>
+                                        </div>
+                                        <div className="col-span-2 bg-stone-50 p-6 rounded-[2rem] border border-stone-100 space-y-1">
+                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Bác sĩ thực hiện</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-[10px] font-black text-orange-600">
+                                                    {selectedVaccination.staffName ? selectedVaccination.staffName.charAt(0) : '?'}
+                                                </div>
+                                                <p className="font-black text-stone-800 uppercase tracking-tight">
+                                                    {selectedVaccination.staffName || 'Chưa cập nhật'}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
+
+                                    {/* Notes */}
+                                    {selectedVaccination.notes && (
+                                        <div className="space-y-2">
+                                            <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest ml-1 text-center">Ghi chú & Phản ứng</p>
+                                            <div className="bg-white p-6 rounded-[2.5rem] border border-stone-100 text-stone-500 font-medium italic text-sm text-center leading-relaxed shadow-inner">
+                                                "{selectedVaccination.notes}"
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Footer Actions */}
+                                    <div className="flex items-center justify-center gap-6 pt-4">
+                                        <button
+                                            onClick={() => setIsEditingVaccination(true)}
+                                            className="px-8 py-3 bg-white border border-stone-200 text-stone-600 font-black text-xs uppercase tracking-widest rounded-full shadow-sm hover:shadow-md hover:bg-stone-50 transition-all flex items-center gap-2 active:scale-95"
+                                        >
+                                            <PencilIcon className="w-4 h-4" />
+                                            Sửa Hồ Sơ
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleDeleteVaccination(selectedVaccination.id, e)}
+                                            className="px-8 py-3 bg-red-50 border border-red-100 text-red-500 font-black text-xs uppercase tracking-widest rounded-full shadow-sm hover:bg-red-100 transition-all flex items-center gap-2 active:scale-95"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Xóa Hồ Sơ
+                                        </button>
+                                    </div>
                                 </div>
-
-
-
-                                {/* Notes */}
-                                <div className="space-y-1">
-                                    <label className="block text-sm font-bold text-stone-700">Ghi Chú</label>
-                                    <textarea
-                                        value={vaccinationNotes}
-                                        onChange={(e) => setVaccinationNotes(e.target.value)}
-                                        placeholder="Phản ứng sau tiêm..."
-                                        className="input-brutal w-full min-h-[60px]"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end pt-4 border-t border-stone-100">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAddVaccinationModalOpen(false)}
-                                        className="mr-3 px-4 py-2 text-stone-600 font-bold hover:bg-stone-100 rounded-lg"
-                                    >
-                                        Hủy
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmittingVaccination}
-                                        className="btn-brutal bg-blue-600 text-white hover:bg-blue-700 disabled:bg-stone-400"
-                                    >
-                                        {isSubmittingVaccination ? 'Đang lưu...' : 'Lưu Hồ Sơ'}
-                                    </button>
-                                </div>
-                            </form>
+                            )}
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
 
-            {/* ============= VACCINATION DETAIL MODAL (Level 2) ============= */}
-            {
-                selectedVaccination && (
-                    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setSelectedVaccination(null)}>
-                        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
-                            <div className="p-6 border-b border-stone-200 flex justify-between items-center bg-stone-50">
-                                <h2 className="text-xl font-bold text-stone-800">Chi Tiết Mũi Tiêm</h2>
-                                <button onClick={() => setSelectedVaccination(null)} className="p-2 hover:bg-stone-200 rounded-full">
-                                    <XMarkIcon className="w-6 h-6 text-stone-500" />
-                                </button>
-                            </div>
-                            <div className="p-6 space-y-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center text-3xl">
-                                        💉
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-black text-stone-900">{selectedVaccination.vaccineName}</h3>
-                                        <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold border ${getStatusColor(selectedVaccination.status)}`}>
-                                            {selectedVaccination.status === 'Valid' ? 'Đang Hiệu lực' : selectedVaccination.status === 'Overdue' ? 'Đã Quá hạn' : 'Sắp hết hạn'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
-                                    <div>
-                                        <p className="text-xs text-stone-500 font-bold uppercase">Ngày tiêm</p>
-                                        <p className="font-bold text-stone-800 text-lg">
-                                            {selectedVaccination.vaccinationDate ? new Date(selectedVaccination.vaccinationDate).toLocaleDateString('vi-VN') : 'Chưa tiêm'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-stone-500 font-bold uppercase">Tái chủng</p>
-                                        <p className={`font-bold text-lg ${selectedVaccination.nextDueDate ? 'text-blue-600' : 'text-stone-400'}`}>
-                                            {selectedVaccination.nextDueDate ? new Date(selectedVaccination.nextDueDate).toLocaleDateString('vi-VN') : 'Không có'}
-                                        </p>
-                                    </div>
-
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-stone-500 font-bold uppercase">Bác sĩ thực hiện</p>
-                                        <p className="font-bold text-stone-800">
-                                            {selectedVaccination.staffName}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {selectedVaccination.notes && (
-                                    <div>
-                                        <p className="text-xs text-stone-500 font-bold uppercase mb-2">Ghi chú</p>
-                                        <div className="bg-stone-50 p-3 rounded-lg border border-stone-200 text-stone-700 italic text-sm">
-                                            {selectedVaccination.notes}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-end">
-                                <button
-                                    onClick={(e) => handleDeleteVaccination(selectedVaccination.id, e)}
-                                    className="px-4 py-2 bg-white border border-red-200 text-red-600 font-bold rounded-lg hover:bg-red-50 flex items-center gap-2"
-                                >
-                                    <TrashIcon className="w-4 h-4" />
-                                    Xóa Hồ Sơ
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={isDeleteModalOpen}
+                title="Xóa Hồ Sơ"
+                message="Bạn có chắc chắn muốn xóa hồ sơ tiêm chủng này không? Hành động này không thể hoàn tác."
+                confirmLabel="XÓA NGAY"
+                cancelLabel="QUAY LẠI"
+                isDanger={true}
+                onConfirm={confirmDelete}
+                onCancel={() => setIsDeleteModalOpen(false)}
+            />
         </div >
     )
 }

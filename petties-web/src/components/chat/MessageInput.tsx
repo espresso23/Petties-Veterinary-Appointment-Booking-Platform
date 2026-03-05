@@ -71,6 +71,7 @@ export function MessageInput({
 
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -137,7 +138,6 @@ export function MessageInput({
     else if (selectedImages.length > 0 && onImageUpload) {
       console.log('MessageInput: Sending only images, count:', selectedImages.length)
       setIsUploading(true)
-      let successCount = 0
       let failCount = 0
 
       try {
@@ -146,10 +146,9 @@ export function MessageInput({
           try {
             console.log('Uploading image:', image.name)
             await onImageUpload(image)
-            successCount++
             console.log('Upload success:', image.name)
-          } catch (imageError) {
-            console.error('Failed to upload image:', image.name, imageError)
+          } catch (error) {
+            console.error('Failed to upload image:', image.name, error)
             failCount++
           }
         }
