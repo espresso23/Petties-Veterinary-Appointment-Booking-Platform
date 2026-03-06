@@ -36,6 +36,9 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Add/Edit Pet Screen** (UC-PET-01)
   - Code: `add_edit_pet_screen.dart`
   - Stitch ID: `4d5b63f07af84b7fa4ebcbb6687e0e9b`
+- [ ] **Pet Health Record Screen** (UC-PET-04)
+  - Code: `lib/ui/pet/pet_health_record_screen.dart`
+  - *UI Description: Hiển thị lịch sử khám bệnh, vaccination records, và hồ sơ y tế của thú cưng. Bao gồm timeline EMR, vaccination schedule.*
 - [x] **Clinic Search Screen** (UC-CLINIC-01)
   - Code: `clinic_search_view.dart`
   - Stitch ID: `25b0b6b584034eb481f493dda4bad9a2`
@@ -71,6 +74,15 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
   - *Prompt Prepared in `wireframe_prompts.md`*
+- [x] **Shift Conflict Warning Modal** (UC-SCHED-05)
+  - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
+  - Stitch ID: `2853459417f547a1abc26b185b817870`
+- [x] **Bulk Delete Shifts Mode (Grid)** (UC-SCHED-01)
+  - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
+  - Stitch ID: `523c4135e7bd4c668607ec89c3b06d2d`
+- [x] **Bulk Delete Confirmation Modal** (UC-SCHED-01)
+  - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
+  - Stitch ID: `e367f913c5d54d67a2c3a5b2e654928b`
 - [x] **Assigned Bookings List** (UC-BOOK-06)
   - Code: `staff/StaffBookingsPage.tsx`
   - Stitch ID: `0595f1cdc9714ab990fcab59851583b5`
