@@ -50,6 +50,11 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `clinic_all_services_screen.dart`
   - Stitch ID: `e2cc78e8214a44f4849983c99fe32314`
 
+### Staff Features (Module 3.7)
+- [x] **Staff Schedule Mobile** (UC-SCHED-01)
+  - Code: `staff_schedule_screen.dart`
+  - Stitch ID: `095f6b61101b464aba244dc8d89a4374`
+
 ---
 
 ## 💻 Petties Web (Project ID: `5753470864620675867`)
@@ -58,6 +63,9 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff Dashboard** (UC-BOOK-10)
   - Code: `staff/DashboardPage.tsx`
   - Stitch ID: `ac2118e0816044598b63ac72ed5fda35`
+- [x] **Staff Shift Management** (UC-SCHED-01)
+  - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
+  - Stitch ID: `d7fe7b44ca974027bc12b2552961ec3b`
 - [x] **Staff Schedule** (UC-SCHED-01)
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
@@ -94,8 +102,9 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Clinic Services** (UC-OPS-02)
   - Code: `clinic-owner/ServicesPage.tsx`
   - Stitch ID: `898e6fa6912140e79d9958c00223e28b`
-- [ ] **Staff Management** (UC-SCHED-06)
+- [x] **Staff Management** (UC-SCHED-06)
   - Code: `clinic-owner/staff/StaffManagementPage.tsx`
+  - Stitch ID: `fefa8807bde145108097e5e40f1a8cfa`
 
 ### SOS & Tracking Features (Full Flow - Monochrome)
 - [x] **SOS Request Confirmation** (Pet Owner)
