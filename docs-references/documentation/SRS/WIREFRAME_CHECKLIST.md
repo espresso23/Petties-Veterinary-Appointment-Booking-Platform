@@ -91,15 +91,123 @@ This document tracks the generation of black & white wireframes for the Petties 
   - *UI Description: Toggle switches cho các loại notifications (Booking reminders, SOS alerts, Promotions, System updates).*
 
 ### Chat & AI Features (Module 3.13)
-- [ ] **Chat List Screen** (UC-CHAT-01)
-  - Code: `lib/ui/chat/chat_list_screen.dart`
-  - *UI Description: Danh sách conversations với AI Agent hoặc Staff. Hiển thị avatar, tên, last message, timestamp.*
-- [ ] **Chat Detail Screen** (UC-CHAT-02)
-  - Code: `lib/ui/chat/chat_detail_screen.dart`
-  - *UI Description: Chat interface với bubble messages (user/agent), input box, send button. Hiển thị ReAct flow (Thought → Action → Observation) cho AI responses.*
-- [ ] **Chat with AI (Pet Care Q&A)** (UC-CHAT-03)
-  - Code: `lib/ui/chat/ai_chat_screen.dart`
-  - *UI Description: Specialized chat UI cho AI Agent. Badge "AI" ở header. Suggested questions dạng quick replies. Hiển thị typing indicator khi streaming response.*
+
+#### Pet Owner AI Features (Mobile)
+- [ ] **AI Chat Bubble (Float Button)** (UC-AI-001)
+  - Code: `lib/ui/chat/ai_chat_bubble.dart`
+  - *UI Description: Floating bubble button ở góc dưới phải màn hình (tất cả screens Pet Owner). Icon AI chatbot. Badge màu xanh "AI Trợ lý" + notification dot khi có tin nhắn mới. Khi click mở chat overlay fullscreen.*
+- [ ] **AI Chat Screen (Pet Care Q&A)** (UC-AI-002)
+  - Code: `lib/ui/chat/ai_pet_care_chat_screen.dart`
+  - *UI Description: Chat interface với AI Agent cho pet care Q&A. Header badge "AI Trợ lý". Quick reply suggestions (4-5 câu hỏi phổ biến dạng chips). Bubble messages user/AI. Typing indicator với animation dots khi AI đang xử lý. Sources/citations hiển thị dạng links dưới response. Input box + send button ở bottom.*
+- [ ] **AI Symptom Checker Screen** (UC-AI-003)
+  - Code: `lib/ui/chat/ai_symptom_checker_screen.dart`
+  - *UI Description: Màn hình chuyên biệt cho symptom checking. Form input triệu chứng (multi-line text). Option upload ảnh thú cưng (optional). Nút "PHÂN TÍCH TRIỆU CHỨNG". Results hiển thị: Danh sách bệnh có thể (với % confidence), severity indicator (Low/Medium/High), recommendations (Đi khám ngay/Theo dõi/Home care tips). Quick actions: "ĐẶT LỊCH KHÁM", "HỎI THÊM AI".*
+- [ ] **AI Image Analysis Screen** (UC-AI-019)
+  - Code: `lib/ui/chat/ai_image_analysis_screen.dart`
+  - *UI Description: Upload ảnh thú cưng (Camera/Gallery). Preview ảnh uploaded. Input box mô tả thêm (optional). Nút "PHÂN TÍCH ẢNH". AI response hiển thị: Detected symptoms từ ảnh, severity assessment, gợi ý dịch vụ phù hợp, recommendation đi khám. Visual indicators (icons) cho từng finding. Quick booking button.*
+- [ ] **AI Booking Assistant Screen** (UC-AI-004)
+  - Code: `lib/ui/chat/ai_booking_assistant_screen.dart`
+  - *UI Description: Chat-based booking flow. AI hỏi tuần tự: Pet nào? Dịch vụ gì? Khi nào? AI suggest clinics gần. Hiển thị ReAct flow (Thought → Action: search_clinics, check_slots → Observation → Response). Confirmation card tóm tắt booking trước khi submit. Nút "XÁC NHẬN ĐẶT LỊCH".*
+- [ ] **AI Medical History Summary** (UC-AI-030)
+  - Code: `lib/ui/pet/ai_medical_summary_screen.dart`
+  - *UI Description: Màn hình xem tóm tắt lịch sử bệnh án của thú cưng do AI tạo. Sections: Pet info, Vaccination history timeline, Past diagnoses summary, Treatment history, Medications, Upcoming appointments. Nút "TẠO TÓM TẮT MỚI" (AI re-analyze). Export PDF button. Disclaimer nhỏ "Tóm tắt tự động bởi AI, cần xác nhận bác sĩ".*
+
+---
+
+#### Staff AI Assistant (Web + Mobile) - Context-aware assistant
+- [ ] **AI Staff Assistant Widget** (UC-AI-020)
+  - Code: `petties-web/src/components/ai/AiStaffAssistantWidget.tsx` + `lib/ui/staff/widgets/ai_assistant_widget.dart`
+  - *UI Description: Widget cố định ở sidebar (Web) hoặc floating button bottom-right (Mobile). Icon AI với badge notification số (khi có gợi ý mới từ AI). Badge "AI Trợ lý - Staff". Click mở chat panel slide-in.*
+
+- [ ] **AI Staff Chat Panel (Slide-in)** (UC-AI-020)
+  - Code: `petties-web/src/components/ai/AiStaffChatPanel.tsx` + `lib/ui/staff/ai_staff_chat_panel.dart`
+  - *UI Description:
+
+  **Layout:** Slide-in panel từ bên phải (Web: 450px width, Mobile: 85% screen width). Header: "AI Trợ lý - Staff" + minimize/close buttons.
+
+  **Chat area với 3 types messages:**
+  1. **User messages** (Staff gửi): Bubble bên phải, màu xanh
+  2. **AI responses**: Bubble bên trái, màu trắng với border, có ReAct flow expandable
+  3. **AI Proactive Notifications** (System role): Card style với icon alert, màu vàng nhạt background
+
+  **AI Proactive Messages Examples:**
+  - 🔔 "Bạn có 3 booking pending cần xử lý hôm nay"
+  - ⚠️ "Phát hiện conflict: Bạn có 2 lịch hẹn trùng giờ 14:00 ngày 15/3"
+  - 📊 "Tóm tắt ngày: 8 lịch hẹn, 2 hoàn thành, 6 chờ xử lý, 0 hủy"
+  - 💡 "Gợi ý: Booking #BK001 có thể reassign cho Dr. Lan (workload thấp hơn)"
+  - 🎯 "Pet Max (ID: PET123) sắp đến hạn vaccination vào ngày 20/3"
+
+  **Context-aware:** AI biết staff đang xem booking nào, pet nào → suggest accordingly.
+
+  **Quick action chips:** "TÓM TẮT BỆNH ÁN", "GỢI Ý REASSIGN", "XEM LỊCH HÔM NAY", "TẠO EMR".
+
+  **Input box:** Text input + send icon. Suggested prompts dạng chips phía trên input.*
+
+---
+
+#### Manager AI Assistant (Web) - Operations focused
+- [ ] **AI Manager Assistant Widget** (UC-AI-021)
+  - Code: `petties-web/src/components/ai/AiManagerAssistantWidget.tsx`
+  - *UI Description: Similar widget như Staff. Badge "AI Trợ lý - Quản lý". Notification badge hiển thị số alerts chưa đọc (màu đỏ cho urgent như SOS).*
+
+- [ ] **AI Manager Chat Panel** (UC-AI-021)
+  - Code: `petties-web/src/components/ai/AiManagerChatPanel.tsx`
+  - *UI Description:
+
+  **AI Proactive Notifications cho Manager:**
+  - 🚨 "CẢNH BÁO SOS: Yêu cầu cấp cứu mới từ Nguyễn Văn A - 3.5km - Countdown: 50s" (Card màu đỏ với countdown timer, nút "XỬ LÝ NGAY")
+  - 📊 "Báo cáo ngày: 25 bookings, 5 pending confirmation, doanh thu 15.5M VNĐ"
+  - 👥 "Gợi ý reassign: Có 4 bookings có thể tối ưu staff assignment để cân bằng workload"
+  - 📅 "Cảnh báo: Tuần tới thiếu 3 ca chiều thứ 6, cần tạo thêm shifts"
+  - ⚠️ "Phát hiện: Dr. Minh workload quá cao (15 bookings hôm nay), nên điều chỉnh?"
+  - 💰 "Insight: Dịch vụ Grooming giá 150K thấp hơn thị trường khu vực (180K), nên tăng?"
+
+  **Quick action buttons:** "XỬ LÝ SOS", "XÁC NHẬN BOOKINGS", "REASSIGN TỰ ĐỘNG", "TẠO SHIFTS", "XEM BÁO CÁO", "PHÂN TÍCH DOANH THU".
+
+  **Chat với context memory:** AI nhớ conversation history, user có thể hỏi follow-up. ReAct flow expandable cho transparency.*
+
+---
+
+#### Owner AI Assistant (Web) - Business intelligence
+- [ ] **AI Owner Assistant Widget** (UC-AI-026)
+  - Code: `petties-web/src/components/ai/AiOwnerAssistantWidget.tsx`
+  - *UI Description: Widget cho Owner với business analytics context. Badge "AI Trợ lý - Chủ phòng khám". Notification dot màu xanh cho insights mới.*
+
+- [ ] **AI Owner Chat Panel** (UC-AI-026)
+  - Code: `petties-web/src/components/ai/AiOwnerChatPanel.tsx`
+  - *UI Description:
+
+  **AI Proactive Business Insights:**
+  - 📈 "Doanh thu tháng 3: 125M VNĐ, tăng 18% so với tháng 2. Top clinic: Chi nhánh Quận 1 (45M)"
+  - 🏆 "Top 3 dịch vụ doanh thu: Grooming (35M), Vaccination (28M), Surgery (22M)"
+  - 📉 "Cảnh báo: Booking tuần này giảm 12% (80 → 70 bookings). Nguyên nhân có thể: mưa kéo dài 4 ngày"
+  - 🎯 "Gợi ý mở rộng: Dental Cleaning có nhu cầu cao (15 yêu cầu/tháng) nhưng chưa có dịch vụ"
+  - 👨‍⚕️ "Phân tích nhân sự: Dr. Hùng workload cao nhất (140 bookings/tháng). Nên tuyển thêm 1 vet hoặc mở rộng giờ làm?"
+  - 💡 "Insight: 65% khách hàng đặt lịch vào sáng thứ 7 (8-11h). Gợi ý tăng 2 shifts sáng thứ 7 để tăng capacity."
+  - 🌟 "Đánh giá tốt: Clinic chi nhánh 2 có rating 4.8/5 (cao nhất). Key success factors: Thời gian chờ ngắn, staff nhiệt tình."
+
+  **Quick actions:** "TẠO DỊCH VỤ MỚI", "PHÂN TÍCH DOANH THU CHI TIẾT", "QUẢN LÝ NHÂN SỰ", "SO SÁNH CHI NHÁNH", "XEM KPI".
+
+  **Business analytics tools:** AI có access revenue analytics, customer behavior, staff performance, market trends.*
+
+---
+
+#### AI Notification System (Cross-platform)
+- [ ] **AI Proactive Notification Component** (UC-AI-031)
+  - Code: `petties-web/src/components/ai/AiNotificationToast.tsx` + `lib/ui/widgets/ai_notification_toast.dart`
+  - *UI Description:
+
+  **Toast notification style:** Slide-in từ top-right (Web) / top (Mobile). Card design với:
+  - AI icon + badge role (Staff/Manager/Owner) ở bên trái
+  - Notification text (max 2 lines) ở giữa
+  - Action buttons: "XEM" / "BỎ QUA" ở bên phải
+  - Priority colors: 🔴 Urgent (SOS) / 🟡 Warning / 🟢 Info
+  - Auto-dismiss sau 10s HOẶC click "XEM" → mở AI chat panel với context focused.
+  - Sound/vibration khi notification mới (có thể tắt trong settings).
+  - Stack multiple notifications (max 3 visible).
+
+  **Web behavior:** Notification xuất hiện ngay cả khi chat panel đang đóng.
+  **Mobile behavior:** Push notification style với deep link vào AI chat panel.*
 
 ### Notifications (Module 3.14)
 - [ ] **Notification List Screen** (UC-NOTIF-01)
@@ -337,15 +445,74 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [ ] **Knowledge Base Management** (UC-GOV-05)
   - Code: `petties-web/src/pages/admin/KnowledgeBasePage.tsx`
   - *UI Description: Upload documents cho RAG system. Table documents list (Title, Type, Status, Uploaded Date). Upload modal, preview, delete actions.*
-- [ ] **AI Agent Configuration** (UC-GOV-06)
-  - Code: `petties-web/src/pages/admin/AgentConfigPage.tsx`
-  - *UI Description: Admin dashboard cho Single Agent management. Tabs: System Prompt Editor, Hyperparameters (Temperature, Max Tokens, Top-P sliders), Tool Governance (enable/disable tools), ReAct Flow Visualization.*
-- [ ] **Tool Management** (UC-GOV-07)
-  - Code: `petties-web/src/pages/admin/ToolsPage.tsx`
-  - *UI Description: List FastMCP tools với status (Active/Inactive). Enable/Disable toggle, view semantic descriptions, test tool execution.*
-- [ ] **AI Playground** (UC-GOV-08)
-  - Code: `petties-web/src/pages/admin/PlaygroundPage.tsx`
-  - *UI Description: Test AI Agent interface. Chat UI với ReAct flow display (Thought → Action → Observation). Adjustable hyperparameters sidebar. Export conversation logs.*
+- [ ] **AI Agent Configuration** (UC-AI-005)
+  - Code: `petties-web/src/pages/admin/ai/AgentConfigPage.tsx`
+  - *UI Description: Admin dashboard cho Single Agent management. Header "Cấu hình AI Agent". Tabs: "System Prompt", "Hyperparameters", "Tools", "ReAct Flow". System Prompt tab: Code editor với version history, "LƯU VERSION MỚI" button. Hyperparameters tab: Sliders cho Temperature (0-1), Max Tokens (1000-4000), Top-P (0-1), current model display (OpenRouter). Enable/Disable agent toggle ở header.*
+- [ ] **Tool Management** (UC-AI-007)
+  - Code: `petties-web/src/pages/admin/ai/ToolsPage.tsx`
+  - *UI Description: List FastMCP tools table. Columns: Tool Name, Description, Status (Active/Inactive toggle), Last Used, Success Rate. Expandable rows hiển thị tool schema (input/output parameters). Search/filter bar. "TEST TOOL" button cho từng tool → opens test modal.*
+- [ ] **Tool Test Modal** (UC-AI-009)
+  - Code: `petties-web/src/components/admin/ai/ToolTestModal.tsx`
+  - *UI Description: Modal test individual tool. Tool name ở header. JSON editor cho input parameters (pre-filled với example). "CHẠY TEST" button. Output section hiển thị JSON result hoặc error. Execution time display.*
+- [ ] **Knowledge Base Management** (UC-AI-012)
+  - Code: `petties-web/src/pages/admin/ai/KnowledgeBasePage.tsx`
+  - *UI Description: Upload documents cho RAG system (Pet Care Q&A only). Table documents list (Title, Type, Status: Indexed/Processing/Failed, Uploaded Date, Vector Count). Upload button → file picker (PDF/DOCX). Test RAG section: input query, "TEST RETRIEVAL" button, results hiển thị chunks với scores. Delete document button với confirmation.*
+- [ ] **Test RAG Retrieval Results** (UC-AI-014)
+  - Code: `petties-web/src/components/admin/ai/RagTestResults.tsx`
+  - *UI Description: Component hiển thị RAG test results. List retrieved chunks với: Chunk text (truncated), Score (0-1), Document source, metadata. Highlight relevant phrases. "XEM CHI TIẾT CHUNK" button.*
+- [ ] **AI Playground** (UC-AI-015)
+  - Code: `petties-web/src/pages/admin/ai/PlaygroundPage.tsx`
+  - *UI Description: Test AI Agent interface. Split layout: Left sidebar với hyperparameters controls (Temperature, Max Tokens, Model selector). Main area: Chat UI với messages (user/assistant). ReAct flow display expandable cho mỗi message (Thought → Action → Observation với timestamps). Input box + "GỬI" button ở bottom. "XÓA LỊCH SỬ CHAT" button. Export conversation logs button (JSON).*
+- [ ] **ReAct Flow Visualization** (UC-AI-016)
+  - Code: `petties-web/src/components/admin/ai/ReactFlowVisualization.tsx`
+  - *UI Description: Component hiển thị ReAct reasoning trace. Expandable accordion sections cho mỗi iteration: "Thought" (text block với icon 💭), "Action" (tool name + params với icon 🔧), "Observation" (tool result với icon 👁️). Color coding: Thought (blue bg), Action (green bg), Observation (gray bg). Timestamps cho mỗi step. Final Answer section ở cuối.*
+- [ ] **System Settings (API Keys)** (UC-AI-015)
+  - Code: `petties-web/src/pages/admin/ai/SystemSettingsPage.tsx`
+  - *UI Description: Configure external API keys. Form fields: OpenRouter API Key (password field), Cohere API Key, Qdrant URL + API Key. "TEST CONNECTION" buttons cho mỗi service (hiển thị status: Connected ✅ / Failed ❌). "LƯU CẤU HÌNH" button. Warning notice "API keys được mã hóa khi lưu".*
+
+### Staff/Manager Web AI Features
+- [ ] **AI Staff Chat (Web)** (UC-AI-020)
+  - Code: `petties-web/src/pages/staff/AiChatPage.tsx`
+  - *UI Description: Chat interface cho Staff/Manager trên Web. Similar layout như Playground nhưng với context-aware tools. Header badge "AI Trợ lý Nhân viên". Sidebar quick actions: "TÓM TẮT BỆNH ÁN", "GỢI Ý REASSIGN STAFF", "TẠO CA LÀM VIỆC", "CÀI ĐẶT PHÒNG KHÁM". Chat area hiển thị ReAct flow. Input box với suggestions.*
+- [ ] **AI Booking Handling Assistant** (UC-AI-020)
+  - Code: `petties-web/src/pages/clinic-manager/AiBookingAssistantPage.tsx`
+  - *UI Description: AI hỗ trợ xử lý bookings. List pending bookings bên trái. Click vào booking → AI analyze và suggest: Staff phù hợp (dựa trên workload, specialty), Time slot alternatives (nếu conflict), Service bundles recommendations. "CHẤP NHẬN GỢI Ý" / "TỰ CHỌN" buttons. AI explanation text dưới mỗi suggestion.*
+- [ ] **AI Staff Reassignment Suggester** (UC-AI-021)
+  - Code: `petties-web/src/pages/clinic-manager/AiReassignPage.tsx`
+  - *UI Description: AI suggest staff reassignment cho bookings. Filters: Date range, Current staff, Reason (Sick leave, Overbooked, etc.). Table bookings cần reassign. "GỢI Ý TỰ ĐỘNG" button → AI analyze availability & specialty → hiển thị suggested staff với reasons. Bulk select & "ÁP DỤNG REASSIGN" button.*
+- [ ] **AI EMR Summary** (UC-AI-023)
+  - Code: `petties-web/src/pages/staff/AiEmrSummaryPage.tsx`
+  - *UI Description: AI tóm tắt patient info & EMR. Search pet by name/ID. Pet info card ở top. "TẠO TÓM TẮT AI" button. Summary sections: Signalment, Vaccination status, Past diagnoses (timeline), Current medications, Allergies/warnings, Recent visits summary. Expandable details cho mỗi section. "XUẤT PDF" button. Disclaimer "Tóm tắt tự động, cần xác nhận bác sĩ".*
+- [ ] **AI Shift Scheduling Assistant** (UC-AI-024)
+  - Code: `petties-web/src/pages/clinic-manager/AiShiftSchedulerPage.tsx`
+  - *UI Description: AI hỗ trợ tạo shifts. Form inputs: Week/Month, Required staff count, Shift types (Morning/Afternoon/Night). "ĐỀ XUẤT LỊCH" button. AI generate shift schedule table với staff assignments. Conflict indicators (màu đỏ nếu overlap). Staff workload balance display (chart). "CHỈNH SỬA" / "LƯU LỊCH" buttons. Human review required notice.*
+- [ ] **AI Clinic Setup Wizard** (UC-AI-026)
+  - Code: `petties-web/src/pages/clinic-owner/AiSetupWizardPage.tsx`
+  - *UI Description: AI-guided clinic onboarding. Stepper: 1️⃣ Thông tin cơ bản → 2️⃣ Dịch vụ → 3️⃣ Phí SOS → 4️⃣ Giờ làm việc. Mỗi step có AI chat box gợi ý (e.g., "Gợi ý dịch vụ phổ biến cho phòng khám chó mèo"). Checkboxes chọn suggestions. "TIẾP TỤC" buttons. Review & submit ở cuối.*
+- [ ] **AI Service Generator & Auto-Adder** (UC-AI-027)
+  - Code: `petties-web/src/pages/clinic-owner/AiServiceGeneratorPage.tsx`
+  - *UI Description: AI tự động generate VÀ thêm services vào clinic.
+
+  **Layout:** Header "Tạo Dịch Vụ Tự Động với AI". Input form section bên trái: Clinic type dropdown (General/Specialist/Emergency), Pet types checkboxes (Dog/Cat/Bird/Exotic), Region (auto-filled từ clinic address, có thể edit).
+
+  **Action button:** "TẠO VÀ THÊM DỊCH VỤ TỰ ĐỘNG" (primary button, màu xanh lá).
+
+  **AI Process Display:** Khi click button → Loading overlay với steps:
+  - Step 1: 🔍 "Đang phân tích master services..." (AI gọi tool get_master_services)
+  - Step 2: 💰 "Đang lấy giá thị trường khu vực {Region}..." (AI gọi tool get_market_pricing từ Spring Boot API)
+  - Step 3: ✍️ "Đang tạo mô tả dịch vụ bằng tiếng Việt..." (AI generate descriptions)
+  - Step 4: ➕ "Đang thêm {N} dịch vụ vào clinic..." (AI gọi tool create_clinic_service for each)
+
+  **Results table:** Service Name, Category, AI Price (editable inline), Description (editable inline), Status column (✅ Success / ❌ Failed với error tooltip). Checkbox mỗi row (default all checked BEFORE creation).
+
+  **Confirmation Step:** Before batch create, show preview modal: "Xác nhận thêm {N} dịch vụ?" với list preview. "XÁC NHẬN THÊM" / "HỦY" buttons.
+
+  **Success Summary:** Toast + card: "✅ Đã thêm 12/15 dịch vụ thành công. 3 dịch vụ bị lỗi (trùng tên hoặc validation failed)." "XEM DỊCH VỤ VỪA TẠO" link → navigate to Clinic Services page.
+
+  **ReAct Flow Panel:** Expandable panel "Chi tiết AI Workflow" hiển thị: Thought → Action (tool calls) → Observation (results) với timestamps. Export log button.*
+- [ ] **AI Clinic Description Composer** (UC-AI-028)
+  - Code: `petties-web/src/pages/clinic-owner/AiDescriptionComposerPage.tsx`
+  - *UI Description: AI viết/edit clinic description. Form inputs: Clinic strengths (checkboxes: Modern equipment, Experienced team, 24/7, etc.), Target customers, Specialties. "TẠO MÔ TẢ" button. AI generate description text (Vietnamese, professional tone). Live preview box. Edit controls. "LƯU MÔ TẢ" button. Character count (max 500).*
 
 ### Modals & Components (Shared)
 - [ ] **Confirm Modal** (UC-MODAL-01)

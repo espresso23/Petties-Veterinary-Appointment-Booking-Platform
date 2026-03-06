@@ -1,7 +1,7 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 2.1.0 (Booking lifecycle aligned with code, loại bỏ trạng thái trung gian legacy)
+**Version:** 2.2.0 (Added Section 3.7 Staff and Scheduling Management - 8 functions documented)
 **Last Updated:** 2026-03-06
 **Document Status:** In Progress
 
@@ -2087,7 +2087,61 @@ Figure 30. Screen Staff Invitation (Web)
     - A1. User already in another clinic – Block invitation (BR-47).
     - A2. User blocked/banned – Prevent invitation.
 
- #### *3.7.2 View Staff List (UC-CM-02)*
+ #### *3.7.2 Remove Staff Member (UC-CM-04)*
+**User Story:**
+> *As a Clinic Owner/Manager, I want to remove a staff member from my clinic so that they no longer have access to clinic operations and scheduling.*
+
+**Function trigger**
+- **Navigation path:** Staff Management → Select Staff → "Remove Staff".
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Owner, Clinic Manager.
+- **Purpose:** Revoke a staff member's association with the clinic (resignation, termination, or role change).
+- **Interface:**
+    1. **Staff Management Table:** List of all staff members with action menu
+    2. **Remove Button:** Three-dot menu → "Remove Staff"
+    3. **Confirmation Dialog:** Warning message with staff name + assigned shifts count
+    4. **Confirm/Cancel Buttons:** Final action buttons
+
+**Data processing**
+1. User clicks "Remove Staff" for a specific staff member.
+2. System displays confirmation modal with warning about active shifts.
+3. User confirms removal.
+4. System validates that staff has no active bookings (status IN_PROGRESS).
+5. System unassigns staff from clinic (sets `working_clinic_id = NULL`).
+6. System deletes all future shifts for this staff (soft delete).
+7. System sends notification to removed staff via email.
+
+**Screen layout**
+Figure 31. Screen Staff Removal Confirmation Dialog (Web)
+
+**Function details**
+- **Data:**
+    - staffId (UUID, required) - ID of staff member to remove
+    - clinicId (UUID, required) - Clinic ID (from path parameter)
+- **Validation:**
+    - **Error Handling:**
+        - E1. Staff has active bookings → Error: "Không thể xóa nhân viên đang có lịch hẹn đang thực hiện"
+        - E2. Staff not found → Error: "Nhân viên không tồn tại"
+        - E3. Staff not in this clinic → Error: "Nhân viên không thuộc phòng khám này"
+        - E4. Cannot remove self → Error: "Không thể tự xóa chính mình khỏi phòng khám"
+    - **Authorization Rules:**
+        - Clinic Owner can remove any staff (Manager or Staff role)
+        - Clinic Manager can only remove Staff role (not other Managers)
+- **Business rules:** BR-48 (Staff can only belong to one clinic at a time).
+- **Normal case:**
+    1. Manager navigates to Staff Management page.
+    2. Manager clicks three-dot menu for "Dr. Nguyen Minh".
+    3. Manager clicks "Remove Staff".
+    4. Confirmation modal shows: "Remove Dr. Nguyen Minh? This will delete 5 future shifts."
+    5. Manager confirms → System removes staff, deletes shifts, sends notification.
+    6. Toast: "Staff removed successfully".
+- **Abnormal/Exception cases:**
+    - A1. Staff has IN_PROGRESS booking → Show error "Cannot remove staff with active appointments".
+    - A2. Last manager in clinic → Warn "Removing last manager will prevent scheduling operations".
+
+ #### *3.7.3 View Staff List (UC-CM-05)*
 **User Story:**
 > *As a Clinic Owner/Manager, I want to view a list of all staff members currently associated with my branch so that I can manage my team.*
 
@@ -2096,280 +2150,386 @@ Figure 30. Screen Staff Invitation (Web)
 - **Timing frequency:** On demand.
 
 **Function description**
-- **Actors/Roles:** Clinic Owner, Manager.
-- **Purpose:** Provide an overview of active and pending staff.
-- **Interface:** Searchable list with name, role, status, and specialty.
-
- #### *3.7.3 Create Staff Shift (UC-CM-04)*
-**User Story:**
-> *As a Clinic Manager, I want to assign specific working hours for Staff across multiple dates and weeks so that I can ensure medical coverage for patient appointments and prevent double-booking.*
-
-**Function trigger**
-- **Navigation Path (Web - Clinic Owner):** Manager Dashboard → Schedules → "Assign Shift".
-- **Timing frequency:** Weekly or monthly planning.
-
-**Function description**
-- **Actors/Roles:** Clinic Manager.
-- **Purpose:** Allocate specific working hours (shifts) to Veterinarians on specific days.
+- **Actors/Roles:** Clinic Owner, Clinic Manager.
+- **Purpose:** Provide an overview of all staff members assigned to the clinic for monitoring and management.
 - **Interface:**
-    - Staff: vetId (Selection).
-    - Work Dates: workDates[] (Multi-select via calendar or dragging).
-    - Start/End Time: startTime, endTime (Time inputs).
-    - Overnight Toggle: Boolean (Auto-detected if End < Start).
-    - Recurring Option: repeatWeeks (1 to 12 weeks).
+    1. **Staff List Table:** Columns: Avatar, Full Name, Role, Specialty, Status, Actions
+    2. **Search Bar:** Filter by name or email
+    3. **Role Filter:** Dropdown (All/Manager/Staff)
+    4. **Action Menu:** Three-dot menu for each staff (View Details / Remove)
 
 **Data processing**
-1. Manager selects a Staff, one or more dates, and a time range.
-2. System detects if the shift is Overnight (End Time < Start Time).
-3. **Conflict Check Logic:**
-    - For each selected date:
-        - System iterates through the Staff's existing shifts for that day (and the next day if overnight).
-        - System uses the `timesOverlap()` helper to compare the new time range with existing shifts.
-        - If an overlap is found, the system collects conflict details (Existing Shift vs New Shift).
-    - If conflicts are found:
-        - System opens a **Conflict Warning Modal** showing specific dates and times of overlap.
-        - User Action: Cancel (return to form) or Confirm Override (Force Create).
-    - If "Confirm Override" or no conflicts:
-        - System creates one or more `STAFF_SHIFT` records.
-        - If `forceUpdate = true`, the Backend performs an Upsert (replacing or merging with existing capacity).
-4. Automatic Trigger: System generates bookable `SLOT` entries for each shift.
+1. System queries all users where `working_clinic_id` matches current clinic.
+2. System displays staff members sorted by role (Manager first, then Staff).
+3. User can search by name or email to filter results.
+4. User can click action menu to view details or remove staff.
 
 **Screen layout**
-Figure 31. Screen Staff Shift Management
-Figure 32. Screen Warning overlap modal
-
-**Function details**
-- **Data:** VetID, WorkDates (List), StartTime, EndTime, forceUpdate (Boolean).
-- **Validation:** 
-    - Start/End Time: If `isOvernight` is true, End Time can be earlier than Start Time.
-    - Max Duration: Total shift duration must be within limits (e.g., 12h per shift).
-    - Date Range: Bulk creation up to 14 days at a time.
-- **Business rules:** BR-18, BR-19, BR-20, BR-49.
-- **Normal case:**
-    1. Manager selects Staff "Dr. Nam".
-    2. Manager selects "Mon-Wed-Fri" and "4 weeks" recurring.
-    3. Manager sets time "08:00 - 17:00".
-    4. System checks for conflicts, finds none, and creates shifts.
-- **Abnormal/Exception cases:**
-    - A1. Shift overlap – System triggers specific Warning Modal (BR-Conflict).
-    - A2. Clinic closed – Shift falls outside of OperatingHours.
-
- #### *3.7.3 Generate Booking Slots (System Logic)*
-**Function trigger**
-- **Timing frequency:** Executed concurrently with `UC-SM-02`.
-- **Navigation path:** Automated system logic from Backend.
-
-**Function description**
-- **Actors/Roles:** System.
-- **Purpose:** Automatically slice a shift into bookable time slots for customers.
-- **Interface:** N/A (View slot list from Admin side).
-
-**Data processing**
-1. System reads shift start/end times and the `isOvernight` flag.
-2. System inherits **Break Time** from the Clinic's `OperatingHours` for that specific day of the week.
-3. System iterates through the time range (splitting at midnight if overnight), creating a `SLOT` entity for each 30-minute interval.
-4. System skips creating slots during defined break times.
-5. System marks new slots as `AVAILABLE`.
-
-**Screen layout**
-(No separate interface for this automated process)
-
-**Function details**
-- **Business rules:** N/A
-
-#### *3.7.4 Manage Shifts - Edit/Delete (UC-CM-16)*
-**User Story:**
-> As a Clinic Manager, I want to edit or delete existing vet shifts so that I can adjust schedules when plans change.
-
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → Click on existing shift → "Chỉnh sửa" hoặc "Xóa".
-- **Timing frequency:** When schedule changes are needed.
-
-**Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Modify shift timing or delete shifts that are no longer needed.
-- **Interface:**
-    - Shift Detail Modal:
-        - Start Time – time input
-        - End Time – time input
-        - "Lưu thay đổi" – primary action
-        - "Xóa ca làm" – danger action
-
-**Data processing**
-1. **Edit Shift:**
-    - Manager modifies start/end time.
-    - System validates conflict with existing bookings.
-    - If bookings exist in affected slots → Warning: "Có {n} booking trong khoảng thời gian này".
-    - Manager confirm → System:
-        - Update `STAFF_SHIFT` record.
-        - Regenerate affected `SLOT` entities.
-        - Notify affected pet owners if bookings impacted.
-
-2. **Delete Shift:**
-    - Manager click "Xóa ca làm" → Confirmation modal.
-    - System checks for existing bookings.
-    - If bookings exist → Error: "Không thể xóa ca làm có booking".
-    - If no bookings → Delete shift and all related `AVAILABLE` slots.
-
-**Screen layout**
-Figure 33. Screen Edit Shift Modal (Web)
+Figure 32. Screen Staff List Management (Web)
 
 **Function details**
 - **Data:**
-    - Request (Edit): `PUT /api/staff-shifts/{id}` + `{ startTime, endTime }`
-    - Request (Delete): `DELETE /api/staff-shifts/{id}`
-    - Response: `{ success: true, message: "..." }`
+    - clinicId (UUID, required) - Clinic ID from path parameter
+    - Response: List of StaffResponse objects containing:
+        - userId (UUID) - Staff user ID
+        - fullName (String) - Staff full name
+        - email (String) - Staff email address
+        - avatar (String, optional) - Avatar URL
+        - role (Role enum) - CLINIC_MANAGER or STAFF
+        - specialty (StaffSpecialty enum, optional) - Only for STAFF role
+        - status (String) - Active/Inactive status
 - **Validation:**
-    - Cannot delete shift with existing bookings (status != AVAILABLE).
-    - Edit must not create conflicts with other shifts.
-- **Business rules:** BR-SM-16 tại (5.1 Business Rules)
-- **Normal case:** Shift updated/deleted, slots regenerated, no booking affected.
+    - User must be Clinic Owner or Clinic Manager
+    - If Clinic Manager: can only view staff from their own clinic
+- **Business rules:** BR-45 (Only Manager and Staff roles are listed, Owner excluded).
+- **Normal case:**
+    1. Manager opens Staff Management page.
+    2. System displays 8 staff members: 1 Manager + 7 Staff (Veterinarians).
+    3. Manager uses search "Nguyen" → Filters to 3 matching staff.
+    4. Manager clicks "View Details" → Opens staff profile modal.
 - **Abnormal/Exception cases:**
-    - A1. Shift has bookings → Toast "Không thể xóa ca làm có lịch hẹn".
-    - A2. Time conflict with another shift → Warning modal.
+    - A1. No staff assigned → Display empty state "Chưa có nhân viên nào. Hãy mời nhân viên mới."
+    - A2. Network error → Toast "Không thể tải danh sách nhân viên".
 
-#### *3.7.5 Manage Clinic Staff (UC-CO-07)*
+ #### *3.7.4 View Own Work Schedule (UC-STAFF-01)*
 **User Story:**
-> As a Clinic Owner, I want to manage all staff in my clinic including viewing details, updating roles, and removing staff so that I can maintain proper team management.
+> *As a Staff, I want to view my personal work schedule (shifts) so that I know when I'm expected to work and can plan my time accordingly.*
 
 **Function trigger**
-- **Navigation path:** Clinic Owner Dashboard → Staff Management → Click staff → Actions menu.
+- **Navigation path:** Staff Mobile → Bottom Tab "Schedule" OR Staff Web → Sidebar "My Schedule".
 - **Timing frequency:** On demand.
 
 **Function description**
-- **Actors/Roles:** Clinic Owner
-- **Purpose:** Full staff lifecycle management - view, update, deactivate.
+- **Actors/Roles:** Staff (Mobile/Web).
+- **Purpose:** Display all shifts assigned to the currently logged-in staff member.
 - **Interface:**
-    - Staff List Table
-    - Staff Detail Modal:
-        - Full Name, Email (readonly)
-        - Role – dropdown (Staff, Manager)
-        - Specialty – dropdown (if Staff)
-        - Status – Active/Inactive toggle
-        - "Cập nhật" / "Xóa khỏi clinic" buttons
+    1. **Calendar View:** Monthly calendar with shift markers
+    2. **List View:** Detailed list of shifts with date, time, break info
+    3. **Shift Card:** Shows work date, start/end time, break times, overnight indicator, notes
+    4. **Filter:** Date range picker (default: current week)
+    5. **Slot Stats:** Total slots, available, booked, blocked counts per shift
 
 **Data processing**
-1. **View Staff:**
-    - System displays all `CLINIC_STAFF` where `clinic_id = current_clinic`.
-    - Includes: Name, Role, Specialty, Join Date, Status.
-
-2. **Update Staff:**
-    - Owner modifies role/specialty/status.
-    - System validates:
-        - Cannot change own role.
-        - Cannot have 0 managers (at least 1 required).
-    - Update `CLINIC_STAFF` record.
-
-3. **Remove Staff:**
-    - Owner click "Xóa khỏi clinic".
-    - System checks pending shifts/bookings.
-    - If none → Set `CLINIC_STAFF.status = INACTIVE`.
-    - Staff loses access to clinic dashboard.
+1. Staff opens Schedule screen.
+2. System queries all shifts where `staff_id = current_user_id`.
+3. System displays shifts in calendar + list view.
+4. User can select date range to view future/past shifts.
+5. User clicks on a shift → View detailed slot breakdown.
 
 **Screen layout**
-Figure 34. Screen Manage Staff (Web)
+Figure 33. Screen My Work Schedule (Mobile - Staff)
+Figure 34. Screen My Work Schedule (Web - Staff)
 
 **Function details**
 - **Data:**
-    - Request (Update): `PUT /api/clinic-staff/{id}` + `{ role, specialty, status }`
-    - Request (Remove): `DELETE /api/clinic-staff/{id}`
+    - staffId (UUID, auto-filled from authenticated user)
+    - startDate (LocalDate, required) - Start of date range
+    - endDate (LocalDate, required) - End of date range
+    - Response: List of StaffShiftResponse containing:
+        - shiftId (UUID) - Shift ID
+        - staffId (UUID) - Staff user ID
+        - staffName (String) - Staff full name
+        - staffAvatar (String, optional) - Avatar URL
+        - clinicId (UUID) - Clinic ID
+        - clinicName (String) - Clinic name
+        - workDate (LocalDate) - Scheduled work date
+        - startTime (LocalTime) - Shift start time
+        - endTime (LocalTime) - Shift end time
+        - breakStart (LocalTime, optional) - Break start time
+        - breakEnd (LocalTime, optional) - Break end time
+        - isOvernight (Boolean) - True if shift spans midnight
+        - notes (String, optional) - Manager notes for this shift
+        - totalSlots (Integer) - Total number of 30-minute slots
+        - availableSlots (Integer) - Available slots count
+        - bookedSlots (Integer) - Booked slots count
+        - blockedSlots (Integer) - Blocked slots count
+        - displayDate (LocalDate) - Date to display shift on calendar
+        - isContinuation (Boolean) - True if overnight shift continuation from previous day
 - **Validation:**
-    - At least 1 Manager must remain.
-    - Cannot remove self.
-- **Business rules:** BR-CO-07 tại (5.1 Business Rules)
-- **Normal case:** Staff updated/removed, access revoked immediately.
+    - User must have role STAFF
+    - Cannot view other staff's schedules
+- **Business rules:** BR-49 (Staff can only view their own shifts).
+- **Normal case:**
+    1. Staff opens "My Schedule" tab.
+    2. System displays calendar with 5 shifts marked for the current week.
+    3. Staff clicks on Monday 2026-03-10 → Sees shift 08:00-17:00 with 1h lunch break.
+    4. Staff sees slot stats: 15 total slots, 8 booked, 7 available.
 - **Abnormal/Exception cases:**
-    - A1. Staff has upcoming shifts → Warning "Staff có ca làm trong tuần tới".
-    - A2. Last manager → Error "Phải có ít nhất 1 quản lý".
+    - A1. No shifts assigned → Display empty state "Bạn chưa có ca làm việc nào".
+    - A2. Overnight shift display → Show on both workDate and next day with "(Tiếp ca)" badge.
 
-#### *3.7.6 Block/Unblock Slot (UC-CM-11)*
+ #### *3.7.5 Create Staff Shift (UC-CM-06)*
 **User Story:**
-> As a Clinic Manager, I want to manually block or unblock specific time slots so that I can handle exceptional situations like equipment maintenance or vet breaks.
+> *As a Clinic Manager, I want to assign specific working hours for Staff across multiple dates using a visual drag-to-create interface so that I can quickly schedule shifts without filling forms.*
 
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → Click on slot → "Khóa slot" hoặc "Mở khóa".
-- **Timing frequency:** On demand for exceptional situations.
+- **Navigation path:** Manager Dashboard → Schedules → Calendar Grid View → Click empty cell + drag.
+- **Timing frequency:** Weekly or monthly planning.
 
 **Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Manually control slot availability for non-standard situations.
-- **Interface:**
-    - Calendar/Grid View with slots
-    - Right-click context menu: "Khóa slot" / "Mở khóa"
-    - Block Reason – dropdown (Bảo trì, Nghỉ đột xuất, Khác)
+- **Actors/Roles:** Clinic Manager, Clinic Owner.
+- **Purpose:** Create staff work shifts using visual drag-to-create UX with automatic slot generation.
+- **Interface (Web):**
+    1. **Staff Shift Grid (Calendar Table):**
+       - **Rows:** Staff members (each staff = 1 row)
+       - **Columns:** Dates (week view, 7 columns for Mon-Sun)
+       - **Cells:** Empty (clickable) or Shift blocks (colored with time range)
+    2. **Drag-to-Create Interaction:**
+       - **Step 1:** Manager clicks empty cell → **Staff Selector Dropdown** appears inline
+       - **Step 2:** Manager selects staff from dropdown
+       - **Step 3:** Manager **drags mouse horizontally** across date cells to select multi-day range
+       - **Step 4:** On **mouse release** → System auto-creates shifts with default time (08:00-17:00)
+       - **No modal form**, no manual date/time input needed
+    3. **Shift Block (Visual):**
+       - Color-coded by staff
+       - Shows time range (e.g., "08:00-17:00")
+       - Click to view details in sidebar
+    4. **Sidebar Detail Panel (when click existing shift):**
+       - Staff name + avatar
+       - Work date(s)
+       - Time range (start, end, break)
+       - Slot statistics (total, booked, available, blocked)
+       - Actions: **Delete Shift** button
 
 **Data processing**
-1. **Block Slot:**
-    - Manager selects slot(s) and chooses "Khóa slot".
-    - System validates slot status = `AVAILABLE`.
-    - Update `SLOT.status = BLOCKED`.
-    - Slot becomes invisible to Pet Owners in booking flow.
-
-2. **Unblock Slot:**
-    - Manager selects blocked slot(s) and chooses "Mở khóa".
-    - Update `SLOT.status = AVAILABLE`.
-    - Slot becomes bookable again.
+1. Manager opens Calendar Grid View (default: current week).
+2. Manager clicks an empty cell in the grid → Staff selector dropdown appears.
+3. Manager selects staff "Dr. Nguyen Minh" from dropdown.
+4. Manager **holds mouse button and drags** across 3 date cells (Mon, Tue, Wed).
+5. On **mouse release**, system captures:
+   - Selected staffId
+   - Start date (first cell) and end date (last cell)
+   - Default time: 08:00-17:00 (from clinic operating hours)
+6. System sends API request with:
+   - staffId
+   - workDates: [Mon, Tue, Wed]
+   - startTime: 08:00
+   - endTime: 17:00
+   - breakStart/breakEnd: auto-filled from clinic OH
+   - repeatWeeks: 1 (default, no repeat)
+7. System validates against clinic operating hours and existing shifts.
+8. System creates 3 StaffShift records and auto-generates ~16 slots per shift.
+9. Grid auto-refreshes → New shift blocks appear in colored cells.
+10. Toast displays: "Created 3 shifts for Dr. Nguyen Minh".
 
 **Screen layout**
-Figure 35. Screen Slot Blocking (Web) - Context menu on calendar.
+Figure 35. Staff Shift Grid Calendar - Drag-to-Create (Web)
+Figure 36. Sidebar Shift Detail Panel (Web)
 
 **Function details**
 - **Data:**
-    - Request: `PUT /api/slots/block` + `{ slotIds: [...], reason: "..." }`
-    - Request: `PUT /api/slots/unblock` + `{ slotIds: [...] }`
+    - **Shift Creation Request (auto-generated from drag interaction):**
+        - staffId (UUID, required) - Selected from dropdown
+        - workDates (List<LocalDate>, required) - Date range from drag selection (1-14 dates)
+        - startTime (LocalTime, default) - 08:00 (or clinic opening time)
+        - endTime (LocalTime, default) - 17:00 (or clinic closing time)
+        - breakStart (LocalTime, optional) - Auto-filled from clinic operating hours
+        - breakEnd (LocalTime, optional) - Auto-filled from clinic operating hours
+        - isOvernight (Boolean, default false) - Calculated based on time
+        - repeatWeeks (Integer, default 1) - No repeat for drag-create
+        - forceUpdate (Boolean, default false) - Skip conflicts by default
+        - notes (String, optional) - Empty for drag-create
+    - **Response:**
+        - List of StaffShiftResponse (newly created shifts)
+        - Summary: "Created X shifts, skipped Y (conflicts)"
 - **Validation:**
-    - Cannot block slot with existing booking.
-    - Can only block `AVAILABLE` slots.
-- **Business rules:** BR-CM-11 tại (5.1 Business Rules)
-- **Normal case:** Slot status toggled, calendar updated.
+    - **Error Handling:**
+        - E1. Staff not found → "Nhân viên không tồn tại"
+        - E2. Staff not in this clinic → "Nhân viên không thuộc phòng khám này"
+        - E3. More than 14 dates dragged → "Không thể tạo quá 14 ca cùng lúc"
+        - E4. Work date in the past → Skip with warning
+        - E5. Clinic closed on dragged day → Skip with warning "Phòng khám đóng cửa vào Thứ Hai"
+        - E6. Shift already exists and forceUpdate=false → Skip with warning "Đã có ca làm"
+    - **Field Validation:**
+        - workDates: At least 1 date (from drag), max 14 dates
+        - Default time range must be within clinic operating hours
+    - **Drag Interaction Validation:**
+        - Must drag horizontally (across dates in same row)
+        - Must select staff before dragging
+        - Cannot drag across different staff rows
+- **Business rules:** BR-50 (Auto slot generation), BR-51 (Default time from clinic OH), BR-52 (Skip conflicts without prompt).
+- **Normal case:**
+    1. Manager opens Calendar Grid for Week 12 (March 10-16).
+    2. Manager clicks empty cell on Monday row for Dr. Nguyen Minh.
+    3. Staff dropdown appears → Manager selects "Dr. Nguyen Minh".
+    4. Manager drags from Monday to Friday (5 cells).
+    5. Manager releases mouse → System creates 5 shifts (Mon-Fri, 08:00-17:00).
+    6. Grid refreshes → 5 colored shift blocks appear.
+    7. Toast: "Created 5 shifts for Dr. Nguyen Minh".
 - **Abnormal/Exception cases:**
-    - A1. Slot đã có booking → Toast "Không thể khóa slot đã có lịch hẹn".
-    - A2. Slot đã blocked → Toast "Slot này đã bị khóa".
+    - A1. Drag includes past date (Sunday is yesterday) → System skips Sunday, creates 4 shifts (Mon-Thu), toast: "Created 4 shifts, skipped 1 (past date)".
+    - A2. Shift already exists on Wednesday → System creates Mon, Tue, Thu, Fri (4 shifts), skips Wed, toast: "Created 4 shifts, skipped 1 (already exists)".
+    - A3. Clinic closed on Tuesday → System creates Mon, Wed, Thu, Fri (4 shifts), skips Tue, toast: "Created 4 shifts, skipped 1 (clinic closed)".
+    - A4. Manager drags more than 14 cells → System limits to first 14 dates, shows warning modal "Tối đa 14 ca cùng lúc".
+    - A5. Network error during creation → Loading indicator, retry button appears.
 
-#### *3.7.7 Bulk Shift Delete (UC-CM-12)*
+
+ #### *3.7.6 View Staff Shift (UC-CM-07)*
 **User Story:**
-> As a Clinic Manager, I want to delete multiple shifts at once so that I can quickly clear schedules when a vet is on extended leave.
+> *As a Clinic Manager, I want to view all staff shifts for my clinic in a date range so that I can monitor coverage and identify scheduling gaps.*
 
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → Select multiple shifts → "Xóa hàng loạt".
-- **Timing frequency:** When vet takes leave or scheduling overhaul.
+- **Navigation path:** Manager Dashboard → Schedules → Select date range.
+- **Timing frequency:** Daily or on demand.
 
 **Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Efficiently remove multiple shifts in one operation.
+- **Actors/Roles:** Clinic Manager, Clinic Owner.
+- **Purpose:** View all staff shifts in a calendar or list format for scheduling oversight.
 - **Interface:**
-    - Calendar with multi-select mode
-    - Checkbox on each shift
-    - "Xóa {n} ca làm đã chọn" – bulk action button
-    - Confirmation Modal with affected shifts list
+    1. **Calendar View:** Monthly calendar with color-coded shift indicators per staff
+    2. **List View:** Table with columns: Staff Name, Date, Time, Slots Stats, Actions
+    3. **Date Range Picker:** Filter by start/end date
+    4. **Staff Filter:** Dropdown to view shifts for specific staff or "All Staff"
+    5. **Shift Detail Modal:** Click on shift → View full details + slot breakdown
+
+**Data processing**
+1. Manager selects date range (e.g., current week).
+2. System queries all shifts for clinic in that range.
+3. System includes overnight shifts from previous day that extend into range.
+4. System displays shifts in calendar with staff name + time labels.
+5. Manager clicks on shift → Modal shows detailed slot list with booking info.
+
+**Screen layout**
+Figure 37. Screen Staff Shift Calendar (Web)
+Figure 38. Screen Shift Detail Modal (Web)
+
+**Function details**
+- **Data:**
+    - clinicId (UUID, required) - Clinic ID from path
+    - startDate (LocalDate, required) - Start of date range
+    - endDate (LocalDate, required) - End of date range
+    - Response: List of StaffShiftResponse (same structure as UC-STAFF-01)
+    - Shift Detail includes:
+        - slots (List of SlotResponse) - All 30-minute slots with status
+        - Each SlotResponse contains:
+            - slotId (UUID)
+            - startTime/endTime (LocalTime)
+            - status (AVAILABLE/BOOKED/BLOCKED)
+            - bookingId (UUID, if booked)
+            - petName/petOwnerName (String, if booked)
+            - serviceName/serviceCategory (String, if booked)
+- **Validation:**
+    - User must be Clinic Manager/Owner of this clinic
+    - Date range cannot exceed 3 months
+- **Business rules:** BR-53 (Overnight shifts appear on next day with continuation badge).
+- **Normal case:**
+    1. Manager opens Schedule Calendar.
+    2. Manager selects "This Week" → Sees 25 shifts across 5 staff members.
+    3. Manager clicks on "Dr. Minh - Mon 08:00-17:00".
+    4. Modal shows 16 slots: 8 booked (green), 6 available (blue), 2 blocked (gray).
+    5. Manager sees booking details for booked slots (pet name + service).
+- **Abnormal/Exception cases:**
+    - A1. No shifts in range → Empty state "Chưa có ca làm việc nào trong khoảng thời gian này".
+    - A2. Overnight shift → Displayed on both days with badge "(Ca đêm)" and "(Tiếp ca)".
+
+ #### *3.7.7 Delete Staff Shift (UC-CM-08)*
+**User Story:**
+> *As a Clinic Manager, I want to delete a staff shift so that I can correct scheduling mistakes or handle staff unavailability.*
+
+**Function trigger**
+- **Navigation path:** Schedule Calendar/List → Select Shift → "Delete Shift".
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager, Clinic Owner.
+- **Purpose:** Remove a scheduled shift from the system.
+- **Interface:**
+    1. **Delete Button:** Three-dot menu → "Delete Shift"
+    2. **Confirmation Dialog:** Warning with shift details + booked slots count
+    3. **Confirm/Cancel Buttons:** Final action
+
+**Data processing**
+1. Manager clicks "Delete Shift" for a specific shift.
+2. System checks if shift has booked slots (status BOOKED).
+3. If booked slots exist → Block deletion with error message.
+4. If no booked slots → Display confirmation modal.
+5. Manager confirms → System deletes shift (cascade deletes available/blocked slots).
+6. System sends notification to staff: "Ca làm ngày {date} đã bị hủy".
+
+**Screen layout**
+Figure 39. Screen Delete Shift Confirmation (Web)
+
+**Function details**
+- **Data:**
+    - shiftId (UUID, required) - Shift ID to delete
+- **Validation:**
+    - **Error Handling:**
+        - E1. Shift has booked slots → "Không thể xóa ca có lịch hẹn đang hoạt động"
+        - E2. Shift not found → "Ca làm việc không tồn tại"
+        - E3. Shift not in manager's clinic → "Không có quyền xóa ca làm của phòng khám khác"
+    - **Authorization:**
+        - Only Clinic Manager/Owner can delete shifts
+- **Business rules:** BR-54 (Cannot delete shifts with active bookings).
+- **Normal case:**
+    1. Manager selects shift "Dr. Minh - Fri 08:00-17:00".
+    2. Manager clicks "Delete Shift".
+    3. Confirmation: "Delete shift on 2026-03-14? No bookings affected."
+    4. Manager confirms → Shift deleted, 16 slots removed.
+    5. Notification sent to Dr. Minh: "Ca làm ngày 2026-03-14 đã bị hủy".
+    6. Toast: "Shift deleted successfully".
+- **Abnormal/Exception cases:**
+    - A1. Shift has 3 booked slots → Error: "Không thể xóa ca có lịch hẹn đang hoạt động".
+    - A2. Manager tries to delete shift from yesterday → Allowed (past shifts can be deleted for cleanup).
+
+ #### *3.7.8 Bulk Delete Shifts (UC-CM-09)*
+**User Story:**
+> *As a Clinic Manager, I want to delete multiple shifts at once so that I can quickly clear incorrect schedules or handle mass cancellations.*
+
+**Function trigger**
+- **Navigation path:** Schedule Calendar → Multi-select mode → Select shifts → "Delete Selected".
+- **Timing frequency:** On demand.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager, Clinic Owner.
+- **Purpose:** Delete multiple shifts in a single operation for efficiency.
+- **Interface:**
+    1. **Multi-select Mode:** Checkbox on each shift card
+    2. **Select All Button:** Bulk select all visible shifts
+    3. **Delete Selected Button:** Appears when ≥2 shifts selected
+    4. **Confirmation Dialog:** Shows list of shifts to delete + total booked slots count
+    5. **Progress Indicator:** Shows deletion progress (X/N shifts deleted)
 
 **Data processing**
 1. Manager enables multi-select mode.
-2. Manager selects multiple shifts (same vet or different vets).
-3. Manager clicks "Xóa hàng loạt".
+2. Manager selects 5 shifts across different staff and dates.
+3. Manager clicks "Delete Selected".
 4. System validates each shift:
-    - No existing bookings (status != AVAILABLE).
-    - Group by: Can delete, Cannot delete.
-5. Confirmation modal shows:
-    - "Có thể xóa: {n} ca làm"
-    - "Không thể xóa: {m} ca làm (có booking)"
-6. Manager confirm → System deletes eligible shifts and slots.
-7. Summary toast: "Đã xóa {n}/{total} ca làm".
+    - Shifts with booked slots → Skipped with warning
+    - Shifts without booked slots → Queued for deletion
+5. Confirmation modal shows: "Delete 5 shifts? 2 shifts have bookings and will be skipped."
+6. Manager confirms → System deletes valid shifts one by one.
+7. System sends individual notifications to affected staff.
+8. Toast displays summary: "Deleted 3 shifts, skipped 2 (active bookings)".
 
 **Screen layout**
-Figure 36. Screen Bulk Shift Delete (Web) - Multi-select calendar.
+Figure 40. Screen Bulk Delete Shifts (Web)
+Figure 41. Screen Bulk Delete Confirmation Dialog (Web)
 
 **Function details**
 - **Data:**
-    - Request: `DELETE /api/staff-shifts/bulk` + `{ shiftIds: [...] }`
-    - Response: `{ deleted: n, failed: m, failedReasons: [...] }`
+    - shiftIds (List<UUID>, required) - List of shift IDs to delete (min 2, max 100)
 - **Validation:**
-    - Each shift must have no bookings.
-- **Business rules:** BR-CM-12 tại (5.1 Business Rules)
-- **Normal case:** All selected shifts deleted, slots cleaned up.
+    - **Error Handling:**
+        - E1. Empty list → "Vui lòng chọn ít nhất một ca làm việc"
+        - E2. More than 100 shifts → "Không thể xóa quá 100 ca cùng lúc"
+        - E3. Individual shift errors → Collected and displayed in summary
+    - **Partial Success Handling:**
+        - System processes all shifts individually
+        - Shifts with bookings are skipped, others deleted
+        - Final toast shows: success count + skipped count + reasons
+- **Business rules:** BR-55 (Partial deletion allowed, display summary of results).
+- **Normal case:**
+    1. Manager selects 10 shifts for "Dr. Minh" next week.
+    2. Manager clicks "Delete Selected".
+    3. Confirmation: "Delete 10 shifts? All shifts are available."
+    4. Manager confirms → System deletes 10 shifts in ~2 seconds.
+    5. Notification to Dr. Minh: "10 ca làm mới bị hủy".
+    6. Toast: "Deleted 10 shifts successfully".
 - **Abnormal/Exception cases:**
-    - A1. Some shifts have bookings → Partial success, list failures.
-    - A2. All shifts have bookings → Toast "Không có ca làm nào có thể xóa".
+    - A1. Mixed results → "Deleted 7 shifts, skipped 3 (2 with bookings, 1 not found)".
+    - A2. All shifts have bookings → "Cannot delete any shifts: all have active bookings".
+
+---
 
 ### 3.8 Booking & Appointment Lifecycle Flow
 
@@ -2616,7 +2776,6 @@ Figure 41. Screen Appointment Progress Actions (Mobile) - Context-aware buttons.
         - `POST /api/bookings/{id}/check-in`
         - `POST /api/bookings/{id}/start-moving`
         - `POST /api/bookings/{id}/checkout`
-        - `POST /api/bookings/{id}/complete`
     - Response: `{ success: true, newStatus: "..." }`
 - **Validation:**
     - Status transitions phải tuân thủ state machine (BOOKING_WORKFLOW.md).
@@ -2703,8 +2862,8 @@ Figure 43. Screen Mark Treatment Finished (Mobile) - EMR summary modal.
 
 **Function details**
 - **Data:**
-    - Request: `POST /api/bookings/{id}/complete`
-    - Response: `{ success: true, message: "Đã hoàn thành khám" }`
+    - Request: `POST /api/bookings/{id}/checkout`
+    - Response: `{ success: true, message: "Đã thanh toán và hoàn tất khám" }`
 - **Validation:**
     - Booking status phải là `IN_PROGRESS`.
     - EMR phải có `assessment` và `plan`.
@@ -3442,49 +3601,13 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
     - E2. Polling timeout (3 consecutive failures): Show persistent error banner "Mất kết nối. Vui lòng kiểm tra mạng.", keep retrying every 10s.
     - E3. Staff location jumps erratically (GPS inaccuracy): App applies smoothing filter (Kalman), ignores outliers >2km from previous position.
 
- #### *3.10.3 Manage Emergency Travel (UC-VT-11 / UC-VT-11b)*
-**User Story:**
-> *As a Staff, I want to broadcast my location and navigate to the emergency site so that I can reach the patient quickly and keep the owner informed.*
-
-**Function trigger**
-- **Navigation path:** Assigned Booking → "Start Travel".
-- **Timing frequency:** Before arrival.
-
-**Function description**
-- **Actors/Roles:** Staff.
-- **Purpose:** Enables emergency travel mode and GPS broadcast for SOS.
-- **Interface:**
-    - Navigation button (Open External Maps)
-    - Status Indicator (En Route / Arriving)
-
-**Data processing**
-1. Sets booking status to `IN_PROGRESS` (Simplified flow: skips `ON_THE_WAY` and `ARRIVED`).
-2. Continuously sends coordinates to the server while Staff is en route.
-3. System uses real-time proximity to notify the Pet Owner when Staff is near, but does not change status to `ARRIVED`.
-4. After completing the medical service, Staff proceeds directly to Checkout.
-
-**Screen layout**
-Figure 42. Screen SOS Travel Logistics (Staff Side - Mobile)
-
-**Function details**
-- **Data:** Staff Lat/Lng.
-- **Business rules:** BR-52, BR-64.
-- **Normal case:**
-    1. Staff receives SOS assignment notification.
-    2. Staff clicks "Bắt đầu di chuyển" to begin emergency response.
-    3. System updates booking status directly to `IN_PROGRESS`.
-    4. System opens external navigation (Google Maps) to owner's location.
-    5. App continuously broadcasts vet's GPS coordinates every 3 seconds.
-    6. System notifies Pet Owner when vet is nearing the destination.
-    7. Staff performs medical service and then clicks "Checkout" to complete.
-
- #### *3.10.4 Receive SOS Alert (Clinic Manager) (UC-CM-20)*
+ #### *3.10.3 Receive SOS Alert & Confirm/Decline (UC-CM-20)*
 **User Story:**
 > *As a Clinic Manager, I want to receive real-time SOS emergency alerts so that I can quickly accept or decline requests based on clinic availability.*
 
 **Function trigger**
-- **Navigation path:** Manager Dashboard → WebSocket subscription to `/topic/clinic/{clinicId}/sos-alert`.
-- **Timing frequency:** Real-time when SOS matching system contacts the clinic (60s timeout per clinic).
+- **Navigation path:** Manager Dashboard → SOS Alerts section (real-time notifications).
+- **Timing frequency:** When SOS matching system contacts the clinic (60-second timeout per clinic).
 
 **Function description**
 - **Actors/Roles:** Clinic Manager.
@@ -3559,7 +3682,7 @@ Figure 44. SOS Alert Modal with Countdown (Web - Manager Dashboard)
     - A2. Decline: Manager declines → System escalates, logs decline reason.
     - A3. Multiple Managers: If multiple managers online, first to click "Accept" wins; others see "Đã được xử lý bởi manager khác".
 
- #### *3.10.5 Cancel SOS Matching (Pet Owner) (UC-PO-18)*
+ #### *3.10.4 Cancel SOS Matching (UC-PO-18)*
 **User Story:**
 > *As a Pet Owner, I want to cancel my SOS request before confirmation so that I can stop the matching process if the emergency is resolved.*
 
@@ -3612,82 +3735,99 @@ Figure 45. Cancel SOS Confirmation Dialog (Mobile)
 - **Abnormal/Exception cases:**
     - A1. Clinic just confirmed (race condition): Backend returns 400 → App shows "Phòng khám đã xác nhận, không thể hủy".
 
- #### *3.10.6 Checkout with Custom SOS Fee (UC-CM-21)*
+ #### *3.10.5 Checkout with Custom SOS Fee (UC-STAFF-10)*
 **User Story:**
-> *As a Clinic Manager, I want to checkout SOS bookings with custom SOS fees included in total price so that I can properly charge for emergency services.*
+> *As a Staff, I want to checkout SOS bookings with custom SOS fees included in total price so that I can properly finalize emergency services and collect payment.*
 
 **Function trigger**
-- **Navigation path:** Manager Dashboard → Bookings List → Select SOS Booking (status = IN_PROGRESS) → "Checkout" button.
-- **Timing frequency:** After staff completes emergency medical service.
+- **Navigation path:** Staff Mobile App → My Bookings Tab → Select SOS Booking (status = IN_PROGRESS) → Booking Detail Screen → "Hoàn tất khám" button.
+- **Timing frequency:** After completing emergency medical examination and EMR documentation.
 
 **Function description**
-- **Actors/Roles:** Clinic Manager (Web).
-- **Purpose:** Finalize SOS booking and collect payment including SOS emergency fee.
+- **Actors/Roles:** Staff (Mobile).
+- **Purpose:** Finalize SOS booking, apply SOS emergency fee, and complete payment for emergency service.
 - **Interface:**
-    1. **Checkout Modal (Web)**:
-       - **Booking Summary:**
+    1. **Booking Detail Screen (Mobile - Staff)**:
+       - **Patient Info Card:**
+           - Pet Name, Species, Owner Name
            - Booking Code (e.g., SOS-12345)
-           - Pet Name, Owner Name
-           - Service Items (if any services added during visit)
-       - **Fee Breakdown:**
-           - Base Services: {amount} VND (if applicable)
-           - **SOS Emergency Fee**: {sosFee} VND (configured per clinic, default 50,000 VND)
-           - **Total Amount**: {totalPrice} VND
-       - **Payment Method Selection:**
-           - Cash / Stripe / Wallet (Placeholder)
-       - **Actions:**
-           - "Confirm Checkout" (primary)
-           - "Cancel" (secondary)
+           - Booking Type Badge: "SOS Emergency"
+       - **EMR Summary Section:**
+           - Assessment, Plan preview
+           - "View Full EMR" link
+       - **Fee Breakdown Card:**
+           - Base Services: {amount} VND (if services added during visit)
+           - **SOS Emergency Fee**: {sosFee} VND (default from clinic config, editable)
+           - **Total Amount**: {totalPrice} VND (auto-calculated)
+       - **SOS Fee Override (Optional):**
+           - Text input field "Điều chỉnh phí SOS (nếu cần)"
+           - Hint: "Để trống nếu dùng phí mặc định"
+       - **Action Button:**
+           - "Hoàn tất khám" (primary button, full width)
+           - "Hủy" (secondary, navigate back)
 
 **Data processing**
-1. Manager opens SOS booking detail (status = IN_PROGRESS) and clicks "Checkout".
-2. Checkout modal displays fee breakdown: Base Services + SOS Emergency Fee = Total Amount.
-3. Manager selects payment method (Cash/Stripe/Wallet) and clicks "Confirm Checkout".
-4. System updates booking status to COMPLETED, records payment method and completion time.
-5. System notifies pet owner, modal closes, booking moves to "Completed" tab.
+1. Staff completes EMR documentation for SOS booking (status = IN_PROGRESS).
+2. Staff navigates to Booking Detail screen, taps "Hoàn tất khám".
+3. System displays fee breakdown with default SOS fee from clinic configuration.
+4. (Optional) Staff can override SOS fee by entering custom amount (e.g., for discount).
+5. Staff reviews total amount and taps "Hoàn tất khám" to confirm.
+6. System sends checkout request with optional `overriddenSosFee` parameter.
+7. Backend updates booking status to COMPLETED, recalculates total price with SOS fee.
+8. System sends notification to pet owner: "Đã hoàn tất khám SOS cho {petName}".
+9. Mobile app navigates back to bookings list, booking moves to "Completed" tab.
 
 **Screen layout**
-Figure 46. Checkout Modal for SOS Booking (Web - Manager Dashboard)
+Figure 46. Booking Detail with Checkout (Mobile - Staff App)
+Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 **Function details**
 - **Data:**
     - **Checkout Request:**
-        - bookingId (UUID) - Booking ID to checkout
-        - paymentMethod (String) - Payment method (CASH, STRIPE, WALLET)
-        - notes (String, optional) - Payment notes
+        - bookingId (UUID) - Booking ID (from path parameter)
+        - overriddenSosFee (BigDecimal, optional) - Override SOS fee if needed (for special cases, e.g., discounts or adjustments)
     - **Response Data:**
         - success (Boolean) - true if checkout successful
         - message (String) - "Checkout thành công"
         - bookingId (UUID) - Booking ID
         - status (String) - "COMPLETED"
         - totalPrice (BigDecimal) - Total amount (including SOS fee)
-        - sosFee (BigDecimal) - SOS emergency fee
+        - sosFee (BigDecimal) - SOS emergency fee applied
         - completedAt (DateTime) - Completion timestamp
 - **Validation:**
     - **Error Handling:**
-        - E1. Booking not in IN_PROGRESS status → HTTP 400
-        - E2. Manager not authorized for booking's clinic → HTTP 403
-        - E3. Payment method required → HTTP 400
+        - E1. Booking not in IN_PROGRESS status → HTTP 400 "Booking không ở trạng thái IN_PROGRESS"
+        - E2. Staff not assigned to this booking → HTTP 403 "Không có quyền checkout lịch hẹn này"
+        - E3. Overridden SOS fee is negative → HTTP 400 "SOS fee không thể âm"
+        - E4. EMR not created yet → Warning dialog "Chưa tạo hồ sơ bệnh án, tiếp tục checkout?"
     - **Business Validation:**
-        - SOS fee must be configured in clinic pricing settings.
-        - If no SOS fee configured, default 50,000 VND is used.
+        - If `overriddenSosFee` not provided, use clinic-configured SOS fee or default 50,000 VND.
+        - Total price recalculated: Base Services + overriddenSosFee (or default SOS fee).
         - Total price must be non-negative.
+        - Staff must be assigned to this booking (security check).
 - **Business rules:**
     - BR-70: SOS fee is configured per clinic via `ClinicPriceService`.
-    - BR-71: SOS fee is added to booking during confirmation, not checkout.
-    - BR-72: Checkout updates status to COMPLETED and records payment method.
+    - BR-71: SOS fee is added to booking during confirmation, can be overridden at checkout.
+    - BR-72: Checkout updates status to COMPLETED and records final total price.
+    - BR-73: Only assigned Staff can checkout SOS bookings (authorization).
 - **Normal case:**
-    1. Staff completes emergency examination for pet "Milo".
-    2. Manager opens booking detail, sees status = IN_PROGRESS.
-    3. Manager clicks "Checkout" → Modal shows:
-        - Base Services: 200,000 VND
-        - SOS Emergency Fee: 50,000 VND
-        - **Total: 250,000 VND**
-    4. Manager selects "Cash" payment, clicks "Confirm Checkout".
-    5. System completes booking, notifies owner: "Đã hoàn tất khám SOS".
+    1. Staff completes emergency examination for pet "Milo" (SOS booking).
+    2. Staff creates EMR with assessment and treatment plan.
+    3. Staff opens booking detail, sees status = IN_PROGRESS.
+    4. Staff taps "Hoàn tất khám" → Fee breakdown displays:
+        - Base Services: 0 VND (no additional services)
+        - SOS Emergency Fee: 50,000 VND (clinic default)
+        - **Total: 50,000 VND**
+    5. Staff taps "Hoàn tất khám" to confirm (no override).
+    6. System completes booking with totalPrice = 50,000 VND.
+    7. Notification sent to owner: "Đã hoàn tất khám SOS cho Milo".
+    8. App navigates back, booking appears in "Completed" tab.
 - **Abnormal/Exception cases:**
-    - A1. Checkout before EMR created: System warns "Chưa tạo hồ sơ bệnh án, tiếp tục checkout?".
-    - A2. Network error during checkout: System retries, shows loading state.
+    - A1. Staff overrides SOS fee to 30,000 VND (special discount) → Staff enters "30000" in override field → Total recalculated to 30,000 VND → Checkout successful.
+    - A2. Checkout before EMR created → Warning dialog "Chưa tạo hồ sơ bệnh án, tiếp tục checkout?" → Staff can choose "Tạo EMR" or "Tiếp tục" (force checkout).
+    - A3. Network error during checkout → App shows retry dialog with "Thử lại" button.
+    - A4. Staff tries to checkout booking assigned to another staff → HTTP 403 "Không có quyền checkout lịch hẹn này".
+
 
 ### 3.11 AI Assistance Flow
 

@@ -93,8 +93,6 @@ export interface ClinicServiceRequest {
   weightPrices?: WeightPriceDto[]
   vaccineTemplateId?: string
   dosePrices?: VaccineDosePriceDTO[]
-  reminderInterval?: number
-  reminderUnit?: string
 }
 
 export interface ClinicServiceUpdateRequest extends Partial<ClinicServiceRequest> {

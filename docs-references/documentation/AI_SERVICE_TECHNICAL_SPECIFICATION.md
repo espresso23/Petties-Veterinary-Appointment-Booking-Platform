@@ -59,21 +59,28 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-004 | Book appointment via chat | Agent gọi `search_clinics` → `check_slots` → `create_booking` (gọi Spring Boot). |
 | UC-019 | Analyze pet health images (Vision) | User gửi ảnh + text; Agent gọi `analyze_pet_image` → LLM multimodal → severity + gợi ý booking. |
 | UC-029 | Retrieve vet tips from web (fallback) | Khi RAG nội bộ không đủ hoặc user hỏi thông tin cập nhật, agent gọi `web_search` để lấy nguồn tham khảo và tóm tắt hướng dẫn/mẹo chăm sóc (kèm trích dẫn nguồn). |
+| UC-AI-030 | Summarize medical history (Pet Owner) | Tool gọi API backend lấy pet health records, vaccinations, past bookings/EMR → AI tóm tắt thành medical summary report với timeline, medications, upcoming appointments. Pet owner có thể export PDF. |
 
-### 2.2 Clinic Staff / Manager (Web)
+### 2.2 Clinic Staff / Manager / Owner (Web + Mobile)
 
-| UC-ID | Tên | Mô tả ngắn |
-|-------|-----|-------------|
-| UC-020 | Assist booking handling | Hỏi AI về tình huống booking, gợi ý thao tác. |
-| UC-021 | Suggest reassigning staff | AI gợi ý nhân viên phù hợp (dựa trên tools gọi backend). |
-| UC-022 | Answer FAQs for customers | RAG + tools trả lời câu hỏi thường gặp. |
-| UC-023 | Summarize patient info & EMR | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff. |
-| UC-024 | Assist creating staff work schedules | AI đề xuất ca làm (ngày/giờ/nhân sự) và có thể gọi tool tạo ca làm trên backend khi người dùng xác nhận. |
-| UC-025 | Suggest optimizing work schedules | (Có thể mở rộng tool.) |
-| UC-026 | Assist setting up clinic | AI hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp theo mô hình vận hành. |
-| UC-027 | Assist adding clinic services | AI gợi ý danh mục dịch vụ phổ biến theo loại pet/nhu cầu, chuẩn hóa tên + mô tả + giá/đơn vị; có thể gọi tool để tạo/cập nhật service trên backend. |
-| UC-028 | Compose clinic description | AI viết/biên tập mô tả phòng khám (giới thiệu, thế mạnh, quy trình, lưu ý), đảm bảo văn phong rõ ràng, không sai sự thật, và phù hợp hiển thị trên app. |
-| UC-030 | Auto-assign staff to bookings | AI reviews unassigned bookings, analyzes staff availability (free slots) and specialties, then **suggests** the best-fit staff for each booking. **Human-in-the-loop required:** Clinic Manager must review and approve suggestions before the system executes the assignment — AI never acts autonomously. |
+**AI Assistant hoạt động như trợ lý ảo (virtual assistant) cho từng role:**
+- **Context-aware:** AI biết user role, clinic context, và task đang làm
+- **Proactive notifications:** AI chủ động gửi alerts/suggestions qua slide-in chat panel hoặc toast notifications
+- **Conversational:** Staff/Manager/Owner chat với AI để nhận gợi ý, phân tích, và thực hiện tasks
+
+| UC-ID | Tên | Role | Mô tả ngắn |
+|-------|-----|------|-------------|
+| UC-020 | AI Staff Assistant (Proactive) | Staff | AI chủ động thông báo: "Bạn có 3 booking pending", "Phát hiện conflict lịch 14:00", "Pet Max sắp hết hạn vaccination". Staff chat để hỏi về booking, EMR, scheduling. |
+| UC-021 | AI Manager Assistant (Proactive) | Manager | AI chủ động alert: "CẢNH BÁO SOS mới - Countdown 50s", "Báo cáo ngày: 25 bookings, 15M doanh thu", "Gợi ý reassign 4 bookings để cân bằng workload", "Tuần tới thiếu 3 ca chiều". Manager chat để xử lý operations. |
+| UC-022 | AI Owner Assistant (Proactive) | Owner | AI chủ động insight: "Doanh thu tháng tăng 18%", "Top 3 dịch vụ revenue", "Booking giảm 12% tuần này do mưa", "Gợi ý mở rộng: Dental Cleaning có nhu cầu cao", "Dr. Hùng workload cao nhất, nên tuyển thêm?". Owner chat để business intelligence. |
+| UC-023 | Summarize patient info & EMR | Staff | Tool gọi API backend lấy pet/booking/EMR, tóm tắt thành patient summary cho Staff trước khi khám. |
+| UC-024 | Assist creating staff work schedules | Manager | AI đề xuất ca làm (ngày/giờ/nhân sự) dựa trên workload analysis, có thể gọi tool tạo shifts khi Manager xác nhận. Human-in-the-loop required. |
+| UC-025 | Suggest optimizing work schedules | Manager | AI phân tích shift patterns, suggest optimizations để cân bằng workload và reduce conflicts. |
+| UC-026 | Assist setting up clinic | Owner | AI-guided setup wizard: hướng dẫn checklist thiết lập phòng khám (địa chỉ, giờ làm, dịch vụ, phí SOS), gợi ý cấu hình phù hợp. |
+| UC-027 | Generate & add clinic services | Owner | **AI tự động generate services:** Owner nhập clinic type + pet types + region → AI analyze master_services + market pricing → generate service list với Vietnamese descriptions + suggested prices → batch create services vào clinic sau confirmation. Human review before execution. |
+| UC-028 | Compose clinic description | Owner | AI viết/biên tập mô tả phòng khám dựa trên strengths, target customers, specialties. Generate professional Vietnamese text phù hợp hiển thị trên app. |
+| UC-030 | Auto-suggest staff assignments | Manager | AI reviews unassigned bookings, analyzes staff availability + specialties, suggests best-fit staff assignments. Manager review & approve before execution. |
+| UC-AI-031 | Proactive notification system | All Clinic Roles | AI chủ động gửi notifications (toast/panel) khi phát hiện issues, insights, hoặc opportunities. User click "XEM" → mở AI chat panel với context focused. Notification types: 🔴 Urgent / 🟡 Warning / 🟢 Info. |
 
 ### 2.3 Admin (Web)
 

@@ -1,7 +1,7 @@
 # II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1 - 17 features)
+**Version:** 3.1.0 (Added Section 4.3 Staff and Scheduling Detailed Design - Class Diagram + 4 Sequence Diagrams)
 **Last Updated:** 2026-03-06
 **Document Status:** In Progress
 
@@ -20,7 +20,738 @@
 - [4. Detailed Design](#4-detailed-design)
     - [4.1 Authentication](#41-authentication)
     - [4.2 User Profile Management](#42-user-profile-management)
-    - [4.3 Staff and Scheduling Management](#43-staff-and-scheduling-management)
+### 4.3 Staff and Scheduling Management
+
+This module handles clinic staff invitation, staff roster management, and work shift scheduling with automatic slot generation for booking availability. It supports overnight shifts, recurring schedules, and conflict detection with existing bookings.
+
+#### 4.3.1 Class Diagram
+
+```mermaid
+classDiagram
+    %% Controllers
+    class ClinicStaffController {
+        -ClinicStaffService staffService
+        +getStaff(UUID clinicId) ResponseEntity~List~StaffResponse~~
+        +hasManager(UUID clinicId) ResponseEntity~Boolean~
+        +inviteByEmail(UUID clinicId, InviteByEmailRequest) ResponseEntity~String~
+        +assignManager(UUID clinicId, String usernameOrEmail) ResponseEntity~String~
+        +assignStaff(UUID clinicId, String usernameOrEmail) ResponseEntity~String~
+        +removeStaff(UUID clinicId, UUID userId) ResponseEntity~String~
+        +updateStaffSpecialty(UUID clinicId, UUID userId, Map) ResponseEntity~String~
+    }
+
+    class StaffShiftController {
+        -StaffShiftService staffShiftService
+        -AuthService authService
+        +createShift(UUID clinicId, StaffShiftRequest) ResponseEntity~List~StaffShiftResponse~~
+        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate) ResponseEntity~List~StaffShiftResponse~~
+        +getMyShifts(LocalDate startDate, LocalDate endDate) ResponseEntity~List~StaffShiftResponse~~
+        +getShiftDetail(UUID shiftId) ResponseEntity~StaffShiftResponse~
+        +deleteShift(UUID shiftId) ResponseEntity~Void~
+        +bulkDeleteShifts(List~UUID~ shiftIds) ResponseEntity~Void~
+        +blockSlot(UUID slotId) ResponseEntity~SlotResponse~
+        +unblockSlot(UUID slotId) ResponseEntity~SlotResponse~
+    }
+
+    %% Services
+    class ClinicStaffService {
+        -ClinicRepository clinicRepository
+        -UserRepository userRepository
+        -AuthService authService
+        -PasswordEncoder passwordEncoder
+        +getClinicStaff(UUID clinicId) List~StaffResponse~
+        +getPublicClinicStaff(UUID clinicId) List~PublicStaffResponse~
+        +hasManager(UUID clinicId) Boolean
+        +inviteByEmail(UUID clinicId, InviteByEmailRequest) void
+        +assignManager(UUID clinicId, String usernameOrEmail) void
+        +assignStaff(UUID clinicId, String usernameOrEmail) void
+        +removeStaff(UUID clinicId, UUID userId) void
+        +updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) void
+        -mapToStaffResponse(User) StaffResponse
+        -mapToPublicStaffResponse(User) PublicStaffResponse
+        -findUserByUsernameOrEmail(String) User
+    }
+
+    class StaffShiftService {
+        -StaffShiftRepository staffShiftRepository
+        -SlotRepository slotRepository
+        -UserRepository userRepository
+        -ClinicRepository clinicRepository
+        -NotificationService notificationService
+        -BookingSlotRepository bookingSlotRepository
+        +createShifts(UUID clinicId, StaffShiftRequest) List~StaffShiftResponse~
+        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate) List~StaffShiftResponse~
+        +getShiftsByStaff(UUID staffId, LocalDate startDate, LocalDate endDate) List~StaffShiftResponse~
+        +getShiftDetail(UUID shiftId) StaffShiftResponse
+        +deleteShift(UUID shiftId) void
+        +bulkDeleteShifts(List~UUID~ shiftIds) void
+        +blockSlot(UUID slotId) SlotResponse
+        +unblockSlot(UUID slotId) SlotResponse
+        -generateSlots(StaffShift, LocalTime breakStart, LocalTime breakEnd) List~Slot~
+        -isInBreakTime(LocalTime, LocalTime, LocalTime, LocalTime) Boolean
+        -validateOperatingHours(Clinic, LocalDate, LocalTime, LocalTime) void
+        -mapToResponse(StaffShift, Boolean includeSlots) StaffShiftResponse
+        -mapSlotToResponse(Slot) SlotResponse
+    }
+
+    %% Repositories
+    class ClinicRepository {
+        <<interface>>
+        +findById(UUID) Optional~Clinic~
+        +save(Clinic) Clinic
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +findByEmail(String) Optional~User~
+        +findByUsernameOrEmail(String, String) Optional~User~
+        +save(User) User
+    }
+
+    class StaffShiftRepository {
+        <<interface>>
+        +findByClinicAndDateRange(UUID clinicId, LocalDate start, LocalDate end) List~StaffShift~
+        +findByStaffAndDateRange(UUID staffId, LocalDate start, LocalDate end) List~StaffShift~
+        +findByIdWithSlots(UUID shiftId) Optional~StaffShift~
+        +findOneByStaff_UserIdAndWorkDate(UUID staffId, LocalDate workDate) Optional~StaffShift~
+        +findOvernightShiftsFromPreviousDay(UUID clinicId, LocalDate date) List~StaffShift~
+        +findOvernightShiftsByStaffFromPreviousDay(UUID staffId, LocalDate date) List~StaffShift~
+        +save(StaffShift) StaffShift
+        +delete(StaffShift) void
+    }
+
+    class SlotRepository {
+        <<interface>>
+        +findById(UUID) Optional~Slot~
+        +findByShift_ShiftIdAndStatusOrderByStartTime(UUID shiftId, SlotStatus) List~Slot~
+        +existsByShift_ShiftIdAndStatus(UUID shiftId, SlotStatus) Boolean
+        +save(Slot) Slot
+    }
+
+    class BookingSlotRepository {
+        <<interface>>
+        +findBySlot_SlotId(UUID slotId) Optional~BookingSlot~
+    }
+
+    %% Entities
+    class Clinic {
+        +UUID clinicId
+        +String name
+        +String address
+        +Map~String,OperatingHours~ operatingHours
+        +User owner
+        +List~User~ staff
+        +LocalDateTime createdAt
+    }
+
+    class User {
+        +UUID userId
+        +String email
+        +String username
+        +String fullName
+        +String avatar
+        +Role role
+        +StaffSpecialty specialty
+        +Clinic workingClinic
+        +String password
+        +LocalDateTime createdAt
+    }
+
+    class StaffShift {
+        +UUID shiftId
+        +Clinic clinic
+        +User staff
+        +LocalDate workDate
+        +LocalTime startTime
+        +LocalTime endTime
+        +LocalTime breakStart
+        +LocalTime breakEnd
+        +Boolean isOvernight
+        +String notes
+        +List~Slot~ slots
+        +LocalDateTime createdAt
+    }
+
+    class Slot {
+        +UUID slotId
+        +StaffShift shift
+        +LocalTime startTime
+        +LocalTime endTime
+        +SlotStatus status
+    }
+
+    class OperatingHours {
+        +LocalTime openTime
+        +LocalTime closeTime
+        +LocalTime breakStart
+        +LocalTime breakEnd
+        +Boolean isClosed
+    }
+
+    %% Enums
+    class Role {
+        <<enumeration>>
+        PET_OWNER
+        STAFF
+        CLINIC_MANAGER
+        CLINIC_OWNER
+        ADMIN
+    }
+
+    class StaffSpecialty {
+        <<enumeration>>
+        GENERAL
+        SURGERY
+        DENTISTRY
+        DERMATOLOGY
+        CARDIOLOGY
+        ONCOLOGY
+        ORTHOPEDICS
+        EXOTIC_PETS
+    }
+
+    class SlotStatus {
+        <<enumeration>>
+        AVAILABLE
+        BOOKED
+        BLOCKED
+    }
+
+    %% DTOs
+    class InviteByEmailRequest {
+        +String email
+        +Role role
+        +StaffSpecialty specialty
+    }
+
+    class StaffResponse {
+        +UUID userId
+        +String fullName
+        +String email
+        +String avatar
+        +Role role
+        +StaffSpecialty specialty
+        +String status
+    }
+
+    class StaffShiftRequest {
+        +Integer repeatWeeks
+        +UUID staffId
+        +List~LocalDate~ workDates
+        +LocalTime startTime
+        +LocalTime endTime
+        +LocalTime breakStart
+        +LocalTime breakEnd
+        +Boolean isOvernight
+        +Boolean forceUpdate
+        +String notes
+    }
+
+    class StaffShiftResponse {
+        +UUID shiftId
+        +UUID staffId
+        +String staffName
+        +String staffAvatar
+        +UUID clinicId
+        +String clinicName
+        +LocalDate workDate
+        +LocalTime startTime
+        +LocalTime endTime
+        +LocalTime breakStart
+        +LocalTime breakEnd
+        +Boolean isOvernight
+        +String notes
+        +LocalDateTime createdAt
+        +Integer totalSlots
+        +Integer availableSlots
+        +Integer bookedSlots
+        +Integer blockedSlots
+        +LocalDate displayDate
+        +Boolean isContinuation
+        +List~SlotResponse~ slots
+    }
+
+    class SlotResponse {
+        +UUID slotId
+        +LocalTime startTime
+        +LocalTime endTime
+        +SlotStatus status
+        +UUID bookingId
+        +String petName
+        +String petOwnerName
+        +UUID bookingServiceId
+        +String serviceName
+        +String serviceCategory
+    }
+
+    %% Controller Dependencies
+    ClinicStaffController --> ClinicStaffService
+    StaffShiftController --> StaffShiftService
+    StaffShiftController --> AuthService
+
+    %% Service Dependencies
+    ClinicStaffService --> ClinicRepository
+    ClinicStaffService --> UserRepository
+    ClinicStaffService --> AuthService
+    StaffShiftService --> StaffShiftRepository
+    StaffShiftService --> SlotRepository
+    StaffShiftService --> UserRepository
+    StaffShiftService --> ClinicRepository
+    StaffShiftService --> BookingSlotRepository
+
+    %% Repository to Entity
+    ClinicRepository --> Clinic
+    UserRepository --> User
+    StaffShiftRepository --> StaffShift
+    SlotRepository --> Slot
+
+    %% Entity Relationships
+    Clinic --> User : owner
+    Clinic --> User : staff *
+    User --> Clinic : workingClinic
+    User --> Role
+    User --> StaffSpecialty
+    StaffShift --> Clinic
+    StaffShift --> User : staff
+    StaffShift --> Slot : slots *
+    Slot --> StaffShift
+    Slot --> SlotStatus
+    Clinic --> OperatingHours : operatingHours *
+
+    %% DTOs usage
+    ClinicStaffController --> InviteByEmailRequest
+    ClinicStaffController --> StaffResponse
+    StaffShiftController --> StaffShiftRequest
+    StaffShiftController --> StaffShiftResponse
+    StaffShiftController --> SlotResponse
+```
+
+#### 4.3.2 Class Specifications
+
+**1. ClinicStaffController**
+- **Responsibility:** Handle HTTP requests for staff management operations
+- **Key Methods:**
+    - `getStaff(clinicId)`: Retrieve list of all staff members for a clinic
+    - `inviteByEmail(clinicId, request)`: Invite new staff member via email (Google OAuth)
+    - `removeStaff(clinicId, userId)`: Remove staff member from clinic
+    - `hasManager(clinicId)`: Check if clinic already has a manager assigned
+    - `updateStaffSpecialty(clinicId, userId, body)`: Update specialty for staff role
+
+**2. ClinicStaffService**
+- **Responsibility:** Business logic for staff invitation, assignment, and removal
+- **Key Methods:**
+    - `inviteByEmail()`: Create user account or assign existing user to clinic with role
+    - `removeStaff()`: Unassign staff from clinic, delete future shifts
+    - `hasManager()`: Validate clinic manager constraint (max 1 manager per clinic)
+    - `getClinicStaff()`: Query all staff members for clinic with role/specialty info
+
+**3. StaffShiftController**
+- **Responsibility:** Handle HTTP requests for shift scheduling and slot management
+- **Key Methods:**
+    - `createShift(clinicId, request)`: Create one or more shifts with auto slot generation
+    - `getShiftsByClinic(clinicId, startDate, endDate)`: View all shifts for clinic in date range
+    - `getMyShifts(startDate, endDate)`: Staff view their own schedule
+    - `deleteShift(shiftId)`: Delete single shift (blocked if has bookings)
+    - `bulkDeleteShifts(shiftIds)`: Delete multiple shifts in batch
+    - `blockSlot(slotId)` / `unblockSlot(slotId)`: Manual slot availability control
+
+**4. StaffShiftService**
+- **Responsibility:** Core business logic for shift creation, validation, and slot generation
+- **Key Methods:**
+    - `createShifts()`: Multi-date shift creation with repeat weeks, conflict detection, force update logic
+    - `generateSlots()`: Auto-generate 30-minute slots excluding break times, handle overnight shifts
+    - `validateOperatingHours()`: Check shift time against clinic operating hours
+    - `getShiftsByClinic()` / `getShiftsByStaff()`: Query shifts with overnight continuation handling
+    - `deleteShift()`: Validate no booked slots before deletion, send staff notification
+    - `bulkDeleteShifts()`: Process list of shift deletions with partial success handling
+
+**5. StaffShiftRepository**
+- **Responsibility:** Database queries for shift records
+- **Custom Queries:**
+    - `findByClinicAndDateRange()`: Clinic schedule calendar query
+    - `findByStaffAndDateRange()`: Staff personal schedule query
+    - `findOneByStaff_UserIdAndWorkDate()`: Check existing shift for conflict detection
+    - `findOvernightShiftsFromPreviousDay()`: Handle overnight shift display logic
+    - `findByIdWithSlots()`: Fetch shift with all slots for detail view
+
+#### 4.3.3 Sequence Diagram: Invite Staff by Email (UC-CM-03)
+
+Manager invites a new staff member via email. System creates user account (or assigns existing user) and sends invitation.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Staff Management (Web)
+    participant CSC as ClinicStaffController
+    participant CSS as ClinicStaffService
+    participant UR as UserRepository
+    participant CR as ClinicRepository
+    participant DB as Database
+
+    CM->>UI: 1. Click "Invite Staff" and fill email + role + specialty
+    activate UI
+    UI->>CSC: 2. POST /api/clinics/{clinicId}/staff/invite-by-email
+    activate CSC
+    CSC->>CSS: 3. inviteByEmail(clinicId, request)
+    activate CSS
+
+    CSS->>CR: 4. findById(clinicId)
+    activate CR
+    CR->>DB: 5. SELECT * FROM clinics WHERE clinic_id = ?
+    DB-->>CR: 6. Return clinic record
+    deactivate CR
+    CR-->>CSS: 7. Clinic Entity
+
+    CSS->>CSS: 8. Validate authorization (Owner/Manager)
+
+    CSS->>CSS: 9. Check if role = MANAGER and clinic has manager
+    alt [Clinic already has Manager]
+        CSS-->>CSC: 10. Throw ResourceAlreadyExistsException
+        CSC-->>UI: 11. HTTP 400 Bad Request
+        UI-->>CM: 12. Error "Phòng khám đã có Quản lý"
+    else [No Manager or role = STAFF]
+        CSS->>UR: 10. findByEmail(email)
+        activate UR
+        UR->>DB: 11. SELECT * FROM users WHERE email = ?
+        DB-->>UR: 12. Return user (or null)
+        deactivate UR
+        UR-->>CSS: 13. Optional User
+
+        alt [User exists]
+            CSS->>CSS: 14. Check if user already assigned to another clinic
+            alt [User in another clinic]
+                CSS-->>CSC: 15. Throw ResourceAlreadyExistsException
+                CSC-->>UI: 16. HTTP 400 "Email đã được gán cho phòng khám khác"
+                UI-->>CM: 17. Display error
+            else [User available]
+                CSS->>CSS: 18. Assign user to clinic, update role + specialty
+                CSS->>UR: 19. save(existingUser)
+                activate UR
+                UR->>DB: 20. UPDATE users SET role = ?, working_clinic_id = ?, specialty = ?
+                DB-->>UR: 21. Success
+                deactivate UR
+                UR-->>CSS: 22. Updated User
+                CSS-->>CSC: 23. Success message
+                deactivate CSS
+                CSC-->>UI: 24. HTTP 200 OK "Staff invited successfully"
+                deactivate CSC
+                UI-->>CM: 25. Toast "Staff invited successfully"
+                deactivate UI
+            end
+        else [User does not exist]
+            CSS->>CSS: 14. Create new user with email, random password, assigned clinic
+            CSS->>UR: 15. save(newUser)
+            activate UR
+            UR->>DB: 16. INSERT INTO users (email, username, role, working_clinic_id, specialty, password)
+            DB-->>UR: 17. Success
+            deactivate UR
+            UR-->>CSS: 18. Created User
+            CSS-->>CSC: 19. Success message
+            deactivate CSS
+            CSC-->>UI: 20. HTTP 200 OK "Staff invited successfully"
+            deactivate CSC
+            UI-->>CM: 21. Toast "Đã mời nhân viên. Họ có thể đăng nhập bằng Google."
+            deactivate UI
+        end
+    end
+```
+
+#### 4.3.4 Sequence Diagram: Create Staff Shift (UC-CM-06)
+
+Manager creates work shifts for staff with automatic slot generation. Supports multi-date, repeat weeks, overnight shifts, and force update with booking conflict detection.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Shift Management (Web)
+    participant SSC as StaffShiftController
+    participant SSS as StaffShiftService
+    participant UR as UserRepository
+    participant CR as ClinicRepository
+    participant SSR as StaffShiftRepository
+    participant SR as SlotRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    CM->>UI: 1. Fill shift form (staff, dates, time, repeat weeks)
+    activate UI
+    UI->>SSC: 2. POST /api/clinics/{clinicId}/shifts (StaffShiftRequest)
+    activate SSC
+    SSC->>SSS: 3. createShifts(clinicId, request)
+    activate SSS
+
+    SSS->>UR: 4. findById(staffId)
+    activate UR
+    UR->>DB: 5. SELECT * FROM users WHERE user_id = ?
+    DB-->>UR: 6. Return staff user
+    deactivate UR
+    UR-->>SSS: 7. User Entity
+
+    SSS->>SSS: 8. Validate staff belongs to this clinic
+
+    SSS->>CR: 9. findById(clinicId)
+    activate CR
+    CR->>DB: 10. SELECT * FROM clinics WHERE clinic_id = ?
+    DB-->>CR: 11. Return clinic record
+    deactivate CR
+    CR-->>SSS: 12. Clinic Entity
+
+    SSS->>SSS: 13. Auto-detect overnight if endTime < startTime
+    SSS->>SSS: 14. Validate break time within shift time
+
+    loop For each workDate in workDates × repeatWeeks
+        SSS->>SSS: 15. Check if workDate is in past → skip
+        SSS->>SSS: 16. validateOperatingHours(clinic, workDate, startTime, endTime)
+        alt [Clinic closed on this day]
+            SSS->>SSS: 17. Skip date with warning
+        else [Clinic open]
+            SSS->>SSR: 18. findOneByStaff_UserIdAndWorkDate(staffId, workDate)
+            activate SSR
+            SSR->>DB: 19. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date = ?
+            DB-->>SSR: 20. Return existing shift (or null)
+            deactivate SSR
+            SSR-->>SSS: 21. Optional StaffShift
+
+            alt [Shift exists AND forceUpdate = false]
+                SSS->>SSS: 22. Skip date "Shift already exists"
+            else [Shift exists AND forceUpdate = true]
+                SSS->>SR: 23. findByShift_ShiftIdAndStatus(shiftId, BOOKED)
+                activate SR
+                SR->>DB: 24. SELECT * FROM slots WHERE shift_id = ? AND status = 'BOOKED'
+                DB-->>SR: 25. Return booked slots
+                deactivate SR
+                SR-->>SSS: 26. List Booked Slots
+
+                alt [New time conflicts with booked slots]
+                    SSS->>SSS: 27. Skip date "Xung đột với lịch hẹn: 09:00-10:00"
+                else [No conflict]
+                    SSS->>SSS: 28. Update shift in-place (clear old slots)
+                    SSS->>SSS: 29. generateSlots(shift, breakStart, breakEnd)
+                    SSS->>SSR: 30. save(updatedShift)
+                    activate SSR
+                    SSR->>DB: 31. UPDATE staff_shifts ... (cascade update slots)
+                    DB-->>SSR: 32. Success
+                    deactivate SSR
+                    SSR-->>SSS: 33. Saved StaffShift
+                    SSS->>SSS: 34. Add to updatedShifts list
+                end
+            else [No existing shift]
+                SSS->>SSS: 22. Create new StaffShift entity
+                SSS->>SSS: 23. Determine break times from clinic operating hours
+                SSS->>SSS: 24. generateSlots(shift, breakStart, breakEnd)
+                SSS->>SSR: 25. save(newShift)
+                activate SSR
+                SSR->>DB: 26. INSERT INTO staff_shifts ... (cascade insert slots)
+                DB-->>SSR: 27. Success
+                deactivate SSR
+                SSR-->>SSS: 28. Saved StaffShift
+                SSS->>SSS: 29. Add to newShifts list
+            end
+        end
+    end
+
+    alt [No shifts created/updated]
+        SSS-->>SSC: 30. Throw BadRequestException "Không thể tạo ca làm việc"
+        SSC-->>UI: 31. HTTP 400 Bad Request
+        UI-->>CM: 32. Error toast
+    else [At least one shift created/updated]
+        alt [New shifts exist]
+            SSS->>NS: 30. notifyStaffShiftsBatchAssigned(staff, newShifts, clinic)
+        end
+        alt [Updated shifts exist]
+            SSS->>NS: 31. notifyStaffShiftsBatchUpdated(staff, updatedShifts, clinic)
+        end
+
+        SSS-->>SSC: 32. List StaffShiftResponse (summary: created + updated + skipped)
+        deactivate SSS
+        SSC-->>UI: 33. HTTP 201 Created
+        deactivate SSC
+        UI-->>CM: 34. Toast "Created 5 shifts, updated 2, skipped 1 (booking conflict)"
+        deactivate UI
+    end
+```
+
+#### 4.3.5 Sequence Diagram: View Own Work Schedule (UC-STAFF-01)
+
+Staff member views their personal work schedule in a date range with shift details and slot statistics.
+
+```mermaid
+sequenceDiagram
+    actor S as Staff
+    participant UI as My Schedule (Mobile/Web)
+    participant SSC as StaffShiftController
+    participant AS as AuthService
+    participant SSS as StaffShiftService
+    participant SSR as StaffShiftRepository
+    participant DB as Database
+
+    S->>UI: 1. Open "My Schedule" and select date range (e.g., This Week)
+    activate UI
+    UI->>SSC: 2. GET /api/shifts/me?startDate=2026-03-10&endDate=2026-03-16
+    activate SSC
+
+    SSC->>AS: 3. getCurrentUser()
+    activate AS
+    AS-->>SSC: 4. Current User Entity
+    deactivate AS
+
+    SSC->>SSS: 5. getShiftsByStaff(currentUser.userId, startDate, endDate)
+    activate SSS
+
+    SSS->>SSR: 6. findByStaffAndDateRange(staffId, startDate, endDate)
+    activate SSR
+    SSR->>DB: 7. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date BETWEEN ? AND ?
+    DB-->>SSR: 8. Return shift records
+    deactivate SSR
+    SSR-->>SSS: 9. List StaffShift
+
+    SSS->>SSR: 10. findOvernightShiftsByStaffFromPreviousDay(staffId, dayBefore)
+    activate SSR
+    SSR->>DB: 11. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date = ? AND is_overnight = true
+    DB-->>SSR: 12. Return overnight shifts
+    deactivate SSR
+    SSR-->>SSS: 13. List Overnight StaffShift
+
+    SSS->>SSS: 14. Map shifts to responses (calculate slot stats: total, available, booked, blocked)
+    SSS->>SSS: 15. Mark overnight continuations with isContinuation=true, displayDate=nextDay
+    SSS->>SSS: 16. Sort by displayDate, then startTime
+
+    SSS-->>SSC: 17. List StaffShiftResponse
+    deactivate SSS
+    SSC-->>UI: 18. HTTP 200 OK (JSON array)
+    deactivate SSC
+
+    UI->>UI: 19. Render calendar with shift markers + list view
+    UI-->>S: 20. Display 5 shifts: Mon 08:00-17:00 (8 booked/16 total), Tue 08:00-17:00...
+    deactivate UI
+
+    S->>UI: 21. Click on Monday shift to view details
+    activate UI
+    UI->>SSC: 22. GET /api/shifts/{shiftId}
+    activate SSC
+    SSC->>SSS: 23. getShiftDetail(shiftId)
+    activate SSS
+    SSS->>SSR: 24. findByIdWithSlots(shiftId)
+    activate SSR
+    SSR->>DB: 25. SELECT * FROM staff_shifts JOIN slots WHERE shift_id = ?
+    DB-->>SSR: 26. Return shift with all slots
+    deactivate SSR
+    SSR-->>SSS: 27. StaffShift with slots
+    SSS->>SSS: 28. Map to StaffShiftResponse (includeSlots=true)
+    SSS-->>SSC: 29. StaffShiftResponse with slot details
+    deactivate SSS
+    SSC-->>UI: 30. HTTP 200 OK
+    deactivate SSC
+    UI-->>S: 31. Show shift detail modal with 16 slots: 8 booked (pet names + services), 6 available, 2 blocked
+    deactivate UI
+```
+
+#### 4.3.6 Sequence Diagram: Bulk Delete Shifts (UC-CM-09)
+
+Manager selects and deletes multiple shifts at once. System validates each shift individually and provides partial success summary.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Shift Calendar (Web)
+    participant SSC as StaffShiftController
+    participant SSS as StaffShiftService
+    participant SSR as StaffShiftRepository
+    participant SR as SlotRepository
+    participant NS as NotificationService
+    participant DB as Database
+
+    CM->>UI: 1. Enable multi-select mode and select 5 shifts
+    activate UI
+    CM->>UI: 2. Click "Delete Selected" button
+    UI->>UI: 3. Show confirmation dialog "Delete 5 shifts?"
+    CM->>UI: 4. Confirm deletion
+    UI->>SSC: 5. DELETE /api/shifts/bulk (Body: [shiftId1, shiftId2, shiftId3, shiftId4, shiftId5])
+    activate SSC
+    SSC->>SSS: 6. bulkDeleteShifts(shiftIds)
+    activate SSS
+
+    loop For each shiftId in shiftIds
+        SSS->>SSR: 7. findByIdWithSlots(shiftId)
+        activate SSR
+        SSR->>DB: 8. SELECT * FROM staff_shifts JOIN slots WHERE shift_id = ?
+        alt [Shift not found]
+            DB-->>SSR: 9. Return null
+            deactivate SSR
+            SSR-->>SSS: 10. Optional.empty()
+            SSS->>SSS: 11. Log skip reason "Shift not found"
+        else [Shift exists]
+            DB-->>SSR: 9. Return shift with slots
+            deactivate SSR
+            SSR-->>SSS: 10. StaffShift Entity
+
+            SSS->>SR: 11. existsByShift_ShiftIdAndStatus(shiftId, BOOKED)
+            activate SR
+            SR->>DB: 12. SELECT COUNT(*) FROM slots WHERE shift_id = ? AND status = 'BOOKED'
+            alt [Has booked slots]
+                DB-->>SR: 13. Return count > 0
+                deactivate SR
+                SR-->>SSS: 14. true
+                SSS->>SSS: 15. Log skip reason "Shift has active bookings"
+            else [No booked slots]
+                DB-->>SR: 13. Return count = 0
+                deactivate SR
+                SR-->>SSS: 14. false
+
+                SSS->>SSS: 15. Save staff info for notification
+                SSS->>SSR: 16. delete(shift)
+                activate SSR
+                SSR->>DB: 17. DELETE FROM staff_shifts WHERE shift_id = ? (cascade delete slots)
+                DB-->>SSR: 18. Success
+                deactivate SSR
+                SSR-->>SSS: 19. void
+
+                SSS->>NS: 20. notifyStaffShiftDeleted(staff, workDate, clinicName)
+                SSS->>SSS: 21. Increment successCount
+            end
+        end
+    end
+
+    SSS->>SSS: 22. Prepare summary (successCount, skippedCount, reasons)
+
+    alt [All shifts deleted]
+        SSS-->>SSC: 23. void
+        deactivate SSS
+        SSC-->>UI: 24. HTTP 204 No Content
+        deactivate SSC
+        UI-->>CM: 25. Toast "Deleted 5 shifts successfully"
+        deactivate UI
+    else [Partial success]
+        SSS-->>SSC: 23. void (success counted)
+        deactivate SSS
+        SSC-->>UI: 24. HTTP 204 No Content
+        deactivate SSC
+        UI-->>CM: 25. Toast "Deleted 3 shifts, skipped 2 (1 not found, 1 with bookings)"
+        deactivate UI
+    else [All skipped]
+        SSS-->>SSC: 23. void (no deletion occurred)
+        deactivate SSS
+        SSC-->>UI: 24. HTTP 204 No Content
+        deactivate SSC
+        UI-->>CM: 25. Toast "Cannot delete any shifts: all have active bookings"
+        deactivate UI
+    end
+```
+
+#### 4.3.7 Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.3.1 Class Diagram | 3.7.1 - 3.7.8 | Overall staff and scheduling module structure |
+| 4.3.3 Invite Staff | 3.7.1 (UC-CM-03) | Email invitation with Google OAuth support |
+| 4.3.4 Create Shift | 3.7.5 (UC-CM-06) | Multi-date shift creation with auto slot generation |
+| 4.3.5 View Own Schedule | 3.7.4 (UC-STAFF-01) | Staff personal schedule view |
+| 4.3.6 Bulk Delete | 3.7.8 (UC-CM-09) | Multi-shift deletion with partial success handling |
+
+---
+
+### 4.4 Pet Profile Management
     - [4.4 Pet Profile Management](#44-pet-profile-management)
     - [4.5 Patient Management](#45-patient-management)
     - [4.6 EMR & Vaccination Management](#46-emr--vaccination-management)
@@ -2779,224 +3510,6 @@ sequenceDiagram
 
 ---
 
-### 4.3 Staff and Scheduling Management
-
-Tương tác quan trọng nhất là việc mời nhân viên (Staff/Manager) vào phòng khám và quản lý ca trực của họ.
-
-#### 4.3.1 Class Diagram - Staffing & Scheduling
-
-```mermaid
-classDiagram
-    class ClinicStaffController {
-        -ClinicStaffService staffService
-        +getStaff(UUID) ResponseEntity
-        +inviteByEmail(UUID, InviteByEmailRequest) ResponseEntity
-        +removeStaff(UUID, UUID) ResponseEntity
-    }
-
-    class ClinicStaffService {
-        -UserRepository userRepository
-        +getClinicStaff(UUID) List~StaffResponse~
-        +inviteByEmail(UUID, InviteByEmailRequest) void
-        +removeStaff(UUID, UUID) void
-    }
-
-    class VetShiftController {
-        -VetShiftService vetShiftService
-        +createShift(UUID, VetShiftRequest) ResponseEntity
-        +getShiftsByClinic(UUID, LocalDate, LocalDate) ResponseEntity
-        +deleteShift(UUID) ResponseEntity
-        +blockSlot(UUID) ResponseEntity
-    }
-
-    class VetShiftService {
-        -VetShiftRepository vetShiftRepository
-        -SlotRepository slotRepository
-        +createShifts(UUID, VetShiftRequest) List~VetShiftResponse~
-        +generateSlots(VetShift, LocalTime, LocalTime) void
-        +validateOperatingHours(...) void
-        +blockSlot(UUID) SlotResponse
-    }
-
-    class VetShiftRepository {
-        <<interface>>
-        +findByClinicAndDateRange(...) List
-        +existsByVet_UserIdAndWorkDateAndTimeRange(...) boolean
-        +save(VetShift) VetShift
-    }
-
-    ClinicStaffController --> ClinicStaffService
-    VetShiftController --> VetShiftService
-    VetShiftService --> VetShiftRepository
-    ClinicStaffService --> UserRepository
-```
-
-#### 4.3.2 Invite Staff by Email (UC-CM-03, UC-CO-06)
-
-```mermaid
-sequenceDiagram
-    actor O as Clinic Owner/Manager
-    participant UI as Staff List Screen
-    participant SC as ClinicStaffController
-    participant SS as ClinicStaffService
-    participant AS as AuthService
-    participant UR as UserRepository
-    participant DB as Database
-
-    O->>UI: 1. Input Email, Role, Specialty (No Name/Phone required)
-    UI->>SC: 2. inviteByEmail(clinicId, request)
-    activate SC
-    SC->>SS: 3. inviteByEmail(clinicId, request)
-    activate SS
-    SS->>AS: 4. getCurrentUser()
-    activate AS
-    AS-->>SS: 5. currentUser
-    deactivate AS
-    SS->>SS: 6. Validate Permissions (Owner vs Manager)
-    SS->>UR: 7. findByEmail(email)
-    activate UR
-    UR->>DB: 8. Query user
-    activate DB
-    DB-->>UR: 9. User Entity (or null)
-    deactivate DB
-    UR-->>SS: 10. User / null
-    deactivate UR
-    alt User Already Exists
-        SS->>SS: 11a. Check if assigned to another clinic
-        SS->>SS: 12a. Update Role & WorkingClinic
-    else New User
-        SS->>SS: 11b. Create User Entity (waiting for Google Login)
-        SS->>SS: 12b. Set Random Password & WorkingClinic
-    end
-    SS->>UR: 13. save(User)
-    activate UR
-    UR->>DB: 14. Save to DB
-    activate DB
-    DB-->>UR: 15. OK
-    deactivate DB
-    UR-->>SS: 16. OK
-    deactivate UR
-    SS-->>SC: 17. void
-    deactivate SS
-    SC-->>UI: 18. 200 OK (Success Message)
-    deactivate SC
-    UI-->>O: 19. "Staff invited successfully" notification
-```
-
-#### 4.3.3 Create Staff Shift (UC-CM-04, UC-CO-07)
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as VetShift Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant R as VetShiftRepository
-    participant DB as Database
-
-    M->>UI: 1. Choose Staff, Dates, Time Range
-    UI->>C: 2. createShift(clinicId, request)
-    activate C
-    C->>S: 3. createShifts(clinicId, request)
-    activate S
-    loop For each WorkDate
-        S->>R: 4. Check for overlaps (existsBy...)
-        R-->>S: 5. Conflict found (Boolean/Entity)
-        alt forceUpdate = false AND Conflicts exist
-            S-->>C: 6a. throw ConflictException
-            C-->>UI: 7a. 409 Conflict (Return conflict details)
-            UI-->>M: 8a. Show Conflict Warning Modal
-        else No Conflicts OR forceUpdate = true
-            S->>S: 6b. Create VetShift Entity
-            S->>S: 7b. Generate 30-min Slots
-            S->>R: 8b. Save Shift & Slots
-            R->>DB: 9b. Persist
-            DB-->>R: 10b. OK
-        end
-    end
-    S-->>C: 11. List~VetShiftResponse~
-    deactivate S
-    C-->>UI: 12. 201 Created
-    deactivate C
-    UI-->>M: 13. Refresh Calendar
-```
-
-#### 4.3.4 Delete Shift & Slot Operations
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant VSR as VetShiftRepository
-    participant SR as SlotRepository
-    participant DB as Database
-
-    M->>UI: 1. Select shift & click "Delete"
-    activate UI
-    UI->>C: 2. deleteShift(shiftId)
-    activate C
-    C->>S: 3. deleteShift(id)
-    activate S
-    S->>VSR: 4. findById(id)
-    activate VSR
-    VSR->>DB: 5. Query shift by ID
-    activate DB
-    DB-->>VSR: 6. VetShift with Slots
-    deactivate DB
-    VSR-->>S: 7. VetShift Entity
-    deactivate VSR
-    S->>S: 8. Check all slots AVAILABLE or BLOCKED
-    alt Has BOOKED slots
-        S-->>C: 9a. throw BadRequestException
-        C-->>UI: 10a. 400 Error: Cannot delete shift with bookings
-        UI-->>M: 11a. Show error message
-    else All slots deletable
-        S->>SR: 9b. deleteAll(slots)
-        activate SR
-        SR->>DB: 10b. Delete all slots of shift
-        activate DB
-        DB-->>SR: 11b. Deleted
-        deactivate DB
-        SR-->>S: 12b. OK
-        deactivate SR
-        S->>VSR: 13b. delete(shift)
-        activate VSR
-        VSR->>DB: 14b. Delete shift
-        activate DB
-        DB-->>VSR: 15b. Deleted
-        deactivate DB
-        VSR-->>S: 16b. OK
-        deactivate VSR
-        S-->>C: 17b. void
-        deactivate S
-        C-->>UI: 18b. 204 No Content
-        deactivate C
-        UI-->>M: 19b. Remove shift from Calendar
-        deactivate UI
-    end
-```
-#### 4.3.5 Business Rules
-
-1. **Staff Roles Control:** 
-    - CLINIC_OWNER có quyền thêm CLINIC_MANAGER và STAFF.
-    - CLINIC_MANAGER chỉ có quyền thêm Nhân viên (STAFF).
-2. **Manager Limit:** Mỗi phòng khám chỉ có tối đa 1 Manager.
-3. **Invitation Logic:** Hỗ trợ mời staff qua email. Nếu email chưa có tài khoản, hệ thống tạo user chờ đăng nhập qua Google OAuth. **Họ tên và Avatar sẽ được đồng bộ tự động từ Google Profile khi login lần đầu**, người mời không cần nhập. (Phone là thông tin không bắt buộc).
-4. **Slot Duration:** Tự động tạo slots 30 phút khi tạo shift.
-5. **Break Time Sync:** Giờ nghỉ tự động lấy từ Clinic Operating Hours nếu shift nằm trong khoảng đó.
-6. **Overnight Shifts:** Nếu endTime < startTime (vd: 22:00 → 06:00), hệ thống tự detect và set isOvernight = true.
-7. **Overlap Prevention:** Mỗi vet chỉ có 1 shift/ngày. Sử dụng forceUpdate=true để ghi đè shift cũ.
-8. **Delete Protection:** Không thể xóa shift có slots ở trạng thái BOOKED.
-9. **Block Permission:** Chỉ CLINIC_OWNER và CLINIC_MANAGER được block/unblock slots.
-10. **Repeat Weeks:** Có thể tạo lịch lặp lại tối đa 12 tuần liên tiếp.
-11. **Past Date Skip:** Không tạo shift cho ngày trong quá khứ.
-12. **Closed Day Skip:** Không tạo shift vào ngày phòng khám đóng cửa.
-13. **SSE Notifications:** Gửi batch notification cho Staff khi được assign shifts mới.
-
----
-
 ### 4.4 Pet Profile Management
 
 #### 4.4.1 Class Diagram - Pet Records
@@ -4227,13 +4740,13 @@ The SOS Emergency Booking module provides real-time emergency veterinary care ma
 | SDD Section | SRS Reference | Description |
 |-------------|---------------|-------------|
 | 4.10.1 Class Diagram | 3.10 SOS Emergency Flow | Overall module structure |
-| 4.10.2 Class Specifications | 3.10.1 - 3.10.6 | Detailed class responsibilities |
-| 4.10.3 Start SOS Matching | UC-PO-16, 3.10.1 | Pet Owner initiates SOS request |
-| 4.10.4 Confirm SOS Request | UC-CM-20, 3.10.2, 3.10.4 | Clinic Manager accepts request |
-| 4.10.5 Decline & Escalate | UC-CM-20, 3.10.4 | Auto-escalation logic |
-| 4.10.6 Get Active SOS Alerts | UC-CM-20, 3.10.4 | Alert synchronization for managers |
-| 4.10.7 Cancel SOS Matching | UC-PO-18, 3.10.5 | Pet Owner cancels before confirmation |
-| 4.10.8 Checkout with Custom Fee | UC-CM-21, 3.10.6 | Checkout with SOS fee included |
+| 4.10.2 Class Specifications | 3.10.1 - 3.10.5 | Detailed class responsibilities |
+| 4.10.3 Start SOS Matching | UC-PO-15, 3.10.1 | Pet Owner initiates SOS request |
+| 4.10.4 Confirm SOS Request | UC-CM-20, 3.10.3 | Clinic Manager accepts request |
+| 4.10.5 Decline & Escalate | UC-CM-20, 3.10.3 | Auto-escalation logic |
+| 4.10.6 Get Active SOS Alerts | UC-CM-20, 3.10.3 | Alert synchronization for managers |
+| 4.10.7 Cancel SOS Matching | UC-PO-18, 3.10.4 | Pet Owner cancels before confirmation |
+| 4.10.8 Checkout with Custom Fee | UC-STAFF-10, 3.10.5 | Staff checkout with optional SOS fee override |
 
 #### 4.10.1 Class Diagram
 
@@ -5205,63 +5718,89 @@ sequenceDiagram
     end
 ```
 
-#### 4.10.8 Sequence Diagram: Checkout with Custom SOS Fee
+#### 4.10.8 Sequence Diagram: Checkout with Custom SOS Fee (UC-STAFF-10)
 
-Clinic Manager finalizes SOS booking by performing checkout. System calculates total price including SOS fee and marks booking as completed.
+Staff member finalizes SOS booking by performing checkout on mobile app. System applies SOS fee (with optional override) and marks booking as completed.
 
 ```mermaid
 sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as BookingDetailModal (Web)
+    actor S as Staff
+    participant UI as Booking Detail Screen (Mobile)
     participant BC as BookingController
     participant BS as BookingService
     participant BR as BookingRepository
+    participant CPS as ClinicPriceService
     participant BNS as BookingNotificationService
     participant DB as Database
 
-    CM->>UI: 1. Open SOS booking detail (status=IN_PROGRESS) & click "Checkout"
+    S->>UI: 1. Open SOS booking detail (status=IN_PROGRESS) & tap "Hoàn tất khám"
     activate UI
-    UI->>UI: 2. Show checkout modal with fee breakdown (Services: 200k VND, SOS Fee: 50k VND, Total: 250k VND)
-    CM->>UI: 3. Select payment method (Cash) & click "Confirm Checkout"
-    UI->>BC: 4. POST /api/bookings/{bookingId}/checkout + CheckoutRequest (paymentMethod="CASH", notes="...")
+    UI->>UI: 2. Show fee breakdown (Base Services + SOS Fee = Total)
+    S->>UI: 3. (Optional) Enter custom SOS fee override (e.g., 30000 for discount)
+    S->>UI: 4. Tap "Hoàn tất khám" to confirm
+    UI->>BC: 5. POST /api/bookings/{bookingId}/checkout (CheckoutRequest: overriddenSosFee=30000)
     activate BC
-    BC->>BS: 5. processCheckoutAuthorized(bookingId, request, currentUser)
+    BC->>BS: 6. processCheckout(bookingId, request, currentUser)
     activate BS
 
-    BS->>BR: 6. findById(bookingId)
+    BS->>BR: 7. findById(bookingId)
     activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    BR->>DB: 8. SELECT * FROM bookings WHERE booking_id = ?
     activate DB
-    DB-->>BR: 8. Booking entity (status=IN_PROGRESS, type=SOS, sosFee=50000, totalPrice=250000)
+    DB-->>BR: 9. Booking entity (status=IN_PROGRESS, type=SOS, basePrice=0, sosFee=50000)
     deactivate DB
-    BR-->>BS: 9. Booking
+    BR-->>BS: 10. Booking
     deactivate BR
 
-    BS->>BS: 10. Validate status == IN_PROGRESS
-    BS->>BS: 11. Validate currentUser has authority (CLINIC_MANAGER or STAFF from booking's clinic)
-    BS->>BS: 12. Verify totalPrice includes sosFee (sosFee was already added during confirmation)
+    BS->>BS: 11. Validate status == IN_PROGRESS
+    BS->>BS: 12. Validate currentUser is assigned staff (authorization check)
+    alt [Staff not assigned to booking]
+        BS-->>BC: 13. Throw ForbiddenException "Không có quyền checkout lịch hẹn này"
+        BC-->>UI: 14. HTTP 403 Forbidden
+        UI-->>S: 15. Error toast "Không có quyền checkout"
+    else [Staff authorized]
+        alt [overriddenSosFee provided]
+            BS->>BS: 13. Validate overriddenSosFee >= 0
+            BS->>BS: 14. Apply overridden fee: sosFee = 30000
+        else [No override]
+            BS->>CPS: 13. getClinicSosFee(clinicId)
+            activate CPS
+            CPS->>DB: 14. SELECT sos_fee FROM clinic_prices WHERE clinic_id = ?
+            activate DB
+            DB-->>CPS: 15. Return configured fee (or null)
+            deactivate DB
+            CPS-->>BS: 16. SOS fee (50000 or default)
+            deactivate CPS
+            BS->>BS: 17. Use clinic-configured or default SOS fee: sosFee = 50000
+        end
 
-    BS->>BR: 13. save(booking with status=COMPLETED, completedAt=now, paymentMethod, paymentStatus=PAID)
-    activate BR
-    BR->>DB: 14. UPDATE bookings SET status = 'COMPLETED', completed_at = ?, payment_method = ?, payment_status = 'PAID' WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 15. Updated
-    deactivate DB
-    BR-->>BS: 16. Booking
-    deactivate BR
+        BS->>BS: 18. Recalculate totalPrice = basePrice + sosFee + additionalServices
+        BS->>BS: 19. Set booking status = COMPLETED, completedAt = now
 
-    BS->>BNS: 17. pushBookingUpdateToUsers(booking, "COMPLETED") - SSE notification to owner + staff
-    activate BNS
-    BNS-->>BS: 18. void
-    deactivate BNS
+        BS->>BR: 20. save(booking with updated status, totalPrice, sosFee, completedAt)
+        activate BR
+        BR->>DB: 21. UPDATE bookings SET status = 'COMPLETED', total_price = ?, sos_fee = ?, completed_at = ? WHERE booking_id = ?
+        activate DB
+        DB-->>BR: 22. Updated
+        deactivate DB
+        BR-->>BS: 23. Booking
+        deactivate BR
 
-    BS->>BS: 19. Build BookingResponse with totalPrice, sosFee breakdown
-    BS-->>BC: 20. BookingResponse (status=COMPLETED, totalPrice=250000, sosFee=50000, completedAt=...)
-    deactivate BS
-    BC-->>UI: 21. HTTP 200 OK + BookingResponse
-    deactivate BC
-    UI-->>CM: 22. Close modal, show toast "Checkout thành công", booking moves to "Completed" tab
-    deactivate UI
+        BS->>BNS: 24. pushBookingUpdateToUsers(booking, "COMPLETED")
+        activate BNS
+        BNS->>BNS: 25. Send SSE notification to pet owner + staff
+        BNS-->>BS: 26. void
+        deactivate BNS
+
+        BS->>BS: 27. Build BookingResponse (status, totalPrice, sosFee, completedAt)
+        BS-->>BC: 28. BookingResponse (status=COMPLETED, totalPrice=30000, sosFee=30000, completedAt=...)
+        deactivate BS
+        BC-->>UI: 29. HTTP 200 OK + BookingResponse
+        deactivate BC
+        UI->>UI: 30. Navigate back to bookings list
+        UI-->>S: 31. Toast "Checkout thành công", booking moves to "Completed" tab
+        deactivate UI
+    end
 ```
 
 ---
@@ -5293,8 +5832,7 @@ Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobi
 | 13 | POST | `/bookings/{id}/check-in` | STAFF, ADMIN | Bắt đầu thực hiện dịch vụ (CONFIRMED → IN_PROGRESS) | ✅ Done |
 | 14 | POST | `/bookings/{id}/start-moving` | STAFF, CLINIC_MANAGER, ADMIN | Bắt đầu di chuyển cho SOS/HOME_VISIT (CONFIRMED → IN_PROGRESS) | ✅ Done |
 | 15 | POST | `/bookings/{id}/arrived` | STAFF, CLINIC_MANAGER, ADMIN | Đánh dấu đã đến nơi (giữ IN_PROGRESS, cập nhật arrivedAt) | ✅ Done |
-| 16 | POST | `/bookings/{id}/checkout` | STAFF, ADMIN | Chốt hóa đơn + thanh toán + COMPLETED | ✅ Done |
-| 17 | POST | `/bookings/{id}/complete` | STAFF, CLINIC_MANAGER, ADMIN | Hoàn thành lịch hẹn (IN_PROGRESS → COMPLETED) | ✅ Done |
+| 16 | POST | `/bookings/{id}/checkout` | STAFF, CLINIC_MANAGER | Chốt hóa đơn, thanh toán và hoàn tất lịch hẹn (IN_PROGRESS → COMPLETED) | ✅ Done |
 
 **Booking Status Flow:**
 ```
@@ -5879,7 +6417,7 @@ sequenceDiagram
             DB-->>ER: 13. EMR created
             deactivate DB
             deactivate ER
-        else Action = checkout/complete
+        else Action = checkout
             SVC->>ER: 14. findByBooking(bookingId)
             activate ER
             ER->>DB: 15. SELECT * FROM emr WHERE booking_id = ?
@@ -5923,7 +6461,7 @@ sequenceDiagram
 **Notes:**
 - Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
 - EMR shell is created when booking starts execution (check-in/start-moving)
-- Checkout/complete requires valid trạng thái hiện tại là IN_PROGRESS
+- Checkout requires valid trạng thái hiện tại là IN_PROGRESS
 - Notifications sent to Pet Owner and Clinic Manager on status changes
 
 #### 4.11.13 Check-in Patient (UC-VT-05)

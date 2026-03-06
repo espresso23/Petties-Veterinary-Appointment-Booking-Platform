@@ -367,10 +367,10 @@ public class BookingController {
     }
 
     /**
-     * Checkout booking (Staff action)
+         * Checkout booking (Staff/Manager action)
      * For SOS bookings, allows overriding the SOS fee
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/checkout")
     public ResponseEntity<BookingResponse> checkout(
             @PathVariable UUID bookingId,
@@ -381,22 +381,6 @@ public class BookingController {
         com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
 
         BookingResponse response = bookingService.processCheckoutAuthorized(bookingId, request, currentUser);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Complete booking (Manager action - after payment confirmed)
-     * Transitions: IN_PROGRESS → COMPLETED
-     */
-    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
-    @PostMapping("/{bookingId}/complete")
-        public ResponseEntity<BookingResponse> complete(
-                @PathVariable UUID bookingId,
-                @AuthenticationPrincipal UserDetails userDetails) {
-            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
-            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
-
-            BookingResponse response = bookingService.complete(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 

@@ -52,8 +52,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import com.petties.petties.model.OperatingHours;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -84,28 +96,25 @@ public class BookingService {
         // ========== HELPER METHODS ==========
 
         /**
-         * Validate vaccine species compatibility between pet and service
-         * Throws BadRequestException if vaccine is not compatible with pet species
+         * Validate vaccine species compatibility between pet and service.
          */
         private void validateVaccineSpeciesCompatibility(Pet pet, ClinicService service) {
-                if (service.getVaccineTemplate() != null) {
-                        var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
-                        if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
-                                String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
-                                throw new BadRequestException(
+                if (service.getVaccineTemplate() == null) {
+                        return;
+                }
+
+                var targetSpecies = service.getVaccineTemplate().getTargetSpecies();
+                if (!SpeciesUtils.isVaccineCompatible(targetSpecies, pet.getSpecies())) {
+                        String vaccineSpecies = SpeciesUtils.getVietnameseName(targetSpecies);
+                        throw new BadRequestException(
                                         String.format("Vắc-xin '%s' chỉ dành cho %s, không phù hợp với thú cưng '%s' của bạn",
-                                                service.getName(), vaccineSpecies, pet.getName())
-                                );
-                        }
+                                                        service.getName(), vaccineSpecies, pet.getName()));
                 }
         }
 
         /**
          * Get current user by userId (helper method for Controller to avoid direct
-         * Repository access)
-         *
-         * @param userId User ID from JWT token
-         * @return User entity
+         * Repository access).
          */
         @Transactional(readOnly = true)
         public User getCurrentUserById(UUID userId) {
@@ -1177,8 +1186,22 @@ public class BookingService {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
 
-                validateExecutionPermission(booking, currentUser);
+                validateCheckoutPermission(booking, currentUser);
                 return processCheckout(bookingId, request, currentUser);
+        }
+
+        private void validateCheckoutPermission(Booking booking, User currentUser) {
+                if (currentUser != null && currentUser.getRole() == Role.ADMIN) {
+                        throw new ForbiddenException("Admin không được checkout booking");
+                }
+
+                validateClinicAccessPermission(booking, currentUser);
+
+                if (currentUser == null || currentUser.getRole() == Role.CLINIC_MANAGER) {
+                        return;
+                }
+
+                validateExecutionPermission(booking, currentUser);
         }
 
         /**
@@ -1475,60 +1498,6 @@ public class BookingService {
                         notificationService.sendStaffArrivedNotification(booking);
                 } catch (Exception e) {
                         log.warn("Failed to send arrival notification: {}", e.getMessage());
-                }
-
-                return bookingMapper.mapToResponse(booking);
-        }
-
-        /**
-         * Complete booking (Manager action - after payment confirmed)
-         * Transitions: IN_PROGRESS → COMPLETED
-         * 
-         * @param bookingId Booking ID
-         * @return Updated booking response
-         */
-        @Transactional
-        public BookingResponse complete(UUID bookingId) {
-                return complete(bookingId, null);
-        }
-
-        @Transactional
-        public BookingResponse complete(UUID bookingId, User currentUser) {
-                log.info("Completing booking {}", bookingId);
-
-                Booking booking = bookingRepository.findById(bookingId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
-
-                validateExecutionPermission(booking, currentUser);
-
-                // Validate status
-                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
-                        throw new IllegalStateException(
-                                        "Chỉ có thể hoàn thành khi booking ở trạng thái IN_PROGRESS. Trạng thái hiện tại: "
-                                                        + booking.getStatus());
-                }
-
-                // Update status to COMPLETED
-                booking.setStatus(BookingStatus.COMPLETED);
-                bookingRepository.save(booking);
-
-                // Clear GPS tracking data from Redis (for SOS/HOME_VISIT bookings)
-                try {
-                        trackingService.clearTracking(bookingId);
-                } catch (Exception e) {
-                        log.warn("Failed to clear tracking data: {}", e.getMessage());
-                }
-
-                log.info("Booking {} completed successfully", booking.getBookingCode());
-
-                // Push SSE event for real-time sync
-                bookingNotificationService.pushBookingUpdateToUsers(booking, "COMPLETED");
-
-                // Notify pet owner
-                try {
-                        notificationService.sendCompletedNotification(booking);
-                } catch (Exception e) {
-                        log.warn("Failed to send completed notification: {}", e.getMessage());
                 }
 
                 return bookingMapper.mapToResponse(booking);

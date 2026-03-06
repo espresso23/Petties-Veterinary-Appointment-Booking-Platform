@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { isAxiosError } from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../../../store/authStore';
-import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableStaffForConfirm, completeBooking, removeServiceFromBooking, cancelBooking, type StaffOption } from '../../../services/bookingService';
+import { getBookingsByClinic, confirmBooking, getBookingById, checkStaffAvailability, confirmBookingWithOptions, addServiceToBooking, getAvailableStaffForConfirm, checkoutBooking, removeServiceFromBooking, cancelBooking, type StaffOption } from '../../../services/bookingService';
 import type { Booking, BookingStatus, BookingServiceItem, StaffAvailabilityCheckResponse } from '../../../types/booking';
 import { BOOKING_STATUS_CONFIG, BOOKING_TYPE_CONFIG, BOOKING_TYPE_LABELS, SERVICE_CATEGORY_LABELS, PAYMENT_STATUS_LABELS, STAFF_SPECIALTY_LABELS } from '../../../types/booking';
 import { ReassignStaffModal } from '../../../components/booking/ReassignStaffModal';
@@ -1398,7 +1398,7 @@ const BookingDetailModal = ({ booking: initialBooking, onClose, onConfirm, onCan
                     {booking.status === 'IN_PROGRESS' && (
                         <>
                             <button onClick={onAddService} className="px-6 py-2 font-bold uppercase bg-amber-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thêm dịch vụ</button>
-                            <button onClick={async () => { await completeBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Checkout</button>
+                            <button onClick={async () => { await checkoutBooking(booking.bookingId); onClose(); window.location.reload(); }} className="px-6 py-2 font-bold uppercase bg-mint-400 border-2 border-stone-900 hover:shadow-[4px_4px_0_#1c1917] transition-all">Thanh toán</button>
                         </>
                     )}
                 </div>

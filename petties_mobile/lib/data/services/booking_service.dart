@@ -22,14 +22,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Complete booking (Staff action: IN_PROGRESS → COMPLETED)
-  Future<BookingResponse> complete(String bookingId) async {
-    final response = await _apiClient.post('/bookings/$bookingId/complete');
-    return BookingResponse.fromJson(response.data);
-  }
-
-  /// Checkout booking (Staff action: IN_PROGRESS → COMPLETED)
-  /// Only callable when status is IN_PROGRESS
+  /// Checkout booking: thanh toán và hoàn tất lịch hẹn (IN_PROGRESS → COMPLETED)
+  /// Chỉ gọi khi booking đang ở trạng thái IN_PROGRESS
   /// @param bookingId Booking UUID
   /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
   Future<BookingResponse> checkout(String bookingId,

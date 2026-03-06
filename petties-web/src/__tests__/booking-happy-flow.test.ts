@@ -21,7 +21,7 @@ import {
   createBooking,
   confirmBooking,
   checkInBooking,
-  completeBooking,
+  checkoutBooking,
   getBookingById,
 } from '../services/bookingService'
 import type { ClinicListResponse, ClinicResponse } from '../types/clinic'
@@ -52,7 +52,7 @@ vi.mock('../services/bookingService', () => ({
   createBooking: vi.fn(),
   confirmBooking: vi.fn(),
   checkInBooking: vi.fn(),
-  completeBooking: vi.fn(),
+  checkoutBooking: vi.fn(),
   getBookingById: vi.fn(),
 }))
 
@@ -330,13 +330,13 @@ describe('Booking Happy Flow - End-to-End', () => {
 
   it('[STEP 8] Staff completes booking (checkout) after treatment', async () => {
     // Setup mock
-    (completeBooking as Mock).mockResolvedValue(mockCompletedBooking)
+    (checkoutBooking as Mock).mockResolvedValue(mockCompletedBooking)
 
     // Execute
-    const result = await completeBooking('booking-001')
+    const result = await checkoutBooking('booking-001')
 
     // Assert
-    expect(completeBooking).toHaveBeenCalledWith('booking-001')
+    expect(checkoutBooking).toHaveBeenCalledWith('booking-001')
     expect(result.status).toBe('COMPLETED') // Hoàn thành
     expect(result.paymentStatus).toBe('PAID') // Đã thanh toán
     expect(result.emrId).toBe('emr-001') // EMR được tạo tự động
@@ -398,8 +398,8 @@ describe('Booking Happy Flow - End-to-End', () => {
     expect(checkedIn.status).toBe('IN_PROGRESS');
 
     // Step 7: Staff checkout
-    (completeBooking as Mock).mockResolvedValue(mockCompletedBooking);
-    const completed = await completeBooking('booking-001');
+    (checkoutBooking as Mock).mockResolvedValue(mockCompletedBooking);
+    const completed = await checkoutBooking('booking-001');
     expect(completed.status).toBe('COMPLETED');
     expect(completed.paymentStatus).toBe('PAID');
     expect(completed.emrId).toBe('emr-001');
@@ -411,7 +411,7 @@ describe('Booking Happy Flow - End-to-End', () => {
     expect(createBooking).toHaveBeenCalled();
     expect(confirmBooking).toHaveBeenCalled();
     expect(checkInBooking).toHaveBeenCalled();
-    expect(completeBooking).toHaveBeenCalled();
+    expect(checkoutBooking).toHaveBeenCalled();
   })
 
   it('[VALIDATION] Booking status transitions are correct', () => {
