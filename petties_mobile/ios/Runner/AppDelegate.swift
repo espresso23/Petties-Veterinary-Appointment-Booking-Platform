@@ -3,6 +3,7 @@ import UIKit
 import FirebaseCore
 import FirebaseMessaging
 import UserNotifications
+import GoogleMaps
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -10,6 +11,11 @@ import UserNotifications
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Initialize Google Maps (key from Secrets.xcconfig via Info.plist)
+    if let mapsAPIKey = Bundle.main.infoDictionary?["GoogleMapsAPIKey"] as? String, !mapsAPIKey.isEmpty {
+      GMSServices.provideAPIKey(mapsAPIKey)
+    }
+    
     // Configure Firebase
     FirebaseApp.configure()
     

@@ -197,6 +197,25 @@ class FcmService {
 
   Future<void> _getToken() async {
     try {
+      // Small delay on iOS to allow APNS registration to complete
+      // On Simulator, this will likely fail, so we proceed quickly
+      if (Platform.isIOS) {
+        debugPrint('Wait for APNS token...');
+        // Try up to 3 times (faster) to get APNS token
+        for (int i = 0; i < 3; i++) {
+          final apnsToken = await _messaging.getAPNSToken();
+          if (apnsToken != null) {
+            debugPrint('✅ APNS Token received: $apnsToken');
+            break;
+          }
+          debugPrint('⏳ Still waiting for APNS token (retry ${i + 1})...');
+          
+          // If on simulator, give up early after first fail to avoid hang
+          // Note: On real device, it can take a few seconds
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+
       _fcmToken = await _messaging.getToken();
       debugPrint('FCM Token: $_fcmToken');
 
