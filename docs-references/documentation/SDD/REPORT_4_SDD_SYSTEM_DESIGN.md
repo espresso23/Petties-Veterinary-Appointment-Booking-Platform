@@ -1,8 +1,8 @@
 # II. Software Design Document
 
-**Project:** Petties - Veterinary Appointment Booking Platform  
-**Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1 - 17 features)  
-**Last Updated:** 2026-03-05  
+**Project:** Petties - Veterinary Appointment Booking Platform
+**Version:** 3.0.0 (Restructured Section 4 to match SRS 2.2 feature structure 1:1 - 17 features)
+**Last Updated:** 2026-03-06
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -4213,6 +4213,1054 @@ sequenceDiagram
     CC-->>UI: 9. Updated Clinic Data
     deactivate CC
     UI-->>Owner: 10. Show uploaded image
+    deactivate UI
+```
+
+---
+
+### 4.10 SOS Emergency Booking
+
+The SOS Emergency Booking module provides real-time emergency veterinary care matching, connecting pet owners in urgent situations with nearby available clinics. The system uses GPS-based proximity search, automated escalation, and WebSocket notifications to ensure rapid response.
+
+#### Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.10.1 Class Diagram | 3.10 SOS Emergency Flow | Overall module structure |
+| 4.10.2 Class Specifications | 3.10.1 - 3.10.6 | Detailed class responsibilities |
+| 4.10.3 Start SOS Matching | UC-PO-16, 3.10.1 | Pet Owner initiates SOS request |
+| 4.10.4 Confirm SOS Request | UC-CM-20, 3.10.2, 3.10.4 | Clinic Manager accepts request |
+| 4.10.5 Decline & Escalate | UC-CM-20, 3.10.4 | Auto-escalation logic |
+| 4.10.6 Get Active SOS Alerts | UC-CM-20, 3.10.4 | Alert synchronization for managers |
+| 4.10.7 Cancel SOS Matching | UC-PO-18, 3.10.5 | Pet Owner cancels before confirmation |
+| 4.10.8 Checkout with Custom Fee | UC-CM-21, 3.10.6 | Checkout with SOS fee included |
+
+#### 4.10.1 Class Diagram
+
+```mermaid
+classDiagram
+    %% Controllers
+    class SosController {
+        -SosMatchingService sosMatchingService
+        +startMatching(SosMatchRequest, UserPrincipal) ResponseEntity~SosMatchResponse~
+        +confirmMatching(UUID, SosConfirmRequest, UserPrincipal) ResponseEntity~SosMatchResponse~
+        +getMatchingStatus(UUID) ResponseEntity~SosMatchResponse~
+        +getActiveSosAlertsForManager(UserPrincipal) ResponseEntity~List~
+        +cancelMatching(UUID, UserPrincipal) ResponseEntity~Void~
+    }
+
+    class BookingController {
+        -BookingService bookingService
+        +checkout(UUID, CheckoutRequest, UserPrincipal) ResponseEntity~BookingResponse~
+        +complete(UUID, UserPrincipal) ResponseEntity~BookingResponse~
+    }
+
+    %% Services
+    class SosMatchingService {
+        -BookingRepository bookingRepository
+        -ClinicRepository clinicRepository
+        -PetRepository petRepository
+        -UserRepository userRepository
+        -LocationService locationService
+        -ClinicPriceService clinicPriceService
+        -SosSessionManager sessionManager
+        -SosNotificationService sosNotificationService
+        -NotificationService notificationService
+        -BookingNotificationService bookingNotificationService
+        +startMatching(SosMatchRequest, UUID) SosMatchResponse
+        +processConfirmation(SosConfirmRequest, UUID) SosMatchResponse
+        +escalateToNextClinic(UUID) SosMatchResponse
+        +checkTimeouts() void
+        +getActiveSosBooking(UUID) Optional~Booking~
+        +getMatchingStatus(UUID) SosMatchResponse
+        +getActiveSosAlertsForManager(UUID) List~SosMatchingStatusMessage~
+        +cancelMatching(UUID, UUID) void
+        -confirmSos(Booking, User, UUID) SosMatchResponse
+        -declineSos(Booking, String) SosMatchResponse
+        -validatePetOwnership(UUID, UUID) Pet
+        -findNearbyClinics(SosMatchRequest) List~Clinic~
+        -createSosBooking(Pet, SosMatchRequest, UUID) Booking
+        -calculateDistance(SosMatchRequest, Clinic) double
+    }
+
+    class SosSessionManager {
+        -RedisTemplate redisTemplate
+        +createSession(UUID, List~Clinic~) void
+        +sessionExists(UUID) boolean
+        +getCurrentIndex(UUID) Optional~Integer~
+        +getClinicIds(UUID) Optional~List~String~~
+        +updateIndex(UUID, int) void
+        +updateNotifiedAt(UUID) void
+        +getElapsedSeconds(UUID) long
+        +hasCurrentClinicTimedOut(UUID) boolean
+        +clearSession(UUID) void
+        +acquireBookingLock(UUID) boolean
+        +releaseBookingLock(UUID) void
+        +acquireUserLock(UUID) boolean
+        +releaseUserLock(UUID) void
+        +getClinicTimeoutSeconds() int
+        +getMaxClinicsToTry() int
+    }
+
+    class SosNotificationService {
+        -SimpMessagingTemplate messagingTemplate
+        -SosSessionManager sessionManager
+        +notifyOwnerClinicContacted(UUID, Clinic, int, int, double) void
+        +notifyOwnerWaitingNext(UUID, Clinic, int, int) void
+        +notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer) void
+        +notifyOwnerNoClinic(UUID) void
+        +notifyOwnerCancelled(UUID) void
+        +alertClinic(Booking, Clinic, int, int) void
+        +notifyClinicStaleAlert(UUID, UUID, MatchingEvent) void
+        -broadcastToOwner(UUID, SosMatchingStatusMessage) void
+        -broadcastToClinic(UUID, SosMatchingStatusMessage) void
+    }
+
+    class BookingService {
+        -BookingRepository bookingRepository
+        -BookingNotificationService bookingNotificationService
+        +processCheckoutAuthorized(UUID, CheckoutRequest, User) BookingResponse
+        +complete(UUID, User) BookingResponse
+    }
+
+    class LocationService {
+        +calculateDistance(BigDecimal, BigDecimal, BigDecimal, BigDecimal) double
+    }
+
+    class ClinicPriceService {
+        +getSosFee(UUID) Optional~BigDecimal~
+    }
+
+    %% Repositories
+    class BookingRepository {
+        <<interface>>
+        +findById(UUID) Optional~Booking~
+        +save(Booking) Booking
+        +findActiveSosBookingsByPetOwner(UUID) List~Booking~
+        +findByStatusAndBookingType(BookingStatus, BookingType) List~Booking~
+        +findByClinicIdAndStatusAndType(UUID, BookingStatus, BookingType, Pageable) Page~Booking~
+        +existsByBookingCode(String) boolean
+    }
+
+    class ClinicRepository {
+        <<interface>>
+        +findById(UUID) Optional~Clinic~
+        +findNearbyClinics(BigDecimal, BigDecimal, double) List~Clinic~
+    }
+
+    class PetRepository {
+        <<interface>>
+        +findById(UUID) Optional~Pet~
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+    }
+
+    %% Entities
+    class Booking {
+        +UUID bookingId
+        +Pet pet
+        +User petOwner
+        +Clinic clinic
+        +User assignedStaff
+        +BookingType type
+        +BookingStatus status
+        +LocalDate bookingDate
+        +LocalTime bookingTime
+        +String notes
+        +String symptoms
+        +String homeAddress
+        +BigDecimal homeLat
+        +BigDecimal homeLong
+        +BigDecimal distanceKm
+        +BigDecimal sosFee
+        +BigDecimal totalPrice
+        +String bookingCode
+        +LocalDateTime confirmedAt
+        +LocalDateTime completedAt
+        +String cancellationReason
+        +LocalDateTime createdAt
+        +boolean deleted
+    }
+
+    class Clinic {
+        +UUID clinicId
+        +String name
+        +String phone
+        +String address
+        +BigDecimal latitude
+        +BigDecimal longitude
+        +ClinicStatus status
+    }
+
+    class Pet {
+        +UUID petId
+        +String name
+        +Species species
+        +String breed
+        +BigDecimal weight
+        +User user
+    }
+
+    class User {
+        +UUID userId
+        +String fullName
+        +String phone
+        +String avatar
+        +Role role
+        +Clinic workingClinic
+    }
+
+    %% Enums
+    class BookingStatus {
+        <<enumeration>>
+        SEARCHING
+        PENDING_CLINIC_CONFIRM
+        CONFIRMED
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+
+    class BookingType {
+        <<enumeration>>
+        APPOINTMENT
+        HOME_VISIT
+        SOS
+    }
+
+    class MatchingEvent {
+        <<enumeration>>
+        CLINIC_NOTIFIED
+        WAITING_NEXT
+        CONFIRMED
+        NO_CLINIC
+        CANCELLED
+    }
+
+    %% DTOs
+    class SosMatchRequest {
+        +UUID petId
+        +String symptoms
+        +String notes
+        +BigDecimal latitude
+        +BigDecimal longitude
+        +String address
+    }
+
+    class SosMatchResponse {
+        +UUID bookingId
+        +BookingStatus status
+        +String message
+        +UUID clinicId
+        +String clinicName
+        +String clinicPhone
+        +String clinicAddress
+        +Double clinicLat
+        +Double clinicLng
+        +Double distanceKm
+        +UUID staffId
+        +String staffName
+        +String staffPhone
+        +String staffAvatarUrl
+        +String wsTopicUrl
+        +LocalDateTime createdAt
+        +LocalDateTime expiresAt
+        +Integer currentClinicIndex
+        +Integer totalClinicsInRange
+        +Long remainingSeconds
+    }
+
+    class SosConfirmRequest {
+        +UUID bookingId
+        +boolean accepted
+        +UUID assignedStaffId
+        +String declineReason
+    }
+
+    class SosMatchingStatusMessage {
+        +UUID bookingId
+        +BookingStatus status
+        +MatchingEvent event
+        +String message
+        +UUID clinicId
+        +String clinicName
+        +String clinicPhone
+        +Double clinicLat
+        +Double clinicLng
+        +Double distanceKm
+        +Integer estimatedMinutes
+        +UUID staffId
+        +String staffName
+        +String staffPhone
+        +String staffAvatarUrl
+        +Integer currentClinicIndex
+        +Integer totalClinicsInRange
+        +Long remainingSeconds
+        +String petName
+        +String petSpecies
+        +String petBreed
+        +BigDecimal petWeight
+        +String symptoms
+        +String petOwnerName
+        +String petOwnerPhone
+        +String homeAddress
+        +Double homeLat
+        +Double homeLong
+    }
+
+    class CheckoutRequest {
+        +String paymentMethod
+        +String notes
+    }
+
+    %% Controller Dependencies
+    SosController --> SosMatchingService
+    BookingController --> BookingService
+
+    %% Service Dependencies
+    SosMatchingService --> BookingRepository
+    SosMatchingService --> ClinicRepository
+    SosMatchingService --> PetRepository
+    SosMatchingService --> UserRepository
+    SosMatchingService --> LocationService
+    SosMatchingService --> ClinicPriceService
+    SosMatchingService --> SosSessionManager
+    SosMatchingService --> SosNotificationService
+    BookingService --> BookingRepository
+
+    %% Repository to Entity
+    BookingRepository --> Booking
+    ClinicRepository --> Clinic
+    PetRepository --> Pet
+    UserRepository --> User
+
+    %% Entity Relationships
+    Booking --> Pet
+    Booking --> User
+    Booking --> Clinic
+    Pet --> User
+    User --> Clinic
+```
+
+#### 4.10.2 Class Specifications
+
+**1. SosController**
+- **Responsibility:** REST API endpoints for SOS emergency booking operations.
+- **Key Methods:**
+    - `startMatching(SosMatchRequest, UserPrincipal)`: Initiates SOS matching process for pet owner.
+    - `confirmMatching(UUID, SosConfirmRequest, UserPrincipal)`: Clinic manager accepts or declines SOS request.
+    - `getMatchingStatus(UUID)`: Retrieves current matching status for a booking.
+    - `getActiveSosAlertsForManager(UserPrincipal)`: Returns active SOS alerts for logged-in clinic manager (catch-up mechanism).
+    - `cancelMatching(UUID, UserPrincipal)`: Pet owner cancels SOS request before confirmation.
+
+**2. SosMatchingService**
+- **Responsibility:** Core business logic for SOS matching, escalation, and timeout handling.
+- **Key Methods:**
+    - `startMatching(SosMatchRequest, UUID)`: Creates SOS booking, finds nearby clinics, notifies first clinic.
+    - `processConfirmation(SosConfirmRequest, UUID)`: Handles clinic acceptance/decline with staff assignment validation.
+    - `escalateToNextClinic(UUID)`: Moves to next clinic when current times out or declines.
+    - `checkTimeouts()`: Scheduled job checks for timed-out bookings (runs every 5 seconds).
+    - `getActiveSosBooking(UUID)`: Retrieves active SOS booking for pet owner (prevents duplicates).
+    - `getActiveSosAlertsForManager(UUID)`: Fetches active alerts for clinic manager (WebSocket catch-up).
+    - `cancelMatching(UUID, UUID)`: Cancels SOS matching and clears Redis session.
+    - `confirmSos(Booking, User, UUID)`: Confirms SOS, assigns staff, applies SOS fee, notifies owner.
+    - `declineSos(Booking, String)`: Logs decline reason and escalates to next clinic.
+
+**3. SosSessionManager**
+- **Responsibility:** Manages Redis-based SOS matching sessions with distributed locking.
+- **Key Methods:**
+    - `createSession(UUID, List<Clinic>)`: Stores clinic list and initial index in Redis.
+    - `sessionExists(UUID)`: Checks if session exists for booking.
+    - `getCurrentIndex(UUID)`: Retrieves current clinic index from session.
+    - `getClinicIds(UUID)`: Retrieves clinic ID list from session.
+    - `updateIndex(UUID, int)`: Updates current clinic index when escalating.
+    - `updateNotifiedAt(UUID)`: Updates timestamp when clinic is notified (for timeout calculation).
+    - `getElapsedSeconds(UUID)`: Calculates elapsed time since last notification.
+    - `hasCurrentClinicTimedOut(UUID)`: Checks if 60-second timeout exceeded.
+    - `clearSession(UUID)`: Deletes session from Redis (on completion/cancellation).
+    - `acquireBookingLock(UUID)`: Acquires distributed lock for booking (prevents race conditions).
+    - `releaseBookingLock(UUID)`: Releases distributed lock.
+    - `acquireUserLock(UUID)`: Acquires lock for user (prevents duplicate SOS requests).
+    - `releaseUserLock(UUID)`: Releases user lock.
+
+**4. SosNotificationService**
+- **Responsibility:** WebSocket broadcasting for real-time SOS status updates.
+- **WebSocket Topics:**
+    - `/topic/sos-matching/{bookingId}` - Pet owner subscribes for status updates
+    - `/topic/clinic/{clinicId}/sos-alert` - Clinic managers subscribe for SOS alerts
+- **Key Methods:**
+    - `notifyOwnerClinicContacted(UUID, Clinic, int, int, double)`: Notifies owner that clinic is being contacted.
+    - `notifyOwnerWaitingNext(UUID, Clinic, int, int)`: Notifies owner about escalation to next clinic.
+    - `notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer)`: Notifies owner of confirmation with staff details.
+    - `notifyOwnerNoClinic(UUID)`: Notifies owner that no clinics are available.
+    - `notifyOwnerCancelled(UUID)`: Notifies owner that request was cancelled.
+    - `alertClinic(Booking, Clinic, int, int)`: Sends SOS alert to clinic managers.
+    - `notifyClinicStaleAlert(UUID, UUID, MatchingEvent)`: Notifies clinic that alert is no longer active (handled/timed out).
+
+**5. BookingService**
+- **Responsibility:** General booking operations including checkout and completion.
+- **Key Methods:**
+    - `processCheckoutAuthorized(UUID, CheckoutRequest, User)`: Processes checkout for bookings including SOS fee calculation.
+    - `complete(UUID, User)`: Marks booking as completed after payment confirmation.
+
+**6. SosSessionManager (Redis Data Structure)**
+- **Session Format:**
+    ```
+    sos:session:{bookingId} -> {
+      "clinicIds": ["uuid1", "uuid2", ...],
+      "currentIndex": 0,
+      "notifiedAt": 1234567890,
+      "maxClinics": 5,
+      "timeoutSeconds": 60
+    }
+    sos:lock:booking:{bookingId} -> 1 (TTL: 10s)
+    sos:lock:user:{userId} -> 1 (TTL: 10s)
+    ```
+
+**Business Rules:**
+- **BR-59:** Search radius 10km from user location
+- **BR-60:** Max 5 clinics to try
+- **BR-61:** 60 seconds timeout per clinic
+- **BR-62:** No duplicate active SOS bookings per user (enforced by user lock)
+- **BR-63:** Distributed lock prevents race conditions during confirmation
+- **BR-64:** Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
+- **BR-65:** Session TTL = 60s × 5 clinics + 60s buffer = 360 seconds
+- **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
+- **BR-67:** Clinic manager must assign staff when accepting SOS
+- **BR-68:** Pet owner can only cancel SOS before clinic confirmation
+- **BR-69:** After cancellation, Redis session is cleared and matching stops immediately
+- **BR-70:** SOS fee is configured per clinic via ClinicPriceService (default: 50,000 VND)
+- **BR-71:** SOS fee is added to booking.totalPrice during confirmation, not checkout
+- **BR-72:** Checkout updates status to COMPLETED and records payment method
+
+#### 4.10.3 Sequence Diagram: Start SOS Matching Flow
+
+Pet Owner initiates SOS emergency request with GPS coordinates. System finds nearby clinics, creates booking, and begins matching process.
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as SosRadarMapScreen (Mobile)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant SM as SosSessionManager
+    participant BR as BookingRepository
+    participant CR as ClinicRepository
+    participant PR as PetRepository
+    participant SN as SosNotificationService
+    participant DB as Database
+
+    PO->>UI: 1. Fill symptoms, location & click "Request SOS"
+    activate UI
+    UI->>SC: 2. POST /api/sos/start + SosMatchRequest
+    activate SC
+    SC->>MS: 3. startMatching(request, petOwnerId)
+    activate MS
+
+    MS->>SM: 4. acquireUserLock(petOwnerId)
+    activate SM
+    SM->>DB: 5. SETNX sos:lock:user:{userId} 1 EX 10
+    activate DB
+    DB-->>SM: 6. Lock acquired (true)
+    deactivate DB
+    SM-->>MS: 7. true
+    deactivate SM
+
+    MS->>BR: 8. findActiveSosBookingsByPetOwner(petOwnerId)
+    activate BR
+    BR->>DB: 9. SELECT * FROM bookings WHERE pet_owner_id = ? AND status IN ('SEARCHING', 'PENDING_CLINIC_CONFIRM', 'CONFIRMED') AND type = 'SOS' AND deleted = false
+    activate DB
+    DB-->>BR: 10. Empty list (no active SOS)
+    deactivate DB
+    BR-->>MS: 11. Optional.empty()
+    deactivate BR
+
+    MS->>PR: 12. findById(petId)
+    activate PR
+    PR->>DB: 13. SELECT * FROM pets WHERE pet_id = ?
+    activate DB
+    DB-->>PR: 14. Pet entity
+    deactivate DB
+    PR-->>MS: 15. Pet
+    deactivate PR
+
+    MS->>MS: 16. Validate pet ownership (pet.user.userId == petOwnerId)
+
+    MS->>CR: 17. findNearbyClinics(lat, lng, 10km)
+    activate CR
+    CR->>DB: 18. SELECT * FROM clinics WHERE status = 'APPROVED' AND ST_DWithin(location, ST_MakePoint(?, ?), 10000) ORDER BY ST_Distance(location, ST_MakePoint(?, ?)) LIMIT 5
+    activate DB
+    DB-->>CR: 19. List~Clinic~ (sorted by distance)
+    deactivate DB
+    CR-->>MS: 20. List~Clinic~ (max 5)
+    deactivate CR
+
+    alt No clinics found
+        MS->>MS: 21. buildNoClinicResponse()
+        MS-->>SC: 22. SosMatchResponse (status=CANCELLED, message="Không tìm thấy phòng khám...")
+        SC-->>UI: 23. HTTP 200 OK + SosMatchResponse
+        UI-->>PO: 24. Display "No clinics available within 10km"
+        MS->>SM: 25. releaseUserLock(petOwnerId)
+        activate SM
+        SM->>DB: 26. DEL sos:lock:user:{userId}
+        deactivate SM
+    else Clinics found
+        MS->>BR: 21c. save(new Booking(type=SOS, status=SEARCHING, ...))
+        activate BR
+        BR->>DB: 22c. INSERT INTO bookings (booking_id, pet_id, pet_owner_id, type, status, symptoms, home_address, home_lat, home_long, booking_code, ...) VALUES (...)
+        activate DB
+        DB-->>BR: 23c. Booking created
+        deactivate DB
+        BR-->>MS: 24c. Booking entity
+        deactivate BR
+
+        MS->>SM: 25c. createSession(bookingId, nearbyClinics)
+        activate SM
+        SM->>DB: 26c. SETEX sos:session:{bookingId} 360 '{"clinicIds": [...], "currentIndex": 0, "notifiedAt": ..., "maxClinics": 5, "timeoutSeconds": 60}'
+        activate DB
+        DB-->>SM: 27c. OK
+        deactivate DB
+        SM-->>MS: 28c. void
+        deactivate SM
+
+        MS->>SN: 29c. alertClinic(booking, firstClinic, 0, totalClinics)
+        activate SN
+        SN->>SN: 30c. Build SosMatchingStatusMessage
+        SN->>SN: 31c. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", message)
+        SN-->>MS: 32c. void
+        deactivate SN
+
+        MS->>SM: 33c. updateNotifiedAt(bookingId)
+        activate SM
+        SM->>DB: 34c. HSET sos:session:{bookingId} notifiedAt {currentTimestamp}
+        deactivate SM
+
+        MS->>BR: 35c. save(booking with status=PENDING_CLINIC_CONFIRM, clinic=firstClinic)
+        activate BR
+        BR->>DB: 36c. UPDATE bookings SET status = 'PENDING_CLINIC_CONFIRM', clinic_id = ? WHERE booking_id = ?
+        activate DB
+        DB-->>BR: 37c. Updated
+        deactivate DB
+        BR-->>MS: 38c. Booking
+        deactivate BR
+
+        MS->>SN: 39c. notifyOwnerClinicContacted(bookingId, firstClinic, 0, totalClinics, distanceKm)
+        activate SN
+        SN->>SN: 40c. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", message)
+        SN-->>MS: 41c. void
+        deactivate SN
+
+        MS->>MS: 42c. buildMatchingStartedResponse(booking, firstClinic, request)
+        MS-->>SC: 43c. SosMatchResponse (bookingId, status=PENDING_CLINIC_CONFIRM, clinicName, wsTopicUrl, ...)
+        deactivate MS
+        SC-->>UI: 44c. HTTP 201 Created + SosMatchResponse
+        deactivate SC
+        UI-->>PO: 45c. Navigate to radar map, display clinic info + countdown timer
+        deactivate UI
+
+        MS->>SM: 46c. releaseUserLock(petOwnerId)
+        activate SM
+        SM->>DB: 47c. DEL sos:lock:user:{userId}
+        deactivate SM
+    end
+```
+
+#### 4.10.4 Sequence Diagram: Confirm SOS Request (Accept)
+
+Clinic Manager reviews SOS alert and accepts the request by assigning a staff member. System updates booking, applies SOS fee, and notifies pet owner.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as SosAlertModal (Web)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant SM as SosSessionManager
+    participant BR as BookingRepository
+    participant UR as UserRepository
+    participant CPS as ClinicPriceService
+    participant SN as SosNotificationService
+    participant NS as NotificationService
+    participant DB as Database
+
+    CM->>UI: 1. Review alert & click "Accept" + select staff
+    activate UI
+    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + SosConfirmRequest (accepted=true, assignedStaffId=UUID)
+    activate SC
+    SC->>MS: 3. processConfirmation(request, clinicManagerId)
+    activate MS
+
+    MS->>SM: 4. acquireBookingLock(bookingId)
+    activate SM
+    SM->>DB: 5. SETNX sos:lock:booking:{bookingId} 1 EX 10
+    activate DB
+    DB-->>SM: 6. Lock acquired (true)
+    deactivate DB
+    SM-->>MS: 7. true
+    deactivate SM
+
+    MS->>BR: 8. findById(bookingId)
+    activate BR
+    BR->>DB: 9. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 10. Booking entity (status=PENDING_CLINIC_CONFIRM)
+    deactivate DB
+    BR-->>MS: 11. Booking
+    deactivate BR
+
+    MS->>MS: 12. Validate status == PENDING_CLINIC_CONFIRM
+
+    MS->>UR: 13. findById(clinicManagerId)
+    activate UR
+    UR->>DB: 14. SELECT * FROM users WHERE user_id = ?
+    activate DB
+    DB-->>UR: 15. User entity (role=CLINIC_MANAGER)
+    deactivate DB
+    UR-->>MS: 16. Manager User
+    deactivate UR
+
+    MS->>MS: 17. Validate manager.role == CLINIC_MANAGER
+    MS->>MS: 18. Validate booking.clinic.clinicId == manager.workingClinic.clinicId
+
+    MS->>UR: 19. findById(assignedStaffId)
+    activate UR
+    UR->>DB: 20. SELECT * FROM users WHERE user_id = ?
+    activate DB
+    DB-->>UR: 21. User entity (role=STAFF)
+    deactivate DB
+    UR-->>MS: 22. Staff User
+    deactivate UR
+
+    MS->>MS: 23. validateAssignedStaffForSos(staff, clinic) - Check staff.role == STAFF and staff.workingClinic == manager.workingClinic
+
+    MS->>CPS: 24. getSosFee(clinic.clinicId)
+    activate CPS
+    CPS->>DB: 25. SELECT sos_fee FROM clinic_prices WHERE clinic_id = ?
+    activate DB
+    DB-->>CPS: 26. BigDecimal (50000 VND)
+    deactivate DB
+    CPS-->>MS: 27. Optional~BigDecimal~ (50000)
+    deactivate CPS
+
+    MS->>BR: 28. save(booking with status=CONFIRMED, assignedStaff=staff, sosFee=50000, totalPrice=currentPrice+50000, confirmedAt=now)
+    activate BR
+    BR->>DB: 29. UPDATE bookings SET status = 'CONFIRMED', assigned_staff_id = ?, sos_fee = ?, total_price = total_price + ?, confirmed_at = ? WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 30. Updated
+    deactivate DB
+    BR-->>MS: 31. Booking
+    deactivate BR
+
+    MS->>NS: 32. sendBookingAssignedNotificationToStaff(booking) - Push notification to staff
+    activate NS
+    NS-->>MS: 33. void
+    deactivate NS
+
+    MS->>SM: 34. clearSession(bookingId)
+    activate SM
+    SM->>DB: 35. DEL sos:session:{bookingId}
+    activate DB
+    DB-->>SM: 36. OK
+    deactivate DB
+    SM-->>MS: 37. void
+    deactivate SM
+
+    MS->>SN: 38. notifyOwnerConfirmed(bookingId, clinic, staff, distanceKm, null)
+    activate SN
+    SN->>SN: 39. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", SosMatchingStatusMessage (event=CONFIRMED, staffName, staffPhone, ...))
+    SN-->>MS: 40. void
+    deactivate SN
+
+    MS->>SN: 41. notifyClinicStaleAlert(bookingId, clinic.clinicId, MatchingEvent.CONFIRMED)
+    activate SN
+    SN->>SN: 42. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", SosMatchingStatusMessage (event=CONFIRMED, message="Alert handled"))
+    SN-->>MS: 43. void
+    deactivate SN
+
+    MS->>MS: 44. Build SosMatchResponse with clinic & staff details
+    MS-->>SC: 45. SosMatchResponse (status=CONFIRMED, clinicName, staffName, staffPhone, ...)
+    deactivate MS
+    SC-->>UI: 46. HTTP 200 OK + SosMatchResponse
+    deactivate SC
+    UI-->>CM: 47. Close modal, show toast "Đã xác nhận SOS", booking appears in "Confirmed Bookings" list
+    deactivate UI
+
+    MS->>SM: 48. releaseBookingLock(bookingId)
+    activate SM
+    SM->>DB: 49. DEL sos:lock:booking:{bookingId}
+    deactivate SM
+```
+
+#### 4.10.5 Sequence Diagram: Decline & Escalate to Next Clinic
+
+Clinic Manager declines SOS request. System escalates to the next clinic in the list and notifies both parties.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as SosAlertModal (Web)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant SM as SosSessionManager
+    participant BR as BookingRepository
+    participant CR as ClinicRepository
+    participant SN as SosNotificationService
+    participant DB as Database
+
+    CM->>UI: 1. Click "Decline" + optional reason
+    activate UI
+    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + SosConfirmRequest (accepted=false, declineReason="Quá tải")
+    activate SC
+    SC->>MS: 3. processConfirmation(request, clinicManagerId)
+    activate MS
+
+    MS->>SM: 4. acquireBookingLock(bookingId)
+    activate SM
+    SM->>DB: 5. SETNX sos:lock:booking:{bookingId} 1 EX 10
+    activate DB
+    DB-->>SM: 6. Lock acquired
+    deactivate DB
+    SM-->>MS: 7. true
+    deactivate SM
+
+    MS->>BR: 8. findById(bookingId)
+    activate BR
+    BR->>DB: 9. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 10. Booking entity
+    deactivate DB
+    BR-->>MS: 11. Booking
+    deactivate BR
+
+    MS->>MS: 12. Validate manager authorization (same as accept flow)
+    MS->>MS: 13. declineSos(booking, reason) - Log decline reason
+
+    MS->>BR: 14. save(booking with clinic=null)
+    activate BR
+    BR->>DB: 15. UPDATE bookings SET clinic_id = NULL WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 16. Updated
+    deactivate DB
+    BR-->>MS: 17. Booking
+    deactivate BR
+
+    MS->>MS: 18. escalateToNextClinic(bookingId)
+
+    MS->>SM: 19. getCurrentIndex(bookingId)
+    activate SM
+    SM->>DB: 20. HGET sos:session:{bookingId} currentIndex
+    activate DB
+    DB-->>SM: 21. Integer (0)
+    deactivate DB
+    SM-->>MS: 22. Optional~Integer~ (0)
+    deactivate SM
+
+    MS->>SM: 23. getClinicIds(bookingId)
+    activate SM
+    SM->>DB: 24. HGET sos:session:{bookingId} clinicIds
+    activate DB
+    DB-->>SM: 25. JSON array ["uuid1", "uuid2", "uuid3"]
+    deactivate DB
+    SM-->>MS: 26. Optional~List~String~~ (3 clinics)
+    deactivate SM
+
+    MS->>SN: 27. notifyClinicStaleAlert(bookingId, oldClinicId, MatchingEvent.WAITING_NEXT)
+    activate SN
+    SN->>SN: 28. messagingTemplate.convertAndSend("/topic/clinic/{oldClinicId}/sos-alert", message="Moved to next clinic")
+    SN-->>MS: 29. void
+    deactivate SN
+
+    MS->>MS: 30. Calculate nextIndex = currentIndex + 1 (= 1)
+
+    alt All clinics exhausted (nextIndex >= clinicIds.size())
+        MS->>BR: 31a. save(booking with status=CANCELLED, cancellationReason="No clinic available")
+        activate BR
+        BR->>DB: 32a. UPDATE bookings SET status = 'CANCELLED', cancellation_reason = ? WHERE booking_id = ?
+        deactivate BR
+        MS->>SM: 33a. clearSession(bookingId)
+        MS->>SN: 34a. notifyOwnerNoClinic(bookingId)
+        MS-->>SC: 35a. SosMatchResponse (status=CANCELLED, message="No clinic available")
+    else Next clinic available
+        MS->>CR: 31b. findById(nextClinicId)
+        activate CR
+        CR->>DB: 32b. SELECT * FROM clinics WHERE clinic_id = ?
+        activate DB
+        DB-->>CR: 33b. Clinic entity
+        deactivate DB
+        CR-->>MS: 34b. Optional~Clinic~
+        deactivate CR
+
+        MS->>SM: 35b. updateIndex(bookingId, nextIndex)
+        activate SM
+        SM->>DB: 36b. HSET sos:session:{bookingId} currentIndex 1
+        deactivate SM
+
+        MS->>SM: 37b. updateNotifiedAt(bookingId)
+        activate SM
+        SM->>DB: 38b. HSET sos:session:{bookingId} notifiedAt {timestamp}
+        deactivate SM
+
+        MS->>BR: 39b. save(booking with clinic=nextClinic, status=PENDING_CLINIC_CONFIRM, distanceKm=...)
+        activate BR
+        BR->>DB: 40b. UPDATE bookings SET clinic_id = ?, status = 'PENDING_CLINIC_CONFIRM', distance_km = ? WHERE booking_id = ?
+        activate DB
+        DB-->>BR: 41b. Updated
+        deactivate DB
+        BR-->>MS: 42b. Booking
+        deactivate BR
+
+        MS->>SN: 43b. notifyOwnerWaitingNext(bookingId, nextClinic, nextIndex, totalClinics)
+        activate SN
+        SN->>SN: 44b. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", message="Waiting for next clinic")
+        SN-->>MS: 45b. void
+        deactivate SN
+
+        MS->>SN: 46b. alertClinic(booking, nextClinic, nextIndex, totalClinics)
+        activate SN
+        SN->>SN: 47b. messagingTemplate.convertAndSend("/topic/clinic/{nextClinicId}/sos-alert", alert message)
+        SN-->>MS: 48b. void
+        deactivate SN
+
+        MS-->>SC: 49b. SosMatchResponse (status=PENDING_CLINIC_CONFIRM, message="Chuyển tiếp sang phòng khám: {name}")
+        deactivate MS
+    end
+
+    SC-->>UI: 50. HTTP 200 OK + SosMatchResponse
+    deactivate SC
+    UI-->>CM: 51. Close modal, show toast "Đã từ chối yêu cầu"
+    deactivate UI
+
+    MS->>SM: 52. releaseBookingLock(bookingId)
+    activate SM
+    SM->>DB: 53. DEL sos:lock:booking:{bookingId}
+    deactivate SM
+```
+
+#### 4.10.6 Sequence Diagram: Get Active SOS Alerts (Catch-Up Mechanism)
+
+Clinic Manager opens dashboard or reconnects WebSocket. System fetches active SOS alerts assigned to their clinic to sync UI state.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Manager Dashboard (Web)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant UR as UserRepository
+    participant BR as BookingRepository
+    participant SM as SosSessionManager
+    participant DB as Database
+
+    CM->>UI: 1. Login or reload dashboard
+    activate UI
+    UI->>SC: 2. GET /api/sos/alerts/active (fetch active alerts for catch-up)
+    activate SC
+    SC->>MS: 3. getActiveSosAlertsForManager(clinicManagerId)
+    activate MS
+
+    MS->>UR: 4. findById(clinicManagerId)
+    activate UR
+    UR->>DB: 5. SELECT * FROM users WHERE user_id = ?
+    activate DB
+    DB-->>UR: 6. User entity (role=CLINIC_MANAGER, working_clinic_id=X)
+    deactivate DB
+    UR-->>MS: 7. Manager User
+    deactivate UR
+
+    MS->>MS: 8. Extract clinic ID from manager.workingClinic
+
+    MS->>BR: 9. findByClinicIdAndStatusAndType(clinicId, PENDING_CLINIC_CONFIRM, SOS, Pageable.ofSize(10))
+    activate BR
+    BR->>DB: 10. SELECT * FROM bookings WHERE clinic_id = ? AND status = 'PENDING_CLINIC_CONFIRM' AND type = 'SOS' AND deleted = false ORDER BY created_at DESC LIMIT 10
+    activate DB
+    DB-->>BR: 11. Page~Booking~ (2 pending SOS bookings)
+    deactivate DB
+    BR-->>MS: 12. List~Booking~ (2 bookings)
+    deactivate BR
+
+    loop For each booking in list
+        MS->>SM: 13. sessionExists(bookingId)
+        activate SM
+        SM->>DB: 14. EXISTS sos:session:{bookingId}
+        activate DB
+        DB-->>SM: 15. true/false
+        deactivate DB
+        SM-->>MS: 16. boolean
+        deactivate SM
+
+        alt Session exists
+            MS->>SM: 17. getElapsedSeconds(bookingId)
+            activate SM
+            SM->>DB: 18. HGET sos:session:{bookingId} notifiedAt
+            activate DB
+            DB-->>SM: 19. Timestamp
+            deactivate DB
+            SM-->>MS: 20. long (elapsed seconds)
+            deactivate SM
+
+            MS->>MS: 21. Calculate remainingSeconds = 60 - elapsedSeconds
+
+            alt remainingSeconds > 0
+                MS->>MS: 22. buildSosAlertMessage(booking, remainingSeconds) - Include pet info, owner info, symptoms, distance
+            else remainingSeconds <= 0
+                MS->>MS: 23. Skip this booking (timed out, will be escalated by scheduler)
+            end
+        else Session does not exist
+            MS->>MS: 24. Skip booking (session cleared, likely already handled)
+        end
+    end
+
+    MS->>MS: 25. Filter messages with remainingSeconds > 0
+    MS-->>SC: 26. List~SosMatchingStatusMessage~ (active alerts with countdown)
+    deactivate MS
+    SC-->>UI: 27. HTTP 200 OK + JSON array of alert messages
+    deactivate SC
+    UI-->>CM: 28. Display SOS alert modals with countdown timers (catch-up sync complete)
+    deactivate UI
+```
+
+#### 4.10.7 Sequence Diagram: Cancel SOS Matching (Pet Owner)
+
+Pet Owner cancels SOS request before clinic confirmation. System updates booking, clears Redis session, and notifies clinic.
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as SosRadarMapScreen (Mobile)
+    participant SC as SosController
+    participant MS as SosMatchingService
+    participant BR as BookingRepository
+    participant SM as SosSessionManager
+    participant SN as SosNotificationService
+    participant DB as Database
+
+    PO->>UI: 1. Click "Cancel SOS" on radar screen
+    activate UI
+    UI->>UI: 2. Show confirmation dialog: "Hủy yêu cầu SOS?"
+    PO->>UI: 3. Confirm cancellation
+    UI->>SC: 4. DELETE /api/sos/{bookingId}
+    activate SC
+    SC->>MS: 5. cancelMatching(bookingId, petOwnerId)
+    activate MS
+
+    MS->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity (status=PENDING_CLINIC_CONFIRM)
+    deactivate DB
+    BR-->>MS: 9. Booking
+    deactivate BR
+
+    MS->>MS: 10. Validate booking.petOwner.userId == petOwnerId
+
+    MS->>MS: 11. Validate status IN (SEARCHING, PENDING_CLINIC_CONFIRM)
+
+    alt Booking already CONFIRMED or COMPLETED
+        MS-->>SC: 12a. Throw SosMatchingException("Không thể hủy booking ở trạng thái: {status}")
+        SC-->>UI: 13a. HTTP 400 Bad Request + error message
+        UI-->>PO: 14a. Show toast "Phòng khám đã xác nhận, không thể hủy"
+    else Cancellation allowed
+        MS->>BR: 12b. save(booking with status=CANCELLED, cancellationReason="Hủy bởi người dùng")
+        activate BR
+        BR->>DB: 13b. UPDATE bookings SET status = 'CANCELLED', cancellation_reason = 'Hủy bởi người dùng' WHERE booking_id = ?
+        activate DB
+        DB-->>BR: 14b. Updated
+        deactivate DB
+        BR-->>MS: 15b. Booking
+        deactivate BR
+
+        MS->>SM: 16b. clearSession(bookingId)
+        activate SM
+        SM->>DB: 17b. DEL sos:session:{bookingId}
+        activate DB
+        DB-->>SM: 18b. OK
+        deactivate DB
+        SM-->>MS: 19b. void
+        deactivate SM
+
+        MS->>SN: 20b. notifyOwnerCancelled(bookingId)
+        activate SN
+        SN->>SN: 21b. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", SosMatchingStatusMessage (event=CANCELLED))
+        SN-->>MS: 22b. void
+        deactivate SN
+
+        alt Booking was in PENDING_CLINIC_CONFIRM with clinic assigned
+            MS->>SN: 23b. notifyClinicStaleAlert(bookingId, clinic.clinicId, MatchingEvent.CANCELLED)
+            activate SN
+            SN->>SN: 24b. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", message="Booking cancelled by owner")
+            SN-->>MS: 25b. void
+            deactivate SN
+        end
+
+        MS-->>SC: 26b. void
+        deactivate MS
+        SC-->>UI: 27b. HTTP 204 No Content
+        deactivate SC
+        UI-->>PO: 28b. Navigate to Home, show toast "Đã hủy yêu cầu SOS"
+        deactivate UI
+    end
+```
+
+#### 4.10.8 Sequence Diagram: Checkout with Custom SOS Fee
+
+Clinic Manager finalizes SOS booking by performing checkout. System calculates total price including SOS fee and marks booking as completed.
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as BookingDetailModal (Web)
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant BNS as BookingNotificationService
+    participant DB as Database
+
+    CM->>UI: 1. Open SOS booking detail (status=IN_PROGRESS) & click "Checkout"
+    activate UI
+    UI->>UI: 2. Show checkout modal with fee breakdown (Services: 200k VND, SOS Fee: 50k VND, Total: 250k VND)
+    CM->>UI: 3. Select payment method (Cash) & click "Confirm Checkout"
+    UI->>BC: 4. POST /api/bookings/{bookingId}/checkout + CheckoutRequest (paymentMethod="CASH", notes="...")
+    activate BC
+    BC->>BS: 5. processCheckoutAuthorized(bookingId, request, currentUser)
+    activate BS
+
+    BS->>BR: 6. findById(bookingId)
+    activate BR
+    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 8. Booking entity (status=IN_PROGRESS, type=SOS, sosFee=50000, totalPrice=250000)
+    deactivate DB
+    BR-->>BS: 9. Booking
+    deactivate BR
+
+    BS->>BS: 10. Validate status == IN_PROGRESS
+    BS->>BS: 11. Validate currentUser has authority (CLINIC_MANAGER or STAFF from booking's clinic)
+    BS->>BS: 12. Verify totalPrice includes sosFee (sosFee was already added during confirmation)
+
+    BS->>BR: 13. save(booking with status=COMPLETED, completedAt=now, paymentMethod, paymentStatus=PAID)
+    activate BR
+    BR->>DB: 14. UPDATE bookings SET status = 'COMPLETED', completed_at = ?, payment_method = ?, payment_status = 'PAID' WHERE booking_id = ?
+    activate DB
+    DB-->>BR: 15. Updated
+    deactivate DB
+    BR-->>BS: 16. Booking
+    deactivate BR
+
+    BS->>BNS: 17. pushBookingUpdateToUsers(booking, "COMPLETED") - SSE notification to owner + staff
+    activate BNS
+    BNS-->>BS: 18. void
+    deactivate BNS
+
+    BS->>BS: 19. Build BookingResponse with totalPrice, sosFee breakdown
+    BS-->>BC: 20. BookingResponse (status=COMPLETED, totalPrice=250000, sosFee=50000, completedAt=...)
+    deactivate BS
+    BC-->>UI: 21. HTTP 200 OK + BookingResponse
+    deactivate BC
+    UI-->>CM: 22. Close modal, show toast "Checkout thành công", booking moves to "Completed" tab
     deactivate UI
 ```
 

@@ -645,7 +645,7 @@ export const StaffBookingsPage = () => {
                                                                             <span className="font-black text-stone-700">
                                                                                 {svc.price?.toLocaleString('vi-VN')}đ
                                                                             </span>
-                                                                            {svc.bookingServiceId && (
+                                                                            {svc.bookingServiceId && selectedBooking.status === 'IN_PROGRESS' && (
                                                                                 <button
                                                                                     type="button"
                                                                                     onClick={() => setRemoveConfirmService({ bookingServiceId: svc.bookingServiceId!, serviceName: svc.serviceName })}

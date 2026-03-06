@@ -50,4 +50,9 @@ public class SosMatchResponse {
 
     // WebSocket topic for real-time updates
     private String wsTopicUrl;
+
+    // Matching progress info
+    private Integer currentClinicIndex;
+    private Integer totalClinicsInRange;
+    private Long remainingSeconds;
 }

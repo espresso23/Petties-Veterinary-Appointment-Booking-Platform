@@ -126,6 +126,8 @@ public class SosMatchingService {
 
             // 8. Broadcast status to Pet Owner
             double distanceKm = calculateDistance(request, firstClinic);
+                booking.setDistanceKm(BigDecimal.valueOf(distanceKm));
+                bookingRepository.save(booking);
             sosNotificationService.notifyOwnerClinicContacted(
                     booking.getBookingId(), firstClinic, 0, totalClinics, distanceKm);
 
@@ -228,6 +230,7 @@ public class SosMatchingService {
         User staff = null;
         if (assignedStaffId != null) {
             staff = findUserById(assignedStaffId);
+            validateAssignedStaffForSos(staff, clinic);
             // 1. Gán vào đơn hàng chính (để đồng bộ với Manager Web)
             booking.setAssignedStaff(staff);
             // 2. Gán vào các mục dịch vụ (nếu có - though SOS often empty)
@@ -358,6 +361,8 @@ public class SosMatchingService {
                 sessionManager.updateNotifiedAt(bookingId);
 
                 // Update Booking
+                double distanceKm = calculateDistance(booking, nextClinic);
+                booking.setDistanceKm(BigDecimal.valueOf(distanceKm));
                 booking.setClinic(nextClinic);
                 booking.setStatus(BookingStatus.PENDING_CLINIC_CONFIRM);
                 bookingRepository.save(booking);
@@ -477,6 +482,13 @@ public class SosMatchingService {
         if (indexOpt.isPresent() && clinicIdsOpt.isPresent()) {
             int index = indexOpt.get();
             List<String> clinicIds = clinicIdsOpt.get();
+            long remainingSeconds = Math.max(0,
+                sessionManager.getClinicTimeoutSeconds() - sessionManager.getElapsedSeconds(bookingId));
+
+            response.currentClinicIndex(index + 1)
+                .totalClinicsInRange(clinicIds.size())
+                .remainingSeconds(remainingSeconds);
+
             if (index < clinicIds.size()) {
                 UUID currentClinicId = UUID.fromString(clinicIds.get(index));
                 clinicRepository.findById(currentClinicId)
@@ -683,6 +695,28 @@ public class SosMatchingService {
                 request.getLongitude(),
                 clinic.getLatitude(),
                 clinic.getLongitude());
+    }
+
+    private double calculateDistance(Booking booking, Clinic clinic) {
+        return locationService.calculateDistance(
+                booking.getHomeLat(),
+                booking.getHomeLong(),
+                clinic.getLatitude(),
+                clinic.getLongitude());
+    }
+
+    private void validateAssignedStaffForSos(User staff, Clinic clinic) {
+        if (staff.getRole() != Role.STAFF) {
+            throw new SosMatchingException(
+                    "Nhân sự được chọn phải có vai trò STAFF",
+                    SosErrorCode.MANAGER_NOT_AUTHORIZED);
+        }
+
+        if (staff.getWorkingClinic() == null || !staff.getWorkingClinic().getClinicId().equals(clinic.getClinicId())) {
+            throw new SosMatchingException(
+                    "Nhân sự được chọn không thuộc phòng khám xác nhận yêu cầu SOS",
+                    SosErrorCode.MANAGER_NOT_AUTHORIZED);
+        }
     }
 
     private SosMatchResponse buildMatchingStartedResponse(Booking booking, Clinic firstClinic,

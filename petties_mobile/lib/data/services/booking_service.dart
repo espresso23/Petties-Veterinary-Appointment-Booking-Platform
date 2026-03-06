@@ -28,8 +28,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Checkout booking (Staff action: COMPLETED → finalize payment)
-  /// Only callable when status is COMPLETED
+  /// Checkout booking (Staff action: IN_PROGRESS → COMPLETED)
+  /// Only callable when status is IN_PROGRESS
   /// @param bookingId Booking UUID
   /// @param overriddenSosFee Optional: Override SOS fee (for staff adjustment)
   Future<BookingResponse> checkout(String bookingId,
@@ -50,8 +50,8 @@ class BookingService {
     return BookingResponse.fromJson(response.data);
   }
 
-  /// Staff arrived at customer location
-  /// Note: Does not change status (remains IN_PROGRESS), just sets arrivedAt timestamp
+  /// Staff arrived at customer location (SOS/HOME_VISIT)
+  /// Keeps booking status IN_PROGRESS and marks arrival timestamp.
   Future<BookingResponse> arrived(String bookingId) async {
     final response = await _apiClient.post('/bookings/$bookingId/arrived');
     return BookingResponse.fromJson(response.data);

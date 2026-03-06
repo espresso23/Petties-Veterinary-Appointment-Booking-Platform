@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { sosWebSocket, type SosAlertMessage } from '../../services/websocket/sosWebSocket'
 import { confirmSosRequest, declineSosRequest } from '../../services/bookingService'
 import * as bookingService from '../../services/bookingService'
 import { useToast } from '../Toast'
+import { ROUTES } from '../../config/routes'
 
 interface AvailableStaff {
     staffId: string
@@ -14,11 +16,41 @@ interface SosAlertModalProps {
     clinicId: string
 }
 
+const getAlertPriority = (alert: SosAlertMessage) => alert.remainingSeconds ?? Number.MAX_SAFE_INTEGER
+
+const mergeAlertQueue = (
+    existingAlerts: SosAlertMessage[],
+    incomingAlerts: SosAlertMessage[],
+    currentAlertBookingId?: string | null,
+) => {
+    const alertsByBookingId = new Map<string, SosAlertMessage>()
+
+    existingAlerts.forEach(alert => {
+        if (alert.bookingId !== currentAlertBookingId) {
+            alertsByBookingId.set(alert.bookingId, alert)
+        }
+    })
+
+    incomingAlerts.forEach(alert => {
+        if (alert.bookingId === currentAlertBookingId) return
+
+        const previous = alertsByBookingId.get(alert.bookingId)
+        alertsByBookingId.set(alert.bookingId, {
+            ...previous,
+            ...alert,
+        })
+    })
+
+    return Array.from(alertsByBookingId.values())
+        .sort((left, right) => getAlertPriority(left) - getAlertPriority(right))
+}
+
 /**
  * SOS Alert Modal for Clinic Managers
  * Displays incoming SOS requests with accept/decline options
  */
 export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
+    const navigate = useNavigate()
     const [pendingAlerts, setPendingAlerts] = useState<SosAlertMessage[]>([])
     const [currentAlert, setCurrentAlert] = useState<SosAlertMessage | null>(null)
     const [isLoading, setIsLoading] = useState(false)
@@ -47,6 +79,8 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         setCurrentAlert(null)
         currentAlertRef.current = null
         setCountdown(60)
+        initialCountdownRef.current = 60
+        setAvailableStaff([])
         setSelectedStaffId('')
     }, [])
 
@@ -57,6 +91,7 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         try {
             await declineSosRequest(currentAlert.bookingId, reason)
 
+            setPendingAlerts(prev => prev.filter(alert => alert.bookingId !== currentAlert.bookingId))
             showToast('warning', 'Đã từ chối yêu cầu SOS')
             resetAlert()
         } catch (err) {
@@ -107,9 +142,13 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
     // Fetch staff list when alert appears (#7: with loading state)
     useEffect(() => {
         if (currentAlert && clinicId) {
+            let cancelled = false
             setIsLoadingStaff(true)
+            setAvailableStaff([])
+            setSelectedStaffId('')
             bookingService.getAvailableStaffForConfirm(currentAlert.bookingId)
                 .then(staff => {
+                    if (cancelled) return
                     setAvailableStaff(staff)
                     // Auto-select suggested staff if any
                     const suggested = staff.find((s: AvailableStaff) => s.isSuggested)
@@ -120,8 +159,19 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                     }
                 })
                 .catch(err => console.error('Error fetching staff for SOS:', err))
-                .finally(() => setIsLoadingStaff(false))
+                .finally(() => {
+                    if (!cancelled) {
+                        setIsLoadingStaff(false)
+                    }
+                })
+
+            return () => {
+                cancelled = true
+            }
         }
+
+        setAvailableStaff([])
+        setSelectedStaffId('')
     }, [currentAlert, clinicId])
 
     const handleAccept = async () => {
@@ -135,8 +185,10 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         try {
             await confirmSosRequest(currentAlert.bookingId, selectedStaffId)
 
-            showToast('success', 'Đã xác nhận yêu cầu SOS! Bạn sẽ được chuyển đến chi tiết booking.')
+            setPendingAlerts(prev => prev.filter(alert => alert.bookingId !== currentAlert.bookingId))
+            showToast('success', 'Đã xác nhận yêu cầu SOS thành công')
             resetAlert()
+            navigate(`${ROUTES.clinicManager.bookings}?bookingId=${currentAlert.bookingId}`)
         } catch (err) {
             console.error('Error confirming SOS:', err)
             showToast('error', 'Có lỗi xảy ra khi xác nhận. Vui lòng thử lại.')
@@ -149,7 +201,26 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
     const onAlertReceived = useCallback((alert: SosAlertMessage) => {
         if (alert.event === 'CLINIC_NOTIFIED' || alert.status === 'PENDING_CLINIC_CONFIRM') {
             console.log('[SOS Modal] Showing alert for booking:', alert.bookingId)
-            setPendingAlerts(prev => [...prev, alert])
+
+            if (currentAlertRef.current?.bookingId === alert.bookingId) {
+                const mergedCurrentAlert = {
+                    ...currentAlertRef.current,
+                    ...alert,
+                }
+
+                currentAlertRef.current = mergedCurrentAlert
+                setCurrentAlert(mergedCurrentAlert)
+
+                if (typeof alert.remainingSeconds === 'number' && alert.remainingSeconds > 0) {
+                    const remainingSeconds = alert.remainingSeconds
+                    initialCountdownRef.current = remainingSeconds
+                    setCountdown(prev => Math.min(prev, remainingSeconds))
+                }
+
+                return
+            }
+
+            setPendingAlerts(prev => mergeAlertQueue(prev, [alert], currentAlertRef.current?.bookingId))
             playAlertSound()
         } else if (alert.event === 'CONFIRMED' || alert.event === 'CANCELLED' || alert.event === 'WAITING_NEXT' || alert.event === 'NO_CLINIC') {
             // Check against ref to avoid stale closure
@@ -182,13 +253,30 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
         const syncAlerts = () => {
             bookingService.getActiveSosAlerts()
                 .then(alerts => {
+                    const currentBookingId = currentAlertRef.current?.bookingId
+                    const syncedCurrentAlert = currentBookingId
+                        ? alerts.find(alert => alert.bookingId === currentBookingId)
+                        : undefined
+
+                    if (syncedCurrentAlert && currentAlertRef.current) {
+                        const mergedCurrentAlert = {
+                            ...currentAlertRef.current,
+                            ...syncedCurrentAlert,
+                        }
+
+                        currentAlertRef.current = mergedCurrentAlert
+                        setCurrentAlert(mergedCurrentAlert)
+
+                        if (typeof syncedCurrentAlert.remainingSeconds === 'number' && syncedCurrentAlert.remainingSeconds > 0) {
+                            const remainingSeconds = syncedCurrentAlert.remainingSeconds
+                            initialCountdownRef.current = remainingSeconds
+                            setCountdown(prev => Math.min(prev, remainingSeconds))
+                        }
+                    }
+
                     if (alerts.length > 0) {
                         console.log('[SOS Modal] Synced active alerts:', alerts.length)
-                        setPendingAlerts(prev => {
-                            const existingIds = new Set(prev.map(p => p.bookingId))
-                            const newAlerts = alerts.filter(a => !existingIds.has(a.bookingId))
-                            return newAlerts.length > 0 ? [...prev, ...newAlerts] : prev
-                        })
+                        setPendingAlerts(prev => mergeAlertQueue(prev, alerts, currentBookingId))
                     }
                 })
                 .catch(err => console.error('Error syncing SOS alerts:', err))
@@ -247,12 +335,12 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                         </div>
 
                         {/* Progress bar (#2: use dynamic initialCountdown) */}
-                        <div className="mt-3 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-white transition-all duration-1000 ease-linear"
-                                style={{ width: `${(countdown / initialCountdownRef.current) * 100}%` }}
-                            />
-                        </div>
+                        <progress
+                            className="sos-alert-progress mt-3"
+                            value={countdown}
+                            max={initialCountdownRef.current}
+                            aria-label="Tiến độ thời gian phản hồi SOS"
+                        />
                     </div>
 
                     {/* Content */}
@@ -385,7 +473,7 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
 
                             {/* Staff Selection Dropdown (#4: better empty state, #7: loading) */}
                             <div className="space-y-2">
-                                <label className="text-sm font-bold text-stone-700 flex items-center gap-2">
+                                <label htmlFor="sos-staff-select" className="text-sm font-bold text-stone-700 flex items-center gap-2">
                                     <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
@@ -405,6 +493,8 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                                     </div>
                                 ) : (
                                     <select
+                                        id="sos-staff-select"
+                                        title="Chọn nhân viên xử lý cấp cứu"
                                         value={selectedStaffId}
                                         onChange={(e) => setSelectedStaffId(e.target.value)}
                                         className="w-full p-3 bg-white border-2 border-stone-900 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:ring-0 focus:translate-x-1 focus:translate-y-1 focus:shadow-none transition-all outline-none text-stone-900"
@@ -463,6 +553,28 @@ export default function SosAlertModal({ clinicId }: SosAlertModalProps) {
                 .animate-bounce-in {
                   animation: bounce-in 0.3s ease-out;
                 }
+                                .sos-alert-progress {
+                                    width: 100%;
+                                    height: 0.375rem;
+                                    appearance: none;
+                                    border: 0;
+                                    background: rgba(255, 255, 255, 0.2);
+                                    border-radius: 9999px;
+                                    overflow: hidden;
+                                }
+                                .sos-alert-progress::-webkit-progress-bar {
+                                    background: rgba(255, 255, 255, 0.2);
+                                    border-radius: 9999px;
+                                }
+                                .sos-alert-progress::-webkit-progress-value {
+                                    background: #ffffff;
+                                    border-radius: 9999px;
+                                    transition: width 1000ms linear;
+                                }
+                                .sos-alert-progress::-moz-progress-bar {
+                                    background: #ffffff;
+                                    border-radius: 9999px;
+                                }
             `}</style>
         </>
     )

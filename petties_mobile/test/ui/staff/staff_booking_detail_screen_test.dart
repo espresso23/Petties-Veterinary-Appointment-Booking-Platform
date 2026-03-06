@@ -15,6 +15,7 @@ List<String> _getActionLabels({
   required String type,
   required bool isMyBooking,
   required bool hasExistingEmr,
+  required bool hasVaccinationService,
 }) {
   final actions = <String>[];
 
@@ -38,6 +39,22 @@ List<String> _getActionLabels({
   else if (status == 'IN_PROGRESS') {
     // Nút bệnh án luôn xuất hiện
     actions.add(hasExistingEmr ? 'XEM BỆNH ÁN' : 'TẠO BỆNH ÁN');
+
+    final canManageAddOn = type == 'HOME_VISIT' || type == 'SOS';
+
+    // Nếu là booking của đồng nghiệp, chỉ hỗ trợ EMR và add-on nếu phù hợp
+    if (!isMyBooking) {
+      if (type != 'SOS' && hasVaccinationService) {
+        actions.add('TIÊM VACCINE');
+      }
+
+      if (canManageAddOn) {
+        actions.add(
+            type == 'SOS' ? 'THÊM DỊCH VỤ' : 'THÊM DỊCH VỤ PHÁT SINH');
+      }
+
+      return actions;
+    }
 
     // Với SOS: KHÔNG hiển thị shortcut TIÊM VACCINE
     if (type != 'SOS') {
@@ -71,6 +88,7 @@ void main() {
         type: 'SOS',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(labels, ['BẮT ĐẦU DI CHUYỂN', 'CHỈ ĐƯỜNG (MAPS)']);
@@ -82,6 +100,7 @@ void main() {
         type: 'HOME_VISIT',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(labels, ['BẮT ĐẦU KHÁM', 'CHỈ ĐƯỜNG (MAPS)']);
@@ -93,6 +112,7 @@ void main() {
         type: 'NORMAL',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(labels, ['BẮT ĐẦU KHÁM']);
@@ -104,6 +124,7 @@ void main() {
         type: 'SOS',
         isMyBooking: false,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(labels, isEmpty);
@@ -117,6 +138,7 @@ void main() {
         type: 'HOME_VISIT',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(
@@ -136,6 +158,7 @@ void main() {
         type: 'HOME_VISIT',
         isMyBooking: true,
         hasExistingEmr: true,
+        hasVaccinationService: false,
       );
 
       expect(labels.first, 'XEM BỆNH ÁN');
@@ -149,6 +172,7 @@ void main() {
         type: 'SOS',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       // Phải có EMR + Checkout
@@ -161,6 +185,18 @@ void main() {
       // Không dùng label "THÊM DỊCH VỤ PHÁT SINH" cho SOS
       expect(labels.contains('THÊM DỊCH VỤ PHÁT SINH'), isFalse);
     });
+
+    test('SOS + IN_PROGRESS + booking của đồng nghiệp => chỉ hỗ trợ EMR và thêm dịch vụ', () {
+      final labels = _getActionLabels(
+        status: 'IN_PROGRESS',
+        type: 'SOS',
+        isMyBooking: false,
+        hasExistingEmr: false,
+        hasVaccinationService: false,
+      );
+
+      expect(labels, ['TẠO BỆNH ÁN', 'THÊM DỊCH VỤ']);
+    });
   });
 
   group('StaffBookingDetailScreen - IN_PROGRESS actions cho booking thường', () {
@@ -170,12 +206,44 @@ void main() {
         type: 'NORMAL',
         isMyBooking: true,
         hasExistingEmr: false,
+        hasVaccinationService: false,
       );
 
       expect(labels.contains('TẠO BỆNH ÁN'), isTrue);
       expect(labels.contains('HOÀN TẤT KHÁM'), isTrue);
       expect(labels.contains('THÊM DỊCH VỤ PHÁT SINH'), isFalse);
       expect(labels.contains('Xem lại hóa đơn & thanh toán'), isFalse);
+    });
+
+    test('NORMAL + IN_PROGRESS + booking của đồng nghiệp => chỉ hiển thị EMR', () {
+      final labels = _getActionLabels(
+        status: 'IN_PROGRESS',
+        type: 'NORMAL',
+        isMyBooking: false,
+        hasExistingEmr: true,
+        hasVaccinationService: false,
+      );
+
+      expect(labels, ['XEM BỆNH ÁN']);
+    });
+
+    test('HOME_VISIT + IN_PROGRESS + booking của đồng nghiệp + có dịch vụ vắc-xin => EMR + Vaccine + Add service', () {
+      final labels = _getActionLabels(
+        status: 'IN_PROGRESS',
+        type: 'HOME_VISIT',
+        isMyBooking: false,
+        hasExistingEmr: false,
+        hasVaccinationService: true,
+      );
+
+      expect(
+        labels,
+        [
+          'TẠO BỆNH ÁN',
+          'TIÊM VACCINE',
+          'THÊM DỊCH VỤ PHÁT SINH',
+        ],
+      );
     });
   });
 }

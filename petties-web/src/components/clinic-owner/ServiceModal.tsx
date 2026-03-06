@@ -72,6 +72,15 @@ export function ServiceModal({
   const selectedCategory = getCategoryById(serviceCategory)
   const selectedPetType = petTypes.find(p => p.id === petType)
 
+  const getVaccinationSeedPrice = () => {
+    const firstDosePrice = dosePrices.find((dose) => Number(dose.price || 0) > 0)?.price
+    if (typeof firstDosePrice === 'number' && firstDosePrice > 0) {
+      return firstDosePrice
+    }
+
+    return basePrice ? Number(basePrice) : 0
+  }
+
 
   useEffect(() => {
     // Load vaccine templates
@@ -187,7 +196,7 @@ export function ServiceModal({
       newDoses.push({
         doseNumber: i,
         doseLabel: `Mũi ${i}`,
-        price: existing ? existing.price : (basePrice ? Number(basePrice) : 0),
+        price: existing ? existing.price : getVaccinationSeedPrice(),
         isActive: true
       })
     }
@@ -198,7 +207,7 @@ export function ServiceModal({
       newDoses.push({
         doseNumber: doseCount + 1,
         doseLabel: 'Tiêm nhắc lại (Hằng năm)',
-        price: existingBooster ? existingBooster.price : (basePrice ? Number(basePrice) : 0),
+        price: existingBooster ? existingBooster.price : getVaccinationSeedPrice(),
         isActive: true
       })
     }
@@ -214,7 +223,7 @@ export function ServiceModal({
     const newDose: VaccineDosePriceDTO = {
       doseNumber: nextDoseNumber,
       doseLabel: `Mũi ${nextDoseNumber}`,
-      price: basePrice ? Number(basePrice) : 0,
+      price: getVaccinationSeedPrice(),
       isActive: true
     }
     setDosePrices([...dosePrices, newDose])
@@ -241,7 +250,7 @@ export function ServiceModal({
     onSave({
       name,
       description: description || undefined,
-      basePrice: Number(basePrice),
+      basePrice: serviceCategory === 'VACCINATION' ? getVaccinationSeedPrice() : Number(basePrice),
       slotsRequired: Number(slotsRequired),
       isHomeVisit,
       serviceCategory: serviceCategory || undefined,

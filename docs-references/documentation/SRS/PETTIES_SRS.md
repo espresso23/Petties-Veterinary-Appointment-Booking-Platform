@@ -2,7 +2,7 @@
 
 **Project:** Petties - Veterinary Appointment Booking Platform
 **Version:** 2.1.0 (Booking lifecycle aligned with code, loại bỏ trạng thái trung gian legacy)
-**Last Updated:** 2026-03-04
+**Last Updated:** 2026-03-06
 **Document Status:** In Progress
 
 ---
@@ -321,12 +321,16 @@ graph TB
 | 23 | View Clinic Details | UC-PO-05b | 3.5.2 | ✅ ClinicController | ✅ Mobile | ✅ Done |
 | 24 | View Clinic On Map | - | - | ✅ ClinicController | ✅ Mobile | ✅ Done |
 | 25 | Book an appointment | UC-PO-06 | 3.8.1 | ✅ BookingController | ✅ Mobile | ✅ Done |
-| 26 | SOS Booking | UC-PO-15 | 3.10 | ✅ BookingController | ✅ Mobile | ✅ Done |
-| 27 | Cancel Booking | UC-PO-09 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
-| 28 | Make payment | UC-PO-10 | 3.8.2 | 🔄 Stripe Integration | ❌ | 🔄 In Progress |
-| 29 | View invoice | - | - | ❌ | ❌ | ❌ Not Started |
-| 30 | Receive medication reminders | - | - | ❌ | ❌ | ❌ Not Started |
-| 31 | Track Staff location | UC-PO-17 | 3.10.1 | 🔄 | 🔄 Mobile | 🔄 In Progress |
+| 26 | SOS Booking | UC-PO-15 | 3.10.1 | ✅ SosController | ✅ Mobile | ✅ Done |
+| 27 | Receive SOS Alert | UC-CM-20 | 3.10.4 | ✅ SosController | ✅ Web | ✅ Done |
+| 28 | Confirm/Decline SOS Request | UC-CM-20 | 3.10.4 | ✅ SosController | ✅ Web | ✅ Done |
+| 29 | Track Staff location | UC-PO-17 | 3.10.2 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 30 | Cancel SOS Matching | UC-PO-18 | 3.10.5 | ✅ SosController | ✅ Mobile | ✅ Done |
+| 31 | Checkout with Custom SOS Fee | UC-CM-21 | 3.10.6 | ✅ BookingController | ✅ Web | ✅ Done |
+| 32 | Cancel Booking | UC-PO-09 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 33 | Make payment | UC-PO-10 | 3.8.2 | 🔄 Stripe Integration | ❌ | 🔄 In Progress |
+| 34 | View invoice | - | - | ❌ | ❌ | ❌ Not Started |
+| 35 | Receive medication reminders | - | - | ❌ | ❌ | ❌ Not Started |
 | 96 | Clinic Geocode | UC-CO-09 | - | ✅ ClinicController | ✅ Web | ✅ Done |
 | 97 | Clinic Distance Calculation | UC-CO-10 | - | ✅ ClinicController | ✅ Mobile | ✅ Done |
 
@@ -334,9 +338,9 @@ graph TB
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 32 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
-| 33 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
-| 34 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
+| 36 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 37 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 38 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
 | 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
 | 99 | Chat Images Gallery | UC-PO-23 | - | ✅ ChatController | ✅ Mobile | ✅ Done |
 
@@ -344,25 +348,25 @@ graph TB
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 35 | Rate and review vet | UC-PO-13 | - | ❌ | ❌ | ❌ Not Started |
-| 36 | Report clinic, vet | UC-PO-16 | 3.12.1 | ❌ | ❌ | 📋 Documented |
+| 39 | Rate and review vet | UC-PO-13 | - | ❌ | ❌ | ❌ Not Started |
+| 40 | Report clinic, vet | UC-PO-16 | 3.12.1 | ❌ | ❌ | 📋 Documented |
 
 #### Admin Functions
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 37 | View list of pending clinics | UC-AD-02 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
-| 38 | Approve/ Reject clinic | UC-AD-03 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
-| 39 | View platform statistics | UC-AD-04 | - | ❌ | ❌ | ❌ Not Started |
-| 40 | View revenue | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
-| 41 | View policy | - | - | ❌ | ❌ | ❌ Not Started |
-| 42 | Update policy | - | - | ❌ | ❌ | ❌ Not Started |
-| 43 | Upload Document To Knowledge Base | UC-AD-06 | - | ✅ Agent Service | ✅ Web | ✅ Done |
-| 44 | Accept/ Reject User Reports | UC-AD-09 | - | ❌ | ❌ | ❌ Not Started |
-| 45 | View User Report | UC-AD-08 | - | ❌ | ❌ | ❌ Not Started |
-| 46 | Turn On/Off Agent Tools | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
-| 47 | Config Agent Parameter | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
-| 48 | Test Agent Playground | UC-AD-07 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 41 | View list of pending clinics | UC-AD-02 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
+| 42 | Approve/ Reject clinic | UC-AD-03 | 3.6.2 | ✅ ClinicController | ✅ Web | ✅ Done |
+| 43 | View platform statistics | UC-AD-04 | - | ❌ | ❌ | ❌ Not Started |
+| 44 | View revenue | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
+| 45 | View policy | - | - | ❌ | ❌ | ❌ Not Started |
+| 46 | Update policy | - | - | ❌ | ❌ | ❌ Not Started |
+| 47 | Upload Document To Knowledge Base | UC-AD-06 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 48 | Accept/ Reject User Reports | UC-AD-09 | - | ❌ | ❌ | ❌ Not Started |
+| 49 | View User Report | UC-AD-08 | - | ❌ | ❌ | ❌ Not Started |
+| 50 | Turn On/Off Agent Tools | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 51 | Config Agent Parameter | UC-AD-05 | - | ✅ Agent Service | ✅ Web | ✅ Done |
+| 52 | Test Agent Playground | UC-AD-07 | - | ✅ Agent Service | ✅ Web | ✅ Done |
 | 100 | SSE Real-time Notifications | UC-AD-10 | - | ✅ SseController | ✅ Web | ✅ Done |
 
 #### Clinic Owner Functions
@@ -3194,155 +3198,249 @@ Figure 47. Screen Patient Records Detail (Web)
 
 ### 3.10 Specialized Services (SOS Emergency Flow)
 
- #### *3.10.1 SOS Emergency Booking (UC-PO-15)*
+ #### *3.10.1 Create SOS Booking (UC-PO-15)*
 **User Story:**
-> *As a Pet Owner, I want to trigger an emergency SOS alert so that the nearest available clinic and vet can be dispatched to my location immediately, and I can track the vet’s arrival in real time.*
+> *As a Pet Owner, I want to create an emergency SOS booking so that the system automatically finds and contacts nearby clinics, and I can track the matching process in real-time.*
 
 **Function trigger**
-- **Navigation path:**
-  - From Pet Owner Mobile Home → red **“SOS Emergency”** button → `SosRequestScreen`.
-  - From **“My bookings” (MyBookingsTab)** → select a booking of type **SOS** with status **CONFIRMED / IN_PROGRESS** → press **“FOLLOW / TRACK”** → `SosTrackingScreen`.
-- **Timing frequency:** On demand (24/7). At any moment, a Pet Owner may have **at most one** active SOS booking.
+- **Navigation path:** Pet Owner Mobile Home → red “SOS Emergency” button → SOS Request Screen → Fill form → Click “Request SOS” → Navigate to SOS Radar Map Screen.
+- **Timing frequency:** On-demand (24/7). At any moment, a Pet Owner may have **at most one** active SOS booking (BR-62).
 
 **Function description**
-- **Actors/Roles:** Pet Owner (mobile app).
-- **Purpose:**  
-  - Allow the Pet Owner to create an SOS emergency booking for a pet, let the system automatically find and contact a suitable nearby clinic, then let the Pet Owner track the assigned vet’s real-time location until arrival.
+- **Actors/Roles:** Pet Owner (Mobile only).
+- **Purpose:** Create SOS emergency booking and initiate automatic matching with nearby clinics within 10km radius.
 - **Interface:**
-    1. **`SosRequestScreen` (Mobile – Pet Owner):**
-       - **Pet selector**: list of the owner’s pets.
-       - **Quick symptom chips**: multiple-select chips for common emergency symptoms.
-       - **Free-text symptom description**: multiline text field.
-       - **Emergency location:**
-         - **“Use current location”** (GPS).
-         - **“Choose another location”** (opens Location Picker using Goong API, with reverse-geocoded address).
-       - **Primary action button**: “Send SOS request”.
-       - **Active SOS dialog**: when the screen opens and an active SOS booking already exists:
-         - Option **“Continue tracking”** → navigate directly to radar or tracking screen depending on current status.
-         - Option **“Cancel current request and create new”** → call SOS cancel API, then allow a new request.
-    2. **`SosRadarMapScreen` (Mobile – Pet Owner):**
-       - Full-screen Google Map.
-       - Marker for **owner location**, search **radius circle** (e.g. 10 km).
-       - **Radar animation** visualizing the search process.
-       - Dynamic status text driven by backend SOS matching status:
-         - “Searching for nearby clinics…”, “Waiting for clinic confirmation…”, “Clinic confirmed…”, “No clinic available”, “Request cancelled”.
-       - **60‑second countdown** per clinic according to business rules.
-       - **Cancel SOS** button when cancellation is allowed.
-       - When matching is **confirmed**, briefly shows clinic details (name, address, phone) and then auto-navigates to `SosTrackingScreen` (unless the booking was cancelled).
-    3. **`SosTrackingScreen` (Mobile – Pet Owner):**
-       - Google Map with:
-         - **Home marker** (pet owner’s address).
-         - **Clinic marker**.
-         - **Vet/staff marker**.
-       - Route polyline between home and clinic using Goong Direction API; vet marker snapped to the polyline and smoothly animated.
-       - Automatic camera fit/zoom to show both home and vet positions.
-       - **ETA (minutes)** and **distance (km)** only visible **after** staff has started travelling and valid tracking data is received.
-       - Contextual status messages, e.g. “Vet is on the way”, “Vet is nearby (≤ 0.5 km)”, “Vet is very close (≤ 0.1 km)”, “Vet has arrived”.
-       - On arrival, shows a success message and auto-returns to the home screen after a short delay.
-    4. **`MyBookingsTab` (Mobile – Pet Owner):**
-       - Booking list; SOS bookings show an extra **“FOLLOW / TRACK”** button when status is **CONFIRMED / IN_PROGRESS**, which navigates to `SosTrackingScreen`.
+    1. **SOS Request Screen (Mobile - Pet Owner):**
+       - **Pet Selector:** Dropdown list of owner’s pets
+       - **Symptoms Field:** Multi-line text input for emergency symptoms description
+       - **Location Fields:**
+           - “Use Current Location” button (GPS)
+           - Manual address input with Location Picker (Goong API)
+           - Display: Latitude, Longitude, Address (reverse-geocoded)
+       - **”Request SOS” Button:** Primary action (disabled if fields invalid)
+    2. **SOS Radar Map Screen (Mobile - Pet Owner):**
+       - **Full-screen Map:** Google Maps with owner location marker
+       - **Radar Animation:** Visual search animation with 10km radius circle
+       - **Clinic Markers:** Show nearby clinics (max 5) sorted by distance
+       - **Status Banner:**
+           - “Đang tìm phòng khám gần bạn...” (SEARCHING)
+           - “Đang chờ phòng khám {name} xác nhận...” (PENDING_CLINIC_CONFIRM) with clinic name + distance
+           - “Phòng khám {name} đã xác nhận!” (CONFIRMED) → Auto-navigate to SOS Tracking Screen
+           - “Không tìm thấy phòng khám khả dụng” (NO_CLINIC/CANCELLED)
+       - **Countdown Timer:** 60-second countdown per clinic (shows remainingSeconds from WebSocket)
+       - **Current Clinic Index:** “Clinic 1/5”, “Clinic 2/5” (shows progress through clinic list)
+       - **”Cancel SOS” Button:** Visible when status is SEARCHING or PENDING_CLINIC_CONFIRM
+       - **WebSocket Subscription:** Subscribes to `/topic/sos-matching/{bookingId}` for real-time updates
+
+**Data processing**
+1. User opens SOS Request Screen and selects pet, enters symptoms, and location (GPS or manual).
+2. User clicks “Request SOS” → System validates and creates SOS booking.
+3. System finds nearby clinics (10km radius, max 5) and contacts first clinic.
+4. App navigates to Radar Map Screen showing clinic markers, countdown timer (60s per clinic).
+5. System sends real-time status updates: “Waiting for clinic confirmation...”, “Clinic declined, trying next...”, or “Confirmed!”.
+6. When clinic confirms → App auto-navigates to Tracking Screen with staff details.
+7. If no clinics available → Show error message with hotline number.
 
 **Screen layout**
-- The SOS flow consists of:
-  - **SOS Request screen**: form with pet, symptoms, and location.
-  - **SOS Radar screen**: map + radar animation + countdown + clinic highlight.
-  - **SOS Tracking screen**: live map tracking vet location, ETA, distance.
-  - **Entry from MyBookingsTab**: SOS booking card with “FOLLOW / TRACK” button.
+Figure 40. SOS Request Screen (Mobile - Pet Owner)
+Figure 41. SOS Radar Map Screen with Countdown Timer (Mobile - Pet Owner)
 
 **Function details**
 - **Data:**
-  - **Request from `SosRequestScreen` (create SOS):**
-    - `petId`: ID of selected pet.
-    - `symptomTags`: array of selected quick symptom tags.
-    - `symptomDescription`: free-text description.
-    - `locationLat`, `locationLng`: GPS coordinates from current location or Location Picker.
-    - `locationAddress`: human-readable address from reverse geocoding.
-  - **SOS matching status (`SosMatchingStatus` from backend):**
-    - Flags: `isSearching`, `isPendingConfirm`, `isConfirmed`, `isCancelled`, `noClinic`.
-    - Clinic info: `clinicId`, `clinicName`, `clinicPhone`, `address`.
-    - User-facing `statusMessage`.
-  - **Tracking data (`LocationUpdateResponse` from backend):**
-    - `latitude`, `longitude`: latest staff coordinates.
-    - `distanceKm`: distance from staff to owner’s home in kilometers.
-    - `etaMinutes`: estimated time of arrival in minutes.
-    - `arrived`: boolean flag indicating staff arrival.
-  - **Booking entity (`Booking`):**
-    - Fields: `id`, `ownerId`, `petId`, `clinicId`, `assignedStaffId`, `type=SOS`, `status`, `locationLat`, `locationLng`, `locationAddress`, `createdAt`, `arrivedAt`, etc.
+    - **SOS Match Request:**
+        - petId (UUID, required) - Pet ID requiring emergency care
+        - latitude (BigDecimal, required) - GPS latitude coordinate (-90 to 90)
+        - longitude (BigDecimal, required) - GPS longitude coordinate (-180 to 180)
+        - symptoms (String, optional) - Emergency symptom description (max 500 chars)
+        - notes (String, optional) - Additional notes (max 500 chars)
+        - address (String, required) - Full address (from reverse geocoding)
+    - **SOS Match Response:**
+        - bookingId (UUID) - Created SOS booking ID
+        - status (BookingStatus) - Current status (SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, CANCELLED)
+        - message (String) - User-facing message
+        - clinicId (UUID, optional) - Contacted clinic ID
+        - clinicName (String, optional) - Clinic name
+        - clinicPhone (String, optional) - Clinic phone number (click-to-call)
+        - clinicAddress (String, optional) - Clinic address
+        - clinicLat (Double, optional) - Clinic latitude coordinate
+        - clinicLng (Double, optional) - Clinic longitude coordinate
+        - distanceKm (Double, optional) - Distance to clinic (km)
+        - wsTopicUrl (String) - WebSocket topic URL to subscribe: `/topic/sos-matching/{bookingId}`
+        - createdAt (DateTime) - Booking creation timestamp
+        - expiresAt (DateTime) - Session expiration time (60s × 5 clinics + buffer)
+        - currentClinicIndex (Integer, optional) - Current clinic index (1-based: 1/5, 2/5...)
+        - totalClinicsInRange (Integer, optional) - Total clinics within radius
+        - remainingSeconds (Long, optional) - Remaining time for clinic response (seconds)
+        - staffId (UUID, optional) - Assigned staff ID (when CONFIRMED)
+        - staffName (String, optional) - Staff name
+        - staffPhone (String, optional) - Staff phone number (click-to-call)
+        - staffAvatarUrl (String, optional) - Staff avatar URL
+    - **WebSocket Status Message:**
+        - event (MatchingEvent) - CLINIC_NOTIFIED / WAITING_NEXT / CONFIRMED / NO_CLINIC / CANCELLED
+        - bookingId (UUID) - Booking ID
+        - status (BookingStatus) - Booking status
+        - message (String) - User notification message
+        - currentClinicIndex (Integer) - Current clinic index (1-based)
+        - totalClinicsInRange (Integer) - Total clinics count
+        - remainingSeconds (Long) - Remaining seconds
+        - clinicId, clinicName, clinicPhone, clinicLat, clinicLng, distanceKm (if clinic assigned)
+        - staffId, staffName, staffPhone, staffAvatarUrl (when CONFIRMED)
 - **Validation:**
-  - **Field validation:**
-    - `petId` must belong to the currently logged-in Pet Owner.
-    - `locationLat`, `locationLng` are required and must be in valid latitude/longitude ranges.
-    - Either GPS location must be successfully acquired or the user must select a location on the map.
-    - `symptomTags` must be from the configured set of quick symptoms; `symptomDescription` length is limited.
-  - **Business validation & error handling:**
-    - A Pet Owner **cannot create a new SOS** if there is already an active SOS booking, unless the existing one is cancelled or completed (BR-62).
-    - If the backend fails to create a booking or start matching, the app shows a localized error message and stays on the request screen.
-    - If clinic search finds no clinic within the search radius or all candidate clinics time out/decline, the booking is marked **NO_CLINIC** and the app shows an appropriate message; no tracking screen is shown.
-    - ETA/distance are only displayed when valid tracking data is available; otherwise the UI shows a “waiting for vet to start travelling” message instead of dummy values.
-    - Cancellation must respect `Booking.canBeCancelled()` (e.g. SOS in `IN_PROGRESS` may be cancellable under defined rules; COMPLETED is not).
+    - **Error Handling:**
+        - E1. Pet not owned by user → Error: “Bạn không sở hữu thú cưng này”
+        - E2. Active SOS already exists → Show dialog: “Continue tracking” / “Cancel and create new”
+        - E3. No clinics within 10km → Response: status=CANCELLED, message=”Không tìm thấy phòng khám...”
+        - E4. Invalid coordinates (out of range) → Error: “Tọa độ không hợp lệ”
+        - E5. Booking code collision (rare) → Backend retries with new random suffix (max 5 retries)
+    - **Field Validation:**
+        - petId: Must belong to authenticated user
+        - latitude: -90 ≤ lat ≤ 90
+        - longitude: -180 ≤ lng ≤ 180
+        - symptoms: Max 500 characters
+        - address: Required, not blank
 - **Business rules:**
-  - **BR-59:** Search radius for SOS auto-match is 10 km around the owner’s emergency location.
-  - **BR-60:** Maximum 5 clinics are tried for each SOS request.
-  - **BR-61:** Each clinic has 60 seconds to accept/decline before escalation.
-  - **BR-62:** A user may not have more than one active SOS booking.
-  - **BR-63:** Redis-based session and locks prevent concurrent duplicate SOS requests.
-  - **BR-64:** Status flow follows: `SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED / CANCELLED / NO_CLINIC`.
-  - **BR-65:** SOS session TTL is bounded (e.g. sum of all clinic timeouts plus buffer).
-  - **BR-66:** Booking code is generated with a unique SOS-specific format.
-  - ETA/distance are updated in real time primarily via WebSocket; REST polling is used only as fallback.
+    - BR-59: Search radius 10 km from user location
+    - BR-60: Max 5 clinics tried per SOS request
+    - BR-61: 60-second timeout per clinic before escalation
+    - BR-62: No duplicate active SOS bookings per user (enforced by distributed lock)
+    - BR-63: Distributed lock prevents race conditions (sos:lock:user:{userId}, TTL=10s)
+    - BR-64: Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
+    - BR-65: Session TTL = 60s × 5 clinics + 60s buffer = 360 seconds
+    - BR-66: Booking code format: `SOS-{timestamp7digits}-{random3digits}` (e.g., SOS-1234567-890)
 - **Normal case:**
-    1. Pet Owner opens `SosRequestScreen`; there is no active SOS booking.
-    2. GPS is read and the address field is pre-filled; the user may adjust the address via Location Picker.
-    3. The user selects a pet, picks quick symptom chips, enters optional free-text description, and taps “Send SOS request”.
-    4. Backend validates that no active SOS booking exists, creates a new SOS booking, and starts SOS matching.
-    5. `SosRadarMapScreen` shows a radar animation, nearby clinics, and countdown while the system waits for clinic responses.
-    6. A clinic accepts within the allowed time; backend updates booking to `CONFIRMED` and assigns clinic/staff; the UI briefly shows clinic details.
-    7. The app automatically navigates to `SosTrackingScreen`, subscribes to the tracking WebSocket, and starts rendering the vet marker, route, ETA, and distance.
-    8. When the vet arrives, backend calls the arrival logic and pushes `arrived=true`; the app shows a success message and returns to the home screen.
+    1. Pet Owner opens SOS Request Screen (no active SOS).
+    2. App auto-fills current GPS location + reverse-geocoded address.
+    3. Owner selects pet “Milo”, enters symptoms “Chó nôn liên tục, lả”.
+    4. Owner clicks “Request SOS” → App submits request.
+    5. Backend creates booking, finds 3 clinics within 10km, notifies Clinic A (closest, 2.5km).
+    6. App navigates to Radar Screen, shows “Đang chờ Clinic A xác nhận...” + countdown 60s.
+    7. After 30s, Clinic A accepts → WebSocket event CONFIRMED received.
+    8. Radar Screen shows “Clinic A đã xác nhận! Staff: Dr. Tùng” + clinic phone.
+    9. After 2s delay, app auto-navigates to SOS Tracking Screen (UC-PO-17).
 - **Abnormal/Exception cases:**
-    - A1 – Active SOS already exists: opening `SosRequestScreen` shows a dialog explaining there is an existing SOS; user can continue tracking or cancel the old request and then create a new one.
-    - A2 – No clinic available: all candidate clinics time out or decline → booking becomes `NO_CLINIC`; the radar screen shows a “no clinic available” message and does not transition to tracking.
-    - A3 – User cancels SOS: the Pet Owner presses “Cancel SOS” from radar/tracking while cancellation is allowed; backend updates booking to `CANCELLED` and stops matching/tracking; the app returns to the home screen.
-    - A4 – Tracking connection issues: WebSocket disconnects or fails repeatedly; the app falls back to REST polling; if tracking still cannot be updated, it shows an error message and allows the user to exit tracking.
-    - E1 – Invalid/missing location: GPS cannot be retrieved and no manual location is selected → the app shows validation errors and prevents sending the request.
-    - E2 – Backend persistence or code-generation errors: booking or session creation fails (e.g. booking code collision) → backend retries generation according to BR-66 or returns an error, and the app displays a localized error message without creating a corrupted booking.
+    - A1. Active SOS exists: App shows dialog → Owner clicks “Continue tracking” → Navigate to Radar/Tracking Screen based on current status.
+    - A2. No clinics found: Backend returns status=CANCELLED → App shows toast “Không tìm thấy phòng khám trong bán kính 10km. Vui lòng gọi hotline: 1900-xxx” → Stay on Request Screen.
+    - A3. Clinic A times out (60s): Backend auto-escalates to Clinic B → WebSocket event WAITING_NEXT → Radar shows “Đang chờ Clinic B...” + countdown resets to 60s.
+    - A4. All clinics exhausted: Backend sends NO_CLINIC event → Radar shows error message + hotline → “Back to Home” button appears.
+    - A5. User cancels during matching: Owner clicks “Cancel SOS” → Navigate to UC-PO-18 → Booking cancelled, Redis session cleared → Navigate back to Home.
+    - E1. GPS unavailable: App shows error “Không thể lấy vị trí GPS. Vui lòng bật định vị.” → Request button disabled until location obtained.
+    - E2. Backend timeout: API request takes >30s → App shows loading spinner, then timeout error “Không thể kết nối máy chủ” → Retry button.
 
-  #### *3.10.2 Track Staff Location (UC-PO-17 / UC-PO-18 / UC-PO-19)*
+ #### *3.10.2 Track Staff Location (Real-time Tracking) (UC-PO-17)*
 **User Story:**
-> *As a Pet Owner requesting SOS, I want to track the vet's real-time location so that I can estimate their arrival time.*
+> *As a Pet Owner, I want to track the assigned staff's real-time location during SOS emergency so that I know when they will arrive and can prepare accordingly.*
 
 **Function trigger**
-- **Navigation path:** SOS Booking Detail → "Track Staff".
-- **Timing frequency:** From when the Staff starts travel until they arrive.
+- **Navigation path:**
+  - **Automatic:** After clinic confirms SOS (status=CONFIRMED) → App auto-navigates from SOS Radar Map Screen to SOS Tracking Screen.
+  - **Manual:** My Bookings Tab → Select SOS Booking (status=CONFIRMED/IN_PROGRESS) → Click "Track" button → Navigate to SOS Tracking Screen.
+- **Timing frequency:** Continuous tracking from when booking is CONFIRMED until status changes to COMPLETED or CANCELLED.
 
 **Function description**
-- **Actors/Roles:** Pet Owner.
-- **Purpose:** Real-time visibility of the vet's approach during an SOS Emergency.
+- **Actors/Roles:** Pet Owner (Mobile only).
+- **Purpose:** Provide real-time visibility of assigned staff's location, route, and estimated arrival time during SOS emergency response.
 - **Interface:**
-    - Live Map View
-    - Staff Avatar & License Plate (Optional)
-    - **Staff Phone Number** (with click-to-call action)
-    - Estimated Time of Arrival (ETA)
+    1. **SOS Tracking Screen (Mobile - Pet Owner):**
+       - **Full-screen Map:** Google Maps with:
+           - **Home Marker:** Pet owner's emergency location (red house icon)
+           - **Clinic Marker:** Clinic location (clinic icon with name)
+           - **Staff Marker:** Staff current location (moving marker with avatar, snapped to route polyline)
+       - **Route Polyline:** Blue line showing route from clinic to home (Goong Direction API)
+       - **Auto-fit Camera:** Map auto-zooms to show both home and staff positions
+       - **Info Card (Bottom Sheet):**
+           - **Staff Avatar & Name:** Profile picture + full name
+           - **Staff Phone:** Click-to-call button
+           - **Distance Display:** "Còn cách {X} km" (only shown when staff is moving)
+           - **ETA Display:** "Dự kiến đến sau {Y} phút" (only shown when staff is moving)
+           - **Status Text:** Dynamic messages based on distance:
+               - "Bác sĩ đang trên đường đến..." (distance > 0.5 km)
+               - "Bác sĩ gần đến nơi..." (distance ≤ 0.5 km)
+               - "Bác sĩ rất gần..." (distance ≤ 0.1 km)
+               - "Bác sĩ đã đến!" (distance < 0.05 km or arrived=true)
+       - **Refresh Button:** Manual refresh button (top-right) for immediate location update
+       - **Back Button:** Exit tracking screen
+    2. **My Bookings Tab - SOS Booking Card:**
+       - Shows "Track" button when status is CONFIRMED or IN_PROGRESS
+       - Button disabled when status is COMPLETED or CANCELLED
 
 **Data processing**
-1. System receives GPS coordinates from the Staff's mobile app via WebSockets/Redis.
-2. System calculates ETA using Goong Maps API.
-3. Renders the moving marker on the Owner's map.
-4. Retrieves and displays Staff phone number for direct contact.
+1. App navigates to Tracking Screen (auto after confirmation or manual from My Bookings).
+2. Map initializes with 3 markers: home, clinic, and staff location with route polyline.
+3. System polls staff location updates every 5 seconds, calculates distance and ETA.
+4. Info card displays staff details, distance ("Còn cách X km"), and ETA ("Dự kiến đến sau Y phút").
+5. Staff marker animates smoothly along route as location updates.
+6. When staff arrives (distance < 0.05 km) → Show arrival notification, auto-navigate back to My Bookings after 3s.
 
 **Screen layout**
-Figure 41. Screen Proactive Staff Tracking (SOS Emergency - Mobile)
+Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet Owner)
 
 **Function details**
-- **Data:** Staff Lat/Lng, Owner Lat/Lng.
-- **Logic:** Tracking is active while status is `IN_PROGRESS` and staff is moving toward owner.
-- **Business rules:** BR-52, BR-64.
+- **Data:**
+    - **Booking Details Request:**
+        - bookingId (UUID) - Booking ID to track
+    - **Booking Response (includes tracking data):**
+        - bookingId (UUID) - Booking ID
+        - status (BookingStatus) - Current status (CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)
+        - type (BookingType) - SOS
+        - homeAddress (String) - Emergency address
+        - homeLat (BigDecimal) - Home latitude coordinate
+        - homeLong (BigDecimal) - Home longitude coordinate
+        - clinicName (String) - Clinic name
+        - clinicAddress (String) - Clinic address
+        - clinicLat (BigDecimal) - Clinic latitude coordinate
+        - clinicLng (BigDecimal) - Clinic longitude coordinate
+        - assignedStaff (Object, optional) - Assigned staff information:
+            - staffId (UUID) - Staff ID
+            - staffName (String) - Staff full name
+            - staffPhone (String) - Staff phone number (click-to-call)
+            - staffAvatar (String) - Avatar URL
+            - staffLat (BigDecimal, optional) - Staff current latitude coordinate
+            - staffLng (BigDecimal, optional) - Staff current longitude coordinate
+        - distanceKm (BigDecimal, optional) - Distance from staff to home (km)
+        - estimatedArrival (Integer, optional) - Estimated arrival time (minutes)
+        - arrivedAt (DateTime, optional) - Staff arrival timestamp
+    - **Polling Frequency:** Every 5 seconds (configurable)
+    - **WebSocket Topic:** `/topic/sos-tracking/{bookingId}` (fallback to polling if unavailable)
+- **Validation:**
+    - **Error Handling:**
+        - E1. Booking not found → Navigate back, show toast "Không tìm thấy booking"
+        - E2. Booking not SOS type → Navigate back, show toast "Booking không phải SOS"
+        - E3. Staff not assigned → Show message "Chưa có nhân viên được phân công"
+        - E4. Staff location unavailable → Show message "Đang chờ nhân viên bắt đầu di chuyển..."
+        - E5. Network error (API timeout) → Retry 3 times, then show persistent error banner "Mất kết nối. Đang thử lại..."
+        - E6. GPS permission denied (staff side) → Show message "Nhân viên chưa bật GPS"
+    - **Business Validation:**
+        - Tracking only available when booking status is CONFIRMED or IN_PROGRESS.
+        - Distance/ETA only shown when staffLat and staffLng are not null.
+        - Cannot track if booking is COMPLETED or CANCELLED → Hide "Track" button.
+- **Business rules:**
+    - BR-64: Status flow: CONFIRMED → IN_PROGRESS → COMPLETED
+    - BR-73: Staff location updates every 3 seconds (staff-side GPS broadcast)
+    - BR-74: Pet Owner polling interval: 5 seconds (to avoid excessive API calls)
+    - BR-75: Arrival threshold: distance < 0.05 km (50 meters) or arrivedAt field set
+    - BR-76: ETA calculation formula: `estimatedArrival = (distanceKm / 40) * 60` minutes (assumes 40 km/h avg speed)
+    - BR-77: Route polyline fetched once from Goong Direction API (cached for session)
+    - BR-78: Staff marker smooth animation: 1-second transition between position updates
 - **Normal case:**
-    1. Pet Owner opens SOS booking detail after vet is assigned.
-    2. Owner taps "Track Staff" button.
-    3. Live map displays vet's moving marker and ETA.
-    4. ETA updates every 5 seconds as vet approaches.
-    5. When vet arrives (within 100m), owner receives arrival notification.
+    1. Clinic confirms SOS, assigns staff "Dr. Tùng" → Owner auto-navigates to Tracking Screen.
+    2. Map initializes with 3 markers: home (red), clinic (blue), staff (avatar).
+    3. Route polyline from clinic to home is drawn.
+    4. Staff starts travelling → staffLat/staffLng become available.
+    5. App polls every 5s, receives updates: staffLat=10.762, staffLng=106.682, distanceKm=3.2, estimatedArrival=5.
+    6. Info card shows: "Còn cách 3.2 km", "Dự kiến đến sau 5 phút", "Bác sĩ đang trên đường đến...".
+    7. Staff marker animates smoothly along route polyline.
+    8. After 5 minutes, distance reduces to 0.03 km → Status text: "Bác sĩ đã đến!".
+    9. App plays notification sound, shows success message.
+    10. After 3s delay, app auto-navigates back to My Bookings Tab.
+- **Abnormal/Exception cases:**
+    - A1. Staff not moving (staffLat/staffLng null): Info card shows "Đang chờ nhân viên bắt đầu di chuyển...", distance/ETA hidden.
+    - A2. WebSocket connection fails: App shows toast "Không thể kết nối real-time, đang dùng chế độ polling", continues with 5s polling.
+    - A3. Staff takes wrong route (deviates >500m from polyline): App refetches route from Goong API, redraws polyline.
+    - A4. Booking status changes to CANCELLED during tracking: App receives status update → Show toast "SOS đã bị hủy" → Navigate back.
+    - A5. Booking status changes to COMPLETED during tracking: App receives status update → Show toast "Đã hoàn tất khám SOS" → Navigate back.
+    - E1. User denies location permission (owner side): Map cannot center on home → Use default center, show warning "Cần quyền vị trí để hiển thị bản đồ".
+    - E2. Polling timeout (3 consecutive failures): Show persistent error banner "Mất kết nối. Vui lòng kiểm tra mạng.", keep retrying every 10s.
+    - E3. Staff location jumps erratically (GPS inaccuracy): App applies smoothing filter (Kalman), ignores outliers >2km from previous position.
 
  #### *3.10.3 Manage Emergency Travel (UC-VT-11 / UC-VT-11b)*
 **User Story:**
@@ -3379,6 +3477,217 @@ Figure 42. Screen SOS Travel Logistics (Staff Side - Mobile)
     5. App continuously broadcasts vet's GPS coordinates every 3 seconds.
     6. System notifies Pet Owner when vet is nearing the destination.
     7. Staff performs medical service and then clicks "Checkout" to complete.
+
+ #### *3.10.4 Receive SOS Alert (Clinic Manager) (UC-CM-20)*
+**User Story:**
+> *As a Clinic Manager, I want to receive real-time SOS emergency alerts so that I can quickly accept or decline requests based on clinic availability.*
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → WebSocket subscription to `/topic/clinic/{clinicId}/sos-alert`.
+- **Timing frequency:** Real-time when SOS matching system contacts the clinic (60s timeout per clinic).
+
+**Function description**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Provide real-time notification of SOS emergency requests with pet/owner details and countdown timer to allow quick decision-making.
+- **Interface:**
+    1. **SOS Alert Modal (Web)**:
+       - **Pet Information:** Pet name, species, breed, weight
+       - **Owner Contact:** Owner name, phone number (click-to-call)
+       - **Emergency Details:** Symptoms, home address with GPS coordinates
+       - **Distance:** Distance from clinic to emergency location (km)
+       - **Countdown Timer:** 60-second countdown showing remaining time to respond
+       - **Actions:**
+           - **"Accept & Assign Staff"** → Opens staff selection dropdown
+           - **"Decline"** → Optional decline reason field
+    2. **Staff Selection Dropdown:**
+       - Lists available STAFF with specialty VETERINARIAN
+       - Filters: Only staff from current clinic
+
+**Data processing**
+1. System finds nearby clinics and sends alert to first clinic via WebSocket.
+2. Manager sees SOS Alert Modal with pet/owner details, symptoms, distance, and 60-second countdown.
+3. Manager decides to accept (selects staff) or decline (optional reason).
+4. If accept → System confirms booking, assigns staff, notifies pet owner.
+5. If decline or timeout → System escalates to next clinic, updates manager's modal.
+
+**Screen layout**
+Figure 44. SOS Alert Modal with Countdown (Web - Manager Dashboard)
+
+**Function details**
+- **Data:**
+    - **Confirmation Request (Accept):**
+        - bookingId (UUID) - SOS booking ID
+        - accepted (Boolean) - true when accepting
+        - assignedStaffId (UUID) - Selected staff ID
+    - **Confirmation Request (Decline):**
+        - bookingId (UUID) - SOS booking ID
+        - accepted (Boolean) - false when declining
+        - declineReason (String, optional) - Decline reason
+    - **WebSocket Alert Message:**
+        - event (String) - "CLINIC_NOTIFIED"
+        - bookingId (UUID) - Booking ID
+        - petName (String) - Pet name
+        - petSpecies (String) - Pet species (DOG, CAT, ...)
+        - symptoms (String) - Emergency symptoms
+        - petOwnerName (String) - Pet owner name
+        - petOwnerPhone (String) - Pet owner phone number
+        - homeAddress (String) - Emergency address
+        - distanceKm (Double) - Distance from clinic (km)
+        - remainingSeconds (Long) - Remaining time to respond (seconds)
+- **Validation:**
+    - **Error Handling:**
+        - E1. Manager not authorized for clinic → HTTP 403
+        - E2. Booking no longer in PENDING_CLINIC_CONFIRM status → HTTP 400
+        - E3. Assigned staff not from manager's clinic → HTTP 400
+    - **Business Validation:**
+        - Manager can only confirm SOS requests assigned to their clinic.
+        - Assigned staff must have role = STAFF and belong to manager's clinic.
+- **Business rules:**
+    - BR-59: Search radius 10 km.
+    - BR-60: Max 5 clinics tried.
+    - BR-61: 60-second timeout per clinic.
+    - BR-67: Clinic Manager must assign staff when accepting SOS.
+- **Normal case:**
+    1. SOS matching system contacts Clinic A (closest).
+    2. Manager sees modal with pet "Milo" needing emergency care.
+    3. Manager reviews symptoms: "Chó bỏ ăn, nôn" and distance: 2.5 km.
+    4. Manager selects staff "Dr. Tùng" and clicks "Accept".
+    5. System confirms booking, assigns staff, notifies pet owner.
+    6. Modal closes, manager sees booking in "Pending Bookings" list.
+- **Abnormal/Exception cases:**
+    - A1. Timeout: No response within 60s → System escalates to next clinic, modal shows "Đã chuyển sang phòng khám tiếp theo".
+    - A2. Decline: Manager declines → System escalates, logs decline reason.
+    - A3. Multiple Managers: If multiple managers online, first to click "Accept" wins; others see "Đã được xử lý bởi manager khác".
+
+ #### *3.10.5 Cancel SOS Matching (Pet Owner) (UC-PO-18)*
+**User Story:**
+> *As a Pet Owner, I want to cancel my SOS request before confirmation so that I can stop the matching process if the emergency is resolved.*
+
+**Function trigger**
+- **Navigation path:** SOS Radar Map Screen → "Cancel SOS" button (visible when status is SEARCHING or PENDING_CLINIC_CONFIRM).
+- **Timing frequency:** Available until booking status changes to CONFIRMED.
+
+**Function description**
+- **Actors/Roles:** Pet Owner (Mobile).
+- **Purpose:** Allow pet owners to cancel SOS matching process before clinic confirmation.
+- **Interface:**
+    1. **Cancel Button:** Displayed on SOS Radar Map Screen.
+    2. **Confirmation Dialog:**
+       - Title: "Hủy yêu cầu SOS?"
+       - Message: "Bạn có chắc muốn hủy yêu cầu cấp cứu? Bạn có thể tạo yêu cầu mới sau."
+       - Actions: "Hủy yêu cầu" (danger) / "Quay lại" (secondary)
+
+**Data processing**
+1. User clicks "Cancel SOS" button on radar screen.
+2. App shows confirmation dialog: "Bạn có chắc muốn hủy yêu cầu cấp cứu?".
+3. User confirms cancellation → System validates and updates booking status to CANCELLED.
+4. System notifies pet owner and current clinic (if any) via WebSocket.
+5. App navigates back to Home, shows toast "Đã hủy yêu cầu SOS".
+
+**Screen layout**
+Figure 45. Cancel SOS Confirmation Dialog (Mobile)
+
+**Function details**
+- **Data:**
+    - **Cancellation Request:**
+        - bookingId (UUID) - Booking ID to cancel
+    - **WebSocket Status Message (Pet Owner):**
+        - event (String) - "CANCELLED"
+        - bookingId (UUID) - Booking ID
+        - status (String) - "CANCELLED"
+        - message (String) - "Bạn đã hủy yêu cầu cấp cứu."
+- **Validation:**
+    - **Error Handling:**
+        - E1. Booking not owned by user → HTTP 403
+        - E2. Booking already CONFIRMED or COMPLETED → HTTP 400 "Không thể hủy booking ở trạng thái: {status}"
+- **Business rules:**
+    - BR-68: Pet Owner can only cancel SOS before clinic confirmation.
+    - BR-69: After cancellation, Redis session is cleared and matching stops immediately.
+- **Normal case:**
+    1. Pet owner creates SOS request for pet "Milo".
+    2. Radar screen shows "Đang chờ phòng khám xác nhận...".
+    3. Owner's emergency situation improves (e.g., vomiting stopped).
+    4. Owner clicks "Cancel SOS" → Confirmation dialog appears.
+    5. Owner confirms → Booking cancelled, returns to Home.
+- **Abnormal/Exception cases:**
+    - A1. Clinic just confirmed (race condition): Backend returns 400 → App shows "Phòng khám đã xác nhận, không thể hủy".
+
+ #### *3.10.6 Checkout with Custom SOS Fee (UC-CM-21)*
+**User Story:**
+> *As a Clinic Manager, I want to checkout SOS bookings with custom SOS fees included in total price so that I can properly charge for emergency services.*
+
+**Function trigger**
+- **Navigation path:** Manager Dashboard → Bookings List → Select SOS Booking (status = IN_PROGRESS) → "Checkout" button.
+- **Timing frequency:** After staff completes emergency medical service.
+
+**Function description**
+- **Actors/Roles:** Clinic Manager (Web).
+- **Purpose:** Finalize SOS booking and collect payment including SOS emergency fee.
+- **Interface:**
+    1. **Checkout Modal (Web)**:
+       - **Booking Summary:**
+           - Booking Code (e.g., SOS-12345)
+           - Pet Name, Owner Name
+           - Service Items (if any services added during visit)
+       - **Fee Breakdown:**
+           - Base Services: {amount} VND (if applicable)
+           - **SOS Emergency Fee**: {sosFee} VND (configured per clinic, default 50,000 VND)
+           - **Total Amount**: {totalPrice} VND
+       - **Payment Method Selection:**
+           - Cash / Stripe / Wallet (Placeholder)
+       - **Actions:**
+           - "Confirm Checkout" (primary)
+           - "Cancel" (secondary)
+
+**Data processing**
+1. Manager opens SOS booking detail (status = IN_PROGRESS) and clicks "Checkout".
+2. Checkout modal displays fee breakdown: Base Services + SOS Emergency Fee = Total Amount.
+3. Manager selects payment method (Cash/Stripe/Wallet) and clicks "Confirm Checkout".
+4. System updates booking status to COMPLETED, records payment method and completion time.
+5. System notifies pet owner, modal closes, booking moves to "Completed" tab.
+
+**Screen layout**
+Figure 46. Checkout Modal for SOS Booking (Web - Manager Dashboard)
+
+**Function details**
+- **Data:**
+    - **Checkout Request:**
+        - bookingId (UUID) - Booking ID to checkout
+        - paymentMethod (String) - Payment method (CASH, STRIPE, WALLET)
+        - notes (String, optional) - Payment notes
+    - **Response Data:**
+        - success (Boolean) - true if checkout successful
+        - message (String) - "Checkout thành công"
+        - bookingId (UUID) - Booking ID
+        - status (String) - "COMPLETED"
+        - totalPrice (BigDecimal) - Total amount (including SOS fee)
+        - sosFee (BigDecimal) - SOS emergency fee
+        - completedAt (DateTime) - Completion timestamp
+- **Validation:**
+    - **Error Handling:**
+        - E1. Booking not in IN_PROGRESS status → HTTP 400
+        - E2. Manager not authorized for booking's clinic → HTTP 403
+        - E3. Payment method required → HTTP 400
+    - **Business Validation:**
+        - SOS fee must be configured in clinic pricing settings.
+        - If no SOS fee configured, default 50,000 VND is used.
+        - Total price must be non-negative.
+- **Business rules:**
+    - BR-70: SOS fee is configured per clinic via `ClinicPriceService`.
+    - BR-71: SOS fee is added to booking during confirmation, not checkout.
+    - BR-72: Checkout updates status to COMPLETED and records payment method.
+- **Normal case:**
+    1. Staff completes emergency examination for pet "Milo".
+    2. Manager opens booking detail, sees status = IN_PROGRESS.
+    3. Manager clicks "Checkout" → Modal shows:
+        - Base Services: 200,000 VND
+        - SOS Emergency Fee: 50,000 VND
+        - **Total: 250,000 VND**
+    4. Manager selects "Cash" payment, clicks "Confirm Checkout".
+    5. System completes booking, notifies owner: "Đã hoàn tất khám SOS".
+- **Abnormal/Exception cases:**
+    - A1. Checkout before EMR created: System warns "Chưa tạo hồ sơ bệnh án, tiếp tục checkout?".
+    - A2. Network error during checkout: System retries, shows loading state.
 
 ### 3.11 AI Assistance Flow
 

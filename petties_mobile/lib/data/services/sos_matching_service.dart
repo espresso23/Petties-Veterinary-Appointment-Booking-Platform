@@ -11,6 +11,7 @@ import 'api_client.dart';
 class SosMatchingStatus {
   final String bookingId;
   final String status;
+  final String? event;
   final String? clinicId;
   final String? clinicName;
   final String? clinicPhone;
@@ -25,10 +26,12 @@ class SosMatchingStatus {
   final String? staffName;
   final String? staffPhone;
   final String? staffAvatarUrl;
+  final int? remainingSeconds;
 
   SosMatchingStatus({
     required this.bookingId,
     required this.status,
+    this.event,
     this.clinicId,
     this.clinicName,
     this.clinicPhone,
@@ -43,12 +46,14 @@ class SosMatchingStatus {
     this.staffName,
     this.staffPhone,
     this.staffAvatarUrl,
+    this.remainingSeconds,
   });
 
   factory SosMatchingStatus.fromJson(Map<String, dynamic> json) {
     return SosMatchingStatus(
       bookingId: json['bookingId'] ?? '',
       status: json['status'] ?? 'SEARCHING',
+      event: json['event']?.toString(),
       clinicId: json['clinicId'],
       clinicName: json['clinicName'],
       clinicPhone: json['clinicPhone'],
@@ -63,6 +68,7 @@ class SosMatchingStatus {
       staffName: json['staffName'],
       staffPhone: json['staffPhone'],
       staffAvatarUrl: json['staffAvatarUrl'],
+      remainingSeconds: (json['remainingSeconds'] as num?)?.toInt(),
     );
   }
 
@@ -144,13 +150,13 @@ class SosMatchResponse {
   });
 
   factory SosMatchResponse.fromJson(Map<String, dynamic> json) {
-    double? _parseDouble(dynamic value) {
+    double? parseDouble(dynamic value) {
       if (value == null) return null;
       if (value is num) return value.toDouble();
       return double.tryParse(value.toString());
     }
 
-    int? _parseInt(dynamic value) {
+    int? parseInt(dynamic value) {
       if (value == null) return null;
       if (value is int) return value;
       if (value is num) return value.toInt();
@@ -168,10 +174,10 @@ class SosMatchResponse {
       clinicName: json['clinicName'],
       clinicPhone: json['clinicPhone'],
       clinicAddress: json['clinicAddress'],
-      clinicLat: _parseDouble(json['clinicLat']),
-      clinicLng: _parseDouble(json['clinicLng']),
-      distanceKm: _parseDouble(json['distanceKm'] ?? json['distance']),
-      estimatedMinutes: _parseInt(json['estimatedMinutes']),
+      clinicLat: parseDouble(json['clinicLat']),
+      clinicLng: parseDouble(json['clinicLng']),
+      distanceKm: parseDouble(json['distanceKm'] ?? json['distance']),
+      estimatedMinutes: parseInt(json['estimatedMinutes']),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,

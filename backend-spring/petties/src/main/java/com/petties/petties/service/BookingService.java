@@ -990,7 +990,7 @@ public class BookingService {
         // ========== ADD-ON SERVICE (During Active Booking) ==========
 
         /**
-         * Add a service to an active booking (IN_PROGRESS or ARRIVED)
+         * Add a service to an active booking (IN_PROGRESS)
          * Used when staff wants to add extra services during home visit
          * Distance fee is NOT recalculated (already at location)
          *
@@ -1005,6 +1005,8 @@ public class BookingService {
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateClinicAccessPermission(booking, currentUser);
 
                 // Validate status - only allow for active bookings
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1170,16 +1172,32 @@ public class BookingService {
                 return bookingMapper.mapToResponse(booking);
         }
 
+        @Transactional
+        public BookingResponse processCheckoutAuthorized(UUID bookingId, CheckoutRequest request, User currentUser) {
+                Booking booking = bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateExecutionPermission(booking, currentUser);
+                return processCheckout(bookingId, request, currentUser);
+        }
+
         /**
          * Remove a service from booking
          * ONLY allowed for add-on services (isAddOn = true)
          */
         @Transactional
-        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId) {
+        public BookingResponse removeServiceFromBooking(UUID bookingId, UUID bookingServiceId, User currentUser) {
                 log.info("Removing service {} from booking {}", bookingServiceId, bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateClinicAccessPermission(booking, currentUser);
+
+                if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
+                        throw new IllegalStateException(
+                                        "Chỉ có thể xóa dịch vụ phát sinh khi booking đang ở trạng thái IN_PROGRESS");
+                }
 
                 BookingServiceItem itemToRemove = booking.getBookingServices().stream()
                                 .filter(item -> item.getBookingServiceId().equals(bookingServiceId))
@@ -1225,6 +1243,8 @@ public class BookingService {
                         UUID bookingId, User currentUser) {
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateClinicAccessPermission(booking, currentUser);
 
                 // Get all active services for the clinic
                 List<ClinicService> allActiveServices = clinicServiceRepository
@@ -1314,10 +1334,17 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse checkIn(UUID bookingId) {
+                return checkIn(bookingId, null);
+        }
+
+        @Transactional
+        public BookingResponse checkIn(UUID bookingId, User currentUser) {
                 log.info("Check-in booking {}", bookingId);
 
                 Booking booking = bookingRepository.findByIdWithDetails(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateExecutionPermission(booking, currentUser);
 
 // Validate status - chỉ cho phép check-in khi CONFIRMED (check-in chuyển sang IN_PROGRESS)
                 if (booking.getStatus() != BookingStatus.CONFIRMED) {
@@ -1363,10 +1390,17 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse startMoving(UUID bookingId) {
+                return startMoving(bookingId, null);
+        }
+
+        @Transactional
+        public BookingResponse startMoving(UUID bookingId, User currentUser) {
                 log.info("Staff starting movement for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateExecutionPermission(booking, currentUser);
 
                 // Validate type
                 if (booking.getType() != com.petties.petties.model.enums.BookingType.SOS
@@ -1402,10 +1436,17 @@ public class BookingService {
 
         @Transactional
         public BookingResponse arrived(UUID bookingId) {
+                return arrived(bookingId, null);
+        }
+
+        @Transactional
+        public BookingResponse arrived(UUID bookingId, User currentUser) {
                 log.info("Staff arrived for booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateExecutionPermission(booking, currentUser);
 
                 // Validate status - must be IN_PROGRESS (movement phase)
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1448,10 +1489,17 @@ public class BookingService {
          */
         @Transactional
         public BookingResponse complete(UUID bookingId) {
+                return complete(bookingId, null);
+        }
+
+        @Transactional
+        public BookingResponse complete(UUID bookingId, User currentUser) {
                 log.info("Completing booking {}", bookingId);
 
                 Booking booking = bookingRepository.findById(bookingId)
                                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn"));
+
+                validateExecutionPermission(booking, currentUser);
 
                 // Validate status
                 if (booking.getStatus() != BookingStatus.IN_PROGRESS) {
@@ -1484,6 +1532,59 @@ public class BookingService {
                 }
 
                 return bookingMapper.mapToResponse(booking);
+        }
+
+        private void validateExecutionPermission(Booking booking, User currentUser) {
+                validateClinicAccessPermission(booking, currentUser);
+
+                if (currentUser == null) {
+                        return;
+                }
+
+                boolean isAssignedStaff = booking.getAssignedStaff() != null
+                                && booking.getAssignedStaff().getUserId().equals(currentUser.getUserId());
+
+                boolean isAssignedInServices = booking.getBookingServices() != null
+                                && booking.getBookingServices().stream()
+                                                .anyMatch(item -> item.getAssignedStaff() != null
+                                                                && item.getAssignedStaff().getUserId()
+                                                                                .equals(currentUser.getUserId()));
+
+                boolean hasAssignmentData = booking.getAssignedStaff() != null
+                                || (booking.getBookingServices() != null
+                                                && booking.getBookingServices().stream()
+                                                                .anyMatch(item -> item.getAssignedStaff() != null));
+
+                if (!hasAssignmentData) {
+                        return;
+                }
+
+                if (!isAssignedStaff && !isAssignedInServices) {
+                        throw new ForbiddenException("Bạn không được phân công xử lý booking này");
+                }
+        }
+
+        private void validateClinicAccessPermission(Booking booking, User currentUser) {
+                if (currentUser == null) {
+                        return;
+                }
+
+                if (currentUser.getRole() == Role.ADMIN) {
+                        return;
+                }
+
+                UUID bookingClinicId = booking.getClinic() != null ? booking.getClinic().getClinicId() : null;
+                UUID userClinicId = currentUser.getWorkingClinic() != null
+                                ? currentUser.getWorkingClinic().getClinicId()
+                                : null;
+
+                if (bookingClinicId == null || userClinicId == null || !bookingClinicId.equals(userClinicId)) {
+                        throw new ForbiddenException("Bạn không thuộc phòng khám xử lý booking này");
+                }
+
+                if (currentUser.getRole() != Role.STAFF && currentUser.getRole() != Role.CLINIC_MANAGER) {
+                        throw new ForbiddenException("Bạn không có quyền thao tác booking này");
+                }
         }
 
         /**

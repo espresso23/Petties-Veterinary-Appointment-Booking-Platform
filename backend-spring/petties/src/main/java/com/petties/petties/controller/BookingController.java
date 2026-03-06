@@ -325,8 +325,13 @@ public class BookingController {
 
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @PostMapping("/{bookingId}/check-in")
-    public ResponseEntity<BookingResponse> checkIn(@PathVariable UUID bookingId) {
-        BookingResponse response = bookingService.checkIn(bookingId);
+        public ResponseEntity<BookingResponse> checkIn(
+                @PathVariable UUID bookingId,
+                @AuthenticationPrincipal UserDetails userDetails) {
+            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+            BookingResponse response = bookingService.checkIn(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 
@@ -336,8 +341,13 @@ public class BookingController {
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/start-moving")
-    public ResponseEntity<BookingResponse> startMoving(@PathVariable UUID bookingId) {
-        BookingResponse response = bookingService.startMoving(bookingId);
+        public ResponseEntity<BookingResponse> startMoving(
+                @PathVariable UUID bookingId,
+                @AuthenticationPrincipal UserDetails userDetails) {
+            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+            BookingResponse response = bookingService.startMoving(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
     /**
@@ -346,8 +356,13 @@ public class BookingController {
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/arrived")
-    public ResponseEntity<BookingResponse> arrived(@PathVariable UUID bookingId) {
-        BookingResponse response = bookingService.arrived(bookingId);
+        public ResponseEntity<BookingResponse> arrived(
+                @PathVariable UUID bookingId,
+                @AuthenticationPrincipal UserDetails userDetails) {
+            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+            BookingResponse response = bookingService.arrived(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 
@@ -365,7 +380,7 @@ public class BookingController {
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
 
-        BookingResponse response = bookingService.processCheckout(bookingId, request, currentUser);
+        BookingResponse response = bookingService.processCheckoutAuthorized(bookingId, request, currentUser);
         return ResponseEntity.ok(response);
     }
 
@@ -375,8 +390,13 @@ public class BookingController {
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
     @PostMapping("/{bookingId}/complete")
-    public ResponseEntity<BookingResponse> complete(@PathVariable UUID bookingId) {
-        BookingResponse response = bookingService.complete(bookingId);
+        public ResponseEntity<BookingResponse> complete(
+                @PathVariable UUID bookingId,
+                @AuthenticationPrincipal UserDetails userDetails) {
+            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+            BookingResponse response = bookingService.complete(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 
@@ -417,8 +437,12 @@ public class BookingController {
     @DeleteMapping("/{bookingId}/services/{serviceId}")
     public ResponseEntity<BookingResponse> removeServiceFromBooking(
             @PathVariable UUID bookingId,
-            @PathVariable UUID serviceId) {
-        BookingResponse response = bookingService.removeServiceFromBooking(bookingId, serviceId);
+            @PathVariable UUID serviceId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+
+        BookingResponse response = bookingService.removeServiceFromBooking(bookingId, serviceId, currentUser);
         return ResponseEntity.ok(response);
     }
 

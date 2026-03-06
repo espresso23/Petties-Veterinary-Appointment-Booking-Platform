@@ -57,8 +57,12 @@ class SosWebSocketService {
      * Connect to WebSocket server
      */
     connect(clinicId: string): Promise<void> {
-        if (this.client?.connected || this.isConnecting) {
+        if ((this.client?.connected || this.isConnecting) && this.clinicId === clinicId) {
             return Promise.resolve()
+        }
+
+        if ((this.client?.connected || this.isConnecting) && this.clinicId && this.clinicId !== clinicId) {
+            this.disconnect()
         }
 
         this.clinicId = clinicId
@@ -173,7 +177,6 @@ class SosWebSocketService {
         if (this.client) {
             this.subscriptions.forEach((unsubscribe) => unsubscribe())
             this.subscriptions.clear()
-            this.alertHandlers.clear()
             this.client.deactivate()
             this.client = null
         }

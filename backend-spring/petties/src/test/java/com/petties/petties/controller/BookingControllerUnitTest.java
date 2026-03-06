@@ -1027,6 +1027,7 @@ class BookingControllerUnitTest {
                 // Arrange
                 UUID bookingId = UUID.randomUUID();
                 UUID serviceId = UUID.randomUUID();
+                UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
                 BookingResponse response = createMockBookingResponse(); // Has 1 service initially
                 response.setPets(List.of(
@@ -1036,14 +1037,16 @@ class BookingControllerUnitTest {
                                                 .services(Collections.emptyList())
                                                 .build())); // Service removed
 
-                when(bookingService.removeServiceFromBooking(bookingId, serviceId)).thenReturn(response);
+                setupUserPrincipalAuth(userId);
+                when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
+                when(bookingService.removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class))).thenReturn(response);
 
                 // Act & Assert
                 mockMvc.perform(delete("/bookings/{bookingId}/services/{serviceId}", bookingId, serviceId))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.pets[0].services").isEmpty());
 
-                verify(bookingService).removeServiceFromBooking(bookingId, serviceId);
+                verify(bookingService).removeServiceFromBooking(eq(bookingId), eq(serviceId), any(com.petties.petties.model.User.class));
         }
         // ==================== GET AVAILABLE SLOTS TESTS ====================
 
@@ -1227,7 +1230,7 @@ class BookingControllerUnitTest {
                 response.setStatus(BookingStatus.COMPLETED);
 
                 when(bookingService.getCurrentUserById(userId)).thenReturn(new com.petties.petties.model.User());
-                when(bookingService.processCheckout(eq(bookingId), any(CheckoutRequest.class), any()))
+                when(bookingService.processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any()))
                                 .thenReturn(response);
 
                 mockMvc.perform(post("/bookings/{bookingId}/checkout", bookingId)
@@ -1236,7 +1239,7 @@ class BookingControllerUnitTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-                verify(bookingService).processCheckout(eq(bookingId), any(CheckoutRequest.class), any());
+                verify(bookingService).processCheckoutAuthorized(eq(bookingId), any(CheckoutRequest.class), any());
         }
 
         // ==================== CLINIC TODAY BOOKINGS TESTS ====================

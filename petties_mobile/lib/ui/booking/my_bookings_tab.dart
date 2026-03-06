@@ -111,12 +111,12 @@ class _MyBookingsTabState extends State<MyBookingsTab>
                           _proxyBookings, const ['CONFIRMED']),
                     ),
 
-                    // Tab 3: Đang diễn ra (ARRIVED, IN_PROGRESS, CHECKED_IN)
+                    // Tab 3: Đang diễn ra (IN_PROGRESS)
                     _buildStatusSection(
-                      myBookings: _filterByStatuses(_bookings,
-                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
-                      proxyBookings: _filterByStatuses(_proxyBookings,
-                        const ['ARRIVED', 'IN_PROGRESS', 'CHECKED_IN']),
+                      myBookings:
+                        _filterByStatuses(_bookings, const ['IN_PROGRESS']),
+                      proxyBookings: _filterByStatuses(
+                        _proxyBookings, const ['IN_PROGRESS']),
                     ),
 
                     // Tab 4: Hoàn thành
@@ -1155,5 +1155,4 @@ class _MyBookingsTabState extends State<MyBookingsTab>
     }
     return timeStr;
   }
-
 }

@@ -2,6 +2,7 @@ package com.petties.petties.service;
 
 import com.petties.petties.dto.booking.BookingResponse;
 import com.petties.petties.dto.clinicService.ClinicServiceResponse;
+import com.petties.petties.exception.ForbiddenException;
 import com.petties.petties.model.*;
 import com.petties.petties.model.enums.*;
 import com.petties.petties.repository.*;
@@ -126,6 +127,7 @@ class BookingServiceUnitTest {
         void addServiceToBooking_ClinicManager_Success() {
             User manager = new User();
             manager.setRole(Role.CLINIC_MANAGER);
+            manager.setWorkingClinic(clinic);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -144,6 +146,7 @@ class BookingServiceUnitTest {
             User staff = new User();
             staff.setRole(Role.STAFF);
             staff.setSpecialty(StaffSpecialty.VET);
+            staff.setWorkingClinic(clinic);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -162,6 +165,7 @@ class BookingServiceUnitTest {
             User staff = new User();
             staff.setRole(Role.STAFF);
             staff.setSpecialty(StaffSpecialty.GROOMER); // Service is SURGERY
+            staff.setWorkingClinic(clinic);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -179,6 +183,7 @@ class BookingServiceUnitTest {
             User staff = new User();
             staff.setRole(Role.STAFF);
             staff.setSpecialty(StaffSpecialty.VET);
+            staff.setWorkingClinic(clinic);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -197,6 +202,7 @@ class BookingServiceUnitTest {
             service.setIsHomeVisit(false); // Dịch vụ chỉ tại phòng khám
             User manager = new User();
             manager.setRole(Role.CLINIC_MANAGER);
+            manager.setWorkingClinic(clinic);
 
             when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
             when(clinicServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
@@ -206,6 +212,22 @@ class BookingServiceUnitTest {
             });
 
             assertTrue(exception.getMessage().contains("tại nhà"));
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-09: Staff khác phòng khám không được thêm dịch vụ phát sinh")
+        void addServiceToBooking_StaffDifferentClinic_Forbidden() {
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+
+            Clinic otherClinic = new Clinic();
+            otherClinic.setClinicId(UUID.randomUUID());
+            staff.setWorkingClinic(otherClinic);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+            assertThrows(ForbiddenException.class,
+                    () -> bookingService.addServiceToBooking(bookingId, serviceId, staff));
         }
     }
 
@@ -219,6 +241,7 @@ class BookingServiceUnitTest {
             User staff = new User();
             staff.setRole(Role.STAFF);
             staff.setSpecialty(StaffSpecialty.VET);
+            staff.setWorkingClinic(clinic);
 
             com.petties.petties.model.ClinicService surgeryService = new com.petties.petties.model.ClinicService();
             surgeryService.setServiceId(UUID.randomUUID());
@@ -253,6 +276,7 @@ class BookingServiceUnitTest {
         void getAvailableServicesForAddOn_ExcludeExisting() {
             User manager = new User();
             manager.setRole(Role.CLINIC_MANAGER);
+            manager.setWorkingClinic(clinic);
 
             com.petties.petties.model.ClinicService service1 = new com.petties.petties.model.ClinicService();
             service1.setServiceId(serviceId);
@@ -288,6 +312,7 @@ class BookingServiceUnitTest {
             User staff = new User();
             staff.setRole(Role.STAFF);
             staff.setSpecialty(StaffSpecialty.VET); // Only derma, but SOS
+            staff.setWorkingClinic(clinic);
 
             com.petties.petties.model.ClinicService surgery = new com.petties.petties.model.ClinicService();
             surgery.setServiceCategory(ServiceCategory.SURGERY);
@@ -304,6 +329,74 @@ class BookingServiceUnitTest {
             assertEquals(1, result.size());
             assertEquals("Surgery", result.get(0).getName());
         }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-10: Khác phòng khám không được xem dịch vụ phát sinh khả dụng")
+        void getAvailableServicesForAddOn_DifferentClinic_Forbidden() {
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+
+            Clinic otherClinic = new Clinic();
+            otherClinic.setClinicId(UUID.randomUUID());
+            staff.setWorkingClinic(otherClinic);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+            assertThrows(ForbiddenException.class,
+                    () -> bookingService.getAvailableServicesForAddOn(bookingId, staff));
+        }
+    }
+
+    @Nested
+    @DisplayName("removeServiceFromBooking Permission Validation")
+    class RemoveServiceFromBookingTests {
+
+        @Test
+        @DisplayName("TC-UNIT-BS-11: Staff cùng phòng khám có thể xóa dịch vụ phát sinh khi IN_PROGRESS")
+        void removeServiceFromBooking_SameClinicStaff_Success() {
+            UUID bookingServiceId = UUID.randomUUID();
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setWorkingClinic(clinic);
+
+            BookingServiceItem addOnItem = new BookingServiceItem();
+            addOnItem.setBookingServiceId(bookingServiceId);
+            addOnItem.setService(service);
+            addOnItem.setIsAddOn(true);
+            addOnItem.setWeightPrice(BigDecimal.valueOf(100000));
+            booking.setTotalPrice(BigDecimal.valueOf(100000));
+            booking.getBookingServices().add(addOnItem);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+            when(bookingMapper.mapToResponse(any())).thenReturn(BookingResponse.builder().bookingId(bookingId).build());
+
+            BookingResponse response = bookingService.removeServiceFromBooking(bookingId, bookingServiceId, staff);
+
+            assertNotNull(response);
+            verify(bookingServiceItemRepository).delete(addOnItem);
+        }
+
+        @Test
+        @DisplayName("TC-UNIT-BS-12: Không thể xóa dịch vụ phát sinh sau khi booking đã hoàn tất")
+        void removeServiceFromBooking_Completed_Fails() {
+            UUID bookingServiceId = UUID.randomUUID();
+            User staff = new User();
+            staff.setRole(Role.STAFF);
+            staff.setWorkingClinic(clinic);
+
+            BookingServiceItem addOnItem = new BookingServiceItem();
+            addOnItem.setBookingServiceId(bookingServiceId);
+            addOnItem.setService(service);
+            addOnItem.setIsAddOn(true);
+            addOnItem.setWeightPrice(BigDecimal.valueOf(100000));
+            booking.setStatus(BookingStatus.COMPLETED);
+            booking.getBookingServices().add(addOnItem);
+
+            when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+
+            assertThrows(IllegalStateException.class,
+                    () -> bookingService.removeServiceFromBooking(bookingId, bookingServiceId, staff));
+        }
     }
 
     @Nested
@@ -314,7 +407,7 @@ class BookingServiceUnitTest {
         private com.petties.petties.dto.booking.CheckoutRequest checkoutRequest;
 
         @Test
-        @DisplayName("TC-UNIT-BS-08: Standard checkout success")
+        @DisplayName("TC-UNIT-BS-13: Standard checkout success")
         void processCheckout_Standard_Success() {
             User staff = new User();
             staff.setUserId(UUID.randomUUID());
@@ -331,7 +424,7 @@ class BookingServiceUnitTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-09: SOS checkout with fee override")
+        @DisplayName("TC-UNIT-BS-14: SOS checkout with fee override")
         void processCheckout_SOS_WithOverride() {
             User staff = new User();
             staff.setUserId(UUID.randomUUID());
@@ -361,7 +454,7 @@ class BookingServiceUnitTest {
         }
 
         @Test
-        @DisplayName("TC-UNIT-BS-10: Checkout fails for invalid status")
+        @DisplayName("TC-UNIT-BS-15: Checkout fails for invalid status")
         void processCheckout_InvalidStatus_Fails() {
             User staff = new User();
             booking.setStatus(BookingStatus.PENDING); // Not valid for checkout
