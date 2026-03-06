@@ -209,9 +209,18 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [ ] **Booking Confirmation Page** (UC-MGR-03)
   - Code: `petties-web/src/pages/clinic-manager/BookingConfirmPage.tsx`
   - *UI Description: Chi tiết booking pending confirmation. Auto-assign hoặc Manual-assign staff UI. Available staff list với workload indicator.*
-- [ ] **Staff Management (Manager)** (UC-MGR-04)
-  - Code: `petties-web/src/pages/clinic-manager/StaffPage.tsx`
-  - *UI Description: Danh sách staff với status (Active, On Leave). Invite staff modal, assign shifts button, view schedule link.*
+- [x] **Staff List Management** (UC-MGR-04)
+  - Code: `clinic-manager/staff/StaffManagementPage.tsx`
+  - Stitch ID: `32036310fa7c487ebfe5a4b8fd7edb22`
+  - *UI Description: Danh sách nhân viên (Table/Grid), thông tin liên lạc, vai trò, chuyên môn, nút Thêm nhân sự.*
+- [x] **Staff Invitation by Email** (UC-MGR-04)
+  - Code: `components/clinic-staff/QuickAddStaffModal.tsx`
+  - Stitch ID: `f84e04f0976440fc87b0280c98f8b442`
+  - *UI Description: Modal Thêm nhân viên bằng Email, chọn Role, Specialty.*
+- [x] **Staff Removal Confirmation Dialog** (UC-MGR-04)
+  - Code: `components/clinic-staff/StaffTable.tsx`
+  - Stitch ID: `bb322f38e46d4e41b3d5930d45bf44f4`
+  - *UI Description: Modal xác nhận trước khi xóa nhân viên.*
 - [ ] **Chat Management** (UC-MGR-05)
   - Code: `petties-web/src/pages/clinic-manager/ChatManagementPage.tsx`
   - *UI Description: Live chat inbox với pet owners. Sidebar list conversations, main area chat messages. Assign to staff feature.*
