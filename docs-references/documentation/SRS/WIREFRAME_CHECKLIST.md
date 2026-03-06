@@ -132,6 +132,10 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
   - Stitch ID: `fa566e8868d3452c80460a7e616a20e6`
   - *UI Description: Các nút hành động "THANH TOÁN" và "HOÀN THÀNH" tích hợp vào thanh action bar phía dưới.*
+- [x] **Checkout with Custom Fee Modal** (Staff side)
+  - Code: `lib/ui/staff/staff_booking_detail_screen.dart` (AlertDialog inside `_handleCheckout`)
+  - Stitch ID: `bee2508fd8bd415796130e957201d18b`
+  - *UI Description: Form xác nhận thanh toán dạng popup modal, nổi bật khung nhập liệu "Điều chỉnh phí SOS" (Custom Fee) để thay đổi phí trước khi Checkout.*
 - [x] **Clinic SOS Configuration** (Clinic Manager)
   - Code: `src/pages/clinic-manager/ClinicProfilePage.tsx`
   - Stitch ID: `ca5701e0fe4b445b9f4d9be302f7a783`
