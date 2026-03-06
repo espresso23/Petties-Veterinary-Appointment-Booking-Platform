@@ -223,7 +223,10 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff Shift Management** (UC-SCHED-01)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID (Full Desktop View): `cef09cbbf65249ccb67cfa7849134bcf`
-  - Stitch ID (Sidebar Detail): `213e781a8fb24b639c87bfaff592b95f`
+- [x] **Shift Detail Sidebar** (UC-SCHED-01)
+  - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
+  - Stitch ID: `4befcd685bb34273ba6d506796481acb`
+  - *UI Description: Sidebar tab "Chi tiết ca" hiển thị thông tin nhân viên, KHUNG GIỜ, khung tóm tắt Slots (Trống/Đã đặt/Đã khóa) và DANH SÁCH SLOTS chi tiết.*
 - [x] **Staff Schedule** (UC-SCHED-01)
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
@@ -280,6 +283,10 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
   - Stitch ID: `a7279e0ebc6a48e7bd0d45fc9fb6b1f3`
   - *UI Description: Chi tiết ca SOS với Badge "SOS" đỏ, nút "BẮT ĐẦU DI CHUYỂN", "CHỈ ĐƯỜNG" và bảng "Payment Summary" (Phí SOS + Phí KM + Dịch vụ).*
+- [x] **Booking Detail with Checkout** (Mobile Staff side)
+  - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
+  - Stitch ID: `f1e6db59e75b41168c29b3ee894a0189`
+  - *UI Description: Chi tiết lịch hẹn trạng thái IN_PROGRESS, badge "Đang khám" & "SOS". Nút to "XEM LẠI HÓA ĐƠN & THANH TOÁN" ở phần Action.*
 - [x] **SOS Checkout & Complete** (Staff side)
   - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
   - Stitch ID: `fa566e8868d3452c80460a7e616a20e6`
