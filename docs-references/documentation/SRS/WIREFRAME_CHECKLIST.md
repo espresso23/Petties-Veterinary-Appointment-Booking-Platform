@@ -65,7 +65,8 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Stitch ID: `ac2118e0816044598b63ac72ed5fda35`
 - [x] **Staff Shift Management** (UC-SCHED-01)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
-  - Stitch ID: `845efeeaaa184494905b66f3d4be6dec`
+  - Stitch ID (Grid View): `845efeeaaa184494905b66f3d4be6dec`
+  - Stitch ID (Sidebar Form): `213e781a8fb24b639c87bfaff592b95f`
 - [x] **Staff Schedule** (UC-SCHED-01)
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
