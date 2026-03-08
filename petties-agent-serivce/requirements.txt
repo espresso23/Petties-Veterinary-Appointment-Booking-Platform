@@ -42,6 +42,7 @@ fastmcp>=2.3.3  # @mcp.tool decorator for agent tools
 sqlalchemy[asyncio]>=2.0.36
 asyncpg>=0.30.0
 alembic>=1.14.0
+motor>=3.6.0  # MongoDB async driver for chat history storage
 
 # ==================== Vector Database ====================
 qdrant-client>=1.12.1  # Qdrant Cloud for vector storage

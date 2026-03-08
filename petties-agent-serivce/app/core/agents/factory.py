@@ -18,6 +18,7 @@ from sqlalchemy import select
 from loguru import logger
 
 from app.core.agents.single_agent import SingleAgent, build_react_agent
+from app.core.context_policy import ContextPolicyService
 from app.services.llm_client import (
     create_llm_client_from_db,
     LLMConfig,
@@ -46,7 +47,9 @@ class AgentFactory:
     async def get_agent(
         db_session: AsyncSession,
         provider_override: Optional[str] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        user_role: Optional[str] = None,
+        context_type: Optional[str] = None,
     ) -> SingleAgent:
         """
         Load Single Agent tu DB voi dynamic config
@@ -91,10 +94,12 @@ class AgentFactory:
         logger.info(f"LLM client created: provider={provider_override or 'default'}, model={effective_model}")
 
         # 4. Load enabled tools tu DB
-        tools_result = await db_session.execute(
-            select(Tool).where(Tool.enabled == True)
+        tools_list = await AgentFactory._load_tools_for_agent(
+            agent_name=agent_config.name,
+            db_session=db_session,
+            user_role=user_role,
+            context_type=context_type,
         )
-        tools_list = tools_result.scalars().all()
         enabled_tools = [t.name for t in tools_list]
         tool_schemas = [
             {
@@ -107,12 +112,19 @@ class AgentFactory:
 
         logger.info(f"Enabled tools: {enabled_tools}")
 
+        system_prompt = ContextPolicyService.build_system_prompt(
+            agent_config.system_prompt,
+            user_role=user_role,
+            context_type=context_type,
+            allowed_tools=enabled_tools,
+        )
+
         # 5. Build Single Agent voi ReAct pattern
         agent = build_react_agent(
             llm_client=llm_client,
             name=agent_config.name,
             agent_type="single_agent",
-            system_prompt=agent_config.system_prompt,
+            system_prompt=system_prompt,
             temperature=agent_config.temperature,
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
@@ -134,7 +146,9 @@ class AgentFactory:
         agent_id: int,
         db_session: AsyncSession,
         provider_override: Optional[str] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        user_role: Optional[str] = None,
+        context_type: Optional[str] = None,
     ) -> SingleAgent:
         """
         Create agent by ID
@@ -174,10 +188,12 @@ class AgentFactory:
         logger.info(f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={effective_model}")
 
         # Load enabled tools tu DB
-        tools_result = await db_session.execute(
-            select(Tool).where(Tool.enabled == True)
+        tools_list = await AgentFactory._load_tools_for_agent(
+            agent_name=agent_config.name,
+            db_session=db_session,
+            user_role=user_role,
+            context_type=context_type,
         )
-        tools_list = tools_result.scalars().all()
         enabled_tools = [t.name for t in tools_list]
         tool_schemas = [
             {
@@ -188,12 +204,19 @@ class AgentFactory:
             for t in tools_list
         ]
 
+        system_prompt = ContextPolicyService.build_system_prompt(
+            agent_config.system_prompt,
+            user_role=user_role,
+            context_type=context_type,
+            allowed_tools=enabled_tools,
+        )
+
         # Build agent
         agent = build_react_agent(
             llm_client=llm_client,
             name=agent_config.name,
             agent_type="single_agent",
-            system_prompt=agent_config.system_prompt,
+            system_prompt=system_prompt,
             temperature=agent_config.temperature,
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
@@ -202,6 +225,39 @@ class AgentFactory:
         )
 
         return agent
+
+    @staticmethod
+    async def _load_tools_for_agent(
+        agent_name: str,
+        db_session: AsyncSession,
+        user_role: Optional[str] = None,
+        context_type: Optional[str] = None,
+    ) -> List[Tool]:
+        """Load enabled tools, respect agent assignment va role/context whitelist."""
+        tools_result = await db_session.execute(
+            select(Tool).where(Tool.enabled == True)
+        )
+        tools_list = tools_result.scalars().all()
+
+        assigned_tools = [
+            tool for tool in tools_list
+            if agent_name in (tool.assigned_agents or [])
+        ]
+
+        if not user_role and not context_type:
+            return assigned_tools
+
+        allowed_names = ContextPolicyService.get_allowed_tools(
+            user_role=user_role,
+            context_type=context_type,
+            available_tools=[tool.name for tool in assigned_tools],
+        )
+        allowed_lookup = {tool_name.lower() for tool_name in allowed_names}
+
+        return [
+            tool for tool in assigned_tools
+            if tool.name.lower() in allowed_lookup
+        ]
 
     @staticmethod
     async def get_agent_config(db_session: AsyncSession) -> dict:

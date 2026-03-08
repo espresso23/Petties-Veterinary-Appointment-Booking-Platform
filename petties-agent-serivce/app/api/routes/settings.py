@@ -426,6 +426,126 @@ Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
                     enabled=True,
                     assigned_agents=["petties_agent"]
                 ),
+                Tool(
+                    name="get_user_pets",
+                    description="Lay danh sach thu cung cua pet owner hien tai de phuc vu booking flow.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {"type": "string", "description": "User ID duoc auto-inject tu business chat session"}
+                        },
+                        "required": []
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {"type": "string"},
+                            "pets": {"type": "array", "items": {"type": "object"}},
+                            "total_pets": {"type": "integer"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="search_clinics_nearby",
+                    description="Tim phong kham gan vi tri user va loc theo dich vu neu can.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "radius_km": {"type": "number", "default": 5},
+                            "service_names": {"type": "array", "items": {"type": "string"}},
+                            "top_k": {"type": "integer", "default": 5}
+                        },
+                        "required": ["latitude", "longitude"]
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinics": {"type": "array", "items": {"type": "object"}},
+                            "total_found": {"type": "integer"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="get_clinic_services",
+                    description="Lay danh sach dich vu cua clinic de AI de xuat booking.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "pet_species": {"type": "string"}
+                        },
+                        "required": ["clinic_id"]
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "services": {"type": "array", "items": {"type": "object"}},
+                            "total_services": {"type": "integer"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="check_available_slots",
+                    description="Kiem tra khung gio con trong cua clinic cho booking AI.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "date": {"type": "string"},
+                            "service_ids": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["clinic_id", "date", "service_ids"]
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "available_slots": {"type": "array", "items": {"type": "object"}},
+                            "total_slots": {"type": "integer"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="create_booking_for_user",
+                    description="Tao booking cho pet owner sau khi da co human confirmation.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "clinic_id": {"type": "string"},
+                            "booking_date": {"type": "string"},
+                            "start_time": {"type": "string"},
+                            "service_ids": {"type": "array", "items": {"type": "string"}},
+                            "notes": {"type": "string"},
+                            "confirmed": {"type": "boolean", "default": false}
+                        },
+                        "required": ["pet_id", "clinic_id", "booking_date", "start_time", "service_ids", "confirmed"]
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "success": {"type": "boolean"},
+                            "booking": {"type": "object"},
+                            "message": {"type": "string"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
             ]
 
             db.add_all(tools)

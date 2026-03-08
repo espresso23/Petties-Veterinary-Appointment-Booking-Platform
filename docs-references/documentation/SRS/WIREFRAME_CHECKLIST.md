@@ -36,9 +36,9 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Add/Edit Pet Screen** (UC-PET-01)
   - Code: `add_edit_pet_screen.dart`
   - Stitch ID: `4d5b63f07af84b7fa4ebcbb6687e0e9b`
-- [ ] **Pet Health Record Screen** (UC-PET-04)
+- [x] **Pet Health Record Screen** (UC-PET-04)
   - Code: `lib/ui/pet/pet_health_record_screen.dart`
-  - *UI Description: Hiển thị lịch sử khám bệnh, vaccination records, và hồ sơ y tế của thú cưng. Bao gồm timeline EMR, vaccination schedule.*
+  - Stitch ID: `bac5e69f7ab044fb8941463adc5456c2`
 - [x] **Clinic Search Screen** (UC-CLINIC-01)
   - Code: `clinic_search_view.dart`
   - Stitch ID: `25b0b6b584034eb481f493dda4bad9a2`
@@ -54,41 +54,41 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Stitch ID: `e2cc78e8214a44f4849983c99fe32314`
 
 ### Booking Features (Module 3.8, 3.9)
-- [ ] **Select Pet Screen** (UC-BOOK-01)
+- [x] **Select Pet Screen** (UC-BOOK-01)
   - Code: `lib/ui/booking/select_pet_screen.dart`
-  - *UI Description: Chọn thú cưng để đặt lịch khám. Hiển thị danh sách pets với avatar, tên, loài. Có nút "Thêm pet mới".*
-- [ ] **Select Services Screen** (UC-BOOK-02)
+  - Stitch ID: `fe3f6aa1a7b44e819ac7256449125b36`
+- [x] **Select Services Screen** (UC-BOOK-02)
   - Code: `lib/ui/booking/select_services_screen.dart`
-  - *UI Description: Chọn dịch vụ khám (Grooming, Vaccination, Checkup, etc.). Multi-select với tính tổng giá tiền realtime.*
-- [ ] **Select Date & Time Screen** (UC-BOOK-03)
+  - Stitch ID: `0f0e2a6c728245acabb5de3707fdda99`
+- [x] **Select Date & Time Screen** (UC-BOOK-03)
   - Code: `lib/ui/booking/select_datetime_screen.dart`
-  - *UI Description: Calendar view chọn ngày, sau đó hiển thị available time slots dựa trên Smart Availability algorithm.*
-- [ ] **Booking Confirm Screen** (UC-BOOK-04)
+  - Stitch ID: `b931aa0339cd4e49beaea902bc230128`
+- [x] **Booking Confirm Screen** (UC-BOOK-04)
   - Code: `lib/ui/booking/booking_confirm_screen.dart`
-  - *UI Description: Review toàn bộ thông tin booking (Pet, Services, DateTime, Clinic, Estimated Duration/Total). Nút "XÁC NHẬN ĐẶT LỊCH".*
-- [ ] **Booking Success Screen** (UC-BOOK-05)
+  - Stitch ID: `13cff95d2edf431caf32554888c04d8e`
+- [x] **Booking Success Screen** (UC-BOOK-05)
   - Code: `lib/ui/booking/booking_success_screen.dart`
-  - *UI Description: Màn hình thành công với booking code, QR code, và các nút "XEM CHI TIẾT", "VỀ TRANG CHỦ".*
-- [ ] **Booking Detail Screen** (UC-BOOK-06)
+  - Stitch ID: `4d1e3957cd004b809b6de585b57b795e`
+- [x] **Booking Detail Screen** (UC-BOOK-06)
   - Code: `lib/ui/booking/booking_detail_screen.dart`
-  - *UI Description: Chi tiết booking với timeline status, thông tin pet, services, staff assigned, total payment. Các nút action theo status (Cancel, Check-in, etc.).*
-- [ ] **My Bookings Screen** (UC-BOOK-07)
+  - Stitch ID: `6dccd6e3c19a44f5ba42f8ea6f618d3f`
+- [x] **My Bookings Screen** (UC-BOOK-07)
   - Code: `lib/ui/booking/my_bookings_screen.dart`
-  - *UI Description: Danh sách bookings với tabs: "Sắp tới", "Đang diễn ra", "Đã hoàn thành", "Đã hủy". Card booking hiển thị status, date, clinic, pet.*
+  - Stitch ID: `b877d8dbcce2416382df38e028b2c136`
 
 ### Profile & Settings (Module 3.11)
-- [ ] **Profile Screen** (UC-PROF-01)
+- [x] **Profile Screen** (UC-PROF-01)
   - Code: `lib/ui/profile/profile_screen.dart`
-  - *UI Description: Hiển thị thông tin user (Avatar, Name, Email, Phone). Menu các options: Edit Profile, Change Password, Notifications, About, Logout.*
-- [ ] **Edit Profile Screen** (UC-PROF-02)
+  - Stitch ID: `bc22e05eba4843c9b926341993507489`
+- [x] **Edit Profile Screen** (UC-PROF-02)
   - Code: `lib/ui/profile/edit_profile_screen.dart`
-  - *UI Description: Form chỉnh sửa profile (Full Name, Phone, Avatar upload). Nút "LƯU THAY ĐỔI".*
-- [ ] **Change Password Screen** (UC-PROF-03)
+  - Stitch ID: `cfdb2fe9a4864744a2240933a1aa66b6`
+- [x] **Change Password Screen** (UC-PROF-03)
   - Code: `lib/ui/profile/change_password_screen.dart`
-  - *UI Description: Form đổi password (Current Password, New Password, Confirm New Password). Validation rules hiển thị realtime.*
-- [ ] **Notification Settings Screen** (UC-PROF-04)
+  - Stitch ID: `9b090bf518cb411cbf88986078b05da6`
+- [x] **Notification Settings Screen** (UC-PROF-04)
   - Code: `lib/ui/profile/notification_settings_screen.dart`
-  - *UI Description: Toggle switches cho các loại notifications (Booking reminders, SOS alerts, Promotions, System updates).*
+  - Stitch ID: `d3179ad69da74d58a90643284c4c2062`
 
 ### Chat & AI Features (Module 3.13)
 
@@ -99,18 +99,18 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [ ] **AI Chat Screen (Pet Care Q&A)** (UC-AI-002)
   - Code: `lib/ui/chat/ai_pet_care_chat_screen.dart`
   - *UI Description: Chat interface với AI Agent cho pet care Q&A. Header badge "AI Trợ lý". Quick reply suggestions (4-5 câu hỏi phổ biến dạng chips). Bubble messages user/AI. Typing indicator với animation dots khi AI đang xử lý. Sources/citations hiển thị dạng links dưới response. Input box + send button ở bottom.*
-- [ ] **AI Symptom Checker Screen** (UC-AI-003)
+- [x] **AI Symptom Checker Screen** (UC-AI-003)
   - Code: `lib/ui/chat/ai_symptom_checker_screen.dart`
-  - *UI Description: Màn hình chuyên biệt cho symptom checking. Form input triệu chứng (multi-line text). Option upload ảnh thú cưng (optional). Nút "PHÂN TÍCH TRIỆU CHỨNG". Results hiển thị: Danh sách bệnh có thể (với % confidence), severity indicator (Low/Medium/High), recommendations (Đi khám ngay/Theo dõi/Home care tips). Quick actions: "ĐẶT LỊCH KHÁM", "HỎI THÊM AI".*
-- [ ] **AI Image Analysis Screen** (UC-AI-019)
+  - Stitch ID: `2fd76c5fc8184777b0830f395a7aa597`
+- [x] **AI Image Analysis Screen** (UC-AI-019)
   - Code: `lib/ui/chat/ai_image_analysis_screen.dart`
-  - *UI Description: Upload ảnh thú cưng (Camera/Gallery). Preview ảnh uploaded. Input box mô tả thêm (optional). Nút "PHÂN TÍCH ẢNH". AI response hiển thị: Detected symptoms từ ảnh, severity assessment, gợi ý dịch vụ phù hợp, recommendation đi khám. Visual indicators (icons) cho từng finding. Quick booking button.*
-- [ ] **AI Booking Assistant Screen** (UC-AI-004)
+  - Stitch ID: `de08f0cd031e477787c666c99e453474`
+- [x] **AI Booking Assistant Screen** (UC-AI-004)
   - Code: `lib/ui/chat/ai_booking_assistant_screen.dart`
-  - *UI Description: Chat-based booking flow. AI hỏi tuần tự: Pet nào? Dịch vụ gì? Khi nào? AI suggest clinics gần. Hiển thị ReAct flow (Thought → Action: search_clinics, check_slots → Observation → Response). Confirmation card tóm tắt booking trước khi submit. Nút "XÁC NHẬN ĐẶT LỊCH".*
-- [ ] **AI Medical History Summary** (UC-AI-030)
+  - Stitch ID: `3b588aafd84f4b4c849726660df6634a`
+- [x] **AI Medical History Summary** (UC-AI-030)
   - Code: `lib/ui/pet/ai_medical_summary_screen.dart`
-  - *UI Description: Màn hình xem tóm tắt lịch sử bệnh án của thú cưng do AI tạo. Sections: Pet info, Vaccination history timeline, Past diagnoses summary, Treatment history, Medications, Upcoming appointments. Nút "TẠO TÓM TẮT MỚI" (AI re-analyze). Export PDF button. Disclaimer nhỏ "Tóm tắt tự động bởi AI, cần xác nhận bác sĩ".*
+  - Stitch ID: `2c72d246a10f436a82f3f36c6c6158b5`
 
 ---
 
@@ -210,32 +210,32 @@ This document tracks the generation of black & white wireframes for the Petties 
   **Mobile behavior:** Push notification style với deep link vào AI chat panel.*
 
 ### Notifications (Module 3.14)
-- [ ] **Notification List Screen** (UC-NOTIF-01)
+- [x] **Notification List Screen** (UC-NOTIF-01)
   - Code: `lib/ui/notifications/notifications_screen.dart`
-  - *UI Description: Timeline danh sách notifications với icons theo type (Booking, SOS, Promotion, System). Filter tabs: "Tất cả", "Chưa đọc". Mark all as read button.*
+  - Stitch ID: `5399f23f82be4bbcbe2e13d50d10b227`
 
 ### Staff Features (Module 3.7)
 - [x] **Staff Schedule Mobile** (UC-SCHED-01)
   - Code: `staff_schedule_screen.dart`
   - Stitch ID: `095f6b61101b464aba244dc8d89a4374`
-- [ ] **Staff Home Dashboard** (UC-STAFF-01)
+- [x] **Staff Home Dashboard** (UC-STAFF-01)
   - Code: `lib/ui/staff/staff_home_screen.dart`
-  - *UI Description: Dashboard cho Staff với summary cards (Today's bookings, Pending tasks, Upcoming shifts). Quick access buttons.*
-- [ ] **Staff Bookings Screen** (UC-STAFF-02)
+  - Stitch ID: `05b3462ea430474d91b2d7cc47de790c`
+- [x] **Staff Bookings Screen** (UC-STAFF-02)
   - Code: `lib/ui/staff/staff_bookings_screen.dart`
-  - *UI Description: Danh sách bookings assigned to staff. Filter by status, date. Badge "SOS" cho emergency bookings.*
-- [ ] **Staff Add Service** (UC-STAFF-03)
+  - Stitch ID: `46e2d7c4303f45989f51cd3118311601`
+- [x] **Staff Add Service** (UC-STAFF-03)
   - Code: `lib/ui/staff/add_service_screen.dart`
-  - *UI Description: Thêm add-on service vào booking đang IN_PROGRESS. List available services với giá, select multi, confirm.*
-- [ ] **Staff Create EMR** (UC-STAFF-04)
+  - Stitch ID: `fd2fa6e23fda4966b2841bb1aa7ac5e6`
+- [x] **Staff Create EMR** (UC-STAFF-04)
   - Code: `lib/ui/staff/create_emr_screen.dart`
-  - *UI Description: Form tạo EMR (Diagnosis, Symptoms, Treatment, Prescription, Notes). Rich text editor cho detailed notes.*
-- [ ] **Staff EMR Detail** (UC-STAFF-05)
+  - Stitch ID: `6e7c15796b784e82b1248c78e43b6e51`
+- [x] **Staff EMR Detail** (UC-STAFF-05)
   - Code: `lib/ui/staff/emr_detail_screen.dart`
-  - *UI Description: Xem chi tiết EMR record với full timeline, diagnosis, treatment plan, prescriptions. Edit/Delete buttons if authorized.*
-- [ ] **Staff Vaccination Record** (UC-STAFF-06)
+  - Stitch ID: `948ceaa48762498c87ace145227ba51e`
+- [x] **Staff Vaccination Record** (UC-STAFF-06)
   - Code: `lib/ui/staff/vaccination_record_screen.dart`
-  - *UI Description: Ghi nhận vaccination (Vaccine type, Batch number, Next due date, Notes). Auto-suggest next vaccination schedule.*
+  - Stitch ID: `0d6c6e995b1744c4b22734e130fba67c`
 - [x] **Staff Schedule Mobile** (UC-SCHED-01)
   - Code: `staff_schedule_screen.dart`
   - Stitch ID: `095f6b61101b464aba244dc8d89a4374`
@@ -288,12 +288,12 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **My Clinics List** (UC-OPS-01)
   - Code: `clinic-owner/clinics/ClinicsListPage.tsx`
   - Stitch ID: `93d7ed13d47c49239c3e90b8d6b2a531`
-- [ ] **Create Clinic Page** (UC-OPS-01)
+- [x] **Create Clinic Page** (UC-OPS-01)
   - Code: `petties-web/src/pages/clinic-owner/clinics/CreateClinicPage.tsx`
-  - *UI Description: Multi-step form tạo clinic mới (Basic Info → Location → Operating Hours → Services → Review). Progress stepper ở trên. Validation realtime.*
-- [ ] **Edit Clinic Page** (UC-OPS-01)
+  - Stitch ID: `7854a92855ee433caf0842c820eb1643`
+- [x] **Edit Clinic Page** (UC-OPS-01)
   - Code: `petties-web/src/pages/clinic-owner/clinics/EditClinicPage.tsx`
-  - *UI Description: Form chỉnh sửa thông tin clinic với tabs (General, Location, Hours, SOS Config, Staff). Save/Cancel buttons sticky bottom.*
+  - Stitch ID: `e7632c4b2a594cd1bc5f3f493a7feac9`
 - [x] **Clinic Detail** (UC-OPS-01)
   - Code: `clinic-owner/clinics/ClinicDetailPage.tsx`
   - Stitch ID: `d449645f57754ac7adddba5033a22719`
@@ -308,14 +308,17 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Stitch ID: `fefa8807bde145108097e5e40f1a8cfa`
 
 ### Clinic Manager Features (Module 3.8)
-- [ ] **Manager Dashboard** (UC-MGR-01)
-  - Code: `petties-web/src/pages/clinic-manager/DashboardPage.tsx`
+- [x] **Manager Dashboard** (UC-OPS-03)
+  - Code: `clinic-manager/DashboardPage.tsx`
+  - Stitch ID: `71e767c840874fd68eddd1cea828b836`
   - *UI Description: Dashboard với KPI cards (Today bookings, Revenue, Pending confirmations). Chart xu hướng bookings. SOS Alert modal popup khi có request.*
-- [ ] **Booking Management Dashboard** (UC-MGR-02)
-  - Code: `petties-web/src/pages/clinic-manager/BookingDashboardPage.tsx`
+- [x] **Booking Management Dashboard** (UC-BOOK-04)
+  - Code: `clinic-manager/bookings/BookingsPage.tsx`
+  - Stitch ID: `a6b3f3f0c15f4f109dd9cddfb05ac1c4`
   - *UI Description: Kanban board hoặc Table view bookings theo status. Filters: Date range, Status, Type (Walk-in/Home/SOS). Bulk actions.*
-- [ ] **Booking Confirmation Page** (UC-MGR-03)
-  - Code: `petties-web/src/pages/clinic-manager/BookingConfirmPage.tsx`
+- [x] **Booking Confirmation Page** (UC-BOOK-05)
+  - Code: `clinic-manager/bookings/BookingConfirmationPage.tsx`
+  - Stitch ID: `d6fe1520c1e54e0ba9edebd0b36a1339`
   - *UI Description: Chi tiết booking pending confirmation. Auto-assign hoặc Manual-assign staff UI. Available staff list với workload indicator.*
 - [x] **Staff List Management** (UC-MGR-04)
   - Code: `clinic-manager/staff/StaffManagementPage.tsx`
@@ -329,9 +332,26 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `components/clinic-staff/StaffTable.tsx`
   - Stitch ID: `bb322f38e46d4e41b3d5930d45bf44f4`
   - *UI Description: Modal xác nhận trước khi xóa nhân viên.*
-- [ ] **Chat Management** (UC-MGR-05)
-  - Code: `petties-web/src/pages/clinic-manager/ChatManagementPage.tsx`
+- [x] **Chat Management** (UC-CHAT-01)
+  - Code: `shared/chat/ChatManagementPage.tsx`
+  - Stitch ID: `0924bd78033e440cb09da2a1939ddc36`
   - *UI Description: Live chat inbox với pet owners. Sidebar list conversations, main area chat messages. Assign to staff feature.*
+- [x] **View New Bookings (Pending)** (UC-CM-05)
+  - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
+  - Stitch ID: `d884ac4b12d440898b5e8e74d77fc2cc`
+  - *UI Description: Table view danh sách booking PENDING với tabs status, filter search/date/type, action buttons Chi tiết/Gán Staff/Hủy.*
+- [x] **Assign Staff to Booking Modal** (UC-CM-06)
+  - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
+  - Stitch ID: `3e0f4ffe4eef4dc4ba4937d705a616f6`
+  - *UI Description: Modal gán nhân viên cho từng dịch vụ trong booking. Dropdown chọn staff với specialty tag, suggested indicator, available slots.*
+- [x] **Reassign Staff Modal** (UC-CM-15)
+  - Code: `components/booking/ReassignStaffModal.tsx`
+  - Stitch ID: `cc1c92942447431d9fd8ebd7d40ca9eb`
+  - *UI Description: Modal đổi nhân viên cho dịch vụ cụ thể. Hiện nhân viên hiện tại, danh sách staff available với radio button, specialty filter.*
+- [x] **Update Booking Progress** (UC-VT-04)
+  - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
+  - Stitch ID: `bb43bc56c85244c38288c0779e5883f4`
+  - *UI Description: Booking detail page với status progress bar, thông tin booking, action buttons (Check-in, Start Moving, Arrived, Checkout), activity log.*
 
 ### Staff Web Features (Module 3.7, 3.9)
 - [x] **Staff Dashboard** (UC-BOOK-10)
@@ -369,11 +389,13 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Create EMR** (UC-EMR-01)
   - Code: `staff/emr/CreateEmrPage.tsx`
   - Stitch ID: `11e29c25c0524dc6bf0808a6c2615e47`
-- [ ] **Edit EMR Page** (UC-EMR-02)
+- [x] **Edit EMR** (UC-EMR-01)
   - Code: `petties-web/src/pages/staff/emr/EditEmrPage.tsx`
+  - Stitch ID: `7d85f629b38440efa97e8751233b3629`
   - *UI Description: Form chỉnh sửa EMR existing. Pre-filled data, rich text editor, attachment upload. Audit trail hiển thị lịch sử sửa.*
-- [ ] **Vaccination Management** (UC-EMR-03)
-  - Code: `petties-web/src/pages/staff/VaccinationPage.tsx`
+- [x] **Vaccination Management** (UC-EMR-03)
+  - Code: `petties-web/src/pages/staff/emr/components/VaccinationTab.tsx`
+  - Stitch ID: `f82869af13634ec19a747ac1f9fa7c6a`
   - *UI Description: Table danh sách vaccinations với filters (Pet, Date range, Type). Add vaccination modal, view certificate button.*
 - [x] **Notifications**
   - Code: `staff/NotificationsPage.tsx`
@@ -427,70 +449,76 @@ This document tracks the generation of black & white wireframes for the Petties 
 
 ### Admin Features (Module 3.12)
 *(Pending Verification of implemented Admin pages)*
-- [ ] **Admin Dashboard** (UC-GOV-03)
-  - Code: `petties-web/src/pages/admin/DashboardPage.tsx`
+- [x] **Admin Dashboard** (UC-ADM-02)
+  - Code: `admin/DashboardPage.tsx`
+  - Stitch ID: `804d568b852847e082dcb45b9cfe441d`
   - *UI Description: System-wide dashboard với KPI cards (Total Clinics, Active Users, Total Bookings, Revenue). Charts xu hướng platform growth. Quick links.*
-- [ ] **Pending Clinics** (UC-GOV-01)
-  - Code: `petties-web/src/pages/admin/clinics/PendingClinicsPage.tsx`
+- [x] **Pending Clinics** (UC-ADM-01)
+  - Code: `admin/clinics/PendingClinicsPage.tsx`
+  - Stitch ID: `3227f9fe34b0455cb0f3c8ff9c005fae`
   - *UI Description: Table danh sách clinics pending approval. Columns: Clinic Name, Owner, Submitted Date, Documents. Actions: Review/Approve/Reject buttons.*
-- [ ] **Clinic List** (Approved)
-  - Code: `petties-web/src/pages/admin/clinics/ClinicsPage.tsx`
+- [x] **Clinic List** (UC-ADM-03)
+  - Code: `admin/clinics/ClinicsPage.tsx`
+  - Stitch ID: `b2e27b7fe49147a584a188a417982f82`
   - *UI Description: Full list approved clinics với filters (Status, Region, Type). Search bar, export CSV. View detail/Suspend actions.*
-- [ ] **Clinic Approval Detail** (UC-GOV-02)
-  - Code: `petties-web/src/pages/admin/clinics/ClinicApprovalPage.tsx`
+- [x] **Clinic Approval Detail** (UC-ADM-01)
+  - Code: `admin/clinics/ClinicApprovalDetailPage.tsx`
+  - Stitch ID: `a7fc191b609d4fc381f0987fb6e6e9df`
   - *UI Description: Chi tiết clinic pending approval. Tabs: Basic Info, Documents, Owner Info. Preview documents (Business License, etc.). Approve/Reject modal với reason field.*
-- [ ] **User Management** (UC-GOV-04)
-  - Code: `petties-web/src/pages/admin/UsersPage.tsx`
+- [x] **User Management** (UC-ADM-04)
+  - Code: `admin/users/UsersPage.tsx`
+  - Stitch ID: `6788dcbf8a8b485d99f374f4d750dba7`
   - *UI Description: Table users với filters (Role, Status, Registration Date). Search, bulk actions (Suspend, Activate). View user detail modal.*
-- [ ] **Knowledge Base Management** (UC-GOV-05)
+- [x] **Knowledge Base Management** (UC-GOV-05)
   - Code: `petties-web/src/pages/admin/KnowledgeBasePage.tsx`
-  - *UI Description: Upload documents cho RAG system. Table documents list (Title, Type, Status, Uploaded Date). Upload modal, preview, delete actions.*
-- [ ] **AI Agent Configuration** (UC-AI-005)
+  - Stitch ID: `eeaf49734fc54e288a814c456d6d5378`
+- [x] **AI Agent Configuration** (UC-AI-005)
   - Code: `petties-web/src/pages/admin/ai/AgentConfigPage.tsx`
-  - *UI Description: Admin dashboard cho Single Agent management. Header "Cấu hình AI Agent". Tabs: "System Prompt", "Hyperparameters", "Tools", "ReAct Flow". System Prompt tab: Code editor với version history, "LƯU VERSION MỚI" button. Hyperparameters tab: Sliders cho Temperature (0-1), Max Tokens (1000-4000), Top-P (0-1), current model display (OpenRouter). Enable/Disable agent toggle ở header.*
-- [ ] **Tool Management** (UC-AI-007)
+  - Stitch ID: `6e7b941be8464f70aa58818de4ed16ce`
+- [x] **Tool Management** (UC-AI-007)
   - Code: `petties-web/src/pages/admin/ai/ToolsPage.tsx`
-  - *UI Description: List FastMCP tools table. Columns: Tool Name, Description, Status (Active/Inactive toggle), Last Used, Success Rate. Expandable rows hiển thị tool schema (input/output parameters). Search/filter bar. "TEST TOOL" button cho từng tool → opens test modal.*
-- [ ] **Tool Test Modal** (UC-AI-009)
+  - Stitch ID: `7f3b9eb7cb72404580bdd93dfa17e821`
+- [x] **Tool Test Modal** (UC-AI-009)
   - Code: `petties-web/src/components/admin/ai/ToolTestModal.tsx`
-  - *UI Description: Modal test individual tool. Tool name ở header. JSON editor cho input parameters (pre-filled với example). "CHẠY TEST" button. Output section hiển thị JSON result hoặc error. Execution time display.*
-- [ ] **Knowledge Base Management** (UC-AI-012)
+  - Stitch ID: `1dea42f13a104981b1bf6a8b4b12ded2`
+- [x] **Knowledge Base Management** (UC-AI-012)
   - Code: `petties-web/src/pages/admin/ai/KnowledgeBasePage.tsx`
-  - *UI Description: Upload documents cho RAG system (Pet Care Q&A only). Table documents list (Title, Type, Status: Indexed/Processing/Failed, Uploaded Date, Vector Count). Upload button → file picker (PDF/DOCX). Test RAG section: input query, "TEST RETRIEVAL" button, results hiển thị chunks với scores. Delete document button với confirmation.*
-- [ ] **Test RAG Retrieval Results** (UC-AI-014)
+  - Stitch ID: `eeaf49734fc54e288a814c456d6d5378`
+- [x] **Test RAG Retrieval Results** (UC-AI-014)
   - Code: `petties-web/src/components/admin/ai/RagTestResults.tsx`
-  - *UI Description: Component hiển thị RAG test results. List retrieved chunks với: Chunk text (truncated), Score (0-1), Document source, metadata. Highlight relevant phrases. "XEM CHI TIẾT CHUNK" button.*
-- [ ] **AI Playground** (UC-AI-015)
+  - Stitch ID: `3f15a77fe5b1456aaddc45870371ca5e`
+- [x] **AI Playground** (UC-AI-015)
   - Code: `petties-web/src/pages/admin/ai/PlaygroundPage.tsx`
-  - *UI Description: Test AI Agent interface. Split layout: Left sidebar với hyperparameters controls (Temperature, Max Tokens, Model selector). Main area: Chat UI với messages (user/assistant). ReAct flow display expandable cho mỗi message (Thought → Action → Observation với timestamps). Input box + "GỬI" button ở bottom. "XÓA LỊCH SỬ CHAT" button. Export conversation logs button (JSON).*
-- [ ] **ReAct Flow Visualization** (UC-AI-016)
+  - Stitch ID: `dc393b783f09429c947f068e48416fce`
+- [x] **ReAct Flow Visualization** (UC-AI-016)
   - Code: `petties-web/src/components/admin/ai/ReactFlowVisualization.tsx`
-  - *UI Description: Component hiển thị ReAct reasoning trace. Expandable accordion sections cho mỗi iteration: "Thought" (text block với icon 💭), "Action" (tool name + params với icon 🔧), "Observation" (tool result với icon 👁️). Color coding: Thought (blue bg), Action (green bg), Observation (gray bg). Timestamps cho mỗi step. Final Answer section ở cuối.*
-- [ ] **System Settings (API Keys)** (UC-AI-015)
+  - Stitch ID: `52e7abe770e34ff49f68ae2b11c62415`
+- [x] **System Settings (API Keys)** (UC-AI-015)
   - Code: `petties-web/src/pages/admin/ai/SystemSettingsPage.tsx`
-  - *UI Description: Configure external API keys. Form fields: OpenRouter API Key (password field), Cohere API Key, Qdrant URL + API Key. "TEST CONNECTION" buttons cho mỗi service (hiển thị status: Connected ✅ / Failed ❌). "LƯU CẤU HÌNH" button. Warning notice "API keys được mã hóa khi lưu".*
+  - Stitch ID: `8bcedadf693849d29df4a0e63ea8978e`
 
 ### Staff/Manager Web AI Features
-- [ ] **AI Staff Chat (Web)** (UC-AI-020)
+- [x] **AI Staff Chat (Web)** (UC-AI-020)
   - Code: `petties-web/src/pages/staff/AiChatPage.tsx`
-  - *UI Description: Chat interface cho Staff/Manager trên Web. Similar layout như Playground nhưng với context-aware tools. Header badge "AI Trợ lý Nhân viên". Sidebar quick actions: "TÓM TẮT BỆNH ÁN", "GỢI Ý REASSIGN STAFF", "TẠO CA LÀM VIỆC", "CÀI ĐẶT PHÒNG KHÁM". Chat area hiển thị ReAct flow. Input box với suggestions.*
-- [ ] **AI Booking Handling Assistant** (UC-AI-020)
+  - Stitch ID: `0e3ae8fa6c274351a81f04035eb0c53d`
+- [x] **AI Booking Handling Assistant** (UC-AI-020)
   - Code: `petties-web/src/pages/clinic-manager/AiBookingAssistantPage.tsx`
-  - *UI Description: AI hỗ trợ xử lý bookings. List pending bookings bên trái. Click vào booking → AI analyze và suggest: Staff phù hợp (dựa trên workload, specialty), Time slot alternatives (nếu conflict), Service bundles recommendations. "CHẤP NHẬN GỢI Ý" / "TỰ CHỌN" buttons. AI explanation text dưới mỗi suggestion.*
-- [ ] **AI Staff Reassignment Suggester** (UC-AI-021)
+  - Stitch ID: `f546c2efbb0649c9abbec781ec4780db`
+- [x] **AI Staff Reassignment Suggester** (UC-AI-021)
   - Code: `petties-web/src/pages/clinic-manager/AiReassignPage.tsx`
-  - *UI Description: AI suggest staff reassignment cho bookings. Filters: Date range, Current staff, Reason (Sick leave, Overbooked, etc.). Table bookings cần reassign. "GỢI Ý TỰ ĐỘNG" button → AI analyze availability & specialty → hiển thị suggested staff với reasons. Bulk select & "ÁP DỤNG REASSIGN" button.*
-- [ ] **AI EMR Summary** (UC-AI-023)
+  - Stitch ID: `a2b235cc38db46adbe5c93d608ca0e6f`
+- [x] **AI EMR Summary** (UC-AI-023)
   - Code: `petties-web/src/pages/staff/AiEmrSummaryPage.tsx`
-  - *UI Description: AI tóm tắt patient info & EMR. Search pet by name/ID. Pet info card ở top. "TẠO TÓM TẮT AI" button. Summary sections: Signalment, Vaccination status, Past diagnoses (timeline), Current medications, Allergies/warnings, Recent visits summary. Expandable details cho mỗi section. "XUẤT PDF" button. Disclaimer "Tóm tắt tự động, cần xác nhận bác sĩ".*
-- [ ] **AI Shift Scheduling Assistant** (UC-AI-024)
+  - Stitch ID: `46b89ea2345c467c9b4d2d94102d1de7`
+- [x] **AI Shift Scheduling Assistant** (UC-AI-024)
   - Code: `petties-web/src/pages/clinic-manager/AiShiftSchedulerPage.tsx`
-  - *UI Description: AI hỗ trợ tạo shifts. Form inputs: Week/Month, Required staff count, Shift types (Morning/Afternoon/Night). "ĐỀ XUẤT LỊCH" button. AI generate shift schedule table với staff assignments. Conflict indicators (màu đỏ nếu overlap). Staff workload balance display (chart). "CHỈNH SỬA" / "LƯU LỊCH" buttons. Human review required notice.*
-- [ ] **AI Clinic Setup Wizard** (UC-AI-026)
+  - Stitch ID: `181b5f2c6ee247b8aa56589a2d23c47a`
+- [x] **AI Clinic Setup Wizard** (UC-AI-026)
   - Code: `petties-web/src/pages/clinic-owner/AiSetupWizardPage.tsx`
-  - *UI Description: AI-guided clinic onboarding. Stepper: 1️⃣ Thông tin cơ bản → 2️⃣ Dịch vụ → 3️⃣ Phí SOS → 4️⃣ Giờ làm việc. Mỗi step có AI chat box gợi ý (e.g., "Gợi ý dịch vụ phổ biến cho phòng khám chó mèo"). Checkboxes chọn suggestions. "TIẾP TỤC" buttons. Review & submit ở cuối.*
-- [ ] **AI Service Generator & Auto-Adder** (UC-AI-027)
+  - Stitch ID: `63cc148509bb40b885de9d3bb674804c`
+- [x] **AI Service Generator & Auto-Adder** (UC-AI-027)
   - Code: `petties-web/src/pages/clinic-owner/AiServiceGeneratorPage.tsx`
+  - Stitch ID: `03e64decf0cc43a5a5e7ff98be4c392c`
   - *UI Description: AI tự động generate VÀ thêm services vào clinic.
 
   **Layout:** Header "Tạo Dịch Vụ Tự Động với AI". Input form section bên trái: Clinic type dropdown (General/Specialist/Emergency), Pet types checkboxes (Dog/Cat/Bird/Exotic), Region (auto-filled từ clinic address, có thể edit).
@@ -510,44 +538,44 @@ This document tracks the generation of black & white wireframes for the Petties 
   **Success Summary:** Toast + card: "✅ Đã thêm 12/15 dịch vụ thành công. 3 dịch vụ bị lỗi (trùng tên hoặc validation failed)." "XEM DỊCH VỤ VỪA TẠO" link → navigate to Clinic Services page.
 
   **ReAct Flow Panel:** Expandable panel "Chi tiết AI Workflow" hiển thị: Thought → Action (tool calls) → Observation (results) với timestamps. Export log button.*
-- [ ] **AI Clinic Description Composer** (UC-AI-028)
+- [x] **AI Clinic Description Composer** (UC-AI-028)
   - Code: `petties-web/src/pages/clinic-owner/AiDescriptionComposerPage.tsx`
-  - *UI Description: AI viết/edit clinic description. Form inputs: Clinic strengths (checkboxes: Modern equipment, Experienced team, 24/7, etc.), Target customers, Specialties. "TẠO MÔ TẢ" button. AI generate description text (Vietnamese, professional tone). Live preview box. Edit controls. "LƯU MÔ TẢ" button. Character count (max 500).*
+  - Stitch ID: `c269f7971a694dc9a80579744cc451d4`
 
 ### Modals & Components (Shared)
-- [ ] **Confirm Modal** (UC-MODAL-01)
+- [x] **Confirm Modal** (UC-MODAL-01)
   - Code: `petties-web/src/components/modals/ConfirmModal.tsx`
-  - *UI Description: Generic confirm dialog với Neobrutalism style. Props: title, message, confirmText, cancelText, variant (danger/warning/info).*
-- [ ] **Service Selection Modal** (UC-MODAL-02)
+  - Stitch ID: `d837003571454b4baac33118e12fce98`
+- [x] **Service Selection Modal** (UC-MODAL-02)
   - Code: `petties-web/src/components/modals/ServiceSelectionModal.tsx`
-  - *UI Description: Multi-select services modal. Searchable list, categories filter, price display. Selected count indicator.*
-- [ ] **Staff Assignment Modal** (UC-MODAL-03)
+  - Stitch ID: `12c105552a4d4b37acac477958be50e8`
+- [x] **Staff Assignment Modal** (UC-MODAL-03)
   - Code: `petties-web/src/components/modals/StaffAssignmentModal.tsx`
-  - *UI Description: Assign staff to booking. List available staff với workload indicator (số bookings assigned), availability status. Auto-assign suggestion.*
-- [ ] **Pricing Tier Modal** (UC-MODAL-04)
+  - Stitch ID: `744124d622ea4dc0aa29f31826a4158d`
+- [x] **Pricing Tier Modal** (UC-MODAL-04)
   - Code: `petties-web/src/components/modals/PricingTierModal.tsx`
-  - *UI Description: Add/Edit pricing tiers cho services (Small, Medium, Large pets). Weight range inputs, price inputs, description.*
-- [ ] **Invite Staff Modal** (UC-MODAL-05)
+  - Stitch ID: `7481b958649e45279c756837497c3780`
+- [x] **Invite Staff Modal** (UC-MODAL-05)
   - Code: `petties-web/src/components/modals/InviteStaffModal.tsx`
-  - *UI Description: Invite staff by email form. Fields: Email, Role (Staff/Manager), Specialty (cho Vet). Send invitation button.*
-- [ ] **Add Service Modal** (UC-MODAL-06)
+  - Stitch ID: `aae799e7aa8b40e5b0c80ece4f42f285`
+- [x] **Add Service Modal** (UC-MODAL-06)
   - Code: `petties-web/src/components/modals/AddServiceModal.tsx`
-  - *UI Description: Thêm add-on service vào booking. List available services, quantity selector, price display. Confirm add button.*
-- [ ] **Cancel Booking Modal** (UC-MODAL-07)
+  - Stitch ID: `af18addf67ce4d319571ba9a06df055f`
+- [x] **Cancel Booking Modal** (UC-MODAL-07)
   - Code: `petties-web/src/components/modals/CancelBookingModal.tsx`
-  - *UI Description: Cancel booking với reason. Textarea reason input (required), cancellation policy notice. Confirm cancel button.*
-- [ ] **Document Preview Modal** (UC-MODAL-08)
+  - Stitch ID: `113a3ff6caa44acca4f0a74bb7d2c88e`
+- [x] **Document Preview Modal** (UC-MODAL-08)
   - Code: `petties-web/src/components/modals/DocumentPreviewModal.tsx`
-  - *UI Description: Preview uploaded documents (PDF, images). Fullscreen overlay, zoom controls, download button, close X.*
-- [ ] **Notification Dropdown** (UC-COMP-01)
+  - Stitch ID: `745717170e8b4b768c3f6e77c9ff0fee`
+- [x] **Notification Dropdown** (UC-COMP-01)
   - Code: `petties-web/src/components/notifications/NotificationDropdown.tsx`
-  - *UI Description: Bell icon với badge count. Dropdown list recent notifications (title, message, timestamp). Mark all as read, View all link.*
-- [ ] **Booking Status Badge** (UC-COMP-02)
+  - Stitch ID: `e5ff8eb94f884bff8011e10b3501e6c6`
+- [x] **Booking Status Badge** (UC-COMP-02)
   - Code: `petties-web/src/components/booking/BookingStatusBadge.tsx`
-  - *UI Description: Status badge component với color mapping (Pending→Yellow, Confirmed→Blue, In Progress→Green, Completed→Gray, Cancelled→Red).*
-- [ ] **Staff Workload Indicator** (UC-COMP-03)
+  - Stitch ID: `4d78d4b3baec44fe84dcef23681d760e`
+- [x] **Staff Workload Indicator** (UC-COMP-03)
   - Code: `petties-web/src/components/staff/WorkloadIndicator.tsx`
-  - *UI Description: Visual indicator workload (Progress bar hoặc number badge). Tooltip hiển thị chi tiết (X bookings today, Y slots available).*
-- [ ] **Timeline Component** (UC-COMP-04)
+  - Stitch ID: `f41bad65d09c41c3a0956992e65e285c`
+- [x] **Timeline Component** (UC-COMP-04)
   - Code: `petties-web/src/components/timeline/Timeline.tsx`
-  - *UI Description: Vertical timeline cho booking status history hoặc EMR audit trail. Icon bullets, timestamp, description, actor info.*
+  - Stitch ID: `80313cec889f46e0a83f0812711ed561`

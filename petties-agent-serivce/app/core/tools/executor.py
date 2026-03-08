@@ -13,6 +13,7 @@ from loguru import logger
 
 from app.db.postgres.models import Tool
 from app.db.postgres.session import AsyncSessionLocal
+from app.core.tool_runtime_context import get_tool_runtime_context
 
 
 class ToolExecutor:
@@ -76,6 +77,8 @@ class ToolExecutor:
         if not tool.enabled:
             raise Exception(f"Tool '{tool_name}' is not enabled")
 
+        parameters = self._inject_contextual_parameters(tool_name, parameters)
+
         # Step 2: Validate parameters
         self._validate_parameters(tool, parameters)
 
@@ -126,6 +129,28 @@ class ToolExecutor:
                 raise Exception(f"Missing required parameter: {param_name}")
 
         logger.debug(f"Parameters validated for tool: {tool.name}")
+
+    def _inject_contextual_parameters(
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Inject runtime context vao tool params khi can."""
+        context = get_tool_runtime_context()
+        if context is None:
+            return parameters
+
+        contextual_tools = {
+            "get_user_pets": ["user_id"],
+            "create_booking_for_user": ["user_id"],
+        }
+
+        injected = dict(parameters)
+        for field_name in contextual_tools.get(tool_name, []):
+            if field_name == "user_id" and not injected.get("user_id"):
+                injected["user_id"] = context.user_id
+
+        return injected
 
     async def _execute_mcp_tool(
         self,

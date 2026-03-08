@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 2.2.0 (Added Section 3.7 Staff and Scheduling Management - 8 functions documented)
-**Last Updated:** 2026-03-06
+**Version:** 2.3.0 (Added AI chat session isolation and admin playground architecture requirements)
+**Last Updated:** 2026-03-08
 **Document Status:** In Progress
 
 ---
@@ -172,8 +172,6 @@ graph TB
 | Authentication | Reset Password |
 | User Profile Management | View Profile |
 | User Profile Management | Update Profile |
-| User Profile Management | View Staff's Profile |
-| User Profile Management | Update Staff's Profile |
 | Staff and Scheduling Management | Add Staff |
 | Staff and Scheduling Management | Delete Staff |
 | Staff and Scheduling Management | View List of Staffs |
@@ -1535,104 +1533,11 @@ Figure 12. Screen Session Termination (Web)
 
 ### 3.3 User Profile & Account Setup
  
- #### *3.3.1 Update Personal Profile (UC-PO-03 / UC-VT-02 / UC-CM-02)*
+ #### *3.3.1 View & Update Profile (UC-PO-03 / UC-VT-02 / UC-CM-02)*
 **User Story:**
 > *As a user, I want to view and update my personal information (Name, Avatar, Phone) so that my profile remains accurate and the clinic can contact me if needed.*
 
-**Function trigger**
-- **Navigation path:** Sidebar/Hub → Profile OR Profile Picture → Settings.
-- **Timing frequency:** On demand.
 
-**Function description**
-- **Actors/Roles:** All Authenticated Users.
-- **Purpose:** Update personal identity information and account avatar.
-- **Interface:**
-    - Full Name – text input
-    - Phone Number – text input
-    - Email Address – text display (Read-only, change via OTP)
-    - Avatar – image upload button
-
-**Data processing**
-1. User opens profile settings.
-2. User modifies Name or uploads a new Avatar.
-3. System validates Name format and image size/type.
-4. If Avatar is changed, upload to Cloudinary and update the `image_url` in the database.
-5. System saves changes to the `USER` record and returns success.
-
-**Screen layout**
-Figure 13. Screen View & Edit Profile (Mobile)
-Figure 14. Screen View & Edit Profile (Web)
-
-**Function details**
-- **Data:** FullName, PhoneNumber, Avatar (File).
-- **Validation:** 
-    - Full Name cannot be empty.
-    - Avatar must be < 5MB and a valid image format (JPG/PNG).
-- **Business rules:** N/A
-- **Normal case:**
-    1. User modifies their display name and clicks "Save".
-    2. System updates the record and displays a success toast.
-- **Abnormal/Exception cases:**
-    - A1. Invalid file format – User tries to upload a non-image file.
-    - A2. File too large – Avatar exceeds 5MB.
-    - A3. Network failure – Update fails during Cloudinary upload.
-
- #### *3.3.2 Security Settings (Credentials Management)*
-**Function trigger**
-- **Navigation path:** Profile → Security tab.
-- **Timing frequency:** On demand.
-
-**Function description**
-- **Actors/Roles:** All Authenticated Users.
-- **Purpose:** Change critical credentials to maintain account security.
-- **Interface:**
-    - Current Password – password input
- #### *3.3.2 Manage Account Security (UC-PO-04 / UC-VT-03)*
-**User Story:**
-> *As a user, I want to manage my login credentials (Change Password, Change Email) so that I can maintain the security of my account over time.*
-
-**Function trigger**
-- **Navigation path:** Profile → Security tab.
-- **Timing frequency:** On demand (when user wants to change password/email).
-
-**Function description**
-- **Actors/Roles:** All Authenticated Users.
-- **Purpose:** Update sensitive account credentials.
-- **Interface:**
-    - Current Password – text input
-    - New Password – text input
-    - Confirm Password – text input
-    - New Email – text input
-    - OTP – 6-digit input
-
-**Data processing**
-1. Password Change Case: System verifies current password before allowing change.
-2. Email Change Case: System requires OTP verification for the new email before updating.
-3. System invalidates old tokens upon successful credential change.
-
-**Screen layout**
-Figure 15. Screen Change Password (Mobile)
-Figure 16. Screen Change Email (Mobile)
-Figure 17. Screen Change Password (Web)
-Figure 18. Screen Change Email (Web)
-
-**Function details**
-- **Data:** CurrentPassword, NewPassword, NewEmail, OTP.
-- **Validation:** 
-    - Password must be at least 6 characters.
-    - OTP is required for email changes (BR-13).
-- **Business rules:** BR-12, BR-13, BR-51.
-- **Normal case:**
-    1. User enters current and new password.
-    2. System confirms and updates the credential.
-- **Abnormal/Exception cases:**
-    - A1. Incorrect Current Password – Access denied.
-    - A2. Email already in use – If changing to an existing user's email.
-    - A3. OTP mismatch/Invalid – User enters wrong code.
-    - A4. OTP Expired – User enters code after 5 minutes.
-    - A5. Cooldown Active – User requests new OTP within 60s (BR-51).
-    - A6. Max Attempts Reached – User enters wrong OTP 5 times (OTP is invalidated - BR-13).
-    - E1. Connection timeout – Auth service is slow.
 
 ### 3.4 Pet Records & Health Hub
  
@@ -3877,6 +3782,7 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 3. **ReAct Loop:** Agent repeats "Thought → Action → Observation" until a final answer is formed.
 4. **Streaming Delivery:** Response tokens are sent back live to the mobile app UI.
 5. **Context Persistence:** Chat history is saved in MongoDB (`ai_chat_sessions`, `ai_chat_messages`) for multi-turn conversation.
+6. **Session Isolation:** Mỗi business chat session phải được gắn `context_type=BUSINESS_CHAT`, `user_id`, `user_role`, và `clinic_id` (nếu role thuộc clinic scope) để tránh lẫn lịch sử giữa các vai trò hoặc người dùng khác nhau.
 
 **Screen layout**
 Figure 43. AI Chat Interface with Streaming Response (Mobile)
@@ -4024,6 +3930,69 @@ Figure 47. Pet Selection Dialog (Mobile)
 - **Actors/Roles:** Platform Admin.
 - **Purpose:** Sandbox for AI interaction testing.
 - **Interface:** Chat interface with developer logs showing raw JSON tool calls.
+
+**Data processing**
+1. Admin mở Playground từ Web Dashboard.
+2. Hệ thống tạo hoặc khôi phục session test với `context_type=PLAYGROUND_TEST`.
+3. WebSocket chỉ nạp tool và prompt nằm trong phạm vi admin governance/testing.
+4. Hệ thống stream ReAct trace, tool call và final answer theo thời gian thực.
+5. Tất cả test messages được lưu riêng vào MongoDB với metadata session test, không được trộn vào business chat history.
+6. Admin có thể xóa hoặc reset session test mà không ảnh hưởng hội thoại nghiệp vụ của người dùng thật.
+
+**Function details**
+- **Data:** `playground_session_id`, `admin_user_id`, `context_type=PLAYGROUND_TEST`, `agent_id`, `provider_override`, `model_override`, `react_trace`.
+- **Validation:** Chỉ `ADMIN` mới được tạo/kết nối Playground session; token không hợp lệ phải bị từ chối kết nối.
+- **Business rules:**
+    - Playground không được đọc business chat history.
+    - Lịch sử Playground không được hiển thị trong mobile/web AI chat của Pet Owner, Staff, Clinic Manager, Clinic Owner.
+    - Tool test trong Playground phải tuân theo tool governance hiện hành nhưng được log đầy đủ để audit.
+- **Normal case:** Admin gửi prompt thử nghiệm, xem trace tool call, điều chỉnh prompt hoặc model và chạy lại.
+- **Abnormal case:** Nếu model/tool lỗi, hệ thống vẫn log đầy đủ lỗi trong session test để phục vụ debug.
+
+ #### *3.11.5 Role-Based AI Session Isolation & Context Governance (UC-AI-09 / UC-AD-08)*
+**User Story:**
+> *As a platform user or administrator, I want AI conversations to be isolated by business context, role, and ownership so that chat history remains secure, accurate, and auditable.*
+
+**Function trigger**
+- **Navigation path:**
+    - Mobile/Web Business AI Chat → mở hội thoại AI nghiệp vụ.
+    - Admin Dashboard → AI Management → Playground.
+- **Timing frequency:** Every time a new AI session is created, resumed, listed, or cleared.
+
+**Function description**
+- **Actors/Roles:** Pet Owner, Staff, Clinic Manager, Clinic Owner, Platform Admin.
+- **Purpose:** Bảo đảm mỗi phiên AI được cô lập đúng theo mục đích sử dụng: hội thoại nghiệp vụ (`BUSINESS_CHAT`) hoặc kiểm thử quản trị (`PLAYGROUND_TEST`).
+- **Interface:**
+    - Business AI chat history list cho từng người dùng.
+    - Admin Playground session list riêng.
+    - Không hiển thị chéo session giữa hai context.
+
+**Screen layout:** *(Business AI Chat History / Admin Playground Session List)*
+
+**Function details**
+- **Data:**
+    - Session metadata: `session_id`, `user_id`, `user_role`, `clinic_id`, `context_type`, `agent_id`, `created_at`, `updated_at`.
+    - Message metadata: `message_id`, `session_id`, `role`, `content`, `react_trace`, `tool_calls`, `sources`, `timestamp`.
+- **Validation:**
+    - Chỉ owner của session mới được truy cập session nghiệp vụ của mình.
+    - Session `PLAYGROUND_TEST` chỉ thuộc về admin tạo ra nó.
+    - Nếu `clinic_id` tồn tại, hệ thống phải xác thực session đang dùng đúng clinic scope của user.
+    - Kết nối WebSocket phải bị đóng khi `session_id` không thuộc quyền truy cập của token hiện tại.
+- **Business rules:**
+    - `BUSINESS_CHAT` và `PLAYGROUND_TEST` là hai context bắt buộc và không được trộn lẫn.
+    - Business chat của Pet Owner không được nhìn thấy bởi Staff/Clinic Manager/Clinic Owner/Admin, trừ khi có chức năng audit riêng được thiết kế sau.
+    - Tool whitelist và context prompt phải được áp dụng theo `user_role`.
+    - Session history phải được lưu tại MongoDB để tiếp tục multi-turn conversation đúng context.
+- **Normal case:**
+    1. User mở AI chat nghiệp vụ.
+    2. Hệ thống tạo session `BUSINESS_CHAT` với owner metadata.
+    3. Khi user quay lại, hệ thống chỉ nạp lại history đúng session thuộc user đó.
+    4. Agent trả lời dựa trên context, role và tool policy tương ứng.
+- **Abnormal case:**
+    - A1. User cố truy cập session của người khác → trả về `403` hoặc đóng WebSocket.
+    - A2. Session context không khớp role/token → từ chối nạp history.
+    - A3. Thiếu `clinic_id` cho role clinic-scoped → không cho khởi tạo session nghiệp vụ cần clinic context.
+    - A4. MongoDB unavailable → không tạo session mới, trả thông báo lỗi an toàn và không fallback sang in-memory production path.
 
 ### 3.12 Governance & Reporting Flow
 

@@ -34,11 +34,12 @@ from app.api.schemas.agent_schemas import (
     ReActStepSchema,
     AgentErrorResponse
 )
+from app.api.middleware.auth import get_admin_user
 from app.db.postgres.models import Agent, Tool, PromptVersion
 from app.db.postgres.session import get_db
 
 # Initialize router
-router = APIRouter(prefix="/agents", tags=["Agents"])
+router = APIRouter(prefix="/agents", tags=["Agents"], dependencies=[Depends(get_admin_user)])
 
 
 # ===== GET ALL AGENTS =====

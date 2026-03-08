@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, type Agent, type PromptVersion } from '../../../services/agentService'
+import { agentApi, chatApi, type Agent, type ChatContextType, type ChatSessionMessage, type PromptVersion } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -28,7 +28,8 @@ import {
   CommandLineIcon,
 } from '@heroicons/react/24/outline'
 
-const AI_SERVICE_URL = env.AGENT_SERVICE_URL
+const AI_API_BASE_URL = env.AGENT_API_BASE_URL
+const AI_WS_BASE_URL = env.AGENT_WS_BASE_URL
 
 // Get auth headers
 const getAuthHeaders = (): Record<string, string> => {
@@ -66,6 +67,14 @@ interface DebugLog {
   type: string
   data: unknown
   timestamp: string
+}
+
+interface SessionInfo {
+  sessionId: string
+  contextType: ChatContextType
+  createdAt: string
+  userRole: string
+  clinicId?: string | null
 }
 
 // Available LLM providers
@@ -134,7 +143,9 @@ export const PlaygroundPage = () => {
   // WebSocket state
   const wsRef = useRef<WebSocket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
-  const [sessionId] = useState(() => `playground-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`)
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
+  const [creatingSession, setCreatingSession] = useState(false)
+  const [allowedTools, setAllowedTools] = useState<string[]>([])
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -159,7 +170,7 @@ export const PlaygroundPage = () => {
 
   const loadProviderSettings = useCallback(async (currentProvider?: LLMProvider) => {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings`, {
         headers: getAuthHeaders(),
       })
       if (!response.ok) throw new Error('Failed to fetch settings')
@@ -224,7 +235,7 @@ export const PlaygroundPage = () => {
     setShowSeedConfirm(false)
     try {
       setSeeding(true)
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/seed`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/seed`, {
         method: 'POST',
         headers: getAuthHeaders(),
       })
@@ -259,7 +270,7 @@ export const PlaygroundPage = () => {
     try {
       setTestingConnection(true)
       const endpoint = selectedProvider === 'openrouter' ? '/api/v1/settings/test-openrouter' : '/api/v1/settings/test-deepseek'
-      const response = await fetch(`${AI_SERVICE_URL}${endpoint}`, {
+      const response = await fetch(`${AI_API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ api_key: apiKey }),
@@ -287,7 +298,7 @@ export const PlaygroundPage = () => {
 
       if (!isMasked) {
         const apiKeyKey = selectedProvider === 'openrouter' ? 'OPENROUTER_API_KEY' : 'DEEPSEEK_API_KEY'
-        const keyResponse = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${apiKeyKey}`, {
+        const keyResponse = await fetch(`${AI_API_BASE_URL}/api/v1/settings/${apiKeyKey}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           body: JSON.stringify({ value: apiKey }),
@@ -380,9 +391,73 @@ export const PlaygroundPage = () => {
     }
   }
 
+  const mapHistoryMessage = useCallback((message: ChatSessionMessage): Message => {
+    const reactTrace = message.react_trace || []
+    const thinkingProcess = reactTrace
+      .filter(step => step.step_type === 'thought' && step.content)
+      .map(step => step.content as string)
+
+    const toolCalls: Array<{ tool: string; input: unknown; output?: unknown }> = []
+    for (const step of reactTrace) {
+      if (step.step_type === 'action' && step.tool_name) {
+        toolCalls.push({
+          tool: step.tool_name,
+          input: step.tool_params || {},
+          output: undefined,
+        })
+      }
+
+      if (step.step_type === 'observation' && toolCalls.length > 0) {
+        toolCalls[toolCalls.length - 1].output = step.tool_result
+      }
+    }
+
+    return {
+      id: message.message_id || crypto.randomUUID(),
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: message.content,
+      timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+      thinkingProcess: thinkingProcess.length > 0 ? thinkingProcess : undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    }
+  }, [])
+
+  const createPlaygroundSession = useCallback(async () => {
+    if (creatingSession) return
+
+    try {
+      setCreatingSession(true)
+      setConnectionStatus('connecting')
+
+      const session = await chatApi.createSession({
+        agent_id: selectedAgentId ?? undefined,
+        title: 'Playground Test Session',
+        context_type: 'PLAYGROUND_TEST',
+      })
+
+      setSessionInfo({
+        sessionId: session.session_id,
+        contextType: session.context_type,
+        createdAt: session.created_at,
+        userRole: session.user_role,
+        clinicId: session.clinic_id,
+      })
+      setMessages([])
+      setReactSteps([])
+      setStreamingContent('')
+      setAllowedTools([])
+    } catch (err) {
+      setConnectionStatus('error')
+      handleApiError(err, toast, 'Không thể tạo playground session')
+    } finally {
+      setCreatingSession(false)
+    }
+  }, [creatingSession, selectedAgentId, toast])
+
   // ==================== WEBSOCKET ====================
 
   const connectWebSocket = useCallback(() => {
+    if (!sessionInfo?.sessionId) return
     if (
       wsRef.current?.readyState === WebSocket.OPEN ||
       wsRef.current?.readyState === WebSocket.CONNECTING
@@ -391,11 +466,7 @@ export const PlaygroundPage = () => {
     setConnectionStatus('connecting')
     const token = useAuthStore.getState().accessToken
 
-    let wsUrl = env.AGENT_SERVICE_URL
-    if (wsUrl.startsWith('https://')) wsUrl = wsUrl.replace('https://', 'wss://')
-    else if (wsUrl.startsWith('http://')) wsUrl = wsUrl.replace('http://', 'ws://')
-
-    const fullWsUrl = `${wsUrl}/ws/chat/${sessionId}?token=${token}`
+    const fullWsUrl = `${AI_WS_BASE_URL}/ws/chat/${sessionInfo.sessionId}?token=${token}&context_type=${sessionInfo.contextType}`
 
     const ws = new WebSocket(fullWsUrl)
 
@@ -432,10 +503,16 @@ export const PlaygroundPage = () => {
     }
     wsRef.current = ws
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
+  }, [sessionInfo])
 
   const handleWebSocketMessage = useCallback((data: {
     type: string
+    session_id?: string
+    context_type?: ChatContextType
+    messages?: ChatSessionMessage[]
+    user?: string
+    agent_name?: string
+    allowed_tools?: string[]
     content?: string
     step_index?: number
     tool_name?: string
@@ -448,10 +525,25 @@ export const PlaygroundPage = () => {
     switch (data.type) {
       case 'connected':
         console.log('WebSocket session established')
+        if (data.session_id && data.context_type && sessionInfo) {
+          setSessionInfo({
+            ...sessionInfo,
+            sessionId: data.session_id,
+            contextType: data.context_type,
+          })
+        }
+        break
+      case 'history':
+        setMessages((data.messages || []).map(mapHistoryMessage))
+        setStreamingContent('')
+        setSending(false)
         break
       case 'ack':
         setStreamingContent('')
         setReactSteps([])
+        break
+      case 'agent_info':
+        setAllowedTools(data.allowed_tools || [])
         break
       case 'thinking':
         setReactSteps(prev => [...prev, {
@@ -527,9 +619,14 @@ export const PlaygroundPage = () => {
         }])
         break
     }
-  }, [])
+  }, [mapHistoryMessage, sessionInfo])
 
   useEffect(() => {
+    if (!sessionInfo?.sessionId && !creatingSession && !loadingAgents) {
+      void createPlaygroundSession()
+      return
+    }
+
     connectWebSocket()
     return () => {
       if (wsRef.current) {
@@ -537,7 +634,7 @@ export const PlaygroundPage = () => {
         wsRef.current = null
       }
     }
-  }, [connectWebSocket])
+  }, [connectWebSocket, createPlaygroundSession, creatingSession, loadingAgents, sessionInfo])
 
 
 
@@ -554,7 +651,7 @@ export const PlaygroundPage = () => {
   // ==================== CHAT HANDLERS ====================
 
   const sendMessage = async () => {
-    if (!input.trim() || sending || connectionStatus !== 'connected') return
+    if (!input.trim() || sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -758,12 +855,44 @@ export const PlaygroundPage = () => {
               {agent?.enabled ? 'ENABLED' : 'DISABLED'}
             </span>
           </div>
+
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider text-center">Context</span>
+            <span className="px-3 py-1 border-2 border-stone-900 font-black text-[10px] bg-purple-200 text-stone-900 shadow-[1px_1px_0_#1c1917]">
+              {sessionInfo?.contextType || 'PLAYGROUND_TEST'}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-0.5 min-w-[180px]">
+            <span className="text-[9px] font-black uppercase text-stone-500 tracking-wider">Session ID</span>
+            <span className="px-2 py-1 border-2 border-stone-900 font-black text-[10px] bg-white text-stone-700 shadow-[1px_1px_0_#1c1917] truncate">
+              {sessionInfo?.sessionId || (creatingSession ? 'ĐANG TẠO...' : 'CHƯA CÓ SESSION')}
+            </span>
+          </div>
         </div>
+      </div>
+
+      <div className="px-4 py-2 bg-white border-b-2 border-stone-900 flex flex-wrap items-center gap-2 shrink-0">
+        <span className="text-[10px] font-black uppercase text-stone-500">Allowed tools</span>
+        {allowedTools.length > 0 ? (
+          allowedTools.map(tool => (
+            <span
+              key={tool}
+              className="px-2 py-1 text-[10px] font-black uppercase bg-blue-100 text-stone-900 border-2 border-stone-900 shadow-[1px_1px_0_#1c1917]"
+            >
+              {tool}
+            </span>
+          ))
+        ) : (
+          <span className="text-[10px] font-bold text-stone-500">
+            {connectionStatus === 'connected' ? 'Chưa nhận metadata tool' : 'Đang chờ kết nối session'}
+          </span>
+        )}
       </div>
 
       {connectionStatus === 'error' && (
         <div className="px-4 py-2 bg-red-100 border-b-2 border-stone-900 text-xs text-red-800 font-bold">
-          Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AGENT_SERVICE_URL (không thêm /ai, /api, /ws) và tải lại trang.
+          Không thể kết nối tới AI Service. Vui lòng kiểm tra lại cấu hình AI REST/WS URL trong môi trường và tải lại trang.
         </div>
       )}
 

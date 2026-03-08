@@ -1,8 +1,8 @@
 # II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.1.0 (Added Section 4.3 Staff and Scheduling Detailed Design - Class Diagram + 4 Sequence Diagrams)
-**Last Updated:** 2026-03-06
+**Version:** 3.2.0 (Added AI chat isolation and admin playground detailed design)
+**Last Updated:** 2026-03-08
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -457,7 +457,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.3.4 Sequence Diagram: Create Staff Shift (UC-CM-06)
+#### 4.3.4 Sequence Diagram: Create Staff Shift (UC-CM-04)
 
 Manager creates work shifts for staff with automatic slot generation. Supports multi-date, repeat weeks, overnight shifts, and force update with booking conflict detection.
 
@@ -572,7 +572,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.3.5 Sequence Diagram: View Own Work Schedule (UC-STAFF-01)
+#### 4.3.5 Sequence Diagram: View Own Work Schedule (UC-ST-02)
 
 Staff member views their personal work schedule in a date range with shift details and slot statistics.
 
@@ -647,7 +647,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.3.6 Sequence Diagram: Bulk Delete Shifts (UC-CM-09)
+#### 4.3.6 Sequence Diagram: Bulk Delete Shifts (UC-CM-12)
 
 Manager selects and deletes multiple shifts at once. System validates each shift individually and provides partial success summary.
 
@@ -745,29 +745,12 @@ sequenceDiagram
 |-------------|---------------|-------------|
 | 4.3.1 Class Diagram | 3.7.1 - 3.7.8 | Overall staff and scheduling module structure |
 | 4.3.3 Invite Staff | 3.7.1 (UC-CM-03) | Email invitation with Google OAuth support |
-| 4.3.4 Create Shift | 3.7.5 (UC-CM-06) | Multi-date shift creation with auto slot generation |
-| 4.3.5 View Own Schedule | 3.7.4 (UC-STAFF-01) | Staff personal schedule view |
-| 4.3.6 Bulk Delete | 3.7.8 (UC-CM-09) | Multi-shift deletion with partial success handling |
+| 4.3.4 Create Shift | 3.7.2 (UC-CM-04) | Multi-date shift creation with auto slot generation |
+| 4.3.5 View Own Schedule | UC-ST-02 | Staff personal schedule view |
+| 4.3.6 Bulk Delete | 2.2.6 (UC-CM-12) | Multi-shift deletion with partial success handling |
 
 ---
 
-### 4.4 Pet Profile Management
-    - [4.4 Pet Profile Management](#44-pet-profile-management)
-    - [4.5 Patient Management](#45-patient-management)
-    - [4.6 EMR & Vaccination Management](#46-emr--vaccination-management)
-    - [4.7 Service Management](#47-service-management)
-    - [4.8 Chat Management](#48-chat-management)
-    - [4.9 Booking Review Management](#49-booking-review-management)
-    - [4.10 Clinic Management](#410-clinic-management)
-    - [4.11 Booking Management](#411-booking-management)
-    - [4.12 Clinic Discovery Management](#412-clinic-discovery-management)
-    - [4.13 Notification Management](#413-notification-management)
-    - [4.14 Payment Management](#414-payment-management)
-    - [4.15 System Management](#415-system-management)
-    - [4.16 Report Management](#416-report-management)
-    - [4.17 AI Assistant](#417-ai-assistant)
-- [5. Technology Stack Summary](#5-technology-stack-summary)
-- [Appendix A: File Upload & Media Management](#appendix-a-file-upload--media-management)
 
 ## 1. System Design
 
@@ -1179,7 +1162,7 @@ flowchart TB
 | **Services Layer** |
 | 17 | services | **External Integration Layer** - Clients for external APIs (OpenRouter LLM, Cohere embeddings). Handles streaming responses, retry logic, and error handling for cloud AI providers. |
 | **Database Layer** |
-| 18 | db/postgres/models | **ORM Model Layer** - SQLAlchemy ORM models defining entities (Agent, Tool, ChatSession, ChatMessage, KnowledgeDocument, SystemSetting). Maps Python classes to PostgreSQL tables. |
+| 18 | db/postgres/models | **ORM Model Layer** - SQLAlchemy ORM models defining entities (Agent, Tool, KnowledgeDocument, SystemSetting). AI chat session/message không thuộc PostgreSQL scope; toàn bộ AI chat history lưu trên MongoDB. |
 | 19 | db/postgres/session | **Session Management Layer** - AsyncSession factory for database connections. Manages connection pooling and transaction scopes for async operations. |
 | 20 | db/migrations | **Schema Migration Layer** - Alembic migration scripts for database schema versioning. Enables safe schema evolution across environments with up/down migrations. |
 | **Configuration Layer** |
@@ -3390,10 +3373,19 @@ classDiagram
     EmailChangeService --> OtpService
 ```
 
-#### 4.2.2 Update Profile & Avatar (UC-PO-03, UC-VT-03, UC-CM-02)
+#### 4.2.2 Sequence Diagram: View & Update Profile (UC-PO-03, UC-VT-02, UC-CM-02)
 
 ```mermaid
 sequenceDiagram
+    actor U as User
+    participant UI as Web/Mobile App
+    participant UC as UserController
+    participant AS as AuthService
+    participant US as UserService
+    participant CS as CloudinaryService
+    participant UR as UserRepository
+    participant DB as Database
+
     U->>UI: 1. Edit info or select new Avatar
     UI->>UC: 2. updateProfile(UserRequest) or uploadAvatar(file)
     activate UC
@@ -3413,19 +3405,35 @@ sequenceDiagram
 
     US->>UR: 8. save(Updated User Entity)
     activate UR
-    UR-->>US: 9. OK
+    UR->>DB: 9. Update User Profile Data
+    activate DB
+    DB-->>UR: 10. Success
+    deactivate DB
+    UR-->>US: 11. Saved User
     deactivate UR
-    US-->>UC: 10. UserResponse
+    US-->>UC: 12. UserResponse
     deactivate US
-    UC-->>UI: 11. 200 OK (User Data)
+    UC-->>UI: 13. 200 OK (User Data)
     deactivate UC
-    UI-->>U: 12. Update UI state
+    UI-->>U: 14. Update UI state
 ```
 
-#### 4.2.3 Change Email with OTP (UC-PO-23)
+#### 4.2.3 Sequence Diagram: Change Password or Change Email (UC-PO-04, UC-VT-03)
+
+##### Change Email with OTP Flow
 
 ```mermaid
 sequenceDiagram
+    actor U as User
+    participant UI as Web/Mobile App
+    participant UC as UserController
+    participant AS as AuthService
+    participant ECS as EmailChangeService
+    participant ORS as OtpRedisService
+    participant ES as EmailService
+    participant UR as UserRepository
+    participant DB as Database
+
     U->>UI: 1. Input new Email & click "Change"
     UI->>UC: 2. requestEmailChange(emailRequest)
     activate UC
@@ -3452,16 +3460,20 @@ sequenceDiagram
     ORS-->>ECS: 15. Valid
     ECS->>UR: 16. save(Updated User Email)
     activate UR
-    UR-->>ECS: 17. OK
+    UR->>DB: 17. Update User Email
+    activate DB
+    DB-->>UR: 18. Success
+    deactivate DB
+    UR-->>ECS: 19. Saved User
     deactivate UR
-    ECS->>ORS: 18. deleteEmailChangeOtp(userId)
-    ECS-->>UC: 19. UserResponse
+    ECS->>ORS: 20. deleteEmailChangeOtp(userId)
+    ECS-->>UC: 21. UserResponse
     deactivate ECS
-    UC-->>UI: 20. 200 OK (Updated Profile)
+    UC-->>UI: 22. 200 OK (Updated Profile)
     deactivate UC
 ```
 
-#### 4.2.4 Change Password Flow
+##### Change Password Flow
 
 ```mermaid
 sequenceDiagram
@@ -3500,13 +3512,21 @@ sequenceDiagram
         deactivate DB
         UR-->>US: 13b. OK
         deactivate UR
-        US-->>UC: 14b. void
+        US-->>UC: 14b. Success
         deactivate US
         UC-->>UI: 15b. 200 OK
         deactivate UC
         UI-->>U: 16b. Success Message
     end
 ```
+
+#### 4.2.4 Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.2.1 Class Diagram | 3.3 User Profile & Account Setup | Overall module structure |
+| 4.2.2 View & Update Profile | 3.3.1 (UC-PO-03, UC-VT-02, UC-CM-02) | View and update personal info & avatar |
+| 4.2.3 Change Password or Change Email | 3.3.2 (UC-PO-04, UC-VT-03) | Change password and email with OTP |
 
 ---
 
@@ -4731,7 +4751,7 @@ sequenceDiagram
 
 ---
 
-### 4.10 SOS Emergency Booking
+### 4.11 SOS Emergency Booking
 
 The SOS Emergency Booking module provides real-time emergency veterinary care matching, connecting pet owners in urgent situations with nearby available clinics. The system uses GPS-based proximity search, automated escalation, and WebSocket notifications to ensure rapid response.
 
@@ -4739,16 +4759,16 @@ The SOS Emergency Booking module provides real-time emergency veterinary care ma
 
 | SDD Section | SRS Reference | Description |
 |-------------|---------------|-------------|
-| 4.10.1 Class Diagram | 3.10 SOS Emergency Flow | Overall module structure |
-| 4.10.2 Class Specifications | 3.10.1 - 3.10.5 | Detailed class responsibilities |
-| 4.10.3 Start SOS Matching | UC-PO-15, 3.10.1 | Pet Owner initiates SOS request |
-| 4.10.4 Confirm SOS Request | UC-CM-20, 3.10.3 | Clinic Manager accepts request |
-| 4.10.5 Decline & Escalate | UC-CM-20, 3.10.3 | Auto-escalation logic |
-| 4.10.6 Get Active SOS Alerts | UC-CM-20, 3.10.3 | Alert synchronization for managers |
-| 4.10.7 Cancel SOS Matching | UC-PO-18, 3.10.4 | Pet Owner cancels before confirmation |
-| 4.10.8 Checkout with Custom Fee | UC-STAFF-10, 3.10.5 | Staff checkout with optional SOS fee override |
+| 4.11.1 Class Diagram | 3.10 SOS Emergency Flow | Overall module structure |
+| 4.11.2 Class Specifications | 3.10.1 - 3.10.6 | Detailed class responsibilities |
+| 4.11.3 Start SOS Matching | UC-PO-15, 3.10.1 | Pet Owner initiates SOS request |
+| 4.11.4 Confirm SOS Request | UC-CM-20, 3.10.4 | Clinic Manager accepts request |
+| 4.11.5 Decline & Escalate | UC-CM-20, 3.10.4 | Auto-escalation logic |
+| 4.11.6 Get Active SOS Alerts | UC-CM-20, 3.10.4 | Alert synchronization for managers |
+| 4.11.7 Cancel SOS Matching | UC-PO-18, 3.10.5 | Pet Owner cancels before confirmation |
+| 4.11.8 Checkout with Custom Fee | UC-CM-21, 3.10.6 | Staff checkout with optional SOS fee override |
 
-#### 4.10.1 Class Diagram
+#### 4.11.1 Class Diagram
 
 ```mermaid
 classDiagram
@@ -5058,7 +5078,7 @@ classDiagram
     User --> Clinic
 ```
 
-#### 4.10.2 Class Specifications
+#### 4.11.2 Class Specifications
 
 **1. SosController**
 - **Responsibility:** REST API endpoints for SOS emergency booking operations.
@@ -5149,7 +5169,7 @@ classDiagram
 - **BR-71:** SOS fee is added to booking.totalPrice during confirmation, not checkout
 - **BR-72:** Checkout updates status to COMPLETED and records payment method
 
-#### 4.10.3 Sequence Diagram: Start SOS Matching Flow
+#### 4.11.3 Sequence Diagram: Start SOS Matching Flow
 
 Pet Owner initiates SOS emergency request with GPS coordinates. System finds nearby clinics, creates booking, and begins matching process.
 
@@ -5281,7 +5301,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.10.4 Sequence Diagram: Confirm SOS Request (Accept)
+#### 4.11.4 Sequence Diagram: Confirm SOS Request (Accept)
 
 Clinic Manager reviews SOS alert and accepts the request by assigning a staff member. System updates booking, applies SOS fee, and notifies pet owner.
 
@@ -5407,7 +5427,7 @@ sequenceDiagram
     deactivate SM
 ```
 
-#### 4.10.5 Sequence Diagram: Decline & Escalate to Next Clinic
+#### 4.11.5 Sequence Diagram: Decline & Escalate to Next Clinic
 
 Clinic Manager declines SOS request. System escalates to the next clinic in the list and notifies both parties.
 
@@ -5552,7 +5572,7 @@ sequenceDiagram
     deactivate SM
 ```
 
-#### 4.10.6 Sequence Diagram: Get Active SOS Alerts (Catch-Up Mechanism)
+#### 4.11.6 Sequence Diagram: Get Active SOS Alerts (Catch-Up Mechanism)
 
 Clinic Manager opens dashboard or reconnects WebSocket. System fetches active SOS alerts assigned to their clinic to sync UI state.
 
@@ -5635,7 +5655,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.10.7 Sequence Diagram: Cancel SOS Matching (Pet Owner)
+#### 4.11.7 Sequence Diagram: Cancel SOS Matching (Pet Owner)
 
 Pet Owner cancels SOS request before clinic confirmation. System updates booking, clears Redis session, and notifies clinic.
 
@@ -5718,7 +5738,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.10.8 Sequence Diagram: Checkout with Custom SOS Fee (UC-STAFF-10)
+#### 4.11.8 Sequence Diagram: Checkout with Custom SOS Fee (UC-CM-21)
 
 Staff member finalizes SOS booking by performing checkout on mobile app. System applies SOS fee (with optional override) and marks booking as completed.
 
@@ -5805,13 +5825,13 @@ sequenceDiagram
 
 ---
 
-### 4.11 Booking Management
+### 4.12 Booking Management
 
 Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobile App cho đến khi hoàn tất thanh toán tại phòng khám.
 
 **Last Updated:** 2026-01-23 (Added Sequence Diagrams: UC-PO-08, UC-PO-09, UC-VT-03, UC-VT-04, UC-VT-05, UC-VT-09, UC-CM-07, UC-CM-14, UC-CM-15, UC-CM-16)
 
-#### 4.11.0 API Specification Table
+#### 4.12.0 API Specification Table
 
 | # | Method | Endpoint | Role | Description | Status |
 |---|--------|----------|------|-------------|--------|
@@ -5846,7 +5866,7 @@ PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
 - SOS: Staff dùng start-moving (`CONFIRMED → IN_PROGRESS`) và có GPS tracking real-time
 - HOME_VISIT tiêu chuẩn không bật GPS tracking real-time
 
-#### 4.11.1 Class Diagram - Booking & Appointment
+#### 4.12.1 Class Diagram - Booking & Appointment
 
 ```mermaid
 classDiagram
@@ -5942,7 +5962,7 @@ classDiagram
     Booking "1" *-- "many" BookingServiceItem
 ```
 
-#### 4.11.2 Create Appointment (BOK-1 Mobile Booking Wizard)
+#### 4.12.2 Create Appointment (BOK-1 Mobile Booking Wizard)
 
 **Smart Availability Algorithm**:
 The system implements a "Smart Availability" feature that automatically filters available time slots based on:
@@ -6003,7 +6023,7 @@ sequenceDiagram
 - **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
 - **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
 
-#### 4.11.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
+#### 4.12.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
 
 ```mermaid
 sequenceDiagram
@@ -6032,9 +6052,9 @@ sequenceDiagram
     deactivate BC
 ```
 
-#### 4.11.4 Clinician Assignment with Manual Staff Selection (UC-CM-06)
+#### 4.12.4 Sequence Diagram: Assign Staff to Booking (UC-CM-06)
 
-Manager có thể chọn vet thủ công qua inline dropdown hoặc để hệ thống auto-assign.
+Manager có thể chọn staff thủ công qua inline dropdown hoặc để hệ thống auto-assign.
 
 ```mermaid
 sequenceDiagram
@@ -6042,47 +6062,55 @@ sequenceDiagram
     participant UI as Manager Web Dashboard
     participant BC as BookingController
     participant BS as BookingService
-    participant VAS as VetAssignmentService
     participant NS as NotificationService
+    participant BR as BookingRepository
     participant DB as Database
 
     M->>UI: 1. Click "Chi tiết" on PENDING booking
     activate UI
-    UI->>BC: 2. GET /bookings/{id}/available-vets-for-confirm
+    UI->>BC: 2. GET /bookings/{id}/staff-options
     activate BC
-    BC->>BS: 3. getAvailableVetsForConfirm(id)
-    BS->>VAS: 4. getAvailableVetsForConfirm(booking)
-    VAS-->>BS: 5. List<VetOptionDTO> with isSuggested flags
-    BS-->>BC: 6. VetOptionDTO list
-    BC-->>UI: 7. JSON Array of vets
+    BC->>BS: 3. getAvailableStaffForConfirm(bookingId)
+    BS-->>BC: 4. List<StaffOptionDTO> with isSuggested flags
+    BC-->>UI: 5. JSON Array of staff options
     deactivate BC
-    UI-->>M: 8. Show inline dropdown per service (pre-select suggested)
+    UI-->>M: 6. Show inline dropdown per service (pre-select suggested)
 
-    M->>UI: 9. (Optional) Change vet via dropdown
-    M->>UI: 10. Click "Xác nhận & Gán Staff"
-    UI->>BC: 11. PATCH /bookings/{id}/confirm with selectedVetId
+    M->>UI: 7. (Optional) Change staff via dropdown
+    M->>UI: 8. Click "Xác nhận & Gán Staff"
+    UI->>BC: 9. POST /bookings/{id}/confirm with BookingConfirmRequest
     activate BC
-    BC->>BS: 12. confirmBooking(id, request with selectedVetId)
+    BC->>BS: 10. confirmBooking(bookingId, request)
     activate BS
-    BS->>DB: 13. findById(id)
-    DB-->>BS: 14. Booking Entity
+    BS->>BR: 11. findById(bookingId)
+    activate BR
+    BR->>DB: 12. Fetch Booking Data
+    activate DB
+    DB-->>BR: 13. Booking Entity
+    deactivate DB
+    BR-->>BS: 14. Booking
+    deactivate BR
 
-    alt selectedVetId provided (Manual Selection)
-        BS->>VAS: 15a. assignSpecificVet(booking, selectedVetId)
-        VAS->>VAS: 16a. Validate specialty match
-        VAS->>VAS: 17a. Reserve slots for selected vet
-    else No selectedVetId (Auto-Assign)
-        BS->>VAS: 15b. assignVetsToAllServices(booking)
-        VAS-->>BS: 16b. Assignment Result
+    alt staffId provided (Manual Selection)
+        BS->>BS: 15a. Validate specialty match & slot availability
+        BS->>BS: 16a. Reserve slots for selected staff
+    else No staffId (Auto-Assign)
+        BS->>BS: 15b. Auto-assign based on availability algorithm
     end
 
-    BS->>NS: 18. sendBookingAssignedNotification(booking)
-    BS->>DB: 19. save(Updated Booking)
-    BS-->>BC: 20. BookingResponse
+    BS->>NS: 17. sendBookingConfirmedNotification(booking)
+    BS->>BR: 18. save(Updated Booking)
+    activate BR
+    BR->>DB: 19. Update Booking Status
+    activate DB
+    DB-->>BR: 20. Success
+    deactivate DB
+    deactivate BR
+    BS-->>BC: 21. BookingResponse
     deactivate BS
-    BC-->>UI: 21. 200 OK
+    BC-->>UI: 22. 200 OK
     deactivate BC
-    UI-->>M: 22. Close modal, refresh list
+    UI-->>M: 23. Close modal, refresh list
     deactivate UI
 ```
 
@@ -6092,7 +6120,7 @@ sequenceDiagram
 | GROOMING_SPA | GROOMER |
 | VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER | VET |
 
-#### 4.11.5 Check Staff Availability
+#### 4.12.5 Check Staff Availability
 
 ```mermaid
 sequenceDiagram
@@ -6118,7 +6146,7 @@ sequenceDiagram
     UI-->>M: 8. Show availability status for each service
 ```
 
-#### 4.11.6 Reassign Staff
+#### 4.12.6 Sequence Diagram: Reassign Staff (UC-CM-15)
 
 ```mermaid
 sequenceDiagram
@@ -6126,28 +6154,45 @@ sequenceDiagram
     participant UI as Manager Dashboard
     participant BC as BookingController
     participant BS as BookingService
-    participant VAS as VetAssignmentService
+    participant BR as BookingRepository
+    participant DB as Database
 
     M->>UI: 1. Select specific service in booking
-    UI->>BC: 2. GET /.../available-vets
-    BC->>BS: 3. getAvailableVetsForReassign(bookingId, serviceId)
-    BS-->>BC: 4. List of available vets
-    BC-->>UI: 5. Show vet list
-    M->>UI: 6. Select new vet & Confirm
-    UI->>BC: 7. POST /.../reassign
+    UI->>BC: 2. GET /bookings/{bookingId}/services/{serviceId}/available-staff
     activate BC
-    BC->>BS: 8. reassignVetForService(bookingId, serviceId, newVetId)
-    activate BS
-    BS->>VAS: 9. reassignVetForService(...)
-    Note over VAS: Release old slots & Reserve new slots
-    VAS-->>BS: 10. OK
-    BS-->>BC: 11. Updated Booking
-    deactivate BS
-    BC-->>UI: 12. Success
+    BC->>BS: 3. getAvailableStaffForReassign(bookingId, serviceId)
+    BS-->>BC: 4. List<AvailableStaffResponse>
+    BC-->>UI: 5. Show staff list in modal
     deactivate BC
+    M->>UI: 6. Select new staff & Confirm
+    UI->>BC: 7. PUT /bookings/{bookingId}/services/{serviceId}/reassign
+    activate BC
+    BC->>BS: 8. reassignStaffForService(bookingId, serviceId, newStaffId)
+    activate BS
+    BS->>BR: 9. findById(bookingId)
+    activate BR
+    BR->>DB: 10. Fetch Booking Data
+    activate DB
+    DB-->>BR: 11. Booking entity
+    deactivate DB
+    BR-->>BS: 12. Booking
+    deactivate BR
+    BS->>BS: 13. Release old slots & Reserve new slots
+    BS->>BR: 14. save(Updated Booking)
+    activate BR
+    BR->>DB: 15. Update Assigned Staff
+    activate DB
+    DB-->>BR: 16. Success
+    deactivate DB
+    deactivate BR
+    BS-->>BC: 17. BookingResponse
+    deactivate BS
+    BC-->>UI: 18. 200 OK
+    deactivate BC
+    UI-->>M: 19. Refresh booking detail
 ```
 
-#### 4.11.7 Add-on Service During Examination
+#### 4.12.7 Add-on Service During Examination
 
 Thêm dịch vụ phát sinh trong lúc khám (chỉ hiện khi status = IN_PROGRESS hoặc ARRIVED cho SOS).
 
@@ -6187,7 +6232,7 @@ sequenceDiagram
 - Price is calculated based on pet's current weight
 - Only services from the same clinic can be added
 
-#### 4.11.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
+#### 4.12.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
 
 ```mermaid
 sequenceDiagram
@@ -6226,7 +6271,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.11.9 View My Bookings (UC-PO-08)
+#### 4.12.9 View My Bookings (UC-PO-08)
 
 ```mermaid
 sequenceDiagram
@@ -6261,7 +6306,7 @@ sequenceDiagram
 - Empty state shown if no bookings exist
 - Pet Owner can click on any booking to view details
 
-#### 4.11.10 Cancel Booking (UC-PO-09)
+#### 4.12.10 Cancel Booking (UC-PO-09)
 
 ```mermaid
 sequenceDiagram
@@ -6343,7 +6388,7 @@ sequenceDiagram
 - Notifications sent to Clinic Manager and assigned Staff (if any)
 - If payment method is ONLINE, refund request is created (handled by UC-CM-07)
 
-#### 4.11.11 View Assigned Bookings (UC-VT-03)
+#### 4.12.11 View Assigned Bookings (UC-VT-03)
 
 ```mermaid
 sequenceDiagram
@@ -6359,7 +6404,7 @@ sequenceDiagram
     activate API
     API->>SVC: 3. getBookingsByStaff(staffId, status, pageable)
     activate SVC
-    SVC->>DB: 4. SELECT * FROM bookings WHERE vet_id = ? AND status IN (...)
+    SVC->>DB: 4. Fetch Assigned Bookings
     activate DB
     DB-->>SVC: 5. List<Booking>
     deactivate DB
@@ -6379,7 +6424,7 @@ sequenceDiagram
 - Empty state shown if no assigned bookings
 - Staff can click on booking to view details and take actions
 
-#### 4.11.12 Update Appointment Progress (UC-VT-04)
+#### 4.12.12 Update Appointment Progress (UC-VT-04)
 
 ```mermaid
 sequenceDiagram
@@ -6401,7 +6446,7 @@ sequenceDiagram
     activate SVC
     SVC->>BR: 6. findById(bookingId)
     activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    BR->>DB: 7. Fetch Booking Data
     activate DB
     DB-->>BR: 8. Booking entity
     deactivate DB
@@ -6412,7 +6457,7 @@ sequenceDiagram
         alt Action = check-in hoặc start-moving
             SVC->>ER: 11. createEMRShell(bookingId, petId, vetId)
             activate ER
-            ER->>DB: 12. INSERT INTO emr (booking_id, pet_id, vet_id)
+            ER->>DB: 12. Create EMR Record
             activate DB
             DB-->>ER: 13. EMR created
             deactivate DB
@@ -6420,7 +6465,7 @@ sequenceDiagram
         else Action = checkout
             SVC->>ER: 14. findByBooking(bookingId)
             activate ER
-            ER->>DB: 15. SELECT * FROM emr WHERE booking_id = ?
+            ER->>DB: 15. Fetch EMR Data
             activate DB
             DB-->>ER: 16. EMR entity
             deactivate DB
@@ -6438,7 +6483,7 @@ sequenceDiagram
         SVC->>SVC: 21. Update booking status
         SVC->>BR: 22. save(booking)
         activate BR
-        BR->>DB: 23. UPDATE bookings SET status = ?
+        BR->>DB: 23. Update Booking Status
         activate DB
         DB-->>BR: 24. OK
         deactivate DB
@@ -6464,7 +6509,7 @@ sequenceDiagram
 - Checkout requires valid trạng thái hiện tại là IN_PROGRESS
 - Notifications sent to Pet Owner and Clinic Manager on status changes
 
-#### 4.11.13 Check-in Patient (UC-VT-05)
+#### 4.12.13 Check-in Patient (UC-VT-05)
 
 ```mermaid
 sequenceDiagram
@@ -6487,7 +6532,7 @@ sequenceDiagram
     activate SVC
     SVC->>BR: 6. findById(bookingId)
     activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
+    BR->>DB: 7. Fetch Booking Data
     activate DB
     DB-->>BR: 8. Booking entity (Status: CONFIRMED)
     deactivate DB
@@ -6498,21 +6543,21 @@ sequenceDiagram
         SVC->>SVC: 11. Update booking.status = IN_PROGRESS
         SVC->>BR: 12. save(booking)
         activate BR
-        BR->>DB: 13. UPDATE bookings SET status = 'IN_PROGRESS'
+        BR->>DB: 13. Update Booking Status
         activate DB
         DB-->>BR: 14. OK
         deactivate DB
         deactivate BR
         SVC->>ER: 15. createEMRShell(booking)
         activate ER
-        ER->>DB: 16. INSERT INTO emr (booking_id, pet_id, vet_id, created_at)
+        ER->>DB: 16. Create EMR Record
         activate DB
         DB-->>ER: 17. EMR created
         deactivate DB
         deactivate ER
         SVC->>NR: 18. Create notification for Pet Owner
         activate NR
-        NR->>DB: 19. INSERT INTO notifications
+        NR->>DB: 19. Insert Notifications
         activate DB
         DB-->>NR: 20. OK
         deactivate DB
@@ -6538,7 +6583,7 @@ sequenceDiagram
 - Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
 - After check-in, Staff can start filling EMR (UC-VT-06)
 
-#### 4.11.14 Mark Treatment Finished (UC-VT-09)
+#### 4.12.14 Mark Treatment Finished (UC-VT-09)
 
 ```mermaid
 sequenceDiagram
@@ -6613,7 +6658,7 @@ sequenceDiagram
 - Notification sent to Clinic Manager: "Booking đã hoàn tất"
 - Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
 
-#### 4.11.15 Handle Cancellations & Refunds (UC-CM-07)
+#### 4.12.15 Handle Cancellations & Refunds (UC-CM-07)
 
 ```mermaid
 sequenceDiagram
@@ -6697,7 +6742,7 @@ sequenceDiagram
 - CASH bookings are marked as cancelled without refund
 - Notification sent to Pet Owner with refund details
 
-#### 4.11.16 Check Staff Availability (UC-CM-14)
+#### 4.12.16 Check Staff Availability (UC-CM-14)
 
 ```mermaid
 sequenceDiagram
@@ -6756,7 +6801,7 @@ sequenceDiagram
 - Staff are sorted by availability and workload (least busy first)
 - Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
 
-#### 4.11.17 Reassign Staff to Service (UC-CM-15)
+#### 4.12.17 Reassign Staff to Service (UC-CM-15)
 
 ```mermaid
 sequenceDiagram
@@ -6841,7 +6886,7 @@ sequenceDiagram
   - New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
   - Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
 
-#### 4.11.18 Manage Shifts - Delete Shift (UC-CM-16)
+#### 4.12.18 Manage Shifts - Delete Shift (UC-CM-16)
 
 ```mermaid
 sequenceDiagram
@@ -6927,7 +6972,7 @@ sequenceDiagram
 ---
 
 
-#### 4.11.19 Class Diagram - SOS Emergency
+#### 4.12.19 Class Diagram - SOS Emergency
 
 **Business Rules:** BR-59, BR-60, BR-61, BR-62, BR-63, BR-64, BR-65, BR-66
 
@@ -7100,7 +7145,7 @@ classDiagram
 - **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
 - **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
 
-#### 4.11.20 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
+#### 4.12.20 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
 
 **Business Rules:** BR-59 (10km radius), BR-60 (max 5 clinics), BR-61 (60s timeout), BR-62 (no duplicate active SOS), BR-64 (status flow), BR-66 (unique booking code)
 
@@ -7192,7 +7237,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.11.21 SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
+#### 4.12.21 SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
 
 This subsection describes the end-to-end SOS booking experience from the Pet Owner’s perspective, combining matching and real-time tracking flows.
 
@@ -7301,7 +7346,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.11.22 Accept/Decline SOS Request (UC-SOS-10)
+#### 4.12.22 Accept/Decline SOS Request (UC-SOS-10)
 
 ```mermaid
 sequenceDiagram
@@ -7344,7 +7389,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.11.23 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
+#### 4.12.23 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
 
 ```mermaid
 sequenceDiagram
@@ -7390,7 +7435,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.11.24 Track Staff Location (UC-SOS-02)
+#### 4.12.24 Track Staff Location (UC-SOS-02)
 
 ```mermaid
 sequenceDiagram
@@ -7422,7 +7467,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.11.25 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
+#### 4.12.25 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
 **Transitions:** `CONFIRMED → IN_PROGRESS` (khi Staff bấm "Bắt đầu di chuyển")
 
 ```mermaid
@@ -7461,7 +7506,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.11.26 SOS Service Completion & Checkout (UC-SOS-08)
+#### 4.12.26 SOS Service Completion & Checkout (UC-SOS-08)
 **Transitions:** `IN_PROGRESS → COMPLETED` (khi Staff bấm "Checkout")
 
 ```mermaid
@@ -7490,12 +7535,12 @@ sequenceDiagram
 
 ---
 
-### 4.12 Clinic Discovery Management
+### 4.13 Clinic Discovery Management
 
-#### 4.12.1 Class Diagram - Clinic Discovery
+#### 4.13.1 Class Diagram - Clinic Discovery
 *(Logic maps to Clinic Service `findNearbyClinics`)*
 
-#### 4.12.2 Search Nearby Clinics (UC-PO-05)
+#### 4.13.2 Search Nearby Clinics (UC-PO-05)
 
 ```mermaid
 sequenceDiagram
@@ -7526,7 +7571,7 @@ sequenceDiagram
 
 ---
 
-### 4.13 Notification Management
+### 4.14 Notification Management
 
 Firebase Cloud Messaging (FCM) enables real-time push notifications to mobile devices. This module handles FCM token management and notification delivery across Android and iOS platforms.
 
@@ -7538,7 +7583,7 @@ Firebase Cloud Messaging (FCM) enables real-time push notifications to mobile de
 - Automatic token cleanup for invalid/expired tokens
 - Platform-specific configuration (Android channel, iOS sound)
 
-#### 4.13.1 Class Diagram - FCM Push Notifications
+#### 4.14.1 Class Diagram - FCM Push Notifications
 
 ```mermaid
 classDiagram
@@ -7577,7 +7622,7 @@ classDiagram
     FcmService --> FirebaseMessaging
 ```
 
-#### 4.13.2 Class Specifications
+#### 4.14.2 Class Specifications
 
 **1. FcmController**
 - **Responsibility:** Handle FCM token registration/removal endpoints
@@ -7600,7 +7645,7 @@ classDiagram
 - **BR-FCM-03:** Android notifications use `petties_notifications` channel
 - **BR-FCM-04:** Batch notifications report success count
 
-#### 4.13.3 Sequence Diagram: Register FCM Token
+#### 4.14.3 Sequence Diagram: Register FCM Token
 
 ```mermaid
 sequenceDiagram
@@ -7652,7 +7697,7 @@ sequenceDiagram
     end
 ```
 
-#### 4.13.4 Sequence Diagram: Send Push Notification
+#### 4.14.4 Sequence Diagram: Send Push Notification
 
 ```mermaid
 sequenceDiagram
@@ -7702,7 +7747,7 @@ sequenceDiagram
     deactivate FS
 ```
 
-#### 4.13.5 Cross-Reference to SRS
+#### 4.14.5 Cross-Reference to SRS
 
 | Requirement | Description | Implementation |
 |------------|-------------|----------------|
@@ -7730,7 +7775,7 @@ Server-Sent Events (SSE) provide unidirectional real-time updates from server to
 - Better for one-way push notifications
 - No need for bidirectional communication
 
-#### 4.13.6 Class Diagram - SSE Real-time
+#### 4.14.6 Class Diagram - SSE Real-time
 
 ```mermaid
 classDiagram
@@ -7773,7 +7818,7 @@ classDiagram
     SseEmitterService --> SseEmitter
 ```
 
-#### 4.13.7 Class Specifications
+#### 4.14.7 Class Specifications
 
 **1. SseController**
 - **Responsibility:** Handle SSE subscription endpoint
@@ -7804,7 +7849,7 @@ classDiagram
 - **BR-SSE-04:** Auto-cleanup on timeout/error/completion
 - **BR-SSE-05:** Initial CONNECTED event sent on subscription
 
-#### 4.13.8 Sequence Diagram: SSE Subscription
+#### 4.14.8 Sequence Diagram: SSE Subscription
 
 ```mermaid
 sequenceDiagram
@@ -7849,7 +7894,7 @@ sequenceDiagram
     Note over UI: Connection stays alive
 ```
 
-#### 4.13.9 Sequence Diagram: Push Notification via SSE
+#### 4.14.9 Sequence Diagram: Push Notification via SSE
 
 ```mermaid
 sequenceDiagram
@@ -7890,7 +7935,7 @@ sequenceDiagram
     deactivate SS
 ```
 
-#### 4.13.10 Sequence Diagram: Connection Timeout
+#### 4.14.10 Sequence Diagram: Connection Timeout
 
 ```mermaid
 sequenceDiagram
@@ -7913,7 +7958,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.13.11 Cross-Reference to SRS
+#### 4.14.11 Cross-Reference to SRS
 
 | Requirement | Description | Implementation |
 |------------|-------------|----------------|
@@ -7927,11 +7972,11 @@ sequenceDiagram
 
 ---
 
-### 4.14 Payment Management
+### 4.15 Payment Management
 
 Module quản lý thanh toán cho các booking. Hỗ trợ thanh toán QR (SePay), kiểm tra trạng thái, xem lịch sử giao dịch, và quản lý ví phòng khám.
 
-#### 4.14.1 Class Diagram - Payment Management
+#### 4.15.1 Class Diagram - Payment Management
 
 ```mermaid
 classDiagram
@@ -8014,51 +8059,51 @@ classDiagram
     Payment --> PaymentMethod
 ```
 
-#### 4.14.2 Create QR Payment
+#### 4.15.2 Create QR Payment
 
 > **Sequence Diagram:** TODO - Tạo mã QR thanh toán cho booking.
 
-#### 4.14.3 View Invoice
+#### 4.15.3 View Invoice
 
 > **Sequence Diagram:** TODO - Xem hóa đơn chi tiết của booking.
 
-#### 4.14.4 View Payment Transactions History
+#### 4.15.4 View Payment Transactions History
 
 > **Sequence Diagram:** TODO - Xem lịch sử giao dịch thanh toán.
 
-#### 4.14.5 Process Withdraw
+#### 4.15.5 Process Withdraw
 
 > **Sequence Diagram:** TODO - Xử lý yêu cầu rút tiền từ ví phòng khám.
 
-#### 4.14.6 View List Withdraw Request
+#### 4.15.6 View List Withdraw Request
 
 > **Sequence Diagram:** TODO - Xem danh sách yêu cầu rút tiền.
 
-#### 4.14.7 View Wallet's Clinic
+#### 4.15.7 View Wallet's Clinic
 
 > **Sequence Diagram:** TODO - Xem thông tin ví của phòng khám.
 
 
 ---
 
-### 4.15 System Management
+### 4.16 System Management
 
 Module quản lý hệ thống dành cho Admin. Cung cấp thống kê tổng quan nền tảng (số lượng users, clinics, bookings, revenue).
 
-#### 4.15.1 Class Diagram - System Management
+#### 4.16.1 Class Diagram - System Management
 
 > **TODO:** Class diagram sẽ được bổ sung khi implement AdminDashboardController.
 
-#### 4.15.2 View Platform Statistics
+#### 4.16.2 View Platform Statistics
 
 > **Sequence Diagram:** TODO - Admin xem thống kê tổng quan nền tảng (users, clinics, bookings, revenue).
 
 
 ---
 
-### 4.16 Report Management
+### 4.17 Report Management
 
-#### 4.16.1 Class Diagram - Reporting
+#### 4.17.1 Class Diagram - Reporting
 
 ```mermaid
 classDiagram
@@ -8109,7 +8154,7 @@ classDiagram
     ReportRepository ..> Report
 ```
 
-#### 4.16.2 Submit Platform Violation Report (UC-PO-16)
+#### 4.17.2 Submit Platform Violation Report (UC-PO-16)
 
 ```mermaid
 sequenceDiagram
@@ -8155,7 +8200,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.16.3 Admin Process Report
+#### 4.17.3 Admin Process Report
 
 ```mermaid
 sequenceDiagram
@@ -8220,9 +8265,9 @@ sequenceDiagram
 
 ---
 
-### 4.17 AI Assistant
+### 4.18 AI Assistant
 
-#### 4.17.1 Class Diagram - AI Service
+#### 4.18.1 Class Diagram - AI Service
 
 ```mermaid
 classDiagram
@@ -8261,7 +8306,7 @@ classDiagram
     AgentService --> RAGEngine
 ```
 
-#### 4.17.2 Sequence Diagram: AI ReAct Loop
+#### 4.18.2 Sequence Diagram: AI ReAct Loop
 
 ```mermaid
 sequenceDiagram
@@ -8303,7 +8348,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.17.3 AI Vision Pet Health Analysis (UC-PO-14d)
+#### 4.18.3 AI Vision Pet Health Analysis (UC-PO-14d)
 
 ```mermaid
 classDiagram
@@ -8432,7 +8477,7 @@ classDiagram
     ChatWebSocket --> BookingSuggestionMessage : sends
 ```
 
-#### 4.17.4 Class Specifications
+#### 4.18.4 Class Specifications
 
 **1. OpenRouterClient (Extended)**
 - **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
@@ -8460,7 +8505,7 @@ classDiagram
 - **Fields:**
     - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
 
-#### 4.17.5 Sequence Diagram: AI Vision Analysis to Booking
+#### 4.18.5 Sequence Diagram: AI Vision Analysis to Booking
 
 ```mermaid
 sequenceDiagram
@@ -8553,7 +8598,7 @@ sequenceDiagram
     UI->>UI: 33. Navigate to BookingScreen with params
 ```
 
-#### 4.17.6 WebSocket Message Schemas
+#### 4.18.6 WebSocket Message Schemas
 
 **1. Image Message (Client → Server)**
 ```json
@@ -8610,7 +8655,7 @@ sequenceDiagram
 }
 ```
 
-#### 4.17.7 Severity Mapping to Actions
+#### 4.18.7 Severity Mapping to Actions
 
 | Severity | Description | AI Action |
 |----------|-------------|-----------|
@@ -8622,7 +8667,7 @@ sequenceDiagram
 ---
 
 
-#### 4.17.8 Overview
+#### 4.18.8 Overview
 
 **Feature Description:**
 
@@ -8633,7 +8678,7 @@ Clinic Setup AI Agent là một AI-powered wizard giúp Clinic Owner thiết l�
 - Cấu hình weight-based pricing tiers.
 - Hỗ trợ đa ngôn ngữ (Vietnamese/English).
 
-#### 4.17.9 Class Diagram
+#### 4.18.9 Class Diagram
 
 ```mermaid
 classDiagram
@@ -8722,7 +8767,7 @@ classDiagram
     ClinicService "1" --> "*" ServicePricingTier
 ```
 
-#### 4.17.10 Class Specifications
+#### 4.18.10 Class Specifications
 
 **1. ClinicSetupController**
 
@@ -8776,7 +8821,7 @@ classDiagram
 | `translate_service_descriptions` | Translate to target language |
 | `import_master_services` | Import from master service templates |
 
-#### 4.17.11 Sequence Diagram: AI Clinic Setup Flow
+#### 4.18.11 Sequence Diagram: AI Clinic Setup Flow
 
 ```mermaid
 sequenceDiagram
@@ -8849,7 +8894,7 @@ sequenceDiagram
     deactivate CSC
 ```
 
-#### 4.17.12 API Endpoints
+#### 4.18.12 API Endpoints
 
 **Clinic Setup API**
 
@@ -8913,7 +8958,7 @@ interface SaveServicesRequest {
 }
 ```
 
-#### 4.17.13 Database Schema Additions
+#### 4.18.13 Database Schema Additions
 
 **New/Modified Tables:**
 
@@ -8959,6 +9004,319 @@ CREATE TABLE ai_generated_content_log (
     created_at TIMESTAMP DEFAULT NOW()
 );
 ```
+
+#### 4.18.14 Role-Based AI Chat Context Isolation
+
+This design bổ sung lớp isolation cho AI Assistant để tách hoàn toàn giữa business chat và admin playground. Mỗi session phải mang đầy đủ ownership metadata (`user_id`, `user_role`, `clinic_id`, `context_type`) và được kiểm tra trước khi nạp history hoặc mở WebSocket. MongoDB là nguồn lưu trữ chính cho session/messages nhằm hỗ trợ ReAct trace, streaming persistence, và resume multi-turn conversation mà không lẫn context.
+
+#### 4.18.15 Class Diagram - Chat Session Isolation
+
+```mermaid
+classDiagram
+    class ChatSessionController {
+        +createSession(CreateChatSessionRequest) ChatSessionResponse
+        +listSessions(ChatSessionFilter) SessionListResponse
+        +getSession(String) ChatSessionDetailResponse
+        +deleteSession(String) void
+    }
+
+    class PlaygroundWebSocketController {
+        +connect(WebSocket, String) void
+        +handleMessage(String, CurrentUser) void
+    }
+
+    class BusinessChatWebSocketController {
+        +connect(WebSocket, String) void
+        +handleMessage(String, CurrentUser) void
+    }
+
+    class ChatSessionService {
+        +createSession(CurrentUser, String, String, Integer) ChatSessionDocument
+        +validateSessionAccess(String, CurrentUser, String) ChatSessionDocument
+        +listUserSessions(CurrentUser, String) List~ChatSessionDocument~
+        +appendMessage(ChatMessageDocument) void
+        +loadHistory(String, CurrentUser, String) List~ChatMessageDocument~
+    }
+
+    class ContextPolicyService {
+        +resolveContextType(Boolean) ChatContextType
+        +resolveClinicScope(CurrentUser) String
+        +getAllowedTools(String, String) List~String~
+        +buildPromptContext(CurrentUser, String) dict
+    }
+
+    class ChatSessionRepository {
+        <<interface>>
+        +save(ChatSessionDocument) ChatSessionDocument
+        +findBySessionId(String) Optional~ChatSessionDocument~
+        +findByOwner(String, String, String) List~ChatSessionDocument~
+        +delete(String) void
+    }
+
+    class ChatMessageRepository {
+        <<interface>>
+        +save(ChatMessageDocument) ChatMessageDocument
+        +findBySessionId(String, Integer) List~ChatMessageDocument~
+    }
+
+    class ChatSessionDocument {
+        +String sessionId
+        +String userId
+        +String userRole
+        +String clinicId
+        +ChatContextType contextType
+        +Integer agentId
+        +datetime createdAt
+        +datetime updatedAt
+    }
+
+    class ChatMessageDocument {
+        +String messageId
+        +String sessionId
+        +String userId
+        +String role
+        +String content
+        +ChatContextType contextType
+        +dict reactTrace
+        +dict toolCalls
+        +datetime timestamp
+    }
+
+    class ChatContextType {
+        <<enumeration>>
+        BUSINESS_CHAT
+        PLAYGROUND_TEST
+    }
+
+    ChatSessionController --> ChatSessionService
+    PlaygroundWebSocketController --> ChatSessionService
+    PlaygroundWebSocketController --> ContextPolicyService
+    BusinessChatWebSocketController --> ChatSessionService
+    BusinessChatWebSocketController --> ContextPolicyService
+    ChatSessionService --> ChatSessionRepository
+    ChatSessionService --> ChatMessageRepository
+    ChatSessionService --> ChatSessionDocument
+    ChatSessionService --> ChatMessageDocument
+    ContextPolicyService --> ChatContextType
+    ChatSessionDocument --> ChatContextType
+    ChatMessageDocument --> ChatContextType
+```
+
+#### 4.18.16 Class Specifications
+
+**1. ChatSessionController**
+- **Responsibility:** Expose REST endpoints để tạo, liệt kê, xem chi tiết, xóa session theo đúng ownership và context.
+- **Key Methods:**
+    - `createSession(...)`: Tạo session mới với `BUSINESS_CHAT` hoặc `PLAYGROUND_TEST`.
+    - `listSessions(...)`: Chỉ trả về sessions thuộc user hiện tại và đúng context filter.
+
+**2. BusinessChatWebSocketController**
+- **Responsibility:** Quản lý real-time business AI chat cho người dùng nghiệp vụ.
+- **Key Methods:**
+    - `connect(...)`: Xác thực JWT, validate session ownership, nạp history business.
+    - `handleMessage(...)`: Stream ReAct response và persist cả user/assistant messages.
+
+**3. PlaygroundWebSocketController**
+- **Responsibility:** Quản lý sandbox test riêng cho admin.
+- **Key Methods:**
+    - `connect(...)`: Chỉ chấp nhận `ADMIN` với session `PLAYGROUND_TEST`.
+    - `handleMessage(...)`: Cho phép provider/model override, log trace đầy đủ cho debug.
+
+**4. ChatSessionService**
+- **Responsibility:** Trung tâm điều phối session lifecycle, ownership check, Mongo persistence, history loading.
+- **Key Methods:**
+    - `validateSessionAccess(...)`: Từ chối truy cập chéo user/context.
+    - `appendMessage(...)`: Lưu message với metadata trace/tool calls.
+
+**5. ContextPolicyService**
+- **Responsibility:** Xây dựng role-aware prompt context và tool governance.
+- **Key Methods:**
+    - `getAllowedTools(userRole, contextType)`: Trả về danh sách tool được phép dùng.
+    - `resolveClinicScope(user)`: Suy ra `clinic_id` cho role clinic-scoped.
+
+#### 4.18.17 Sequence Diagram: Business AI Chat Session Flow
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as AI Chat Screen
+    participant CC as ChatSessionController
+    participant BWS as BusinessChatWebSocketController
+    participant CSS as ChatSessionService
+    participant CPS as ContextPolicyService
+    participant CSR as ChatSessionRepository
+    participant CMR as ChatMessageRepository
+    participant DB as MongoDB
+
+    PO->>UI: 1. Mở AI chat nghiệp vụ
+    activate UI
+    UI->>CC: 2. Tạo session BUSINESS_CHAT
+    activate CC
+    CC->>CSS: 3. createSession(currentUser, BUSINESS_CHAT, clinicId, agentId)
+    activate CSS
+    CSS->>CPS: 4. resolveClinicScope(currentUser)
+    activate CPS
+    CPS-->>CSS: 5. clinicId hoặc null
+    deactivate CPS
+    CSS->>CSR: 6. save(sessionDocument)
+    activate CSR
+    CSR->>DB: 7. Insert ai_chat_sessions document
+    activate DB
+    DB-->>CSR: 8. Session saved
+    deactivate DB
+    CSR-->>CSS: 9. ChatSessionDocument
+    deactivate CSR
+    CSS-->>CC: 10. ChatSessionResponse
+    deactivate CSS
+    CC-->>UI: 11. session_id
+    deactivate CC
+    UI->>BWS: 12. Open WebSocket /ws/chat/{session_id}
+    activate BWS
+    BWS->>CSS: 13. validateSessionAccess(session_id, currentUser, BUSINESS_CHAT)
+    activate CSS
+    CSS->>CSR: 14. findBySessionId(session_id)
+    activate CSR
+    CSR->>DB: 15. Find session by session_id
+    activate DB
+    DB-->>CSR: 16. Session document
+    deactivate DB
+    CSR-->>CSS: 17. Session document
+    deactivate CSR
+    CSS->>CMR: 18. findBySessionId(session_id, 50)
+    activate CMR
+    CMR->>DB: 19. Query ai_chat_messages by session_id
+    activate DB
+    DB-->>CMR: 20. Message history
+    deactivate DB
+    CMR-->>CSS: 21. Message history
+    deactivate CMR
+    CSS-->>BWS: 22. Access granted + history
+    deactivate CSS
+    UI->>BWS: 23. Gửi user message
+    BWS->>CPS: 24. getAllowedTools(userRole, BUSINESS_CHAT)
+    activate CPS
+    CPS-->>BWS: 25. Allowed tools + prompt context
+    deactivate CPS
+    BWS->>CMR: 26. save(user message)
+    activate CMR
+    CMR->>DB: 27. Insert user message document
+    activate DB
+    DB-->>CMR: 28. Saved
+    deactivate DB
+    CMR-->>BWS: 29. Saved
+    deactivate CMR
+    BWS->>CMR: 30. save(assistant message + react_trace)
+    activate CMR
+    CMR->>DB: 31. Insert assistant message document
+    activate DB
+    DB-->>CMR: 32. Saved
+    deactivate DB
+    CMR-->>BWS: 33. Saved
+    deactivate CMR
+    BWS-->>UI: 34. Stream response
+    UI-->>PO: 35. Hiển thị hội thoại
+    deactivate BWS
+    deactivate UI
+```
+
+#### 4.18.18 Sequence Diagram: Admin Playground Test Flow
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant UI as Playground Page
+    participant CC as ChatSessionController
+    participant PWS as PlaygroundWebSocketController
+    participant CSS as ChatSessionService
+    participant CPS as ContextPolicyService
+    participant CMR as ChatMessageRepository
+    participant DB as MongoDB
+
+    A->>UI: 1. Mở Playground
+    activate UI
+    UI->>CC: 2. Tạo session PLAYGROUND_TEST
+    activate CC
+    CC->>CSS: 3. createSession(adminUser, PLAYGROUND_TEST, null, agentId)
+    activate CSS
+    CSS-->>CC: 4. Playground session response
+    deactivate CSS
+    CC-->>UI: 5. session_id
+    deactivate CC
+    UI->>PWS: 6. Open WebSocket playground session
+    activate PWS
+    PWS->>CSS: 7. validateSessionAccess(session_id, adminUser, PLAYGROUND_TEST)
+    activate CSS
+    CSS-->>PWS: 8. Access granted
+    deactivate CSS
+    UI->>PWS: 9. Gửi test prompt + provider/model override
+    PWS->>CPS: 10. getAllowedTools(ADMIN, PLAYGROUND_TEST)
+    activate CPS
+    CPS-->>PWS: 11. Admin tool set + debug context
+    deactivate CPS
+    PWS->>CMR: 12. save(test message)
+    activate CMR
+    CMR->>DB: 13. Insert PLAYGROUND_TEST message
+    activate DB
+    DB-->>CMR: 14. Saved
+    deactivate DB
+    CMR-->>PWS: 15. Saved
+    deactivate CMR
+    PWS->>CMR: 16. save(response + react_trace + tool logs)
+    activate CMR
+    CMR->>DB: 17. Insert assistant debug message
+    activate DB
+    DB-->>CMR: 18. Saved
+    deactivate DB
+    CMR-->>PWS: 19. Saved
+    deactivate CMR
+    PWS-->>UI: 20. Stream trace + final answer
+    UI-->>A: 21. Hiển thị kết quả test
+    deactivate PWS
+    deactivate UI
+```
+
+#### 4.18.19 MongoDB Document Model for AI Session Isolation
+
+**Collection: `ai_chat_sessions`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `session_id` | string | Yes | Public session identifier |
+| `user_id` | string | Yes | Owner của session |
+| `user_role` | string | Yes | Vai trò tạo session |
+| `clinic_id` | string/null | Conditional | Clinic scope cho Staff, Clinic Manager, Clinic Owner |
+| `context_type` | string | Yes | `BUSINESS_CHAT` hoặc `PLAYGROUND_TEST` |
+| `agent_id` | int/null | No | Agent đang được dùng |
+| `created_at` | datetime | Yes | Thời điểm tạo |
+| `updated_at` | datetime | Yes | Thời điểm cập nhật cuối |
+
+**Collection: `ai_chat_messages`**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message_id` | string | Yes | Message identifier |
+| `session_id` | string | Yes | Reference tới `ai_chat_sessions.session_id` |
+| `user_id` | string | Yes | Owner để phục vụ ownership check nhanh |
+| `role` | string | Yes | `user`, `assistant`, `system`, `tool` |
+| `content` | string | Yes | Nội dung message |
+| `context_type` | string | Yes | Đồng bộ với session context |
+| `react_trace` | object/null | No | Thought/Action/Observation trace |
+| `tool_calls` | array/object/null | No | Log tool calls |
+| `sources` | array/null | No | Citation/RAG sources |
+| `timestamp` | datetime | Yes | Thời điểm lưu |
+
+**Required Indexes**
+- `ai_chat_sessions`: unique(`session_id`), index(`user_id`), index(`context_type`), index(`user_id`, `context_type`, `updated_at`)
+- `ai_chat_messages`: unique(`message_id`), index(`session_id`, `timestamp`), index(`user_id`, `context_type`)
+
+#### 4.18.20 Cross-Reference to SRS
+
+| SDD Section | SRS Reference | Description |
+|-------------|---------------|-------------|
+| 4.18.15 Class Diagram - Chat Session Isolation | 3.11.5 | Overall class structure for role-based session isolation |
+| 4.18.17 Business AI Chat Session Flow | 3.11.1, 3.11.5 | Business chat ownership, history loading, Mongo persistence |
+| 4.18.18 Admin Playground Test Flow | 3.11.4, 3.11.5 | Admin-only isolated test environment |
+| 4.18.19 MongoDB Document Model | 3.11.1, 3.11.4, 3.11.5 | Session/message fields and indexes for context isolation |
 
 ---
 

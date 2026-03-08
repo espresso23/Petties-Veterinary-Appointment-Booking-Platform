@@ -11,10 +11,26 @@ from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, Optional, List, Any
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
 
 from app.core.agents.factory import AgentFactory
 from app.db.postgres.session import AsyncSessionLocal
+from app.api.middleware.auth import decode_jwt_token, CurrentUser
+from app.core.chat_context import (
+    BUSINESS_CHAT,
+    PLAYGROUND_TEST,
+    default_context_for_user,
+    normalize_context_type,
+)
+from app.core.database.mongodb import (
+    get_chat_session,
+    get_chat_history,
+    save_chat_session,
+    save_chat_message,
+    touch_chat_session,
+)
+from app.core.tool_runtime_context import ToolRuntimeContext, reset_tool_runtime_context, set_tool_runtime_context
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +139,10 @@ def map_react_step_to_message(step: Dict[str, Any], step_index: int) -> Dict[str
 async def handle_chat_message(
     websocket: WebSocket,
     session_id: str,
+    user: CurrentUser,
+    session_context: str,
     message: str,
+    auth_token: Optional[str] = None,
     agent_id: Optional[int] = None,
     provider_override: Optional[str] = None,
     model_override: Optional[str] = None
@@ -161,6 +180,10 @@ async def handle_chat_message(
         except json.JSONDecodeError:
             user_message = message
 
+        if session_context != PLAYGROUND_TEST:
+            provider_override = None
+            model_override = None
+
         # Send acknowledgment
         await manager.send_message(session_id, {
             "type": "ack",
@@ -171,6 +194,17 @@ async def handle_chat_message(
             "timestamp": datetime.now().isoformat()
         })
 
+        await save_chat_message({
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "user_id": user.user_id,
+            "role": "user",
+            "content": user_message,
+            "context_type": session_context,
+            "timestamp": datetime.now(timezone.utc),
+        })
+        await touch_chat_session(session_id)
+
         # Get agent from database
         async with AsyncSessionLocal() as db:
             try:
@@ -180,14 +214,18 @@ async def handle_chat_message(
                         agent_id=agent_id,
                         db_session=db,
                         provider_override=provider_override,
-                        model_override=model_override
+                        model_override=model_override,
+                        user_role=user.role,
+                        context_type=session_context,
                     )
                 else:
                     # Get default enabled agent with provider/model override
                     agent = await AgentFactory.get_agent(
                         db_session=db,
                         provider_override=provider_override,
-                        model_override=model_override
+                        model_override=model_override,
+                        user_role=user.role,
+                        context_type=session_context,
                     )
             except ValueError as e:
                 await manager.send_message(session_id, {
@@ -212,66 +250,106 @@ async def handle_chat_message(
                 "agent_type": agent.agent_type,
                 "provider": provider_override or "openrouter",
                 "model": model_override or "default",
+                "allowed_tools": agent.enabled_tools,
                 "timestamp": datetime.now().isoformat()
             })
 
             # Stream agent response
             logger.info(f"Starting agent stream for session {session_id}")
 
-            async for event in agent.stream(user_message, session_id):
-                # Safety check: ensure event is a dict
-                if not isinstance(event, dict):
-                    logger.warning(f"Agent stream yielded non-dict event ({type(event)}): {event}")
-                    if isinstance(event, str):
-                        event = {"type": "stream", "content": event}
-                    else:
-                        continue
+            runtime_token = set_tool_runtime_context(
+                ToolRuntimeContext(
+                    user_id=user.user_id,
+                    role=user.role,
+                    auth_token=auth_token,
+                    clinic_id=user.clinic_id,
+                    session_id=session_id,
+                    context_type=session_context,
+                )
+            )
 
-                event_type = event.get("type", "")
+            try:
+                async for event in agent.stream(user_message, session_id):
+                    # Safety check: ensure event is a dict
+                    if not isinstance(event, dict):
+                        logger.warning(f"Agent stream yielded non-dict event ({type(event)}): {event}")
+                        if isinstance(event, str):
+                            event = {"type": "stream", "content": event}
+                        else:
+                            continue
 
-                if event_type == "react_step":
-                    # Map ReActStep to WebSocket message
-                    step = event.get("step", {})
-                    ws_message = map_react_step_to_message(step, step_index)
+                    event_type = event.get("type", "")
 
-                    # Store in trace
-                    react_trace.append({
-                        "step_index": step_index,
-                        **step
-                    })
+                    if event_type == "react_step":
+                        # Map ReActStep to WebSocket message
+                        step = event.get("step", {})
+                        ws_message = map_react_step_to_message(step, step_index)
 
-                    # Send to frontend
-                    await manager.send_message(session_id, ws_message)
-                    step_index += 1
+                        # Store in trace
+                        react_trace.append({
+                            "step_index": step_index,
+                            **step
+                        })
 
-                elif event_type == "token":
-                    # Stream token from LLM
-                    token_content = event.get("content", "")
-                    full_response += token_content
-                    await manager.send_message(session_id, {
-                        "type": "stream",
-                        "content": token_content,
-                        "timestamp": datetime.now().isoformat()
-                    })
+                        # Send to frontend
+                        await manager.send_message(session_id, ws_message)
+                        step_index += 1
 
-                elif event_type == "final_answer":
-                    # Final answer from agent
-                    full_response = event.get("content", full_response)
+                    elif event_type == "token":
+                        # Stream token from LLM
+                        token_content = event.get("content", "")
+                        full_response += token_content
+                        await manager.send_message(session_id, {
+                            "type": "stream",
+                            "content": token_content,
+                            "timestamp": datetime.now().isoformat()
+                        })
 
-                elif event_type == "error":
-                    # Error during processing
-                    error_msg = event.get("content", "Unknown error")
-                    if isinstance(event, str): # Extra safety
-                        error_msg = event
+                    elif event_type == "final_answer":
+                        # Final answer from agent
+                        full_response = event.get("content", full_response)
 
-                    await manager.send_message(session_id, {
-                        "type": "error",
-                        "error": error_msg,
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    return
+                    elif event_type == "error":
+                        # Error during processing
+                        error_msg = event.get("content", "Unknown error")
+                        if isinstance(event, str): # Extra safety
+                            error_msg = event
+
+                        await manager.send_message(session_id, {
+                            "type": "error",
+                            "error": error_msg,
+                            "timestamp": datetime.now().isoformat()
+                        })
+                        return
+            finally:
+                reset_tool_runtime_context(runtime_token)
 
         # Send completion with full trace
+        assistant_tool_calls = [
+            {
+                "tool_name": step.get("tool_name"),
+                "tool_params": step.get("tool_params"),
+                "tool_result": step.get("tool_result"),
+            }
+            for step in react_trace
+            if step.get("tool_name")
+        ]
+
+        await save_chat_message({
+            "message_id": str(uuid.uuid4()),
+            "session_id": session_id,
+            "user_id": user.user_id,
+            "role": "assistant",
+            "content": full_response,
+            "context_type": session_context,
+            "react_trace": react_trace,
+            "tool_calls": assistant_tool_calls,
+            "timestamp": datetime.now(timezone.utc),
+        })
+        await touch_chat_session(session_id, {
+            "agent_id": agent_id,
+        })
+
         await manager.send_message(session_id, {
             "type": "complete",
             "full_response": full_response,
@@ -292,10 +370,6 @@ async def handle_chat_message(
             "timestamp": datetime.now().isoformat()
         })
 
-
-
-from app.api.middleware.auth import decode_jwt_token
-
 async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "default"):
     """
     WebSocket endpoint for chat
@@ -305,6 +379,8 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
     try:
         logger.info(f"Incoming WebSocket connection: session_id={session_id}")
         
+        requested_context_type = websocket.query_params.get("context_type")
+
         # 1. Accept first (Fix 403 Forbidden on Handshake)
         from fastapi.websockets import WebSocketState
         if websocket.client_state == WebSocketState.CONNECTING:
@@ -333,27 +409,83 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str = "defau
             
         logger.info(f"WebSocket auth success: {user.username} ({user.role})")
 
+        session = await get_chat_session(session_id)
+        if session is None:
+            context_type = normalize_context_type(
+                requested_context_type,
+                default_context_for_user(user.is_admin),
+            )
+
+            if context_type == PLAYGROUND_TEST and not user.is_admin:
+                await websocket.close(code=1008, reason="Playground requires admin role")
+                return
+
+            now = datetime.now(timezone.utc)
+            session = {
+                "session_id": session_id,
+                "agent_id": None,
+                "title": f"Chat {datetime.now().strftime('%H:%M')}",
+                "context_type": context_type,
+                "created_at": now,
+                "updated_at": now,
+                "user_id": user.user_id,
+                "user_role": user.role,
+                "clinic_id": user.clinic_id,
+            }
+            await save_chat_session(session)
+        else:
+            if session.get("user_id") != user.user_id:
+                await websocket.close(code=1008, reason="Session does not belong to current user")
+                return
+
+            context_type = normalize_context_type(session.get("context_type"), BUSINESS_CHAT)
+            if context_type == PLAYGROUND_TEST and not user.is_admin:
+                await websocket.close(code=1008, reason="Playground requires admin role")
+                return
+
         # 3. Connect (Manager stores only)
         await manager.connect(websocket, session_id)
 
         try:
+            history = await get_chat_history(session_id)
+
             # Send welcome message
             await manager.send_message(session_id, {
                 "type": "connected",
                 "session_id": session_id,
                 "message": "Connected to Petties Agent Chat",
                 "user": user.username,
+                "context_type": context_type,
                 "supported_message_types": [
                     "thinking", "tool_call", "tool_result",
-                    "stream", "complete", "error"
+                    "stream", "complete", "error", "history"
                 ],
                 "timestamp": datetime.now().isoformat()
             })
 
+            if history:
+                await manager.send_message(session_id, {
+                    "type": "history",
+                    "session_id": session_id,
+                    "context_type": context_type,
+                    "messages": [
+                        {
+                            "message_id": item.get("message_id"),
+                            "role": item.get("role"),
+                            "content": item.get("content"),
+                            "context_type": item.get("context_type"),
+                            "timestamp": item.get("timestamp").isoformat() if hasattr(item.get("timestamp"), "isoformat") else str(item.get("timestamp")),
+                            "react_trace": item.get("react_trace"),
+                        }
+                        for item in history
+                    ],
+                    "timestamp": datetime.now().isoformat()
+                })
+
             # Listen for messages
             while True:
                 data = await websocket.receive_text()
-                await handle_chat_message(websocket, session_id, data)
+                await handle_chat_message(websocket, session_id, user, context_type, data, auth_token=token)
 
         except WebSocketDisconnect:
             manager.disconnect(session_id)

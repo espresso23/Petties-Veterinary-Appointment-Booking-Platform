@@ -33,6 +33,7 @@ class CurrentUser(BaseModel):
     user_id: str
     username: Optional[str] = None
     role: str = "USER"
+    clinic_id: Optional[str] = None
     is_admin: bool = False
 
 
@@ -55,6 +56,7 @@ def get_user_from_gateway_headers(request: Request) -> Optional[CurrentUser]:
     """
     user_id = request.headers.get("X-User-Id")
     roles = request.headers.get("X-User-Roles", "")
+    clinic_id = request.headers.get("X-User-Clinic-Id") or request.headers.get("X-Clinic-Id")
     
     if not user_id:
         return None
@@ -74,6 +76,7 @@ def get_user_from_gateway_headers(request: Request) -> Optional[CurrentUser]:
     return CurrentUser(
         user_id=user_id,
         role=role,
+        clinic_id=clinic_id,
         is_admin=is_admin
     )
 
@@ -108,6 +111,7 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
         username = user_id if "userId" in payload else None
         
         role = payload.get("role", payload.get("roles", "USER"))
+        clinic_id = payload.get("workingClinicId") or payload.get("working_clinic_id") or payload.get("clinicId")
         
         # Handle role as string or list
         if isinstance(role, list):
@@ -119,6 +123,7 @@ async def decode_jwt_token(token: str) -> Optional[CurrentUser]:
             user_id=str(real_user_id),
             username=username,
             role=role.upper() if role else "USER",
+            clinic_id=str(clinic_id) if clinic_id else None,
             is_admin=role.upper() == "ADMIN" if role else False
         )
     except JWTError as e:

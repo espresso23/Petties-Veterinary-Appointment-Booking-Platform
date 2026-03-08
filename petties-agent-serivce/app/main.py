@@ -46,12 +46,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Sentry init skipped: {e}")
 
-    # Initialize database
+    # Initialize PostgreSQL database
     try:
         from app.db.postgres.session import init_db
         await init_db()
         logger.info("✅ PostgreSQL database initialized")
-        
+
         # Initialize Qdrant Collection
         from app.core.init_db import init_qdrant
         await init_qdrant()
@@ -64,7 +64,21 @@ async def lifespan(app: FastAPI):
             await seed_data(db)
             logger.info("✅ Database auto-seeding check complete")
     except Exception as e:
-        logger.warning(f"⚠️ Database init skipped: {e}")
+        logger.warning(f"⚠️ PostgreSQL/Qdrant init skipped: {e}")
+
+    # Initialize MongoDB connection
+    try:
+        from app.core.database.mongodb import mongodb_health_check, create_mongodb_indexes
+        health = await mongodb_health_check()
+        if health['status'] == 'healthy':
+            logger.info(f"✅ MongoDB connected: {health['database']} ({len(health['collections'])} collections)")
+            # Create indexes for optimal query performance
+            await create_mongodb_indexes()
+            logger.info("✅ MongoDB indexes created")
+        else:
+            logger.warning(f"⚠️ MongoDB unhealthy: {health['error']}")
+    except Exception as e:
+        logger.warning(f"⚠️ MongoDB init skipped: {e}")
 
     logger.info("✅ Application startup complete")
 
@@ -73,13 +87,20 @@ async def lifespan(app: FastAPI):
     # ===== SHUTDOWN =====
     logger.info("🛑 Shutting down application")
 
-    # Cleanup database connections
+    # Cleanup PostgreSQL connections
     try:
         from app.db.postgres.session import close_db
         await close_db()
-        logger.info("✅ Database connections closed")
+        logger.info("✅ PostgreSQL connections closed")
     except Exception as e:
-        logger.warning(f"⚠️ Database cleanup error: {e}")
+        logger.warning(f"⚠️ PostgreSQL cleanup error: {e}")
+
+    # Cleanup MongoDB connection
+    try:
+        from app.core.database.mongodb import close_mongodb_connection
+        await close_mongodb_connection()
+    except Exception as e:
+        logger.warning(f"⚠️ MongoDB cleanup error: {e}")
 
     logger.info("✅ Application shutdown complete")
 
@@ -111,15 +132,39 @@ app.add_middleware(
 async def health_check():
     """
     Health check endpoint cho Docker healthcheck và monitoring
+
+    Kiểm tra:
+    - PostgreSQL connection
+    - MongoDB connection
+    - Qdrant connection
     """
+    health_status = {
+        "status": "healthy",
+        "service": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "environment": settings.APP_ENV,
+        "databases": {}
+    }
+
+    # Check MongoDB
+    try:
+        from app.core.database.mongodb import mongodb_health_check
+        mongo_health = await mongodb_health_check()
+        health_status["databases"]["mongodb"] = {
+            "status": mongo_health["status"],
+            "database": mongo_health["database"],
+            "collections_count": len(mongo_health["collections"])
+        }
+    except Exception as e:
+        health_status["databases"]["mongodb"] = {
+            "status": "error",
+            "error": str(e)
+        }
+        health_status["status"] = "degraded"
+
     return JSONResponse(
         status_code=200,
-        content={
-            "status": "healthy",
-            "service": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-            "environment": settings.APP_ENV,
-        }
+        content=health_status
     )
 
 

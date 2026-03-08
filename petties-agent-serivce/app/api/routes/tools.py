@@ -24,11 +24,12 @@ from app.api.schemas.tool_schemas import (
     ErrorResponse
 )
 from app.core.tools.scanner import ToolScanner
+from app.api.middleware.auth import get_admin_user
 from app.db.postgres.models import Tool
 from app.db.postgres.session import get_db
 
 # Initialize router
-router = APIRouter(prefix="/tools", tags=["Tools"])
+router = APIRouter(prefix="/tools", tags=["Tools"], dependencies=[Depends(get_admin_user)])
 
 
 # ===== TL-02: TOOL SCANNER ENDPOINTS =====

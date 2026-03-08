@@ -22,6 +22,7 @@ from pathlib import Path
 import os
 import shutil
 from datetime import datetime
+from app.api.middleware.auth import get_admin_user
 
 from app.api.schemas.knowledge_schemas import (
     DocumentResponse,
@@ -41,7 +42,7 @@ from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db
 
 # Initialize router
-router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"])
+router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"], dependencies=[Depends(get_admin_user)])
 
 # Storage configuration
 STORAGE_DIR = Path("storage/documents")

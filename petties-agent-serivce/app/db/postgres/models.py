@@ -73,7 +73,6 @@ class Agent(Base):
 
     # Relationships
     prompt_versions = relationship("PromptVersion", back_populates="agent")
-    chat_sessions = relationship("ChatSession", back_populates="agent")
 
     def __repr__(self):
         return f"<Agent(name={self.name}, model={self.model})>"
@@ -158,72 +157,6 @@ class PromptVersion(Base):
 
     def __repr__(self):
         return f"<PromptVersion(agent_id={self.agent_id}, version={self.version})>"
-
-
-# ===== CHAT SESSIONS TABLE =====
-class ChatSession(Base):
-    """
-    Chat Sessions Table
-
-    Purpose: Luu tru chat sessions giua users va agents
-    Columns:
-        - id: Primary key
-        - agent_id: Foreign key den agents table
-        - user_id: User ID tu Spring Boot backend
-        - session_id: Session identifier
-        - started_at: Thoi gian bat dau session
-        - ended_at: Thoi gian ket thuc session
-    """
-    __tablename__ = "chat_sessions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(Integer, ForeignKey("agents.id"))
-    user_id = Column(String(100), index=True)  # User ID tu backend
-    session_id = Column(String(100), unique=True, nullable=False, index=True)
-
-    # Timestamps
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    ended_at = Column(DateTime(timezone=True))
-
-    # Relationships
-    agent = relationship("Agent", back_populates="chat_sessions")
-    messages = relationship("ChatMessage", back_populates="session")
-
-    def __repr__(self):
-        return f"<ChatSession(session_id={self.session_id}, user_id={self.user_id})>"
-
-
-# ===== CHAT MESSAGES TABLE =====
-class ChatMessage(Base):
-    """
-    Chat Messages Table
-
-    Purpose: Luu tru tung message trong chat session
-    Columns:
-        - id: Primary key
-        - session_id: Foreign key den chat_sessions
-        - role: Role cua message (user, assistant, system)
-        - content: Noi dung message
-        - metadata: JSON metadata (tool calls, thinking process, etc.)
-        - timestamp: Thoi gian message
-    """
-    __tablename__ = "chat_messages"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
-    role = Column(String(20), nullable=False)  # user, assistant, system
-    content = Column(Text, nullable=False)
-    message_metadata = Column(JSON)  # Tool calls, ReAct steps, etc.
-
-    # Timestamp
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    session = relationship("ChatSession", back_populates="messages")
-
-    def __repr__(self):
-        return f"<ChatMessage(session_id={self.session_id}, role={self.role})>"
-
 
 # ===== KNOWLEDGE BASE DOCUMENTS TABLE =====
 class KnowledgeDocument(Base):

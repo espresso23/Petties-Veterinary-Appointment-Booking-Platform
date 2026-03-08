@@ -117,6 +117,33 @@ class Settings(BaseSettings):
         description="Collection name cho knowledge base vectors"
     )
 
+    # ==================== MongoDB Configuration (Chat History & Audit Trail) ====================
+    # MongoDB dùng để lưu chat history, ReAct traces, và proactive notifications
+    MONGODB_URL: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection URL (local hoặc MongoDB Atlas)"
+    )
+    MONGODB_DATABASE: str = Field(
+        default="petties_ai",
+        description="MongoDB database name cho AI service"
+    )
+    MONGODB_CHAT_SESSIONS_COLLECTION: str = Field(
+        default="ai_chat_sessions",
+        description="Collection name cho chat sessions metadata"
+    )
+    MONGODB_CHAT_MESSAGES_COLLECTION: str = Field(
+        default="ai_chat_messages",
+        description="Collection name cho chat messages + ReAct traces"
+    )
+    MONGODB_PROACTIVE_NOTIFICATIONS_COLLECTION: str = Field(
+        default="ai_proactive_notifications",
+        description="Collection name cho proactive notifications log"
+    )
+    MONGODB_FEEDBACK_COLLECTION: str = Field(
+        default="chat_feedback",
+        description="Collection name cho user feedback (thumbs up/down)"
+    )
+
     # ==================== AI/LLM Configuration ====================
     LLM_PROVIDER: str = Field(default="openrouter", description="LLM provider: openrouter, deepseek")
 
@@ -189,7 +216,7 @@ class Settings(BaseSettings):
 
     # ==================== MCP Integration ====================
     SPRING_BACKEND_URL: str = Field(
-        default="http://localhost:8080/api/v1",
+        default="http://localhost:8080/api",
         description="Spring Boot backend URL"
     )
     MCP_TIMEOUT: int = Field(default=30, description="MCP request timeout (seconds)")

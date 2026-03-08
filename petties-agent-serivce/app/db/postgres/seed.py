@@ -143,6 +143,89 @@ async def seed_data(db: AsyncSession, force: bool = False):
                     enabled=True,
                     assigned_agents=["petties_agent"]
                 ),
+                Tool(
+                    name="get_user_pets",
+                    description="Lay danh sach thu cung cua pet owner hien tai de phuc vu booking flow.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "user_id": {"type": "string", "description": "User ID duoc auto-inject tu session"}
+                        },
+                        "required": []
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="search_clinics_nearby",
+                    description="Tim phong kham gan vi tri user de goi y dat lich.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "latitude": {"type": "number"},
+                            "longitude": {"type": "number"},
+                            "radius_km": {"type": "number", "default": 5},
+                            "service_names": {"type": "array", "items": {"type": "string"}},
+                            "top_k": {"type": "integer", "default": 5}
+                        },
+                        "required": ["latitude", "longitude"]
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="get_clinic_services",
+                    description="Lay danh sach dich vu dang hoat dong cua phong kham.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "pet_species": {"type": "string"}
+                        },
+                        "required": ["clinic_id"]
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="check_available_slots",
+                    description="Kiem tra khung gio trong cua phong kham cho danh sach dich vu.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "clinic_id": {"type": "string"},
+                            "date": {"type": "string"},
+                            "service_ids": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["clinic_id", "date", "service_ids"]
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
+                    name="create_booking_for_user",
+                    description="Tao booking that cho pet owner sau khi da xac nhan day du thong tin.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "clinic_id": {"type": "string"},
+                            "booking_date": {"type": "string"},
+                            "start_time": {"type": "string"},
+                            "service_ids": {"type": "array", "items": {"type": "string"}},
+                            "notes": {"type": "string"},
+                            "confirmed": {"type": "boolean", "default": false}
+                        },
+                        "required": ["pet_id", "clinic_id", "booking_date", "start_time", "service_ids", "confirmed"]
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
             ]
 
             db.add_all(tools)

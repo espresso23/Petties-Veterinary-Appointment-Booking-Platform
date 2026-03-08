@@ -19,7 +19,7 @@ import { useToast } from '../../../components/Toast'
 import { useAuthStore } from '../../../store/authStore'
 import { env } from '../../../config/env'
 
-const AI_SERVICE_URL = env.AGENT_SERVICE_URL
+const AI_API_BASE_URL = env.AGENT_API_BASE_URL
 
 interface Setting {
   key: string
@@ -61,7 +61,7 @@ export const KnowledgePage = () => {
 
   const loadSettings = useCallback(async () => {
     try {
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings`, {
         headers: getAuthHeaders()
       })
       if (response.ok) {
@@ -105,7 +105,7 @@ export const KnowledgePage = () => {
   }, [loadData, loadSettings])
 
   const saveSetting = async (key: string, value: string) => {
-    const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/${key}`, {
+    const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/${key}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -146,7 +146,7 @@ export const KnowledgePage = () => {
   const handleTestCohere = async () => {
     try {
       setTestingCohere(true)
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-cohere`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-cohere`, {
         method: 'POST',
         headers: getAuthHeaders()
       })
@@ -166,7 +166,7 @@ export const KnowledgePage = () => {
   const handleTestQdrant = async () => {
     try {
       setTestingQdrant(true)
-      const response = await fetch(`${AI_SERVICE_URL}/api/v1/settings/test-qdrant`, {
+      const response = await fetch(`${AI_API_BASE_URL}/api/v1/settings/test-qdrant`, {
         method: 'POST',
         headers: getAuthHeaders()
       })
