@@ -16,6 +16,29 @@ from app.core.chat_context import BUSINESS_CHAT, PLAYGROUND_TEST, normalize_cont
 PUBLIC_BUSINESS_TOOLS = {
     "pet_care_qa",
     "symptom_search",
+    "web_search",
+}
+
+ROLE_RESPONSE_STYLES = {
+    "PET_OWNER": (
+        "Cách trả lời cho PET_OWNER: dùng ngôn ngữ thân thiện, dễ hiểu, tránh thuật ngữ quá chuyên môn. "
+        "Ưu tiên hướng dẫn từng bước rõ ràng để chủ nuôi dễ làm theo."
+    ),
+    "STAFF": (
+        "Cách trả lời cho STAFF: đi thẳng vào chuyên môn, ưu tiên thông tin lâm sàng, tiền sử và dữ kiện y khoa liên quan. "
+        "Có thể dùng thuật ngữ chuyên môn khi cần nhưng vẫn phải mạch lạc."
+    ),
+    "CLINIC_MANAGER": (
+        "Cách trả lời cho CLINIC_MANAGER: ưu tiên góc nhìn vận hành phòng khám, phân bổ nguồn lực, lịch làm việc và hiệu suất. "
+        "Khi phù hợp, trình bày theo gạch đầu dòng hoặc checklist hành động."
+    ),
+    "CLINIC_OWNER": (
+        "Cách trả lời cho CLINIC_OWNER: ưu tiên góc nhìn điều hành, doanh thu, chất lượng dịch vụ, định giá và tăng trưởng phòng khám. "
+        "Nhấn mạnh tác động kinh doanh và đề xuất quyết định thực tế."
+    ),
+    "ADMIN": (
+        "Cách trả lời cho ADMIN: trung lập, rõ ràng, có cấu trúc, ưu tiên tính kiểm soát hệ thống và tuân thủ cấu hình hiện tại."
+    ),
 }
 
 
@@ -26,6 +49,7 @@ class ContextPolicyService:
         "PET_OWNER": {
             "pet_care_qa",
             "symptom_search",
+            "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
@@ -36,6 +60,7 @@ class ContextPolicyService:
         "STAFF": {
             "pet_care_qa",
             "symptom_search",
+            "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
@@ -49,6 +74,7 @@ class ContextPolicyService:
         "CLINIC_MANAGER": {
             "pet_care_qa",
             "symptom_search",
+            "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
@@ -67,6 +93,7 @@ class ContextPolicyService:
         "CLINIC_OWNER": {
             "pet_care_qa",
             "symptom_search",
+            "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
@@ -134,20 +161,26 @@ class ContextPolicyService:
         normalized_context = normalize_context_type(context_type, BUSINESS_CHAT)
         tool_list = list(dict.fromkeys(allowed_tools or []))
         tool_text = ", ".join(tool_list) if tool_list else "khong co tool nao"
+        role_style = ROLE_RESPONSE_STYLES.get(
+            normalized_role,
+            ROLE_RESPONSE_STYLES["PET_OWNER"],
+        )
 
         if normalized_context == PLAYGROUND_TEST:
             guardrail = (
                 "Bạn đang chạy trong PLAYGROUND_TEST dành riêng cho ADMIN. "
                 "Chỉ được dùng đúng các tool trong whitelist hiện tại: "
                 f"{tool_text}. "
-                "Nếu một tool không nằm trong danh sách này thì không được tự ý gọi."
+                "Nếu một tool không nằm trong danh sách này thì không được tự ý gọi. "
+                f"{role_style}"
             )
         else:
             guardrail = (
                 f"Bạn đang phục vụ hội thoại BUSINESS_CHAT cho role {normalized_role}. "
                 "Chỉ được dùng các tool nghiệp vụ đã được whitelist cho role này: "
                 f"{tool_text}. "
-                "Nếu câu hỏi nằm ngoài các tool được phép thì hãy trả lời an toàn hoặc hướng dẫn người dùng liên hệ đúng bộ phận."
+                "Nếu câu hỏi nằm ngoài các tool được phép thì hãy trả lời an toàn hoặc hướng dẫn người dùng liên hệ đúng bộ phận. "
+                f"{role_style}"
             )
 
         if "create_booking_for_user" in tool_list:

@@ -1,8 +1,8 @@
 # II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.2.0 (Added AI chat isolation and admin playground detailed design)
-**Last Updated:** 2026-03-08
+**Version:** 3.2.1 (Normalized staff and scheduling design to match codebase)
+**Last Updated:** 2026-03-09
 **Document Status:** In Progress
 
 ## TABLE OF CONTENTS
@@ -22,732 +22,399 @@
     - [4.2 User Profile Management](#42-user-profile-management)
 ### 4.3 Staff and Scheduling Management
 
-This module handles clinic staff invitation, staff roster management, and work shift scheduling with automatic slot generation for booking availability. It supports overnight shifts, recurring schedules, and conflict detection with existing bookings.
+This module covers clinic roster management and staff shift scheduling. The current design is centered around two controllers and two services: one pair manages clinic staff assignment by email and roster removal, while the other pair manages shift creation, schedule viewing, shift detail lookup, and shift deletion.
 
 #### 4.3.1 Class Diagram
 
+The class diagram below is intentionally simplified to keep Staff and Scheduling readable. The sequence diagrams in this section use the same set of core classes only: controller, service, repositories, and the main scheduling entities.
+
 ```mermaid
 classDiagram
-    %% Controllers
     class ClinicStaffController {
-        -ClinicStaffService staffService
-        +getStaff(UUID clinicId) ResponseEntity~List~StaffResponse~~
-        +hasManager(UUID clinicId) ResponseEntity~Boolean~
-        +inviteByEmail(UUID clinicId, InviteByEmailRequest) ResponseEntity~String~
-        +assignManager(UUID clinicId, String usernameOrEmail) ResponseEntity~String~
-        +assignStaff(UUID clinicId, String usernameOrEmail) ResponseEntity~String~
-        +removeStaff(UUID clinicId, UUID userId) ResponseEntity~String~
-        +updateStaffSpecialty(UUID clinicId, UUID userId, Map) ResponseEntity~String~
+        +getStaff(UUID clinicId)
+        +inviteByEmail(UUID clinicId, InviteByEmailRequest)
+        +removeStaff(UUID clinicId, UUID userId)
     }
 
     class StaffShiftController {
-        -StaffShiftService staffShiftService
-        -AuthService authService
-        +createShift(UUID clinicId, StaffShiftRequest) ResponseEntity~List~StaffShiftResponse~~
-        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate) ResponseEntity~List~StaffShiftResponse~~
-        +getMyShifts(LocalDate startDate, LocalDate endDate) ResponseEntity~List~StaffShiftResponse~~
-        +getShiftDetail(UUID shiftId) ResponseEntity~StaffShiftResponse~
-        +deleteShift(UUID shiftId) ResponseEntity~Void~
-        +bulkDeleteShifts(List~UUID~ shiftIds) ResponseEntity~Void~
-        +blockSlot(UUID slotId) ResponseEntity~SlotResponse~
-        +unblockSlot(UUID slotId) ResponseEntity~SlotResponse~
+        +createShift(UUID clinicId, StaffShiftRequest)
+        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate)
+        +getMyShifts(LocalDate startDate, LocalDate endDate)
+        +getShiftDetail(UUID shiftId)
+        +deleteShift(UUID shiftId)
     }
 
-    %% Services
     class ClinicStaffService {
-        -ClinicRepository clinicRepository
-        -UserRepository userRepository
-        -AuthService authService
-        -PasswordEncoder passwordEncoder
-        +getClinicStaff(UUID clinicId) List~StaffResponse~
-        +getPublicClinicStaff(UUID clinicId) List~PublicStaffResponse~
-        +hasManager(UUID clinicId) Boolean
-        +inviteByEmail(UUID clinicId, InviteByEmailRequest) void
-        +assignManager(UUID clinicId, String usernameOrEmail) void
-        +assignStaff(UUID clinicId, String usernameOrEmail) void
-        +removeStaff(UUID clinicId, UUID userId) void
-        +updateStaffSpecialty(UUID clinicId, UUID userId, String specialty) void
-        -mapToStaffResponse(User) StaffResponse
-        -mapToPublicStaffResponse(User) PublicStaffResponse
-        -findUserByUsernameOrEmail(String) User
+        +getClinicStaff(UUID clinicId)
+        +inviteByEmail(UUID clinicId, InviteByEmailRequest)
+        +removeStaff(UUID clinicId, UUID userId)
+        +hasManager(UUID clinicId)
     }
 
     class StaffShiftService {
-        -StaffShiftRepository staffShiftRepository
-        -SlotRepository slotRepository
-        -UserRepository userRepository
-        -ClinicRepository clinicRepository
-        -NotificationService notificationService
-        -BookingSlotRepository bookingSlotRepository
-        +createShifts(UUID clinicId, StaffShiftRequest) List~StaffShiftResponse~
-        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate) List~StaffShiftResponse~
-        +getShiftsByStaff(UUID staffId, LocalDate startDate, LocalDate endDate) List~StaffShiftResponse~
-        +getShiftDetail(UUID shiftId) StaffShiftResponse
-        +deleteShift(UUID shiftId) void
-        +bulkDeleteShifts(List~UUID~ shiftIds) void
-        +blockSlot(UUID slotId) SlotResponse
-        +unblockSlot(UUID slotId) SlotResponse
-        -generateSlots(StaffShift, LocalTime breakStart, LocalTime breakEnd) List~Slot~
-        -isInBreakTime(LocalTime, LocalTime, LocalTime, LocalTime) Boolean
-        -validateOperatingHours(Clinic, LocalDate, LocalTime, LocalTime) void
-        -mapToResponse(StaffShift, Boolean includeSlots) StaffShiftResponse
-        -mapSlotToResponse(Slot) SlotResponse
+        +createShifts(UUID clinicId, StaffShiftRequest)
+        +getShiftsByClinic(UUID clinicId, LocalDate startDate, LocalDate endDate)
+        +getShiftsByStaff(UUID staffId, LocalDate startDate, LocalDate endDate)
+        +getShiftDetail(UUID shiftId)
+        +deleteShift(UUID shiftId)
     }
 
-    %% Repositories
     class ClinicRepository {
         <<interface>>
-        +findById(UUID) Optional~Clinic~
-        +save(Clinic) Clinic
     }
 
     class UserRepository {
         <<interface>>
-        +findById(UUID) Optional~User~
-        +findByEmail(String) Optional~User~
-        +findByUsernameOrEmail(String, String) Optional~User~
-        +save(User) User
     }
 
     class StaffShiftRepository {
         <<interface>>
-        +findByClinicAndDateRange(UUID clinicId, LocalDate start, LocalDate end) List~StaffShift~
-        +findByStaffAndDateRange(UUID staffId, LocalDate start, LocalDate end) List~StaffShift~
-        +findByIdWithSlots(UUID shiftId) Optional~StaffShift~
-        +findOneByStaff_UserIdAndWorkDate(UUID staffId, LocalDate workDate) Optional~StaffShift~
-        +findOvernightShiftsFromPreviousDay(UUID clinicId, LocalDate date) List~StaffShift~
-        +findOvernightShiftsByStaffFromPreviousDay(UUID staffId, LocalDate date) List~StaffShift~
-        +save(StaffShift) StaffShift
-        +delete(StaffShift) void
     }
 
     class SlotRepository {
         <<interface>>
-        +findById(UUID) Optional~Slot~
-        +findByShift_ShiftIdAndStatusOrderByStartTime(UUID shiftId, SlotStatus) List~Slot~
-        +existsByShift_ShiftIdAndStatus(UUID shiftId, SlotStatus) Boolean
-        +save(Slot) Slot
-    }
-
-    class BookingSlotRepository {
-        <<interface>>
-        +findBySlot_SlotId(UUID slotId) Optional~BookingSlot~
-    }
-
-    %% Entities
-    class Clinic {
-        +UUID clinicId
-        +String name
-        +String address
-        +Map~String,OperatingHours~ operatingHours
-        +User owner
-        +List~User~ staff
-        +LocalDateTime createdAt
     }
 
     class User {
         +UUID userId
         +String email
-        +String username
-        +String fullName
-        +String avatar
         +Role role
         +StaffSpecialty specialty
         +Clinic workingClinic
-        +String password
-        +LocalDateTime createdAt
+    }
+
+    class Clinic {
+        +UUID clinicId
+        +String name
+        +Map~String, OperatingHours~ operatingHours
+        +User owner
     }
 
     class StaffShift {
         +UUID shiftId
-        +Clinic clinic
-        +User staff
         +LocalDate workDate
         +LocalTime startTime
         +LocalTime endTime
-        +LocalTime breakStart
-        +LocalTime breakEnd
         +Boolean isOvernight
-        +String notes
         +List~Slot~ slots
-        +LocalDateTime createdAt
     }
 
     class Slot {
         +UUID slotId
-        +StaffShift shift
         +LocalTime startTime
         +LocalTime endTime
         +SlotStatus status
     }
 
-    class OperatingHours {
-        +LocalTime openTime
-        +LocalTime closeTime
-        +LocalTime breakStart
-        +LocalTime breakEnd
-        +Boolean isClosed
-    }
-
-    %% Enums
-    class Role {
-        <<enumeration>>
-        PET_OWNER
-        STAFF
-        CLINIC_MANAGER
-        CLINIC_OWNER
-        ADMIN
-    }
-
-    class StaffSpecialty {
-        <<enumeration>>
-        GENERAL
-        SURGERY
-        DENTISTRY
-        DERMATOLOGY
-        CARDIOLOGY
-        ONCOLOGY
-        ORTHOPEDICS
-        EXOTIC_PETS
-    }
-
-    class SlotStatus {
-        <<enumeration>>
-        AVAILABLE
-        BOOKED
-        BLOCKED
-    }
-
-    %% DTOs
-    class InviteByEmailRequest {
-        +String email
-        +Role role
-        +StaffSpecialty specialty
-    }
-
-    class StaffResponse {
-        +UUID userId
-        +String fullName
-        +String email
-        +String avatar
-        +Role role
-        +StaffSpecialty specialty
-        +String status
-    }
-
-    class StaffShiftRequest {
-        +Integer repeatWeeks
-        +UUID staffId
-        +List~LocalDate~ workDates
-        +LocalTime startTime
-        +LocalTime endTime
-        +LocalTime breakStart
-        +LocalTime breakEnd
-        +Boolean isOvernight
-        +Boolean forceUpdate
-        +String notes
-    }
-
-    class StaffShiftResponse {
-        +UUID shiftId
-        +UUID staffId
-        +String staffName
-        +String staffAvatar
-        +UUID clinicId
-        +String clinicName
-        +LocalDate workDate
-        +LocalTime startTime
-        +LocalTime endTime
-        +LocalTime breakStart
-        +LocalTime breakEnd
-        +Boolean isOvernight
-        +String notes
-        +LocalDateTime createdAt
-        +Integer totalSlots
-        +Integer availableSlots
-        +Integer bookedSlots
-        +Integer blockedSlots
-        +LocalDate displayDate
-        +Boolean isContinuation
-        +List~SlotResponse~ slots
-    }
-
-    class SlotResponse {
-        +UUID slotId
-        +LocalTime startTime
-        +LocalTime endTime
-        +SlotStatus status
-        +UUID bookingId
-        +String petName
-        +String petOwnerName
-        +UUID bookingServiceId
-        +String serviceName
-        +String serviceCategory
-    }
-
-    %% Controller Dependencies
     ClinicStaffController --> ClinicStaffService
     StaffShiftController --> StaffShiftService
-    StaffShiftController --> AuthService
 
-    %% Service Dependencies
     ClinicStaffService --> ClinicRepository
     ClinicStaffService --> UserRepository
-    ClinicStaffService --> AuthService
+    StaffShiftService --> ClinicRepository
+    StaffShiftService --> UserRepository
     StaffShiftService --> StaffShiftRepository
     StaffShiftService --> SlotRepository
-    StaffShiftService --> UserRepository
-    StaffShiftService --> ClinicRepository
-    StaffShiftService --> BookingSlotRepository
 
-    %% Repository to Entity
     ClinicRepository --> Clinic
     UserRepository --> User
     StaffShiftRepository --> StaffShift
     SlotRepository --> Slot
 
-    %% Entity Relationships
-    Clinic --> User : owner
-    Clinic --> User : staff *
     User --> Clinic : workingClinic
-    User --> Role
-    User --> StaffSpecialty
     StaffShift --> Clinic
     StaffShift --> User : staff
-    StaffShift --> Slot : slots *
-    Slot --> StaffShift
-    Slot --> SlotStatus
-    Clinic --> OperatingHours : operatingHours *
-
-    %% DTOs usage
-    ClinicStaffController --> InviteByEmailRequest
-    ClinicStaffController --> StaffResponse
-    StaffShiftController --> StaffShiftRequest
-    StaffShiftController --> StaffShiftResponse
-    StaffShiftController --> SlotResponse
+    StaffShift --> Slot : slots
 ```
 
 #### 4.3.2 Class Specifications
 
-**1. ClinicStaffController**
-- **Responsibility:** Handle HTTP requests for staff management operations
-- **Key Methods:**
-    - `getStaff(clinicId)`: Retrieve list of all staff members for a clinic
-    - `inviteByEmail(clinicId, request)`: Invite new staff member via email (Google OAuth)
-    - `removeStaff(clinicId, userId)`: Remove staff member from clinic
-    - `hasManager(clinicId)`: Check if clinic already has a manager assigned
-    - `updateStaffSpecialty(clinicId, userId, body)`: Update specialty for staff role
+**1. `ClinicStaffController`**
+- **Responsibility:** Expose staff roster APIs for clinic-level web operations.
+- **Key Methods:** `getStaff()`, `inviteByEmail()`, `removeStaff()`.
 
-**2. ClinicStaffService**
-- **Responsibility:** Business logic for staff invitation, assignment, and removal
-- **Key Methods:**
-    - `inviteByEmail()`: Create user account or assign existing user to clinic with role
-    - `removeStaff()`: Unassign staff from clinic, delete future shifts
-    - `hasManager()`: Validate clinic manager constraint (max 1 manager per clinic)
-    - `getClinicStaff()`: Query all staff members for clinic with role/specialty info
+**2. `ClinicStaffService`**
+- **Responsibility:** Enforce clinic-level authorization and maintain the relationship between `User` and `Clinic` for staff membership.
+- **Key Methods:** `getClinicStaff()`, `inviteByEmail()`, `removeStaff()`, `hasManager()`.
 
-**3. StaffShiftController**
-- **Responsibility:** Handle HTTP requests for shift scheduling and slot management
-- **Key Methods:**
-    - `createShift(clinicId, request)`: Create one or more shifts with auto slot generation
-    - `getShiftsByClinic(clinicId, startDate, endDate)`: View all shifts for clinic in date range
-    - `getMyShifts(startDate, endDate)`: Staff view their own schedule
-    - `deleteShift(shiftId)`: Delete single shift (blocked if has bookings)
-    - `bulkDeleteShifts(shiftIds)`: Delete multiple shifts in batch
-    - `blockSlot(slotId)` / `unblockSlot(slotId)`: Manual slot availability control
+**3. `StaffShiftController`**
+- **Responsibility:** Expose schedule APIs for clinic-wide shift management and staff self-view.
+- **Key Methods:** `createShift()`, `getShiftsByClinic()`, `getMyShifts()`, `getShiftDetail()`, `deleteShift()`.
 
-**4. StaffShiftService**
-- **Responsibility:** Core business logic for shift creation, validation, and slot generation
-- **Key Methods:**
-    - `createShifts()`: Multi-date shift creation with repeat weeks, conflict detection, force update logic
-    - `generateSlots()`: Auto-generate 30-minute slots excluding break times, handle overnight shifts
-    - `validateOperatingHours()`: Check shift time against clinic operating hours
-    - `getShiftsByClinic()` / `getShiftsByStaff()`: Query shifts with overnight continuation handling
-    - `deleteShift()`: Validate no booked slots before deletion, send staff notification
-    - `bulkDeleteShifts()`: Process list of shift deletions with partial success handling
+**4. `StaffShiftService`**
+- **Responsibility:** Handle shift validation, slot generation, overnight continuation logic, slot statistics, and shift deletion rules.
+- **Key Methods:** `createShifts()`, `getShiftsByClinic()`, `getShiftsByStaff()`, `getShiftDetail()`, `deleteShift()`.
 
-**5. StaffShiftRepository**
-- **Responsibility:** Database queries for shift records
-- **Custom Queries:**
-    - `findByClinicAndDateRange()`: Clinic schedule calendar query
-    - `findByStaffAndDateRange()`: Staff personal schedule query
-    - `findOneByStaff_UserIdAndWorkDate()`: Check existing shift for conflict detection
-    - `findOvernightShiftsFromPreviousDay()`: Handle overnight shift display logic
-    - `findByIdWithSlots()`: Fetch shift with all slots for detail view
+**5. `User` / `Clinic`**
+- **Responsibility:** Store clinic membership, role, specialty, and ownership context used by staff management flows.
 
-#### 4.3.3 Sequence Diagram: Invite Staff by Email (UC-CM-03)
+**6. `StaffShift` / `Slot`**
+- **Responsibility:** Represent scheduled work periods and 30-minute booking capacity generated for each shift.
 
-Manager invites a new staff member via email. System creates user account (or assigns existing user) and sends invitation.
+#### 4.3.3 Sequence Diagram: Invite Staff by Email (UC-STAFF-01)
+
+This flow creates or reuses a user account and associates it with the target clinic.
 
 ```mermaid
 sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Staff Management (Web)
+    actor Manager as Clinic Owner/Manager
+    participant UI as Staff Management UI
     participant CSC as ClinicStaffController
     participant CSS as ClinicStaffService
-    participant UR as UserRepository
     participant CR as ClinicRepository
+    participant UR as UserRepository
     participant DB as Database
 
-    CM->>UI: 1. Click "Invite Staff" and fill email + role + specialty
-    activate UI
-    UI->>CSC: 2. POST /api/clinics/{clinicId}/staff/invite-by-email
-    activate CSC
-    CSC->>CSS: 3. inviteByEmail(clinicId, request)
-    activate CSS
+    Manager->>UI: Enter email, role, specialty
+    UI->>CSC: POST /clinics/{clinicId}/staff/invite-by-email
+    CSC->>CSS: inviteByEmail(clinicId, request)
+    CSS->>CR: findById(clinicId)
+    CR->>DB: Load clinic
+    DB-->>CR: Clinic
+    CR-->>CSS: Clinic
+    CSS->>CSS: Validate clinic access and role rules
+    CSS->>UR: findByEmail(email)
+    UR->>DB: Load user by email
+    DB-->>UR: Existing user or null
+    UR-->>CSS: User or null
 
-    CSS->>CR: 4. findById(clinicId)
-    activate CR
-    CR->>DB: 5. SELECT * FROM clinics WHERE clinic_id = ?
-    DB-->>CR: 6. Return clinic record
-    deactivate CR
-    CR-->>CSS: 7. Clinic Entity
-
-    CSS->>CSS: 8. Validate authorization (Owner/Manager)
-
-    CSS->>CSS: 9. Check if role = MANAGER and clinic has manager
-    alt [Clinic already has Manager]
-        CSS-->>CSC: 10. Throw ResourceAlreadyExistsException
-        CSC-->>UI: 11. HTTP 400 Bad Request
-        UI-->>CM: 12. Error "Phòng khám đã có Quản lý"
-    else [No Manager or role = STAFF]
-        CSS->>UR: 10. findByEmail(email)
-        activate UR
-        UR->>DB: 11. SELECT * FROM users WHERE email = ?
-        DB-->>UR: 12. Return user (or null)
-        deactivate UR
-        UR-->>CSS: 13. Optional User
-
-        alt [User exists]
-            CSS->>CSS: 14. Check if user already assigned to another clinic
-            alt [User in another clinic]
-                CSS-->>CSC: 15. Throw ResourceAlreadyExistsException
-                CSC-->>UI: 16. HTTP 400 "Email đã được gán cho phòng khám khác"
-                UI-->>CM: 17. Display error
-            else [User available]
-                CSS->>CSS: 18. Assign user to clinic, update role + specialty
-                CSS->>UR: 19. save(existingUser)
-                activate UR
-                UR->>DB: 20. UPDATE users SET role = ?, working_clinic_id = ?, specialty = ?
-                DB-->>UR: 21. Success
-                deactivate UR
-                UR-->>CSS: 22. Updated User
-                CSS-->>CSC: 23. Success message
-                deactivate CSS
-                CSC-->>UI: 24. HTTP 200 OK "Staff invited successfully"
-                deactivate CSC
-                UI-->>CM: 25. Toast "Staff invited successfully"
-                deactivate UI
-            end
-        else [User does not exist]
-            CSS->>CSS: 14. Create new user with email, random password, assigned clinic
-            CSS->>UR: 15. save(newUser)
-            activate UR
-            UR->>DB: 16. INSERT INTO users (email, username, role, working_clinic_id, specialty, password)
-            DB-->>UR: 17. Success
-            deactivate UR
-            UR-->>CSS: 18. Created User
-            CSS-->>CSC: 19. Success message
-            deactivate CSS
-            CSC-->>UI: 20. HTTP 200 OK "Staff invited successfully"
-            deactivate CSC
-            UI-->>CM: 21. Toast "Đã mời nhân viên. Họ có thể đăng nhập bằng Google."
-            deactivate UI
-        end
+    alt Existing user available
+        CSS->>CSS: Validate user is not linked to another clinic
+        CSS->>UR: save(updatedUser)
+        UR->>DB: Update role, clinic, specialty
+        DB-->>UR: Saved
+        UR-->>CSS: Updated user
+    else New user required
+        CSS->>UR: save(newUser)
+        UR->>DB: Insert user with clinic assignment
+        DB-->>UR: Saved
+        UR-->>CSS: Created user
     end
+
+    CSS-->>CSC: Success
+    CSC-->>UI: 200 OK
+    UI-->>Manager: Show invite success state
 ```
 
-#### 4.3.4 Sequence Diagram: Create Staff Shift (UC-CM-04)
+#### 4.3.4 Sequence Diagram: Delete Staff (UC-STAFF-02)
 
-Manager creates work shifts for staff with automatic slot generation. Supports multi-date, repeat weeks, overnight shifts, and force update with booking conflict detection.
+This flow removes a user's clinic association after authorization checks.
 
 ```mermaid
 sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Shift Management (Web)
+    actor Manager as Clinic Owner/Manager
+    participant UI as Staff Management UI
+    participant CSC as ClinicStaffController
+    participant CSS as ClinicStaffService
+    participant CR as ClinicRepository
+    participant UR as UserRepository
+    participant DB as Database
+
+    Manager->>UI: Delete selected staff member
+    UI->>CSC: DELETE /clinics/{clinicId}/staff/{userId}
+    CSC->>CSS: removeStaff(clinicId, userId)
+    CSS->>CR: findById(clinicId)
+    CR->>DB: Load clinic
+    DB-->>CR: Clinic
+    CR-->>CSS: Clinic
+    CSS->>UR: findById(userId)
+    UR->>DB: Load target user
+    DB-->>UR: User
+    UR-->>CSS: User
+    CSS->>CSS: Validate clinic ownership and caller permission
+    CSS->>CSS: Clear targetUser.workingClinic
+    CSS->>UR: save(targetUser)
+    UR->>DB: Update user clinic assignment
+    DB-->>UR: Saved
+    UR-->>CSS: Updated user
+    CSS-->>CSC: Success
+    CSC-->>UI: 200 OK
+    UI-->>Manager: Refresh roster
+```
+
+#### 4.3.5 Sequence Diagram: View Own Work Schedule (UC-STAFF-04)
+
+This flow returns shifts for the authenticated staff member, including overnight continuation items.
+
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant UI as My Schedule UI
+    participant SSC as StaffShiftController
+    participant SSS as StaffShiftService
+    participant UR as UserRepository
+    participant SSR as StaffShiftRepository
+    participant DB as Database
+
+    Staff->>UI: Select date range
+    UI->>SSC: GET /shifts/me?startDate=...&endDate=...
+    SSC->>SSC: Resolve authenticated user
+    SSC->>UR: findById(currentUserId)
+    UR->>DB: Load current user
+    DB-->>UR: User
+    UR-->>SSC: Current user
+    SSC->>SSS: getShiftsByStaff(userId, startDate, endDate)
+    SSS->>SSR: findByStaffAndDateRange(userId, startDate, endDate)
+    SSR->>DB: Load regular shifts
+    DB-->>SSR: Shift list
+    SSR-->>SSS: Shift list
+    SSS->>SSR: findOvernightShiftsByStaffFromPreviousDay(userId, dayBefore)
+    SSR->>DB: Load overnight shifts
+    DB-->>SSR: Overnight shift list
+    SSR-->>SSS: Overnight shift list
+    SSS->>SSS: Map responses and sort by displayDate
+    SSS-->>SSC: StaffShiftResponse list
+    SSC-->>UI: 200 OK
+    UI-->>Staff: Render own schedule
+```
+
+#### 4.3.6 Sequence Diagram: Create Staff Shift (UC-STAFF-05)
+
+This flow validates requested dates and creates or updates shifts with generated slots.
+
+```mermaid
+sequenceDiagram
+    actor Manager as Clinic Owner/Manager
+    participant UI as Scheduling UI
     participant SSC as StaffShiftController
     participant SSS as StaffShiftService
     participant UR as UserRepository
     participant CR as ClinicRepository
     participant SSR as StaffShiftRepository
     participant SR as SlotRepository
-    participant NS as NotificationService
     participant DB as Database
 
-    CM->>UI: 1. Fill shift form (staff, dates, time, repeat weeks)
-    activate UI
-    UI->>SSC: 2. POST /api/clinics/{clinicId}/shifts (StaffShiftRequest)
-    activate SSC
-    SSC->>SSS: 3. createShifts(clinicId, request)
-    activate SSS
+    Manager->>UI: Submit shift request
+    UI->>SSC: POST /clinics/{clinicId}/shifts
+    SSC->>SSS: createShifts(clinicId, request)
+    SSS->>UR: findById(staffId)
+    UR->>DB: Load staff user
+    DB-->>UR: User
+    UR-->>SSS: User
+    SSS->>CR: findById(clinicId)
+    CR->>DB: Load clinic
+    DB-->>CR: Clinic
+    CR-->>SSS: Clinic
+    SSS->>SSS: Validate clinic ownership, dates, times, overnight rules
 
-    SSS->>UR: 4. findById(staffId)
-    activate UR
-    UR->>DB: 5. SELECT * FROM users WHERE user_id = ?
-    DB-->>UR: 6. Return staff user
-    deactivate UR
-    UR-->>SSS: 7. User Entity
-
-    SSS->>SSS: 8. Validate staff belongs to this clinic
-
-    SSS->>CR: 9. findById(clinicId)
-    activate CR
-    CR->>DB: 10. SELECT * FROM clinics WHERE clinic_id = ?
-    DB-->>CR: 11. Return clinic record
-    deactivate CR
-    CR-->>SSS: 12. Clinic Entity
-
-    SSS->>SSS: 13. Auto-detect overnight if endTime < startTime
-    SSS->>SSS: 14. Validate break time within shift time
-
-    loop For each workDate in workDates × repeatWeeks
-        SSS->>SSS: 15. Check if workDate is in past → skip
-        SSS->>SSS: 16. validateOperatingHours(clinic, workDate, startTime, endTime)
-        alt [Clinic closed on this day]
-            SSS->>SSS: 17. Skip date with warning
-        else [Clinic open]
-            SSS->>SSR: 18. findOneByStaff_UserIdAndWorkDate(staffId, workDate)
-            activate SSR
-            SSR->>DB: 19. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date = ?
-            DB-->>SSR: 20. Return existing shift (or null)
-            deactivate SSR
-            SSR-->>SSS: 21. Optional StaffShift
-
-            alt [Shift exists AND forceUpdate = false]
-                SSS->>SSS: 22. Skip date "Shift already exists"
-            else [Shift exists AND forceUpdate = true]
-                SSS->>SR: 23. findByShift_ShiftIdAndStatus(shiftId, BOOKED)
-                activate SR
-                SR->>DB: 24. SELECT * FROM slots WHERE shift_id = ? AND status = 'BOOKED'
-                DB-->>SR: 25. Return booked slots
-                deactivate SR
-                SR-->>SSS: 26. List Booked Slots
-
-                alt [New time conflicts with booked slots]
-                    SSS->>SSS: 27. Skip date "Xung đột với lịch hẹn: 09:00-10:00"
-                else [No conflict]
-                    SSS->>SSS: 28. Update shift in-place (clear old slots)
-                    SSS->>SSS: 29. generateSlots(shift, breakStart, breakEnd)
-                    SSS->>SSR: 30. save(updatedShift)
-                    activate SSR
-                    SSR->>DB: 31. UPDATE staff_shifts ... (cascade update slots)
-                    DB-->>SSR: 32. Success
-                    deactivate SSR
-                    SSR-->>SSS: 33. Saved StaffShift
-                    SSS->>SSS: 34. Add to updatedShifts list
-                end
-            else [No existing shift]
-                SSS->>SSS: 22. Create new StaffShift entity
-                SSS->>SSS: 23. Determine break times from clinic operating hours
-                SSS->>SSS: 24. generateSlots(shift, breakStart, breakEnd)
-                SSS->>SSR: 25. save(newShift)
-                activate SSR
-                SSR->>DB: 26. INSERT INTO staff_shifts ... (cascade insert slots)
-                DB-->>SSR: 27. Success
-                deactivate SSR
-                SSR-->>SSS: 28. Saved StaffShift
-                SSS->>SSS: 29. Add to newShifts list
-            end
+    loop Each requested work date
+        SSS->>SSR: findOneByStaff_UserIdAndWorkDate(staffId, workDate)
+        SSR->>DB: Load existing shift for day
+        DB-->>SSR: Existing shift or null
+        SSR-->>SSS: Existing shift or null
+        alt Force update existing shift
+            SSS->>SR: findByShift_ShiftIdAndStatusOrderByStartTime(shiftId, BOOKED)
+            SR->>DB: Load booked slots
+            DB-->>SR: Booked slot list
+            SR-->>SSS: Booked slot list
+            SSS->>SSS: Reject conflicting updates or regenerate slots
+        else New shift
+            SSS->>SSS: Build shift and generate 30-minute slots
         end
+        SSS->>SSR: save(shift)
+        SSR->>DB: Persist shift and slots
+        DB-->>SSR: Saved shift
+        SSR-->>SSS: Saved shift
     end
 
-    alt [No shifts created/updated]
-        SSS-->>SSC: 30. Throw BadRequestException "Không thể tạo ca làm việc"
-        SSC-->>UI: 31. HTTP 400 Bad Request
-        UI-->>CM: 32. Error toast
-    else [At least one shift created/updated]
-        alt [New shifts exist]
-            SSS->>NS: 30. notifyStaffShiftsBatchAssigned(staff, newShifts, clinic)
-        end
-        alt [Updated shifts exist]
-            SSS->>NS: 31. notifyStaffShiftsBatchUpdated(staff, updatedShifts, clinic)
-        end
-
-        SSS-->>SSC: 32. List StaffShiftResponse (summary: created + updated + skipped)
-        deactivate SSS
-        SSC-->>UI: 33. HTTP 201 Created
-        deactivate SSC
-        UI-->>CM: 34. Toast "Created 5 shifts, updated 2, skipped 1 (booking conflict)"
-        deactivate UI
-    end
+    SSS-->>SSC: Created or updated shifts
+    SSC-->>UI: 201 Created
+    UI-->>Manager: Show scheduling result
 ```
 
-#### 4.3.5 Sequence Diagram: View Own Work Schedule (UC-ST-02)
+#### 4.3.7 Sequence Diagram: View Staff Shift (UC-STAFF-06)
 
-Staff member views their personal work schedule in a date range with shift details and slot statistics.
+This flow supports both clinic-wide schedule viewing and single-shift inspection.
 
 ```mermaid
 sequenceDiagram
-    actor S as Staff
-    participant UI as My Schedule (Mobile/Web)
+    actor User as Owner/Manager/Staff
+    participant UI as Scheduling UI
     participant SSC as StaffShiftController
-    participant AS as AuthService
     participant SSS as StaffShiftService
     participant SSR as StaffShiftRepository
     participant DB as Database
 
-    S->>UI: 1. Open "My Schedule" and select date range (e.g., This Week)
-    activate UI
-    UI->>SSC: 2. GET /api/shifts/me?startDate=2026-03-10&endDate=2026-03-16
-    activate SSC
+    User->>UI: Open clinic schedule for date range
+    UI->>SSC: GET /clinics/{clinicId}/shifts?startDate=...&endDate=...
+    SSC->>SSS: getShiftsByClinic(clinicId, startDate, endDate)
+    SSS->>SSR: findByClinicAndDateRange(clinicId, startDate, endDate)
+    SSR->>DB: Load clinic shifts
+    DB-->>SSR: Shift list
+    SSR-->>SSS: Shift list
+    SSS->>SSR: findOvernightShiftsFromPreviousDay(clinicId, dayBefore)
+    SSR->>DB: Load overnight continuation shifts
+    DB-->>SSR: Overnight shift list
+    SSR-->>SSS: Overnight shift list
+    SSS-->>SSC: StaffShiftResponse list
+    SSC-->>UI: 200 OK
+    UI-->>User: Render clinic schedule
 
-    SSC->>AS: 3. getCurrentUser()
-    activate AS
-    AS-->>SSC: 4. Current User Entity
-    deactivate AS
-
-    SSC->>SSS: 5. getShiftsByStaff(currentUser.userId, startDate, endDate)
-    activate SSS
-
-    SSS->>SSR: 6. findByStaffAndDateRange(staffId, startDate, endDate)
-    activate SSR
-    SSR->>DB: 7. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date BETWEEN ? AND ?
-    DB-->>SSR: 8. Return shift records
-    deactivate SSR
-    SSR-->>SSS: 9. List StaffShift
-
-    SSS->>SSR: 10. findOvernightShiftsByStaffFromPreviousDay(staffId, dayBefore)
-    activate SSR
-    SSR->>DB: 11. SELECT * FROM staff_shifts WHERE staff_id = ? AND work_date = ? AND is_overnight = true
-    DB-->>SSR: 12. Return overnight shifts
-    deactivate SSR
-    SSR-->>SSS: 13. List Overnight StaffShift
-
-    SSS->>SSS: 14. Map shifts to responses (calculate slot stats: total, available, booked, blocked)
-    SSS->>SSS: 15. Mark overnight continuations with isContinuation=true, displayDate=nextDay
-    SSS->>SSS: 16. Sort by displayDate, then startTime
-
-    SSS-->>SSC: 17. List StaffShiftResponse
-    deactivate SSS
-    SSC-->>UI: 18. HTTP 200 OK (JSON array)
-    deactivate SSC
-
-    UI->>UI: 19. Render calendar with shift markers + list view
-    UI-->>S: 20. Display 5 shifts: Mon 08:00-17:00 (8 booked/16 total), Tue 08:00-17:00...
-    deactivate UI
-
-    S->>UI: 21. Click on Monday shift to view details
-    activate UI
-    UI->>SSC: 22. GET /api/shifts/{shiftId}
-    activate SSC
-    SSC->>SSS: 23. getShiftDetail(shiftId)
-    activate SSS
-    SSS->>SSR: 24. findByIdWithSlots(shiftId)
-    activate SSR
-    SSR->>DB: 25. SELECT * FROM staff_shifts JOIN slots WHERE shift_id = ?
-    DB-->>SSR: 26. Return shift with all slots
-    deactivate SSR
-    SSR-->>SSS: 27. StaffShift with slots
-    SSS->>SSS: 28. Map to StaffShiftResponse (includeSlots=true)
-    SSS-->>SSC: 29. StaffShiftResponse with slot details
-    deactivate SSS
-    SSC-->>UI: 30. HTTP 200 OK
-    deactivate SSC
-    UI-->>S: 31. Show shift detail modal with 16 slots: 8 booked (pet names + services), 6 available, 2 blocked
-    deactivate UI
+    User->>UI: Open one shift detail
+    UI->>SSC: GET /shifts/{shiftId}
+    SSC->>SSS: getShiftDetail(shiftId)
+    SSS->>SSR: findByIdWithSlots(shiftId)
+    SSR->>DB: Load shift with slots
+    DB-->>SSR: Shift detail
+    SSR-->>SSS: Shift detail
+    SSS-->>SSC: StaffShiftResponse with slots
+    SSC-->>UI: 200 OK
+    UI-->>User: Render shift detail
 ```
 
-#### 4.3.6 Sequence Diagram: Bulk Delete Shifts (UC-CM-12)
+#### 4.3.8 Sequence Diagram: Delete Staff Shift (UC-STAFF-07)
 
-Manager selects and deletes multiple shifts at once. System validates each shift individually and provides partial success summary.
+This flow deletes a shift only when no booked slot exists.
 
 ```mermaid
 sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Shift Calendar (Web)
+    actor Manager as Clinic Owner/Manager
+    participant UI as Scheduling UI
     participant SSC as StaffShiftController
     participant SSS as StaffShiftService
     participant SSR as StaffShiftRepository
     participant SR as SlotRepository
-    participant NS as NotificationService
     participant DB as Database
 
-    CM->>UI: 1. Enable multi-select mode and select 5 shifts
-    activate UI
-    CM->>UI: 2. Click "Delete Selected" button
-    UI->>UI: 3. Show confirmation dialog "Delete 5 shifts?"
-    CM->>UI: 4. Confirm deletion
-    UI->>SSC: 5. DELETE /api/shifts/bulk (Body: [shiftId1, shiftId2, shiftId3, shiftId4, shiftId5])
-    activate SSC
-    SSC->>SSS: 6. bulkDeleteShifts(shiftIds)
-    activate SSS
+    Manager->>UI: Delete selected shift
+    UI->>SSC: DELETE /shifts/{shiftId}
+    SSC->>SSS: deleteShift(shiftId)
+    SSS->>SSR: findByIdWithSlots(shiftId)
+    SSR->>DB: Load shift with slots
+    DB-->>SSR: Shift
+    SSR-->>SSS: Shift
+    SSS->>SR: existsByShift_ShiftIdAndStatus(shiftId, BOOKED)
+    SR->>DB: Check booked slots
+    DB-->>SR: true or false
+    SR-->>SSS: true or false
 
-    loop For each shiftId in shiftIds
-        SSS->>SSR: 7. findByIdWithSlots(shiftId)
-        activate SSR
-        SSR->>DB: 8. SELECT * FROM staff_shifts JOIN slots WHERE shift_id = ?
-        alt [Shift not found]
-            DB-->>SSR: 9. Return null
-            deactivate SSR
-            SSR-->>SSS: 10. Optional.empty()
-            SSS->>SSS: 11. Log skip reason "Shift not found"
-        else [Shift exists]
-            DB-->>SSR: 9. Return shift with slots
-            deactivate SSR
-            SSR-->>SSS: 10. StaffShift Entity
-
-            SSS->>SR: 11. existsByShift_ShiftIdAndStatus(shiftId, BOOKED)
-            activate SR
-            SR->>DB: 12. SELECT COUNT(*) FROM slots WHERE shift_id = ? AND status = 'BOOKED'
-            alt [Has booked slots]
-                DB-->>SR: 13. Return count > 0
-                deactivate SR
-                SR-->>SSS: 14. true
-                SSS->>SSS: 15. Log skip reason "Shift has active bookings"
-            else [No booked slots]
-                DB-->>SR: 13. Return count = 0
-                deactivate SR
-                SR-->>SSS: 14. false
-
-                SSS->>SSS: 15. Save staff info for notification
-                SSS->>SSR: 16. delete(shift)
-                activate SSR
-                SSR->>DB: 17. DELETE FROM staff_shifts WHERE shift_id = ? (cascade delete slots)
-                DB-->>SSR: 18. Success
-                deactivate SSR
-                SSR-->>SSS: 19. void
-
-                SSS->>NS: 20. notifyStaffShiftDeleted(staff, workDate, clinicName)
-                SSS->>SSS: 21. Increment successCount
-            end
-        end
-    end
-
-    SSS->>SSS: 22. Prepare summary (successCount, skippedCount, reasons)
-
-    alt [All shifts deleted]
-        SSS-->>SSC: 23. void
-        deactivate SSS
-        SSC-->>UI: 24. HTTP 204 No Content
-        deactivate SSC
-        UI-->>CM: 25. Toast "Deleted 5 shifts successfully"
-        deactivate UI
-    else [Partial success]
-        SSS-->>SSC: 23. void (success counted)
-        deactivate SSS
-        SSC-->>UI: 24. HTTP 204 No Content
-        deactivate SSC
-        UI-->>CM: 25. Toast "Deleted 3 shifts, skipped 2 (1 not found, 1 with bookings)"
-        deactivate UI
-    else [All skipped]
-        SSS-->>SSC: 23. void (no deletion occurred)
-        deactivate SSS
-        SSC-->>UI: 24. HTTP 204 No Content
-        deactivate SSC
-        UI-->>CM: 25. Toast "Cannot delete any shifts: all have active bookings"
-        deactivate UI
+    alt Shift has booked slots
+        SSS-->>SSC: Throw BadRequestException
+        SSC-->>UI: 400 Bad Request
+        UI-->>Manager: Show deletion error
+    else Shift can be deleted
+        SSS->>SSR: delete(shift)
+        SSR->>DB: Delete shift and slots
+        DB-->>SSR: Success
+        SSR-->>SSS: Deleted
+        SSS->>SSS: Trigger post-delete side effects
+        SSS-->>SSC: Success
+        SSC-->>UI: 204 No Content
+        UI-->>Manager: Refresh schedule
     end
 ```
 
-#### 4.3.7 Cross-Reference to SRS
+#### 4.3.9 Cross-Reference to SRS
 
 | SDD Section | SRS Reference | Description |
 |-------------|---------------|-------------|
-| 4.3.1 Class Diagram | 3.7.1 - 3.7.8 | Overall staff and scheduling module structure |
-| 4.3.3 Invite Staff | 3.7.1 (UC-CM-03) | Email invitation with Google OAuth support |
-| 4.3.4 Create Shift | 3.7.2 (UC-CM-04) | Multi-date shift creation with auto slot generation |
-| 4.3.5 View Own Schedule | UC-ST-02 | Staff personal schedule view |
-| 4.3.6 Bulk Delete | 2.2.6 (UC-CM-12) | Multi-shift deletion with partial success handling |
+| 4.3.1 Class Diagram | 3.7.1 - 3.7.7 | Overall staff and scheduling structure |
+| 4.3.3 Invite Staff by Email | 3.7.1 | Staff invitation and clinic assignment |
+| 4.3.4 Delete Staff | 3.7.2 | Remove clinic association from staff |
+| 4.3.5 View Own Work Schedule | 3.7.4 | Staff self-schedule lookup |
+| 4.3.6 Create Staff Shift | 3.7.5 | Multi-date shift creation with slots |
+| 4.3.7 View Staff Shift | 3.7.6 | Clinic shift list and shift detail |
+| 4.3.8 Delete Staff Shift | 3.7.7 | Shift deletion with booking guard |
 
 ---
 
@@ -4762,11 +4429,11 @@ The SOS Emergency Booking module provides real-time emergency veterinary care ma
 | 4.11.1 Class Diagram | 3.10 SOS Emergency Flow | Overall module structure |
 | 4.11.2 Class Specifications | 3.10.1 - 3.10.6 | Detailed class responsibilities |
 | 4.11.3 Start SOS Matching | UC-PO-15, 3.10.1 | Pet Owner initiates SOS request |
-| 4.11.4 Confirm SOS Request | UC-CM-20, 3.10.4 | Clinic Manager accepts request |
-| 4.11.5 Decline & Escalate | UC-CM-20, 3.10.4 | Auto-escalation logic |
-| 4.11.6 Get Active SOS Alerts | UC-CM-20, 3.10.4 | Alert synchronization for managers |
-| 4.11.7 Cancel SOS Matching | UC-PO-18, 3.10.5 | Pet Owner cancels before confirmation |
-| 4.11.8 Checkout with Custom Fee | UC-CM-21, 3.10.6 | Staff checkout with optional SOS fee override |
+| 4.11.4 Confirm SOS Request | UC-CM-20, 3.10.3 | Clinic Manager accepts request |
+| 4.11.5 Decline & Escalate | UC-CM-20, 3.10.3 | Auto-escalation logic |
+| 4.11.6 Receive SOS alert | UC-CM-20, 3.10.3 | Clinic manager receives SOS alert |
+| 4.11.7 Cancel SOS Matching | UC-PO-18, 3.10.4 | Pet Owner cancels before confirmation |
+| 4.11.8 Checkout with Custom Fee | UC-STAFF-10, 3.10.5 | Staff checkout with optional SOS fee override |
 
 #### 4.11.1 Class Diagram
 
@@ -4774,86 +4441,54 @@ The SOS Emergency Booking module provides real-time emergency veterinary care ma
 classDiagram
     %% Controllers
     class SosController {
-        -SosMatchingService sosMatchingService
-        +startMatching(SosMatchRequest, UserPrincipal) ResponseEntity~SosMatchResponse~
-        +confirmMatching(UUID, SosConfirmRequest, UserPrincipal) ResponseEntity~SosMatchResponse~
-        +getMatchingStatus(UUID) ResponseEntity~SosMatchResponse~
-        +getActiveSosAlertsForManager(UserPrincipal) ResponseEntity~List~
-        +cancelMatching(UUID, UserPrincipal) ResponseEntity~Void~
+        +startMatching(SosMatchRequest, UserPrincipal)
+        +confirmSos(UUID, SosConfirmRequest, UserPrincipal)
+        +getStatus(UUID)
+        +getActiveSosBooking(UserPrincipal)
+        +getActiveSosAlerts(UserPrincipal)
+        +cancelMatching(UUID, UserPrincipal)
     }
 
     class BookingController {
-        -BookingService bookingService
-        +checkout(UUID, CheckoutRequest, UserPrincipal) ResponseEntity~BookingResponse~
-        +complete(UUID, UserPrincipal) ResponseEntity~BookingResponse~
+        +checkout(UUID, CheckoutRequest, UserPrincipal)
+        +complete(UUID, UserPrincipal)
     }
 
     %% Services
     class SosMatchingService {
-        -BookingRepository bookingRepository
-        -ClinicRepository clinicRepository
-        -PetRepository petRepository
-        -UserRepository userRepository
-        -LocationService locationService
-        -ClinicPriceService clinicPriceService
-        -SosSessionManager sessionManager
-        -SosNotificationService sosNotificationService
-        -NotificationService notificationService
-        -BookingNotificationService bookingNotificationService
-        +startMatching(SosMatchRequest, UUID) SosMatchResponse
-        +processConfirmation(SosConfirmRequest, UUID) SosMatchResponse
-        +escalateToNextClinic(UUID) SosMatchResponse
-        +checkTimeouts() void
-        +getActiveSosBooking(UUID) Optional~Booking~
-        +getMatchingStatus(UUID) SosMatchResponse
-        +getActiveSosAlertsForManager(UUID) List~SosMatchingStatusMessage~
-        +cancelMatching(UUID, UUID) void
-        -confirmSos(Booking, User, UUID) SosMatchResponse
-        -declineSos(Booking, String) SosMatchResponse
-        -validatePetOwnership(UUID, UUID) Pet
-        -findNearbyClinics(SosMatchRequest) List~Clinic~
-        -createSosBooking(Pet, SosMatchRequest, UUID) Booking
-        -calculateDistance(SosMatchRequest, Clinic) double
+        +startMatching(SosMatchRequest, UUID)
+        +processConfirmation(SosConfirmRequest, UUID)
+        +escalateToNextClinic(UUID)
+        +checkTimeouts()
+        +getActiveSosBooking(UUID)
+        +getMatchingStatus(UUID)
+        +getActiveSosAlertsForManager(UUID)
+        +cancelMatching(UUID, UUID)
     }
 
     class SosSessionManager {
-        -RedisTemplate redisTemplate
-        +createSession(UUID, List~Clinic~) void
-        +sessionExists(UUID) boolean
-        +getCurrentIndex(UUID) Optional~Integer~
-        +getClinicIds(UUID) Optional~List~String~~
-        +updateIndex(UUID, int) void
-        +updateNotifiedAt(UUID) void
-        +getElapsedSeconds(UUID) long
-        +hasCurrentClinicTimedOut(UUID) boolean
-        +clearSession(UUID) void
-        +acquireBookingLock(UUID) boolean
-        +releaseBookingLock(UUID) void
-        +acquireUserLock(UUID) boolean
-        +releaseUserLock(UUID) void
-        +getClinicTimeoutSeconds() int
-        +getMaxClinicsToTry() int
+        +acquireUserLock(UUID)
+        +releaseUserLock(UUID)
+        +acquireBookingLock(UUID)
+        +releaseBookingLock(UUID)
+        +createSession(UUID, List~Clinic~)
+        +clearSession(UUID)
+        +hasCurrentClinicTimedOut(UUID)
     }
 
     class SosNotificationService {
-        -SimpMessagingTemplate messagingTemplate
-        -SosSessionManager sessionManager
-        +notifyOwnerClinicContacted(UUID, Clinic, int, int, double) void
-        +notifyOwnerWaitingNext(UUID, Clinic, int, int) void
-        +notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer) void
-        +notifyOwnerNoClinic(UUID) void
-        +notifyOwnerCancelled(UUID) void
-        +alertClinic(Booking, Clinic, int, int) void
-        +notifyClinicStaleAlert(UUID, UUID, MatchingEvent) void
-        -broadcastToOwner(UUID, SosMatchingStatusMessage) void
-        -broadcastToClinic(UUID, SosMatchingStatusMessage) void
+        +notifyOwnerClinicContacted(UUID, Clinic, int, int, double)
+        +notifyOwnerWaitingNext(UUID, Clinic, int, int)
+        +notifyOwnerConfirmed(UUID, Clinic, User, Double, Integer)
+        +notifyOwnerNoClinic(UUID)
+        +notifyOwnerCancelled(UUID)
+        +alertClinic(Booking, Clinic, int, int)
+        +notifyClinicStaleAlert(UUID, UUID, MatchingEvent)
     }
 
     class BookingService {
-        -BookingRepository bookingRepository
-        -BookingNotificationService bookingNotificationService
-        +processCheckoutAuthorized(UUID, CheckoutRequest, User) BookingResponse
-        +complete(UUID, User) BookingResponse
+        +processCheckoutAuthorized(UUID, CheckoutRequest, User)
+        +complete(UUID, User)
     }
 
     class LocationService {
@@ -4867,17 +4502,13 @@ classDiagram
     %% Repositories
     class BookingRepository {
         <<interface>>
-        +findById(UUID) Optional~Booking~
-        +save(Booking) Booking
-        +findActiveSosBookingsByPetOwner(UUID) List~Booking~
-        +findByStatusAndBookingType(BookingStatus, BookingType) List~Booking~
-        +findByClinicIdAndStatusAndType(UUID, BookingStatus, BookingType, Pageable) Page~Booking~
-        +existsByBookingCode(String) boolean
+        +findActiveSosBookingsByPetOwner(UUID)
+        +findByStatusAndBookingType(BookingStatus, BookingType)
+        +findByClinicIdAndStatusAndType(UUID, BookingStatus, BookingType, Pageable)
     }
 
     class ClinicRepository {
         <<interface>>
-        +findById(UUID) Optional~Clinic~
         +findNearbyClinics(BigDecimal, BigDecimal, double) List~Clinic~
     }
 
@@ -4891,191 +4522,7 @@ classDiagram
         +findById(UUID) Optional~User~
     }
 
-    %% Entities
-    class Booking {
-        +UUID bookingId
-        +Pet pet
-        +User petOwner
-        +Clinic clinic
-        +User assignedStaff
-        +BookingType type
-        +BookingStatus status
-        +LocalDate bookingDate
-        +LocalTime bookingTime
-        +String notes
-        +String symptoms
-        +String homeAddress
-        +BigDecimal homeLat
-        +BigDecimal homeLong
-        +BigDecimal distanceKm
-        +BigDecimal sosFee
-        +BigDecimal totalPrice
-        +String bookingCode
-        +LocalDateTime confirmedAt
-        +LocalDateTime completedAt
-        +String cancellationReason
-        +LocalDateTime createdAt
-        +boolean deleted
-    }
 
-    class Clinic {
-        +UUID clinicId
-        +String name
-        +String phone
-        +String address
-        +BigDecimal latitude
-        +BigDecimal longitude
-        +ClinicStatus status
-    }
-
-    class Pet {
-        +UUID petId
-        +String name
-        +Species species
-        +String breed
-        +BigDecimal weight
-        +User user
-    }
-
-    class User {
-        +UUID userId
-        +String fullName
-        +String phone
-        +String avatar
-        +Role role
-        +Clinic workingClinic
-    }
-
-    %% Enums
-    class BookingStatus {
-        <<enumeration>>
-        SEARCHING
-        PENDING_CLINIC_CONFIRM
-        CONFIRMED
-        IN_PROGRESS
-        COMPLETED
-        CANCELLED
-    }
-
-    class BookingType {
-        <<enumeration>>
-        APPOINTMENT
-        HOME_VISIT
-        SOS
-    }
-
-    class MatchingEvent {
-        <<enumeration>>
-        CLINIC_NOTIFIED
-        WAITING_NEXT
-        CONFIRMED
-        NO_CLINIC
-        CANCELLED
-    }
-
-    %% DTOs
-    class SosMatchRequest {
-        +UUID petId
-        +String symptoms
-        +String notes
-        +BigDecimal latitude
-        +BigDecimal longitude
-        +String address
-    }
-
-    class SosMatchResponse {
-        +UUID bookingId
-        +BookingStatus status
-        +String message
-        +UUID clinicId
-        +String clinicName
-        +String clinicPhone
-        +String clinicAddress
-        +Double clinicLat
-        +Double clinicLng
-        +Double distanceKm
-        +UUID staffId
-        +String staffName
-        +String staffPhone
-        +String staffAvatarUrl
-        +String wsTopicUrl
-        +LocalDateTime createdAt
-        +LocalDateTime expiresAt
-        +Integer currentClinicIndex
-        +Integer totalClinicsInRange
-        +Long remainingSeconds
-    }
-
-    class SosConfirmRequest {
-        +UUID bookingId
-        +boolean accepted
-        +UUID assignedStaffId
-        +String declineReason
-    }
-
-    class SosMatchingStatusMessage {
-        +UUID bookingId
-        +BookingStatus status
-        +MatchingEvent event
-        +String message
-        +UUID clinicId
-        +String clinicName
-        +String clinicPhone
-        +Double clinicLat
-        +Double clinicLng
-        +Double distanceKm
-        +Integer estimatedMinutes
-        +UUID staffId
-        +String staffName
-        +String staffPhone
-        +String staffAvatarUrl
-        +Integer currentClinicIndex
-        +Integer totalClinicsInRange
-        +Long remainingSeconds
-        +String petName
-        +String petSpecies
-        +String petBreed
-        +BigDecimal petWeight
-        +String symptoms
-        +String petOwnerName
-        +String petOwnerPhone
-        +String homeAddress
-        +Double homeLat
-        +Double homeLong
-    }
-
-    class CheckoutRequest {
-        +String paymentMethod
-        +String notes
-    }
-
-    %% Controller Dependencies
-    SosController --> SosMatchingService
-    BookingController --> BookingService
-
-    %% Service Dependencies
-    SosMatchingService --> BookingRepository
-    SosMatchingService --> ClinicRepository
-    SosMatchingService --> PetRepository
-    SosMatchingService --> UserRepository
-    SosMatchingService --> LocationService
-    SosMatchingService --> ClinicPriceService
-    SosMatchingService --> SosSessionManager
-    SosMatchingService --> SosNotificationService
-    BookingService --> BookingRepository
-
-    %% Repository to Entity
-    BookingRepository --> Booking
-    ClinicRepository --> Clinic
-    PetRepository --> Pet
-    UserRepository --> User
-
-    %% Entity Relationships
-    Booking --> Pet
-    Booking --> User
-    Booking --> Clinic
-    Pet --> User
-    User --> Clinic
 ```
 
 #### 4.11.2 Class Specifications
@@ -5169,136 +4616,28 @@ classDiagram
 - **BR-71:** SOS fee is added to booking.totalPrice during confirmation, not checkout
 - **BR-72:** Checkout updates status to COMPLETED and records payment method
 
-#### 4.11.3 Sequence Diagram: Start SOS Matching Flow
+#### 4.11.3 Sequence Diagram: Start SOS Matching
 
-Pet Owner initiates SOS emergency request with GPS coordinates. System finds nearby clinics, creates booking, and begins matching process.
+Pet Owner submits an SOS request. The system validates the request, finds nearby clinics, creates the SOS booking, and starts the matching process.
 
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI as SosRadarMapScreen (Mobile)
+    participant UI as Mobile SOS Screen
     participant SC as SosController
     participant MS as SosMatchingService
-    participant SM as SosSessionManager
-    participant BR as BookingRepository
-    participant CR as ClinicRepository
-    participant PR as PetRepository
     participant SN as SosNotificationService
     participant DB as Database
 
-    PO->>UI: 1. Fill symptoms, location & click "Request SOS"
-    activate UI
-    UI->>SC: 2. POST /api/sos/start + SosMatchRequest
-    activate SC
-    SC->>MS: 3. startMatching(request, petOwnerId)
-    activate MS
-
-    MS->>SM: 4. acquireUserLock(petOwnerId)
-    activate SM
-    SM->>DB: 5. SETNX sos:lock:user:{userId} 1 EX 10
-    activate DB
-    DB-->>SM: 6. Lock acquired (true)
-    deactivate DB
-    SM-->>MS: 7. true
-    deactivate SM
-
-    MS->>BR: 8. findActiveSosBookingsByPetOwner(petOwnerId)
-    activate BR
-    BR->>DB: 9. SELECT * FROM bookings WHERE pet_owner_id = ? AND status IN ('SEARCHING', 'PENDING_CLINIC_CONFIRM', 'CONFIRMED') AND type = 'SOS' AND deleted = false
-    activate DB
-    DB-->>BR: 10. Empty list (no active SOS)
-    deactivate DB
-    BR-->>MS: 11. Optional.empty()
-    deactivate BR
-
-    MS->>PR: 12. findById(petId)
-    activate PR
-    PR->>DB: 13. SELECT * FROM pets WHERE pet_id = ?
-    activate DB
-    DB-->>PR: 14. Pet entity
-    deactivate DB
-    PR-->>MS: 15. Pet
-    deactivate PR
-
-    MS->>MS: 16. Validate pet ownership (pet.user.userId == petOwnerId)
-
-    MS->>CR: 17. findNearbyClinics(lat, lng, 10km)
-    activate CR
-    CR->>DB: 18. SELECT * FROM clinics WHERE status = 'APPROVED' AND ST_DWithin(location, ST_MakePoint(?, ?), 10000) ORDER BY ST_Distance(location, ST_MakePoint(?, ?)) LIMIT 5
-    activate DB
-    DB-->>CR: 19. List~Clinic~ (sorted by distance)
-    deactivate DB
-    CR-->>MS: 20. List~Clinic~ (max 5)
-    deactivate CR
-
-    alt No clinics found
-        MS->>MS: 21. buildNoClinicResponse()
-        MS-->>SC: 22. SosMatchResponse (status=CANCELLED, message="Không tìm thấy phòng khám...")
-        SC-->>UI: 23. HTTP 200 OK + SosMatchResponse
-        UI-->>PO: 24. Display "No clinics available within 10km"
-        MS->>SM: 25. releaseUserLock(petOwnerId)
-        activate SM
-        SM->>DB: 26. DEL sos:lock:user:{userId}
-        deactivate SM
-    else Clinics found
-        MS->>BR: 21c. save(new Booking(type=SOS, status=SEARCHING, ...))
-        activate BR
-        BR->>DB: 22c. INSERT INTO bookings (booking_id, pet_id, pet_owner_id, type, status, symptoms, home_address, home_lat, home_long, booking_code, ...) VALUES (...)
-        activate DB
-        DB-->>BR: 23c. Booking created
-        deactivate DB
-        BR-->>MS: 24c. Booking entity
-        deactivate BR
-
-        MS->>SM: 25c. createSession(bookingId, nearbyClinics)
-        activate SM
-        SM->>DB: 26c. SETEX sos:session:{bookingId} 360 '{"clinicIds": [...], "currentIndex": 0, "notifiedAt": ..., "maxClinics": 5, "timeoutSeconds": 60}'
-        activate DB
-        DB-->>SM: 27c. OK
-        deactivate DB
-        SM-->>MS: 28c. void
-        deactivate SM
-
-        MS->>SN: 29c. alertClinic(booking, firstClinic, 0, totalClinics)
-        activate SN
-        SN->>SN: 30c. Build SosMatchingStatusMessage
-        SN->>SN: 31c. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", message)
-        SN-->>MS: 32c. void
-        deactivate SN
-
-        MS->>SM: 33c. updateNotifiedAt(bookingId)
-        activate SM
-        SM->>DB: 34c. HSET sos:session:{bookingId} notifiedAt {currentTimestamp}
-        deactivate SM
-
-        MS->>BR: 35c. save(booking with status=PENDING_CLINIC_CONFIRM, clinic=firstClinic)
-        activate BR
-        BR->>DB: 36c. UPDATE bookings SET status = 'PENDING_CLINIC_CONFIRM', clinic_id = ? WHERE booking_id = ?
-        activate DB
-        DB-->>BR: 37c. Updated
-        deactivate DB
-        BR-->>MS: 38c. Booking
-        deactivate BR
-
-        MS->>SN: 39c. notifyOwnerClinicContacted(bookingId, firstClinic, 0, totalClinics, distanceKm)
-        activate SN
-        SN->>SN: 40c. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", message)
-        SN-->>MS: 41c. void
-        deactivate SN
-
-        MS->>MS: 42c. buildMatchingStartedResponse(booking, firstClinic, request)
-        MS-->>SC: 43c. SosMatchResponse (bookingId, status=PENDING_CLINIC_CONFIRM, clinicName, wsTopicUrl, ...)
-        deactivate MS
-        SC-->>UI: 44c. HTTP 201 Created + SosMatchResponse
-        deactivate SC
-        UI-->>PO: 45c. Navigate to radar map, display clinic info + countdown timer
-        deactivate UI
-
-        MS->>SM: 46c. releaseUserLock(petOwnerId)
-        activate SM
-        SM->>DB: 47c. DEL sos:lock:user:{userId}
-        deactivate SM
-    end
+    PO->>UI: Fill pet, symptoms, and location
+    UI->>SC: POST /api/sos/start
+    SC->>MS: startMatching(request, petOwnerId)
+    MS->>DB: Check active SOS, find nearby clinics, create booking
+    MS->>SN: alertClinic(booking, firstClinic,...)
+    MS->>SN: notifyOwnerClinicContacted(...)
+    MS-->>SC: SosMatchResponse
+    SC-->>UI: 201 Created
+    UI-->>PO: Open radar screen and wait for confirmation
 ```
 
 #### 4.11.4 Sequence Diagram: Confirm SOS Request (Accept)
@@ -5321,109 +4660,108 @@ sequenceDiagram
 
     CM->>UI: 1. Review alert & click "Accept" + select staff
     activate UI
-    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + SosConfirmRequest (accepted=true, assignedStaffId=UUID)
+    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + request
     activate SC
     SC->>MS: 3. processConfirmation(request, clinicManagerId)
     activate MS
 
     MS->>SM: 4. acquireBookingLock(bookingId)
     activate SM
-    SM->>DB: 5. SETNX sos:lock:booking:{bookingId} 1 EX 10
+    SM->>DB: 5. Acquire Redis Booking Lock
     activate DB
-    DB-->>SM: 6. Lock acquired (true)
+    DB-->>SM: 6. Success
     deactivate DB
     SM-->>MS: 7. true
     deactivate SM
 
     MS->>BR: 8. findById(bookingId)
     activate BR
-    BR->>DB: 9. SELECT * FROM bookings WHERE booking_id = ?
+    BR->>DB: 9. Get Booking Details
     activate DB
-    DB-->>BR: 10. Booking entity (status=PENDING_CLINIC_CONFIRM)
+    DB-->>BR: 10. Booking (PENDING_CLINIC_CONFIRM)
     deactivate DB
     BR-->>MS: 11. Booking
     deactivate BR
 
-    MS->>MS: 12. Validate status == PENDING_CLINIC_CONFIRM
+    MS->>MS: 12. Validate Status
 
     MS->>UR: 13. findById(clinicManagerId)
     activate UR
-    UR->>DB: 14. SELECT * FROM users WHERE user_id = ?
+    UR->>DB: 14. Get Manager Details
     activate DB
-    DB-->>UR: 15. User entity (role=CLINIC_MANAGER)
+    DB-->>UR: 15. Manager User
     deactivate DB
     UR-->>MS: 16. Manager User
     deactivate UR
 
-    MS->>MS: 17. Validate manager.role == CLINIC_MANAGER
-    MS->>MS: 18. Validate booking.clinic.clinicId == manager.workingClinic.clinicId
+    MS->>MS: 17. Validate Manager Role & Clinic
 
     MS->>UR: 19. findById(assignedStaffId)
     activate UR
-    UR->>DB: 20. SELECT * FROM users WHERE user_id = ?
+    UR->>DB: 20. Get Staff Details
     activate DB
-    DB-->>UR: 21. User entity (role=STAFF)
+    DB-->>UR: 21. Staff User
     deactivate DB
     UR-->>MS: 22. Staff User
     deactivate UR
 
     MS->>MS: 23. validateAssignedStaffForSos(staff, clinic) - Check staff.role == STAFF and staff.workingClinic == manager.workingClinic
 
-    MS->>CPS: 24. getSosFee(clinic.clinicId)
+    MS->>CPS: 24. getSosFee()
     activate CPS
-    CPS->>DB: 25. SELECT sos_fee FROM clinic_prices WHERE clinic_id = ?
+    CPS->>DB: 25. Query Clinic Prices
     activate DB
-    DB-->>CPS: 26. BigDecimal (50000 VND)
+    DB-->>CPS: 26. SOS Fee Amount
     deactivate DB
-    CPS-->>MS: 27. Optional~BigDecimal~ (50000)
+    CPS-->>MS: 27. SOS Fee Amount
     deactivate CPS
 
-    MS->>BR: 28. save(booking with status=CONFIRMED, assignedStaff=staff, sosFee=50000, totalPrice=currentPrice+50000, confirmedAt=now)
+    MS->>BR: 28. save(Booking)
     activate BR
-    BR->>DB: 29. UPDATE bookings SET status = 'CONFIRMED', assigned_staff_id = ?, sos_fee = ?, total_price = total_price + ?, confirmed_at = ? WHERE booking_id = ?
+    BR->>DB: 29. Update Booking Status & Assigned Staff & Total Price
     activate DB
-    DB-->>BR: 30. Updated
+    DB-->>BR: 30. Success
     deactivate DB
     BR-->>MS: 31. Booking
     deactivate BR
 
-    MS->>NS: 32. sendBookingAssignedNotificationToStaff(booking) - Push notification to staff
+    MS->>NS: 32. sendBookingAssignedNotificationToStaff()
     activate NS
     NS-->>MS: 33. void
     deactivate NS
 
-    MS->>SM: 34. clearSession(bookingId)
+    MS->>SM: 34. clearSession()
     activate SM
-    SM->>DB: 35. DEL sos:session:{bookingId}
+    SM->>DB: 35. Delete Redis Session
     activate DB
-    DB-->>SM: 36. OK
+    DB-->>SM: 36. Success
     deactivate DB
     SM-->>MS: 37. void
     deactivate SM
 
-    MS->>SN: 38. notifyOwnerConfirmed(bookingId, clinic, staff, distanceKm, null)
+    MS->>SN: 38. notifyOwnerConfirmed()
     activate SN
-    SN->>SN: 39. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", SosMatchingStatusMessage (event=CONFIRMED, staffName, staffPhone, ...))
+    SN->>SN: 39. broadcast to /topic/sos-matching/{bookingId}
     SN-->>MS: 40. void
     deactivate SN
 
-    MS->>SN: 41. notifyClinicStaleAlert(bookingId, clinic.clinicId, MatchingEvent.CONFIRMED)
+    MS->>SN: 41. notifyClinicStaleAlert()
     activate SN
-    SN->>SN: 42. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", SosMatchingStatusMessage (event=CONFIRMED, message="Alert handled"))
+    SN->>SN: 42. broadcast to /topic/clinic/{clinicId}/sos-alert
     SN-->>MS: 43. void
     deactivate SN
 
-    MS->>MS: 44. Build SosMatchResponse with clinic & staff details
-    MS-->>SC: 45. SosMatchResponse (status=CONFIRMED, clinicName, staffName, staffPhone, ...)
+    MS->>MS: 44. Build SosMatchResponse
+    MS-->>SC: 45. SosMatchResponse (CONFIRMED)
     deactivate MS
-    SC-->>UI: 46. HTTP 200 OK + SosMatchResponse
+    SC-->>UI: 46. HTTP 200 OK
     deactivate SC
-    UI-->>CM: 47. Close modal, show toast "Đã xác nhận SOS", booking appears in "Confirmed Bookings" list
+    UI-->>CM: 47. Close modal, show toast "Đã xác nhận SOS"
     deactivate UI
 
-    MS->>SM: 48. releaseBookingLock(bookingId)
+    MS->>SM: 48. releaseBookingLock()
     activate SM
-    SM->>DB: 49. DEL sos:lock:booking:{bookingId}
+    SM->>DB: 49. Release Redis Booking Lock
     deactivate SM
 ```
 
@@ -5445,37 +4783,37 @@ sequenceDiagram
 
     CM->>UI: 1. Click "Decline" + optional reason
     activate UI
-    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + SosConfirmRequest (accepted=false, declineReason="Quá tải")
+    UI->>SC: 2. POST /api/sos/{bookingId}/confirm + request (accepted=false)
     activate SC
     SC->>MS: 3. processConfirmation(request, clinicManagerId)
     activate MS
 
     MS->>SM: 4. acquireBookingLock(bookingId)
     activate SM
-    SM->>DB: 5. SETNX sos:lock:booking:{bookingId} 1 EX 10
+    SM->>DB: 5. Acquire Redis Booking Lock
     activate DB
-    DB-->>SM: 6. Lock acquired
+    DB-->>SM: 6. Success
     deactivate DB
     SM-->>MS: 7. true
     deactivate SM
 
     MS->>BR: 8. findById(bookingId)
     activate BR
-    BR->>DB: 9. SELECT * FROM bookings WHERE booking_id = ?
+    BR->>DB: 9. Get Booking Details
     activate DB
-    DB-->>BR: 10. Booking entity
+    DB-->>BR: 10. Booking
     deactivate DB
     BR-->>MS: 11. Booking
     deactivate BR
 
-    MS->>MS: 12. Validate manager authorization (same as accept flow)
-    MS->>MS: 13. declineSos(booking, reason) - Log decline reason
+    MS->>MS: 12. Validate manager authorization
+    MS->>MS: 13. declineSos(booking, reason) - Log reason
 
-    MS->>BR: 14. save(booking with clinic=null)
+    MS->>BR: 14. save(Booking)
     activate BR
-    BR->>DB: 15. UPDATE bookings SET clinic_id = NULL WHERE booking_id = ?
+    BR->>DB: 15. Clear Clinic ID from Booking
     activate DB
-    DB-->>BR: 16. Updated
+    DB-->>BR: 16. Success
     deactivate DB
     BR-->>MS: 17. Booking
     deactivate BR
@@ -5484,80 +4822,80 @@ sequenceDiagram
 
     MS->>SM: 19. getCurrentIndex(bookingId)
     activate SM
-    SM->>DB: 20. HGET sos:session:{bookingId} currentIndex
+    SM->>DB: 20. Get Current Index from Session
     activate DB
-    DB-->>SM: 21. Integer (0)
+    DB-->>SM: 21. Integer
     deactivate DB
-    SM-->>MS: 22. Optional~Integer~ (0)
+    SM-->>MS: 22. Integer
     deactivate SM
 
     MS->>SM: 23. getClinicIds(bookingId)
     activate SM
-    SM->>DB: 24. HGET sos:session:{bookingId} clinicIds
+    SM->>DB: 24. Get Clinic List from Session
     activate DB
-    DB-->>SM: 25. JSON array ["uuid1", "uuid2", "uuid3"]
+    DB-->>SM: 25. Array
     deactivate DB
-    SM-->>MS: 26. Optional~List~String~~ (3 clinics)
+    SM-->>MS: 26. List of Clinics
     deactivate SM
 
-    MS->>SN: 27. notifyClinicStaleAlert(bookingId, oldClinicId, MatchingEvent.WAITING_NEXT)
+    MS->>SN: 27. notifyClinicStaleAlert()
     activate SN
-    SN->>SN: 28. messagingTemplate.convertAndSend("/topic/clinic/{oldClinicId}/sos-alert", message="Moved to next clinic")
+    SN->>SN: 28. broadcast to /topic/clinic/{oldClinicId}/sos-alert
     SN-->>MS: 29. void
     deactivate SN
 
-    MS->>MS: 30. Calculate nextIndex = currentIndex + 1 (= 1)
+    MS->>MS: 30. Calculate nextIndex = currentIndex + 1
 
-    alt All clinics exhausted (nextIndex >= clinicIds.size())
-        MS->>BR: 31a. save(booking with status=CANCELLED, cancellationReason="No clinic available")
+    alt All clinics exhausted
+        MS->>BR: 31a. save(Booking)
         activate BR
-        BR->>DB: 32a. UPDATE bookings SET status = 'CANCELLED', cancellation_reason = ? WHERE booking_id = ?
+        BR->>DB: 32a. Update Booking Status (CANCELLED)
         deactivate BR
         MS->>SM: 33a. clearSession(bookingId)
         MS->>SN: 34a. notifyOwnerNoClinic(bookingId)
-        MS-->>SC: 35a. SosMatchResponse (status=CANCELLED, message="No clinic available")
+        MS-->>SC: 35a. SosMatchResponse (CANCELLED)
     else Next clinic available
         MS->>CR: 31b. findById(nextClinicId)
         activate CR
-        CR->>DB: 32b. SELECT * FROM clinics WHERE clinic_id = ?
+        CR->>DB: 32b. Get Clinic Details
         activate DB
-        DB-->>CR: 33b. Clinic entity
+        DB-->>CR: 33b. Clinic Data
         deactivate DB
-        CR-->>MS: 34b. Optional~Clinic~
+        CR-->>MS: 34b. Clinic
         deactivate CR
 
-        MS->>SM: 35b. updateIndex(bookingId, nextIndex)
+        MS->>SM: 35b. updateIndex(nextIndex)
         activate SM
-        SM->>DB: 36b. HSET sos:session:{bookingId} currentIndex 1
+        SM->>DB: 36b. Update Session Index
         deactivate SM
 
-        MS->>SM: 37b. updateNotifiedAt(bookingId)
+        MS->>SM: 37b. updateNotifiedAt()
         activate SM
-        SM->>DB: 38b. HSET sos:session:{bookingId} notifiedAt {timestamp}
+        SM->>DB: 38b. Update Session Timestamp
         deactivate SM
 
-        MS->>BR: 39b. save(booking with clinic=nextClinic, status=PENDING_CLINIC_CONFIRM, distanceKm=...)
+        MS->>BR: 39b. save(Booking)
         activate BR
-        BR->>DB: 40b. UPDATE bookings SET clinic_id = ?, status = 'PENDING_CLINIC_CONFIRM', distance_km = ? WHERE booking_id = ?
+        BR->>DB: 40b. Update Booking Clinic ID
         activate DB
-        DB-->>BR: 41b. Updated
+        DB-->>BR: 41b. Success
         deactivate DB
         BR-->>MS: 42b. Booking
         deactivate BR
 
-        MS->>SN: 43b. notifyOwnerWaitingNext(bookingId, nextClinic, nextIndex, totalClinics)
+        MS->>SN: 43b. notifyOwnerWaitingNext()
         activate SN
-        SN->>SN: 44b. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", message="Waiting for next clinic")
+        SN->>SN: 44b. broadcast to /topic/sos-matching/{bookingId}
         SN-->>MS: 45b. void
         deactivate SN
 
-        MS->>SN: 46b. alertClinic(booking, nextClinic, nextIndex, totalClinics)
+        MS->>SN: 46b. alertClinic()
         activate SN
-        SN->>SN: 47b. messagingTemplate.convertAndSend("/topic/clinic/{nextClinicId}/sos-alert", alert message)
+        SN->>SN: 47b. broadcast to /topic/clinic/{nextClinicId}/sos-alert
         SN-->>MS: 48b. void
         deactivate SN
 
-        MS-->>SC: 49b. SosMatchResponse (status=PENDING_CLINIC_CONFIRM, message="Chuyển tiếp sang phòng khám: {name}")
+        MS-->>SC: 49b. SosMatchResponse (PENDING_CLINIC_CONFIRM)
         deactivate MS
     end
 
@@ -5568,1970 +4906,886 @@ sequenceDiagram
 
     MS->>SM: 52. releaseBookingLock(bookingId)
     activate SM
-    SM->>DB: 53. DEL sos:lock:booking:{bookingId}
+    SM->>DB: 53. Release Redis Booking Lock
     deactivate SM
 ```
 
-#### 4.11.6 Sequence Diagram: Get Active SOS Alerts (Catch-Up Mechanism)
+#### 4.11.6 Sequence Diagram: Receive SOS alert
 
-Clinic Manager opens dashboard or reconnects WebSocket. System fetches active SOS alerts assigned to their clinic to sync UI state.
+Clinic Manager receives the SOS alert in real time. When the dashboard reloads or reconnects, the system loads the currently active SOS alerts for synchronization.
 
 ```mermaid
 sequenceDiagram
     actor CM as Clinic Manager
-    participant UI as Manager Dashboard (Web)
+    participant SN as SosNotificationService
+    participant UI as Manager Dashboard
     participant SC as SosController
     participant MS as SosMatchingService
-    participant UR as UserRepository
-    participant BR as BookingRepository
-    participant SM as SosSessionManager
     participant DB as Database
 
-    CM->>UI: 1. Login or reload dashboard
-    activate UI
-    UI->>SC: 2. GET /api/sos/alerts/active (fetch active alerts for catch-up)
-    activate SC
-    SC->>MS: 3. getActiveSosAlertsForManager(clinicManagerId)
-    activate MS
+    SN-->>UI: /topic/clinic/{clinicId}/sos-alert
+    UI-->>CM: Show SOS alert with countdown
 
-    MS->>UR: 4. findById(clinicManagerId)
-    activate UR
-    UR->>DB: 5. SELECT * FROM users WHERE user_id = ?
-    activate DB
-    DB-->>UR: 6. User entity (role=CLINIC_MANAGER, working_clinic_id=X)
-    deactivate DB
-    UR-->>MS: 7. Manager User
-    deactivate UR
-
-    MS->>MS: 8. Extract clinic ID from manager.workingClinic
-
-    MS->>BR: 9. findByClinicIdAndStatusAndType(clinicId, PENDING_CLINIC_CONFIRM, SOS, Pageable.ofSize(10))
-    activate BR
-    BR->>DB: 10. SELECT * FROM bookings WHERE clinic_id = ? AND status = 'PENDING_CLINIC_CONFIRM' AND type = 'SOS' AND deleted = false ORDER BY created_at DESC LIMIT 10
-    activate DB
-    DB-->>BR: 11. Page~Booking~ (2 pending SOS bookings)
-    deactivate DB
-    BR-->>MS: 12. List~Booking~ (2 bookings)
-    deactivate BR
-
-    loop For each booking in list
-        MS->>SM: 13. sessionExists(bookingId)
-        activate SM
-        SM->>DB: 14. EXISTS sos:session:{bookingId}
-        activate DB
-        DB-->>SM: 15. true/false
-        deactivate DB
-        SM-->>MS: 16. boolean
-        deactivate SM
-
-        alt Session exists
-            MS->>SM: 17. getElapsedSeconds(bookingId)
-            activate SM
-            SM->>DB: 18. HGET sos:session:{bookingId} notifiedAt
-            activate DB
-            DB-->>SM: 19. Timestamp
-            deactivate DB
-            SM-->>MS: 20. long (elapsed seconds)
-            deactivate SM
-
-            MS->>MS: 21. Calculate remainingSeconds = 60 - elapsedSeconds
-
-            alt remainingSeconds > 0
-                MS->>MS: 22. buildSosAlertMessage(booking, remainingSeconds) - Include pet info, owner info, symptoms, distance
-            else remainingSeconds <= 0
-                MS->>MS: 23. Skip this booking (timed out, will be escalated by scheduler)
-            end
-        else Session does not exist
-            MS->>MS: 24. Skip booking (session cleared, likely already handled)
-        end
+    alt Page reload or reconnect
+        UI->>SC: GET /api/sos/alerts/active
+        SC->>MS: getActiveSosAlertsForManager(managerId)
+        MS->>DB: Load active SOS alerts for the clinic
+        MS-->>SC: Active alert list
+        SC-->>UI: 200 OK
+        UI-->>CM: Sync visible SOS alerts
     end
-
-    MS->>MS: 25. Filter messages with remainingSeconds > 0
-    MS-->>SC: 26. List~SosMatchingStatusMessage~ (active alerts with countdown)
-    deactivate MS
-    SC-->>UI: 27. HTTP 200 OK + JSON array of alert messages
-    deactivate SC
-    UI-->>CM: 28. Display SOS alert modals with countdown timers (catch-up sync complete)
-    deactivate UI
 ```
 
-#### 4.11.7 Sequence Diagram: Cancel SOS Matching (Pet Owner)
+#### 4.11.7 Sequence Diagram: Cancel SOS Matching
 
-Pet Owner cancels SOS request before clinic confirmation. System updates booking, clears Redis session, and notifies clinic.
+Pet Owner cancels the SOS request before clinic confirmation. The system updates the booking, stops the matching process, and notifies related clients.
 
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI as SosRadarMapScreen (Mobile)
+    participant UI as Radar Map Screen
     participant SC as SosController
     participant MS as SosMatchingService
-    participant BR as BookingRepository
-    participant SM as SosSessionManager
     participant SN as SosNotificationService
     participant DB as Database
 
-    PO->>UI: 1. Click "Cancel SOS" on radar screen
-    activate UI
-    UI->>UI: 2. Show confirmation dialog: "Hủy yêu cầu SOS?"
-    PO->>UI: 3. Confirm cancellation
-    UI->>SC: 4. DELETE /api/sos/{bookingId}
-    activate SC
-    SC->>MS: 5. cancelMatching(bookingId, petOwnerId)
-    activate MS
-
-    MS->>BR: 6. findById(bookingId)
-    activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 8. Booking entity (status=PENDING_CLINIC_CONFIRM)
-    deactivate DB
-    BR-->>MS: 9. Booking
-    deactivate BR
-
-    MS->>MS: 10. Validate booking.petOwner.userId == petOwnerId
-
-    MS->>MS: 11. Validate status IN (SEARCHING, PENDING_CLINIC_CONFIRM)
-
-    alt Booking already CONFIRMED or COMPLETED
-        MS-->>SC: 12a. Throw SosMatchingException("Không thể hủy booking ở trạng thái: {status}")
-        SC-->>UI: 13a. HTTP 400 Bad Request + error message
-        UI-->>PO: 14a. Show toast "Phòng khám đã xác nhận, không thể hủy"
-    else Cancellation allowed
-        MS->>BR: 12b. save(booking with status=CANCELLED, cancellationReason="Hủy bởi người dùng")
-        activate BR
-        BR->>DB: 13b. UPDATE bookings SET status = 'CANCELLED', cancellation_reason = 'Hủy bởi người dùng' WHERE booking_id = ?
-        activate DB
-        DB-->>BR: 14b. Updated
-        deactivate DB
-        BR-->>MS: 15b. Booking
-        deactivate BR
-
-        MS->>SM: 16b. clearSession(bookingId)
-        activate SM
-        SM->>DB: 17b. DEL sos:session:{bookingId}
-        activate DB
-        DB-->>SM: 18b. OK
-        deactivate DB
-        SM-->>MS: 19b. void
-        deactivate SM
-
-        MS->>SN: 20b. notifyOwnerCancelled(bookingId)
-        activate SN
-        SN->>SN: 21b. messagingTemplate.convertAndSend("/topic/sos-matching/{bookingId}", SosMatchingStatusMessage (event=CANCELLED))
-        SN-->>MS: 22b. void
-        deactivate SN
-
-        alt Booking was in PENDING_CLINIC_CONFIRM with clinic assigned
-            MS->>SN: 23b. notifyClinicStaleAlert(bookingId, clinic.clinicId, MatchingEvent.CANCELLED)
-            activate SN
-            SN->>SN: 24b. messagingTemplate.convertAndSend("/topic/clinic/{clinicId}/sos-alert", message="Booking cancelled by owner")
-            SN-->>MS: 25b. void
-            deactivate SN
-        end
-
-        MS-->>SC: 26b. void
-        deactivate MS
-        SC-->>UI: 27b. HTTP 204 No Content
-        deactivate SC
-        UI-->>PO: 28b. Navigate to Home, show toast "Đã hủy yêu cầu SOS"
-        deactivate UI
-    end
+    PO->>UI: Tap "Cancel SOS"
+    UI->>SC: DELETE /api/sos/{bookingId}
+    SC->>MS: cancelMatching(bookingId, petOwnerId)
+    MS->>DB: Update booking to CANCELLED and clear matching session
+    MS->>SN: notifyOwnerCancelled(bookingId)
+    MS->>SN: notifyClinicStaleAlert(...)
+    MS-->>SC: Success
+    SC-->>UI: 204 No Content
+    UI-->>PO: Return to Home and show success message
 ```
 
-#### 4.11.8 Sequence Diagram: Checkout with Custom SOS Fee (UC-CM-21)
+#### 4.11.8 Sequence Diagram: Checkout with Custom Fee
 
-Staff member finalizes SOS booking by performing checkout on mobile app. System applies SOS fee (with optional override) and marks booking as completed.
+Staff finalizes the SOS booking, optionally overrides the SOS fee, and completes the booking checkout flow.
 
 ```mermaid
 sequenceDiagram
     actor S as Staff
-    participant UI as Booking Detail Screen (Mobile)
+    participant UI as Staff Booking Detail
     participant BC as BookingController
     participant BS as BookingService
-    participant BR as BookingRepository
     participant CPS as ClinicPriceService
     participant BNS as BookingNotificationService
     participant DB as Database
 
-    S->>UI: 1. Open SOS booking detail (status=IN_PROGRESS) & tap "Hoàn tất khám"
-    activate UI
-    UI->>UI: 2. Show fee breakdown (Base Services + SOS Fee = Total)
-    S->>UI: 3. (Optional) Enter custom SOS fee override (e.g., 30000 for discount)
-    S->>UI: 4. Tap "Hoàn tất khám" to confirm
-    UI->>BC: 5. POST /api/bookings/{bookingId}/checkout (CheckoutRequest: overriddenSosFee=30000)
-    activate BC
-    BC->>BS: 6. processCheckout(bookingId, request, currentUser)
-    activate BS
+    S->>UI: Enter custom SOS fee if needed
+    UI->>BC: POST /api/bookings/{id}/checkout
+    BC->>BS: processCheckoutAuthorized(bookingId, request, currentUser)
+    BS->>DB: Load booking and validate permission/status
 
-    BS->>BR: 7. findById(bookingId)
-    activate BR
-    BR->>DB: 8. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 9. Booking entity (status=IN_PROGRESS, type=SOS, basePrice=0, sosFee=50000)
-    deactivate DB
-    BR-->>BS: 10. Booking
-    deactivate BR
-
-    BS->>BS: 11. Validate status == IN_PROGRESS
-    BS->>BS: 12. Validate currentUser is assigned staff (authorization check)
-    alt [Staff not assigned to booking]
-        BS-->>BC: 13. Throw ForbiddenException "Không có quyền checkout lịch hẹn này"
-        BC-->>UI: 14. HTTP 403 Forbidden
-        UI-->>S: 15. Error toast "Không có quyền checkout"
-    else [Staff authorized]
-        alt [overriddenSosFee provided]
-            BS->>BS: 13. Validate overriddenSosFee >= 0
-            BS->>BS: 14. Apply overridden fee: sosFee = 30000
-        else [No override]
-            BS->>CPS: 13. getClinicSosFee(clinicId)
-            activate CPS
-            CPS->>DB: 14. SELECT sos_fee FROM clinic_prices WHERE clinic_id = ?
-            activate DB
-            DB-->>CPS: 15. Return configured fee (or null)
-            deactivate DB
-            CPS-->>BS: 16. SOS fee (50000 or default)
-            deactivate CPS
-            BS->>BS: 17. Use clinic-configured or default SOS fee: sosFee = 50000
-        end
-
-        BS->>BS: 18. Recalculate totalPrice = basePrice + sosFee + additionalServices
-        BS->>BS: 19. Set booking status = COMPLETED, completedAt = now
-
-        BS->>BR: 20. save(booking with updated status, totalPrice, sosFee, completedAt)
-        activate BR
-        BR->>DB: 21. UPDATE bookings SET status = 'COMPLETED', total_price = ?, sos_fee = ?, completed_at = ? WHERE booking_id = ?
-        activate DB
-        DB-->>BR: 22. Updated
-        deactivate DB
-        BR-->>BS: 23. Booking
-        deactivate BR
-
-        BS->>BNS: 24. pushBookingUpdateToUsers(booking, "COMPLETED")
-        activate BNS
-        BNS->>BNS: 25. Send SSE notification to pet owner + staff
-        BNS-->>BS: 26. void
-        deactivate BNS
-
-        BS->>BS: 27. Build BookingResponse (status, totalPrice, sosFee, completedAt)
-        BS-->>BC: 28. BookingResponse (status=COMPLETED, totalPrice=30000, sosFee=30000, completedAt=...)
-        deactivate BS
-        BC-->>UI: 29. HTTP 200 OK + BookingResponse
-        deactivate BC
-        UI->>UI: 30. Navigate back to bookings list
-        UI-->>S: 31. Toast "Checkout thành công", booking moves to "Completed" tab
-        deactivate UI
+    alt Custom SOS fee provided
+        BS->>BS: Apply overridden fee
+    else No custom fee
+        BS->>CPS: getSosFee(clinicId)
     end
+
+    BS->>DB: Save COMPLETED status, totalPrice, and sosFee
+    BS->>BNS: pushBookingUpdateToUsers(booking, "COMPLETED")
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+    UI-->>S: Show checkout success
 ```
 
 ---
 
 ### 4.12 Booking Management
 
-Mô tả vòng đời của một lịch hẹn từ lúc khởi tạo trên Mobile App cho đến khi hoàn tất thanh toán tại phòng khám.
+This section documents the standard booking management module implemented in `BookingController` and `BookingService`. SOS-specific matching and emergency flows are documented separately in Section 4.11.
 
-**Last Updated:** 2026-01-23 (Added Sequence Diagrams: UC-PO-08, UC-PO-09, UC-VT-03, UC-VT-04, UC-VT-05, UC-VT-09, UC-CM-07, UC-CM-14, UC-CM-15, UC-CM-16)
+**Last Updated:** 2026-03-09
 
 #### 4.12.0 API Specification Table
 
 | # | Method | Endpoint | Role | Description | Status |
 |---|--------|----------|------|-------------|--------|
-| 0 | GET | `/bookings/public/available-slots` | Public | Lấy danh sách slot trống (Smart Availability) | 🔨 To Implement |
-| 1 | POST | `/bookings` | PET_OWNER | Tạo booking mới | ✅ Done |
-| 2 | GET | `/services/by-clinic/{clinicId}` | Public | Lấy danh sách dịch vụ của phòng khám | ✅ Done |
-| 3 | GET | `/bookings/clinic/{clinicId}` | MANAGER, ADMIN | Lấy danh sách booking của clinic | ✅ Done |
-| 3 | GET | `/bookings/vet/{vetId}` | STAFF, MANAGER, ADMIN | Lấy booking được gán cho vet | ✅ Done |
-| 4 | GET | `/bookings/{bookingId}` | All | Lấy chi tiết booking | ✅ Done |
-| 5 | GET | `/bookings/code/{bookingCode}` | All | Lấy booking theo mã | ✅ Done |
-| 6 | GET | `/bookings/{id}/check-vet-availability` | MANAGER, ADMIN | Kiểm tra vet availability trước confirm | ✅ Done |
-| 7 | GET | `/bookings/{id}/available-vets-for-confirm` | MANAGER, ADMIN | Lấy danh sách vet cho dropdown chọn thủ công | ✅ Done |
-| 8 | PATCH | `/bookings/{id}/confirm` | MANAGER, ADMIN | Xác nhận booking + auto/manual assign vet | ✅ Done |
-| 9 | PATCH | `/bookings/{id}/cancel` | All | Hủy booking với lý do | ✅ Done |
-| 10 | GET | `/bookings/{id}/services/{serviceId}/available-vets` | MANAGER, ADMIN | Lấy danh sách vet có thể reassign | ✅ Done |
-| 11 | POST | `/bookings/{id}/services/{serviceId}/reassign` | MANAGER, ADMIN | Đổi vet cho dịch vụ | ✅ Done |
-| 12 | POST | `/bookings/{id}/add-service` | STAFF, MANAGER, ADMIN | Thêm dịch vụ phát sinh | ✅ Done |
-| 13 | POST | `/bookings/{id}/check-in` | STAFF, ADMIN | Bắt đầu thực hiện dịch vụ (CONFIRMED → IN_PROGRESS) | ✅ Done |
-| 14 | POST | `/bookings/{id}/start-moving` | STAFF, CLINIC_MANAGER, ADMIN | Bắt đầu di chuyển cho SOS/HOME_VISIT (CONFIRMED → IN_PROGRESS) | ✅ Done |
-| 15 | POST | `/bookings/{id}/arrived` | STAFF, CLINIC_MANAGER, ADMIN | Đánh dấu đã đến nơi (giữ IN_PROGRESS, cập nhật arrivedAt) | ✅ Done |
-| 16 | POST | `/bookings/{id}/checkout` | STAFF, CLINIC_MANAGER | Chốt hóa đơn, thanh toán và hoàn tất lịch hẹn (IN_PROGRESS → COMPLETED) | ✅ Done |
+| 0 | GET | `/bookings/public/available-slots` | Public | View available slots for a clinic date and service set | Done |
+| 1 | POST | `/bookings/public/estimated-completion` | Public | Calculate estimated completion before booking | Done |
+| 2 | POST | `/bookings` | PET_OWNER | Book an appointment | Done |
+| 3 | POST | `/bookings/proxy` | PET_OWNER | Book on behalf of another recipient | Done |
+| 4 | GET | `/bookings/my-bookings` | PET_OWNER | View my bookings and booking history | Done |
+| 5 | GET | `/bookings/my/proxy` | PET_OWNER | View my proxy bookings | Done |
+| 6 | GET | `/bookings/{bookingId}` | PET_OWNER, STAFF, CLINIC_MANAGER, ADMIN | View booking details | Done |
+| 7 | GET | `/bookings/code/{bookingCode}` | PET_OWNER, STAFF, CLINIC_MANAGER, ADMIN | View booking by code | Done |
+| 8 | POST | `/bookings/{bookingId}/cancel` | PET_OWNER, CLINIC_MANAGER, ADMIN | Cancel booking | Done |
+| 9 | GET | `/bookings/clinic/{clinicId}` | CLINIC_MANAGER, CLINIC_OWNER, ADMIN | View new bookings and clinic bookings | Done |
+| 10 | GET | `/bookings/{bookingId}/availability` | CLINIC_MANAGER, ADMIN | Check staff availability for booking | Done |
+| 11 | GET | `/bookings/{bookingId}/staff-options` | CLINIC_MANAGER, ADMIN | Get staff options for assignment | Done |
+| 12 | POST | `/bookings/{bookingId}/confirm` | CLINIC_MANAGER, ADMIN | Assign staff to booking during confirmation | Done |
+| 13 | GET | `/bookings/{bookingId}/services/{serviceId}/available-staff` | CLINIC_MANAGER, CLINIC_OWNER, ADMIN | Get reassignment candidates for service item | Done |
+| 14 | PUT | `/bookings/{bookingId}/services/{serviceId}/reassign` | CLINIC_MANAGER, ADMIN | Reassign staff for service item | Done |
+| 15 | GET | `/bookings/staff/{staffId}` | STAFF, CLINIC_MANAGER, ADMIN | View assigned bookings | Done |
+| 16 | GET | `/bookings/staff/home-summary` | STAFF, ADMIN | View staff home summary | Done |
+| 17 | POST | `/bookings/{bookingId}/check-in` | STAFF, ADMIN | Start execution for in-clinic booking | Done |
+| 18 | POST | `/bookings/{bookingId}/start-moving` | STAFF, CLINIC_MANAGER, ADMIN | Start movement for home-visit execution | Done |
+| 19 | POST | `/bookings/{bookingId}/arrived` | STAFF, CLINIC_MANAGER, ADMIN | Mark arrival for home-visit execution | Done |
+| 20 | POST | `/bookings/{bookingId}/checkout` | STAFF, CLINIC_MANAGER | Checkout and complete booking | Done |
+| 21 | GET | `/bookings/{bookingId}/available-add-ons` | STAFF, CLINIC_MANAGER, ADMIN | View available add-on services | Done |
+| 22 | POST | `/bookings/{bookingId}/services` | STAFF, CLINIC_MANAGER, ADMIN | Add service to booking | Done |
+| 23 | DELETE | `/bookings/{bookingId}/services/{serviceId}` | STAFF, CLINIC_MANAGER, ADMIN | Remove add-on service from booking | Done |
+| 24 | GET | `/bookings/clinic/{clinicId}/today` | STAFF | View clinic today bookings with shared visibility | Done |
+| 25 | POST | `/bookings/{bookingId}/notify-on-way` | CLINIC_MANAGER, ADMIN | Notify owner that staff is on the way | Done |
 
 **Booking Status Flow:**
 ```
-PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
-          ↓            ↓
-      CANCELLED      NO_SHOW
+PENDING -> CONFIRMED -> IN_PROGRESS -> COMPLETED
+          \\            \\
+           CANCELLED    NO_SHOW
 ```
 
-**Notes:**
-- IN_CLINIC/HOME_VISIT: Staff bắt đầu thực hiện dịch vụ bằng check-in (`CONFIRMED → IN_PROGRESS`)
-- SOS: Staff dùng start-moving (`CONFIRMED → IN_PROGRESS`) và có GPS tracking real-time
-- HOME_VISIT tiêu chuẩn không bật GPS tracking real-time
+#### 4.12.1 Class Diagram
 
-#### 4.12.1 Class Diagram - Booking & Appointment
+The class diagram below is intentionally simplified to focus on the controller-facing structure of Booking Management. The sequence diagrams in this section use the same set of core classes only: controller, service, repositories, `StaffAssignmentService`, and the main domain entities.
 
 ```mermaid
 classDiagram
     class BookingController {
-        -BookingService bookingService
+        +getAvailableSlots(UUID, LocalDate, List~UUID~) ResponseEntity
+        +getEstimatedCompletion(UUID, EstimatedCompletionRequest) ResponseEntity
         +createBooking(BookingRequest, UserDetails) ResponseEntity
+        +createProxyBooking(ProxyBookingRequest, UserDetails) ResponseEntity
+        +getMyBookings(UserDetails, Pageable) ResponseEntity
+        +getMyProxyBookings(UserDetails, Pageable) ResponseEntity
         +getBookingsByClinic(UUID, BookingStatus, BookingType, Pageable) ResponseEntity
-        +getBookingsByVet(UUID, BookingStatus, Pageable) ResponseEntity
+        +getBookingsByStaff(UUID, BookingStatus, Pageable) ResponseEntity
         +getBookingById(UUID) ResponseEntity
-        +checkVetAvailability(UUID) ResponseEntity
-        +getAvailableVetsForConfirm(UUID) ResponseEntity
+        +getBookingByCode(String) ResponseEntity
+        +getStaffAvailability(UUID) ResponseEntity
+        +getStaffOptions(UUID) ResponseEntity
         +confirmBooking(UUID, BookingConfirmRequest) ResponseEntity
+        +reassignStaff(UUID, UUID, ReassignStaffRequest) ResponseEntity
         +cancelBooking(UUID, String, UserDetails) ResponseEntity
-        +getAvailableVetsForReassign(UUID, UUID) ResponseEntity
-        +reassignVet(UUID, UUID, ReassignVetRequest) ResponseEntity
-        +addServiceToBooking(UUID, AddServiceRequest) ResponseEntity
-        +checkIn(UUID) ResponseEntity
-        +checkOut(UUID) ResponseEntity
-        +complete(UUID) ResponseEntity
+        +checkIn(UUID, UserDetails) ResponseEntity
+        +startMoving(UUID, UserDetails) ResponseEntity
+        +arrived(UUID, UserDetails) ResponseEntity
+        +checkout(UUID, CheckoutRequest, UserDetails) ResponseEntity
+        +getAvailableAddOns(UUID, UserDetails) ResponseEntity
+        +addService(UUID, AddServiceRequest, UserDetails) ResponseEntity
+        +removeServiceFromBooking(UUID, UUID, UserDetails) ResponseEntity
+        +getStaffHomeSummary(UserDetails) ResponseEntity
+        +getClinicTodayBookings(UUID, UserDetails) ResponseEntity
     }
 
     class BookingService {
-        -BookingRepository bookingRepository
-        -VetAssignmentService vetAssignmentService
-        -PricingService pricingService
-        -NotificationService notificationService
         +createBooking(BookingRequest, UUID) BookingResponse
+        +createProxyBooking(ProxyBookingRequest, UUID) BookingResponse
+        +getMyBookings(UUID, Pageable) Page~BookingResponse~
+        +getMyProxyBookings(UUID, Pageable) Page~BookingResponse~
+        +getBookingsByClinic(UUID, BookingStatus, BookingType, Pageable) Page~BookingResponse~
+        +getBookingsByStaff(UUID, BookingStatus, Pageable) Page~BookingResponse~
+        +getBookingById(UUID) BookingResponse
+        +getBookingByCode(String) BookingResponse
+        +checkStaffAvailability(UUID) StaffAvailabilityCheckResponse
+        +getAvailableStaffForConfirm(UUID) List~StaffOptionDTO~
         +confirmBooking(UUID, BookingConfirmRequest) BookingResponse
+        +getAvailableStaffForReassign(UUID, UUID) List~AvailableStaffResponse~
+        +reassignStaffForService(UUID, UUID, UUID) BookingResponse
         +cancelBooking(UUID, String, UUID) BookingResponse
-        +checkVetAvailability(UUID) VetAvailabilityCheckResponse
-        +getAvailableVetsForConfirm(UUID) List~VetOptionDTO~
-        +getAvailableVetsForReassign(UUID, UUID) List~AvailableVetResponse~
-        +reassignVetForService(UUID, UUID, UUID) BookingResponse
-        +addServiceToBooking(UUID, UUID) BookingResponse
-        +checkIn(UUID) BookingResponse
-        +checkOut(UUID) BookingResponse
-        +complete(UUID) BookingResponse
+        +checkIn(UUID, User) BookingResponse
+        +startMoving(UUID, User) BookingResponse
+        +arrived(UUID, User) BookingResponse
+        +processCheckoutAuthorized(UUID, CheckoutRequest, User) BookingResponse
+        +getAvailableServicesForAddOn(UUID, User) List~ClinicServiceResponse~
+        +addServiceToBooking(UUID, UUID, User) BookingResponse
+        +removeServiceFromBooking(UUID, UUID, User) BookingResponse
+        +getStaffHomeSummary(UUID) StaffHomeSummaryResponse
+        +getClinicTodayBookings(UUID, User) List~ClinicTodayBookingResponse~
     }
 
-    class VetAssignmentService {
-        +checkVetAvailabilityForBooking(Booking) VetAvailabilityCheckResponse
-        +getAvailableVetsForConfirm(Booking) List~VetOptionDTO~
-        +assignVetsToAllServices(Booking) Map
-        +assignSpecificVet(Booking, UUID) void
+    class BookingRepository {
+        <<interface>>
+        +findById(UUID) Optional~Booking~
+        +findByIdWithDetails(UUID) Optional~Booking~
+        +findByBookingCode(String) Optional~Booking~
+        +findByClinicIdAndStatusAndType(UUID, BookingStatus, BookingType, Pageable) Page~Booking~
+        +findByAssignedStaffIdAndStatus(UUID, BookingStatus, Pageable) Page~Booking~
+        +findByPetOwnerId(UUID, Pageable) Page~Booking~
+        +findByProxyBookerId(UUID, Pageable) Page~Booking~
+        +findByAssignedStaffIdAndBookingDate(UUID, LocalDate) List~Booking~
+        +findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(UUID, LocalDate, LocalDate, List~BookingStatus~) List~Booking~
+        +findByClinicIdAndDateWithDetails(UUID, LocalDate) List~Booking~
+        +save(Booking) Booking
+    }
+
+    class BookingServiceItemRepository {
+        <<interface>>
+        +findById(UUID) Optional~BookingServiceItem~
+        +delete(BookingServiceItem) void
+    }
+
+    class PetRepository {
+        <<interface>>
+        +findById(UUID) Optional~Pet~
+        +save(Pet) Pet
+    }
+
+    class ClinicRepository {
+        <<interface>>
+        +findById(UUID) Optional~Clinic~
+    }
+
+    class ClinicServiceRepository {
+        <<interface>>
+        +findById(UUID) Optional~ClinicService~
+        +findAllById(Iterable~UUID~) List~ClinicService~
+        +findByClinicClinicIdAndIsActiveTrue(UUID) List~ClinicService~
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(UUID) Optional~User~
+        +save(User) User
+    }
+
+    class StaffAssignmentService {
+        +checkStaffAvailabilityForBooking(Booking) StaffAvailabilityCheckResponse
+        +getAvailableStaffForBookingConfirm(Booking) List~StaffOptionDTO~
+        +assignStaffToAllServices(Booking) Map~UUID, User~
         +reserveSlotsForBooking(Booking) void
+        +getAvailableStaffForReassign(UUID, LocalDate, LocalTime, StaffSpecialty, int, UUID) List~AvailableStaffResponse~
+        +reassignStaffForService(UUID, UUID, BookingServiceItemRepository) void
         +releaseSlotsForBooking(Booking) void
-        +reassignVetForService(...) void
-    }
-
-    class VetOptionDTO {
-        +UUID vetId
-        +String fullName
-        +String avatarUrl
-        +String specialty
-        +String specialtyLabel
-        +boolean isSuggested
-        +int bookingCount
-        +boolean hasAvailableSlots
-        +String unavailableReason
+        +findAvailableSlots(UUID, LocalDate, List~UUID~) List~LocalTime~
     }
 
     class Booking {
         +UUID bookingId
         +String bookingCode
-        +Pet pet
-        +User petOwner
-        +Clinic clinic
-        +User assignedVet
         +BookingStatus status
         +BookingType type
-        +LocalDate bookingDate
-        +LocalTime bookingTime
         +BigDecimal totalPrice
         +BigDecimal distanceFee
-        +List~BookingServiceItem~ bookingServices
+        +LocalDate bookingDate
+        +LocalTime bookingTime
+        +LocalDateTime arrivedAt
     }
 
     class BookingServiceItem {
         +UUID bookingServiceId
-        +Booking booking
         +ClinicService service
-        +User assignedVet
-        +BigDecimal unitPrice
-        +Integer quantity
-        +LocalTime scheduledStartTime
-        +LocalTime scheduledEndTime
+        +Pet pet
+        +User assignedStaff
+        +Boolean isAddOn
+        +BigDecimal weightPrice
+    }
+
+    class ClinicService {
+        +UUID serviceId
+        +String name
+        +BigDecimal basePrice
+        +Integer durationTime
+        +Boolean isHomeVisit
+    }
+
+    class Pet {
+        +UUID id
+        +String name
+        +Species species
+        +Double weight
+    }
+
+    class Clinic {
+        +UUID clinicId
+        +String name
+    }
+
+    class User {
+        +UUID userId
+        +Role role
+        +StaffSpecialty specialty
     }
 
     BookingController --> BookingService
-    BookingService --> VetAssignmentService
     BookingService --> BookingRepository
-    VetAssignmentService --> VetOptionDTO
+    BookingService --> BookingServiceItemRepository
+    BookingService --> PetRepository
+    BookingService --> ClinicRepository
+    BookingService --> ClinicServiceRepository
+    BookingService --> UserRepository
+    BookingService --> StaffAssignmentService
+    BookingService --> Booking
+    BookingRepository --> Booking
+    BookingServiceItemRepository --> BookingServiceItem
+    PetRepository --> Pet
+    ClinicRepository --> Clinic
+    ClinicServiceRepository --> ClinicService
+    UserRepository --> User
     Booking "1" *-- "many" BookingServiceItem
+    Booking --> Pet
+    Booking --> Clinic
+    Booking --> User : petOwner
+    Booking --> User : assignedStaff
+    BookingServiceItem --> ClinicService
+    BookingServiceItem --> Pet
+    BookingServiceItem --> User : assignedStaff
 ```
 
-#### 4.12.2 Create Appointment (BOK-1 Mobile Booking Wizard)
+#### 4.12.2 Class Specifications
 
-**Smart Availability Algorithm**:
-The system implements a "Smart Availability" feature that automatically filters available time slots based on:
-1. Selected service(s) and their required vet specialties
-2. Staff working shifts for the selected date
-3. Existing bookings (to avoid double-booking)
+**1. BookingController**
+- **Responsibility:** Exposes REST endpoints for booking creation, lookup, assignment, execution, checkout, and service management.
+- **Key Methods:** `createBooking()`, `createProxyBooking()`, `getMyBookings()`, `getBookingsByClinic()`, `confirmBooking()`, `cancelBooking()`, `checkIn()`, `startMoving()`, `arrived()`, `checkout()`.
 
-For multi-service bookings, the algorithm ensures **consecutive slots** can be fulfilled by checking each service in sequence.
+**2. BookingService**
+- **Responsibility:** Implements booking business rules, permission checks, assignment coordination, status transitions, and price updates.
+- **Key Methods:** `createBooking()`, `createProxyBooking()`, `confirmBooking()`, `reassignStaffForService()`, `cancelBooking()`, `addServiceToBooking()`, `removeServiceFromBooking()`, `processCheckoutAuthorized()`.
+
+**3. StaffAssignmentService**
+- **Responsibility:** Resolves assignment and reassignment options based on clinic, specialty, and availability constraints.
+- **Key Methods:** `checkStaffAvailabilityForBooking()`, `getAvailableStaffForBookingConfirm()`, `assignStaffToAllServices()`, `reserveSlotsForBooking()`, `getAvailableStaffForReassign()`, `findAvailableSlots()`.
+
+**4. BookingRepository**
+- **Responsibility:** Main persistence gateway for booking list, detail, summary, and status-transition queries.
+- **Key Queries:** `findByClinicIdAndStatusAndType()`, `findByAssignedStaffIdAndStatus()`, `findByPetOwnerId()`, `findByProxyBookerId()`, `findByIdWithDetails()`, `findByAssignedStaffIdAndBookingDateBetweenAndStatusIn()`.
+
+**5. BookingServiceItemRepository**
+- **Responsibility:** Persists and removes individual booking service items, especially for reassignment and add-on updates.
+- **Key Methods:** `findById()`, `delete()`.
+
+**6. PetRepository / ClinicRepository / ClinicServiceRepository / UserRepository**
+- **Responsibility:** Provide the booking module with pet ownership, clinic context, service catalog, and user/staff lookup data.
+- **Key Queries:** `findById()`, `findAllById()`, `findByClinicClinicIdAndIsActiveTrue()`, `save()`.
+
+**7. Booking / BookingServiceItem / ClinicService / Pet / Clinic / User**
+- **Responsibility:** Represent the booking aggregate and the main domain data loaded and updated by Booking Management flows.
+
+#### 4.12.3 Sequence Diagram: Book an Appointment
 
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI as Mobile Booking Screen
+    participant UI as Mobile Booking Wizard
     participant BC as BookingController
     participant BS as BookingService
-    participant VAS as VetAssignmentService
-    participant SR as SlotRepository
-    participant DB as Database
-
-    PO->>UI: 1. Step 1: Select Service(s)
-    PO->>UI: 2. Step 2: Select Date
-    activate UI
-    UI->>BC: 3. GET /api/bookings/public/available-slots?clinicId&date&serviceIds[]
-    activate BC
-    BC->>BS: 4. getAvailableSlots(clinicId, date, serviceIds)
-    activate BS
-    BS->>VAS: 5. findAvailableTimeSlotsWithSmartMatching(...)
-    activate VAS
-    Note over VAS: Smart Availability Logic:<br/>1. Fetch all services with required specialties<br/>2. Query vets with matching specialties<br/>3. Check vet shifts for date<br/>4. Filter out booked slots<br/>5. Validate consecutive slots for multi-service
-    VAS-->>BS: 6. List of valid start times
-    deactivate VAS
-    BS-->>BC: 7. Available slot times
-    deactivate BS
-    BC-->>UI: 8. JSON Array of available times
-    deactivate BC
-    UI-->>PO: 9. Display time grid (available slots)
-    
-    PO->>UI: 10. Select time slot
-    PO->>UI: 11. Step 3: Review & Confirm
-    UI->>BC: 12. POST /api/bookings (with serviceIds, slotIds, NO vetId)
-    activate BC
-    BC->>BS: 13. createBooking(request)
-    activate BS
-    BS->>BS: 14. Validate slots still available
-    BS->>BS: 15. Calculate total price (Base + Weight + Distance)
-    BS->>DB: 16. Save Booking (status=PENDING)
-    BS->>SR: 17. Lock Slots (TTL=15m for payment)
-    BS-->>BC: 18. BookingResponse
-    deactivate BS
-    BC-->>UI: 19. 201 Created
-    deactivate BC
-    UI-->>PO: 20. Show "Proceed to Payment"
-    deactivate UI
-```
-
-**Key Technical Details**:
-- **New API**: `GET /api/bookings/public/available-slots` - Returns available time slots based on service specialty matching
-- **Staff Assignment**: Intentionally omitted from mobile flow. Manager assigns vet post-booking via Dashboard (Section 3.8.4)
-- **Slot Reservation**: Slots are temporarily locked for 15 minutes to allow payment completion
-
-#### 4.12.3 Online Payment & Confirmation (UC-PO-10, UC-PO-20)
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Mobile App
-    participant BC as BookingController
-    participant BS as BookingService
-    participant PS as PaymentService/Stripe
-    participant DB as Database
-
-    PO->>UI: 1. Click "Pay Now"
-    UI->>BC: 2. GET /bookings/{id}/payment-intent
-    BC->>PS: 3. Create Stripe Payment Intent
-    PS-->>BC: 4. Client Secret
-    BC-->>UI: 5. Client Secret
-    UI->>PS: 6. Confirm Payment (Stripe SDK)
-    PS-->>UI: 7. Payment Success
-    UI->>BC: 8. POST /bookings/{id}/confirm-payment
-    activate BC
-    BC->>BS: 9. confirmPayment(id)
-    activate BS
-    BS->>DB: 10. Update status to CONFIRMED
-    BS-->>BC: 11. BookingResponse
-    deactivate BS
-    BC-->>UI: 12. 200 OK
-    deactivate BC
-```
-
-#### 4.12.4 Sequence Diagram: Assign Staff to Booking (UC-CM-06)
-
-Manager có thể chọn staff thủ công qua inline dropdown hoặc để hệ thống auto-assign.
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Web Dashboard
-    participant BC as BookingController
-    participant BS as BookingService
-    participant NS as NotificationService
-    participant BR as BookingRepository
-    participant DB as Database
-
-    M->>UI: 1. Click "Chi tiết" on PENDING booking
-    activate UI
-    UI->>BC: 2. GET /bookings/{id}/staff-options
-    activate BC
-    BC->>BS: 3. getAvailableStaffForConfirm(bookingId)
-    BS-->>BC: 4. List<StaffOptionDTO> with isSuggested flags
-    BC-->>UI: 5. JSON Array of staff options
-    deactivate BC
-    UI-->>M: 6. Show inline dropdown per service (pre-select suggested)
-
-    M->>UI: 7. (Optional) Change staff via dropdown
-    M->>UI: 8. Click "Xác nhận & Gán Staff"
-    UI->>BC: 9. POST /bookings/{id}/confirm with BookingConfirmRequest
-    activate BC
-    BC->>BS: 10. confirmBooking(bookingId, request)
-    activate BS
-    BS->>BR: 11. findById(bookingId)
-    activate BR
-    BR->>DB: 12. Fetch Booking Data
-    activate DB
-    DB-->>BR: 13. Booking Entity
-    deactivate DB
-    BR-->>BS: 14. Booking
-    deactivate BR
-
-    alt staffId provided (Manual Selection)
-        BS->>BS: 15a. Validate specialty match & slot availability
-        BS->>BS: 16a. Reserve slots for selected staff
-    else No staffId (Auto-Assign)
-        BS->>BS: 15b. Auto-assign based on availability algorithm
-    end
-
-    BS->>NS: 17. sendBookingConfirmedNotification(booking)
-    BS->>BR: 18. save(Updated Booking)
-    activate BR
-    BR->>DB: 19. Update Booking Status
-    activate DB
-    DB-->>BR: 20. Success
-    deactivate DB
-    deactivate BR
-    BS-->>BC: 21. BookingResponse
-    deactivate BS
-    BC-->>UI: 22. 200 OK
-    deactivate BC
-    UI-->>M: 23. Close modal, refresh list
-    deactivate UI
-```
-
-**Matching Rules (Service Category → Staff Specialty):**
-| Service Category | Required Staff Specialty |
-|-----------------|------------------------|
-| GROOMING_SPA | GROOMER |
-| VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER | VET |
-
-#### 4.12.5 Check Staff Availability
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard
-    participant BC as BookingController
-    participant BS as BookingService
-    participant VAS as VetAssignmentService
-
-    M->>UI: 1. View Booking Details
-    UI->>BC: 2. GET /bookings/{id}/check-vet-availability
-    activate BC
-    BC->>BS: 3. checkVetAvailability(id)
-    activate BS
-    BS->>VAS: 4. checkVetAvailabilityForBooking(booking)
-    activate VAS
-    VAS-->>BS: 5. VetAvailabilityCheckResponse
-    deactivate VAS
-    BS-->>BC: 6. Response
-    deactivate BS
-    BC-->>UI: 7. JSON Data
-    deactivate BC
-    UI-->>M: 8. Show availability status for each service
-```
-
-#### 4.12.6 Sequence Diagram: Reassign Staff (UC-CM-15)
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard
-    participant BC as BookingController
-    participant BS as BookingService
-    participant BR as BookingRepository
-    participant DB as Database
-
-    M->>UI: 1. Select specific service in booking
-    UI->>BC: 2. GET /bookings/{bookingId}/services/{serviceId}/available-staff
-    activate BC
-    BC->>BS: 3. getAvailableStaffForReassign(bookingId, serviceId)
-    BS-->>BC: 4. List<AvailableStaffResponse>
-    BC-->>UI: 5. Show staff list in modal
-    deactivate BC
-    M->>UI: 6. Select new staff & Confirm
-    UI->>BC: 7. PUT /bookings/{bookingId}/services/{serviceId}/reassign
-    activate BC
-    BC->>BS: 8. reassignStaffForService(bookingId, serviceId, newStaffId)
-    activate BS
-    BS->>BR: 9. findById(bookingId)
-    activate BR
-    BR->>DB: 10. Fetch Booking Data
-    activate DB
-    DB-->>BR: 11. Booking entity
-    deactivate DB
-    BR-->>BS: 12. Booking
-    deactivate BR
-    BS->>BS: 13. Release old slots & Reserve new slots
-    BS->>BR: 14. save(Updated Booking)
-    activate BR
-    BR->>DB: 15. Update Assigned Staff
-    activate DB
-    DB-->>BR: 16. Success
-    deactivate DB
-    deactivate BR
-    BS-->>BC: 17. BookingResponse
-    deactivate BS
-    BC-->>UI: 18. 200 OK
-    deactivate BC
-    UI-->>M: 19. Refresh booking detail
-```
-
-#### 4.12.7 Add-on Service During Examination
-
-Thêm dịch vụ phát sinh trong lúc khám (chỉ hiện khi status = IN_PROGRESS hoặc ARRIVED cho SOS).
-
-```mermaid
-sequenceDiagram
-    actor V as Staff/Manager
-    participant UI as Dashboard
-    participant BC as BookingController
-    participant BS as BookingService
-    participant PS as PricingService
-    participant DB as Database
-
-    V->>UI: 1. Click "Thêm dịch vụ" (only visible when IN_PROGRESS/ARRIVED)
-    UI->>UI: 2. Show AddServiceModal with available services
-    V->>UI: 3. Select service to add
-    UI->>BC: 4. POST /bookings/{id}/add-service with serviceId
-    activate BC
-    BC->>BS: 5. addServiceToBooking(bookingId, serviceId)
-    activate BS
-    BS->>DB: 6. findById(bookingId)
-    DB-->>BS: 7. Booking Entity
-    BS->>BS: 8. Validate status is IN_PROGRESS or ARRIVED
-    BS->>PS: 9. calculateServicePrice(service, petWeight)
-    PS-->>BS: 10. Calculated price
-    BS->>BS: 11. Create BookingServiceItem
-    BS->>BS: 12. Update booking totalPrice (NOT recalculate distance fee)
-    BS->>DB: 13. save(Booking with new service)
-    BS-->>BC: 14. Updated BookingResponse
-    deactivate BS
-    BC-->>UI: 15. 200 OK
-    deactivate BC
-    UI-->>V: 16. Close modal, refresh booking detail
-```
-
-**Notes:**
-- Distance fee is NOT recalculated when adding services
-- Price is calculated based on pet's current weight
-- Only services from the same clinic can be added
-
-#### 4.12.8 Receive Payment & Checkout (SRS Screen #46, UC-CM-10)
-
-```mermaid
-sequenceDiagram
-    actor M as Clinic Manager
-    participant UI as Manager Dashboard
-    participant BC as BookingController
-    participant BS as BookingService
-    participant PR as PaymentRepository
-    participant DB as Database
-
-    M->>UI: 1. Click "Receive Payment & Checkout"
-    activate UI
-    UI->>BC: 2. POST /bookings/{id}/checkout
-    activate BC
-    BC->>BS: 3. processCheckout(id)
-    activate BS
-    BS->>DB: 4. findById(id)
-    activate DB
-    DB-->>BS: 5. Booking Entity (Status: IN_PROGRESS)
-    deactivate DB
-    BS->>PR: 6. findByBooking(booking)
-    activate PR
-    PR-->>BS: 7. Payment Entity
-    deactivate PR
-    BS->>BS: 8. Mark payment as PAID & update paidAt
-    BS->>BS: 9. Set booking status to COMPLETED
-    BS->>DB: 10. saveAll (Booking, Payment)
-    activate DB
-    DB-->>BS: 11. OK
-    deactivate DB
-    BS-->>BC: 12. BookingResponse
-    deactivate BS
-    BC-->>UI: 13. 200 OK (Completed)
-    deactivate BC
-    UI-->>M: 14. Update UI (Move booking to COMPLETED tab)
-    deactivate UI
-```
-
-#### 4.12.9 View My Bookings (UC-PO-08)
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as My Bookings Screen (Mobile)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant DB as PostgreSQL
-
-    PO->>UI: 1. Navigate to "Lịch hẹn" tab
-    activate UI
-    UI->>API: 2. GET /api/bookings/my
-    activate API
-    API->>SVC: 3. getMyBookings(userId)
-    activate SVC
-    SVC->>DB: 4. SELECT * FROM bookings WHERE pet_owner_id = ?
-    activate DB
-    DB-->>SVC: 5. List<Booking>
-    deactivate DB
-    SVC->>SVC: 6. Group by status (Upcoming, Completed, Cancelled)
-    SVC->>SVC: 7. Sort by booking_date DESC
-    SVC-->>API: 8. BookingListDTO
-    deactivate SVC
-    API-->>UI: 9. 200 OK + booking list
-    deactivate API
-    UI-->>PO: 10. Display bookings in tabs
-    deactivate UI
-```
-
-**Notes:**
-- Bookings are grouped into 3 tabs: Upcoming (PENDING, CONFIRMED, IN_PROGRESS), Completed (COMPLETED), Cancelled (CANCELLED, NO_SHOW)
-- Empty state shown if no bookings exist
-- Pet Owner can click on any booking to view details
-
-#### 4.12.10 Cancel Booking (UC-PO-09)
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Booking Detail Screen (Mobile)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant BR as BookingRepository
-    participant SR as SlotRepository
-    participant NR as NotificationRepository
-    participant DB as PostgreSQL
-
-    PO->>UI: 1. Click "Hủy lịch" button
-    activate UI
-    UI->>UI: 2. Show confirmation modal
-    PO->>UI: 3. Confirm cancellation
-    UI->>API: 4. POST /api/bookings/{id}/cancel
-    activate API
-    API->>SVC: 5. cancelBooking(bookingId, userId)
-    activate SVC
-    SVC->>BR: 6. findById(bookingId)
-    activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 8. Booking entity
-    deactivate DB
-    BR-->>SVC: 9. Booking
-    deactivate BR
-    SVC->>SVC: 10. Validate: status != IN_PROGRESS && status != COMPLETED
-    alt Status allows cancellation
-        SVC->>SVC: 11. Update booking.status = CANCELLED
-        SVC->>SR: 12. findByBooking(booking)
-        activate SR
-        SR->>DB: 13. SELECT * FROM slots WHERE booking_id = ?
-        activate DB
-        DB-->>SR: 14. List<Slot>
-        deactivate DB
-        SR-->>SVC: 15. Slots
-        deactivate SR
-        SVC->>SR: 16. Update slots to AVAILABLE
-        activate SR
-        SR->>DB: 17. UPDATE slots SET status = 'AVAILABLE'
-        activate DB
-        DB-->>SR: 18. OK
-        deactivate DB
-        deactivate SR
-        SVC->>NR: 19. Create notifications (Manager, Staff if assigned)
-        activate NR
-        NR->>DB: 20. INSERT INTO notifications
-        activate DB
-        DB-->>NR: 21. OK
-        deactivate DB
-        deactivate NR
-        SVC->>BR: 22. save(booking)
-        activate BR
-        BR->>DB: 23. UPDATE bookings SET status = 'CANCELLED'
-        activate DB
-        DB-->>BR: 24. OK
-        deactivate DB
-        deactivate BR
-        SVC-->>API: 25. BookingResponse (CANCELLED)
-        deactivate SVC
-        API-->>UI: 26. 200 OK
-        deactivate API
-        UI-->>PO: 27. Show success toast + update UI
-    else Status = IN_PROGRESS/COMPLETED
-        SVC-->>API: 11. Throw BadRequestException
-        deactivate SVC
-        API-->>UI: 12. 400 Bad Request
-        deactivate API
-        UI-->>PO: 13. Show error toast
-    end
-    deactivate UI
-```
-
-**Notes:**
-- Only bookings with status trước IN_PROGRESS can be cancelled
-- Slots are restored to AVAILABLE status
-- Notifications sent to Clinic Manager and assigned Staff (if any)
-- If payment method is ONLINE, refund request is created (handled by UC-CM-07)
-
-#### 4.12.11 View Assigned Bookings (UC-VT-03)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Staff Schedule Screen (Mobile/Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant DB as PostgreSQL
-
-    V->>UI: 1. Navigate to "Lịch hẹn" screen
-    activate UI
-    UI->>API: 2. GET /api/bookings/staff/{staffId}
-    activate API
-    API->>SVC: 3. getBookingsByStaff(staffId, status, pageable)
-    activate SVC
-    SVC->>DB: 4. Fetch Assigned Bookings
-    activate DB
-    DB-->>SVC: 5. List<Booking>
-    deactivate DB
-    SVC->>SVC: 6. Apply filters (date range, status, service type)
-    SVC->>SVC: 7. Sort by booking_date ASC
-    SVC-->>API: 8. List<BookingResponse>
-    deactivate SVC
-    API-->>UI: 9. 200 OK + booking list
-    deactivate API
-    UI-->>V: 10. Display bookings with status badges
-    deactivate UI
-```
-
-**Notes:**
-- Filters available: Today, Upcoming, Completed, All
-- Status badges: CONFIRMED (yellow), IN_PROGRESS (purple), COMPLETED (green), CANCELLED/NO_SHOW (gray/red)
-- Empty state shown if no assigned bookings
-- Staff can click on booking to view details and take actions
-
-#### 4.12.12 Update Appointment Progress (UC-VT-04)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Booking Detail Screen (Mobile/Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant ER as EMRRepository
-    participant BR as BookingRepository
-    participant DB as PostgreSQL
-
-    V->>UI: 1. View booking detail
-    activate UI
-    UI->>UI: 2. Show action button based on status
-    V->>UI: 3. Click action button (Check-in / Start moving / Checkout / Complete)
-    UI->>API: 4. POST /api/bookings/{id}/{action}
-    activate API
-    API->>SVC: 5. updateBookingStatus(bookingId, newStatus)
-    activate SVC
-    SVC->>BR: 6. findById(bookingId)
-    activate BR
-    BR->>DB: 7. Fetch Booking Data
-    activate DB
-    DB-->>BR: 8. Booking entity
-    deactivate DB
-    BR-->>SVC: 9. Booking
-    deactivate BR
-    SVC->>SVC: 10. Validate status transition (CONFIRMED→IN_PROGRESS hoặc IN_PROGRESS→COMPLETED)
-    alt Status transition valid
-        alt Action = check-in hoặc start-moving
-            SVC->>ER: 11. createEMRShell(bookingId, petId, vetId)
-            activate ER
-            ER->>DB: 12. Create EMR Record
-            activate DB
-            DB-->>ER: 13. EMR created
-            deactivate DB
-            deactivate ER
-        else Action = checkout
-            SVC->>ER: 14. findByBooking(bookingId)
-            activate ER
-            ER->>DB: 15. Fetch EMR Data
-            activate DB
-            DB-->>ER: 16. EMR entity
-            deactivate DB
-            deactivate ER
-            SVC->>SVC: 17. Validate EMR has Assessment and Plan
-            alt EMR incomplete
-                SVC-->>API: 18. Throw BadRequestException
-                deactivate SVC
-                API-->>UI: 19. 400 Bad Request
-                deactivate API
-                UI-->>V: 20. Show error toast
-                deactivate UI
-            end
-        end
-        SVC->>SVC: 21. Update booking status
-        SVC->>BR: 22. save(booking)
-        activate BR
-        BR->>DB: 23. Update Booking Status
-        activate DB
-        DB-->>BR: 24. OK
-        deactivate DB
-        deactivate BR
-        SVC-->>API: 25. BookingResponse (updated status)
-        deactivate SVC
-        API-->>UI: 26. 200 OK
-        deactivate API
-        UI-->>V: 27. Update UI with new status
-    else Invalid transition
-        SVC-->>API: 11. Throw BadRequestException
-        deactivate SVC
-        API-->>UI: 12. 400 Bad Request
-        deactivate API
-        UI-->>V: 13. Show error toast
-    end
-    deactivate UI
-```
-
-**Notes:**
-- Valid status transitions: CONFIRMED → IN_PROGRESS → COMPLETED
-- EMR shell is created when booking starts execution (check-in/start-moving)
-- Checkout requires valid trạng thái hiện tại là IN_PROGRESS
-- Notifications sent to Pet Owner and Clinic Manager on status changes
-
-#### 4.12.13 Check-in Patient (UC-VT-05)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Booking Detail Screen (Mobile/Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant ER as EMRRepository
-    participant BR as BookingRepository
-    participant NR as NotificationRepository
-    participant DB as PostgreSQL
-
-    V->>UI: 1. Click "Check-in" button
-    activate UI
-    UI->>UI: 2. Show confirmation modal
-    V->>UI: 3. Confirm check-in
-    UI->>API: 4. POST /api/bookings/{id}/check-in
-    activate API
-    API->>SVC: 5. checkInPatient(bookingId)
-    activate SVC
-    SVC->>BR: 6. findById(bookingId)
-    activate BR
-    BR->>DB: 7. Fetch Booking Data
-    activate DB
-    DB-->>BR: 8. Booking entity (Status: CONFIRMED)
-    deactivate DB
-    BR-->>SVC: 9. Booking
-    deactivate BR
-    SVC->>SVC: 10. Validate: status = CONFIRMED
-    alt Status = CONFIRMED
-        SVC->>SVC: 11. Update booking.status = IN_PROGRESS
-        SVC->>BR: 12. save(booking)
-        activate BR
-        BR->>DB: 13. Update Booking Status
-        activate DB
-        DB-->>BR: 14. OK
-        deactivate DB
-        deactivate BR
-        SVC->>ER: 15. createEMRShell(booking)
-        activate ER
-        ER->>DB: 16. Create EMR Record
-        activate DB
-        DB-->>ER: 17. EMR created
-        deactivate DB
-        deactivate ER
-        SVC->>NR: 18. Create notification for Pet Owner
-        activate NR
-        NR->>DB: 19. Insert Notifications
-        activate DB
-        DB-->>NR: 20. OK
-        deactivate DB
-        deactivate NR
-        SVC-->>API: 21. BookingResponse (IN_PROGRESS)
-        deactivate SVC
-        API-->>UI: 22. 200 OK
-        deactivate API
-        UI-->>V: 23. Show success toast + update UI
-    else Invalid status
-        SVC-->>API: 11. Throw BadRequestException
-        deactivate SVC
-        API-->>UI: 12. 400 Bad Request
-        deactivate API
-        UI-->>V: 13. Show error toast
-    end
-    deactivate UI
-```
-
-**Notes:**
-- Only bookings with status CONFIRMED can be checked in
-- EMR shell is created with booking_id, pet_id, vet_id, created_at
-- Notification sent to Pet Owner: "Thú cưng của bạn đang được khám"
-- After check-in, Staff can start filling EMR (UC-VT-06)
-
-#### 4.12.14 Mark Treatment Finished (UC-VT-09)
-
-```mermaid
-sequenceDiagram
-    actor V as Staff
-    participant UI as Booking Detail Screen (Mobile/Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant ER as EMRRepository
-    participant BR as BookingRepository
-    participant NR as NotificationRepository
-    participant DB as PostgreSQL
-
-    V->>UI: 1. Click "Hoàn thành khám" button
-    activate UI
-    UI->>UI: 2. Show confirmation modal
-    V->>UI: 3. Confirm finish treatment
-    UI->>API: 4. POST /api/bookings/{id}/finish
-    activate API
-    API->>SVC: 5. finishTreatment(bookingId)
-    activate SVC
-    SVC->>BR: 6. findById(bookingId)
-    activate BR
-    BR->>DB: 7. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 8. Booking entity (Status: IN_PROGRESS)
-    deactivate DB
-    BR-->>SVC: 9. Booking
-    deactivate BR
-    SVC->>ER: 10. findByBooking(bookingId)
-    activate ER
-    ER->>DB: 11. SELECT * FROM emr WHERE booking_id = ?
-    activate DB
-    DB-->>ER: 12. EMR entity
-    deactivate DB
-    ER-->>SVC: 13. EMR
-    deactivate ER
-    SVC->>SVC: 14. Validate EMR completeness
-    alt EMR has Assessment AND Plan
-        SVC->>SVC: 15. Update booking.status = COMPLETED
-        SVC->>BR: 16. save(booking)
-        activate BR
-        BR->>DB: 17. UPDATE bookings SET status = 'COMPLETED'
-        activate DB
-        DB-->>BR: 18. OK
-        deactivate DB
-        deactivate BR
-        SVC->>NR: 19. Create notifications (Pet Owner, Manager)
-        activate NR
-        NR->>DB: 20. INSERT INTO notifications
-        activate DB
-        DB-->>NR: 21. OK
-        deactivate DB
-        deactivate NR
-        SVC-->>API: 22. BookingResponse (COMPLETED)
-        deactivate SVC
-        API-->>UI: 23. 200 OK
-        deactivate API
-        UI-->>V: 24. Show success toast + update UI
-    else EMR incomplete
-        SVC-->>API: 15. Throw BadRequestException
-        deactivate SVC
-        API-->>UI: 16. 400 Bad Request
-        deactivate API
-        UI-->>V: 17. Show error toast "Vui lòng hoàn thành EMR"
-    end
-    deactivate UI
-```
-
-**Notes:**
-- EMR must have Assessment and Plan fields filled before treatment can be marked finished
-- Booking status changes from IN_PROGRESS to COMPLETED
-- Notification sent to Clinic Manager: "Booking đã hoàn tất"
-- Notification sent to Pet Owner: "Lịch hẹn đã hoàn thành"
-
-#### 4.12.15 Handle Cancellations & Refunds (UC-CM-07)
-
-```mermaid
-sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Manager Dashboard (Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant PR as PaymentRepository
-    participant BR as BookingRepository
-    participant NR as NotificationRepository
-    participant DB as PostgreSQL
-
-    CM->>UI: 1. View cancelled bookings section
-    activate UI
-    UI->>API: 2. GET /api/bookings/cancelled
-    activate API
-    API->>SVC: 3. getCancelledBookings(clinicId)
-    activate SVC
-    SVC->>DB: 4. SELECT * FROM bookings WHERE status = 'CANCELLED'
-    activate DB
-    DB-->>SVC: 5. List<Booking>
-    deactivate DB
-    SVC-->>API: 6. List<BookingResponse>
-    deactivate SVC
-    API-->>UI: 7. 200 OK + cancelled bookings
-    deactivate API
-    UI-->>CM: 8. Display list with refund status
-    CM->>UI: 9. Click on booking to process refund
-    UI->>UI: 10. Show refund modal
-    CM->>UI: 11. Select refund option (Full, Partial, None)
-    CM->>UI: 12. Enter refund amount (if partial)
-    UI->>API: 13. POST /api/bookings/{id}/refund
-    activate API
-    API->>SVC: 14. processRefund(bookingId, refundData)
-    activate SVC
-    SVC->>BR: 15. findById(bookingId)
-    activate BR
-    BR->>DB: 16. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 17. Booking entity
-    deactivate DB
-    BR-->>SVC: 18. Booking
-    deactivate BR
-    SVC->>PR: 19. findByBooking(booking)
-    activate PR
-    PR->>DB: 20. SELECT * FROM payments WHERE booking_id = ?
-    activate DB
-    DB-->>PR: 21. Payment entity
-    deactivate DB
-    PR-->>SVC: 22. Payment
-    deactivate PR
-    SVC->>SVC: 23. Calculate refund based on policy
-    alt Payment method = ONLINE
-        SVC->>SVC: 24. Create refund transaction
-        SVC->>PR: 25. Update payment.refund_amount
-        activate PR
-        PR->>DB: 26. UPDATE payments SET refund_amount = ?
-        activate DB
-        DB-->>PR: 27. OK
-        deactivate DB
-        deactivate PR
-    end
-    SVC->>NR: 28. Create notification for Pet Owner
-    activate NR
-    NR->>DB: 29. INSERT INTO notifications
-    activate DB
-    DB-->>NR: 30. OK
-    deactivate DB
-    deactivate NR
-    SVC-->>API: 31. RefundResponse
-    deactivate SVC
-    API-->>UI: 32. 200 OK
-    deactivate API
-    UI-->>CM: 33. Show success toast + update UI
-    deactivate UI
-```
-
-**Notes:**
-- Refund policy: Cancel >24h before appointment = 100% refund, <24h = 50% refund, <6h = no refund
-- Only ONLINE payment bookings require refund processing
-- CASH bookings are marked as cancelled without refund
-- Notification sent to Pet Owner with refund details
-
-#### 4.12.16 Check Staff Availability (UC-CM-14)
-
-```mermaid
-sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Booking Detail Screen (Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant VR as VetRepository
-    participant SR as SlotRepository
-    participant DB as PostgreSQL
-
-    CM->>UI: 1. Click "Gán nhân viên" button
-    activate UI
-    UI->>API: 2. GET /api/bookings/{id}/available-vets
-    activate API
-    API->>SVC: 3. getAvailableVets(bookingId)
-    activate SVC
-    SVC->>DB: 4. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>SVC: 5. Booking (date, time, services)
-    deactivate DB
-    SVC->>VR: 6. findByClinic(clinicId)
-    activate VR
-    VR->>DB: 7. SELECT * FROM clinic_staff WHERE clinic_id = ? AND role = 'STAFF'
-    activate DB
-    DB-->>VR: 8. List<Staff>
-    deactivate DB
-    VR-->>SVC: 9. List<Staff>
-    deactivate VR
-    SVC->>SVC: 10. Filter vets by service specialty
-    loop For each vet
-        SVC->>SR: 11. checkAvailability(vetId, bookingSlots)
-        activate SR
-        SR->>DB: 12. SELECT * FROM slots WHERE vet_id = ? AND slot_time IN (...)
-        activate DB
-        DB-->>SR: 13. List<Slot>
-        deactivate DB
-        SR-->>SVC: 14. Availability status
-        deactivate SR
-        SVC->>SVC: 15. Calculate workload (bookings count for day)
-    end
-    SVC-->>API: 16. List<VetAvailabilityDTO>
-    deactivate SVC
-    API-->>UI: 17. 200 OK + available vets
-    deactivate API
-    UI-->>CM: 18. Display vet list with badges (Available, Busy)
-    deactivate UI
-```
-
-**Notes:**
-- Staff availability is checked based on:
-  - Shift schedule (vet must have shift on booking date)
-  - Slot availability (slots not already BOOKED)
-  - Service specialty matching
-  - Current workload (number of bookings assigned for the day)
-- Staff are sorted by availability and workload (least busy first)
-- Unavailable vets are shown with reason (No shift, Fully booked, Wrong specialty)
-
-#### 4.12.17 Reassign Staff to Service (UC-CM-15)
-
-```mermaid
-sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Booking Detail Screen (Web)
-    participant API as BookingController
-    participant SVC as BookingService
-    participant BR as BookingRepository
-    participant SR as SlotRepository
-    participant NR as NotificationRepository
-    participant DB as PostgreSQL
-
-    CM->>UI: 1. Click "Gán lại nhân viên" button
-    activate UI
-    UI->>UI: 2. Show reassignment modal
-    CM->>UI: 3. Select reassignment reason
-    CM->>UI: 4. Select new vet from dropdown
-    UI->>API: 5. POST /api/bookings/{id}/reassign-vet
-    activate API
-    API->>SVC: 6. reassignVet(bookingId, newVetId, reason)
-    activate SVC
-    SVC->>BR: 7. findById(bookingId)
-    activate BR
-    BR->>DB: 8. SELECT * FROM bookings WHERE booking_id = ?
-    activate DB
-    DB-->>BR: 9. Booking with current vet
-    deactivate DB
-    BR-->>SVC: 10. Booking
-    deactivate BR
-    SVC->>SVC: 11. Store old vet ID
-    SVC->>SVC: 12. Validate new vet availability
-    alt New vet is available
-        SVC->>SR: 13. Update old vet's slots to AVAILABLE
-        activate SR
-        SR->>DB: 14. UPDATE slots SET status = 'AVAILABLE' WHERE vet_id = ? AND booking_id = ?
-        activate DB
-        DB-->>SR: 15. OK
-        deactivate DB
-        deactivate SR
-        SVC->>SR: 16. Update new vet's slots to BOOKED
-        activate SR
-        SR->>DB: 17. UPDATE slots SET status = 'BOOKED', booking_id = ? WHERE vet_id = ? AND slot_time IN (...)
-        activate DB
-        DB-->>SR: 18. OK
-        deactivate DB
-        deactivate SR
-        SVC->>BR: 19. Update booking.vet_id = newVetId
-        activate BR
-        BR->>DB: 20. UPDATE bookings SET vet_id = ?
-        activate DB
-        DB-->>BR: 21. OK
-        deactivate DB
-        deactivate BR
-        SVC->>NR: 22. Create notifications (old vet, new vet, pet owner)
-        activate NR
-        NR->>DB: 23. INSERT INTO notifications (x3)
-        activate DB
-        DB-->>NR: 24. OK
-        deactivate DB
-        deactivate NR
-        SVC-->>API: 25. BookingResponse (updated)
-        deactivate SVC
-        API-->>UI: 26. 200 OK
-        deactivate API
-        UI-->>CM: 27. Show success toast + update UI
-    else New vet not available
-        SVC-->>API: 13. Throw BadRequestException
-        deactivate SVC
-        API-->>UI: 14. 400 Bad Request
-        deactivate API
-        UI-->>CM: 15. Show error toast
-    end
-    deactivate UI
-```
-
-**Notes:**
-- Reassignment reasons: Staff unavailable, Staff overloaded, Emergency, Other
-- Old vet's slots are released back to AVAILABLE
-- New vet's corresponding slots are marked as BOOKED
-- Notifications sent to:
-  - Old Staff: "Bạn đã được gỡ khỏi lịch hẹn [Booking ID]"
-  - New Staff: "Bạn được phân công lịch hẹn mới [Booking ID]"
-  - Pet Owner: "Nhân viên của bạn đã được thay đổi thành Dr. [Name]"
-
-#### 4.12.18 Manage Shifts - Delete Shift (UC-CM-16)
-
-```mermaid
-sequenceDiagram
-    actor CM as Clinic Manager
-    participant UI as Shift Management Screen (Web)
-    participant API as VetShiftController
-    participant SVC as VetShiftService
-    participant SR as SlotRepository
-    participant VSR as VetShiftRepository
-    participant BR as BookingRepository
-    participant DB as PostgreSQL
-
-    CM->>UI: 1. Click "Xóa ca làm" button on shift
-    activate UI
-    UI->>UI: 2. Show confirmation modal
-    CM->>UI: 3. Confirm deletion
-    UI->>API: 4. DELETE /api/vet-shifts/{shiftId}
-    activate API
-    API->>SVC: 5. deleteShift(shiftId, clinicId)
-    activate SVC
-    SVC->>VSR: 6. findById(shiftId)
-    activate VSR
-    VSR->>DB: 7. SELECT * FROM vet_shifts WHERE shift_id = ?
-    activate DB
-    DB-->>VSR: 8. VetShift entity
-    deactivate DB
-    VSR-->>SVC: 9. VetShift
-    deactivate VSR
-    SVC->>SR: 10. findByShift(shiftId)
-    activate SR
-    SR->>DB: 11. SELECT * FROM slots WHERE shift_id = ?
-    activate DB
-    DB-->>SR: 12. List<Slot>
-    deactivate DB
-    SR-->>SVC: 13. List<Slot>
-    deactivate SR
-    SVC->>SVC: 14. Check if any slot has status = BOOKED
-    alt No BOOKED slots
-        SVC->>SR: 15. Delete all slots for this shift
-        activate SR
-        SR->>DB: 16. DELETE FROM slots WHERE shift_id = ?
-        activate DB
-        DB-->>SR: 17. OK
-        deactivate DB
-        deactivate SR
-        SVC->>VSR: 18. Delete shift
-        activate VSR
-        VSR->>DB: 19. DELETE FROM vet_shifts WHERE shift_id = ?
-        activate DB
-        DB-->>VSR: 20. OK
-        deactivate DB
-        deactivate VSR
-        SVC-->>API: 21. Success message
-        deactivate SVC
-        API-->>UI: 22. 200 OK
-        deactivate API
-        UI-->>CM: 23. Show success toast + update UI
-    else Has BOOKED slots
-        SVC->>BR: 15. findBySlots(bookedSlots)
-        activate BR
-        BR->>DB: 16. SELECT * FROM bookings WHERE slot_id IN (...)
-        activate DB
-        DB-->>BR: 17. List<Booking>
-        deactivate DB
-        BR-->>SVC: 18. Affected bookings
-        deactivate BR
-        SVC-->>API: 19. Throw ConflictException with booking details
-        deactivate SVC
-        API-->>UI: 20. 409 Conflict + affected bookings
-        deactivate API
-        UI-->>CM: 21. Show error modal with booking list
-    end
-    deactivate UI
-```
-
-**Notes:**
-- Shift can only be deleted if no slots are BOOKED
-- If shift has booked slots, system shows list of affected bookings and prevents deletion
-- Manager must reassign or cancel bookings before deleting shift
-- All AVAILABLE and BLOCKED slots are deleted along with the shift
-
-
----
-
-
-#### 4.12.19 Class Diagram - SOS Emergency
-
-**Business Rules:** BR-59, BR-60, BR-61, BR-62, BR-63, BR-64, BR-65, BR-66
-
-**Architecture Overview:**
-The SOS Emergency module uses a **refactored service-oriented architecture** with clear separation of concerns:
-- **SosMatchingService:** Core business logic for matching process
-- **SosSessionManager:** Redis session management (clinic lists, index, timestamps, locks)
-- **SosNotificationService:** WebSocket broadcasting to Pet Owners and Clinic Managers
-
-```mermaid
-classDiagram
-    class SosController {
-        -SosMatchingService sosMatchingService
-        +startMatching(SosMatchRequest) ResponseEntity~SosMatchResponse~
-        +confirmSos(SosConfirmRequest) ResponseEntity~SosMatchResponse~
-        +getStatus(UUID) ResponseEntity~SosMatchResponse~
-        +cancelMatching(UUID) ResponseEntity~Void~
-    }
-    class SosMatchingService {
-        -BookingRepository bookingRepository
-        -ClinicRepository clinicRepository
-        -PetRepository petRepository
-        -UserRepository userRepository
-        -LocationService locationService
-        -SosSessionManager sessionManager
-        -SosNotificationService sosNotificationService
-        +startMatching(SosMatchRequest, UUID) SosMatchResponse
-        +processConfirmation(SosConfirmRequest, UUID) SosMatchResponse
-        +escalateToNextClinic(UUID) SosMatchResponse
-        +cancelMatching(UUID, UUID) void
-        +checkTimeouts() void
-        +getMatchingStatus(UUID) SosMatchResponse
-        +getActiveSosBooking(UUID) Optional~Booking~
-        -createSosBooking(Pet, SosMatchRequest, UUID) Booking
-        -confirmSos(Booking, User, UUID) SosMatchResponse
-        -declineSos(Booking, String) SosMatchResponse
-        -handleNoClinicAvailable(Booking) SosMatchResponse
-    }
-    class SosSessionManager {
-        -RedisTemplate~String,Object~ redisTemplate
-        +acquireUserLock(UUID) boolean
-        +releaseUserLock(UUID) void
-        +createSession(UUID, List~Clinic~) void
-        +clearSession(UUID) void
-        +getCurrentIndex(UUID) Optional~Integer~
-        +getClinicIds(UUID) Optional~List~String~~
-        +updateIndex(UUID, int) void
-        +updateNotifiedAt(UUID) void
-        +getNotifiedAt(UUID) Optional~Long~
-        +hasCurrentClinicTimedOut(UUID) boolean
-        +getElapsedSeconds(UUID) long
-        +sessionExists(UUID) boolean
-        +hasMoreClinics(UUID) boolean
-        +getClinicTimeoutSeconds() int
-        +getMaxClinicsToTry() int
-    }
-    class SosNotificationService {
-        -SimpMessagingTemplate messagingTemplate
-        +notifyOwnerClinicContacted(UUID, Clinic, int, int, double) void
-        +notifyOwnerWaitingNext(UUID, Clinic, int, int) void
-        +notifyOwnerConfirmed(UUID, Clinic, User) void
-        +notifyOwnerNoClinic(UUID) void
-        +notifyOwnerCancelled(UUID) void
-        +alertClinic(Booking, Clinic, int, int) void
-        +getClinicTimeoutSeconds() int
-    }
-    class SosMatchingScheduler {
-        -SosMatchingService sosMatchingService
-        +checkSosTimeouts() void
-    }
-    class BookingRepository {
-        <<interface>>
-        +save(Booking) Booking
-        +findById(UUID) Optional~Booking~
-        +findByStatusAndBookingType(BookingStatus, BookingType) List~Booking~
-        +findActiveSosBookingsByPetOwner(UUID) List~Booking~
-    }
-    class ClinicRepository {
-        <<interface>>
-        +findNearbyClinics(BigDecimal, BigDecimal, double) List~Clinic~
-    }
-    class SosMatchRequest {
-        +UUID petId
-        +BigDecimal latitude
-        +BigDecimal longitude
-        +String symptoms
-        +String notes
-    }
-    class SosMatchResponse {
-        +UUID bookingId
-        +BookingStatus status
-        +String message
-        +UUID clinicId
-        +String clinicName
-        +String clinicPhone
-        +Double distanceKm
-        +String wsTopicUrl
-    }
-    class SosMatchingStatusMessage {
-        +UUID bookingId
-        +BookingStatus bookingStatus
-        +MatchingEvent event
-        +String message
-        +Integer currentClinicIndex
-        +Integer totalClinicsInRange
-        +Long remainingSeconds
-    }
-
-    SosController --> SosMatchingService
-    SosMatchingService --> BookingRepository
-    SosMatchingService --> ClinicRepository
-    SosMatchingService --> SosSessionManager
-    SosMatchingService --> SosNotificationService
-    SosMatchingScheduler --> SosMatchingService
-    SosSessionManager --> RedisTemplate
-    SosNotificationService --> SimpMessagingTemplate
-```
-
-**Class Specifications:**
-
-**1. SosMatchingService**
-- **Responsibility:** Core SOS matching business logic
-- **Key Methods:**
-  - `startMatching()`: Initialize SOS request, find nearby clinics, notify first clinic
-  - `processConfirmation()`: Handle clinic accept/decline
-  - `escalateToNextClinic()`: Move to next clinic on timeout/decline
-  - `checkTimeouts()`: Scheduled job to detect timed-out requests
-  - `getActiveSosBooking()`: Check if user has active SOS
-  - `confirmSos()`: Update booking to CONFIRMED, assign staff
-  - `declineSos()`: Clear clinic field, escalate to next
-  - `handleNoClinicAvailable()`: Cancel booking when all clinics exhausted
-
-**2. SosSessionManager**
-- **Responsibility:** Manage Redis session data for SOS matching
-- **Key Methods:**
-  - `acquireUserLock()/releaseUserLock()`: Distributed lock to prevent race conditions
-  - `createSession()`: Store clinic IDs, index, timestamp
-  - `clearSession()`: Clean up session data
-  - `updateNotifiedAt()`: Record when current clinic was notified (for accurate timeout)
-  - `hasCurrentClinicTimedOut()`: Check if 60 seconds elapsed
-  - `sessionExists()`: Validate session before operations
-
-**Redis Keys Used:**
-- `sos:matching:{bookingId}:clinics` - List of clinic IDs
-- `sos:matching:{bookingId}:index` - Current clinic index
-- `sos:matching:{bookingId}:createdAt` - Session creation timestamp
-- `sos:matching:{bookingId}:notifiedAt` - When current clinic was notified
-- `sos:lock:user:{userId}` - User lock to prevent duplicate requests
-
-**3. SosNotificationService**
-- **Responsibility:** WebSocket broadcasting for SOS status updates
-- **Key Methods:**
-  - `notifyOwnerClinicContacted()`: Broadcast to Pet Owner when clinic is contacted
-  - `notifyOwnerWaitingNext()`: Broadcast when escalating to next clinic
-  - `notifyOwnerConfirmed()`: Broadcast when clinic confirms
-  - `notifyOwnerNoClinic()`: Broadcast when no clinics available
-  - `alertClinic()`: Send alert to Clinic Manager
-
-**WebSocket Topics:**
-- `/topic/sos-matching/{bookingId}` - Pet Owner subscribes for status updates
-- `/topic/clinic/{clinicId}/sos-alert` - Clinic Manager subscribes for SOS alerts
-
-**Business Rules:**
-- **BR-59:** Search radius 10km from user location
-- **BR-60:** Max 5 clinics to try
-- **BR-61:** 60 seconds timeout per clinic
-- **BR-62:** No duplicate active SOS bookings per user
-- **BR-63:** Distributed lock prevents race conditions
-- **BR-64:** Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
-- **BR-65:** Session TTL = 60s * 5 clinics + 60s buffer = 360s
-- **BR-66:** Unique booking code format: `SOS-{timestamp}-{random}`
-
-#### 4.12.20 Request SOS & Auto-Match (UC-SOS-01, UC-SOS-09)
-
-**Business Rules:** BR-59 (10km radius), BR-60 (max 5 clinics), BR-61 (60s timeout), BR-62 (no duplicate active SOS), BR-64 (status flow), BR-66 (unique booking code)
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI1 as SosRequestScreen (Mobile)
-    participant UI2 as SosRadarMapScreen (Mobile)
-    participant SC as SosController
-    participant MS as SosMatchingService
-    participant BS as BookingService
-    participant BR as BookingRepository
+    participant SAS as StaffAssignmentService
     participant CR as ClinicRepository
+    participant CSR as ClinicServiceRepository
+    participant UR as UserRepository
+    participant PR as PetRepository
+    participant BR as BookingRepository
     participant DB as Database
 
-    PO->>UI1: 1. Open SOS Request screen
-    activate UI1
-    UI1->>SC: 2. GET /api/sos/active (check active SOS booking)
-    activate SC
-    SC->>MS: 3. getActiveSosBookingForCurrentUser()
-    activate MS
-    MS->>BR: 4. findActiveSosByOwnerId(ownerId)
-    activate BR
-    BR->>DB: 5. Query active SOS bookings
-    activate DB
-    DB-->>BR: 6. Active booking (if any)
-    deactivate DB
-    BR-->>MS: 7. Optional~Booking~
-    deactivate BR
-    MS-->>SC: 8. Active SOS booking (if any)
-    deactivate MS
-    SC-->>UI1: 9. 200 OK (active booking or null)
-    deactivate SC
+    PO->>UI: Select clinic, services, and date
+    UI->>BC: GET /bookings/public/available-slots
+    BC->>BS: getAvailableSlots(clinicId, date, serviceIds)
+    BS->>SAS: findAvailableSlots(clinicId, date, serviceIds)
+    SAS->>DB: Read shift and slot availability
+    SAS-->>BS: Available slot list
+    BS-->>BC: AvailableSlotsResponse
+    BC-->>UI: 200 OK
 
-    alt Active SOS booking exists
-        UI1-->>PO: 10. Show dialog: continue tracking or cancel and create new
-    end
+    PO->>UI: Request estimated completion
+    UI->>BC: POST /bookings/public/estimated-completion
+    BC->>BS: calculateEstimatedCompletion(...)
+    BS->>CR: findById(clinicId)
+    CR->>DB: Load clinic and operating hours
+    DB-->>CR: Clinic
+    CR-->>BS: Clinic
+    BS->>CSR: findAllById(serviceIds)
+    CSR->>DB: Load clinic services
+    DB-->>CSR: Service list
+    CSR-->>BS: Service list
+    BS-->>BC: EstimatedCompletionResponse
+    BC-->>UI: 200 OK
 
-    PO->>UI1: 11. Fill pet, symptoms, location and submit
-    UI1->>SC: 12. POST /api/sos/start (SosMatchRequest)
-    activate SC
-    SC->>BS: 13. createSosBooking(request)
-    activate BS
-    BS->>BR: 14. save(new Booking(type=SOS, status=PENDING, ...))
-    activate BR
-    BR->>DB: 15. INSERT booking
-    activate DB
-    DB-->>BR: 16. Booking saved
-    deactivate DB
-    BR-->>BS: 17. Booking
-    deactivate BR
-    BS-->>SC: 18. Booking
-    deactivate BS
-
-    SC->>MS: 19. startSos(booking, request)
-    activate MS
-    MS->>CR: 20. searchNearbyClinics(lat, lng, 10km)
-    activate CR
-    CR->>DB: 21. Query clinics within radius
-    activate DB
-    DB-->>CR: 22. List~Clinic~ (sorted by distance)
-    deactivate DB
-    CR-->>MS: 23. Clinics (max 5)
-    deactivate CR
-
-    alt No clinics found
-        MS->>BR: 24. update booking status: NO_CLINIC
-        activate BR
-        BR->>DB: 25. UPDATE bookings SET status='NO_CLINIC'
-        activate DB
-        DB-->>BR: 26. Success
-        deactivate DB
-        BR-->>MS: 27. Booking updated
-        deactivate BR
-        MS-->>SC: 28. SosMatchResponse (status=NO_CLINIC)
-        SC-->>UI1: 29. 201 Created (NO_CLINIC)
-        UI1-->>PO: 30. Show "No clinic available" message
-    else Clinics found
-        MS->>DB: 24c. Store SOS session (clinics, index=0, createdAt)
-        MS-->>UI2: 25c. Push initial matching status over WebSocket
-        MS-->>SC: 26c. SosMatchResponse (bookingId, status=SEARCHING)
-        SC-->>UI1: 27c. 201 Created (SEARCHING)
-        deactivate MS
-        deactivate SC
-
-        UI1->>UI2: 28c. Navigate to SosRadarMapScreen(bookingId)
-        UI2->>UI2: 29c. Start radar animation & countdown
-        note over UI2: UI2 subscribes to SOS matching WebSocket topic<br/>and optionally polls /api/sos/{bookingId}/status
-    end
+    PO->>UI: Confirm booking
+    UI->>BC: POST /bookings
+    BC->>BS: createBooking(request, ownerId)
+    BS->>UR: findById(ownerId)
+    UR->>DB: Load pet owner
+    DB-->>UR: User
+    UR-->>BS: Pet owner
+    BS->>CR: findById(clinicId)
+    CR->>DB: Load clinic
+    DB-->>CR: Clinic
+    CR-->>BS: Clinic
+    BS->>PR: findById(petId)
+    PR->>DB: Load pet
+    DB-->>PR: Pet
+    PR-->>BS: Pet
+    BS->>CSR: findAllById(serviceIds)
+    CSR->>DB: Load clinic services
+    DB-->>CSR: Service list
+    CSR-->>BS: Service list
+    BS->>BS: Calculate service price, distance fee, and final totals
+    BS->>BR: save(booking)
+    BR->>DB: Insert booking and booking service items
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-create side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 201 Created
 ```
 
-#### 4.12.21 SOS Emergency Booking – Matching & Real-Time Tracking (UC-SOS-01, UC-SOS-02, UC-PO-15)
-
-This subsection describes the end-to-end SOS booking experience from the Pet Owner’s perspective, combining matching and real-time tracking flows.
+#### 4.12.4 Sequence Diagram: Book on Behalf
 
 ```mermaid
 sequenceDiagram
     actor PO as Pet Owner
-    participant UI1 as SosRequestScreen (Mobile)
-    participant UI2 as SosRadarMapScreen (Mobile)
-    participant UI3 as SosTrackingScreen (Mobile)
-    participant SC as SosController
-    participant TC as TrackingController
+    participant UI as Proxy Booking Screen
+    participant BC as BookingController
     participant BS as BookingService
-    participant SMS as SosMatchingService
-    participant TS as TrackingService
-    participant BR as BookingRepository
+    participant UR as UserRepository
+    participant PR as PetRepository
     participant CR as ClinicRepository
+    participant CSR as ClinicServiceRepository
+    participant BR as BookingRepository
     participant DB as Database
 
-    PO->>UI1: 1. Open SOS Request screen
-    UI1->>SC: 2. GET /api/sos/active
-    SC->>SMS: 3. getActiveSosBookingForCurrentUser()
-    SMS->>BR: 4. findActiveSosByOwnerId(ownerId)
-    BR->>DB: 5. SELECT active SOS bookings
-    DB-->>BR: 6. Result
-    BR-->>SMS: 7. Optional~Booking~
-    SMS-->>SC: 8. Active SOS booking (if any)
-    SC-->>UI1: 9. 200 OK (BookingResponse or null)
-
-    alt Active SOS booking exists
-        UI1-->>PO: 10. Show dialog (continue tracking / cancel & create new)
+    PO->>UI: Fill recipient, proxy pet, service, and schedule
+    UI->>BC: POST /bookings/proxy
+    BC->>BS: createProxyBooking(request, proxyBookerId)
+    BS->>UR: findById(proxyBookerId)
+    UR->>DB: Load proxy booker
+    DB-->>UR: User
+    UR-->>BS: Proxy booker
+    BS->>UR: save(newRecipientUser)
+    UR->>DB: Insert guest recipient user
+    DB-->>UR: Saved recipient
+    UR-->>BS: Recipient user
+    BS->>CR: findById(clinicId)
+    CR->>DB: Load clinic
+    DB-->>CR: Clinic
+    CR-->>BS: Clinic
+    loop For each proxy pet
+        BS->>PR: save(newPet)
+        PR->>DB: Insert recipient pet
+        DB-->>PR: Saved pet
+        PR-->>BS: Pet
     end
-
-    PO->>UI1: 11. Submit SOS form (pet, symptoms, location)
-    UI1->>SC: 12. POST /api/sos/start (SosMatchRequest)
-    SC->>BS: 13. createSosBooking(request)
-    BS->>BR: 14. save(Booking type=SOS)
-    BR->>DB: 15. INSERT booking
-    DB-->>BR: 16. Saved booking
-    BR-->>BS: 17. Booking
-    BS-->>SC: 18. Booking
-    SC->>SMS: 19. startSos(booking, request)
-
-    SMS->>CR: 20. searchNearbyClinics(lat, lng, radius)
-    CR->>DB: 21. SELECT clinics
-    DB-->>CR: 22. List clinics
-    CR-->>SMS: 23. Clinics (max 5)
-
-    alt No clinic available
-        SMS->>BR: 24. update status NO_CLINIC
-        BR->>DB: 25. UPDATE bookings
-        DB-->>BR: 26. OK
-        BR-->>SMS: 27. Booking updated
-        SMS-->>SC: 28. SosMatchResponse(status=NO_CLINIC)
-        SC-->>UI1: 29. 201 Created (NO_CLINIC)
-        UI1-->>PO: 30. Show "No clinic available" and stop flow
-    else Clinic found and accepts
-        SMS->>SMS: 24c. Initialize SosSession (searching=true)
-        SMS-->>UI2: 25c. WebSocket /topic/sos.{bookingId}.status (SEARCHING)
-        SMS-->>SC: 26c. SosMatchResponse(status=SEARCHING)
-        SC-->>UI1: 27c. 201 Created (SEARCHING)
-        UI1->>UI2: 28c. Navigate to SosRadarMapScreen(bookingId)
-        UI2->>UI2: 29c. Show radar and countdown
-
-        SMS->>SMS: 30c. Mark CONFIRMED with matched clinic
-        SMS-->>UI2: 31c. WebSocket status (CONFIRMED, clinic)
-        UI2-->>PO: 32c. Show confirmed clinic info
-        UI2->>UI3: 33c. After short delay, navigate to SosTrackingScreen(bookingId)
-    end
-
-    UI3->>UI3: 34. Subscribe /topic/booking.{bookingId}.location
-    UI3->>TC: 35. GET /tracking/booking/{bookingId} (initial location)
-    TC->>TS: 36. getLatestLocation(bookingId)
-    TS->>BR: 37. findById(bookingId)
-    BR->>DB: 38. SELECT booking
-    DB-->>BR: 39. Booking
-    BR-->>TS: 40. Booking
-    TS-->>TC: 41. LocationUpdateResponse (initial snapshot)
-    TC-->>UI3: 42. 200 OK
-    UI3-->>PO: 43. Render map with home + staff marker (if available)
-
-    loop Real-time tracking
-        TS-->>UI3: 44. WebSocket /topic/booking.{bookingId}.location (LocationUpdateResponse)
-        UI3->>UI3: 45. Snap marker to route polyline, animate, update ETA/distance
-        UI3-->>PO: 46. Update tracking UI and status text
-    end
-
-    alt Staff arrives (arrived=true)
-        TS-->>UI3: 47. LocationUpdateResponse(arrived=true)
-        UI3-->>PO: 48. Show "Vet has arrived" message
-        UI3->>UI3: 49. After delay, navigate back to Home
-    end
-```
-            BR->>DB: 26c. Update booking status
-            activate DB
-            DB-->>BR: 27c. Confirmed
-            deactivate DB
-            BR-->>MS: 28c. Done
-            deactivate BR
-            MS-->>SC: 29c. SosMatchResponse
-            deactivate MS
-            SC-->>UI: 30c. 201 Created (bookingId, wsTopicUrl)
-            deactivate SC
-            UI-->>PO: 31c. Display matching screen & countdown
-            deactivate UI
-        end
-    end
+    BS->>CSR: findAllById(serviceIds)
+    CSR->>DB: Load clinic services
+    DB-->>CSR: Service list
+    CSR-->>BS: Service list
+    BS->>BS: Calculate booking totals
+    BS->>BR: save(booking)
+    BR->>DB: Insert proxy booking and service items
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-create side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 201 Created
 ```
 
-#### 4.12.22 Accept/Decline SOS Request (UC-SOS-10)
+#### 4.12.5 Sequence Diagram: View My Bookings and Booking Details
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as My Bookings Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant DB as Database
+
+    PO->>UI: Open My Bookings
+    UI->>BC: GET /bookings/my-bookings
+    BC->>BS: getMyBookings(ownerId, pageable)
+    BS->>BR: findByPetOwnerId(ownerId, pageable)
+    BR->>DB: Load owner bookings
+    DB-->>BR: Booking page
+    BR-->>BS: Booking page
+    BS-->>BC: Page~BookingResponse~
+    BC-->>UI: 200 OK
+
+    PO->>UI: Select one booking
+    UI->>BC: GET /bookings/{bookingId}
+    BC->>BS: getBookingById(bookingId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking detail
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+```
+
+#### 4.12.6 Sequence Diagram: Cancel Booking
+
+```mermaid
+sequenceDiagram
+    actor U as Pet Owner or Clinic Manager
+    participant UI as Booking Detail Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant SAS as StaffAssignmentService
+    participant DB as Database
+
+    U->>UI: Enter cancellation reason
+    UI->>BC: POST /bookings/{bookingId}/cancel
+    BC->>BS: cancelBooking(bookingId, reason, currentUserId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>BS: Validate status and cancellation rule
+    BS->>SAS: releaseSlotsForBooking(booking)
+    BS->>BR: save(cancelledBooking)
+    BR->>DB: Update booking status and cancellation fields
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-cancel side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+```
+
+#### 4.12.7 Sequence Diagram: View New Bookings (Manager)
 
 ```mermaid
 sequenceDiagram
     actor CM as Clinic Manager
-    participant UI as Web Manager
-    participant SC as SOSController
-    participant MS as SosMatchingService
-    participant BR as BookingRepository
-    participant DB as Database
-    participant WS as WebSocket
-
-    CM->>UI: 1. Nhận thông báo & Click "Chấp nhận"
-    activate UI
-    UI->>SC: 2. POST /api/sos/{id}/confirm (accept=true)
-    activate SC
-    SC->>MS: 3. processConfirmation(id, true)
-    activate MS
-    MS->>BR: 4. findById(id)
-    activate BR
-    BR->>DB: 5. Truy vấn thông tin booking
-    activate DB
-    DB-->>BR: 6. Thông tin Booking
-    deactivate DB
-    BR-->>MS: 7. Booking Entity
-    deactivate BR
-    MS->>BR: 8. Cập nhật thông tin nhận ca
-    activate BR
-    BR->>DB: 9. Cập nhật status: CONFIRMED & gán clinic_id
-    activate DB
-    DB-->>BR: 10. Xác nhận cập nhật
-    deactivate DB
-    BR-->>MS: 11. Hoàn tất
-    deactivate BR
-    MS->>WS: 12. Push trạng thái CONFIRMED cho Pet Owner
-    MS-->>SC: 13. OK
-    deactivate MS
-    SC-->>UI: 14. 200 OK
-    deactivate SC
-    UI-->>CM: 15. Chuyển hướng đến trang Chi tiết ca cấp cứu
-    deactivate UI
-```
-
-#### 4.12.23 SOS Escalation & Timeout (UC-SOS-11, UC-SOS-12)
-
-```mermaid
-sequenceDiagram
-    participant Job as Scheduled Task (Hệ thống)
-    participant MS as SosMatchingService
-    participant BR as BookingRepository
-    participant DB as Database
-    participant WS as WebSocket
-
-    loop Kiểm tra mỗi 5 giây
-        Job->>MS: 1. Hoàn thành kiểm tra timeout cấp cứu
-        activate MS
-        MS->>BR: 2. Tìm các booking PENDING_CLINIC_CONFIRM quá 60s
-        activate BR
-        BR->>DB: 3. Truy vấn các booking hết hạn phản hồi
-        activate DB
-        DB-->>BR: 4. Danh sách các booking hết hạn
-        deactivate DB
-        BR-->>MS: 5. Danh sách cần xử lý
-        deactivate BR
-        
-        loop Với mỗi booking hết hạn
-            MS->>DB: 6. Lấy dữ liệu phiên tìm kiếm hiện tại
-            alt Vẫn còn phòng khám tiếp theo (index < 5)
-                MS->>MS: 7. Chọn phòng khám kế tiếp trong danh sách
-                MS->>DB: 8. Cập nhật lại index trong phiên tìm kiếm
-                MS->>WS: 9. Thông báo cho phòng khám tiếp theo
-                MS->>WS: 10. Push cập nhật "Đang tìm phòng khám tiếp theo" cho chủ pet
-            else Không còn phòng khám nào trong bán kính
-                MS->>BR: 11. Cập nhật trạng thái hủy ca do không có clinic
-                activate BR
-                BR->>DB: 12. Cập nhật status: CANCELLED
-                activate DB
-                DB-->>BR: 13. Xác nhận cập nhật
-                deactivate DB
-                BR-->>MS: 14. Hoàn tất
-                deactivate BR
-                MS->>WS: 15. Push trạng thái NO_CLINIC & cung cấp số hotline cho chủ pet
-            end
-        end
-        MS-->>Job: 16. Hoàn tất chu kỳ kiểm tra
-        deactivate MS
-    end
-```
-
-#### 4.12.24 Track Staff Location (UC-SOS-02)
-
-```mermaid
-sequenceDiagram
-    actor PO as Pet Owner
-    participant UI as Mobile App
-    participant SC as SOSController
-    participant SS as SOSService
-    participant DB as Database
-    participant LS as LocationService
-
-    loop Cập nhật mỗi 5 giây (Màn hình Tracking)
-        UI->>SC: 1. GET /api/sos/{id}/track
-        activate SC
-        SC->>SS: 2. getTrackingInfo(id)
-        activate SS
-        SS->>DB: 3. Lấy vị trí hiện tại của nhân viên
-        activate DB
-        DB-->>SS: 4. Tọa độ (Lat, Lng)
-        deactivate DB
-        SS->>LS: 5. calculateETA(vị trí nhân viên, vị trí chủ pet)
-        activate LS
-        LS-->>SS: 6. Thông tin ETA (Thời gian & Khoảng cách)
-        deactivate LS
-        SS-->>SC: 7. Trả về TrackingResponse
-        deactivate SS
-        SC-->>UI: 8. 200 OK
-        deactivate SC
-        UI-->>PO: 9. Cập nhật vị trí trên bản đồ & Hiển thị ETA mới
-    end
-```
-
-#### 4.12.25 Staff Move & Start Service (UC-SOS-06, UC-SOS-07)
-**Transitions:** `CONFIRMED → IN_PROGRESS` (khi Staff bấm "Bắt đầu di chuyển")
-
-```mermaid
-sequenceDiagram
-    actor V as Staff (Nhân viên)
-    participant UI as Staff Mobile App
+    participant UI as Manager Booking Dashboard
     participant BC as BookingController
     participant BS as BookingService
     participant BR as BookingRepository
     participant DB as Database
-    participant WS as WebSocket
 
-    V->>UI: 1. Click "Bắt đầu di chuyển"
-    activate UI
-    UI->>BC: 2. POST /api/bookings/{id}/start-moving
-    activate BC
-    BC->>BS: 3. startMoving(id)
-    activate BS
-    BS->>BR: 4. findById(id)
-    BR-->>BS: 5. Booking Entity
-    BS->>BR: 6. Update status to IN_PROGRESS
-    activate BR
-    BR->>DB: 7. Update status: IN_PROGRESS
-    activate DB
-    DB-->>BR: 8. Confirmed
-    deactivate DB
-    BR-->>BS: 9. Done
-    deactivate BR
-    Note over BS,WS: Gửi thông báo cho Pet Owner: "BS đang trên đường đến"
-    BS->>WS: 10. Notify Pet Owner (Status: IN_PROGRESS)
-    BS-->>BC: 11. Success
-    deactivate BS
-    BC-->>UI: 12. 200 OK
-    deactivate BC
-    UI-->>V: 13. Mở bản đồ dẫn đường & Start GPS Broadcast
-    deactivate UI
+    CM->>UI: Open clinic booking dashboard
+    UI->>BC: GET /bookings/clinic/{clinicId}
+    BC->>BS: getBookingsByClinic(clinicId, status, type, pageable)
+    BS->>BR: findByClinicIdAndStatusAndType(clinicId, status, type, pageable)
+    BR->>DB: Load clinic bookings by filters
+    DB-->>BR: Booking page
+    BR-->>BS: Booking page
+    BS-->>BC: Page~BookingResponse~
+    BC-->>UI: 200 OK
+    UI-->>CM: Show manager booking list with new or actionable items by filter
 ```
 
-#### 4.12.26 SOS Service Completion & Checkout (UC-SOS-08)
-**Transitions:** `IN_PROGRESS → COMPLETED` (khi Staff bấm "Checkout")
+#### 4.12.8 Sequence Diagram: Assign Staff to Booking
 
 ```mermaid
 sequenceDiagram
-    actor V as Staff (Nhân viên)
-    participant UI as Staff Mobile App
+    actor CM as Clinic Manager
+    participant UI as Assignment Modal
     participant BC as BookingController
     participant BS as BookingService
+    participant BR as BookingRepository
+    participant BSI as BookingServiceItemRepository
+    participant SAS as StaffAssignmentService
+    participant UR as UserRepository
     participant DB as Database
 
-    V->>UI: 1. Click "Checkout" (Sau khi sơ cứu xong)
-    activate UI
-    UI->>BC: 2. POST /api/bookings/{id}/checkout (CheckoutRequest)
-    activate BC
-    BC->>BS: 3. processCheckout(id, request)
-    activate BS
-    Note over BS: Tính toán phí SOS và dịch vụ đi kèm
-    BS->>DB: 4. Lưu Hóa đơn (EMR) & Update status: COMPLETED
-    BS-->>BC: 5. Success
-    deactivate BS
-    BC-->>UI: 6. 200 OK
-    deactivate BC
-    UI-->>V: 13. Hiển thị thông báo hoàn tất ca cấp cứu
-    deactivate UI
+    CM->>UI: Open assignment modal
+    UI->>BC: GET /bookings/{bookingId}/availability
+    BC->>BS: checkStaffAvailability(bookingId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load pending booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>SAS: checkStaffAvailabilityForBooking(booking)
+    SAS->>DB: Read booking services, staff, shifts, and slots
+    SAS-->>BS: StaffAvailabilityCheckResponse
+    BS-->>BC: Availability result
+    BC-->>UI: 200 OK
+
+    UI->>BC: GET /bookings/{bookingId}/staff-options
+    BC->>BS: getAvailableStaffForConfirm(bookingId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>SAS: getAvailableStaffForBookingConfirm(booking)
+    SAS->>DB: Load assignment candidates
+    SAS-->>BS: List~StaffOptionDTO~
+    BS-->>BC: Staff options
+    BC-->>UI: 200 OK
+
+    CM->>UI: Confirm assignment
+    UI->>BC: POST /bookings/{bookingId}/confirm
+    BC->>BS: confirmBooking(bookingId, request)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    opt removeUnavailableServices = true
+        BS->>SAS: checkStaffAvailabilityForBooking(booking)
+        BS->>BSI: delete(unavailableItems)
+    end
+    alt Manual assignment
+        BS->>UR: findById(selectedStaffId)
+        UR->>DB: Load chosen staff
+        DB-->>UR: User
+        UR-->>BS: Staff
+        BS->>SAS: reserveSlotsForBooking(booking)
+    else Auto assignment
+        BS->>SAS: assignStaffToAllServices(booking)
+        BS->>SAS: reserveSlotsForBooking(booking)
+    end
+    BS->>BR: save(confirmedBooking)
+    BR->>DB: Persist booking and service assignments
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-confirm side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
 ```
+
+#### 4.12.9 Sequence Diagram: Reassign Staff for Service Item
+
+```mermaid
+sequenceDiagram
+    actor CM as Clinic Manager
+    participant UI as Reassign Modal
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant BSI as BookingServiceItemRepository
+    participant SAS as StaffAssignmentService
+    participant UR as UserRepository
+    participant DB as Database
+
+    CM->>UI: Open service item reassignment
+    UI->>BC: GET /bookings/{bookingId}/services/{serviceId}/available-staff
+    BC->>BS: getAvailableStaffForReassign(bookingId, serviceId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>BSI: findById(serviceId)
+    BSI->>DB: Load booking service item
+    DB-->>BSI: Service item
+    BSI-->>BS: Service item
+    BS->>SAS: getAvailableStaffForReassign(clinicId, bookingDate, startTime, specialty, slotsNeeded, currentStaffId)
+    SAS->>DB: Read reassignment candidates
+    SAS-->>BS: List~AvailableStaffResponse~
+    BS-->>BC: Candidate list
+    BC-->>UI: 200 OK
+
+    CM->>UI: Select replacement staff
+    UI->>BC: PUT /bookings/{bookingId}/services/{serviceId}/reassign
+    BC->>BS: reassignStaffForService(bookingId, serviceId, newStaffId)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>SAS: reassignStaffForService(serviceId, newStaffId, bookingServiceItemRepository)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Reload updated booking
+    DB-->>BR: Updated booking
+    BR-->>BS: Updated booking
+    BS->>UR: findById(newStaffId)
+    UR->>DB: Load new staff
+    DB-->>UR: User
+    UR-->>BS: New staff
+    BS->>BS: Trigger post-reassign side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+```
+
+#### 4.12.10 Sequence Diagram: Update Booking Progress
+
+```mermaid
+sequenceDiagram
+    actor O as Staff or Clinic Manager
+    participant UI as Booking Detail Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant DB as Database
+
+    alt Check-in
+        O->>UI: Start in-clinic execution
+        UI->>BC: POST /bookings/{bookingId}/check-in
+        BC->>BS: checkIn(bookingId, currentUser)
+        BS->>BR: findByIdWithDetails(bookingId)
+        BR->>DB: Load booking with details
+        DB-->>BR: Booking
+        BR-->>BS: Booking
+        BS->>BR: save(status = IN_PROGRESS)
+        BR->>DB: Update booking
+        DB-->>BR: Saved booking
+        BR-->>BS: Saved booking
+        BS->>BS: Trigger post-check-in side effects
+        BS-->>BC: BookingResponse
+        BC-->>UI: 200 OK
+    else Start moving
+        O->>UI: Start movement
+        UI->>BC: POST /bookings/{bookingId}/start-moving
+        BC->>BS: startMoving(bookingId, currentUser)
+        BS->>BR: findById(bookingId)
+        BR->>DB: Load booking
+        DB-->>BR: Booking
+        BR-->>BS: Booking
+        BS->>BR: save(status = IN_PROGRESS)
+        BR->>DB: Update booking
+        DB-->>BR: Saved booking
+        BR-->>BS: Saved booking
+        BS->>BS: Trigger post-start-moving side effects
+        BS-->>BC: BookingResponse
+        BC-->>UI: 200 OK
+    else Arrived
+        O->>UI: Mark arrival
+        UI->>BC: POST /bookings/{bookingId}/arrived
+        BC->>BS: arrived(bookingId, currentUser)
+        BS->>BR: findById(bookingId)
+        BR->>DB: Load booking
+        DB-->>BR: Booking
+        BR-->>BS: Booking
+        BS->>BR: save(arrivedAt = now)
+        BR->>DB: Update booking arrival
+        DB-->>BR: Saved booking
+        BR-->>BS: Saved booking
+        BS->>BS: Trigger post-arrival side effects
+        BS-->>BC: BookingResponse
+        BC-->>UI: 200 OK
+    else Checkout
+        O->>UI: Complete execution
+        UI->>BC: POST /bookings/{bookingId}/checkout
+        BC->>BS: processCheckoutAuthorized(bookingId, request, currentUser)
+        BS->>BR: findById(bookingId)
+        BR->>DB: Load booking
+        DB-->>BR: Booking
+        BR-->>BS: Booking
+        BS->>BS: Recalculate final totals if needed
+        BS->>BR: save(status = COMPLETED, final totals)
+        BR->>DB: Update booking completion
+        DB-->>BR: Saved booking
+        BR-->>BS: Saved booking
+        BS->>BS: Trigger post-checkout side effects
+        BS-->>BC: BookingResponse
+        BC-->>UI: 200 OK
+    end
+```
+
+#### 4.12.11 Sequence Diagram: View Assigned Bookings and Staff Home Summary
+
+```mermaid
+sequenceDiagram
+    actor S as Staff
+    participant HomeUI as Staff Home
+    participant ListUI as Assigned Bookings Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant DB as Database
+
+    S->>HomeUI: Open staff home
+    HomeUI->>BC: GET /bookings/staff/home-summary
+    BC->>BS: getStaffHomeSummary(staffId)
+    BS->>BR: findByAssignedStaffIdAndBookingDate(staffId, today)
+    BR->>DB: Load today's assigned bookings
+    DB-->>BR: Today's bookings
+    BR-->>BS: Today's bookings
+    BS->>BR: findByAssignedStaffIdAndBookingDateBetweenAndStatusIn(staffId, today, next7Days, activeStatuses)
+    BR->>DB: Load upcoming assigned bookings
+    DB-->>BR: Upcoming bookings
+    BR-->>BS: Upcoming bookings
+    BS-->>BC: StaffHomeSummaryResponse
+    BC-->>HomeUI: 200 OK
+
+    S->>ListUI: Open assigned bookings
+    ListUI->>BC: GET /bookings/staff/{staffId}
+    BC->>BS: getBookingsByStaff(staffId, status, pageable)
+    BS->>BR: findByAssignedStaffIdAndStatus(staffId, status, pageable)
+    BR->>DB: Load assigned bookings
+    DB-->>BR: Booking page
+    BR-->>BS: Booking page
+    BS-->>BC: Page~BookingResponse~
+    BC-->>ListUI: 200 OK
+```
+
+#### 4.12.12 Sequence Diagram: Add Add-on Service
+
+```mermaid
+sequenceDiagram
+    actor O as Staff or Clinic Manager
+    participant UI as Booking Detail Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant CSR as ClinicServiceRepository
+    participant BSI as BookingServiceItemRepository
+    participant DB as Database
+
+    O->>UI: Open add-on service management
+    UI->>BC: GET /bookings/{bookingId}/available-add-ons
+    BC->>BS: getAvailableServicesForAddOn(bookingId, currentUser)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>CSR: findByClinicClinicIdAndIsActiveTrue(clinicId)
+    CSR->>DB: Load active clinic services
+    DB-->>CSR: Service list
+    CSR-->>BS: Service list
+    BS-->>BC: List~ClinicServiceResponse~
+    BC-->>UI: 200 OK
+
+    O->>UI: Select one service
+    UI->>BC: POST /bookings/{bookingId}/services
+    BC->>BS: addServiceToBooking(bookingId, serviceId, currentUser)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>CSR: findById(serviceId)
+    CSR->>DB: Load clinic service
+    DB-->>CSR: Clinic service
+    CSR-->>BS: Clinic service
+    BS->>BS: Calculate additional service price
+    BS->>BR: save(updatedBooking)
+    BR->>DB: Persist add-on item and new total
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-add-service side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+```
+
+#### 4.12.13 Sequence Diagram: Remove Add-on Service
+
+```mermaid
+sequenceDiagram
+    actor O as Staff or Clinic Manager
+    participant UI as Booking Detail Screen
+    participant BC as BookingController
+    participant BS as BookingService
+    participant BR as BookingRepository
+    participant BSI as BookingServiceItemRepository
+    participant DB as Database
+
+    O->>UI: Remove existing add-on item
+    UI->>BC: DELETE /bookings/{bookingId}/services/{serviceId}
+    BC->>BS: removeServiceFromBooking(bookingId, serviceId, currentUser)
+    BS->>BR: findById(bookingId)
+    BR->>DB: Load booking
+    DB-->>BR: Booking
+    BR-->>BS: Booking
+    BS->>BSI: delete(itemToRemove)
+    BSI->>DB: Delete add-on service item
+    DB-->>BSI: Deleted
+    BSI-->>BS: Success
+    BS->>BR: save(updatedBooking)
+    BR->>DB: Persist new total
+    DB-->>BR: Saved booking
+    BR-->>BS: Saved booking
+    BS->>BS: Trigger post-remove-service side effects
+    BS-->>BC: BookingResponse
+    BC-->>UI: 200 OK
+```
+
+#### 4.12.14 Cross-Reference to SRS
+
+| SRS Section | Use Case | Main Backend Flow |
+|-------------|----------|-------------------|
+| 3.8.1 | Book an Appointment | `GET /bookings/public/available-slots`, `POST /bookings/public/estimated-completion`, `POST /bookings` |
+| 3.8.2 | Book on Behalf | `POST /bookings/proxy` |
+| 3.8.3 | View My Bookings, Booking History, and Booking Details | `GET /bookings/my-bookings`, `GET /bookings/{bookingId}`, `GET /bookings/code/{bookingCode}` |
+| 3.8.4 | Cancel Booking | `POST /bookings/{bookingId}/cancel` |
+| 3.8.5 | View New Bookings | `GET /bookings/clinic/{clinicId}` |
+| 3.8.6 | Assign Staff to Booking | `GET /bookings/{bookingId}/availability`, `GET /bookings/{bookingId}/staff-options`, `POST /bookings/{bookingId}/confirm` |
+| 3.8.7 | Reassign Staff for Service Item | `GET /bookings/{bookingId}/services/{serviceId}/available-staff`, `PUT /bookings/{bookingId}/services/{serviceId}/reassign` |
+| 3.8.8 | Update Booking Progress | `POST /bookings/{bookingId}/check-in`, `POST /bookings/{bookingId}/start-moving`, `POST /bookings/{bookingId}/arrived`, `POST /bookings/{bookingId}/checkout` |
+| 3.8.9 | View Assigned Bookings | `GET /bookings/staff/{staffId}` |
+| 3.8.10 | View Staff Home Summary | `GET /bookings/staff/home-summary` |
+| 3.8.11 | Add Add-on Service | `GET /bookings/{bookingId}/available-add-ons`, `POST /bookings/{bookingId}/services` |
+| 3.8.12 | Remove Add-on Service | `DELETE /bookings/{bookingId}/services/{serviceId}` |
 
 ---
 

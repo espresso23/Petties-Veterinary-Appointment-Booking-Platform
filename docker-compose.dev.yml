@@ -148,6 +148,9 @@ services:
       APP_DEBUG: "true"
       # PostgreSQL
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/petties_db
+      # MongoDB
+      MONGODB_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+      MONGODB_DATABASE: petties_nosql
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
@@ -175,6 +178,11 @@ services:
       - ./petties-agent-serivce/app:/app/app:ro
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     networks:
       - petties-dev-network
     extra_hosts:

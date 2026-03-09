@@ -80,8 +80,14 @@ class UpdateAgentResponse(BaseModel):
 # ===== Prompt Management Schemas =====
 
 class UpdatePromptRequest(BaseModel):
-    """Update system prompt"""
-    prompt_text: str = Field(..., min_length=10)
+    """Update system prompt - Chỉ nên chứa nhân cách, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ.
+    KHÔNG thêm ReAct pattern, danh sách tools (code tự quản lý)."""
+    prompt_text: str = Field(
+        ...,
+        min_length=10,
+        description="Nội dung system prompt. Chỉ nên chứa: vai trò, giọng điệu, nhiệm vụ, quy tắc nghiệp vụ. "
+                    "KHÔNG cần thêm ReAct pattern, danh sách tools, quy tắc format kỹ thuật."
+    )
     notes: Optional[str] = None
     created_by: Optional[str] = "admin"
 

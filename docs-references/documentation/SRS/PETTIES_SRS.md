@@ -1,8 +1,8 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 2.3.0 (Added AI chat session isolation and admin playground architecture requirements)
-**Last Updated:** 2026-03-08
+**Version:** 2.3.1 (Normalized staff and scheduling requirements to match codebase)
+**Last Updated:** 2026-03-09
 **Document Status:** In Progress
 
 ---
@@ -226,15 +226,16 @@ graph TB
 | Clinic Management | View Clinic Statistics |
 | Booking Management | Book an appointment |
 | Booking Management | Book on behalf |
-| Booking Management | View my booking |
+| Booking Management | View My Bookings and Booking Details |
 | Booking Management | View booking history |
 | Booking Management | Cancel booking |
-| Booking Management | Create SOS Booking |
+| Booking Management | Start SOS Matching |
 | Booking Management | Track Staff location |
-| Booking Management | Reassign Staff |
+| Booking Management | Reassign Staff for Service Item |
 | Booking Management | Assign Staff to Booking |
-| Booking Management | Check-in Patient |
-| Booking Management | Check-out Patient |
+| Booking Management | Update Booking Progress |
+| Booking Management | Add Add-on Service |
+| Booking Management | Remove Add-on Service |
 | Booking Management | View New Bookings |
 | Clinic Discovery Management | View Clinic On Map |
 | Clinic Discovery Management | Search clinics |
@@ -319,13 +320,15 @@ graph TB
 | 23 | View Clinic Details | UC-PO-05b | 3.5.2 | ✅ ClinicController | ✅ Mobile | ✅ Done |
 | 24 | View Clinic On Map | - | - | ✅ ClinicController | ✅ Mobile | ✅ Done |
 | 25 | Book an appointment | UC-PO-06 | 3.8.1 | ✅ BookingController | ✅ Mobile | ✅ Done |
-| 26 | SOS Booking | UC-PO-15 | 3.10.1 | ✅ SosController | ✅ Mobile | ✅ Done |
-| 27 | Receive SOS Alert | UC-CM-20 | 3.10.4 | ✅ SosController | ✅ Web | ✅ Done |
-| 28 | Confirm/Decline SOS Request | UC-CM-20 | 3.10.4 | ✅ SosController | ✅ Web | ✅ Done |
+| 113 | Book on behalf | UC-PO-07 | 3.8.2 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 114 | View My Bookings and Booking Details | UC-PO-08 | 3.8.3 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 26 | Start SOS Matching | UC-PO-15 | 3.10.1 | ✅ SosController | ✅ Mobile | ✅ Done |
+| 27 | Receive SOS alert | UC-CM-20 | 3.10.3 | ✅ SosController | ✅ Web | ✅ Done |
+| 28 | Confirm/Decline SOS Request | UC-CM-20 | 3.10.3 | ✅ SosController | ✅ Web | ✅ Done |
 | 29 | Track Staff location | UC-PO-17 | 3.10.2 | ✅ BookingController | ✅ Mobile | ✅ Done |
-| 30 | Cancel SOS Matching | UC-PO-18 | 3.10.5 | ✅ SosController | ✅ Mobile | ✅ Done |
-| 31 | Checkout with Custom SOS Fee | UC-CM-21 | 3.10.6 | ✅ BookingController | ✅ Web | ✅ Done |
-| 32 | Cancel Booking | UC-PO-09 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 30 | Cancel SOS Matching | UC-PO-18 | 3.10.4 | ✅ SosController | ✅ Mobile | ✅ Done |
+| 31 | Checkout with Custom Fee | UC-STAFF-10 | 3.10.5 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 32 | Cancel Booking | UC-PO-09 | 3.8.4 | ✅ BookingController | ✅ Mobile | ✅ Done |
 | 33 | Make payment | UC-PO-10 | 3.8.2 | 🔄 Stripe Integration | ❌ | 🔄 In Progress |
 | 34 | View invoice | - | - | ❌ | ❌ | ❌ Not Started |
 | 35 | Receive medication reminders | - | - | ❌ | ❌ | ❌ Not Started |
@@ -394,36 +397,39 @@ graph TB
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 61 | Add Staff | UC-CM-03 | 3.7.1 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
-| 62 | Delete Staff | UC-CO-07 | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
-| 63 | View list of staff | UC-CM-02 | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
-| 64 | Add staff | UC-CM-03 | 3.7.1 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
-| 65 | Create Staff Shift | UC-CM-04 | 3.7.2 | ✅ StaffShiftController | ✅ Web | ✅ Done |
-| 66 | View Staff Shift Detail | UC-ST-02 | - | ✅ StaffShiftController | ✅ Web | ✅ Done |
-| 67 | Update Staff Shift | UC-CM-16 | - | ✅ StaffShiftController | ✅ Web | ✅ Done |
-| 68 | Block/Unblock Slot | - | - | ✅ StaffShiftController | ✅ Web | ✅ Done |
-| 69 | View work schedule | UC-ST-02 | - | ✅ StaffShiftController | ✅ Mobile/Web | ✅ Done |
+| 61 | Invite Staff by Email | UC-STAFF-01 | 3.7.1 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 62 | Delete Staff | UC-STAFF-02 | 3.7.2 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 63 | View List of Staffs | UC-STAFF-03 | 3.7.3 | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 64 | View Own Work Schedule | UC-STAFF-04 | 3.7.4 | ✅ StaffShiftController | ✅ Mobile/Web | ✅ Done |
+| 65 | Create Staff Shift | UC-STAFF-05 | 3.7.5 | ✅ StaffShiftController | ✅ Web | ✅ Done |
+| 66 | View Staff Shift | UC-STAFF-06 | 3.7.6 | ✅ StaffShiftController | ✅ Web | ✅ Done |
+| 67 | Delete Staff Shift | UC-STAFF-07 | 3.7.7 | ✅ StaffShiftController | ✅ Web | ✅ Done |
+| 68 | Block/Unblock Slot (Manual) | - | - | ✅ StaffShiftController | ✅ Web | ✅ Done |
+| 69 | Bulk Delete Staff Shifts | - | - | ✅ StaffShiftController | ✅ Web | ✅ Done |
 | 70 | View staff's profile | UC-ST-02 | - | ✅ UserController | ✅ Mobile | ✅ Done |
 | 71 | Update Staff's Profile | UC-ST-02 | - | ✅ UserController | ✅ Mobile | ✅ Done |
-| 104 | Block/Unblock Slot (Manual) | UC-CM-11 | 2.2.6 | ✅ StaffShiftController | ✅ Web | ✅ Done |
-| 105 | Bulk Shift Delete | UC-CM-12 | 2.2.6 | ✅ StaffShiftController | ✅ Web | ✅ Done |
+| 104 | Assign Existing Staff to Clinic | - | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
+| 105 | Assign Clinic Manager to Clinic | - | - | ✅ ClinicStaffController | ✅ Web | ✅ Done |
 
 #### Manager Booking Operations
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 72 | View New Bookings | UC-CM-05 | - | ✅ BookingController | ✅ Web | ✅ Done |
-| 73 | Assign Staff to Booking | UC-CM-06 | 3.8.3 | ✅ BookingController | ✅ Web | ✅ Done |
-| 74 | Reassign Staff | UC-CM-06 | 3.8.4 | ✅ BookingController | ✅ Web | ✅ Done |
+| 72 | View New Bookings | UC-BOOK-05 | 3.8.5 | ✅ BookingController | ✅ Web | ✅ Done |
+| 73 | Assign Staff to Booking | UC-BOOK-06 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
+| 74 | Reassign Staff for Service Item | UC-BOOK-07 | 3.8.7 | ✅ BookingController | ✅ Web | ✅ Done |
 | 75 | View request cancel booking | UC-CM-07 | - | ✅ BookingController | ✅ Web | ✅ Done |
 | 76 | Approve/ Reject Request | UC-CM-07 | - | 🔄 | ❌ | 🔄 In Progress |
 | 77 | View Statistics | UC-CO-05 | - | ❌ | ❌ | ❌ Not Started |
 | 78 | View Payment Transactions History | - | - | ❌ | ❌ | ❌ Not Started |
 | 79 | Process Refund | UC-CM-07 | - | ❌ | ❌ | ❌ Not Started |
 | 80 | View List Cancellation And Refund | - | - | ❌ | ❌ | ❌ Not Started |
-| 106 | Check Staff Availability | UC-CM-14 | 2.2.5 | ✅ BookingController | ✅ Web | ✅ Done |
-| 107 | Reassign Staff to Service | UC-CM-15 | 2.2.5 | ✅ BookingController | ✅ Web | ✅ Done |
-| 108 | Staff Home Dashboard Summary | UC-ST-14 | 2.2.5 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 106 | Check Staff Availability | UC-BOOK-06 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
+| 107 | Reassign Staff to Service | UC-BOOK-07 | 3.8.7 | ✅ BookingController | ✅ Web | ✅ Done |
+| 108 | View Staff Home Summary | UC-BOOK-10 | 3.8.10 | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 115 | View Assigned Bookings | UC-BOOK-09 | 3.8.9 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
+| 116 | Add Add-on Service | UC-BOOK-11 | 3.8.11 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
+| 117 | Remove Add-on Service | UC-BOOK-12 | 3.8.12 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
 
 #### File & Media Management
 
@@ -450,9 +456,9 @@ graph TB
 | 88 | Create prescription | UC-VT-07 | 3.9.2 | ✅ EmrController | ✅ Mobile | ✅ Done |
 | 89 | View pet's vaccination record | UC-VT-08 | 3.9.4 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
 | 90 | Update pet's vaccination record | UC-VT-08 | 3.9.4 | ✅ VaccinationController | ✅ Mobile | ✅ Done |
-| 91 | Check in patient | UC-VT-05 | 3.8.6 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
-| 92 | Checkout patient | UC-CM-10 | 3.8.6 | ✅ BookingController | ✅ Web | ✅ Done |
-| 93 | View assigned booking | UC-VT-03 | - | ✅ BookingController | ✅ Mobile | ✅ Done |
+| 91 | Check in patient | UC-BOOK-08 | 3.8.8 | ✅ BookingController | ✅ Mobile/Web | ✅ Done |
+| 92 | Checkout patient | UC-BOOK-08 | 3.8.8 | ✅ BookingController | ✅ Web | ✅ Done |
+| 93 | View Assigned Bookings | UC-BOOK-09 | 3.8.9 | ✅ BookingController | ✅ Mobile | ✅ Done |
 
 #### Vaccination Reminders
 
@@ -507,12 +513,18 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 
 | UC-ID | Use Case Name | SDD Module | SDD Section |
 |-------|---------------|------------|-------------|
-| UC-BOOK-01 | Create Booking Request | Booking Management | 3.8.1 |
-| UC-BOOK-02 | View Available Slots | Slot Calculation | 3.7.3 |
-| UC-BOOK-03 | Cancel Booking | Booking Management | 3.8.4 |
-| UC-BOOK-04 | Reschedule Booking | Booking Management | 3.8.5 |
-| UC-BOOK-05 | Check-in Patient | Booking Lifecycle | 3.8.6 |
-| UC-BOOK-06 | Check-out Patient | Booking Lifecycle | 3.8.6 |
+| UC-BOOK-01 | Book an Appointment | Booking Management | 3.8.1 |
+| UC-BOOK-02 | Book on Behalf | Booking Management | 3.8.2 |
+| UC-BOOK-03 | View My Bookings and Booking Details | Booking Management | 3.8.3 |
+| UC-BOOK-04 | Cancel Booking | Booking Management | 3.8.4 |
+| UC-BOOK-05 | View New Bookings | Booking Management | 3.8.5 |
+| UC-BOOK-06 | Assign Staff to Booking | Booking Management | 3.8.6 |
+| UC-BOOK-07 | Reassign Staff for Service Item | Booking Management | 3.8.7 |
+| UC-BOOK-08 | Update Booking Progress | Booking Management | 3.8.8 |
+| UC-BOOK-09 | View Assigned Bookings | Booking Management | 3.8.9 |
+| UC-BOOK-10 | View Staff Home Summary | Booking Management | 3.8.10 |
+| UC-BOOK-11 | Add Add-on Service | Booking Management | 3.8.11 |
+| UC-BOOK-12 | Remove Add-on Service | Booking Management | 3.8.12 |
 
 #### Clinical Operations Mapping
 
@@ -521,21 +533,23 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-SERVICE-01 | Configure Master Services | Service Management | 3.6.1 |
 | UC-SERVICE-02 | Customize Clinic Services | Service Management | 3.6.1 |
 | UC-SERVICE-03 | Configure Service Weight Tiers | Service Management | 3.6.1 |
-| UC-STAFF-01 | Add Staff Member | Staff Management | 3.7.1 |
-| UC-STAFF-02 | Remove Staff Member | Staff Management | 3.7.1 |
-| UC-STAFF-03 | Create Staff Schedule | Scheduling Management | 3.7.2 |
-| UC-STAFF-04 | Assign Staff to Booking | Booking Assignment | 3.8.3 |
+| UC-STAFF-01 | Invite Staff by Email | Staff and Scheduling Management | 3.7.1 |
+| UC-STAFF-02 | Delete Staff | Staff and Scheduling Management | 3.7.2 |
+| UC-STAFF-03 | View List of Staffs | Staff and Scheduling Management | 3.7.3 |
+| UC-STAFF-04 | View Own Work Schedule | Staff and Scheduling Management | 3.7.4 |
+| UC-STAFF-05 | Create Staff Shift | Staff and Scheduling Management | 3.7.5 |
+| UC-STAFF-06 | View Staff Shift | Staff and Scheduling Management | 3.7.6 |
+| UC-STAFF-07 | Delete Staff Shift | Staff and Scheduling Management | 3.7.7 |
 
 #### SOS Emergency Mapping
 
 | UC-ID | Use Case Name | SDD Module | SDD Section |
 |-------|---------------|------------|-------------|
-| UC-SOS-01 | Request SOS | SOS Emergency | 3.10.1 |
-| UC-SOS-02 | Track Staff Location | SOS Emergency | 3.10.2 |
-| UC-SOS-03 | View ETA & Route | SOS Emergency | 3.10.3 |
-| UC-SOS-04 | Receive Arrival Alert | SOS Emergency | 3.10.4 |
-| UC-SOS-09 | Auto-Match: Find Nearest Clinic | SOS Auto-Match | 3.10.5 |
-| UC-SOS-10 | Auto-Match: Accept/Decline SOS | SOS Auto-Match | 3.10.6 |
+| UC-PO-15 | Start SOS Matching | SOS Emergency | 3.10.1 |
+| UC-PO-17 | Track Staff location | SOS Emergency | 3.10.2 |
+| UC-CM-20 | Receive SOS alert | SOS Emergency | 3.10.3 |
+| UC-PO-18 | Cancel SOS Matching | SOS Emergency | 3.10.4 |
+| UC-STAFF-10 | Checkout with Custom Fee | SOS Emergency | 3.10.5 |
 
 #### AI Assistance Mapping
 
@@ -650,15 +664,19 @@ flowchart LR
     end
 
     subgraph Booking
-        ClinicDetail --> CreateBooking[Create Booking]
-        CreateBooking --> Payment
+        ClinicDetail --> SelectPet[Select Pet]
+        SelectPet --> SelectServices[Select Services]
+        SelectServices --> SelectDateTime[Select Date & Time]
+        SelectDateTime --> BookingConfirm[Booking Confirm]
+        BookingConfirm --> BookingSuccess[Booking Success]
         Home --> MyBookings[My Bookings]
         MyBookings --> BookingDetail[Booking Detail]
     end
 
     subgraph SOS_Emergency[SOS Emergency]
         Home --> SOSRequest[Request SOS]
-        SOSRequest --> SOSTracking[SOS Tracking]
+        SOSRequest --> SOSRadar[SOS Radar Map]
+        SOSRadar --> SOSTracking[SOS Tracking]
         SOSTracking --> SOSArrived[Staff Arrived]
     end
     subgraph Review
@@ -666,7 +684,8 @@ flowchart LR
     end
 
     subgraph Communication
-        Home --> AIChat[AI Chat]
+        Home --> ChatList[Chat List]
+        ChatList --> ChatDetail[Chat Detail]
     end
 
     subgraph Profile
@@ -702,7 +721,8 @@ flowchart LR
         StaffHome --> AssignedBookings[Assigned Bookings]
         AssignedBookings --> BookingDetail[Booking Detail]
         BookingDetail -- "Check-In" --> BookingDetail
-        BookingDetail -- "Add Service" --> BookingDetail
+        BookingDetail -- "Add Service" --> AddService[Add Service Screen]
+        AddService --> BookingDetail
         BookingDetail -- "Complete" --> BookingDetail
     end
 
@@ -818,24 +838,29 @@ flowchart LR
 
     subgraph Booking_Management[Booking Management]
         Dashboard --> BookingsList[Bookings List]
-        BookingsList --> BookingDetail[Booking Detail]
-        BookingDetail --> AssignStaff[Assign Staff]
-        BookingDetail -- "Add Service" --> BookingDetail
-        BookingDetail --> PaymentCheckout[Receive Payment & Checkout]
-        BookingDetail --> Refunds
+        BookingsList --> BookingDetailModal[Booking Detail Modal]
+        BookingDetailModal --> AssignStaff[Assign Staff]
+        BookingDetailModal --> ReassignStaff[Reassign Staff]
+        BookingDetailModal -- "Add Service" --> BookingDetailModal
+        BookingDetailModal --> PaymentCheckout[Receive Payment & Checkout]
     end
 
     subgraph Staff_Management[Staff Management]
         Dashboard --> StaffList[Staff List]
     end
 
-    subgraph Patient_Management[Patient Management]
-        Dashboard --> PatientList[Patient List]
-        PatientList --> PatientDetail[Patient Detail]
+    subgraph Schedule_And_Service[Schedule & Services]
+        Dashboard --> StaffSchedules[Staff Schedules]
+        Dashboard --> ServicesView[Services View]
     end
 
-    subgraph Financial
-        Dashboard --> RevenueReports[Revenue Reports]
+    subgraph Communication
+        Dashboard --> ManagerChat[Clinic Chat]
+    end
+
+    subgraph Clinic_Management[Clinic Management]
+        Dashboard --> ClinicInfo[Clinic Info]
+        ClinicInfo --> ClinicEdit[Clinic Edit]
     end
 
     subgraph Notification
@@ -864,27 +889,18 @@ flowchart LR
         PendingClinics --> ClinicDetail[Clinic Detail]
     end
 
-    subgraph User_Management[User Management]
-        Dashboard --> Users
-    end
-
-    subgraph Platform_Analytics[Platform Analytics]
-        Dashboard --> Statistics
-    end
-
     subgraph AI_Service_Management[AI Service Management]
         Dashboard --> AgentTools[Agent Tools]
         Dashboard --> KnowledgeBase[Knowledge Base]
         Dashboard --> AgentPlayground[Agent Playground]
     end
 
-    subgraph Moderation_Reporting[Moderation & Reporting]
-        Dashboard --> UserReports[User Reports]
-        UserReports --> ReportDetail[Report Detail]
-    end
-
     subgraph Notification
         Dashboard --> Notifications
+    end
+
+    subgraph Profile
+        Dashboard --> ProfileScreen[Profile]
     end
 ```
 
@@ -952,22 +968,22 @@ flowchart LR
 |:---:|:---|:---|:---|:---|
 | 31 | Staff Mgt | Manage Staff | Web/Owner | Clinic dropdown, StaffTable, QuickAddStaffModal (STAFF/MANAGER) |
 | 32 | Staff Mgt | Staff List | Web/Manager | Manage branch vets directory, quick add tools |
-| 33 | Booking | Create Booking | Mobile/PO | Select pet, service, date, time slot, notes |
-| 34 | Booking | Payment | Mobile/PO | Stripe/Cash checkout with cost breakdown |
-| 35 | Booking | My Bookings | Mobile/PO | Appointment list: Upcoming, Completed, Cancelled |
-| 36 | Booking | Booking Detail | Mobile/PO | Real-time status timeline, actions, contact |
-| 37 | Booking | Assigned Bookings | Mobile/Staff | List of assigned bookings (Today, Upcoming, Done) |
-| 38 | Booking | Booking Detail | Mobile/Staff | Appointment details, pet info, owner contact, start check-in |
-| 39 | Booking | Bookings List | Web/Staff | Bookings with advanced table filtering |
-| 40 | Booking | Booking Detail | Web/Staff | Appointment details, triage actions |
-| 41 | Booking | Bookings List | Web/Manager | Oversight of branch appointments |
-| 42 | Booking | Assign Staff | Web/Manager | Assigning available doctors to requests |
-| 43 | Booking | Refunds | Web/Manager | Cancellation management, refund processing |
-| 44 | Clinical | Examination View | Mobile/Staff | Active examination screen (In-Progress) |
+| 33 | Booking | Booking Wizard | Mobile/PO | Multi-step flow: Select pet, services, date/time, confirm, success |
+| 34 | Booking | My Bookings | Mobile/PO | Appointment list with tabs and support for direct/proxy bookings |
+| 35 | Booking | Booking Detail | Mobile/PO | Booking detail, cancel/rebook actions, SOS tracking entry point |
+| 36 | Booking | Assigned Bookings | Mobile/Staff | Staff worklist with status filters and booking detail access |
+| 37 | Booking | Booking Detail | Mobile/Staff | Appointment details, owner contact, execution actions, add-on actions |
+| 38 | Booking | Add Service | Mobile/Staff | Dedicated screen for selecting add-on services from booking detail |
+| 39 | Booking | Bookings List | Web/Staff | Assigned bookings with filters, detail panel, add-on actions |
+| 40 | Booking | Booking Detail | Web/Staff | Detail panel for assigned booking execution and add-on removal |
+| 41 | Booking | Booking Management Dashboard | Web/Manager | Branch booking oversight with filters and pending actions |
+| 42 | Booking | Booking Detail Modal | Web/Manager | Booking detail modal for confirm, add service, cancel, checkout |
+| 43 | Booking | Reassign Staff Modal | Web/Manager | Reassign one booking service item to another staff member |
+| 44 | Clinical | Booking Detail | Mobile/Staff | Active-care view with check-in, start-moving, arrived, checkout |
 | 45 | Clinical | Create EMR | Mobile/Staff | Clinical notes (SOAP format), prescription entry |
-| 46 | Clinical | Checkout | Web/Manager | Receive payment & Close booking (COMPLETED) |
+| 46 | Clinical | Checkout Action | Web/Manager | Receive payment and finalize booking from booking detail modal |
 | 47 | Clinical | Add Vaccination | Mobile/Staff | Record new immunization entries |
-| 48 | Clinical | Examination Hub | Web/Staff | Main hub for managing active examinations |
+| 48 | Clinical | Examination Workspace | Web/Staff | Booking detail plus EMR/vaccination access from clinical workflow |
 
 ##### 3.1.2.6 Patient & Schedule Management (#50-58)
 
@@ -990,7 +1006,7 @@ flowchart LR
 | 59 | SOS Emergency | Create SOS Request | Mobile/PO | Wizard to create SOS booking: address selection (Location Picker / GPS), pet selection, symptoms input. Includes cancel button and lat/lng coordinates. |
 | 60 | SOS Emergency | SOS Tracking | Mobile/PO | Real-time GPS map showing vet location, route, and ETA |
 | 61 | SOS Emergency | Start SOS Travel | Mobile/Staff | Emergency GPS toggle, route visual, geofence arrival confirmation |
-| 62 | Communication | AI Chat | Mobile/PO | Chat with AI assistant (3 modes: RAG Knowledge, Symptom Checker, AI Booking) |
+| 62 | Communication | Chat List | Mobile/PO | Conversation list with clinics, unread counters, realtime updates |
 | 63 | Pet Health | Pet EMR History | Mobile/PO | View pet's medical records timeline (SOAP notes, prescriptions) |
 | 64 | Pet Health | Pet Vaccination History | Mobile/PO | View pet's vaccination records with next due dates and reminders |
 | 65 | Notification | Notifications | Mobile/PO, Staff | In-app notification center for users and staff |
@@ -1005,10 +1021,10 @@ flowchart LR
 | 74 | User Mgt | Users | Web/Admin | Centralized management of all user accounts |
 | 75 | Analytics | Statistics | Web/Admin | Specialized reports, data export tools |
 | 76 | AI Mgt | Agent Tools | Web/Admin | Manage MCP tools for AI Agent |
-| 77 | AI Mgt | Knowledge Base | Web/Admin | RAG config, Upload docs, Query Tester |
-| 78 | AI Mgt | Agent Playground | Web/Admin | Prompt config, params tuning, chat testing |
-| 79 | Moderation | User Reports | Web/Admin | Queue of violation reports from users |
-| 80 | Moderation | Report Detail | Web/Admin | Panel for moderation actions (Warn/Suspend/Ban) |
+| 77 | AI Mgt | Knowledge Base | Web/Admin | RAG config, upload docs, and document management |
+| 78 | AI Mgt | Agent Playground | Web/Admin | Playground session list, prompt testing, trace review |
+| 79 | Notification | Notifications | Web/Admin | Operational and system notifications |
+| 80 | Profile | Profile | Web/Admin | Account information and profile management |
 
 #### 3.1.3 Screen Authorization
 
@@ -1386,13 +1402,18 @@ Figure 3. Screen User Registration (Web) - Data Entry
 Figure 4. Screen User Registration (Web) - OTP Verification
 
 **Function details**
-- **Data:** FullName, PhoneNumber, Email, Password, ConfirmPassword, OTP.
+- **Data:**
+    - **Input fields:** `fullName`, `phoneNumber`, `email`, `password`, `confirmPassword`, `otp`.
+    - **Output fields:** account activation result, issued token data, and created user profile summary.
 - **Validation:** 
     - All fields are required.
     - Phone/Email must not exist in the database.
     - Password must be at least 6 characters (BR-12).
     - OTP must match the one stored in Redis (BR-13).
-- **Business rules:** BR-11, BR-12, BR-13.
+- **Business rules:**
+    - BR-11
+    - BR-12
+    - BR-13
 - **Normal case:**
     1. User fills the registration form and submits.
     2. System sends OTP to the provided email.
@@ -1435,12 +1456,16 @@ Figure 5. Screen Universal Login (Mobile)
 Figure 6. Screen Universal Login (Web)
 
 **Function details**
-- **Data:** Username, Password, OAuth ID Token.
+- **Data:**
+    - **Input fields:** `usernameOrEmail`, `password`, optional `oauthIdToken`.
+    - **Output fields:** authenticated user summary, role, access token, refresh token, and redirect target context.
 - **Validation:** 
     - Valid credentials.
     - Account status must be `ACTIVE`.
     - Role `PET_OWNER` must use Mobile platform.
-- **Business rules:** BR-11, BR-16.
+- **Business rules:**
+    - BR-11
+    - BR-16
 - **Normal case:**
     1. User enters correct email and password.
     2. System verifies and redirects to the appropriate dashboard.
@@ -1481,7 +1506,9 @@ Figure 9. Screen Forgot Password (Web) - Email Request
 Figure 10. Screen Reset Password (Web) - OTP & New Password
 
 **Function details**
-- **Data:** Email, OTP, NewPassword.
+- **Data:**
+    - **Input fields:** `email`, `otp`, `newPassword`.
+    - **Output fields:** password reset result and session invalidation confirmation.
 - **Validation:** OTP must be valid.
 - **Normal case:**
     1. User verifies email with OTP.
@@ -1515,7 +1542,9 @@ Figure 11. Screen Session Termination (Mobile)
 Figure 12. Screen Session Termination (Web)
 
 **Function details**
-- **Data:** Authorization Header (Bearer AccessToken).
+- **Data:**
+    - **Input fields:** authenticated session token from request header.
+    - **Output fields:** logout confirmation and token invalidation result.
 - **Validation:** 
     - Authorization Header must be present.
     - Token must follow the "Bearer <token>" format.
@@ -1572,12 +1601,15 @@ Figure 12. Screen Session Termination (Web)
 Figure 19. Screen Create New Pet Profile (Mobile)
 
 **Function details**
-- **Data:** PetName, Species, Breed, BirthDate, Weight, Gender, Avatar.
+- **Data:**
+    - **Input fields:** `petName`, `species`, `breed`, `birthDate`, `weight`, `gender`, `avatar`.
+    - **Output fields:** created pet profile summary and initialized health-hub context.
 - **Validation:** 
     - Pet Name is mandatory.
     - Birth date must be before the current date.
     - Weight must be > 0.
-- **Business rules:** BR-26.
+- **Business rules:**
+    - BR-26
 - **Normal case:**
     1. User adds "Bella" (Dog, 2 years old) and saves.
     2. Bella appears in the list and is ready for booking.
@@ -1612,7 +1644,8 @@ Figure 20. Screen Manage Pet Profile (Mobile)
 
 **Function details**
 - **Logic:** Ensures medical integrity by not hard-deleting patient data with existing exam history.
-- **Business rules:** BR-005-01 (EMR linking).
+- **Business rules:**
+    - BR-21
 - **Abnormal/Exception cases:**
     - A1. Unauthorized Delete – User tries to delete a pet they do not own.
 
@@ -1643,7 +1676,12 @@ Figure 21. Screen View Pet Health Hub (Mobile)
 Figure 22. Screen View Pet Health Hub (Web)
 
 **Function details**
-- **Business rules:** BR-009-01 (Data sharing).
+- **Business rules:**
+    - BR-21
+    - BR-24
+    - BR-25
+    - BR-39
+    - BR-41
 - **Abnormal/Exception cases:**
     - A1. No history – Displays "This pet has no medical records yet."
     - A2. Access denied – Clinic staff without an appointment for the pet attempts to view history (if BR-009-03 is strictly enforced).
@@ -1679,11 +1717,14 @@ Figure 22. Screen View Pet Health Hub (Web)
 Figure 23. Screen Search & Filter (Mobile)
 
 **Function details**
-- **Data:** Keywords, Location (Lat/Long), CategoryID, MinRating.
+- **Data:**
+    - **Input fields:** `keywords`, `location`, `latitude`, `longitude`, `categoryId`, `minRating`.
+    - **Output fields:** filtered clinic list with distance, rating, and service-match summary.
 - **Validation:** 
     - At least one search criteria or default "All Nearby" is used.
     - Goong API Key must be valid.
-- **Business rules:** BR-003-05 (Only APPROVED clinics shown).
+- **Business rules:**
+    - BR-15
 - **Normal case:**
     1. User types "Vaccine" and selects "Near me".
     2. System lists 3 clinics within 5km.
@@ -1719,7 +1760,9 @@ Figure 23. Screen Search & Filter (Mobile)
 Figure 24. Screen Clinic Details (Mobile)
 
 **Function details**
-- **Data:** ClinicID.
+- **Data:**
+    - **Input fields:** `clinicId`.
+    - **Output fields:** clinic profile, address, hours, service list, staff summary, and booking entry options.
 - **Validation:** Clinic must be `APPROVED` and `ACTIVE`.
 - **Normal case:**
     1. User views "PetCare Center".
@@ -1763,11 +1806,14 @@ Figure 24. Screen Clinic Details (Mobile)
 Figure 26. Screen Clinic Registration (Web)
 
 **Function details**
-- **Data:** ClinicName, Address, Phone, Latitude, Longitude, BusinessLicense, Photos.
+- **Data:**
+    - **Input fields:** `clinicName`, `address`, `phone`, `latitude`, `longitude`, `businessLicense`, `photos`.
+    - **Output fields:** created clinic registration record with `PENDING` approval state and owner linkage.
 - **Validation:** 
     - License file is mandatory.
     - Clinic name must be unique on the platform.
-- **Business rules:** BR-003-05.
+- **Business rules:**
+    - BR-15
 - **Normal case:**
     1. Owner submits "Sai Gon Pet Clinic" with full documentation.
     2. Status becomes `PENDING` awaiting admin review.
@@ -1835,7 +1881,9 @@ Figure 27. Screen Clinic Approval & Moderation (Web)
 Figure 28. Screen Global Service Definition (Web)
 
 **Function details**
-- **Data:** Name, Description, Category.
+- **Data:**
+    - **Input fields:** `name`, `description`, `category`.
+    - **Output fields:** created or updated master-service template summary.
 - **Business rules:** N/A
 - **Normal case:**
     1. Clinic Owner navigates to Master Services catalog.
@@ -1868,7 +1916,9 @@ Figure 28. Screen Global Service Definition (Web)
 Figure 29. Screen Branch Pricing Configuration (Web)
 
 **Function details**
-- **Data:** BasePrice, TierSurcharges.
+- **Data:**
+    - **Input fields:** `basePrice`, `tierSurcharges`.
+    - **Output fields:** branch pricing configuration with calculated tier structure.
 - **Validation:** Price cannot be negative.
 - **Logic:** Total price is calculated as `Base + Surcharge` during booking.
 - **Business rules:** N/A
@@ -1902,7 +1952,9 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 3. System saves updates to `CLINIC` table.
 
 **Function details**
-- **Data:** Description, Phone, Email, WorkingHours.
+- **Data:**
+    - **Input fields:** `description`, `phone`, `email`, `workingHours`.
+    - **Output fields:** updated clinic information summary.
 - **Validation:** Phone must be 10 digits. Email must be valid.
 
  #### *3.6.6 Create/Update/Delete Clinic Service (UC-CO-03)*
@@ -1924,7 +1976,8 @@ Figure 29. Screen Branch Pricing Configuration (Web)
 3. Delete: System soft-deletes the service if it has no active bookings.
 
 **Function details**
-- **Business rules:** BR-012 (Deletion blocked if active bookings exist).
+- **Business rules:**
+    - BR-20
 
  #### *3.6.7 Inherit From Master Service*
 **User Story:**
@@ -1952,1060 +2005,724 @@ Figure 29. Screen Branch Pricing Configuration (Web)
     4. Manager redirected to Pricing page for that service.
 
 ### 3.7 Staff Management & Scheduling
- 
- #### *3.7.1 Invite New Staff (UC-CM-03 / UC-CO-06)*
-**User Story:**
-> *As a Clinic Owner/Manager, I want to invite new staff members via email so that they can securely access their role-specific dashboard using their existing Google accounts.*
 
-**Function trigger**
-- **Navigation path:** Staff Management → "Invite New Member".
-- **Timing frequency:** On demand.
+This section documents the seven primary staff and scheduling use cases currently normalized for Petties. Supporting backend operations such as assigning an existing account to a clinic, assigning a clinic manager, blocking or unblocking slots, and bulk deleting shifts remain implemented in code but are treated as secondary operations rather than primary use cases in this section.
 
-**Function description**
+#### *3.7.1 Invite Staff by Email (UC-STAFF-01)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Staff Management -> Invite Staff.
+- **Timing Frequency:** On demand.
+
+**Function description:**
 - **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Add Veterinarians or Managers to the clinic team.
-- **Interface:**
-    - Email Address – text input
-    - Role Selection – dropdown (Staff/Manager)
-    - Specialty – dropdown (Visible only if Role is Staff)
+- **Purpose:** Link an existing user account or create a new user shell by email, then assign that account to the clinic with the selected role.
+- **Interface:** Email input, role selector, specialty selector for `STAFF`.
+- **Data processing:**
+  1. User enters email, role, and optional specialty.
+  2. System validates clinic access and role permissions.
+  3. System checks whether the clinic already has a manager when the requested role is `CLINIC_MANAGER`.
+  4. System looks up an existing user by email.
+  5. System either updates that user with clinic assignment and role data or creates a new user record with the submitted email.
 
-**Data processing**
-1. Manager enters email and selects role/specialty.
-2. System validates email format and uniqueness within the context of active invitations.
-3. System creates a `USER` record with `PENDING_INVITE` status (or links existing user).
-4. System sends an email with an acceptance link.
-
-**Screen layout**
+**Screen layout:**
 Figure 30. Screen Staff Invitation (Web)
 
-**Function details**
-- **Data:** Email, Role, Specialty.
-- **Validation:** 
-    - Email required.
-    - Specialty required if Role = Staff.
-- **Business rules:** BR-35, BR-45, BR-46, BR-47.
-- **Normal case:**
-    1. Manager invites "dr.tung@gmail.com" as a Staff (Surgery).
-    2. Dr. Tung receives an email.
-    3. Dr. Tung logs in with Google and is automatically assigned to the clinic.
-- **Abnormal/Exception cases:**
-    - A1. User already in another clinic – Block invitation (BR-47).
-    - A2. User blocked/banned – Prevent invitation.
-
- #### *3.7.2 Remove Staff Member (UC-CM-04)*
-**User Story:**
-> *As a Clinic Owner/Manager, I want to remove a staff member from my clinic so that they no longer have access to clinic operations and scheduling.*
-
-**Function trigger**
-- **Navigation path:** Staff Management → Select Staff → "Remove Staff".
-- **Timing frequency:** On demand.
-
-**Function description**
-- **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Revoke a staff member's association with the clinic (resignation, termination, or role change).
-- **Interface:**
-    1. **Staff Management Table:** List of all staff members with action menu
-    2. **Remove Button:** Three-dot menu → "Remove Staff"
-    3. **Confirmation Dialog:** Warning message with staff name + assigned shifts count
-    4. **Confirm/Cancel Buttons:** Final action buttons
-
-**Data processing**
-1. User clicks "Remove Staff" for a specific staff member.
-2. System displays confirmation modal with warning about active shifts.
-3. User confirms removal.
-4. System validates that staff has no active bookings (status IN_PROGRESS).
-5. System unassigns staff from clinic (sets `working_clinic_id = NULL`).
-6. System deletes all future shifts for this staff (soft delete).
-7. System sends notification to removed staff via email.
-
-**Screen layout**
-Figure 31. Screen Staff Removal Confirmation Dialog (Web)
-
-**Function details**
+**Function details:**
 - **Data:**
-    - staffId (UUID, required) - ID of staff member to remove
-    - clinicId (UUID, required) - Clinic ID (from path parameter)
-- **Validation:**
-    - **Error Handling:**
-        - E1. Staff has active bookings → Error: "Không thể xóa nhân viên đang có lịch hẹn đang thực hiện"
-        - E2. Staff not found → Error: "Nhân viên không tồn tại"
-        - E3. Staff not in this clinic → Error: "Nhân viên không thuộc phòng khám này"
-        - E4. Cannot remove self → Error: "Không thể tự xóa chính mình khỏi phòng khám"
-    - **Authorization Rules:**
-        - Clinic Owner can remove any staff (Manager or Staff role)
-        - Clinic Manager can only remove Staff role (not other Managers)
-- **Business rules:** BR-48 (Staff can only belong to one clinic at a time).
-- **Normal case:**
-    1. Manager navigates to Staff Management page.
-    2. Manager clicks three-dot menu for "Dr. Nguyen Minh".
-    3. Manager clicks "Remove Staff".
-    4. Confirmation modal shows: "Remove Dr. Nguyen Minh? This will delete 5 future shifts."
-    5. Manager confirms → System removes staff, deletes shifts, sends notification.
-    6. Toast: "Staff removed successfully".
-- **Abnormal/Exception cases:**
-    - A1. Staff has IN_PROGRESS booking → Show error "Cannot remove staff with active appointments".
-    - A2. Last manager in clinic → Warn "Removing last manager will prevent scheduling operations".
+  - **Input fields:** `clinicId`, `email`, `role`, optional `specialty`.
+  - **Output fields:** updated clinic membership result and invited or linked staff summary.
+- **Validation:** Email is required; specialty is required for `STAFF`; a clinic can have only one manager; an account already linked to another clinic cannot be invited into this clinic.
+- **Business rules:** Clinic Managers can invite only `STAFF`; invited users sign in later with the same Google email; invitation currently persists assignment data in the backend and does not depend on a separate invitation-mail workflow.
+- **Normal case:** Owner invites `vet.a@clinic.com` as `STAFF`, the system creates or updates the account, and the account becomes associated with the clinic.
+- **Abnormal case:** Existing user already belongs to another clinic, or a manager tries to invite another manager.
 
- #### *3.7.3 View Staff List (UC-CM-05)*
-**User Story:**
-> *As a Clinic Owner/Manager, I want to view a list of all staff members currently associated with my branch so that I can manage my team.*
+#### *3.7.2 Delete Staff (UC-STAFF-02)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Staff Management -> Staff row -> Delete Staff.
+- **Timing Frequency:** On demand.
 
-**Function trigger**
-- **Navigation path:** Dashboard → Staff Management.
-- **Timing frequency:** On demand.
-
-**Function description**
+**Function description:**
 - **Actors/Roles:** Clinic Owner, Clinic Manager.
-- **Purpose:** Provide an overview of all staff members assigned to the clinic for monitoring and management.
-- **Interface:**
-    1. **Staff List Table:** Columns: Avatar, Full Name, Role, Specialty, Status, Actions
-    2. **Search Bar:** Filter by name or email
-    3. **Role Filter:** Dropdown (All/Manager/Staff)
-    4. **Action Menu:** Three-dot menu for each staff (View Details / Remove)
+- **Purpose:** Remove a staff member's current clinic assignment.
+- **Interface:** Staff list row, delete action, confirmation UI.
+- **Data processing:**
+  1. User selects a staff member from the clinic roster.
+  2. System loads the clinic, the target user, and the current authenticated user.
+  3. System validates that the target user belongs to the clinic and that the caller has sufficient permission.
+  4. System clears `workingClinic` on the target user.
+  5. System saves the updated user record.
 
-**Data processing**
-1. System queries all users where `working_clinic_id` matches current clinic.
-2. System displays staff members sorted by role (Manager first, then Staff).
-3. User can search by name or email to filter results.
-4. User can click action menu to view details or remove staff.
+**Screen layout:**
+Figure 31. Screen Staff Removal Confirmation (Web)
 
-**Screen layout**
+**Function details:**
+- **Data:**
+  - **Input fields:** `clinicId`, `userId`.
+  - **Output fields:** detached staff result and updated clinic roster state.
+- **Validation:** The target user must exist and already belong to the clinic; Clinic Managers cannot remove another clinic manager; clinic-level authorization is required.
+- **Business rules:** The current backend flow removes clinic association only; it does not automatically delete the staff member's shifts in `ClinicStaffService`.
+- **Normal case:** Clinic Manager removes a veterinarian from the clinic roster and the account is detached from the clinic.
+- **Abnormal case:** Target user does not belong to the clinic, or Clinic Manager attempts to remove another manager.
+
+#### *3.7.3 View List of Staffs (UC-STAFF-03)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Staff Management.
+- **Timing Frequency:** On demand.
+
+**Function description:**
+- **Actors/Roles:** Clinic Owner, Clinic Manager, Admin.
+- **Purpose:** View the current clinic roster for management and scheduling operations.
+- **Interface:** Staff table with avatar, name, username, email, role, phone, and specialty.
+- **Data processing:**
+  1. User opens the clinic staff screen.
+  2. System loads the clinic by `clinicId`.
+  3. System reads the clinic's assigned staff collection.
+  4. System maps each user to `StaffResponse` and returns the list.
+
+**Screen layout:**
 Figure 32. Screen Staff List Management (Web)
 
-**Function details**
+**Function details:**
 - **Data:**
-    - clinicId (UUID, required) - Clinic ID from path parameter
-    - Response: List of StaffResponse objects containing:
-        - userId (UUID) - Staff user ID
-        - fullName (String) - Staff full name
-        - email (String) - Staff email address
-        - avatar (String, optional) - Avatar URL
-        - role (Role enum) - CLINIC_MANAGER or STAFF
-        - specialty (StaffSpecialty enum, optional) - Only for STAFF role
-        - status (String) - Active/Inactive status
-- **Validation:**
-    - User must be Clinic Owner or Clinic Manager
-    - If Clinic Manager: can only view staff from their own clinic
-- **Business rules:** BR-45 (Only Manager and Staff roles are listed, Owner excluded).
-- **Normal case:**
-    1. Manager opens Staff Management page.
-    2. System displays 8 staff members: 1 Manager + 7 Staff (Veterinarians).
-    3. Manager uses search "Nguyen" → Filters to 3 matching staff.
-    4. Manager clicks "View Details" → Opens staff profile modal.
-- **Abnormal/Exception cases:**
-    - A1. No staff assigned → Display empty state "Chưa có nhân viên nào. Hãy mời nhân viên mới."
-    - A2. Network error → Toast "Không thể tải danh sách nhân viên".
+  - **Input fields:** `clinicId`.
+  - **Output fields:** clinic roster list with staff identity, role, specialty, and contact summary.
+- **Validation:** Caller must have one of the allowed roles for clinic staff viewing.
+- **Business rules:** The roster is sourced from the clinic's assigned staff set; the response includes role and specialty information needed by management screens.
+- **Normal case:** Clinic Owner opens the roster and sees all current managers and staff of the clinic.
+- **Abnormal case:** Clinic does not exist, or caller is not authorized to view the clinic roster.
 
- #### *3.7.4 View Own Work Schedule (UC-STAFF-01)*
-**User Story:**
-> *As a Staff, I want to view my personal work schedule (shifts) so that I know when I'm expected to work and can plan my time accordingly.*
+#### *3.7.4 View Own Work Schedule (UC-STAFF-04)*
+**Function trigger:**
+- **Navigation path:** Staff Mobile/Web -> My Schedule.
+- **Timing Frequency:** On demand.
 
-**Function trigger**
-- **Navigation path:** Staff Mobile → Bottom Tab "Schedule" OR Staff Web → Sidebar "My Schedule".
-- **Timing frequency:** On demand.
+**Function description:**
+- **Actors/Roles:** Staff.
+- **Purpose:** Let a staff member view their own shifts within a selected date range.
+- **Interface:** Date-range filter, schedule list or calendar, shift detail entry point.
+- **Data processing:**
+  1. Staff selects a date range.
+  2. Controller resolves the authenticated user.
+  3. System loads shifts for that staff within the range.
+  4. System also loads overnight shifts from the previous day that continue into the range.
+  5. System returns sorted shift responses with slot statistics.
 
-**Function description**
-- **Actors/Roles:** Staff (Mobile/Web).
-- **Purpose:** Display all shifts assigned to the currently logged-in staff member.
-- **Interface:**
-    1. **Calendar View:** Monthly calendar with shift markers
-    2. **List View:** Detailed list of shifts with date, time, break info
-    3. **Shift Card:** Shows work date, start/end time, break times, overnight indicator, notes
-    4. **Filter:** Date range picker (default: current week)
-    5. **Slot Stats:** Total slots, available, booked, blocked counts per shift
+**Screen layout:**
+Figure 33. Screen My Work Schedule (Mobile)
+Figure 34. Screen My Work Schedule (Web)
 
-**Data processing**
-1. Staff opens Schedule screen.
-2. System queries all shifts where `staff_id = current_user_id`.
-3. System displays shifts in calendar + list view.
-4. User can select date range to view future/past shifts.
-5. User clicks on a shift → View detailed slot breakdown.
-
-**Screen layout**
-Figure 33. Screen My Work Schedule (Mobile - Staff)
-Figure 34. Screen My Work Schedule (Web - Staff)
-
-**Function details**
+**Function details:**
 - **Data:**
-    - staffId (UUID, auto-filled from authenticated user)
-    - startDate (LocalDate, required) - Start of date range
-    - endDate (LocalDate, required) - End of date range
-    - Response: List of StaffShiftResponse containing:
-        - shiftId (UUID) - Shift ID
-        - staffId (UUID) - Staff user ID
-        - staffName (String) - Staff full name
-        - staffAvatar (String, optional) - Avatar URL
-        - clinicId (UUID) - Clinic ID
-        - clinicName (String) - Clinic name
-        - workDate (LocalDate) - Scheduled work date
-        - startTime (LocalTime) - Shift start time
-        - endTime (LocalTime) - Shift end time
-        - breakStart (LocalTime, optional) - Break start time
-        - breakEnd (LocalTime, optional) - Break end time
-        - isOvernight (Boolean) - True if shift spans midnight
-        - notes (String, optional) - Manager notes for this shift
-        - totalSlots (Integer) - Total number of 30-minute slots
-        - availableSlots (Integer) - Available slots count
-        - bookedSlots (Integer) - Booked slots count
-        - blockedSlots (Integer) - Blocked slots count
-        - displayDate (LocalDate) - Date to display shift on calendar
-        - isContinuation (Boolean) - True if overnight shift continuation from previous day
-- **Validation:**
-    - User must have role STAFF
-    - Cannot view other staff's schedules
-- **Business rules:** BR-49 (Staff can only view their own shifts).
-- **Normal case:**
-    1. Staff opens "My Schedule" tab.
-    2. System displays calendar with 5 shifts marked for the current week.
-    3. Staff clicks on Monday 2026-03-10 → Sees shift 08:00-17:00 with 1h lunch break.
-    4. Staff sees slot stats: 15 total slots, 8 booked, 7 available.
-- **Abnormal/Exception cases:**
-    - A1. No shifts assigned → Display empty state "Bạn chưa có ca làm việc nào".
-    - A2. Overnight shift display → Show on both workDate and next day with "(Tiếp ca)" badge.
+  - **Input fields:** `startDate`, `endDate`.
+  - **Output fields:** staff shift list with display date, time range, and slot statistics.
+- **Validation:** Only `STAFF` can access `/shifts/me`; the user can view only their own schedule through this flow.
+- **Business rules:** Overnight shifts are shown as continuation items on the following display date; shift responses include total, available, booked, and blocked slot counts.
+- **Normal case:** Staff opens the current-week schedule and sees assigned shifts with slot statistics.
+- **Abnormal case:** No assigned shifts exist in the selected range.
 
- #### *3.7.5 Create Staff Shift (UC-CM-06)*
-**User Story:**
-> *As a Clinic Manager, I want to assign specific working hours for Staff across multiple dates using a visual drag-to-create interface so that I can quickly schedule shifts without filling forms.*
+#### *3.7.5 Create Staff Shift (UC-STAFF-05)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Scheduling -> Create Shift.
+- **Timing Frequency:** Weekly planning or on demand.
 
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → Calendar Grid View → Click empty cell + drag.
-- **Timing frequency:** Weekly or monthly planning.
+**Function description:**
+- **Actors/Roles:** Clinic Owner, Clinic Manager.
+- **Purpose:** Create one or more shifts for a staff member and auto-generate booking slots.
+- **Interface:** Staff selector, work-date list, start time, end time, repeat weeks, overnight flag, force-update option, notes.
+- **Data processing:**
+  1. User submits shift data for a selected staff member.
+  2. System validates staff-clinic ownership, work dates, time range, and overnight rules.
+  3. System validates each requested day against clinic operating hours unless `forceUpdate` is enabled.
+  4. System creates a new shift or updates the existing same-day shift when force-update is allowed.
+  5. System generates 30-minute slots and saves the shift.
+  6. System sends batch notifications for newly assigned or updated shifts.
 
-**Function description**
-- **Actors/Roles:** Clinic Manager, Clinic Owner.
-- **Purpose:** Create staff work shifts using visual drag-to-create UX with automatic slot generation.
-- **Interface (Web):**
-    1. **Staff Shift Grid (Calendar Table):**
-       - **Rows:** Staff members (each staff = 1 row)
-       - **Columns:** Dates (week view, 7 columns for Mon-Sun)
-       - **Cells:** Empty (clickable) or Shift blocks (colored with time range)
-    2. **Drag-to-Create Interaction:**
-       - **Step 1:** Manager clicks empty cell → **Staff Selector Dropdown** appears inline
-       - **Step 2:** Manager selects staff from dropdown
-       - **Step 3:** Manager **drags mouse horizontally** across date cells to select multi-day range
-       - **Step 4:** On **mouse release** → System auto-creates shifts with default time (08:00-17:00)
-       - **No modal form**, no manual date/time input needed
-    3. **Shift Block (Visual):**
-       - Color-coded by staff
-       - Shows time range (e.g., "08:00-17:00")
-       - Click to view details in sidebar
-    4. **Sidebar Detail Panel (when click existing shift):**
-       - Staff name + avatar
-       - Work date(s)
-       - Time range (start, end, break)
-       - Slot statistics (total, booked, available, blocked)
-       - Actions: **Delete Shift** button
+**Screen layout:**
+Figure 35. Screen Create Staff Shift (Web)
 
-**Data processing**
-1. Manager opens Calendar Grid View (default: current week).
-2. Manager clicks an empty cell in the grid → Staff selector dropdown appears.
-3. Manager selects staff "Dr. Nguyen Minh" from dropdown.
-4. Manager **holds mouse button and drags** across 3 date cells (Mon, Tue, Wed).
-5. On **mouse release**, system captures:
-   - Selected staffId
-   - Start date (first cell) and end date (last cell)
-   - Default time: 08:00-17:00 (from clinic operating hours)
-6. System sends API request with:
-   - staffId
-   - workDates: [Mon, Tue, Wed]
-   - startTime: 08:00
-   - endTime: 17:00
-   - breakStart/breakEnd: auto-filled from clinic OH
-   - repeatWeeks: 1 (default, no repeat)
-7. System validates against clinic operating hours and existing shifts.
-8. System creates 3 StaffShift records and auto-generates ~16 slots per shift.
-9. Grid auto-refreshes → New shift blocks appear in colored cells.
-10. Toast displays: "Created 3 shifts for Dr. Nguyen Minh".
-
-**Screen layout**
-Figure 35. Staff Shift Grid Calendar - Drag-to-Create (Web)
-Figure 36. Sidebar Shift Detail Panel (Web)
-
-**Function details**
+**Function details:**
 - **Data:**
-    - **Shift Creation Request (auto-generated from drag interaction):**
-        - staffId (UUID, required) - Selected from dropdown
-        - workDates (List<LocalDate>, required) - Date range from drag selection (1-14 dates)
-        - startTime (LocalTime, default) - 08:00 (or clinic opening time)
-        - endTime (LocalTime, default) - 17:00 (or clinic closing time)
-        - breakStart (LocalTime, optional) - Auto-filled from clinic operating hours
-        - breakEnd (LocalTime, optional) - Auto-filled from clinic operating hours
-        - isOvernight (Boolean, default false) - Calculated based on time
-        - repeatWeeks (Integer, default 1) - No repeat for drag-create
-        - forceUpdate (Boolean, default false) - Skip conflicts by default
-        - notes (String, optional) - Empty for drag-create
-    - **Response:**
-        - List of StaffShiftResponse (newly created shifts)
-        - Summary: "Created X shifts, skipped Y (conflicts)"
-- **Validation:**
-    - **Error Handling:**
-        - E1. Staff not found → "Nhân viên không tồn tại"
-        - E2. Staff not in this clinic → "Nhân viên không thuộc phòng khám này"
-        - E3. More than 14 dates dragged → "Không thể tạo quá 14 ca cùng lúc"
-        - E4. Work date in the past → Skip with warning
-        - E5. Clinic closed on dragged day → Skip with warning "Phòng khám đóng cửa vào Thứ Hai"
-        - E6. Shift already exists and forceUpdate=false → Skip with warning "Đã có ca làm"
-    - **Field Validation:**
-        - workDates: At least 1 date (from drag), max 14 dates
-        - Default time range must be within clinic operating hours
-    - **Drag Interaction Validation:**
-        - Must drag horizontally (across dates in same row)
-        - Must select staff before dragging
-        - Cannot drag across different staff rows
-- **Business rules:** BR-50 (Auto slot generation), BR-51 (Default time from clinic OH), BR-52 (Skip conflicts without prompt).
-- **Normal case:**
-    1. Manager opens Calendar Grid for Week 12 (March 10-16).
-    2. Manager clicks empty cell on Monday row for Dr. Nguyen Minh.
-    3. Staff dropdown appears → Manager selects "Dr. Nguyen Minh".
-    4. Manager drags from Monday to Friday (5 cells).
-    5. Manager releases mouse → System creates 5 shifts (Mon-Fri, 08:00-17:00).
-    6. Grid refreshes → 5 colored shift blocks appear.
-    7. Toast: "Created 5 shifts for Dr. Nguyen Minh".
-- **Abnormal/Exception cases:**
-    - A1. Drag includes past date (Sunday is yesterday) → System skips Sunday, creates 4 shifts (Mon-Thu), toast: "Created 4 shifts, skipped 1 (past date)".
-    - A2. Shift already exists on Wednesday → System creates Mon, Tue, Thu, Fri (4 shifts), skips Wed, toast: "Created 4 shifts, skipped 1 (already exists)".
-    - A3. Clinic closed on Tuesday → System creates Mon, Wed, Thu, Fri (4 shifts), skips Tue, toast: "Created 4 shifts, skipped 1 (clinic closed)".
-    - A4. Manager drags more than 14 cells → System limits to first 14 dates, shows warning modal "Tối đa 14 ca cùng lúc".
-    - A5. Network error during creation → Loading indicator, retry button appears.
+  - **Input fields:** `staffId`, `workDates`, `startTime`, `endTime`, `repeatWeeks`, `isOvernight`, `forceUpdate`, `notes`.
+  - **Output fields:** created or updated shift items with generated slot summaries and skipped-date result details.
+- **Validation:** Staff must belong to the clinic; at least one work date is required; maximum 14 work dates per request; past dates are skipped; booked-slot conflicts block force-updating for the affected day.
+- **Business rules:** Slots are auto-generated in 30-minute intervals; break time is derived from clinic operating hours when available; overnight shifts are supported; unsuccessful days may be skipped while valid days are still created.
+- **Normal case:** Clinic Manager creates shifts for one staff member across several dates and receives a success response with created shift items.
+- **Abnormal case:** All requested days are invalid because the clinic is closed, shifts already exist, or booked-slot conflicts prevent updates.
 
+#### *3.7.6 View Staff Shift (UC-STAFF-06)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Scheduling -> Shift Calendar/List.
+- **Timing Frequency:** On demand.
 
- #### *3.7.6 View Staff Shift (UC-CM-07)*
-**User Story:**
-> *As a Clinic Manager, I want to view all staff shifts for my clinic in a date range so that I can monitor coverage and identify scheduling gaps.*
+**Function description:**
+- **Actors/Roles:** Clinic Owner, Clinic Manager, Staff.
+- **Purpose:** View clinic shift data by date range and inspect a specific shift in detail.
+- **Interface:** Date-range filter, clinic schedule list or calendar, shift detail panel.
+- **Data processing:**
+  1. User requests clinic shifts for a date range.
+  2. System loads all shifts for that clinic within the range.
+  3. System appends overnight continuations from the previous day.
+  4. User opens one shift item.
+  5. System loads shift detail together with slots and booking-related slot metadata.
 
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Schedules → Select date range.
-- **Timing frequency:** Daily or on demand.
+**Screen layout:**
+Figure 36. Screen Staff Shift Calendar (Web)
+Figure 37. Screen Staff Shift Detail (Web)
 
-**Function description**
-- **Actors/Roles:** Clinic Manager, Clinic Owner.
-- **Purpose:** View all staff shifts in a calendar or list format for scheduling oversight.
-- **Interface:**
-    1. **Calendar View:** Monthly calendar with color-coded shift indicators per staff
-    2. **List View:** Table with columns: Staff Name, Date, Time, Slots Stats, Actions
-    3. **Date Range Picker:** Filter by start/end date
-    4. **Staff Filter:** Dropdown to view shifts for specific staff or "All Staff"
-    5. **Shift Detail Modal:** Click on shift → View full details + slot breakdown
-
-**Data processing**
-1. Manager selects date range (e.g., current week).
-2. System queries all shifts for clinic in that range.
-3. System includes overnight shifts from previous day that extend into range.
-4. System displays shifts in calendar with staff name + time labels.
-5. Manager clicks on shift → Modal shows detailed slot list with booking info.
-
-**Screen layout**
-Figure 37. Screen Staff Shift Calendar (Web)
-Figure 38. Screen Shift Detail Modal (Web)
-
-**Function details**
+**Function details:**
 - **Data:**
-    - clinicId (UUID, required) - Clinic ID from path
-    - startDate (LocalDate, required) - Start of date range
-    - endDate (LocalDate, required) - End of date range
-    - Response: List of StaffShiftResponse (same structure as UC-STAFF-01)
-    - Shift Detail includes:
-        - slots (List of SlotResponse) - All 30-minute slots with status
-        - Each SlotResponse contains:
-            - slotId (UUID)
-            - startTime/endTime (LocalTime)
-            - status (AVAILABLE/BOOKED/BLOCKED)
-            - bookingId (UUID, if booked)
-            - petName/petOwnerName (String, if booked)
-            - serviceName/serviceCategory (String, if booked)
-- **Validation:**
-    - User must be Clinic Manager/Owner of this clinic
-    - Date range cannot exceed 3 months
-- **Business rules:** BR-53 (Overnight shifts appear on next day with continuation badge).
-- **Normal case:**
-    1. Manager opens Schedule Calendar.
-    2. Manager selects "This Week" → Sees 25 shifts across 5 staff members.
-    3. Manager clicks on "Dr. Minh - Mon 08:00-17:00".
-    4. Modal shows 16 slots: 8 booked (green), 6 available (blue), 2 blocked (gray).
-    5. Manager sees booking details for booked slots (pet name + service).
-- **Abnormal/Exception cases:**
-    - A1. No shifts in range → Empty state "Chưa có ca làm việc nào trong khoảng thời gian này".
-    - A2. Overnight shift → Displayed on both days with badge "(Ca đêm)" and "(Tiếp ca)".
+  - **Input fields:** `clinicId`, `startDate`, `endDate`, optional `shiftId`.
+  - **Output fields:** clinic shift list and shift-detail data using `StaffShiftResponse` with nested `SlotResponse`.
+- **Validation:** Clinic schedule listing requires clinic-level access; shift detail requires one of the allowed roles.
+- **Business rules:** Clinic view includes overnight continuation records; shift detail can expose booked slot context such as booking, pet, owner, and service information.
+- **Normal case:** Clinic Manager opens the weekly schedule, then opens one shift to review slots and booking occupancy.
+- **Abnormal case:** No shifts exist in the selected range, or the requested shift does not exist.
 
- #### *3.7.7 Delete Staff Shift (UC-CM-08)*
-**User Story:**
-> *As a Clinic Manager, I want to delete a staff shift so that I can correct scheduling mistakes or handle staff unavailability.*
+#### *3.7.7 Delete Staff Shift (UC-STAFF-07)*
+**Function trigger:**
+- **Navigation path:** Web Dashboard -> Scheduling -> Shift Detail -> Delete Shift.
+- **Timing Frequency:** On demand.
 
-**Function trigger**
-- **Navigation path:** Schedule Calendar/List → Select Shift → "Delete Shift".
-- **Timing frequency:** On demand.
+**Function description:**
+- **Actors/Roles:** Clinic Owner, Clinic Manager.
+- **Purpose:** Remove a shift that is no longer needed.
+- **Interface:** Shift detail view, delete action, confirmation UI.
+- **Data processing:**
+  1. User selects a shift to remove.
+  2. System loads the shift with its slots.
+  3. System checks whether any slot is already booked.
+  4. If no booked slot exists, system deletes the shift and its related slots.
+  5. System notifies the affected staff member about the deleted shift.
 
-**Function description**
-- **Actors/Roles:** Clinic Manager, Clinic Owner.
-- **Purpose:** Remove a scheduled shift from the system.
-- **Interface:**
-    1. **Delete Button:** Three-dot menu → "Delete Shift"
-    2. **Confirmation Dialog:** Warning with shift details + booked slots count
-    3. **Confirm/Cancel Buttons:** Final action
+**Screen layout:**
+Figure 38. Screen Delete Staff Shift Confirmation (Web)
 
-**Data processing**
-1. Manager clicks "Delete Shift" for a specific shift.
-2. System checks if shift has booked slots (status BOOKED).
-3. If booked slots exist → Block deletion with error message.
-4. If no booked slots → Display confirmation modal.
-5. Manager confirms → System deletes shift (cascade deletes available/blocked slots).
-6. System sends notification to staff: "Ca làm ngày {date} đã bị hủy".
-
-**Screen layout**
-Figure 39. Screen Delete Shift Confirmation (Web)
-
-**Function details**
+**Function details:**
 - **Data:**
-    - shiftId (UUID, required) - Shift ID to delete
-- **Validation:**
-    - **Error Handling:**
-        - E1. Shift has booked slots → "Không thể xóa ca có lịch hẹn đang hoạt động"
-        - E2. Shift not found → "Ca làm việc không tồn tại"
-        - E3. Shift not in manager's clinic → "Không có quyền xóa ca làm của phòng khám khác"
-    - **Authorization:**
-        - Only Clinic Manager/Owner can delete shifts
-- **Business rules:** BR-54 (Cannot delete shifts with active bookings).
-- **Normal case:**
-    1. Manager selects shift "Dr. Minh - Fri 08:00-17:00".
-    2. Manager clicks "Delete Shift".
-    3. Confirmation: "Delete shift on 2026-03-14? No bookings affected."
-    4. Manager confirms → Shift deleted, 16 slots removed.
-    5. Notification sent to Dr. Minh: "Ca làm ngày 2026-03-14 đã bị hủy".
-    6. Toast: "Shift deleted successfully".
-- **Abnormal/Exception cases:**
-    - A1. Shift has 3 booked slots → Error: "Không thể xóa ca có lịch hẹn đang hoạt động".
-    - A2. Manager tries to delete shift from yesterday → Allowed (past shifts can be deleted for cleanup).
-
- #### *3.7.8 Bulk Delete Shifts (UC-CM-09)*
-**User Story:**
-> *As a Clinic Manager, I want to delete multiple shifts at once so that I can quickly clear incorrect schedules or handle mass cancellations.*
-
-**Function trigger**
-- **Navigation path:** Schedule Calendar → Multi-select mode → Select shifts → "Delete Selected".
-- **Timing frequency:** On demand.
-
-**Function description**
-- **Actors/Roles:** Clinic Manager, Clinic Owner.
-- **Purpose:** Delete multiple shifts in a single operation for efficiency.
-- **Interface:**
-    1. **Multi-select Mode:** Checkbox on each shift card
-    2. **Select All Button:** Bulk select all visible shifts
-    3. **Delete Selected Button:** Appears when ≥2 shifts selected
-    4. **Confirmation Dialog:** Shows list of shifts to delete + total booked slots count
-    5. **Progress Indicator:** Shows deletion progress (X/N shifts deleted)
-
-**Data processing**
-1. Manager enables multi-select mode.
-2. Manager selects 5 shifts across different staff and dates.
-3. Manager clicks "Delete Selected".
-4. System validates each shift:
-    - Shifts with booked slots → Skipped with warning
-    - Shifts without booked slots → Queued for deletion
-5. Confirmation modal shows: "Delete 5 shifts? 2 shifts have bookings and will be skipped."
-6. Manager confirms → System deletes valid shifts one by one.
-7. System sends individual notifications to affected staff.
-8. Toast displays summary: "Deleted 3 shifts, skipped 2 (active bookings)".
-
-**Screen layout**
-Figure 40. Screen Bulk Delete Shifts (Web)
-Figure 41. Screen Bulk Delete Confirmation Dialog (Web)
-
-**Function details**
-- **Data:**
-    - shiftIds (List<UUID>, required) - List of shift IDs to delete (min 2, max 100)
-- **Validation:**
-    - **Error Handling:**
-        - E1. Empty list → "Vui lòng chọn ít nhất một ca làm việc"
-        - E2. More than 100 shifts → "Không thể xóa quá 100 ca cùng lúc"
-        - E3. Individual shift errors → Collected and displayed in summary
-    - **Partial Success Handling:**
-        - System processes all shifts individually
-        - Shifts with bookings are skipped, others deleted
-        - Final toast shows: success count + skipped count + reasons
-- **Business rules:** BR-55 (Partial deletion allowed, display summary of results).
-- **Normal case:**
-    1. Manager selects 10 shifts for "Dr. Minh" next week.
-    2. Manager clicks "Delete Selected".
-    3. Confirmation: "Delete 10 shifts? All shifts are available."
-    4. Manager confirms → System deletes 10 shifts in ~2 seconds.
-    5. Notification to Dr. Minh: "10 ca làm mới bị hủy".
-    6. Toast: "Deleted 10 shifts successfully".
-- **Abnormal/Exception cases:**
-    - A1. Mixed results → "Deleted 7 shifts, skipped 3 (2 with bookings, 1 not found)".
-    - A2. All shifts have bookings → "Cannot delete any shifts: all have active bookings".
+  - **Input fields:** `shiftId`.
+  - **Output fields:** deletion result and refreshed schedule state.
+- **Validation:** Only Clinic Owner and Clinic Manager can perform this operation; a shift with `BOOKED` slots cannot be deleted.
+- **Business rules:** Deleting a shift cascades to its non-booked slots through persistence rules; notification is sent after successful deletion.
+- **Normal case:** Manager deletes an unbooked shift and the staff member receives a schedule update notification.
+- **Abnormal case:** Shift contains active bookings or the shift ID is not found.
 
 ---
 
-### 3.8 Booking & Appointment Lifecycle Flow
+### 3.8 Booking Management & Lifecycle
 
- #### *3.8.1 Book Appointment (UC-PO-06 / UC-PO-07)*
+This section covers standard booking management flows for regular appointments and home-visit execution. SOS-specific flows are documented separately in Section 3.10.
+
+#### *3.8.1 Book an Appointment (UC-PO-06)*
 **User Story:**
-> *As a Pet Owner, I want to search and book a veterinary service for my pet at a specific time so that I can ensure they get the care they need.*
+> *As a Pet Owner, I want to create a booking for my pet so that I can reserve services at a clinic with a valid date and time slot.*
 
-**Function trigger**
-- **Navigation path:** Clinic Details → "Book Now" OR Mobile Home → "Quick Booking".
+**Function trigger:**
+- **Navigation path:** Pet Owner Mobile -> Clinic Detail Screen -> `Đặt lịch ngay` -> Select Pet -> Select Services -> Select Date & Time -> Booking Confirm.
 - **Timing frequency:** On demand.
 
-**Function description**
+**Function description:**
 - **Actors/Roles:** Pet Owner.
-- **Purpose:** Pre-book a veterinary service at a specific time and location.
+- **Purpose:** Create a standard appointment booking by selecting service, date, and available time slot.
 - **Interface:**
-    - Pet Selection – dropdown/list
-    - Service Selection – dropdown/list
-    - Calendar – date selection
-    - Slot Grid – select 30-minute intervals
-    - "Proceed to Payment" – primary action button
+  - Service selection step
+  - Date picker
+  - Available slot grid
+  - Estimated completion summary
+  - Final review and confirm action
+- **Data processing:**
+  1. User selects clinic services and the desired booking date.
+  2. System loads available time slots and estimated completion information for the selected options.
+  3. User confirms pet, clinic, services, and schedule data.
+  4. System validates ownership, pricing, and slot availability, then creates the booking with its initial status.
 
-**Data processing**
-1. **[BOK-1] Mobile Booking Wizard (3-step Flow):**
-    - **Step 1: Service Selection**: Owner selects one or more services.
-    - **Step 2: Time Selection (Smart Availability)**: System finds slots where a vet with required specialty is free.
-    - **Step 3: Review & Summary**: Calculation of `Base Price` + `Surcharge` + `Distance Fee` (for UC-PO-07).
-2. System creates a `BOOKING` record with `PENDING` status.
-3. System locks the selected slots for 15 minutes.
+**Screen layout:**
+Figure 38. Mobile Booking Wizard with service, date, slot, and review steps.
 
- #### *3.8.2 Process Payment (UC-PO-10)*
+**Function details:**
+- **Data:**
+  - **Input fields:** `petId`, `clinicId`, `bookingDate`, `bookingTime`, `serviceIds`, `type`, optional pricing-preview inputs for slot and completion estimation.
+  - **Output fields:** available slot options, estimated completion information, and created booking data such as `bookingId`, `bookingCode`, `status`, `totalPrice`.
+- **Validation:**
+  - Pet must belong to the authenticated user.
+  - Clinic and selected services must be valid and active.
+  - Selected slot must remain available at submission time.
+- **Business rules:**
+  - BR-01
+  - BR-03
+  - BR-04
+  - BR-05
+  - BR-06
+  - BR-17
+- **Normal case:** User selects service, date, and slot, reviews the summary, and the booking is created successfully.
+- **Abnormal/Exception cases:**
+  - A1. User selects a valid slot but another user books it first; the system asks the user to choose a different slot.
+  - E1. User attempts to book less than 2 hours before the appointment time; the system rejects the booking.
+  - A2. User selects a `HOME_VISIT` service without complete address or GPS data; the flow stays on the booking wizard until the location is completed.
+  - E2. Pet ownership, clinic validity, or pricing validation fails; the system rejects booking creation.
+
+#### *3.8.2 Book on Behalf (UC-PO-07)*
 **User Story:**
-> *As a Pet Owner, I want to securely pay for my booking online so that my appointment is confirmed.*
+> *As a Pet Owner, I want to create a booking on behalf of another recipient so that I can help someone else reserve a clinic appointment.*
 
-**Data processing**
-1. User enters card info (Stripe).
-2. Upon success:
-    - Booking status: `PENDING` → `CONFIRMED`.
-    - Payment status: `UNPAID` → `PAID`.
-3. System notifies Clinic Manager via Web Dashboard.
-
- #### *3.8.3 Lifecycle Stages & Workflow Statuses*
-The system tracks the full physical and logistical flow of each appointment using implemented booking statuses:
-
-| Status | Trigger | Description |
-| :--- | :--- | :--- |
-| **PENDING** | Booking Created | Waiting for payment completion (15-min TTL). |
-| **CONFIRMED** | Payment Success | Appointment is locked. Clinic confirms and staff is assigned. |
-| **IN_PROGRESS** | Staff Action | Staff starts moving (for HOME_VISIT/SOS) or starts examination (IN_CLINIC). |
-| **COMPLETED** | System | Final archival status. Review popup triggered for Owner. |
-| **CANCELLED** | User/System Action | Booking is cancelled before service execution. |
-| **NO_SHOW** | Staff/Clinic Action | Owner does not arrive within allowed grace period. |
-
- #### *3.8.4 Assign Staff to Booking (UC-CM-06)*
-**User Story:**
-> *As a Clinic Manager, I want to assign a qualified veterinarian to each pending appointment so that the service is delivered by the right professional.*
-
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Management → Booking Dashboard → Click "Chi tiết" on PENDING/CONFIRMED booking.
-
-**Data processing:**
-1. Manager selects vet per service based on specialty matching.
-2. System verifies vet availability and assigns.
-3. Booking status remains `CONFIRMED` (Staff assigned).
-
- #### *3.8.5 Handle Patient Check-in/Out (UC-VT-05 / UC-CM-10)*
-**Data processing:**
-1. Check-in: Status → `IN_PROGRESS`. Start EMR.
-2. Check-out: Status → `COMPLETED`. Lock EMR.
-
- #### *3.8.6 Add Incurred Service / Final Settlement (UC-VT-09)*
-1. Staff adds additional services during exam.
-2. System updates `total_price`.
-3. Payment method check (CASH vs Online) for final settlement.
-
-#### *3.8.7 View My Bookings (UC-PO-08)*
-**User Story:**
-> As a Pet Owner, I want to view all my bookings in one place so that I can track appointments, past visits, and their statuses.
-
-**Function trigger**
-- **Navigation path:** Mobile Home → Tab "Lịch hẹn" hoặc Profile → "Lịch sử đặt lịch".
+**Function trigger:**
+- **Navigation path:** Pet Owner Mobile -> Clinic Detail Screen -> booking flow -> Select Pet screen -> enable `Đặt hộ` / beneficiary information flow.
 - **Timing frequency:** On demand.
 
-**Function description**
-- **Actors/Roles:** Pet Owner
-- **Purpose:** Xem danh sách tất cả các booking đã tạo, bao gồm cả lịch sử và upcoming appointments.
+**Function description:**
+- **Actors/Roles:** Pet Owner.
+- **Purpose:** Create a booking for a recipient who is different from the logged-in user.
 - **Interface:**
-    - Tabs: "Sắp tới" / "Đã hoàn thành" / "Đã hủy"
-    - Booking Card – hiển thị: Pet, Clinic, Service, Date/Time, Status badge
-    - Filter – lọc theo trạng thái, ngày tháng
+  - Recipient information form
+  - Proxy pet information form
+  - Service and schedule selection
+  - Review and confirm action
+- **Data processing:**
+  1. User fills recipient and proxy pet data.
+  2. User confirms the selected clinic, services, and schedule for the recipient.
+  3. System validates recipient information, requested services, and schedule.
+  4. System creates the booking and links it to the proxy booker for later lookup.
 
-**Data processing**
-1. System query tất cả bookings có `pet_owner_id = current_user`.
-2. Nhóm theo status:
-    - **Sắp tới:** `PENDING`, `CONFIRMED`, `IN_PROGRESS`
-    - **Đã hoàn thành:** `COMPLETED`
-    - **Đã hủy:** `CANCELLED`, `NO_SHOW`
-3. Hiển thị danh sách với sorting theo `booking_date DESC`.
-4. User click vào booking → Xem chi tiết (UC-PO-09 detail view).
+**Screen layout:**
+Figure 39. Proxy Booking Flow with recipient and proxy pet information.
 
-**Screen layout**
-Figure 38. Screen My Bookings List (Mobile) - Tab-based view.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `GET /api/bookings/my?status={status}&page={page}`
-    - Response: `List<BookingDTO>` (id, petName, clinicName, serviceName, bookingDate, bookingTime, status, totalPrice)
-- **Validation:** User phải đăng nhập.
-- **Business rules:** BR-BOK-08 tại (5.1 Business Rules)
-- **Normal case:** Danh sách hiển thị đầy đủ thông tin, status badge màu sắc rõ ràng.
-- **Abnormal/Exception cases:**
-    - A1. Chưa có booking nào → Hiển thị empty state "Bạn chưa có lịch hẹn nào".
-    - A2. Network error → Toast "Không thể tải danh sách lịch hẹn".
-
-#### *3.8.8 Cancel Booking (UC-PO-09)*
-**User Story:**
-> As a Pet Owner, I want to cancel my booking if I can no longer attend so that the slot becomes available for others.
-
-**Function trigger**
-- **Navigation path:** My Bookings → Chọn booking → Nút "Hủy lịch".
-- **Timing frequency:** Before check-in.
-
-**Function description**
-- **Actors/Roles:** Pet Owner
-- **Purpose:** Hủy booking khi chưa đến giờ hẹn hoặc chưa check-in.
-- **Interface:**
-    - Booking Detail Screen
-    - "Hủy lịch hẹn" – danger button
-    - Confirmation Modal – yêu cầu xác nhận + nhập lý do (optional)
-
-**Data processing**
-1. User click "Hủy lịch hẹn" → Modal xác nhận hiển thị.
-2. User confirm → System kiểm tra:
-    - Status phải là `PENDING`, `CONFIRMED` (chưa `IN_PROGRESS`).
-    - Nếu status ≥ `IN_PROGRESS` → Không cho phép hủy.
-3. System thực hiện:
-    - Update `booking.status = CANCELLED`.
-    - Restore slots về `AVAILABLE`.
-    - Tạo notification cho Staff và Clinic Manager.
-    - Nếu thanh toán online → Tạo refund request (UC-CM-07).
-4. Toast: "Đã hủy lịch hẹn thành công".
-
-**Screen layout**
-Figure 39. Screen Cancel Booking Confirmation (Mobile) - Modal dialog.
-
-**Function details**
-- **Data:**
-    - Request: `PUT /api/bookings/{id}/cancel` + `{ reason: "..." }`
-    - Response: `{ success: true, message: "Đã hủy lịch hẹn" }`
+  - **Input fields:** recipient information, proxy pet information, `clinicId`, `bookingDate`, `bookingTime`, selected `serviceIds`, booking `type`.
+  - **Output fields:** created booking data such as `bookingId`, `bookingCode`, `status`, recipient summary, and total price.
 - **Validation:**
-    - Booking phải thuộc về user hiện tại.
-    - Status phải < `IN_PROGRESS`.
-- **Business rules:** BR-BOK-09 tại (5.1 Business Rules)
-- **Normal case:** Booking status → `CANCELLED`, slots restored, notifications sent.
+  - Recipient information must be complete.
+  - Clinic, services, and schedule must be valid.
+- **Business rules:**
+  - BR-01
+  - BR-03
+  - BR-04
+  - BR-05
+  - BR-17
+- **Normal case:** User fills recipient data and successfully creates a booking on behalf of another person.
 - **Abnormal/Exception cases:**
-    - A1. Status = `IN_PROGRESS` → Toast "Không thể hủy lịch đã bắt đầu thực hiện dịch vụ".
-    - A2. Booking không tồn tại → Toast "Lịch hẹn không hợp lệ".
-    - A3. Network error → Toast "Không thể hủy lịch hẹn. Vui lòng thử lại".
+  - A1. User switches to proxy mode and enters recipient information incompletely; the screen keeps the user in the form until all required fields are filled.
+  - E1. The selected schedule violates the minimum lead-time rule or slot availability rule; the system rejects the proxy booking.
+  - A2. User prepares a home-visit proxy booking but has not completed recipient address information; the booking cannot proceed.
+  - E2. Recipient data, clinic data, or service data is invalid; the system rejects booking creation.
 
- #### *3.8.9 View Assigned Bookings (UC-ST-03)*
+#### *3.8.3 View My Bookings, Booking History, and Booking Details (UC-PO-08)*
 **User Story:**
-> As a Staff, I want to see all bookings assigned to me so that I know my schedule and can prepare for appointments.
+> *As a Pet Owner, I want to view my bookings and booking details so that I can track upcoming appointments, completed visits, and cancellations in one place.*
 
-**Function trigger**
-- **Navigation path:** Staff Mobile Home → Tab "Lịch hẹn" OR Staff Web Dashboard → Menu "Lịch của tôi".
+**Function trigger:**
+- **Navigation path:** Pet Owner Mobile -> Home -> My Bookings tab -> Booking card -> Booking Detail.
 - **Timing frequency:** On demand.
 
-**Function description**
-- **Actors/Roles:** Staff
-- **Purpose:** See bookings assigned to currently logged in staff.
+**Function description:**
+- **Actors/Roles:** Pet Owner.
+- **Purpose:** Display current bookings, booking history, and detailed information for a selected booking.
 - **Interface:**
-    - Calendar View – tháng/tuần/ngày
-    - List View – danh sách theo ngày
-    - Booking Card – hiển thị: Pet, Owner, Service, Time, Status
-    - Filter – lọc theo ngày, status
+  - Booking list tabs: Upcoming, Completed, Cancelled
+  - Booking card with pet, clinic, services, date, and status
+  - Booking detail screen
+  - Optional lookup by booking code
+- **Data processing:**
+  1. System loads the authenticated user's booking list with upcoming and history groupings.
+  2. User selects one booking card to open its detail view.
+  3. If needed, the user can search or open a booking directly by booking code.
+  4. System returns grouped booking information and full booking detail.
 
-**Data processing**
-1. System query tất cả bookings có `assigned_staff_id = current_staff`.
-2. Hiển thị theo 2 chế độ:
-    - **Calendar Mode:** Đánh dấu ngày có booking, click vào ngày → List view.
-    - **List Mode:** Danh sách chi tiết từng booking, sorted by `booking_date`, `booking_time`.
-3. Color-coded badges theo status:
-    - `CONFIRMED`: Vàng (Đã xác nhận, chờ bắt đầu)
-    - `IN_PROGRESS`: Tím (Đang thực hiện dịch vụ)
-    - `COMPLETED`: Xanh lá (Hoàn thành)
-    - `CANCELLED`/`NO_SHOW`: Xám/Đỏ (Đã hủy/Không đến)
-4. User click vào booking → Xem chi tiết pet + owner + EMR cũ.
+**Screen layout:**
+Figure 40. My Bookings List and Booking Detail Screen.
 
-**Screen layout**
-Figure 40. Screen Assigned Bookings (Mobile/Web) - Calendar + List hybrid.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `GET /api/bookings/staff/{staffId}?status={status}&page={page}&size={size}`
-    - Response: `List<BookingDetailDTO>` (id, petName, petSpecies, ownerName, ownerPhone, serviceName, bookingDate, bookingTime, status, previousEMR)
-- **Validation:** User phải có role `STAFF`.
-- **Business rules:** BR-VT-03 tại (5.1 Business Rules)
-- **Normal case:** Danh sách hiển thị đầy đủ, có thể filter và sort.
-- **Abnormal/Exception cases:**
-    - A1. Chưa có booking nào → Hiển thị empty state "Bạn chưa có lịch hẹn nào".
-    - A2. Network error → Toast "Không thể tải danh sách lịch hẹn".
-
-#### *3.8.10 Update Appointment Progress (UC-VT-04)*
-**User Story:**
-> As a Staff, I want to update the appointment status as I progress through check-in, examination, and check-out so that the system reflects real-time appointment state.
-
-**Function trigger**
-- **Navigation path:** Assigned Bookings → Chọn booking → Các nút action theo status.
-- **Timing frequency:** During appointment lifecycle.
-
-**Function description**
-- **Actors/Roles:** Staff
-- **Purpose:** Cập nhật trạng thái booking qua các giai đoạn đang được triển khai trong code: CONFIRMED → IN_PROGRESS → COMPLETED.
-- **Interface:**
-    - Booking Detail Screen với action buttons tùy status:
-        - Status `CONFIRMED`:
-            - IN_CLINIC/HOME_VISIT → Nút "Bắt đầu thực hiện dịch vụ" (check-in)
-            - SOS → Nút "Bắt đầu di chuyển" (start-moving)
-        - Status `IN_PROGRESS`:
-            - Có thể thêm dịch vụ phát sinh
-            - HOME_VISIT/SOS → "Xem lại hóa đơn & thanh toán" (checkout)
-            - IN_CLINIC → "Hoàn tất khám" (complete)
-
-**Data processing**
-1. **Check-in Flow (UC-VT-05):**
-    - Staff click "Bắt đầu thực hiện dịch vụ" → Status `CONFIRMED` → `IN_PROGRESS`.
-    - System tạo EMR shell rỗng với `booking_id`, `pet_id`, `vet_id`.
-    - Notification → Pet Owner: "Thú cưng của bạn đang được khám".
-
-2. **Start Moving (SOS):**
-    - Staff click "Bắt đầu di chuyển" → Status `CONFIRMED` → `IN_PROGRESS`.
-    - Bật GPS tracking real-time cho SOS.
-
-3. **Finish & Settlement:**
-    - Staff click "Hoàn thành khám" → Modal xác nhận.
-    - Với HOME_VISIT/SOS: thực hiện checkout để chốt hóa đơn và chuyển `COMPLETED`.
-    - Với IN_CLINIC: complete trực tiếp từ `IN_PROGRESS` → `COMPLETED`.
-
-**Screen layout**
-Figure 41. Screen Appointment Progress Actions (Mobile) - Context-aware buttons.
-
-**Function details**
-- **Data:**
-    - Request (implemented):
-        - `POST /api/bookings/{id}/check-in`
-        - `POST /api/bookings/{id}/start-moving`
-        - `POST /api/bookings/{id}/checkout`
-    - Response: `{ success: true, newStatus: "..." }`
+  - **Input fields:** pagination and filter inputs for booking list, selected `bookingId`, optional `bookingCode` for direct lookup.
+  - **Output fields:** paged booking list items and booking detail fields such as pet info, clinic info, services, schedule, status, totals, and assignment details.
 - **Validation:**
-    - Status transitions phải tuân thủ state machine (BOOKING_WORKFLOW.md).
-    - Chỉ cho phép chuyển từ `CONFIRMED` → `IN_PROGRESS` hoặc `IN_PROGRESS` → `COMPLETED` theo action hợp lệ.
-- **Business rules:** BR-VT-04 tại (5.1 Business Rules)
-- **Normal case:** Status update smooth, notifications sent đúng actor.
+  - User must be authenticated.
+  - User can only access bookings they are allowed to view.
+- **Business rules:**
+  - BR-40
+- **Normal case:** User opens My Bookings, selects one item, and views its detail successfully.
 - **Abnormal/Exception cases:**
-    - A1. EMR chưa đầy đủ khi muốn hoàn tất lịch hẹn → Toast "Vui lòng hoàn thành EMR trước khi kết thúc".
-    - A2. Invalid status transition → Toast "Không thể chuyển trạng thái này".
+  - A1. User has no direct or proxy bookings in the selected tab; the system shows an empty state.
+  - E1. User attempts to open a booking that does not belong to them; the system blocks access.
+  - A2. User opens a valid booking code that resolves to their own booking; the detail is shown successfully.
+  - E2. User enters an invalid or unauthorized booking code; the system returns a not-found or forbidden result.
 
-#### *3.8.11 Check-in Patient (UC-VT-05)*
+#### *3.8.4 Cancel Booking (UC-PO-09)*
 **User Story:**
-> As a Staff, I want to check in a patient when they arrive so that the examination process can begin.
+> *As a Pet Owner or Clinic Manager, I want to cancel a booking before execution so that invalid or no-longer-needed appointments can be removed correctly.*
 
-**Function trigger**
-- **Navigation path:** Assigned Bookings → Chọn booking với status `CONFIRMED` → Nút "Bắt đầu thực hiện dịch vụ".
-- **Timing frequency:** When patient arrives.
+**Function trigger:**
+- **Navigation path:**
+  - **Pet Owner Mobile:** My Bookings -> Booking Detail -> `Hủy lịch hẹn`.
+  - **Clinic Manager Web:** Booking Management Dashboard -> Booking Detail Modal -> `Hủy lịch`.
+- **Timing frequency:** Before service execution starts.
 
-**Function description**
-- **Actors/Roles:** Staff
-- **Purpose:** Xác nhận pet owner và thú cưng đã có mặt, bắt đầu quy trình khám.
+**Function description:**
+- **Actors/Roles:** Pet Owner, Clinic Manager.
+- **Purpose:** Cancel a valid booking and stop the appointment lifecycle before execution.
 - **Interface:**
-    - Booking Detail Screen
-    - "Check-in" – primary action button
-    - Confirmation: "Xác nhận pet owner và thú cưng đã có mặt?"
+  - Booking detail screen
+  - Cancel action with reason input
+  - Confirmation modal
+- **Data processing:**
+  1. User enters a cancellation reason.
+  2. User confirms the cancellation action.
+  3. System validates current status and actor permission.
+  4. System updates status to `CANCELLED` and sends related notifications.
 
-**Data processing**
-1. Staff click "Check-in" → Modal xác nhận hiển thị.
-2. Staff confirm → System:
-    - Update `booking.status = IN_PROGRESS`.
-    - Tạo EMR shell rỗng (MongoDB).
-    - Notification → Pet Owner: "Thú cưng của bạn đang được khám".
-3. Staff bắt đầu nhập EMR và cập nhật dịch vụ phát sinh (nếu có).
+**Screen layout:**
+Figure 41. Cancel Booking Confirmation Modal.
 
-**Screen layout**
-Figure 42. Screen Check-in Confirmation (Mobile) - Simple modal.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `PUT /api/bookings/{id}/check-in`
-    - Response: `{ success: true, emrId: "...", message: "Đã check-in" }`
+  - **Input fields:** `bookingId`, cancellation `reason`, actor identity from authenticated session.
+  - **Output fields:** updated booking data such as `bookingId`, `status`, cancellation reason, and audit timestamps.
 - **Validation:**
-    - Booking phải có status `CONFIRMED`.
-    - Staff phải là assigned staff của booking.
-- **Business rules:** BR-VT-05 tại (5.1 Business Rules)
-- **Normal case:** Status → `IN_PROGRESS`, EMR shell tạo, notification gửi.
+  - Booking must be cancellable.
+  - Actor must have permission over the booking.
+- **Business rules:**
+  - BR-02
+  - BR-08
+  - BR-09
+  - BR-10
+- **Normal case:** User confirms cancellation and the booking is updated to `CANCELLED`.
 - **Abnormal/Exception cases:**
-    - A1. Pet owner chưa đến → Staff có thể đánh dấu `NO_SHOW` (sau 15 phút).
-    - A2. Booking đã check-in rồi → Toast "Booking đã được check-in trước đó".
+  - A1. User cancels early enough and the booking moves to `CANCELLED` with the correct refund policy applied.
+  - E1. User tries to cancel within the blocked time window or after execution starts; the system rejects cancellation.
+  - A2. Clinic Manager cancels a valid booking in their clinic before execution and the system keeps the audit reason.
+  - E2. Unauthorized user or unrelated clinic attempts cancellation; the system blocks the action.
 
-#### *3.8.12 Mark Treatment Finished (UC-VT-09)*
+#### *3.8.5 View New Bookings (UC-BOOK-05)*
 **User Story:**
-> As a Staff, I want to mark the treatment as finished after completing the examination and EMR documentation so that the booking can proceed to payment and checkout.
+> *As a Clinic Manager, I want to view new clinic bookings so that I can review pending work and decide the next operational action.*
 
-**Function trigger**
-- **Navigation path:** Booking Detail (status `IN_PROGRESS`) → Nút "Hoàn thành khám".
-- **Timing frequency:** After EMR is complete.
+**Function trigger:**
+- **Navigation path:** Manager Dashboard -> Booking Management -> New Bookings.
+- **Timing frequency:** On demand and after new booking notifications.
 
-**Function description**
-- **Actors/Roles:** Staff
-- **Purpose:** Kết thúc quá trình khám, đánh dấu booking sẵn sàng thanh toán.
+**Function description:**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Load newly created or still-actionable bookings for the manager's clinic so the manager can review, assign staff, or continue operational handling.
 - **Interface:**
-    - Booking Detail Screen với EMR summary
-    - "Hoàn thành khám" – success button
-    - Final Check Modal – hiển thị summary của EMR, yêu cầu xác nhận
+  - Booking list table
+  - Status and type filters
+  - Booking detail drawer or modal
+- **Data processing:**
+  1. Clinic Manager opens the clinic booking dashboard with selected status and type filters.
+  2. System loads paged clinic booking data for the manager's clinic.
+  3. Manager opens one row to continue with assignment, cancellation, or review.
 
-**Data processing**
-1. Staff click "Hoàn thành khám" → System validate:
-    - EMR phải có `assessment` (mandatory).
-    - EMR phải có `plan` (mandatory).
-    - Nếu thiếu → Show error toast.
-2. Nếu hợp lệ → Modal xác nhận hiển thị:
-    - EMR summary (Subjective, Objective, Assessment, Plan).
-    - Prescription summary (nếu có).
-    - "Xác nhận hoàn thành khám?"
-3. Staff confirm → System:
-    - Update `booking.status = COMPLETED`.
-    - Lock EMR (status `FINALIZED`, không thể chỉnh sửa nữa).
-    - Notification → Clinic Manager: "Booking đã hoàn tất".
-    - Notification → Pet Owner: "Lịch hẹn đã hoàn thành".
+**Screen layout:**
+Figure 42. Manager Booking Dashboard with filterable booking list.
 
-**Screen layout**
-Figure 43. Screen Mark Treatment Finished (Mobile) - EMR summary modal.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `POST /api/bookings/{id}/checkout`
-    - Response: `{ success: true, message: "Đã thanh toán và hoàn tất khám" }`
+  - **Input fields:** `clinicId`, optional `status`, optional `type`, pagination inputs.
+  - **Output fields:** paged clinic booking items with booking code, customer/pet info, schedule, booking type, status, and actionable assignment context.
 - **Validation:**
-    - Booking status phải là `IN_PROGRESS`.
-    - EMR phải có `assessment` và `plan`.
-- **Business rules:** BR-VT-09 tại (5.1 Business Rules)
-- **Normal case:** Status → `COMPLETED`, EMR locked, các thông báo hoàn tất được gửi.
+  - Only Clinic Manager can use this viewing flow.
+  - Manager must belong to the clinic.
+- **Business rules:**
+  - BR-40
+- **Normal case:** Clinic Manager loads the clinic booking list and reviews new items.
 - **Abnormal/Exception cases:**
-    - A1. EMR chưa đầy đủ → Toast "Vui lòng hoàn thành Assessment và Plan trước".
-    - A2. Network error → Toast "Không thể hoàn thành khám. Vui lòng thử lại".
+  - A1. Clinic Manager opens the dashboard and sees new `PENDING` bookings that need operational action.
+  - E1. Manager tries to open another clinic's booking list; the system blocks access.
+  - A2. Manager applies filters and reviews only the booking subset needed for assignment or follow-up.
+  - E2. No booking matches the selected filters; the system returns an empty result.
 
-#### *3.8.13 Staff Home Dashboard Summary (UC-VT-14)*
+#### *3.8.6 Assign Staff to Booking (UC-BOOK-06)*
 **User Story:**
-> As a Staff, I want to see a summary of my daily schedule, upcoming appointments, and pending tasks on my home dashboard so that I can quickly understand my workload.
+> *As a Clinic Manager, I want to check staff availability and assign staff to a booking so that each service item is handled by a qualified available staff member.*
 
-**Function trigger**
-- **Navigation path:** Staff Mobile App Launch → Home Screen OR Staff Web Login → Dashboard.
-- **Timing frequency:** On login, on refresh.
+**Function trigger:**
+- **Navigation path:** Clinic Manager Web -> Booking Management Dashboard -> Booking Detail Modal -> availability list / assign staff controls -> `Xác nhận`.
+- **Timing frequency:** After booking review and before service execution.
 
-**Function description**
-- **Actors/Roles:** Staff
-- **Purpose:** Hiển thị tổng quan nhanh về lịch làm việc hôm nay và các task cần xử lý.
+**Function description:**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Verify staff availability, view assignment options, and confirm booking with assigned staff.
 - **Interface:**
-    - Dashboard Cards:
-        - "Lịch hôm nay" – số ca làm, giờ làm việc
-        - "Lịch hẹn hôm nay" – số booking (tổng / đã khám / còn lại)
-        - "Cần xử lý" – số booking đang `CONFIRMED` hoặc `IN_PROGRESS`
-        - "Upcoming" – booking sắp tới (trong 2 giờ)
+  - Availability panel
+  - Staff options list
+  - Confirm and assign action
+- **Data processing:**
+  1. Manager opens staff availability and assignment options for the selected booking.
+  2. System evaluates specialty fit, workload, slot availability, and available staff candidates.
+  3. Manager selects manual or suggested staff assignments and confirms the booking.
+  4. System validates the final assignment and reserves the booking for execution.
 
-**Data processing**
-1. System query:
-    - **Today's Shifts:** `SELECT * FROM staff_shifts WHERE staff_id = {id} AND work_date = TODAY`.
-    - **Today's Bookings:** `SELECT * FROM bookings WHERE assigned_staff_id = {id} AND booking_date = TODAY`.
-2. Tính toán:
-    - Total bookings hôm nay.
-    - Completed bookings (status `COMPLETED`).
-    - Pending bookings (status `CONFIRMED`, `IN_PROGRESS`).
-    - Upcoming bookings (booking_time trong 2 giờ tới).
-3. Hiển thị cards với số liệu và quick actions:
-    - "Xem lịch chi tiết" → Navigate to Calendar.
-    - "Xem booking cần xử lý" → Navigate to Assigned Bookings (filter `IN_PROGRESS`).
+**Screen layout:**
+Figure 43. Assign Staff Modal with availability indicators and suggested options.
 
-**Screen layout**
-Figure 44. Screen Staff Dashboard Summary (Mobile) - Card-based layout.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `GET /api/bookings/staff/home-summary`
-    - Response: `{ totalShifts, shiftHours, totalBookings, completedBookings, pendingBookings, upcomingBookings[] }`
-- **Validation:** User phải có role `STAFF`.
-- **Business rules:** BR-VT-14 tại (5.1 Business Rules)
-- **Normal case:** Dashboard hiển thị đầy đủ thông tin realtime.
-- **Abnormal/Exception cases:**
-    - A1. Không có ca làm hôm nay → Hiển thị "Bạn không có ca làm hôm nay".
-    - A2. Network error → Toast "Không thể tải dashboard".
-
-#### *3.8.14 Handle Cancellations & Refunds (UC-CM-07)*
-**User Story:**
-> As a Clinic Manager, I want to handle booking cancellations and process refunds so that customers are fairly compensated when appointments are cancelled.
-
-**Function trigger**
-- **Navigation path:** Manager Dashboard → "Booking đã hủy" section OR Notification "Booking bị hủy".
-- **Timing frequency:** When Pet Owner cancels booking.
-
-**Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Xử lý booking bị hủy, quyết định refund policy.
-- **Interface:**
-    - Cancelled Bookings List
-    - Booking Detail Screen với info: Who cancelled, Reason, Payment status
-    - Refund Actions:
-        - "Hoàn tiền toàn bộ" – full refund
-        - "Hoàn tiền một phần" – partial refund (input percentage)
-        - "Không hoàn tiền" – no refund (theo policy)
-
-**Data processing**
-1. Pet Owner hủy booking (UC-PO-09) → System:
-    - Update `booking.status = CANCELLED`.
-    - Tạo notification → Manager.
-2. Manager xem cancelled booking → Kiểm tra:
-    - Payment method: `ONLINE` (cần refund) hoặc `CASH` (không cần refund).
-    - Cancellation timing: Bao lâu trước giờ hẹn?
-3. Manager chọn refund action:
-    - **Full Refund (100%):** Nếu hủy trước 24h.
-    - **Partial Refund (50%):** Nếu hủy trong vòng 24h.
-    - **No Refund (0%):** Nếu hủy trong vòng 2h (theo policy BR-CM-07).
-4. System thực hiện:
-    - Tạo refund request tới Stripe (nếu online payment).
-    - Update `payment.status = REFUNDED` hoặc `PARTIALLY_REFUNDED`.
-    - Notification → Pet Owner: "Đã hoàn tiền {amount}".
-
-**Screen layout**
-Figure 45. Screen Handle Cancellations (Web) - Refund action modal.
-
-**Function details**
-- **Data:**
-    - Request: `POST /api/bookings/{id}/refund` + `{ refundType: "FULL" | "PARTIAL", percentage: 50 }`
-    - Response: `{ success: true, refundAmount: 200000, message: "Đã hoàn tiền" }`
+  - **Input fields:** `bookingId`, selected staff information when manual assignment is used, and optional confirm options such as removing unavailable services.
+  - **Output fields:** availability summary, suggested or selectable staff options, and confirmed booking data with assignment results.
 - **Validation:**
-    - Booking status phải là `CANCELLED`.
-    - Payment status phải là `PAID`.
-- **Business rules:** BR-CM-07 tại (5.1 Business Rules)
-- **Normal case:** Refund processed, notification sent, payment status updated.
+  - Only Clinic Manager can perform availability review and booking confirmation in this flow.
+  - Staff must belong to the same clinic and satisfy service constraints.
+  - Booking must be in an assignable state.
+- **Business rules:**
+  - BR-05
+  - BR-17
+  - BR-40
+- **Normal case:** Manager reviews staff options, confirms the booking, and assignment succeeds.
 - **Abnormal/Exception cases:**
-    - A1. Stripe refund failed → Toast "Hoàn tiền thất bại. Vui lòng thử lại".
-    - A2. Payment đã refund rồi → Toast "Booking này đã được hoàn tiền".
+  - A1. Manager opens a pending booking, reviews available staff, and confirms assignment successfully.
+  - E1. No suitable staff matches specialty, shift, or slot requirements; the system blocks confirmation.
+  - A2. Manager confirms with suggested or manual staff assignments that fit the booking constraints.
+  - E2. Booking is no longer in an assignable state when confirmation is attempted; the system rejects the action.
 
-#### *3.8.15 Receive Payment & Checkout (UC-CM-10)*
+#### *3.8.7 Reassign Staff for Service Item (UC-BOOK-07)*
 **User Story:**
-> As a Staff/Clinic Manager, I want to finalize payment and complete the booking so that the appointment lifecycle is closed correctly.
+> *As a Clinic Manager, I want to reassign a specific booking service item so that service delivery can continue when staffing changes occur.*
 
-**Function trigger**
-- **Navigation path:** Booking Detail với status `IN_PROGRESS` → Nút "Xem lại hóa đơn & thanh toán" (HOME_VISIT/SOS) hoặc "Hoàn tất khám" (IN_CLINIC).
-- **Timing frequency:** Khi kết thúc dịch vụ thực tế.
+**Function trigger:**
+- **Navigation path:** Clinic Manager Web -> Booking Management Dashboard -> Booking Detail Modal -> selected service item -> Reassign Staff modal.
+- **Timing frequency:** When operational reassignment is needed.
 
-**Function description**
-- **Actors/Roles:** Staff, Clinic Manager
-- **Purpose:** Chốt hóa đơn thực tế (bao gồm dịch vụ phát sinh), cập nhật thanh toán và hoàn tất booking.
+**Function description:**
+- **Actors/Roles:** Clinic Manager.
+- **Purpose:** Replace the assigned staff for one booking service item without recreating the booking.
 - **Interface:**
-    - Booking Detail Screen với payment summary:
-        - Total amount (base + add-ons).
-        - Payment method (CASH / ONLINE).
-    - Action buttons:
-        - Nếu `CASH` → "Xác nhận đã nhận tiền" (input amount).
-        - Nếu `ONLINE` (đã paid trước) → "Hoàn tất checkout" (direct confirm).
+  - Available staff list for one service item
+  - Reassign action with new staff selection
+- **Data processing:**
+  1. Manager opens the reassignment options for one booking service item.
+  2. System loads eligible replacement staff for that service item.
+  3. Manager selects the replacement staff.
+  4. System updates the booking service item assignment.
 
-**Data processing**
-1. Người dùng kiểm tra booking status = `IN_PROGRESS`.
-2. Người dùng mở màn hình checkout, hệ thống tổng hợp giá trị cuối cùng:
-    - Dịch vụ ban đầu + dịch vụ phát sinh.
-    - Phí di chuyển/SOS (nếu có).
-3. Người dùng xác nhận thanh toán (theo phương thức áp dụng) và checkout.
-4. System hoàn tất:
-    - Update `payment.status = PAID`.
-    - Update `booking.status = COMPLETED`.
-    - Notification → Pet Owner: "Đã hoàn thành khám. Cảm ơn bạn!".
-    - Trigger review popup sau 1 phút (UC-PO-13).
+**Screen layout:**
+Figure 44. Reassign Staff Modal for a selected booking service item.
 
-**Screen layout**
-Figure 46. Screen Receive Payment & Checkout (Web) - Payment confirmation modal.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `POST /api/bookings/{id}/checkout`.
-    - Response: `{ success: true, message: "Đã hoàn thành checkout" }`
+  - **Input fields:** `bookingId`, `serviceId`, replacement `staffId`.
+  - **Output fields:** updated booking data with revised service-item assignment, affected staff information, and current booking status.
 - **Validation:**
-    - Booking status phải là `IN_PROGRESS`.
-- **Business rules:** BR-CM-10 tại (5.1 Business Rules)
-- **Normal case:** Payment confirmed, booking completed, review triggered.
+  - Only Clinic Manager can perform reassignment in this flow.
+  - New staff must be eligible and available.
+  - Reassignment must respect booking state constraints.
+- **Business rules:**
+  - BR-05
+  - BR-17
+  - BR-40
+- **Normal case:** Manager selects a new staff member and the service item is reassigned successfully.
 - **Abnormal/Exception cases:**
-    - A1. Amount nhận < total price → Toast "Số tiền nhận không đủ".
-    - A2. Booking không ở trạng thái IN_PROGRESS → Toast "Chưa thể checkout".
+  - A1. Manager selects one service item and successfully assigns it to a different eligible staff member.
+  - E1. Replacement staff is unavailable, ineligible, or outside the clinic scope; the system rejects reassignment.
+  - A2. Only one affected service item is reassigned while the rest of the booking remains unchanged.
+  - E2. Booking state no longer permits reassignment; the system blocks the operation.
 
-#### *3.8.16 Check Staff Availability (UC-CM-14)*
+#### *3.8.8 Update Booking Progress (UC-BOOK-08)*
 **User Story:**
-> As a Clinic Manager, I want to check a vet's availability before assigning them to a booking so that I don't create scheduling conflicts.
+> *As a Staff or Clinic Manager, I want to update booking execution progress so that the system reflects the actual stage of service delivery.*
 
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Booking Detail (PENDING/CONFIRMED) → Click "Gán nhân viên" → Modal hiển thị danh sách Staff.
-- **Timing frequency:** Before assigning vet.
+**Function trigger:**
+- **Navigation path:**
+  - **Staff Mobile:** Staff Bookings -> Booking Detail -> execution action buttons.
+  - **Staff Web:** Staff Bookings -> Booking Detail panel/modal -> execution action buttons.
+  - **Clinic Manager Web:** Booking Management Dashboard -> Booking Detail Modal -> checkout action when booking is already in progress.
+- **Timing frequency:** During appointment execution.
 
-**Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Kiểm tra nhân viên nào có slot trống phù hợp với booking time.
+**Function description:**
+- **Actors/Roles:** Staff, Clinic Manager.
+- **Purpose:** Move the booking through execution milestones such as check-in, on-the-way, arrival, and checkout.
 - **Interface:**
-    - Assign Staff Modal:
-        - Dropdown "Chọn nhân viên" với availability indicators
-        - "Xem lịch chi tiết" – link to Staff Calendar
+  - Check-in button
+  - Start moving button for home visit execution
+  - Arrived button for home visit execution
+  - Checkout button
+- **Data processing:**
+  1. User performs one execution action such as check-in, start moving, arrived, or checkout.
+  2. System validates the current state and actor permission.
+  3. System updates booking execution data and emits related notifications.
 
-**Data processing**
-1. Manager chọn booking cần gán vet (booking_date, booking_time, slots_required).
-2. System query danh sách vet available tại thời điểm đó.
-3. Hiển thị danh sách Staff với:
-    - Tên nhân viên.
-    - Số slots trống hôm đó.
-    - Rating (nếu có).
-4. Manager chọn vet → Proceed to UC-CM-06 (Assign Staff).
+**Screen layout:**
+Figure 45. Booking Progress Actions by execution state.
 
-**Screen layout**
-Figure 47. Screen Check Staff Availability (Web) - Modal with vet list.
-
-**Function details**
+**Function details:**
 - **Data:**
-    - Request: `GET /api/vets/available?clinicId={id}&date={date}&time={time}&slotsRequired={n}`
-    - Response: `[ { vetId, vetName, availableSlots, rating } ]`
-- **Validation:** User phải có role `CLINIC_MANAGER`.
-- **Business rules:** BR-CM-14 tại (5.1 Business Rules)
-- **Normal case:** Danh sách Staff available hiển thị, Manager chọn được.
-- **Abnormal/Exception cases:**
-    - A1. Không có Staff nào available → Toast "Không có nhân viên khả dụng. Vui lòng chọn giờ khác".
-    - A2. Service yêu cầu specialty không có → Toast "Không có nhân viên phù hợp với chuyên môn".
-
-#### *3.8.17 Reassign Staff to Service (UC-CM-15)*
-**User Story:**
-> As a Clinic Manager, I want to reassign a booking service to a different staff if the originally assigned staff is unavailable so that the appointment can still proceed.
-
-**Function trigger**
-- **Navigation path:** Manager Dashboard → Booking với status `CONFIRMED` → Nút "Gán lại nhân viên".
-- **Timing frequency:** When vet calls in sick, emergency, or overloaded.
-
-**Function description**
-- **Actors/Roles:** Clinic Manager
-- **Purpose:** Chuyển booking từ Staff A sang Staff B khi có thay đổi nhân sự.
-- **Interface:**
-    - Booking Detail Screen
-    - "Gán lại nhân viên" – action button
-    - Reassign Modal:
-        - Current Staff: Dr. Minh
-        - Reason for reassignment – dropdown (Staff nghỉ, Staff quá tải, Cấp cứu)
-        - New Staff – dropdown (danh sách available vets từ UC-CM-14)
-
-**Data processing**
-1. Manager click "Gán lại nhân viên" → Modal hiển thị.
-2. Manager chọn lý do reassign và vet mới → Click "Xác nhận".
-3. System thực hiện:
-    - Unlock slots của Staff cũ (nếu booking chưa bắt đầu thực hiện dịch vụ).
-    - Lock slots mới cho Staff mới.
-    - Update `booking_service_item.assigned_staff_id` theo từng dịch vụ được gán lại.
-    - Notification → Staff cũ: "Booking đã được gán cho nhân viên khác".
-    - Notification → Staff mới: "Bạn được gán booking mới".
-    - Notification → Pet Owner: "Nhân viên khám thay đổi thành Dr. {new_vet_name}".
-4. Toast: "Đã gán lại nhân viên thành công".
-
-**Screen layout**
-Figure 48. Screen Reassign Staff (Web) - Modal with reason and vet selector.
-
-**Function details**
-- **Data:**
-    - Request: `POST /api/bookings/{bookingId}/services/{serviceId}/reassign` + `{ newStaffId: "...", reason: "..." }`
-    - Response: `{ success: true, newVetName: "Dr. Hùng", message: "Đã gán lại nhân viên" }`
+  - **Input fields:** `bookingId`, action type (`check-in`, `start-moving`, `arrived`, `checkout`), optional checkout values such as overridden SOS fee, actor identity from authenticated session.
+  - **Output fields:** updated booking progress fields such as `status`, `arrivedAt`, recalculated totals, and completion-related values.
 - **Validation:**
-    - Booking status phải là `CONFIRMED` (chưa bắt đầu thực hiện dịch vụ).
-    - New Staff phải có slot available tại thời điểm booking.
-- **Business rules:** BR-CM-15 tại (5.1 Business Rules)
-- **Normal case:** Staff reassigned, notifications sent, slots updated.
+  - Only valid transitions are accepted.
+  - Checkout requires an executable booking in progress.
+- **Business rules:**
+  - BR-07
+  - BR-50
+- **Normal case:** Booking moves from `CONFIRMED` to `IN_PROGRESS`, then to completed operational state.
 - **Abnormal/Exception cases:**
-    - A1. Booking đã `IN_PROGRESS` → Toast "Không thể gán lại nhân viên khi đã bắt đầu thực hiện dịch vụ".
-    - A2. New Staff không available → Toast "Nhân viên mới không có slot trống".
-    - A3. Network error → Toast "Không thể gán lại nhân viên. Vui lòng thử lại".
+  - A1. Assigned staff checks in or starts movement from a valid `CONFIRMED` booking and execution begins normally.
+  - E1. User attempts an invalid status transition; the system rejects the action.
+  - A2. Booking reaches checkout after required clinical work is completed and final totals are confirmed.
+  - E2. EMR is missing or the actor lacks permission for the current booking stage; checkout is blocked.
+
+#### *3.8.9 View Assigned Bookings (UC-BOOK-09)*
+**User Story:**
+> *As a Staff, I want to view bookings assigned to me so that I can manage my daily worklist and open each booking detail when needed.*
+
+**Function trigger:**
+- **Navigation path:** Staff Mobile/Web -> Staff Bookings list -> Booking card -> Booking Detail.
+- **Timing frequency:** On demand.
+
+**Function description:**
+- **Actors/Roles:** Staff.
+- **Purpose:** Load the current staff worklist and support direct access to booking detail.
+- **Interface:**
+  - Assigned bookings list
+  - Status filter
+  - Booking detail entry point
+- **Data processing:**
+  1. Staff opens the assigned booking list with optional status filters.
+  2. System returns paged booking data for the selected staff member.
+  3. Staff opens a selected booking to continue execution or review.
+
+**Screen layout:**
+Figure 46. Staff Assigned Bookings Screen.
+
+**Function details:**
+- **Data:**
+  - **Input fields:** `staffId`, optional status filter, pagination inputs.
+  - **Output fields:** paged assigned booking items with pet, clinic, schedule, status, and service summary fields.
+- **Validation:**
+  - Staff role is required.
+- **Business rules:**
+  - BR-40
+- **Normal case:** Staff loads assigned bookings and opens one booking detail successfully.
+- **Abnormal/Exception cases:**
+  - A1. Staff opens the assigned booking list and sees bookings currently assigned to them.
+  - E1. Staff tries to access a booking outside their authorized scope; the system blocks the detail.
+  - A2. Staff filters the list by status to focus on current work.
+  - E2. No booking matches the selected filters; the system returns an empty result.
+
+#### *3.8.10 View Staff Home Summary (UC-BOOK-10)*
+**User Story:**
+> *As a Staff, I want to view a compact summary of my booking workload so that I can quickly understand today’s tasks and upcoming appointments.*
+
+**Function trigger:**
+- **Navigation path:** Staff Mobile/Web -> Staff Home dashboard.
+- **Timing frequency:** On app open and on manual refresh.
+
+**Function description:**
+- **Actors/Roles:** Staff.
+- **Purpose:** Show an operational summary for the logged-in staff user.
+- **Interface:**
+  - Summary cards
+  - Today counts
+  - Upcoming booking preview
+- **Data processing:**
+  1. Staff opens the home dashboard.
+  2. System aggregates today's workload and returns summary data.
+  3. Staff navigates from summary cards to the detailed booking list if needed.
+
+**Screen layout:**
+Figure 47. Staff Home Summary Cards and Upcoming Booking Preview.
+
+**Function details:**
+- **Data:**
+  - **Input fields:** authenticated staff identity.
+  - **Output fields:** summary fields such as `todayBookingsCount`, `pendingCount`, `inProgressCount`, and `upcomingBookings`.
+- **Validation:**
+  - Staff role is required.
+- **Business rules:**
+  - BR-40
+- **Normal case:** Staff opens the app and immediately sees today’s workload summary.
+- **Abnormal/Exception cases:**
+  - A1. Staff opens the dashboard and sees today's assigned workload summary immediately.
+  - E1. Temporary data-loading failure prevents summary retrieval; the system shows fallback or retry state.
+  - A2. Staff uses the summary cards to navigate into detailed booking worklists.
+  - E2. Staff has no current workload; the dashboard shows zero-state summary cards.
+
+#### *3.8.11 Add Add-on Service (UC-BOOK-11)*
+**User Story:**
+> *As a Staff or Clinic Manager, I want to add permitted add-on services during booking execution so that the final invoice reflects the actual delivered services.*
+
+**Function trigger:**
+- **Navigation path:**
+  - **Staff Mobile:** Staff Bookings -> Booking Detail -> `THÊM DỊCH VỤ PHÁT SINH` / `THÊM DỊCH VỤ` -> Add Service Screen.
+  - **Staff Web:** Staff Bookings -> Booking Detail -> `Thêm dịch vụ phát sinh` modal.
+  - **Clinic Manager Web:** Booking Management Dashboard -> Booking Detail Modal -> `Thêm dịch vụ` modal.
+- **Timing frequency:** During booking execution.
+
+**Function description:**
+- **Actors/Roles:** Staff, Clinic Manager.
+- **Purpose:** Add one permitted add-on service to an active booking.
+- **Interface:**
+  - Available add-on service list
+  - Add service action
+  - Search/filter service list when supported by platform
+- **Data processing:**
+  1. User opens the list of eligible add-on services for the current booking.
+  2. User selects one eligible add-on service.
+  3. System adds the selected service to the booking.
+  4. System updates booking totals and service items.
+
+**Screen layout:**
+Figure 48. Add Add-on Service Screen or Modal from Booking Detail.
+
+**Function details:**
+- **Data:**
+  - **Input fields:** `bookingId`, selected add-on `serviceId`, actor identity from authenticated session.
+  - **Output fields:** available add-on service list, updated booking service items, newly added add-on item, and recalculated booking totals.
+- **Validation:**
+  - Booking must be in a state that allows add-on management.
+  - Only eligible clinic services can be added.
+- **Business rules:**
+  - BR-53
+  - BR-54
+- **Normal case:** User selects a valid add-on service and the booking total is recalculated.
+- **Abnormal/Exception cases:**
+  - A1. Staff or Clinic Manager adds a valid add-on service and the invoice total is updated immediately.
+  - E1. Booking is not in a state that permits add-on management; the system blocks the add action.
+  - A2. The newly added service appears separately from the original booking services in the invoice summary.
+  - E2. Selected service is not eligible for add-on use in that booking; the system rejects the add operation.
+
+#### *3.8.12 Remove Add-on Service (UC-BOOK-12)*
+**User Story:**
+> *As a Staff or Clinic Manager, I want to remove an added add-on service from a booking so that the invoice only contains services that were actually delivered.*
+
+**Function trigger:**
+- **Navigation path:**
+  - **Staff Mobile:** Staff Bookings -> Booking Detail -> existing add-on service item -> remove confirmation dialog.
+  - **Staff Web:** Staff Bookings -> Booking Detail -> add-on service list -> remove action.
+  - **Clinic Manager Web:** Booking Management Dashboard -> Booking Detail Modal -> add-on service item -> remove confirmation modal.
+- **Timing frequency:** During booking execution, after an add-on item has already been added.
+
+**Function description:**
+- **Actors/Roles:** Staff, Clinic Manager.
+- **Purpose:** Remove one existing add-on service item from an active booking.
+- **Interface:**
+  - Current add-on service list
+  - Remove add-on action
+  - Confirmation modal or inline confirm action
+- **Data processing:**
+  1. User opens the current add-on service list in booking detail.
+  2. User selects one removable add-on item.
+  3. User confirms the removal action.
+  4. System removes the selected add-on item and updates booking totals.
+
+**Screen layout:**
+Figure 49. Remove Add-on Service Confirmation from Booking Detail.
+
+**Function details:**
+- **Data:**
+  - **Input fields:** `bookingId`, removable add-on `serviceId`, actor identity from authenticated session.
+  - **Output fields:** updated booking service items, removed add-on result, and recalculated booking totals.
+- **Validation:**
+  - Booking must be in a state that allows add-on management.
+  - Only add-on service items can be removed.
+  - Original booking services cannot be removed through this flow.
+- **Business rules:**
+  - BR-53
+  - BR-54
+- **Normal case:** User removes a valid add-on service and the booking total is recalculated.
+- **Abnormal/Exception cases:**
+  - A1. Staff or Clinic Manager removes a valid add-on service and the invoice total is recalculated correctly.
+  - E1. User attempts to remove an original protected booking service; the system blocks the action.
+  - A2. The removed add-on disappears from the current booking summary while remaining audit history is preserved.
+  - E2. Booking state no longer allows add-on modification; the system rejects the removal.
 
 ---
 
@@ -3048,7 +2765,9 @@ Figure 37. Screen Clinical Examination (Mobile) - Optimized for field work (larg
 Figure 38. Screen Clinical Examination (Web) - Tabbed view for history + entry.
 
 **Function details**
-- **Data:** Subjective, Objective, Assessment, Plan (Text), Weight (Numeric), Temperature (Numeric), EMR images (List).
+- **Data:**
+    - **Input fields:** `subjective`, `objective`, `assessment`, `plan`, `weight`, `temperature`, `emrImages`.
+    - **Output fields:** saved EMR record, timeline update, and linked examination summary.
 - **Validation:** 
     - Diagnosis (A) and Plan (P) are not empty.
     - Weight must be > 0.
@@ -3084,7 +2803,9 @@ Figure 39. Screen Digital Prescription (Mobile)
 Figure 40. Screen Digital Prescription (Web)
 
 **Function details**
-- **Data:** Drug Name, Dosage, Frequency, Duration.
+- **Data:**
+    - **Input fields:** `drugName`, `dosage`, `frequency`, `duration`.
+    - **Output fields:** saved prescription items linked to the current EMR.
 - **Normal case:** Staff prescribes antibiotics for 7 days.
 
  #### *3.9.3 Add Incurred Services*
@@ -3116,7 +2837,9 @@ Figure 41. Screen Additional Service Recording (Web)
 
 **Function details**
 - **Logic:** Only services belonging to the current clinic can be added.
-- **Business rules:** BR-53, BR-54.
+- **Business rules:**
+    - BR-53
+    - BR-54
 - **Normal case:** During a basic physical exam, the Staff identifies the need for an ear cleaning service and adds it to the record.
 
  #### *3.9.4 Add Vaccination Record (UC-VT-08)*
@@ -3148,11 +2871,17 @@ Figure 42. Screen Add Vaccination Record (Mobile)
 Figure 43. Screen Add Vaccination Record (Web)
 
 **Function details**
-- **Data:** VaccineName, BatchNumber, AdministrationDate, NextDueDate, Notes, PetID, VetID.
+- **Data:**
+    - **Input fields:** `vaccineName`, `batchNumber`, `administrationDate`, `nextDueDate`, `notes`, `petId`, `vetId`.
+    - **Output fields:** created vaccination record, reminder scheduling result, and updated vaccination status.
 - **Validation:** 
     - Vaccine Name is required.
     - Next Due Date must be after Administration Date.
-- **Business rules:** BR-55, BR-56.
+- **Business rules:**
+    - BR-27
+    - BR-28
+    - BR-29
+    - BR-30
 - **Normal case:** Staff records Rabies vaccine for a dog, sets booster reminder for 1 year.
 - **Abnormal/Exception cases:**
     - A1. Duplicate vaccine on same date – System warns but allows override.
@@ -3184,9 +2913,12 @@ Figure 44. Screen Patient Lookup (Mobile)
 Figure 45. Screen Patient Lookup (Web)
 
 **Function details**
-- **Data:** SearchQuery, ClinicID.
+- **Data:**
+    - **Input fields:** `searchQuery`, `clinicId`.
+    - **Output fields:** patient search results with pet identity, owner info, and clinic-visit relevance.
 - **Validation:** Search query must be at least 2 characters.
-- **Business rules:** BR-57 (Privacy - only show patients from vet's clinic).
+- **Business rules:**
+    - BR-58
 - **Normal case:** Staff searches "Bella" and finds 2 matching pets.
 - **Abnormal/Exception cases:**
     - A1. No results – Show "Không tìm thấy kết quả".
@@ -3217,8 +2949,11 @@ Figure 45. Screen Patient Lookup (Web)
 Figure 46. Screen Patient List (Web)
 
 **Function details**
-- **Data:** ClinicID, Filters (species, dateRange), SortBy, Page.
-- **Business rules:** BR-58 (Data scope limited to clinic).
+- **Data:**
+    - **Input fields:** `clinicId`, filters such as `species` and `dateRange`, `sortBy`, `page`.
+    - **Output fields:** paged patient list with visit count, last visit date, and patient summary rows.
+- **Business rules:**
+    - BR-58
 - **Normal case:** Manager views 150 patients with filter by "Dog" species.
 - **Abnormal/Exception cases:**
     - A1. No patients – Show empty state with onboarding message.
@@ -3251,9 +2986,12 @@ Figure 46. Screen Patient List (Web)
 Figure 47. Screen Patient Records Detail (Web)
 
 **Function details**
-- **Data:** PetID, ClinicID.
+- **Data:**
+    - **Input fields:** `petId`, `clinicId`.
+    - **Output fields:** patient medical timeline with EMR, prescription, and vaccination history.
 - **Validation:** Manager can only view records from their own clinic.
-- **Business rules:** BR-59 (Cross-clinic records hidden for privacy).
+- **Business rules:**
+    - BR-59
 - **Normal case:** Manager reviews 5 EMR entries for a returning patient.
 - **Abnormal/Exception cases:**
     - A1. No records – Show "Chưa có hồ sơ khám bệnh".
@@ -3262,7 +3000,7 @@ Figure 47. Screen Patient Records Detail (Web)
 
 ### 3.10 Specialized Services (SOS Emergency Flow)
 
- #### *3.10.1 Create SOS Booking (UC-PO-15)*
+ #### *3.10.1 Start SOS Matching (UC-PO-15)*
 **User Story:**
 > *As a Pet Owner, I want to create an emergency SOS booking so that the system automatically finds and contacts nearby clinics, and I can track the matching process in real-time.*
 
@@ -3311,44 +3049,28 @@ Figure 41. SOS Radar Map Screen with Countdown Timer (Mobile - Pet Owner)
 
 **Function details**
 - **Data:**
-    - **SOS Match Request:**
-        - petId (UUID, required) - Pet ID requiring emergency care
-        - latitude (BigDecimal, required) - GPS latitude coordinate (-90 to 90)
-        - longitude (BigDecimal, required) - GPS longitude coordinate (-180 to 180)
-        - symptoms (String, optional) - Emergency symptom description (max 500 chars)
-        - notes (String, optional) - Additional notes (max 500 chars)
-        - address (String, required) - Full address (from reverse geocoding)
-    - **SOS Match Response:**
-        - bookingId (UUID) - Created SOS booking ID
-        - status (BookingStatus) - Current status (SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, CANCELLED)
-        - message (String) - User-facing message
-        - clinicId (UUID, optional) - Contacted clinic ID
-        - clinicName (String, optional) - Clinic name
-        - clinicPhone (String, optional) - Clinic phone number (click-to-call)
-        - clinicAddress (String, optional) - Clinic address
-        - clinicLat (Double, optional) - Clinic latitude coordinate
-        - clinicLng (Double, optional) - Clinic longitude coordinate
-        - distanceKm (Double, optional) - Distance to clinic (km)
-        - wsTopicUrl (String) - WebSocket topic URL to subscribe: `/topic/sos-matching/{bookingId}`
-        - createdAt (DateTime) - Booking creation timestamp
-        - expiresAt (DateTime) - Session expiration time (60s × 5 clinics + buffer)
-        - currentClinicIndex (Integer, optional) - Current clinic index (1-based: 1/5, 2/5...)
-        - totalClinicsInRange (Integer, optional) - Total clinics within radius
-        - remainingSeconds (Long, optional) - Remaining time for clinic response (seconds)
-        - staffId (UUID, optional) - Assigned staff ID (when CONFIRMED)
-        - staffName (String, optional) - Staff name
-        - staffPhone (String, optional) - Staff phone number (click-to-call)
-        - staffAvatarUrl (String, optional) - Staff avatar URL
-    - **WebSocket Status Message:**
-        - event (MatchingEvent) - CLINIC_NOTIFIED / WAITING_NEXT / CONFIRMED / NO_CLINIC / CANCELLED
-        - bookingId (UUID) - Booking ID
-        - status (BookingStatus) - Booking status
-        - message (String) - User notification message
-        - currentClinicIndex (Integer) - Current clinic index (1-based)
-        - totalClinicsInRange (Integer) - Total clinics count
-        - remainingSeconds (Long) - Remaining seconds
-        - clinicId, clinicName, clinicPhone, clinicLat, clinicLng, distanceKm (if clinic assigned)
-        - staffId, staffName, staffPhone, staffAvatarUrl (when CONFIRMED)
+    - **Input fields:**
+        - `petId` (UUID, required) - Pet ID requiring emergency care
+        - `latitude` (BigDecimal, required) - GPS latitude coordinate (-90 to 90)
+        - `longitude` (BigDecimal, required) - GPS longitude coordinate (-180 to 180)
+        - `symptoms` (String, optional) - Emergency symptom description (max 500 chars)
+        - `notes` (String, optional) - Additional notes (max 500 chars)
+        - `address` (String, required) - Full address from reverse geocoding
+    - **Output fields:**
+        - `bookingId` (UUID) - Created SOS booking ID
+        - `status` (BookingStatus) - Current status such as SEARCHING, PENDING_CLINIC_CONFIRM, CONFIRMED, CANCELLED
+        - `message` (String) - User-facing status message
+        - `clinicId`, `clinicName`, `clinicPhone`, `clinicAddress` (optional) - Contacted clinic information
+        - `clinicLat`, `clinicLng`, `distanceKm` (optional) - Clinic location and distance data
+        - `wsTopicUrl` (String) - WebSocket subscription topic
+        - `createdAt`, `expiresAt` (DateTime) - Session timing fields
+        - `currentClinicIndex`, `totalClinicsInRange`, `remainingSeconds` (optional) - Matching progress fields
+        - `staffId`, `staffName`, `staffPhone`, `staffAvatarUrl` (optional) - Assigned staff information when confirmed
+    - **Realtime status fields:**
+        - `event` (MatchingEvent) - CLINIC_NOTIFIED / WAITING_NEXT / CONFIRMED / NO_CLINIC / CANCELLED
+        - `bookingId`, `status`, `message`
+        - `currentClinicIndex`, `totalClinicsInRange`, `remainingSeconds`
+        - optional clinic fields and staff fields when available
 - **Validation:**
     - **Error Handling:**
         - E1. Pet not owned by user → Error: “Bạn không sở hữu thú cưng này”
@@ -3363,14 +3085,14 @@ Figure 41. SOS Radar Map Screen with Countdown Timer (Mobile - Pet Owner)
         - symptoms: Max 500 characters
         - address: Required, not blank
 - **Business rules:**
-    - BR-59: Search radius 10 km from user location
-    - BR-60: Max 5 clinics tried per SOS request
-    - BR-61: 60-second timeout per clinic before escalation
-    - BR-62: No duplicate active SOS bookings per user (enforced by distributed lock)
-    - BR-63: Distributed lock prevents race conditions (sos:lock:user:{userId}, TTL=10s)
-    - BR-64: Status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED
-    - BR-65: Session TTL = 60s × 5 clinics + 60s buffer = 360 seconds
-    - BR-66: Booking code format: `SOS-{timestamp7digits}-{random3digits}` (e.g., SOS-1234567-890)
+    - BR-59
+    - BR-60
+    - BR-61
+    - BR-62
+    - BR-63
+    - BR-64
+    - BR-65
+    - BR-66
 - **Normal case:**
     1. Pet Owner opens SOS Request Screen (no active SOS).
     2. App auto-fills current GPS location + reverse-geocoded address.
@@ -3390,7 +3112,7 @@ Figure 41. SOS Radar Map Screen with Countdown Timer (Mobile - Pet Owner)
     - E1. GPS unavailable: App shows error “Không thể lấy vị trí GPS. Vui lòng bật định vị.” → Request button disabled until location obtained.
     - E2. Backend timeout: API request takes >30s → App shows loading spinner, then timeout error “Không thể kết nối máy chủ” → Retry button.
 
- #### *3.10.2 Track Staff Location (Real-time Tracking) (UC-PO-17)*
+ #### *3.10.2 Track Staff location (UC-PO-17)*
 **User Story:**
 > *As a Pet Owner, I want to track the assigned staff's real-time location during SOS emergency so that I know when they will arrive and can prepare accordingly.*
 
@@ -3440,31 +3162,20 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
 
 **Function details**
 - **Data:**
-    - **Booking Details Request:**
-        - bookingId (UUID) - Booking ID to track
-    - **Booking Response (includes tracking data):**
-        - bookingId (UUID) - Booking ID
-        - status (BookingStatus) - Current status (CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED)
-        - type (BookingType) - SOS
-        - homeAddress (String) - Emergency address
-        - homeLat (BigDecimal) - Home latitude coordinate
-        - homeLong (BigDecimal) - Home longitude coordinate
-        - clinicName (String) - Clinic name
-        - clinicAddress (String) - Clinic address
-        - clinicLat (BigDecimal) - Clinic latitude coordinate
-        - clinicLng (BigDecimal) - Clinic longitude coordinate
-        - assignedStaff (Object, optional) - Assigned staff information:
-            - staffId (UUID) - Staff ID
-            - staffName (String) - Staff full name
-            - staffPhone (String) - Staff phone number (click-to-call)
-            - staffAvatar (String) - Avatar URL
-            - staffLat (BigDecimal, optional) - Staff current latitude coordinate
-            - staffLng (BigDecimal, optional) - Staff current longitude coordinate
-        - distanceKm (BigDecimal, optional) - Distance from staff to home (km)
-        - estimatedArrival (Integer, optional) - Estimated arrival time (minutes)
-        - arrivedAt (DateTime, optional) - Staff arrival timestamp
-    - **Polling Frequency:** Every 5 seconds (configurable)
-    - **WebSocket Topic:** `/topic/sos-tracking/{bookingId}` (fallback to polling if unavailable)
+    - **Input fields:**
+        - `bookingId` (UUID) - Booking ID to track
+    - **Output fields:**
+        - `bookingId` (UUID) - Booking ID
+        - `status` (BookingStatus) - Current status such as CONFIRMED, IN_PROGRESS, COMPLETED, CANCELLED
+        - `type` (BookingType) - SOS
+        - `homeAddress`, `homeLat`, `homeLong` - Emergency location data
+        - `clinicName`, `clinicAddress`, `clinicLat`, `clinicLng` - Clinic information
+        - `assignedStaff` (optional object) with `staffId`, `staffName`, `staffPhone`, `staffAvatar`, optional `staffLat`, `staffLng`
+        - `distanceKm` (optional) - Distance from staff to home
+        - `estimatedArrival` (optional) - Estimated arrival in minutes
+        - `arrivedAt` (optional) - Staff arrival timestamp
+        - `pollingFrequency` - 5-second refresh setting
+        - `trackingTopic` - realtime tracking topic identifier when available
 - **Validation:**
     - **Error Handling:**
         - E1. Booking not found → Navigate back, show toast "Không tìm thấy booking"
@@ -3478,13 +3189,13 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
         - Distance/ETA only shown when staffLat and staffLng are not null.
         - Cannot track if booking is COMPLETED or CANCELLED → Hide "Track" button.
 - **Business rules:**
-    - BR-64: Status flow: CONFIRMED → IN_PROGRESS → COMPLETED
-    - BR-73: Staff location updates every 3 seconds (staff-side GPS broadcast)
-    - BR-74: Pet Owner polling interval: 5 seconds (to avoid excessive API calls)
-    - BR-75: Arrival threshold: distance < 0.05 km (50 meters) or arrivedAt field set
-    - BR-76: ETA calculation formula: `estimatedArrival = (distanceKm / 40) * 60` minutes (assumes 40 km/h avg speed)
-    - BR-77: Route polyline fetched once from Goong Direction API (cached for session)
-    - BR-78: Staff marker smooth animation: 1-second transition between position updates
+    - BR-64
+    - BR-73
+    - BR-74
+    - BR-75
+    - BR-76
+    - BR-77
+    - BR-78
 - **Normal case:**
     1. Clinic confirms SOS, assigns staff "Dr. Tùng" → Owner auto-navigates to Tracking Screen.
     2. Map initializes with 3 markers: home (red), clinic (blue), staff (avatar).
@@ -3506,7 +3217,7 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
     - E2. Polling timeout (3 consecutive failures): Show persistent error banner "Mất kết nối. Vui lòng kiểm tra mạng.", keep retrying every 10s.
     - E3. Staff location jumps erratically (GPS inaccuracy): App applies smoothing filter (Kalman), ignores outliers >2km from previous position.
 
- #### *3.10.3 Receive SOS Alert & Confirm/Decline (UC-CM-20)*
+ #### *3.10.3 Receive SOS alert (UC-CM-20)*
 **User Story:**
 > *As a Clinic Manager, I want to receive real-time SOS emergency alerts so that I can quickly accept or decline requests based on clinic availability.*
 
@@ -3516,7 +3227,7 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
 
 **Function description**
 - **Actors/Roles:** Clinic Manager.
-- **Purpose:** Provide real-time notification of SOS emergency requests with pet/owner details and countdown timer to allow quick decision-making.
+- **Purpose:** Provide real-time SOS alert information with pet/owner details and countdown timer so the clinic manager can review and respond quickly.
 - **Interface:**
     1. **SOS Alert Modal (Web)**:
        - **Pet Information:** Pet name, species, breed, weight
@@ -3532,36 +3243,30 @@ Figure 42. SOS Tracking Screen with Staff Location, Route, and ETA (Mobile - Pet
        - Filters: Only staff from current clinic
 
 **Data processing**
-1. System finds nearby clinics and sends alert to first clinic via WebSocket.
-2. Manager sees SOS Alert Modal with pet/owner details, symptoms, distance, and 60-second countdown.
-3. Manager decides to accept (selects staff) or decline (optional reason).
-4. If accept → System confirms booking, assigns staff, notifies pet owner.
-5. If decline or timeout → System escalates to next clinic, updates manager's modal.
+1. System finds nearby clinics and sends the SOS alert to the first clinic via WebSocket.
+2. Manager sees the SOS Alert Modal with pet/owner details, symptoms, distance, and 60-second countdown.
+3. Manager reviews the alert and decides to accept (selects staff) or decline (optional reason).
+4. If accepted, the system confirms the booking, assigns staff, and notifies the pet owner.
+5. If declined or timed out, the system escalates to the next clinic and updates the alert state.
 
 **Screen layout**
 Figure 44. SOS Alert Modal with Countdown (Web - Manager Dashboard)
 
 **Function details**
 - **Data:**
-    - **Confirmation Request (Accept):**
-        - bookingId (UUID) - SOS booking ID
-        - accepted (Boolean) - true when accepting
-        - assignedStaffId (UUID) - Selected staff ID
-    - **Confirmation Request (Decline):**
-        - bookingId (UUID) - SOS booking ID
-        - accepted (Boolean) - false when declining
-        - declineReason (String, optional) - Decline reason
-    - **WebSocket Alert Message:**
-        - event (String) - "CLINIC_NOTIFIED"
-        - bookingId (UUID) - Booking ID
-        - petName (String) - Pet name
-        - petSpecies (String) - Pet species (DOG, CAT, ...)
-        - symptoms (String) - Emergency symptoms
-        - petOwnerName (String) - Pet owner name
-        - petOwnerPhone (String) - Pet owner phone number
-        - homeAddress (String) - Emergency address
-        - distanceKm (Double) - Distance from clinic (km)
-        - remainingSeconds (Long) - Remaining time to respond (seconds)
+    - **Input fields:**
+        - `bookingId` (UUID) - SOS booking ID
+        - `accepted` (Boolean) - Accept or decline decision
+        - `assignedStaffId` (UUID, optional) - Selected staff ID when accepting
+        - `declineReason` (String, optional) - Decline reason when rejecting
+    - **Output fields:**
+        - `event` (String) - Alert event such as `CLINIC_NOTIFIED`
+        - `bookingId` (UUID) - Booking ID
+        - `petName`, `petSpecies`, `symptoms` - Emergency pet information
+        - `petOwnerName`, `petOwnerPhone` - Owner contact information
+        - `homeAddress` (String) - Emergency address
+        - `distanceKm` (Double) - Distance from clinic
+        - `remainingSeconds` (Long) - Remaining response time
 - **Validation:**
     - **Error Handling:**
         - E1. Manager not authorized for clinic → HTTP 403
@@ -3571,10 +3276,10 @@ Figure 44. SOS Alert Modal with Countdown (Web - Manager Dashboard)
         - Manager can only confirm SOS requests assigned to their clinic.
         - Assigned staff must have role = STAFF and belong to manager's clinic.
 - **Business rules:**
-    - BR-59: Search radius 10 km.
-    - BR-60: Max 5 clinics tried.
-    - BR-61: 60-second timeout per clinic.
-    - BR-67: Clinic Manager must assign staff when accepting SOS.
+    - BR-59
+    - BR-60
+    - BR-61
+    - BR-67
 - **Normal case:**
     1. SOS matching system contacts Clinic A (closest).
     2. Manager sees modal with pet "Milo" needing emergency care.
@@ -3617,20 +3322,20 @@ Figure 45. Cancel SOS Confirmation Dialog (Mobile)
 
 **Function details**
 - **Data:**
-    - **Cancellation Request:**
-        - bookingId (UUID) - Booking ID to cancel
-    - **WebSocket Status Message (Pet Owner):**
-        - event (String) - "CANCELLED"
-        - bookingId (UUID) - Booking ID
-        - status (String) - "CANCELLED"
-        - message (String) - "Bạn đã hủy yêu cầu cấp cứu."
+    - **Input fields:**
+        - `bookingId` (UUID) - Booking ID to cancel
+    - **Output fields:**
+        - `event` (String) - `CANCELLED`
+        - `bookingId` (UUID) - Booking ID
+        - `status` (String) - `CANCELLED`
+        - `message` (String) - Cancellation status message for the pet owner
 - **Validation:**
     - **Error Handling:**
         - E1. Booking not owned by user → HTTP 403
         - E2. Booking already CONFIRMED or COMPLETED → HTTP 400 "Không thể hủy booking ở trạng thái: {status}"
 - **Business rules:**
-    - BR-68: Pet Owner can only cancel SOS before clinic confirmation.
-    - BR-69: After cancellation, Redis session is cleared and matching stops immediately.
+    - BR-68
+    - BR-69
 - **Normal case:**
     1. Pet owner creates SOS request for pet "Milo".
     2. Radar screen shows "Đang chờ phòng khám xác nhận...".
@@ -3640,7 +3345,7 @@ Figure 45. Cancel SOS Confirmation Dialog (Mobile)
 - **Abnormal/Exception cases:**
     - A1. Clinic just confirmed (race condition): Backend returns 400 → App shows "Phòng khám đã xác nhận, không thể hủy".
 
- #### *3.10.5 Checkout with Custom SOS Fee (UC-STAFF-10)*
+ #### *3.10.5 Checkout with Custom Fee (UC-STAFF-10)*
 **User Story:**
 > *As a Staff, I want to checkout SOS bookings with custom SOS fees included in total price so that I can properly finalize emergency services and collect payment.*
 
@@ -3688,17 +3393,17 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 
 **Function details**
 - **Data:**
-    - **Checkout Request:**
-        - bookingId (UUID) - Booking ID (from path parameter)
-        - overriddenSosFee (BigDecimal, optional) - Override SOS fee if needed (for special cases, e.g., discounts or adjustments)
-    - **Response Data:**
-        - success (Boolean) - true if checkout successful
-        - message (String) - "Checkout thành công"
-        - bookingId (UUID) - Booking ID
-        - status (String) - "COMPLETED"
-        - totalPrice (BigDecimal) - Total amount (including SOS fee)
-        - sosFee (BigDecimal) - SOS emergency fee applied
-        - completedAt (DateTime) - Completion timestamp
+    - **Input fields:**
+        - `bookingId` (UUID) - Booking ID
+        - `overriddenSosFee` (BigDecimal, optional) - Custom SOS fee adjustment when needed
+    - **Output fields:**
+        - `success` (Boolean) - Checkout success flag
+        - `message` (String) - Checkout result message
+        - `bookingId` (UUID) - Booking ID
+        - `status` (String) - `COMPLETED`
+        - `totalPrice` (BigDecimal) - Final total amount including SOS fee
+        - `sosFee` (BigDecimal) - Applied SOS emergency fee
+        - `completedAt` (DateTime) - Completion timestamp
 - **Validation:**
     - **Error Handling:**
         - E1. Booking not in IN_PROGRESS status → HTTP 400 "Booking không ở trạng thái IN_PROGRESS"
@@ -3711,10 +3416,10 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
         - Total price must be non-negative.
         - Staff must be assigned to this booking (security check).
 - **Business rules:**
-    - BR-70: SOS fee is configured per clinic via `ClinicPriceService`.
-    - BR-71: SOS fee is added to booking during confirmation, can be overridden at checkout.
-    - BR-72: Checkout updates status to COMPLETED and records final total price.
-    - BR-73: Only assigned Staff can checkout SOS bookings (authorization).
+    - BR-70
+    - BR-71
+    - BR-72
+    - BR-73
 - **Normal case:**
     1. Staff completes emergency examination for pet "Milo" (SOS booking).
     2. Staff creates EMR with assessment and treatment plan.
@@ -3762,7 +3467,7 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 | **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động (Status: ENABLED). |
 | **Luồng xử lý chính** | 1. Người dùng chọn chức năng "AI Assistant" trên mobile app.<br/>2. Hệ thống hiển thị khung chat và các gợi ý thông minh.<br/>3. Người dùng nhập tin nhắn hoặc chọn nút gợi ý nhanh.<br/>4. AI Agent (ReAct Pattern) phân tích ý định (intent) và thực hiện:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tra cứu kiến thức (RAG) nếu là câu hỏi tư vấn.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Gọi Tool (FastMCP) nếu cần tìm phòng khám hoặc đặt lịch.<br/>5. Hệ thống hiển thị phản hồi theo dạng streaming (từng từ) để tăng trải nghiệm.<br/>6. Người dùng nhận câu trả lời và có thể tiếp tục hỏi (Multi-turn conversation). |
 | **Hậu điều kiện** | 1. Lịch sử trò chuyện được lưu trữ.<br/>2. Đơn đặt lịch được tạo thành công trong hệ thống (nếu có hành động đặt lịch). |
-| **Quy tắc nghiệp vụ** | BR-42 (Cảnh báo ý kiến y tế); BR-43 (Không kê đơn thuốc); BR-21 (Gắn hồ sơ pet). |
+| **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-21 |
 
 **Use Case: Interaction Scenarios**
 
@@ -3794,7 +3499,9 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 - **Abnormal Cases:**
     - A1. Tool failure: System notifies "Máy chủ đang quá tải, vui lòng thử lại sau".
     - A2. Ambiguous query: Agent asks follow-up questions to narrow down the intent.
-- **Business rules:** BR-42, BR-43.
+- **Business rules:**
+    - BR-42
+    - BR-43
 
  #### *3.11.2 Analyze Pet Health via Vision (UC-PO-14d)*
 **User Story:**
@@ -3831,7 +3538,7 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 | **Luồng chính** | 1. User mở AI Assistant chat.<br/>2. User nhấn nút camera/gallery để chọn hình ảnh thú cưng.<br/>3. Hình ảnh được upload lên Cloudinary, nhận về URL.<br/>4. App gửi message với `image_url` và `user_location` (GPS) qua WebSocket.<br/>5. AI Agent gọi tool `analyze_pet_image` để phân tích hình ảnh.<br/>6. Agent nhận kết quả phân tích với detected issues và severity.<br/>7. Nếu severity là "moderate" hoặc cao hơn:<br/>   - Agent gọi `search_nearby_clinics` với user GPS.<br/>   - Agent gọi `get_user_pets` để lấy danh sách pet của user.<br/>   - Agent hỏi user chọn pet nào (nếu có nhiều pet).<br/>   - Agent gọi `create_booking_suggestion` để tạo đề xuất.<br/>8. AI trả về response với:<br/>   - Cảnh báo về vấn đề phát hiện được<br/>   - Booking Suggestion Card với thông tin đã điền sẵn.<br/>9. User nhấn "Đặt lịch ngay" → Navigate đến Booking Screen với params. |
 | **Luồng thay thế** | A1. Hình ảnh không rõ ràng → AI yêu cầu gửi lại ảnh rõ hơn.<br/>A2. Không phát hiện vấn đề (severity: mild) → AI thông báo "Không phát hiện vấn đề nghiêm trọng" và khuyên theo dõi thêm.<br/>A3. User có nhiều pet → AI hiển thị Pet Selection Dialog để chọn.<br/>A4. Không tìm được clinic trong bán kính → AI mở rộng tìm kiếm hoặc thông báo. |
 | **Hậu điều kiện** | 1. Lịch sử chat được lưu trữ (bao gồm image URL).<br/>2. Nếu user confirm booking → Đơn đặt lịch được tạo trong hệ thống. |
-| **Quy tắc nghiệp vụ** | BR-42 (Cảnh báo ý kiến y tế); BR-43 (Không kê đơn thuốc); BR-44 (Disclaimer cho Vision Analysis). |
+| **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-45 |
 
 **Use Case: AI Vision Interaction Scenarios**
 
@@ -3893,7 +3600,10 @@ Figure 47. Pet Selection Dialog (Mobile)
     - E2. Vision LLM error – Fallback to text-based symptom_search if possible.
     - E3. No clinics found nearby – Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
     - A4. GPS unavailable: Ask user to enable location or enter address manually.
-- **Business rules:** BR-42, BR-43, BR-44, BR-45.
+- **Business rules:**
+    - BR-42
+    - BR-43
+    - BR-45
 
 | BR-45 | Urgent Severity Handling: Khi phát hiện vấn đề nghiêm trọng (urgent), hệ thống phải hiển thị cảnh báo nổi bật và ưu tiên đề xuất SOS hoặc booking trong ngày. |
 
@@ -3940,7 +3650,9 @@ Figure 47. Pet Selection Dialog (Mobile)
 6. Admin có thể xóa hoặc reset session test mà không ảnh hưởng hội thoại nghiệp vụ của người dùng thật.
 
 **Function details**
-- **Data:** `playground_session_id`, `admin_user_id`, `context_type=PLAYGROUND_TEST`, `agent_id`, `provider_override`, `model_override`, `react_trace`.
+- **Data:**
+    - **Input fields:** `playgroundSessionId`, `adminUserId`, `contextType`, `agentId`, optional `providerOverride`, optional `modelOverride`.
+    - **Output fields:** `reactTrace`, tool-call log, streamed messages, and isolated playground session metadata.
 - **Validation:** Chỉ `ADMIN` mới được tạo/kết nối Playground session; token không hợp lệ phải bị từ chối kết nối.
 - **Business rules:**
     - Playground không được đọc business chat history.
@@ -4021,7 +3733,9 @@ Figure 47. Pet Selection Dialog (Mobile)
 Figure 44. Screen Platform Violation Reporting (Mobile)
 
 **Function details**
-- **Business rules:** BR-31, BR-32.
+- **Business rules:**
+    - BR-31
+    - BR-32
 
  #### *3.12.2 View Platform Statistics & Revenue (UC-AD-04 / UC-CO-05)*
 **User Story:**
@@ -4098,7 +3812,7 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
 | **Luồng xử lý chính** | 1. Owner nhấn nút "AI Setup" trong Clinic Dashboard.<br/>2. Hệ thống hiển thị AI Setup Wizard dialog.<br/>3. Owner chọn loại hình phòng khám (General Practice, Specialty, Emergency, Multi-specialty).<br/>4. Owner nhập thông tin cơ bản (nếu chưa có): địa chỉ, giờ hoạt động, loại thú cưng phục vụ (chó, mèo, exotic).<br/>5. AI Agent phân tích và gọi các tools để:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tra cứu knowledge base về best practices cho loại hình phòng khám.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tìm kiếm dữ liệu tham khảu về giá cả thị trường (nếu có).<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Generate danh sách services phù hợp với category.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tạo mô tả chi tiết cho từng service.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Đề xuất price range cho từng service.<br/>6. AI hiển thị danh sách services đã tạo dạng cards với thông tin:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tên dịch vụ (VD: "Tiêm phòng DHPPi cho Chó")**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Mô tả chi tiết (AI-generated).**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Danh mục (Examination, Vaccination, Surgery, Grooming, etc.)**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Giá đề xuất (VNĐ).**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Estimated duration (phút).**<br/>7. Owner có thể:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Chỉnh sửa trực tiếp từng field.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Xóa service không muốn.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Thêm service mới thủ công.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Nhấn "Regenerate" để AI tạo lại mô tả.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Nhấn "Add More" để thêm services theo category khác.<br/>8. Owner nhấn "Next" để qua bước Pricing Tier Configuration.<br/>9. AI hiển thị gợi ý weight-based pricing tiers (nếu applicable):<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Small (<5kg): Base price**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Medium (5-15kg): +20%**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Large (>15kg): +50%**<br/>10. Owner điều chỉnh và nhấn "Next" qua bước Review.<br/>11. Owner nhấn "Save & Publish" để lưu và kích hoạt.<br/>12. System redirect về Clinic Dashboard với tất cả services đã configured. |
 | **Luồng thay thế** | A1. Owner muốn bắt đầu lại từ đầu → AI hỏi xác nhận và reset về trạng thái blank.<br/>A2. Owner muốn chỉ generate một số services → Owner chọn categories trước khi AI generate.<br/>A3. AI suggestions không phù hợp → Owner có thể chỉnh sửa thủ công hoặc yêu cầu AI regenerate.<br/>A4. Knowledge base không có thông tin → AI thông báo và sử dụng templates mặc định.<br/>A5. Owner muốn import services từ Master Services có sẵn → AI hỗ trợ bulk import với customization. |
 | **Hậu điều kiện** | 1. Clinic có đầy đủ services với mô tả, giá cả, duration.<br/>2. Services được lưu trong `clinic_services` table với status ACTIVE.<br/>3. AI-generated content được audit log (metadata: `created_by_ai`, `confidence_score`). |
-| **Quy tắc nghiệp vụ** | BR-50 (AI-generated content must be reviewable); BR-51 (Owner must approve all AI suggestions before publishing); BR-52 (AI cannot set final prices without owner confirmation). |
+| **Quy tắc nghiệp vụ** | BR-50; BR-51; BR-52 |
 
 **Use Case: AI Clinic Setup Scenarios**
 
@@ -4207,11 +3921,10 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
   - Price suggestions must include disclaimer: "Giá tham khảo, vui lòng điều chỉnh theo thực tế".
   - AI-generated descriptions must be marked with `AI-GENERATED` label.
   - Owner must explicitly approve each service before publishing.
-- **Business Rules:**
-  - BR-50: All AI-generated content must be reviewable and editable.
-  - BR-51: Owner must explicitly approve AI suggestions before publishing.
-  - BR-52: Final pricing always requires owner confirmation.
-  - BR-53: AI cannot modify existing manually-created services without permission.
+- **Business rules:**
+  - BR-50
+  - BR-51
+  - BR-52
 
 **AI Agent Workflow (ReAct Pattern cho Clinic Setup)**
 
@@ -4535,6 +4248,18 @@ Sentry Integration: Enabled with issue alerts
 | BR-64 | **[SOS]** SOS booking status flow: SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED → IN_PROGRESS → COMPLETED/CANCELLED. |
 | BR-65 | **[SOS]** If no clinic accepts SOS within timeout period, system cancels booking and provides hotline number (1900-PETTIES). |
 | BR-66 | **[SOS]** SOS booking code format: "SOS-" + timestamp (must be unique). |
+| BR-67 | **[SOS]** Clinic Manager must assign a staff member when accepting an SOS request. |
+| BR-68 | **[SOS]** Pet Owner can only cancel SOS matching before clinic confirmation. |
+| BR-69 | **[SOS]** Cancelling SOS matching must clear the active matching session and stop escalation immediately. |
+| BR-70 | **[SOS]** SOS fee is configured per clinic and used as the default emergency surcharge. |
+| BR-71 | **[SOS]** SOS fee is added to the booking during confirmation and may be overridden at checkout by authorized staff. |
+| BR-72 | **[SOS]** SOS checkout updates booking status to COMPLETED and stores the final total price. |
+| BR-73 | **[SOS]** Only the assigned Staff can perform SOS checkout. |
+| BR-74 | **[SOS]** Pet Owner tracking refresh interval is 5 seconds to limit excessive calls while keeping location updates timely. |
+| BR-75 | **[SOS]** Staff is considered arrived when the distance to destination is below 0.05 km or an arrival marker is explicitly recorded. |
+| BR-76 | **[SOS]** ETA is calculated from current distance and travel-speed assumption configured by the system. |
+| BR-77 | **[SOS]** Route polyline should be cached for the active SOS tracking session instead of being recalculated on every update. |
+| BR-78 | **[SOS]** Staff marker movement on tracking map should be smoothly animated between location updates. |
 
 
 ### 5.2 Common Requirements

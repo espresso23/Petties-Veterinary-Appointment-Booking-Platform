@@ -241,8 +241,8 @@ TTL:   60 seconds
 
 ## 9. Reassign Staff & Availability Check (v1.5.0) ✅
 
-- **UC-CM-14:** Kiểm tra tính khả dụng của Staff trước khi gán (Check Staff Availability).
-- **UC-CM-15:** Gán lại nhân viên (Reassign Staff) khi có thay đổi nhân sự hoặc cấp cứu.
+- **UC-BOOK-06:** Kiểm tra tính khả dụng của Staff trước khi gán và xác nhận booking.
+- **UC-BOOK-07:** Gán lại nhân viên (Reassign Staff) cho từng service item khi có thay đổi nhân sự hoặc cấp cứu.
 - **UC-VT-14:** Nhân viên xem tổng quan Dashboard lịch của mình (Staff Home Dashboard Summary).
 
 *Document này mô tả toàn bộ booking workflow cho project Petties.*

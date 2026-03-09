@@ -820,8 +820,8 @@ CHECK_OUT
 COMPLETED
 
 Alternative paths:
-PENDING/ASSIGNED/CONFIRMED/ON_THE_WAY/ARRIVED → CANCELLED (before check-in)
-CHECK_IN/IN_PROGRESS/ON_THE_WAY/ARRIVED → NO_SHOW (if either party fails to meet)
+PENDING/CONFIRMED → CANCELLED (before execution)
+IN_PROGRESS → NO_SHOW (exception handling case if service cannot be completed as expected)
 ```
 
 **Design Notes:**

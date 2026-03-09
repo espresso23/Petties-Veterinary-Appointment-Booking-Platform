@@ -156,6 +156,23 @@ export interface ChatSessionDetail {
     updated_at?: string
 }
 
+export interface ChatSessionSummary {
+    session_id: string
+    agent_id?: number
+    title?: string
+    context_type: ChatContextType
+    user_role?: string
+    clinic_id?: string | null
+    messages: ChatSessionMessage[]
+    created_at?: string
+    updated_at?: string
+}
+
+export interface SessionListResponse {
+    total: number
+    sessions: ChatSessionSummary[]
+}
+
 // ===== AGENT APIs =====
 
 export const agentApi = {
@@ -383,6 +400,24 @@ export const chatApi = {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions/${sessionId}`)
         if (!response.ok) throw new Error('Failed to fetch chat session')
         return response.json()
+    },
+
+    async listSessions(contextType?: ChatContextType, limit: number = 20): Promise<SessionListResponse> {
+        const params = new URLSearchParams({ limit: String(limit) })
+        if (contextType) {
+            params.set('context_type', contextType)
+        }
+
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions?${params.toString()}`)
+        if (!response.ok) throw new Error('Failed to fetch chat sessions')
+        return response.json()
+    },
+
+    async deleteSession(sessionId: string): Promise<void> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/chat/sessions/${sessionId}`, {
+            method: 'DELETE'
+        })
+        if (!response.ok) throw new Error('Failed to delete chat session')
     }
 }
 

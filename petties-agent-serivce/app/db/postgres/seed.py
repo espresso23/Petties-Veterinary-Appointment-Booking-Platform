@@ -144,6 +144,21 @@ async def seed_data(db: AsyncSession, force: bool = False):
                     assigned_agents=["petties_agent"]
                 ),
                 Tool(
+                    name="web_search",
+                    description="Tim thong tin tren web khi knowledge base chua du du lieu. Chi dung cho noi dung lien quan thu cung, thu y, cham soc, dinh duong, trieu chung.",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Cau hoi tim tren web"},
+                            "max_results": {"type": "integer", "default": 5}
+                        },
+                        "required": ["query"]
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
                     name="get_user_pets",
                     description="Lay danh sach thu cung cua pet owner hien tai de phuc vu booking flow.",
                     tool_type="code_based",

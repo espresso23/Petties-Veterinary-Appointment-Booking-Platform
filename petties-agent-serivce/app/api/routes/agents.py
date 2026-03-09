@@ -304,10 +304,20 @@ async def update_prompt(
     """
     Update system prompt (Admin Supervisor Tuning - UC-01)
 
+    **Hướng dẫn cho Admin:**
+    System prompt chỉ nên chứa nhân cách, giọng điệu, nhiệm vụ và quy tắc nghiệp vụ.
+    KHÔNG cần thêm: ReAct pattern, danh sách tools, quy tắc format kỹ thuật (code đã quản lý tự động).
+
+    **Ví dụ nội dung phù hợp:**
+    - Vai trò & giọng điệu (xưng hô, mức độ thân thiện)
+    - Nhiệm vụ chính (tư vấn sức khỏe, đặt lịch, tìm phòng khám)
+    - Quy tắc nghiệp vụ (không chẩn đoán, ưu tiên an toàn)
+    - Phạm vi tư vấn (chỉ thú cưng, từ chối ngoài phạm vi)
+
     Body:
         {
             "prompt_text": "Ban la Petties AI Assistant...",
-            "notes": "Updated for ReAct pattern",
+            "notes": "Updated personality and business rules",
             "created_by": "admin"
         }
     """

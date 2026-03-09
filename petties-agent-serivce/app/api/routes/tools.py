@@ -54,9 +54,9 @@ async def scan_code_tools(db: AsyncSession = Depends(get_db)):
     """
     try:
         from app.core.tools.mcp_server import mcp_server
-        # FastMCP 2.x uses async get_tools()
-        tools = await mcp_server.get_tools()
-        available_mcp = list(tools.keys())
+        # FastMCP hiện tại trả về list FunctionTool qua list_tools()
+        tools = await mcp_server.list_tools()
+        available_mcp = [tool.name for tool in tools]
         logger.info(f"🔍 Tools registered in FastMCP: {available_mcp}")
 
         scanner = ToolScanner()

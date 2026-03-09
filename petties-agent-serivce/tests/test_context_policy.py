@@ -15,10 +15,10 @@ class ContextPolicyTests(unittest.TestCase):
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
-            available_tools=["pet_care_qa", "symptom_search", "get_patient_summary"],
+            available_tools=["pet_care_qa", "symptom_search", "web_search", "get_patient_summary"],
         )
 
-        self.assertEqual(allowed, ["pet_care_qa", "symptom_search"])
+        self.assertEqual(allowed, ["pet_care_qa", "symptom_search", "web_search"])
 
     def test_admin_playground_gets_all_available_tools(self):
         allowed = ContextPolicyService.get_allowed_tools(
@@ -46,12 +46,36 @@ class ContextPolicyTests(unittest.TestCase):
             base_prompt="Base prompt",
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
-            allowed_tools=["pet_care_qa", "symptom_search"],
+            allowed_tools=["pet_care_qa", "symptom_search", "web_search"],
         )
 
         self.assertIn("Base prompt", prompt)
         self.assertIn("BUSINESS_CHAT", prompt)
-        self.assertIn("pet_care_qa, symptom_search", prompt)
+        self.assertIn("pet_care_qa, symptom_search, web_search", prompt)
+        self.assertIn("dễ hiểu", prompt)
+
+    def test_build_system_prompt_appends_pet_owner_style(self):
+        prompt = ContextPolicyService.build_system_prompt(
+            base_prompt="Base prompt",
+            user_role="PET_OWNER",
+            context_type=BUSINESS_CHAT,
+            allowed_tools=["pet_care_qa"],
+        )
+
+        self.assertIn("role PET_OWNER", prompt)
+        self.assertIn("thân thiện, dễ hiểu", prompt)
+
+    def test_build_system_prompt_appends_clinic_manager_style(self):
+        prompt = ContextPolicyService.build_system_prompt(
+            base_prompt="Base prompt",
+            user_role="CLINIC_MANAGER",
+            context_type=BUSINESS_CHAT,
+            allowed_tools=["analyze_revenue_trends", "optimize_schedules"],
+        )
+
+        self.assertIn("role CLINIC_MANAGER", prompt)
+        self.assertIn("vận hành phòng khám", prompt)
+        self.assertIn("checklist hành động", prompt)
 
 
 if __name__ == "__main__":

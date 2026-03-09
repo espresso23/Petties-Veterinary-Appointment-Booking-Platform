@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { agentApi, chatApi, type Agent, type ChatContextType, type ChatSessionMessage, type PromptVersion } from '../../../services/agentService'
+import { agentApi, chatApi, type Agent, type ChatContextType, type ChatSessionMessage, type ChatSessionSummary, type PromptVersion } from '../../../services/agentService'
 import { ChatMessage } from '../../../components/admin/ChatMessage'
 import { ModelParametersConfig } from '../../../components/admin/ModelParametersConfig'
 import { ConfirmModal } from '../../../components/ConfirmModal'
@@ -145,6 +145,9 @@ export const PlaygroundPage = () => {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
   const [creatingSession, setCreatingSession] = useState(false)
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [sessionList, setSessionList] = useState<ChatSessionSummary[]>([])
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [allowedTools, setAllowedTools] = useState<string[]>([])
 
   // Chat state
@@ -165,6 +168,7 @@ export const PlaygroundPage = () => {
 
   // Confirm modal state
   const [showSeedConfirm, setShowSeedConfirm] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState<ChatSessionSummary | null>(null)
 
   // ==================== LOAD DATA ====================
 
@@ -422,16 +426,92 @@ export const PlaygroundPage = () => {
     }
   }, [])
 
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
+    }
+    setConnectionStatus('disconnected')
+  }, [])
+
+  const loadPlaygroundSessions = useCallback(async () => {
+    try {
+      setLoadingSessions(true)
+      const response = await chatApi.listSessions('PLAYGROUND_TEST', 20)
+      setSessionList(response.sessions)
+    } catch (err) {
+      console.error('Failed to load playground sessions:', err)
+      handleApiError(err, toast, 'Không thể tải danh sách cuộc chat')
+    } finally {
+      setLoadingSessions(false)
+    }
+  }, [toast])
+
+  const handleSelectSession = useCallback(async (sessionId: string) => {
+    try {
+      disconnectWebSocket()
+      setStreamingContent('')
+      setSending(false)
+      setReactSteps([])
+      setAllowedTools([])
+
+      const session = await chatApi.getSession(sessionId)
+      setSessionInfo({
+        sessionId: session.session_id,
+        contextType: session.context_type,
+        createdAt: session.created_at || new Date().toISOString(),
+        userRole: session.user_role || 'ADMIN',
+        clinicId: session.clinic_id,
+      })
+      setMessages(session.messages.map(mapHistoryMessage))
+    } catch (err) {
+      handleApiError(err, toast, 'Không thể mở cuộc chat đã chọn')
+    }
+  }, [disconnectWebSocket, mapHistoryMessage, toast])
+
+  const handleDeleteSession = useCallback(async () => {
+    if (!sessionToDelete) return
+
+    try {
+      setDeletingSessionId(sessionToDelete.session_id)
+      await chatApi.deleteSession(sessionToDelete.session_id)
+
+      if (sessionInfo?.sessionId === sessionToDelete.session_id) {
+        disconnectWebSocket()
+        setSessionInfo(null)
+        setMessages([])
+        setReactSteps([])
+        setStreamingContent('')
+        setAllowedTools([])
+        setSending(false)
+      }
+
+      setSessionList(prev => prev.filter(session => session.session_id !== sessionToDelete.session_id))
+      toast.showToast('success', 'Đã xóa session chat')
+      setSessionToDelete(null)
+      await loadPlaygroundSessions()
+    } catch (err) {
+      handleApiError(err, toast, 'Không thể xóa session chat')
+    } finally {
+      setDeletingSessionId(null)
+    }
+  }, [disconnectWebSocket, loadPlaygroundSessions, sessionInfo?.sessionId, sessionToDelete, toast])
+
+  useEffect(() => {
+    void loadPlaygroundSessions()
+  }, [loadPlaygroundSessions])
+
   const createPlaygroundSession = useCallback(async () => {
     if (creatingSession) return
 
     try {
       setCreatingSession(true)
+      disconnectWebSocket()
       setConnectionStatus('connecting')
 
       const session = await chatApi.createSession({
         agent_id: selectedAgentId ?? undefined,
-        title: 'Playground Test Session',
+        title: `Playground ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`,
         context_type: 'PLAYGROUND_TEST',
       })
 
@@ -446,13 +526,14 @@ export const PlaygroundPage = () => {
       setReactSteps([])
       setStreamingContent('')
       setAllowedTools([])
+      await loadPlaygroundSessions()
     } catch (err) {
       setConnectionStatus('error')
       handleApiError(err, toast, 'Không thể tạo playground session')
     } finally {
       setCreatingSession(false)
     }
-  }, [creatingSession, selectedAgentId, toast])
+  }, [creatingSession, disconnectWebSocket, loadPlaygroundSessions, selectedAgentId, toast])
 
   // ==================== WEBSOCKET ====================
 
@@ -503,7 +584,7 @@ export const PlaygroundPage = () => {
     }
     wsRef.current = ws
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionInfo])
+  }, [sessionInfo?.contextType, sessionInfo?.sessionId])
 
   const handleWebSocketMessage = useCallback((data: {
     type: string
@@ -525,11 +606,20 @@ export const PlaygroundPage = () => {
     switch (data.type) {
       case 'connected':
         console.log('WebSocket session established')
-        if (data.session_id && data.context_type && sessionInfo) {
-          setSessionInfo({
-            ...sessionInfo,
-            sessionId: data.session_id,
-            contextType: data.context_type,
+        if (data.session_id && data.context_type) {
+          const nextSessionId = data.session_id
+          const nextContextType = data.context_type
+          setSessionInfo(prev => {
+            if (!prev) return prev
+            if (prev.sessionId === nextSessionId && prev.contextType === nextContextType) {
+              return prev
+            }
+
+            return {
+              ...prev,
+              sessionId: nextSessionId,
+              contextType: nextContextType,
+            }
           })
         }
         break
@@ -606,6 +696,7 @@ export const PlaygroundPage = () => {
           thinkingProcess,
           toolCalls
         }])
+        void loadPlaygroundSessions()
         break
       }
       case 'error':
@@ -619,11 +710,11 @@ export const PlaygroundPage = () => {
         }])
         break
     }
-  }, [mapHistoryMessage, sessionInfo])
+  }, [loadPlaygroundSessions, mapHistoryMessage])
 
   useEffect(() => {
-    if (!sessionInfo?.sessionId && !creatingSession && !loadingAgents) {
-      void createPlaygroundSession()
+    if (!sessionInfo?.sessionId) {
+      disconnectWebSocket()
       return
     }
 
@@ -634,7 +725,7 @@ export const PlaygroundPage = () => {
         wsRef.current = null
       }
     }
-  }, [connectWebSocket, createPlaygroundSession, creatingSession, loadingAgents, sessionInfo])
+  }, [connectWebSocket, disconnectWebSocket, sessionInfo?.sessionId])
 
 
 
@@ -765,6 +856,24 @@ export const PlaygroundPage = () => {
             {/* Header Actions */}
             <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
               <button
+                onClick={() => void createPlaygroundSession()}
+                disabled={creatingSession}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] bg-blue-200 text-stone-900 hover:bg-blue-300 disabled:bg-stone-300 disabled:cursor-not-allowed"
+              >
+                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                {creatingSession ? 'Đang tạo' : 'Chat mới'}
+              </button>
+
+              <button
+                onClick={() => void loadPlaygroundSessions()}
+                disabled={loadingSessions}
+                className="flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] bg-white text-stone-900 hover:bg-stone-50 disabled:bg-stone-300 disabled:cursor-not-allowed"
+              >
+                <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingSessions ? 'animate-spin' : ''}`} />
+                Làm mới
+              </button>
+
+              <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 font-black uppercase text-[10px] border-2 border-stone-900 transition-all cursor-pointer shadow-[2px_2px_0_#1c1917] hover:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] ${showSettings ? 'bg-amber-400 text-stone-900' : 'bg-white text-stone-900 hover:bg-stone-50'}`}
               >
@@ -809,6 +918,8 @@ export const PlaygroundPage = () => {
               value={selectedAgentId ?? ''}
               onChange={(e) => setSelectedAgentId(Number(e.target.value))}
               disabled={loadingAgents}
+              title="Chọn agent"
+              aria-label="Chọn agent"
               className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[120px]"
             >
               {agents.map(a => (
@@ -822,6 +933,8 @@ export const PlaygroundPage = () => {
             <select
               value={selectedProvider}
               onChange={(e) => handleProviderChange(e.target.value as LLMProvider)}
+              title="Chọn nhà cung cấp mô hình"
+              aria-label="Chọn nhà cung cấp mô hình"
               className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[100px]"
             >
               {PROVIDERS.map(p => (
@@ -835,6 +948,8 @@ export const PlaygroundPage = () => {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
+              title="Chọn mô hình AI"
+              aria-label="Chọn mô hình AI"
               className="px-2 py-1 border-2 border-stone-900 bg-white font-black text-[10px] focus:ring-0 outline-none cursor-pointer text-stone-900 min-w-[160px]"
             >
               {MODELS_BY_PROVIDER[selectedProvider].map(m => (
@@ -870,6 +985,49 @@ export const PlaygroundPage = () => {
             </span>
           </div>
         </div>
+      </div>
+
+      <div className="px-4 py-2 bg-white border-b-2 border-stone-900 flex flex-wrap items-center gap-2 shrink-0">
+        <span className="text-[10px] font-black uppercase text-stone-500">Phiên chat</span>
+        {loadingSessions ? (
+          <span className="text-[10px] font-bold text-stone-500">Đang tải danh sách session...</span>
+        ) : sessionList.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {sessionList.map(session => {
+              const isActive = session.session_id === sessionInfo?.sessionId
+              const isDeleting = deletingSessionId === session.session_id
+              return (
+                <div
+                  key={session.session_id}
+                  className={`flex items-center gap-1 border-2 border-stone-900 shadow-[1px_1px_0_#1c1917] ${isActive ? 'bg-amber-300 text-stone-900' : 'bg-white text-stone-700'}`}
+                >
+                  <button
+                    onClick={() => void handleSelectSession(session.session_id)}
+                    className={`px-2 py-1 text-[10px] font-black transition-all hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none ${isActive ? 'text-stone-900' : 'text-stone-700 hover:bg-stone-50'}`}
+                    title={session.title || session.session_id}
+                  >
+                    <span className="uppercase">{session.title || 'Playground chat'}</span>
+                    <span className="ml-2 text-stone-500 normal-case">
+                      {session.updated_at ? new Date(session.updated_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : 'Chưa có thời gian'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSessionToDelete(session)}
+                    title="Xóa session"
+                    aria-label="Xóa session"
+                    disabled={isDeleting}
+                    className="px-2 py-1 border-l-2 border-stone-900 text-red-700 hover:bg-red-100 disabled:text-stone-400 disabled:cursor-not-allowed"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <span className="text-[10px] font-bold text-stone-500">Chưa có session nào. Hãy bấm Chat mới để bắt đầu.</span>
+        )}
       </div>
 
       <div className="px-4 py-2 bg-white border-b-2 border-stone-900 flex flex-wrap items-center gap-2 shrink-0">
@@ -912,12 +1070,14 @@ export const PlaygroundPage = () => {
                     <ChatBubbleLeftRightIcon className="w-8 h-8 text-stone-700" />
                   </div>
                   <h3 className="text-lg font-black text-stone-900 mb-2 uppercase">
-                    {agents.length === 0 ? 'Hệ thống chưa sẵn sàng' : 'Start Chatting'}
+                    {agents.length === 0 ? 'Hệ thống chưa sẵn sàng' : sessionInfo?.sessionId ? 'Sẵn sàng trò chuyện' : 'Chọn hoặc tạo chat'}
                   </h3>
                   <p className="text-sm text-stone-600 mb-6">
                     {agents.length === 0
                       ? 'Database của AI Service hiện đang trống. Vui lòng nạp dữ liệu mẫu để bắt đầu.'
-                      : 'Select an agent and send a message to see ReAct trace'}
+                      : sessionInfo?.sessionId
+                        ? 'Gửi tin nhắn để xem ReAct trace theo thời gian thực.'
+                        : 'Admin có thể mở lại session cũ hoặc bấm Chat mới để tạo một phiên playground mới.'}
                   </p>
                   {agents.length === 0 && (
                     <button
@@ -926,6 +1086,15 @@ export const PlaygroundPage = () => {
                       className="w-full py-3 bg-amber-400 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {seeding ? 'Đang khởi tạo...' : 'Khởi tạo dữ liệu AI (Seed)'}
+                    </button>
+                  )}
+                  {agents.length > 0 && !sessionInfo?.sessionId && (
+                    <button
+                      onClick={() => void createPlaygroundSession()}
+                      disabled={creatingSession}
+                      className="w-full py-3 bg-blue-300 text-stone-900 border-2 border-stone-900 font-black uppercase text-sm shadow-[4px_4px_0_#1c1917] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {creatingSession ? 'Đang tạo chat...' : 'Tạo chat mới'}
                     </button>
                   )}
                 </div>
@@ -974,14 +1143,16 @@ export const PlaygroundPage = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Nhập tin nhắn... (Enter để gửi)"
+                placeholder={sessionInfo?.sessionId ? 'Nhập tin nhắn... (Enter để gửi)' : 'Hãy chọn session cũ hoặc tạo chat mới trước khi gửi tin nhắn'}
                 rows={3}
-                disabled={sending || connectionStatus !== 'connected'}
+                disabled={sending || connectionStatus !== 'connected' || !sessionInfo?.sessionId}
                 className="flex-1 px-4 py-3 border-4 border-stone-900 focus:ring-0 outline-none text-sm resize-none disabled:bg-stone-100 disabled:cursor-not-allowed text-stone-900 bg-white font-medium"
               />
               <button
                 onClick={sendMessage}
-                disabled={sending || !input.trim() || connectionStatus !== 'connected'}
+                disabled={sending || !input.trim() || connectionStatus !== 'connected' || !sessionInfo?.sessionId}
+                title="Gửi tin nhắn"
+                aria-label="Gửi tin nhắn"
                 className="px-6 py-3 font-black text-white bg-amber-500 border-4 border-stone-900 hover:bg-amber-600 disabled:bg-stone-300 disabled:cursor-not-allowed transition-colors cursor-pointer self-end shadow-[4px_4px_0_#1c1917] hover:shadow-[2px_2px_0_#1c1917] hover:translate-x-[2px] hover:translate-y-[2px] disabled:shadow-none disabled:translate-x-0 disabled:translate-y-0"
               >
                 <ArrowRightIcon className="w-5 h-5" />
@@ -1044,11 +1215,11 @@ export const PlaygroundPage = () => {
                         {step.tool_result !== undefined && (
                           <div className="mt-2 p-2 bg-white border border-current rounded text-xs">
                             <span className="font-bold">Result:</span>
-                            <pre className="mt-1 overflow-x-auto text-[10px] max-h-32">
+                            <pre className="mt-1 overflow-x-auto overflow-y-auto text-[10px] max-h-48 whitespace-pre-wrap break-words">
                               {typeof step.tool_result === 'string'
-                                ? step.tool_result.slice(0, 500)
-                                : JSON.stringify(step.tool_result, null, 2).slice(0, 500)}
-                              {(typeof step.tool_result === 'string' ? step.tool_result.length : JSON.stringify(step.tool_result).length) > 500 && '...'}
+                                ? step.tool_result.slice(0, 2000)
+                                : JSON.stringify(step.tool_result, null, 2).slice(0, 2000)}
+                              {(typeof step.tool_result === 'string' ? step.tool_result.length : JSON.stringify(step.tool_result).length) > 2000 && '\n... [Xem thêm trong Debug Console]'}
                             </pre>
                           </div>
                         )}
@@ -1112,7 +1283,7 @@ export const PlaygroundPage = () => {
               </div>
               <div className="flex items-center gap-4">
                 <button onClick={() => setDebugLogs([])} className="text-[10px] font-black uppercase text-stone-500 hover:text-white">Clear</button>
-                <button onClick={() => setShowDebug(false)} className="text-stone-400 hover:text-white">
+                <button onClick={() => setShowDebug(false)} title="Đóng bảng log" aria-label="Đóng bảng log" className="text-stone-400 hover:text-white">
                   <XMarkIcon className="w-4 h-4" />
                 </button>
               </div>
@@ -1158,7 +1329,7 @@ export const PlaygroundPage = () => {
                   <Cog6ToothIcon className="w-6 h-6 text-stone-900" />
                   <h2 className="text-xl font-black uppercase text-stone-900">Agent Settings</h2>
                 </div>
-                <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-amber-500 rounded">
+                <button onClick={() => setShowSettings(false)} title="Đóng cài đặt" aria-label="Đóng cài đặt" className="p-1 hover:bg-amber-500 rounded">
                   <XMarkIcon className="w-6 h-6 text-stone-900" />
                 </button>
               </div>
@@ -1228,6 +1399,8 @@ export const PlaygroundPage = () => {
                     <select
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
+                      title="Chọn mô hình trong cài đặt"
+                      aria-label="Chọn mô hình trong cài đặt"
                       className="w-full px-4 py-2 border-2 border-stone-900 bg-white text-stone-900 font-bold"
                     >
                       {MODELS_BY_PROVIDER[selectedProvider].map(m => (
@@ -1385,6 +1558,17 @@ export const PlaygroundPage = () => {
           cancelLabel="HỦY BỎ"
           onConfirm={handleSeedDatabase}
           onCancel={() => setShowSeedConfirm(false)}
+          isDanger
+        />
+
+        <ConfirmModal
+          isOpen={!!sessionToDelete}
+          title="Xác nhận xóa session"
+          message={`Bạn có chắc muốn xóa session "${sessionToDelete?.title || sessionToDelete?.session_id || ''}" không? Toàn bộ lịch sử chat của session này sẽ bị xóa.`}
+          confirmLabel={deletingSessionId ? 'ĐANG XÓA...' : 'XÓA SESSION'}
+          cancelLabel="HỦY"
+          onConfirm={handleDeleteSession}
+          onCancel={() => setSessionToDelete(null)}
           isDanger
         />
       </div>

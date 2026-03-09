@@ -54,25 +54,25 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Stitch ID: `e2cc78e8214a44f4849983c99fe32314`
 
 ### Booking Features (Module 3.8, 3.9)
-- [x] **Select Pet Screen** (UC-BOOK-01)
+- [x] **Select Pet Screen** (UC-PO-06)
   - Code: `lib/ui/booking/select_pet_screen.dart`
   - Stitch ID: `fe3f6aa1a7b44e819ac7256449125b36`
-- [x] **Select Services Screen** (UC-BOOK-02)
+- [x] **Select Services Screen** (UC-PO-06)
   - Code: `lib/ui/booking/select_services_screen.dart`
   - Stitch ID: `0f0e2a6c728245acabb5de3707fdda99`
-- [x] **Select Date & Time Screen** (UC-BOOK-03)
+- [x] **Select Date & Time Screen** (UC-PO-06)
   - Code: `lib/ui/booking/select_datetime_screen.dart`
   - Stitch ID: `b931aa0339cd4e49beaea902bc230128`
-- [x] **Booking Confirm Screen** (UC-BOOK-04)
+- [x] **Booking Confirm Screen** (UC-PO-06)
   - Code: `lib/ui/booking/booking_confirm_screen.dart`
   - Stitch ID: `13cff95d2edf431caf32554888c04d8e`
-- [x] **Booking Success Screen** (UC-BOOK-05)
+- [x] **Booking Success Screen** (UC-PO-06)
   - Code: `lib/ui/booking/booking_success_screen.dart`
   - Stitch ID: `4d1e3957cd004b809b6de585b57b795e`
-- [x] **Booking Detail Screen** (UC-BOOK-06)
+- [x] **Booking Detail Screen** (UC-PO-08)
   - Code: `lib/ui/booking/booking_detail_screen.dart`
   - Stitch ID: `6dccd6e3c19a44f5ba42f8ea6f618d3f`
-- [x] **My Bookings Screen** (UC-BOOK-07)
+- [x] **My Bookings Screen** (UC-PO-08)
   - Code: `lib/ui/booking/my_bookings_screen.dart`
   - Stitch ID: `b877d8dbcce2416382df38e028b2c136`
 
@@ -93,11 +93,13 @@ This document tracks the generation of black & white wireframes for the Petties 
 ### Chat & AI Features (Module 3.13)
 
 #### Pet Owner AI Features (Mobile)
-- [ ] **AI Chat Bubble (Float Button)** (UC-AI-001)
+- [x] **AI Chat Bubble (Float Button)** (UC-AI-001)
   - Code: `lib/ui/chat/ai_chat_bubble.dart`
+  - Stitch ID: `7b8415d7d7e2423a962eb1c162bd9eaa`
   - *UI Description: Floating bubble button ở góc dưới phải màn hình (tất cả screens Pet Owner). Icon AI chatbot. Badge màu xanh "AI Trợ lý" + notification dot khi có tin nhắn mới. Khi click mở chat overlay fullscreen.*
-- [ ] **AI Chat Screen (Pet Care Q&A)** (UC-AI-002)
+- [x] **AI Chat Screen (Pet Care Q&A)** (UC-AI-002)
   - Code: `lib/ui/chat/ai_pet_care_chat_screen.dart`
+  - Stitch ID: `4dd76e4f105a49faac0b7d0c1319075c`
   - *UI Description: Chat interface với AI Agent cho pet care Q&A. Header badge "AI Trợ lý". Quick reply suggestions (4-5 câu hỏi phổ biến dạng chips). Bubble messages user/AI. Typing indicator với animation dots khi AI đang xử lý. Sources/citations hiển thị dạng links dưới response. Input box + send button ở bottom.*
 - [x] **AI Symptom Checker Screen** (UC-AI-003)
   - Code: `lib/ui/chat/ai_symptom_checker_screen.dart`
@@ -115,12 +117,14 @@ This document tracks the generation of black & white wireframes for the Petties 
 ---
 
 #### Staff AI Assistant (Web + Mobile) - Context-aware assistant
-- [ ] **AI Staff Assistant Widget** (UC-AI-020)
+- [x] **AI Staff Assistant Widget** (UC-AI-020)
   - Code: `petties-web/src/components/ai/AiStaffAssistantWidget.tsx` + `lib/ui/staff/widgets/ai_assistant_widget.dart`
+  - Stitch ID: `6ad582d8101146c7b82cce5fdff083ee`
   - *UI Description: Widget cố định ở sidebar (Web) hoặc floating button bottom-right (Mobile). Icon AI với badge notification số (khi có gợi ý mới từ AI). Badge "AI Trợ lý - Staff". Click mở chat panel slide-in.*
 
-- [ ] **AI Staff Chat Panel (Slide-in)** (UC-AI-020)
+- [x] **AI Staff Chat Panel (Slide-in)** (UC-AI-020)
   - Code: `petties-web/src/components/ai/AiStaffChatPanel.tsx` + `lib/ui/staff/ai_staff_chat_panel.dart`
+  - Stitch ID: `396aa0772a8f444298a54ccacad46ed9`
   - *UI Description:
 
   **Layout:** Slide-in panel từ bên phải (Web: 450px width, Mobile: 85% screen width). Header: "AI Trợ lý - Staff" + minimize/close buttons.
@@ -146,12 +150,14 @@ This document tracks the generation of black & white wireframes for the Petties 
 ---
 
 #### Manager AI Assistant (Web) - Operations focused
-- [ ] **AI Manager Assistant Widget** (UC-AI-021)
+- [x] **AI Manager Assistant Widget** (UC-AI-021)
   - Code: `petties-web/src/components/ai/AiManagerAssistantWidget.tsx`
+  - Stitch ID: `93cf9b918a144b7a80f2d0b8110cc716`
   - *UI Description: Similar widget như Staff. Badge "AI Trợ lý - Quản lý". Notification badge hiển thị số alerts chưa đọc (màu đỏ cho urgent như SOS).*
 
-- [ ] **AI Manager Chat Panel** (UC-AI-021)
+- [x] **AI Manager Chat Panel** (UC-AI-021)
   - Code: `petties-web/src/components/ai/AiManagerChatPanel.tsx`
+  - Stitch ID: `8bbf62136be440f0b1a859c3e6d2f5d8`
   - *UI Description:
 
   **AI Proactive Notifications cho Manager:**
@@ -169,12 +175,14 @@ This document tracks the generation of black & white wireframes for the Petties 
 ---
 
 #### Owner AI Assistant (Web) - Business intelligence
-- [ ] **AI Owner Assistant Widget** (UC-AI-026)
+- [x] **AI Owner Assistant Widget** (UC-AI-026)
   - Code: `petties-web/src/components/ai/AiOwnerAssistantWidget.tsx`
+  - Stitch ID: `25d91368fc26411d99e40891bcee195c`
   - *UI Description: Widget cho Owner với business analytics context. Badge "AI Trợ lý - Chủ phòng khám". Notification dot màu xanh cho insights mới.*
 
-- [ ] **AI Owner Chat Panel** (UC-AI-026)
+- [x] **AI Owner Chat Panel** (UC-AI-026)
   - Code: `petties-web/src/components/ai/AiOwnerChatPanel.tsx`
+  - Stitch ID: `cd1a8c219f2c44399de6348d3c09176b`
   - *UI Description:
 
   **AI Proactive Business Insights:**
@@ -193,8 +201,9 @@ This document tracks the generation of black & white wireframes for the Petties 
 ---
 
 #### AI Notification System (Cross-platform)
-- [ ] **AI Proactive Notification Component** (UC-AI-031)
+- [x] **AI Proactive Notification Component** (UC-AI-031)
   - Code: `petties-web/src/components/ai/AiNotificationToast.tsx` + `lib/ui/widgets/ai_notification_toast.dart`
+  - Stitch ID: `cd77e979036e431396a7aaed683c2438`
   - *UI Description:
 
   **Toast notification style:** Slide-in từ top-right (Web) / top (Mobile). Card design với:
@@ -215,28 +224,34 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Stitch ID: `5399f23f82be4bbcbe2e13d50d10b227`
 
 ### Staff Features (Module 3.7)
-- [x] **Staff Schedule Mobile** (UC-SCHED-01)
+- [x] **Staff Schedule Mobile** (UC-STAFF-04)
   - Code: `staff_schedule_screen.dart`
   - Stitch ID: `095f6b61101b464aba244dc8d89a4374`
-- [x] **Staff Home Dashboard** (UC-STAFF-01)
+- [x] **Staff Home Dashboard** (UC-BOOK-10)
   - Code: `lib/ui/staff/staff_home_screen.dart`
   - Stitch ID: `05b3462ea430474d91b2d7cc47de790c`
-- [x] **Staff Bookings Screen** (UC-STAFF-02)
+- [x] **Staff Bookings Screen** (UC-BOOK-09)
   - Code: `lib/ui/staff/staff_bookings_screen.dart`
   - Stitch ID: `46e2d7c4303f45989f51cd3118311601`
-- [x] **Staff Add Service** (UC-STAFF-03)
+- [x] **Staff Add Service** (UC-BOOK-11)
   - Code: `lib/ui/staff/add_service_screen.dart`
-  - Stitch ID: `fd2fa6e23fda4966b2841bb1aa7ac5e6`
-- [x] **Staff Create EMR** (UC-STAFF-04)
+  - Stitch ID: `509e5ee6f6a8420e92cf7d02107911dc`
+- [x] **Staff Remove Add-on Service** (UC-BOOK-12)
+  - Code: `components/booking/RemoveAddOnServiceAction.tsx`
+  - Stitch ID: `1850463b03994041b9253977c383e756`
+- [x] **Staff Update Booking Progress** (UC-BOOK-08)
+  - Code: `lib/ui/staff/staff_booking_detail_screen.dart`
+  - Stitch ID: `23bac76ebe5e435485519123fd7fe483`
+- [x] **Staff Create EMR** (UC-VT-06)
   - Code: `lib/ui/staff/create_emr_screen.dart`
   - Stitch ID: `6e7c15796b784e82b1248c78e43b6e51`
-- [x] **Staff EMR Detail** (UC-STAFF-05)
+- [x] **Staff EMR Detail** (UC-VT-06)
   - Code: `lib/ui/staff/emr_detail_screen.dart`
   - Stitch ID: `948ceaa48762498c87ace145227ba51e`
-- [x] **Staff Vaccination Record** (UC-STAFF-06)
+- [x] **Staff Vaccination Record** (UC-VT-08)
   - Code: `lib/ui/staff/vaccination_record_screen.dart`
   - Stitch ID: `0d6c6e995b1744c4b22734e130fba67c`
-- [x] **Staff Schedule Mobile** (UC-SCHED-01)
+- [x] **Staff Schedule Mobile** (UC-STAFF-04)
   - Code: `staff_schedule_screen.dart`
   - Stitch ID: `095f6b61101b464aba244dc8d89a4374`
 
@@ -248,33 +263,33 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Staff Dashboard** (UC-BOOK-10)
   - Code: `staff/DashboardPage.tsx`
   - Stitch ID: `ac2118e0816044598b63ac72ed5fda35`
-- [x] **Staff Shift Management** (UC-SCHED-01)
+- [x] **Staff Shift Management** (UC-STAFF-06)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID (Full Desktop View): `cef09cbbf65249ccb67cfa7849134bcf`
   - Stitch ID (Sidebar Detail): `213e781a8fb24b639c87bfaff592b95f`
-- [x] **Staff Schedule** (UC-SCHED-01)
+- [x] **Staff Schedule** (UC-STAFF-04)
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
   - *Prompt Prepared in `wireframe_prompts.md`*
-- [x] **Shift Conflict Warning Modal** (UC-SCHED-05)
+- [x] **Shift Conflict Warning Modal** (UC-STAFF-05)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `2853459417f547a1abc26b185b817870`
-- [x] **Bulk Delete Shifts Mode (Grid)** (UC-SCHED-01)
+- [x] **Bulk Delete Shifts Mode (Grid)** (UC-STAFF-07)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `523c4135e7bd4c668607ec89c3b06d2d`
-- [x] **Bulk Delete Confirmation Modal** (UC-SCHED-01)
+- [x] **Bulk Delete Confirmation Modal** (UC-STAFF-07)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `e367f913c5d54d67a2c3a5b2e654928b`
-- [x] **Assigned Bookings List** (UC-BOOK-06)
+- [x] **Assigned Bookings List** (UC-BOOK-09)
   - Code: `staff/StaffBookingsPage.tsx`
   - Stitch ID: `0595f1cdc9714ab990fcab59851583b5`
-- [x] **Patient List** (UC-EMR-04)
+- [x] **Patient List** (UC-CM-08)
   - Code: `staff/patients/StaffPatientsPage.tsx`
   - Stitch ID: `988111dae18a4313a4214aa4413ec497`
-- [x] **EMR Detail** (UC-EMR-01)
+- [x] **EMR Detail** (UC-VT-06)
   - Code: `staff/emr/EmrDetailPage.tsx`
   - Stitch ID: `2d10d23ef25c460e8f3aa2940b83dd60`
-- [x] **Create EMR** (UC-EMR-01)
+- [x] **Create EMR** (UC-VT-06)
   - Code: `staff/emr/CreateEmrPage.tsx`
   - Stitch ID: `11e29c25c0524dc6bf0808a6c2615e47`
 - [x] **Notifications**
@@ -303,7 +318,7 @@ This document tracks the generation of black & white wireframes for the Petties 
 - [x] **Clinic Services** (UC-OPS-02)
   - Code: `clinic-owner/ServicesPage.tsx`
   - Stitch ID: `898e6fa6912140e79d9958c00223e28b`
-- [x] **Staff Management** (UC-SCHED-06)
+- [x] **Staff Management** (UC-STAFF-03)
   - Code: `clinic-owner/staff/StaffManagementPage.tsx`
   - Stitch ID: `fefa8807bde145108097e5e40f1a8cfa`
 
@@ -312,23 +327,23 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `clinic-manager/DashboardPage.tsx`
   - Stitch ID: `71e767c840874fd68eddd1cea828b836`
   - *UI Description: Dashboard với KPI cards (Today bookings, Revenue, Pending confirmations). Chart xu hướng bookings. SOS Alert modal popup khi có request.*
-- [x] **Booking Management Dashboard** (UC-BOOK-04)
+- [x] **Booking Management Dashboard** (UC-BOOK-05)
   - Code: `clinic-manager/bookings/BookingsPage.tsx`
   - Stitch ID: `a6b3f3f0c15f4f109dd9cddfb05ac1c4`
   - *UI Description: Kanban board hoặc Table view bookings theo status. Filters: Date range, Status, Type (Walk-in/Home/SOS). Bulk actions.*
-- [x] **Booking Confirmation Page** (UC-BOOK-05)
+- [x] **Booking Confirmation Page** (UC-BOOK-06)
   - Code: `clinic-manager/bookings/BookingConfirmationPage.tsx`
   - Stitch ID: `d6fe1520c1e54e0ba9edebd0b36a1339`
   - *UI Description: Chi tiết booking pending confirmation. Auto-assign hoặc Manual-assign staff UI. Available staff list với workload indicator.*
-- [x] **Staff List Management** (UC-MGR-04)
+- [x] **Staff List Management** (UC-STAFF-03)
   - Code: `clinic-manager/staff/StaffManagementPage.tsx`
   - Stitch ID: `32036310fa7c487ebfe5a4b8fd7edb22`
   - *UI Description: Danh sách nhân viên (Table/Grid), thông tin liên lạc, vai trò, chuyên môn, nút Thêm nhân sự.*
-- [x] **Staff Invitation by Email** (UC-MGR-04)
+- [x] **Staff Invitation by Email** (UC-STAFF-01)
   - Code: `components/clinic-staff/QuickAddStaffModal.tsx`
   - Stitch ID: `f84e04f0976440fc87b0280c98f8b442`
   - *UI Description: Modal Thêm nhân viên bằng Email, chọn Role, Specialty.*
-- [x] **Staff Removal Confirmation Dialog** (UC-MGR-04)
+- [x] **Staff Removal Confirmation Dialog** (UC-STAFF-02)
   - Code: `components/clinic-staff/StaffTable.tsx`
   - Stitch ID: `bb322f38e46d4e41b3d5930d45bf44f4`
   - *UI Description: Modal xác nhận trước khi xóa nhân viên.*
@@ -336,67 +351,75 @@ This document tracks the generation of black & white wireframes for the Petties 
   - Code: `shared/chat/ChatManagementPage.tsx`
   - Stitch ID: `0924bd78033e440cb09da2a1939ddc36`
   - *UI Description: Live chat inbox với pet owners. Sidebar list conversations, main area chat messages. Assign to staff feature.*
-- [x] **View New Bookings (Pending)** (UC-CM-05)
+- [x] **View New Bookings (Pending)** (UC-BOOK-05)
   - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
   - Stitch ID: `d884ac4b12d440898b5e8e74d77fc2cc`
   - *UI Description: Table view danh sách booking PENDING với tabs status, filter search/date/type, action buttons Chi tiết/Gán Staff/Hủy.*
-- [x] **Assign Staff to Booking Modal** (UC-CM-06)
+- [x] **Assign Staff to Booking Modal** (UC-BOOK-06)
   - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
   - Stitch ID: `3e0f4ffe4eef4dc4ba4937d705a616f6`
   - *UI Description: Modal gán nhân viên cho từng dịch vụ trong booking. Dropdown chọn staff với specialty tag, suggested indicator, available slots.*
-- [x] **Reassign Staff Modal** (UC-CM-15)
+- [x] **Reassign Staff Modal** (UC-BOOK-07)
   - Code: `components/booking/ReassignStaffModal.tsx`
   - Stitch ID: `cc1c92942447431d9fd8ebd7d40ca9eb`
   - *UI Description: Modal đổi nhân viên cho dịch vụ cụ thể. Hiện nhân viên hiện tại, danh sách staff available với radio button, specialty filter.*
-- [x] **Update Booking Progress** (UC-VT-04)
-  - Code: `clinic-manager/bookings/BookingDashboardPage.tsx`
-  - Stitch ID: `bb43bc56c85244c38288c0779e5883f4`
-  - *UI Description: Booking detail page với status progress bar, thông tin booking, action buttons (Check-in, Start Moving, Arrived, Checkout), activity log.*
+- [x] **Add Service Modal (Web)** (UC-BOOK-11)
+  - Code: `petties-web/src/components/modals/AddServiceModal.tsx`
+  - Stitch ID: `a49b7470b5174179bcc92ae9fe5b0a81`
+- [x] **Remove Add-on Service Modal (Web)** (UC-BOOK-12)
+  - Code: `petties-web/src/components/booking/RemoveAddOnServiceAction.tsx`
+  - Stitch ID: `431cb1de38764765b78c03b031713b03`
 
 ### Staff Web Features (Module 3.7, 3.9)
 - [x] **Staff Dashboard** (UC-BOOK-10)
   - Code: `staff/DashboardPage.tsx`
   - Stitch ID: `ac2118e0816044598b63ac72ed5fda35`
-- [x] **Staff Shift Management** (UC-SCHED-01)
+- [x] **Staff Shift Management** (UC-STAFF-06)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID (Full Desktop View): `cef09cbbf65249ccb67cfa7849134bcf`
-- [x] **Shift Detail Sidebar** (UC-SCHED-01)
+- [x] **Shift Detail Sidebar** (UC-STAFF-06)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `4befcd685bb34273ba6d506796481acb`
   - *UI Description: Sidebar tab "Chi tiết ca" hiển thị thông tin nhân viên, KHUNG GIỜ, khung tóm tắt Slots (Trống/Đã đặt/Đã khóa) và DANH SÁCH SLOTS chi tiết.*
-- [x] **Staff Schedule** (UC-SCHED-01)
+- [x] **Staff Schedule** (UC-STAFF-04)
   - Code: `staff/StaffSchedulePage.tsx`
   - Stitch ID: `48420cb21977457689fe791da0f3541a`
   - *Prompt Prepared in `wireframe_prompts.md`*
-- [x] **Shift Conflict Warning Modal** (UC-SCHED-05)
+- [x] **Shift Conflict Warning Modal** (UC-STAFF-05)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `2853459417f547a1abc26b185b817870`
-- [x] **Bulk Delete Shifts Mode (Grid)** (UC-SCHED-01)
+- [x] **Bulk Delete Shifts Mode (Grid)** (UC-STAFF-07)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `523c4135e7bd4c668607ec89c3b06d2d`
-- [x] **Bulk Delete Confirmation Modal** (UC-SCHED-01)
+- [x] **Bulk Delete Confirmation Modal** (UC-STAFF-07)
   - Code: `clinic-manager/shifts/StaffShiftPage.tsx`
   - Stitch ID: `e367f913c5d54d67a2c3a5b2e654928b`
-- [x] **Assigned Bookings List** (UC-BOOK-06)
+- [x] **Assigned Bookings List** (UC-BOOK-09)
   - Code: `staff/StaffBookingsPage.tsx`
   - Stitch ID: `0595f1cdc9714ab990fcab59851583b5`
-- [x] **Patient List** (UC-EMR-04)
+- [x] **Patient List** (UC-CM-08)
   - Code: `staff/patients/StaffPatientsPage.tsx`
   - Stitch ID: `988111dae18a4313a4214aa4413ec497`
-- [x] **EMR Detail** (UC-EMR-01)
+- [x] **EMR Detail** (UC-VT-06)
   - Code: `staff/emr/EmrDetailPage.tsx`
   - Stitch ID: `2d10d23ef25c460e8f3aa2940b83dd60`
-- [x] **Create EMR** (UC-EMR-01)
+- [x] **Create EMR** (UC-VT-06)
   - Code: `staff/emr/CreateEmrPage.tsx`
   - Stitch ID: `11e29c25c0524dc6bf0808a6c2615e47`
-- [x] **Edit EMR** (UC-EMR-01)
+- [x] **Edit EMR** (UC-VT-06)
   - Code: `petties-web/src/pages/staff/emr/EditEmrPage.tsx`
   - Stitch ID: `7d85f629b38440efa97e8751233b3629`
   - *UI Description: Form chỉnh sửa EMR existing. Pre-filled data, rich text editor, attachment upload. Audit trail hiển thị lịch sử sửa.*
-- [x] **Vaccination Management** (UC-EMR-03)
+- [x] **Vaccination Management** (UC-VT-08)
   - Code: `petties-web/src/pages/staff/emr/components/VaccinationTab.tsx`
   - Stitch ID: `f82869af13634ec19a747ac1f9fa7c6a`
   - *UI Description: Table danh sách vaccinations với filters (Pet, Date range, Type). Add vaccination modal, view certificate button.*
+- [x] **Add Service Modal (Web)** (UC-BOOK-11)
+  - Code: `petties-web/src/components/modals/AddServiceModal.tsx`
+  - Stitch ID: `a49b7470b5174179bcc92ae9fe5b0a81`
+- [x] **Remove Add-on Service Modal (Web)** (UC-BOOK-12)
+  - Code: `petties-web/src/components/booking/RemoveAddOnServiceAction.tsx`
+  - Stitch ID: `431cb1de38764765b78c03b031713b03`
 - [x] **Notifications**
   - Code: `staff/NotificationsPage.tsx`
   - Stitch ID: `64bb7b67d4044632b23c2ce59b17f51b`

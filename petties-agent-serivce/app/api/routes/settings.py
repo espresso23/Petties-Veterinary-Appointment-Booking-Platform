@@ -427,6 +427,55 @@ Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
                     assigned_agents=["petties_agent"]
                 ),
                 Tool(
+                    name="web_search",
+                    description="""Tim thong tin tu web khi knowledge base chua du du lieu.
+
+Chi su dung tool nay cho cau hoi lien quan den:
+- Thu cung, thu y, dinh duong, cham soc
+- Trieu chung, benh ly, huong dan xu ly tham khao
+
+Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu y.""",
+                    tool_type="code_based",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Cau hoi can tim tren web (chi nhan noi dung lien quan thu cung/thu y)"
+                            },
+                            "max_results": {
+                                "type": "integer",
+                                "description": "So luong ket qua toi da (default: 5)",
+                                "default": 5
+                            }
+                        },
+                        "required": ["query"]
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string"},
+                            "results": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "title": {"type": "string"},
+                                        "snippet": {"type": "string"},
+                                        "url": {"type": "string"},
+                                        "source": {"type": "string"}
+                                    }
+                                }
+                            },
+                            "answer": {"type": "string"},
+                            "sources_used": {"type": "integer"},
+                            "search_source": {"type": "string"}
+                        }
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"]
+                ),
+                Tool(
                     name="get_user_pets",
                     description="Lay danh sach thu cung cua pet owner hien tai de phuc vu booking flow.",
                     tool_type="code_based",

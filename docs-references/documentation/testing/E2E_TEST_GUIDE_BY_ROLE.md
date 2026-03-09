@@ -81,7 +81,7 @@
 
 ### E2E-PO-04: Đặt lịch khám tại phòng (IN_CLINIC) + thanh toán online
 
-- **Mục đích:** UC-BOOK-01, UC-BOOK-05 – Đặt lịch tại phòng khám, thanh toán online.
+- **Mục đích:** UC-PO-06 – Đặt lịch tại phòng khám, thanh toán online.
 - **Điều kiện:** Đã có thú cưng; clinic có dịch vụ và slot.
 - **Bước:** Chọn clinic → Chọn dịch vụ → Chọn ngày/giờ (slot) → Chọn thú cưng → Chọn thanh toán Online → Xác nhận; hoàn tất thanh toán (Stripe/test).
 - **Kết quả:** Booking tạo thành công, trạng thái PENDING (hoặc theo luồng); thanh toán ghi nhận.
@@ -111,10 +111,10 @@
 
 ### E2E-PO-07: Full booking lifecycle (xuyên role)
 
-- **Mục đích:** UC-BOOK-01/02 + 03 + UC-BOOK-11/12 + UC-BOOK-08 + add-on + UC-BOOK-14 – Từ đặt lịch đến hoàn thành.
+- **Mục đích:** UC-BOOK-01/02 + UC-BOOK-03 + UC-BOOK-06/07 + UC-BOOK-08 + UC-BOOK-11 – Từ đặt lịch đến hoàn thành.
 - **Điều kiện:** Pet Owner, Clinic Manager, Staff có tài khoản; clinic có staff và slot.
 - **Bước (Pet Owner):** Đặt lịch IN_CLINIC hoặc HOME_VISIT → Thanh toán (nếu online). **(Manager):** Vào Web → Gán staff cho booking. **(Staff):** Mobile/Web → Check-in → (HOME_VISIT/SOS: thêm/xóa dịch vụ phát sinh nếu cần) → Hoàn thành khám. **(Manager):** Nhận thanh toán & checkout.
-- **Kết quả:** Booking chuyển PENDING → ASSIGNED/CONFIRMED → IN_PROGRESS → COMPLETED; tổng tiền đúng nếu có add-on.
+- **Kết quả:** Booking chuyển PENDING → CONFIRMED → IN_PROGRESS → COMPLETED; tổng tiền đúng nếu có add-on.
 - **Checklist:** [ ] PO đặt lịch  [ ] CM gán staff  [ ] Staff check-in  [ ] Staff thêm/xóa add-on (nếu HOME_VISIT/SOS)  [ ] Staff hoàn thành khám  [ ] CM checkout  [ ] PO thấy trạng thái COMPLETED
 
 ---
@@ -131,7 +131,7 @@
 
 ### E2E-PO-09: SOS – Gửi yêu cầu, theo dõi vị trí, ETA, nhận thông báo
 
-- **Mục đích:** UC-SOS-01, UC-SOS-02, UC-SOS-03, UC-SOS-04 – Yêu cầu SOS, theo dõi staff, ETA, thông báo đến nơi.
+- **Mục đích:** 3.10.1, 3.10.2, 3.10.3, 3.10.4 – Yêu cầu SOS, theo dõi staff, ETA, thông báo đến nơi.
 - **Điều kiện:** App có quyền vị trí; clinic cấu hình SOS; có staff được gán.
 - **Bước:** Mở SOS → Chọn thú cưng, mô tả → Gửi yêu cầu; Sau khi clinic nhận và staff bắt đầu di chuyển: xem bản đồ vị trí staff, ETA; Nhận thông báo khi staff sắp đến / đã đến.
 - **Kết quả:** SOS tạo thành công; bản đồ/ETA cập nhật; nhận push/in-app thông báo đúng.
@@ -154,7 +154,7 @@
 ### E2E-ST-01: Đăng nhập (invited account)
 
 - **Mục đích:** UC-AUTH-03 – Staff đăng nhập bằng tài khoản được mời.
-- **Điều kiện:** Manager/Owner đã invite email; Staff chưa đăng nhập.
+- **Điều kiện:** Manager/Owner đã thêm nhân viên bằng email hoặc liên kết account vào clinic; Staff chưa đăng nhập.
 - **Bước:** Mở app → Đăng nhập bằng email đã được invite (hoặc Google nếu đã link); kiểm tra vào được màn Staff.
 - **Kết quả:** Đăng nhập thành công; hiển thị role Staff, không thấy chức năng Pet Owner.
 - **Checklist:** [ ] Đăng nhập email invite  [ ] Hiển thị đúng dashboard Staff
@@ -163,7 +163,7 @@
 
 ### E2E-ST-02: Xem lịch làm việc, danh sách booking được gán
 
-- **Mục đích:** UC-BOOK-06, UC-SCHED-01 – Xem lịch và booking được gán.
+- **Mục đích:** UC-BOOK-09, UC-STAFF-04 – Xem lịch và booking được gán.
 - **Điều kiện:** Staff đã được gán ca và ít nhất một booking.
 - **Bước:** Vào Lịch làm việc → Xem ca trong ngày/tuần; Vào Danh sách booking / Assigned bookings → Xem booking CONFIRMED/IN_PROGRESS.
 - **Kết quả:** Ca làm việc và danh sách booking hiển thị đúng; mở được chi tiết booking.
@@ -174,7 +174,7 @@
 ### E2E-ST-03: Check-in bệnh nhân
 
 - **Mục đích:** UC-BOOK-08 – Check-in khi khách đến (IN_CLINIC) hoặc bắt đầu di chuyển (HOME_VISIT/SOS).
-- **Điều kiện:** Booking trạng thái ASSIGNED/CONFIRMED; Staff là người được gán.
+- **Điều kiện:** Booking trạng thái CONFIRMED; Staff là người được gán.
 - **Bước:** Mở chi tiết booking → Bấm "Check-in" / "Bắt đầu khám" (IN_CLINIC) hoặc "Bắt đầu di chuyển" (HOME_VISIT/SOS); xác nhận.
 - **Kết quả:** Trạng thái chuyển IN_PROGRESS; có thể tạo EMR (nếu áp dụng); Pet Owner nhận thông báo (nếu có).
 - **Checklist:** [ ] Check-in IN_CLINIC  [ ] Check-in HOME_VISIT/SOS (bắt đầu di chuyển)
@@ -193,7 +193,7 @@
 
 ### E2E-ST-05: Tạo EMR (SOAP), kê đơn, thêm sổ tiêm
 
-- **Mục đích:** UC-EMR-01, UC-EMR-02, UC-EMR-03 – Tạo EMR, kê đơn, thêm vaccination.
+- **Mục đích:** UC-VT-06, UC-VT-07, UC-VT-08 – Tạo EMR, kê đơn, thêm vaccination.
 - **Điều kiện:** Booking IN_PROGRESS; Staff đã check-in.
 - **Bước:** Từ chi tiết booking → Tạo EMR (SOAP); Thêm đơn thuốc (nếu có); Thêm/cập nhật sổ tiêm chủng; Lưu.
 - **Kết quả:** EMR lưu thành công; đơn thuốc và vaccination hiển thị trong EMR / hồ sơ pet.
@@ -203,7 +203,7 @@
 
 ### E2E-ST-06: Hoàn thành khám (Mark treatment finished)
 
-- **Mục đích:** UC-BOOK-09 – Đánh dấu đã khám xong, chuyển sang bước thanh toán/checkout.
+- **Mục đích:** UC-BOOK-08 – Đánh dấu đã khám xong, chuyển sang bước thanh toán/checkout.
 - **Điều kiện:** Booking IN_PROGRESS; đã check-in và (nên) có EMR.
 - **Bước:** Trong chi tiết booking → "Hoàn thành khám" / "Mark treatment finished"; xác nhận.
 - **Kết quả:** Trạng thái chuyển CHECK_OUT (hoặc tương đương); Manager nhận thông báo cần thanh toán/checkout (nếu có).
@@ -213,7 +213,7 @@
 
 ### E2E-ST-07: Tra cứu bệnh nhân cũ (Patient Lookup)
 
-- **Mục đích:** UC-EMR-04 – Tìm và xem hồ sơ bệnh nhân cũ của phòng khám.
+- **Mục đích:** UC-VT-12 – Tìm và xem hồ sơ bệnh nhân cũ của phòng khám.
 - **Điều kiện:** Staff thuộc clinic; clinic có bệnh nhân đã khám (có EMR).
 - **Bước:** Vào Tra cứu bệnh nhân / Patient Lookup → Tìm theo tên pet/owner/số điện thoại; Mở hồ sơ → Xem EMR, vaccination.
 - **Kết quả:** Tìm thấy bệnh nhân; xem được lịch sử EMR và tiêm chủng (read-only).
@@ -223,7 +223,7 @@
 
 ### E2E-ST-08: SOS – Nhận assignment, bắt đầu di chuyển, xác nhận đến nơi, checkout
 
-- **Mục đích:** UC-SOS-05, UC-SOS-06, UC-SOS-07 – Nhận SOS, di chuyển, đến nơi, checkout.
+- **Mục đích:** 3.10.3, 3.10.2, 3.10.5 – Nhận SOS, di chuyển, đến nơi, checkout.
 - **Điều kiện:** Manager đã gán Staff cho SOS; Pet Owner đã tạo yêu cầu SOS.
 - **Bước:** Xem booking SOS được gán → "Bắt đầu di chuyển" (bật GPS, gửi vị trí); Sau khi đến → "Đã đến nơi" / Confirm arrival; Thực hiện khám, add-on (nếu cần), hoàn thành khám; (Manager checkout hoặc Staff checkout tùy nghiệp vụ).
 - **Kết quả:** Pet Owner thấy vị trí/ETA; thông báo đến nơi; booking chuyển IN_PROGRESS → có thể checkout; phí SOS và add-on đúng.
@@ -243,39 +243,39 @@
 
 ---
 
-### E2E-CM-02: Xem danh sách nhân viên, thêm nhân viên (invite email)
+### E2E-CM-02: Xem danh sách nhân viên, thêm nhân viên bằng email
 
-- **Mục đích:** UC-SCHED-02, UC-AUTH-05 – Xem staff, mời staff bằng email.
+- **Mục đích:** UC-STAFF-03, UC-STAFF-01 – Xem staff, mời staff bằng email.
 - **Điều kiện:** Manager thuộc clinic có quyền quản lý staff.
-- **Bước:** Vào Quản lý nhân viên → Xem danh sách; Thêm nhân viên (nhập email, role/specialty nếu có) → Gửi lời mời.
-- **Kết quả:** Danh sách staff hiển thị; email invite gửi thành công; staff mới xuất hiện (pending/active tùy luồng).
-- **Checklist:** [ ] Xem danh sách staff  [ ] Gửi invite email  [ ] Kiểm tra trạng thái staff
+- **Bước:** Vào Quản lý nhân viên → Xem danh sách; Thêm nhân viên (nhập email, role/specialty nếu có) → Xác nhận liên kết/tạo account.
+- **Kết quả:** Danh sách staff hiển thị; staff mới được liên kết vào clinic hoặc tạo mới theo email; trạng thái roster cập nhật đúng.
+- **Checklist:** [ ] Xem danh sách staff  [ ] Thêm staff bằng email  [ ] Kiểm tra roster cập nhật
 
 ---
 
-### E2E-CM-03: Tạo / sửa / xóa ca làm việc; Block slot; Bulk delete shifts
+### E2E-CM-03: Tạo / xem / xóa ca làm việc
 
-- **Mục đích:** UC-SCHED-03, UC-SCHED-04, UC-SCHED-07, UC-SCHED-08 – Quản lý ca, block slot, xóa hàng loạt.
+- **Mục đích:** UC-STAFF-05, UC-STAFF-06, UC-STAFF-07 – Tạo, xem và xóa ca làm việc.
 - **Điều kiện:** Có staff trong clinic.
-- **Bước:** Vào Lịch / Shifts → Tạo ca (chọn staff, ngày, giờ); Sửa một ca; Block một slot (không cho đặt); Xóa nhiều ca (bulk delete) → Xác nhận.
-- **Kết quả:** Ca hiển thị đúng; block slot không xuất hiện khi Pet Owner đặt lịch; bulk delete xóa đúng các ca chọn.
-- **Checklist:** [ ] Tạo ca  [ ] Sửa ca  [ ] Block slot  [ ] Bulk delete shifts
+- **Bước:** Vào Lịch / Shifts → Tạo ca (chọn staff, ngày, giờ) → Xem chi tiết ca và slot summary → Xóa ca hợp lệ → Xác nhận.
+- **Kết quả:** Ca hiển thị đúng; xem được chi tiết ca; xóa thành công khi không có slot đã được đặt.
+- **Checklist:** [ ] Tạo ca  [ ] Xem chi tiết ca  [ ] Xóa ca hợp lệ
 
 ---
 
 ### E2E-CM-04: Xem booking mới, gán staff, gán lại staff (reassign)
 
-- **Mục đích:** UC-BOOK-11, UC-BOOK-12, UC-BOOK-16 – Xem booking, gán staff, reassign.
-- **Điều kiện:** Có booking PENDING/ASSIGNED; có staff có slot phù hợp.
-- **Bước:** Dashboard / Booking mới → Xem danh sách; Chọn booking → Gán staff (chọn staff, xác nhận); Với booking đã gán → Gán lại staff khác (reassign).
-- **Kết quả:** Booking chuyển ASSIGNED/CONFIRMED; Staff và Pet Owner nhận thông báo (nếu có); Reassign cập nhật đúng.
+- **Mục đích:** UC-BOOK-05, UC-BOOK-06, UC-BOOK-07 – Xem booking, gán staff, reassign.
+- **Điều kiện:** Có booking PENDING hoặc CONFIRMED; có staff có slot phù hợp.
+- **Bước:** Dashboard / Booking mới → Xem danh sách; Chọn booking → Gán staff (chọn staff, xác nhận); Với booking đã xác nhận → Gán lại staff khác cho service item nếu cần.
+- **Kết quả:** Booking chuyển CONFIRMED; Staff và Pet Owner nhận thông báo (nếu có); Reassign cập nhật đúng.
 - **Checklist:** [ ] Xem booking mới  [ ] Gán staff  [ ] Reassign staff
 
 ---
 
 ### E2E-CM-05: Nhận thanh toán & checkout
 
-- **Mục đích:** UC-BOOK-14 – Nhận tiền (cash/online) và hoàn tất checkout.
+- **Mục đích:** UC-BOOK-08 – Nhận tiền (cash/online) và hoàn tất checkout.
 - **Điều kiện:** Booking đã CHECK_OUT (Staff đã hoàn thành khám); có thể đã thanh toán online trước hoặc thanh toán tại quầy.
 - **Bước:** Vào booking cần thanh toán → Chọn Cash hoặc xác nhận Online đã thanh toán → Nhập số tiền (nếu cash) → "Hoàn tất checkout".
 - **Kết quả:** Booking chuyển COMPLETED; thanh toán ghi nhận; slot/doanh thu cập nhật (nếu có).
@@ -285,7 +285,7 @@
 
 ### E2E-CM-06: Xử lý hủy & hoàn tiền
 
-- **Mục đích:** UC-BOOK-13 – Hủy booking và xử lý hoàn tiền.
+- **Mục đích:** UC-BOOK-04 – Hủy booking và xử lý hoàn tiền.
 - **Điều kiện:** Booking ở trạng thái cho phép hủy; có chính sách hoàn tiền (nếu áp dụng).
 - **Bước:** Tìm booking (PENDING/CONFIRMED) → Hủy booking; Nếu đã thanh toán online → Thực hiện hoàn tiền (theo quy trình Stripe/refund).
 - **Kết quả:** Booking CANCELLED; hoàn tiền thành công (nếu có); slot được giải phóng.
@@ -295,7 +295,7 @@
 
 ### E2E-CM-07: Xem danh sách bệnh nhân, xem hồ sơ EMR (read-only)
 
-- **Mục đích:** UC-EMR-05, UC-EMR-06 – Quản lý bệnh nhân, xem EMR.
+- **Mục đích:** UC-CM-08, UC-CM-09 – Quản lý bệnh nhân, xem EMR.
 - **Điều kiện:** Clinic có booking đã khám (có EMR).
 - **Bước:** Vào Quản lý bệnh nhân / Patient list → Xem danh sách; Chọn một bệnh nhân → Xem lịch sử EMR, sổ tiêm (read-only).
 - **Kết quả:** Danh sách bệnh nhân đúng; xem được EMR và vaccination, không chỉnh sửa.
@@ -305,7 +305,7 @@
 
 ### E2E-CM-08: SOS – Dispatch thủ công, Accept/Decline (auto-match)
 
-- **Mục đích:** UC-SOS-08, UC-SOS-10 – Dispatch SOS thủ công; Nhận/ từ chối yêu cầu SOS (auto-match).
+- **Mục đích:** 3.10.1, 3.10.3 – Dispatch SOS thủ công; Nhận/ từ chối yêu cầu SOS (auto-match).
 - **Điều kiện:** Có yêu cầu SOS gửi tới clinic (auto-match hoặc manual); có staff.
 - **Bước:** (Auto-match) Nhận thông báo SOS → Accept hoặc Decline; nếu Accept → Gán staff. (Manual) Vào SOS / Emergency → Chọn yêu cầu → Dispatch → Gán staff.
 - **Kết quả:** Pet Owner nhận thông báo clinic nhận/từ chối; staff được gán nhận assignment; trạng thái SOS cập nhật.
@@ -367,7 +367,7 @@
 
 ### E2E-CO-06: Quick add staff, quản lý staff (xem, đổi role, xóa)
 
-- **Mục đích:** UC-SCHED-05, UC-SCHED-06 – Thêm staff nhanh, quản lý staff.
+- **Mục đích:** UC-STAFF-01, UC-STAFF-03 – Thêm staff nhanh, quản lý staff.
 - **Điều kiện:** Clinic Owner đăng nhập.
 - **Bước:** Thêm staff bằng email (quick add); Xem danh sách; Sửa role (Manager/Staff); Gỡ staff khỏi clinic (remove).
 - **Kết quả:** Staff nhận invite; danh sách và role cập nhật; remove thành công.
@@ -377,7 +377,7 @@
 
 ### E2E-CO-07: Cấu hình SOS auto-match (phí SOS, bán kính, v.v.)
 
-- **Mục đích:** UC-SOS-13 – Cấu hình SOS (phí, bán kính nhận request).
+- **Mục đích:** 3.10.x – Cấu hình SOS (phí, bán kính nhận request).
 - **Điều kiện:** Clinic đã duyệt; tính năng SOS bật.
 - **Bước:** Vào Cấu hình SOS / SOS Settings → Đặt phí SOS; Bán kính (km) nhận yêu cầu; Bật/tắt nhận auto-match; Lưu.
 - **Kết quả:** Pet Owner thấy phí SOS khi chọn clinic; auto-match gửi request đúng clinic trong bán kính.
