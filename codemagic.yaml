@@ -9,6 +9,9 @@ workflows:
         - google-service-account
       flutter: stable
       xcode: latest
+      # Tăng thời gian chờ cho các lệnh mạng
+      vars:
+        COCOAPODS_DISABLE_STATS: "true"
     scripts:
       - name: Create .env if missing
         script: |
@@ -18,10 +21,23 @@ workflows:
           fi
       - name: Flutter pub get
         script: flutter pub get
-      - name: Install Pods
+      - name: Configure Git and Install Pods
         script: |
           cd ios
-          pod install
+          # Tăng buffer size cho Git để tránh timeout khi tải repo lớn (như Firebase)
+          git config --global http.postBuffer 524288000
+          git config --global http.lowSpeedLimit 0
+          git config --global http.lowSpeedTime 999999
+          
+          # Thử chạy pod install, nếu lỗi thì thử lại tối đa 3 lần
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+             pod install && break
+             n=$((n+1)) 
+             echo "Pod install failed... retrying ($n/3)"
+             sleep 5
+          done
       - name: Flutter build iOS (Release)
         script: flutter build ios --release --no-codesign
       - name: Package IPA for Sideloading
