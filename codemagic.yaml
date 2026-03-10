@@ -13,7 +13,7 @@ workflows:
         # Biến môi trường từ CodeMagic UI
         ENV: "dev"
         API_BASE_URL: $API_BASE_URL
-        # SHOREBIRD_TOKEN: $SHOREBIRD_TOKEN # Cần thiết nếu chạy automation hoàn toàn
+        SHOREBIRD_TOKEN: $SHOREBIRD_TOKEN # Cần thiết để Shorebird tự động xác thực
         COCOAPODS_DISABLE_STATS: "true"
     scripts:
       - name: Install Shorebird
