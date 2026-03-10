@@ -11,8 +11,19 @@ workflows:
       flutter: stable
       xcode: latest
     scripts:
+      - name: Create .env if missing
+        script: |
+          # Ensure .env exists to prevent "No file found for asset: .env"
+          if [ ! -f .env ]; then
+            touch .env
+            echo "API_BASE_URL=http://localhost:8080" > .env
+          fi
       - name: Flutter pub get
         script: flutter pub get
+      - name: Install Pods
+        script: |
+          cd ios
+          pod install
       - name: Flutter build IPA
         script: flutter build ipa --debug --no-codesign
     artifacts:
