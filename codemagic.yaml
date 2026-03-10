@@ -42,16 +42,25 @@ workflows:
         script: $HOME/.shorebird/bin/shorebird release ios --no-codesign
       - name: Package IPA for Sideloading
         script: |
-          rm -rf Payload Runner.ipa
-          mkdir -p Payload
-          RUNNER_APP=$(find build -name "Runner.app" -type d | head -1)
+          # Tìm Runner.app chính xác
+          RUNNER_APP=$(find build/ios -name "Runner.app" -type d | head -1)
           if [ -z "$RUNNER_APP" ]; then
             echo "❌ Runner.app not found!"
-            find build -maxdepth 4 -type d
+            find build -name "Runner.app" -type d || true
+            ls -la build/ios/iphoneos/ || true
             exit 1
           fi
+          
           echo "✅ Found Runner.app at: $RUNNER_APP"
+          
+          # Tạo IPA chuẩn
+          rm -rf Payload Runner.ipa
+          mkdir -p Payload
           cp -r "$RUNNER_APP" Payload/
           zip -r Runner.ipa Payload
+          
+          # Verify
+          ls -la Runner.ipa
+          echo "✅ IPA ready: $(du -h Runner.ipa)"
     artifacts:
       - petties_mobile/Runner.ipa
