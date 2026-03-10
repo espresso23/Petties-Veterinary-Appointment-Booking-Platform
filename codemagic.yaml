@@ -1,6 +1,6 @@
 workflows:
-  ios-release-build:
-    name: Petties Mobile iOS - Release
+  ios-shorebird-build:
+    name: Petties Mobile iOS - Shorebird Release
     max_build_duration: 60
     instance_type: mac_mini_m2
     working_directory: petties_mobile
@@ -13,6 +13,10 @@ workflows:
         ENV: "dev"
         COCOAPODS_DISABLE_STATS: "true"
     scripts:
+      - name: Install Shorebird
+        script: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
+          $HOME/.shorebird/bin/shorebird --version
       - name: Create .env from CodeMagic Variables
         script: |
           echo "ENV=$ENV" > .env
@@ -34,13 +38,12 @@ workflows:
              echo "Pod install failed... retrying ($n/3)"
              sleep 5
           done
-      - name: Flutter build iOS (Release)
-        script: flutter build ios --release --no-codesign
+      - name: Shorebird Release iOS
+        script: $HOME/.shorebird/bin/shorebird release ios --no-codesign
       - name: Package IPA for Sideloading
         script: |
           rm -rf Payload Runner.ipa
           mkdir -p Payload
-          # Tìm Runner.app trong xcarchive hoặc iphoneos
           RUNNER_APP=$(find build -name "Runner.app" -type d | head -1)
           if [ -z "$RUNNER_APP" ]; then
             echo "❌ Runner.app not found!"
