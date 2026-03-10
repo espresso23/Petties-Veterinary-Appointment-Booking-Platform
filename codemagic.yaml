@@ -15,10 +15,9 @@ workflows:
     scripts:
       - name: Install Shorebird
         script: |
-          # Cài Shorebird CLI
           curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
-          # Thêm Shorebird vào PATH bằng biến CM_ENV (đúng chuẩn CodeMagic)
-          echo "PATH=\"$HOME/.shorebird/bin:$PATH\"" >> $CM_ENV
+          # Xác nhận cài thành công
+          $HOME/.shorebird/bin/shorebird --version
       - name: Create .env from CodeMagic Variables
         script: |
           echo "ENV=$ENV" > .env
@@ -41,7 +40,7 @@ workflows:
              sleep 5
           done
       - name: Shorebird Release iOS
-        script: shorebird release ios --no-codesign
+        script: $HOME/.shorebird/bin/shorebird release ios --no-codesign
       - name: Package IPA for Sideloading
         script: |
           rm -rf Payload Runner.ipa
