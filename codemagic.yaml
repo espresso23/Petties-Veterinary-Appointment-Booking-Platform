@@ -1,6 +1,6 @@
 workflows:
   ios-shorebird-build:
-    name: Petties Mobile iOS - Shorebird Debug/Release
+    name: Petties Mobile iOS - Shorebird Release
     max_build_duration: 60
     instance_type: mac_mini_m2
     working_directory: petties_mobile
@@ -10,23 +10,20 @@ workflows:
       flutter: stable
       xcode: latest
       vars:
-        # Biến môi trường từ CodeMagic UI
         ENV: "dev"
-        API_BASE_URL: $API_BASE_URL
-        SHOREBIRD_TOKEN: $SHOREBIRD_TOKEN # Cần thiết để Shorebird tự động xác thực
         COCOAPODS_DISABLE_STATS: "true"
     scripts:
       - name: Install Shorebird
         script: |
-          # Cài đặt Shorebird CLI trên máy chủ CodeMagic
+          # Cài Shorebird CLI
           curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh | bash
-          echo "export PATH=$HOME/.shorebird/bin:$PATH" >> $CM_EXPORT_PATH
+          # Thêm Shorebird vào PATH bằng biến CM_ENV (đúng chuẩn CodeMagic)
+          echo "PATH=\"$HOME/.shorebird/bin:$PATH\"" >> $CM_ENV
       - name: Create .env from CodeMagic Variables
         script: |
-          # Nạp biến vào file .env cho app
           echo "ENV=$ENV" > .env
           echo "API_BASE_URL=$API_BASE_URL" >> .env
-          echo "✅ .env file prepared"
+          cat .env
       - name: Flutter pub get
         script: flutter pub get
       - name: Configure Git and Install Pods
@@ -39,22 +36,17 @@ workflows:
           until [ "$n" -ge 3 ]
           do
              pod install && break
-             n=$((n+1)) 
+             n=$((n+1))
              echo "Pod install failed... retrying ($n/3)"
              sleep 5
           done
       - name: Shorebird Release iOS
-        script: |
-          # Chạy shorebird release thay vì flutter build
-          # Thêm --debug nếu bạn thực sự muốn debug, nhưng shorebird thường dùng release
-          shorebird release ios --no-codesign
+        script: shorebird release ios --no-codesign
       - name: Package IPA for Sideloading
         script: |
-          # Đổi đường dẫn copy cho phù hợp với output của Shorebird
           rm -rf Payload Runner.ipa
           mkdir -p Payload
-          # Shorebird build vẫn tạo ra Runner.app trong build/ios/iphoneos
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -v -r Runner.ipa Payload
+          zip -r Runner.ipa Payload
     artifacts:
       - petties_mobile/Runner.ipa
