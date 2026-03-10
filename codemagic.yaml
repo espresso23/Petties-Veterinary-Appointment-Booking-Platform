@@ -1,9 +1,8 @@
 workflows:
-  ios-debug-build:
-    name: Flutter Debug iOS
+  ios-release-build:
+    name: Flutter Release iOS (for Sideloadly)
     max_build_duration: 60
     instance_type: mac_mini_m2
-    # Rất quan trọng cho monorepo: Trỏ vào thư mục app
     working_directory: petties_mobile
     environment:
       groups:
@@ -13,10 +12,9 @@ workflows:
     scripts:
       - name: Create .env if missing
         script: |
-          # Ensure .env exists to prevent "No file found for asset: .env"
           if [ ! -f .env ]; then
             touch .env
-            echo "API_BASE_URL=http://localhost:8080" > .env
+            echo "API_BASE_URL=$API_BASE_URL" > .env
           fi
       - name: Flutter pub get
         script: flutter pub get
@@ -24,7 +22,12 @@ workflows:
         script: |
           cd ios
           pod install
-      - name: Flutter build IPA
-        script: flutter build ipa --debug --no-codesign
+      - name: Flutter build iOS (Release)
+        script: flutter build ios --release --no-codesign
+      - name: Package IPA for Sideloading
+        script: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r Runner.ipa Payload
     artifacts:
-      - build/ios/ipa/*.ipa
+      - petties_mobile/Runner.ipa
