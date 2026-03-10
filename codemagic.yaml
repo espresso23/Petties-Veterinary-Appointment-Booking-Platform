@@ -1,0 +1,19 @@
+workflows:
+  ios-debug-build:
+    name: Flutter Debug iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    # Rất quan trọng cho monorepo: Trỏ vào thư mục app
+    working_directory: petties_mobile
+    environment:
+      groups:
+        - google-service-account
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Flutter pub get
+        script: flutter pub get
+      - name: Flutter build IPA
+        script: flutter build ipa --debug --no-codesign
+    artifacts:
+      - build/ios/ipa/*.ipa
