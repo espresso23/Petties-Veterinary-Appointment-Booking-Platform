@@ -45,7 +45,15 @@ workflows:
         script: |
           rm -rf Payload Runner.ipa
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          # Tìm Runner.app ở bất kỳ đâu trong thư mục build
+          RUNNER_APP=$(find build -name "Runner.app" -type d | head -1)
+          if [ -z "$RUNNER_APP" ]; then
+            echo "❌ Runner.app not found! Listing build directory:"
+            find build -maxdepth 4 -type d
+            exit 1
+          fi
+          echo "✅ Found Runner.app at: $RUNNER_APP"
+          cp -r "$RUNNER_APP" Payload/
           zip -r Runner.ipa Payload
     artifacts:
       - petties_mobile/Runner.ipa
