@@ -1,7 +1,7 @@
 # Booking Workflow - Petties
 
-**Version:** 1.6.0  
-**Last Updated:** 2026-03-04  
+**Version:** 1.7.0  
+**Last Updated:** 2026-03-09  
 
 ---
 
@@ -174,6 +174,13 @@ sequenceDiagram
 ---
 
 ## 5. Payment Flow
+
+## 5.1 AI Booking Guardrails
+
+- Với business chat, AI phải hỏi rõ `IN_CLINIC` hay `HOME_VISIT` trước khi kiểm tra slot hoặc tạo booking nếu người dùng chưa nêu rõ.
+- Nếu người dùng đã cung cấp sẵn phòng khám, dịch vụ, thú cưng hoặc thời gian, AI không được hỏi lại các trường đã có.
+- Với `HOME_VISIT`, AI chỉ được tạo booking khi đã có đủ địa chỉ, GPS và khoảng cách di chuyển.
+- Trước khi gọi tool tạo booking, AI phải tóm tắt lại loại khám, pet, clinic, ngày, giờ, dịch vụ và yêu cầu người dùng xác nhận rõ ràng.
 
 ```mermaid
 flowchart TD

@@ -14,8 +14,12 @@ from app.core.chat_context import BUSINESS_CHAT, PLAYGROUND_TEST, normalize_cont
 
 
 PUBLIC_BUSINESS_TOOLS = {
-    "pet_care_qa",
-    "symptom_search",
+    "pet_knowledge_search",
+    "web_search",
+}
+
+PLAYGROUND_TOOLS = {
+    "pet_knowledge_search",
     "web_search",
 }
 
@@ -47,19 +51,18 @@ class ContextPolicyService:
 
     ROLE_BUSINESS_TOOLS = {
         "PET_OWNER": {
-            "pet_care_qa",
-            "symptom_search",
+            "pet_knowledge_search",
             "web_search",
             "get_user_pets",
             "search_clinics_nearby",
             "check_available_slots",
             "create_booking_for_user",
             "get_clinic_services",
+            "check_vaccination_status",
             "analyze_pet_image",
         },
         "STAFF": {
-            "pet_care_qa",
-            "symptom_search",
+            "pet_knowledge_search",
             "web_search",
             "get_user_pets",
             "search_clinics_nearby",
@@ -72,8 +75,7 @@ class ContextPolicyService:
             "check_vaccination_status",
         },
         "CLINIC_MANAGER": {
-            "pet_care_qa",
-            "symptom_search",
+            "pet_knowledge_search",
             "web_search",
             "get_user_pets",
             "search_clinics_nearby",
@@ -91,8 +93,7 @@ class ContextPolicyService:
             "accept_sos_booking",
         },
         "CLINIC_OWNER": {
-            "pet_care_qa",
-            "symptom_search",
+            "pet_knowledge_search",
             "web_search",
             "get_user_pets",
             "search_clinics_nearby",
@@ -131,15 +132,25 @@ class ContextPolicyService:
         if normalized_context == PLAYGROUND_TEST:
             if normalized_role != "ADMIN":
                 return []
-            return normalized_available
+            if not normalized_available:
+                return list(PLAYGROUND_TOOLS)
+            return [
+                tool
+                for tool in normalized_available
+                if tool.lower() in PLAYGROUND_TOOLS
+            ]
 
         allowed_lookup = {
             tool.lower()
-            for tool in cls.ROLE_BUSINESS_TOOLS.get(normalized_role, PUBLIC_BUSINESS_TOOLS)
+            for tool in cls.ROLE_BUSINESS_TOOLS.get(
+                normalized_role, PUBLIC_BUSINESS_TOOLS
+            )
         }
 
         if not normalized_available:
-            return list(cls.ROLE_BUSINESS_TOOLS.get(normalized_role, PUBLIC_BUSINESS_TOOLS))
+            return list(
+                cls.ROLE_BUSINESS_TOOLS.get(normalized_role, PUBLIC_BUSINESS_TOOLS)
+            )
 
         return [tool for tool in normalized_available if tool.lower() in allowed_lookup]
 
@@ -186,7 +197,9 @@ class ContextPolicyService:
         if "create_booking_for_user" in tool_list:
             guardrail = (
                 f"{guardrail} Không được gọi create_booking_for_user nếu người dùng chưa xác nhận rõ ràng đầy đủ thông tin booking. "
-                "Trước khi tạo booking, phải tóm tắt pet, clinic, ngày, giờ và dịch vụ để người dùng xác nhận."
+                "Trước khi tạo booking, phải tóm tắt loại khám, pet, clinic, ngày, giờ và dịch vụ để người dùng xác nhận. "
+                "Nếu là HOME_VISIT thì còn phải có địa chỉ, tọa độ và khoảng cách di chuyển. "
+                "Nếu dịch vụ là tiêm chủng, hãy giữ cách tư vấn giống flow thủ công: có thể nêu giá theo mũi/dose cho người dùng biết và chọn, nhưng không tự tạo flow riêng hoặc yêu cầu thông tin chuyên sâu không cần thiết."
             )
 
         if not prompt:

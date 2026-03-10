@@ -139,7 +139,7 @@ public class ClinicController {
     public ResponseEntity<Map<String, String>> deleteClinic(@PathVariable UUID id) {
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinic(id, currentUser.getUserId());
-        return ResponseEntity.ok(Map.of("message", "Clinic deleted successfully"));
+        return ResponseEntity.ok(Map.of("message", "Xóa phòng khám thành công"));
     }
 
     @GetMapping("/search")
@@ -203,7 +203,7 @@ public class ClinicController {
 
         String address = request.get("address");
         if (address == null || address.isEmpty()) {
-            throw new IllegalArgumentException("Address is required");
+            throw new IllegalArgumentException("Địa chỉ không được để trống");
         }
 
         GeocodeResponse geocode = clinicService.geocodeAddress(address);
@@ -395,7 +395,7 @@ public class ClinicController {
         User currentUser = authService.getCurrentUser();
         clinicService.deleteClinicImage(id, imageId, currentUser.getUserId());
 
-        return ResponseEntity.ok(Map.of("message", "Image deleted successfully"));
+        return ResponseEntity.ok(Map.of("message", "Xóa ảnh thành công"));
     }
 
     /**
@@ -414,20 +414,4 @@ public class ClinicController {
         return ResponseEntity.ok(clinic);
     }
 
-    /**
-     * GET /api/clinics/owner/approved
-     * Get APPROVED clinics owned by current user
-     * CLINIC_OWNER only
-     */
-    @GetMapping("/owner/approved")
-    @PreAuthorize("hasRole('CLINIC_OWNER')")
-    public ResponseEntity<Page<ClinicResponse>> getMyApprovedClinics(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "100") int size) {
-
-        User currentUser = authService.getCurrentUser();
-        Pageable pageable = PageRequest.of(page, size);
-        Page<ClinicResponse> clinics = clinicService.getClinicsByOwner(currentUser.getUserId(), pageable);
-        return ResponseEntity.ok(clinics);
-    }
 }

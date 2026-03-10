@@ -41,6 +41,10 @@ public class ClinicPricePerKm {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;

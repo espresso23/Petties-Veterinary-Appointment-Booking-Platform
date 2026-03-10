@@ -34,12 +34,12 @@
 | UC-ID | Tên | Priority | Tools Required |
 |-------|-----|----------|----------------|
 | UC-001 | Chat with AI | P0 | WebSocket streaming |
-| UC-002 | Ask pet care questions | P0 | `pet_care_qa` (RAG) |
-| UC-003 | Search diseases by symptoms | P1 | `symptom_search` (RAG) |
+| UC-002 | Ask pet care questions | P0 | `pet_knowledge_search` (RAG) |
+| UC-003 | Search diseases by symptoms | P1 | `pet_knowledge_search` (RAG) |
 | UC-004 | Book appointment via chat | P0 | `get_user_pets`, `search_clinics_nearby`, `check_available_slots`, `create_booking_for_user`, `get_clinic_services` |
-| UC-019 | Analyze pet health images | P2 | `analyze_pet_image` (Vision) |
+| UC-019 | Analyze pet health images | P2 | Planned / future scope |
 | UC-029 | Web search fallback | P2 | `web_search` |
-| UC-AI-030 | Summarize medical history | P1 | `get_pet_medical_history`, `summarize_medical_records` |
+| UC-AI-030 | Summarize medical history | P1 | Planned / future scope |
 
 ### 2.2 Interface Requirements
 **Mobile Flutter Screen: `ChatScreen` (đã có)**
@@ -69,14 +69,13 @@
 ### 2.5 Tools Access Permission
 | Tool | Allowed? | Notes |
 |------|----------|-------|
-| `pet_care_qa` | ✅ | Public knowledge |
-| `symptom_search` | ✅ | Public knowledge |
+| `pet_knowledge_search` | ✅ | Public knowledge |
 | `get_user_pets` | ✅ | Own pets only (JWT verification) |
 | `search_clinics_nearby` | ✅ | Public data |
 | `check_available_slots` | ✅ | Public data |
 | `create_booking_for_user` | ✅ | Own bookings only (JWT verification) |
 | `get_clinic_services` | ✅ | Public data |
-| `analyze_pet_image` | ✅ | Vision capability |
+| Vision capability | Planned | Chưa có tool/runtime trong code hiện tại |
 | Staff/Manager/Owner tools | ❌ | Forbidden |
 
 ---
@@ -168,7 +167,7 @@ notification = {
 | `get_patient_summary` | ✅ | Own clinic only |
 | `get_emr_history` | ✅ | Assigned bookings only |
 | `check_vaccination_status` | ✅ | Own clinic pets |
-| `create_booking` | ❌ | Cannot create for customers (customer self-book hoặc Manager tạo) |
+| `create_booking_for_user` | ❌ | Staff không tự tạo booking cho customer trong scope hiện tại |
 | Manager/Owner tools | ❌ | Forbidden |
 
 ---
@@ -452,7 +451,7 @@ def get_allowed_tools_by_role(role: UserRole) -> List[str]:
     """Return list of tool names allowed for this role"""
     tools_map = {
         UserRole.PET_OWNER: [
-            "pet_care_qa", "symptom_search", "get_user_pets",
+            "pet_knowledge_search", "get_user_pets",
             "search_clinics_nearby", "check_available_slots",
             "create_booking_for_user", "get_clinic_services"
         ],
@@ -542,9 +541,11 @@ class ProactiveNotificationService:
 - [ ] Test: Chat với PET_OWNER, STAFF, MANAGER - verify different prompts
 
 ### Phase 3: Booking Tools (Pet Owner Priority)
-- [ ] Implement 5 booking tools (theo `BOOKING_AI_TOOLS_REQUIREMENTS.md`)
+- [x] Implement 5 booking tools (theo `BOOKING_AI_TOOLS_REQUIREMENTS.md`)
 - [ ] Create HTTP client cho Spring Boot APIs
-- [ ] Test full booking flow via chat
+- [~] Test full booking flow via chat
+- [x] Add booking context guardrails: hỏi loại khám trước nếu thiếu, không hỏi lại thông tin đã có
+- [x] Support `HOME_VISIT` payload cho `create_booking_for_user` với address/GPS/distance validation
 
 ### Phase 4: Proactive Notification System (Clinic Roles)
 - [ ] Implement `ProactiveNotificationService`

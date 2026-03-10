@@ -1,7 +1,7 @@
-# II. Software Design Document
+﻿# II. Software Design Document
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 3.2.1 (Normalized staff and scheduling design to match codebase)
+**Version:** 3.2.2 (Updated database design inventory and diagrams to match current backend and AI data model)
 **Last Updated:** 2026-03-09
 **Document Status:** In Progress
 
@@ -1205,19 +1205,19 @@ User → UI → Controller → Service → Repository → Database
 sequenceDiagram
     actor CM as Clinic Manager
     participant UI as Manager Dashboard (Web)
-    participant C as VetShiftController
-    participant S as VetShiftService
-    participant R as VetShiftRepository
+    participant C as StaffShiftController
+    participant S as StaffShiftService
+    participant R as StaffShiftRepository
     participant DB as Database
 
-    CM->>UI: 1. Select the vet shift to delete
-    UI->>C: 2. DELETE /api/v1/vet-shifts/{id}
+    CM->>UI: 1. Select the staff shift to delete
+    UI->>C: 2. DELETE /api/v1/shifts/{shiftId}
     activate C
-    C->>S: 3. deleteVetShift(id)
+    C->>S: 3. deleteShift(shiftId)
     activate S
     S->>R: 4. findById(id)
     activate R
-    R->>DB: 5. Find vet shift record by ID
+    R->>DB: 5. Find staff shift record by ID
     
     alt [Staff Shift does not exist]
         DB-->>R: 6. Return null
@@ -1229,10 +1229,10 @@ sequenceDiagram
         deactivate C
         UI-->>CM: 10. Display error "Staff shift not found"
     else [Staff Shift exists]
-        DB-->>R: 6. Return vet shift record
+        DB-->>R: 6. Return staff shift record
         deactivate R
-        R-->>S: 7. VetShift Entity
-        S->>R: 8. softDelete(vetShift)
+        R-->>S: 7. StaffShift Entity
+        S->>R: 8. softDelete(staffShift)
         activate R
         R->>DB: 9. Update deleted status to true
         DB-->>R: 10. Return success
@@ -1254,7 +1254,7 @@ Petties uses a **Polyglot Persistence** architecture with multiple database type
 
 | Database | Type | Use Case | Tables/Collections |
 |----------|------|----------|-------------------|
-| **PostgreSQL 16** (Backend) | Relational (RDBMS) | Structured data with strict relationships | 17 tables |
+| **PostgreSQL 16** (Backend) | Relational (RDBMS) | Structured data with strict relationships | 21 tables |
 | **PostgreSQL 16** (AI Service) | Relational (RDBMS) | Agent configuration, tool governance, RAG metadata | 5 tables |
 | **MongoDB 7** | Document (NoSQL) | Flexible, nested, schema-less data, AI chat history | 6 collections |
 
@@ -1266,8 +1266,30 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 
 > **Database Architecture:**
 > - **Shared PostgreSQL Instance**: Both services connect to the same PostgreSQL server
-> - **Separate Schemas (optional)**: AI Service tables can use `ai_` prefix for logical separation
-> - **Total Tables**: 22 tables (17 Backend + 5 AI Service)
+> - **Separate Schemas (optional)**: AI Service tables can use separate schema or logical naming for operational isolation
+> - **Total Tables in Current Codebase**: 26 tables (21 Backend + 5 AI Service)
+
+#### 2.1.0 Presentation Notes
+
+Phần này có thể dùng trực tiếp khi thuyết trình Database Design trong buổi báo cáo.
+
+**Talking Script - PostgreSQL Overview:**
+
+"Trong Petties, PostgreSQL là lớp dữ liệu quan hệ trung tâm cho toàn bộ nghiệp vụ chính. Hiện tại hệ thống có 26 bảng PostgreSQL, trong đó 21 bảng phục vụ backend Spring Boot và 5 bảng phục vụ AI service. Chúng tôi chọn PostgreSQL vì cần tính toàn vẹn dữ liệu, ràng buộc khóa ngoại, và khả năng xử lý tốt các nghiệp vụ booking, phân ca, thanh toán và cấu hình hệ thống."
+
+"Ở backend nghiệp vụ, nhóm bảng quan trọng nhất gồm User, Clinic, Pet, StaffShift, Slot, Booking, BookingService, Payment và Review. Các bảng này tạo thành luồng dữ liệu xuyên suốt từ lúc người dùng đăng ký tài khoản, tạo hồ sơ thú cưng, tìm phòng khám, đặt lịch, phân công nhân sự, đến thanh toán và đánh giá sau dịch vụ."
+
+"Một điểm quan trọng trong thiết kế là chúng tôi tách booking thành nhiều lớp dữ liệu. Bảng Booking lưu thông tin lịch hẹn tổng thể, bảng booking_services lưu từng dịch vụ cụ thể trong lịch hẹn, còn bảng booking_slots quản lý các slot thời gian thực sự bị chiếm dụng. Cách tách này giúp hệ thống hỗ trợ nhiều dịch vụ trong một booking, nhiều slot cho một booking, và dễ mở rộng cho các luồng như home visit hoặc SOS."
+
+"Ngoài ra, module dịch vụ cũng được chuẩn hóa khá rõ. Chúng tôi có master_services làm template dùng chung, clinic_services là dịch vụ thực tế của từng phòng khám, service_weight_prices cho giá theo cân nặng, và vaccine_templates cùng vaccine_dose_prices cho nghiệp vụ tiêm chủng. Nhờ vậy, hệ thống vừa tái sử dụng được cấu hình chung, vừa cho phép từng phòng khám tùy biến dịch vụ riêng."
+
+"Đối với AI service, PostgreSQL không dùng để lưu chat message runtime mà dùng để lưu cấu hình quản trị như agents, tools, prompt_versions, knowledge_documents và system_settings. Trong đó chỉ có quan hệ vật lý rõ ràng giữa agents và prompt_versions; còn tools gắn với agent bằng cấu hình logic qua JSON assigned_agents, còn knowledge_documents và system_settings là các bảng quản trị độc lập. Cách tách này giúp sơ đồ dữ liệu rõ ràng hơn, đúng thực tế codebase, và dễ quản trị khi trình bày trước hội đồng."
+
+**Talking Script - Key Design Rationale:**
+
+"Về mặt thiết kế, chúng tôi chia PostgreSQL thành ba lớp logic. Lớp thứ nhất là dữ liệu lõi nghiệp vụ như user, clinic, pet, booking. Lớp thứ hai là dữ liệu cấu hình và pricing như master service, clinic service, vaccine template. Lớp thứ ba là dữ liệu hỗ trợ vận hành như notification, chat auto reply setting và AI system settings. Cách phân tách này giúp tài liệu, code và database dễ bảo trì hơn khi hệ thống mở rộng."
+
+"Một điểm nữa là phần quan hệ được thiết kế theo hướng bám sát nghiệp vụ thực tế. Ví dụ một clinic có nhiều staff shift, một shift có nhiều slot, một booking có nhiều service và nhiều slot, còn một payment gắn 1-1 với một booking. Các cardinality này giúp hệ thống kiểm soát rõ dữ liệu và giảm rủi ro inconsistency khi xử lý booking đồng thời."
 
 #### 2.1.1 Entity Relationship Diagram (Conceptual)
 
@@ -1277,59 +1299,74 @@ PostgreSQL is used as the primary relational database for both Spring Boot Backe
 
 | Entity | Description | Key Relationships |
 |--------|-------------|-------------------|
-| **User** | Người dùng hệ thống (Pet Owner, Staff, Manager, Owner, Admin) | 1 User → N Pets (owns), 1 User → 1 Clinic (works_at) |
-| **Pet** | Thú cưng được đăng ký trong hệ thống | 1 Pet → 1 Owner, 1 Pet → N EMRs, 1 Pet → N Vaccinations |
-| **Clinic** | Phòng khám thú y đã đăng ký và được duyệt | 1 Clinic → N Services, N Staff, N Bookings |
-| **ClinicService** | Dịch vụ do phòng khám cung cấp | 1 Service → 1 Clinic, N Weight Prices |
-| **Booking** | Lịch hẹn khám/dịch vụ | 1 Booking → 1 Pet, 1 Clinic, N Services, 1 Assigned Staff |
+| **User** | Người dùng hệ thống (Pet Owner, Staff, Manager, Owner, Admin) | 1 User → N Pets, N Bookings, N Notifications |
+| **Pet** | Thú cưng được đăng ký trong hệ thống | 1 Pet → N Bookings, N EMRs, N Vaccination Records |
+| **Clinic** | Phòng khám thú y đã đăng ký và được duyệt | 1 Clinic → N Services, N Staff Shifts, N Bookings |
+| **ClinicService** | Dịch vụ do phòng khám cung cấp | 1 Service → N BookingServiceItems, N Weight Prices, N VaccineDosePrices |
+| **VaccineTemplate** | Mẫu vắc-xin và quy tắc lịch tiêm | 1 Template → N Clinic Services |
+| **Booking** | Lịch hẹn khám/dịch vụ | 1 Booking → 1 Pet, 1 Clinic, N Services, N Slots, 1 Payment |
+| **Review** | Đánh giá sau khám | 1 Review → 1 Booking, 1 User, 1 Clinic |
+| **ChatAutoReplySetting** | Cấu hình auto-reply theo phòng khám | N Settings → 1 Clinic |
 | **EMRRecord** | Hồ sơ bệnh án điện tử (MongoDB) | 1 EMR → 1 Pet, 1 Staff, 1 Booking (optional) |
-| **Vaccination** | Sổ tiêm chủng (MongoDB) | 1 Vaccination → 1 Pet, 1 Staff |
-| **StaffShift** | Lịch làm việc của nhân viên | 1 Shift → 1 Staff, 1 Clinic, N Slots |
-| **Slot** | Khung giờ khám (30 phút) | 1 Slot → 1 Shift, N Bookings |
-| **Agent** | AI Agent configuration | 1 Agent → N Tools, N PromptVersions |
-| **Tool** | MCP Tools cho AI Agent | N Tools → M Agents (many-to-many) |
-| **AIChatSession** (MongoDB) | Phiên chat với AI | 1 Session → 1 User, N Messages (document-based) |
-| **KnowledgeDocument** | Tài liệu RAG Knowledge Base | Standalone |
+| **VaccinationRecord** | Sổ tiêm chủng (MongoDB) | 1 Record → 1 Pet, 1 Staff |
+| **ChatConversation** | Hội thoại Pet Owner <-> Clinic (MongoDB) | 1 Conversation → N Messages |
+| **Agent** | AI Agent configuration | 1 Agent → N PromptVersions; AI Chat Sessions được lưu ở MongoDB |
+| **Tool** | MCP tool metadata cho AI service | Quan hệ với Agent là logical relation qua `assigned_agents`, không phải FK |
+| **KnowledgeDocument** | Tài liệu RAG Knowledge Base | Metadata ở PostgreSQL, vectors nằm ở Qdrant |
+| **SystemSetting** | Runtime AI configuration | Standalone config table cho secrets và model settings |
 
 ##### B. Entity Relationships Diagram (ERD)
 
 ```mermaid
 erDiagram
+    USER ||--o{ REFRESH_TOKEN : has
+    USER ||--o{ BLACKLISTED_TOKEN : invalidates
     USER ||--o{ PET : owns
-    USER ||--o{ BOOKING : creates
+    USER ||--o{ BOOKING : books
+    USER ||--o{ BOOKING : proxies
     USER }o--|| CLINIC : works_at
-    USER ||--o{ STAFF_SHIFT : has
+    USER ||--o{ STAFF_SHIFT : works
+    USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ REVIEW : writes
+    USER ||--o{ CHAT_CONVERSATION : participates
 
-    PET ||--o{ BOOKING : scheduled_for
-    PET ||--o{ EMR_RECORD : has
-    PET ||--o{ VACCINATION : receives
-
+    CLINIC ||--o{ CLINIC_IMAGE : has_images
+    CLINIC ||--o| CLINIC_PRICE_PER_KM : has_pricing
     CLINIC ||--o{ CLINIC_SERVICE : offers
     CLINIC ||--o{ STAFF_SHIFT : schedules
     CLINIC ||--o{ BOOKING : receives
-    CLINIC ||--o{ MASTER_SERVICE : owns
+    CLINIC ||--o{ REVIEW : receives_review
+    CLINIC ||--o{ CHAT_CONVERSATION : receives_chat
+    CLINIC ||--o{ CHAT_AUTO_REPLY_SETTING : configures
 
-    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has
-    CLINIC_SERVICE }o--|| MASTER_SERVICE : inherits_from
+    MASTER_SERVICE ||--o{ CLINIC_SERVICE : defines
+    MASTER_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_default_tiers
+    VACCINE_TEMPLATE ||--o{ CLINIC_SERVICE : linked_to
+    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_weight_tiers
+    CLINIC_SERVICE ||--o{ VACCINE_DOSE_PRICE : has_dose_prices
 
-    BOOKING ||--o{ BOOKING_SERVICE_ITEM : contains
-    BOOKING }o--|| USER : assigned_to
-    BOOKING ||--o{ BOOKING_SLOT : occupies
+    PET ||--o{ BOOKING : has
+    PET ||--o{ EMR_RECORD : has
+    PET ||--o{ VACCINATION_RECORD : receives
 
-    EMR_RECORD }o--|| BOOKING : linked_to
-    EMR_RECORD }o--|| USER : created_by
+    STAFF_SHIFT ||--|{ SLOT : contains
 
-    VACCINATION }o--|| USER : administered_by
+    BOOKING ||--|{ BOOKING_SERVICE : contains
+    BOOKING ||--|{ BOOKING_SLOT : reserves
+    BOOKING ||--|| PAYMENT : has
+    BOOKING ||--o| REVIEW : has_review
+    BOOKING ||--o| EMR_RECORD : generates
+    BOOKING_SERVICE }|--|| CLINIC_SERVICE : references
+    BOOKING_SERVICE }o--o| USER : assigned_staff
+    BOOKING_SLOT }|--|| SLOT : links
+    BOOKING_SLOT }o--o| BOOKING_SERVICE : for_service
 
-    STAFF_SHIFT }o--|| USER : belongs_to
-    STAFF_SHIFT ||--o{ SLOT : generates
-
-    SLOT ||--o{ BOOKING_SLOT : reserved_by
-
-    USER ||--o{ NOTIFICATION : receives
+    CHAT_CONVERSATION ||--o{ CHAT_MESSAGE : contains
 
     AGENT ||--o{ PROMPT_VERSION : has
-    AGENT }o--o{ TOOL : uses
+    %% Logical relation only in application layer:
+    %% AGENT .. TOOL : assigned_via_JSON
+    %% AI chat runtime is stored in MongoDB, not PostgreSQL
 ```
 
 ##### C. Entity Groups by Domain
@@ -1337,18 +1374,20 @@ erDiagram
 | Domain | Entities | Purpose |
 |--------|----------|---------|
 | **User Management** | User, RefreshToken, BlacklistedToken | Người dùng, xác thực, phân quyền |
-| **Pet Health** | Pet, EMRRecord (MongoDB), Vaccination (MongoDB) | Thông tin thú cưng, hồ sơ sức khỏe |
-| **Clinic Operations** | Clinic, ClinicImage, ClinicPricePerKm | Phòng khám, hình ảnh, cấu hình khoảng cách |
-| **Services & Pricing** | MasterService, ClinicService, ServiceWeightPrice | Dịch vụ, bảng giá theo cân nặng |
+| **Pet Health** | Pet, EMRRecord (MongoDB), VaccinationRecord (MongoDB) | Thông tin thú cưng, hồ sơ sức khỏe |
+| **Clinic Operations** | Clinic, ClinicImage, ClinicPricePerKm, ChatAutoReplySetting | Phòng khám, hình ảnh, cấu hình khoảng cách, auto-reply |
+| **Services & Pricing** | MasterService, ClinicService, ServiceWeightPrice, VaccineTemplate, VaccineDosePrice | Dịch vụ, bảng giá theo cân nặng, cấu hình tiêm chủng |
 | **Scheduling** | StaffShift, Slot | Lịch làm việc nhân viên, khung giờ |
-| **Booking** | Booking, BookingServiceItem, BookingSlot, Payment | Đặt lịch, chi tiết dịch vụ, thanh toán |
+| **Booking** | Booking, BookingServiceItem, BookingSlot, Payment, Review | Đặt lịch, dịch vụ, thanh toán, đánh giá |
 | **Notifications** | Notification | Thông báo hệ thống |
-| **AI Service** | Agent, Tool, PromptVersion, KnowledgeDocument, SystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo) | AI chatbot, RAG, cấu hình |
+| **Communication** | ChatConversation (Mongo), ChatMessage (Mongo) | Chat giữa Pet Owner và Clinic |
+| **AI Service** | AIAgent, AITool, AIPromptVersion, AIKnowledgeDocument, AISystemSetting, AIChatSession (Mongo), AIChatMessage (Mongo), AIProactiveNotification (Mongo), ChatFeedback (Mongo) | AI chatbot, RAG, runtime audit; only `AIPromptVersion -> AIAgent` is enforced by PostgreSQL FK, `AITool -> AIAgent` là logical relation |
 
 ##### D. Detailed ERD (Database Design)
 
 > **Note:** ERD chi tiết (với columns, types, constraints) được generate từ [dbdiagram.io](https://dbdiagram.io/).
 > DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
+> Current DBML scope: PostgreSQL only (21 backend tables + 5 AI service tables). MongoDB collections are documented in Section 2.2.
 
 **Instructions to generate Detailed ERD:**
 1. Visit https://dbdiagram.io/
@@ -1362,25 +1401,34 @@ erDiagram
 
 #### 2.1.2 Table Groups
 
-##### Spring Boot Backend Tables (17 tables)
+##### Spring Boot Backend Tables (21 tables)
 
 | Group | Tables | Description |
 |-------|--------|-------------|
 | **Auth & User** | users, refresh_tokens, blacklisted_tokens | User management and authentication |
 | **Pet** | pets | Pet profiles |
 | **Clinic** | clinics, clinic_images, clinic_price_per_km | Clinic management |
-| **Services** | master_services, clinic_services, service_weight_prices | Services and pricing |
-| **Scheduling** | vet_shifts, slots | Staff work schedules |
-| **Booking** | bookings, booking_service_items, booking_slots, payments | Appointments and payments |
-| **Notification** | notifications | System notifications |
+| **Services** | master_services, clinic_services, service_weight_prices, vaccine_templates, vaccine_dose_prices | Services, pricing, and vaccination master data |
+| **Scheduling** | staff_shifts, slots | Staff work schedules |
+| **Booking** | bookings, booking_services, booking_slots, payments, reviews | Appointments, payments, and reviews |
+| **Operations** | notifications, chat_auto_reply_settings | System notifications and clinic chat automation |
 
 ##### AI Agent Service Tables (5 tables)
 
 | Group | Tables | Description |
 |-------|--------|-------------|
-| **Agent Config** | agents, tools, prompt_versions | Single Agent and Tools configuration |
-| **Knowledge Base** | knowledge_documents | RAG documents |
-| **Settings** | system_settings | API keys, LLM configs |
+| **Agent Config** | agents, tools, prompt_versions | Single Agent and tool configuration |
+| **Knowledge Base** | knowledge_documents | RAG document metadata |
+| **Settings** | system_settings | API keys and runtime configs |
+
+##### AI Agent Service Relationship Notes
+
+| Relationship | Type | Source of Truth | Presentation Guidance |
+|-------------|------|-----------------|-----------------------|
+| `prompt_versions.agent_id -> agents.id` | Physical FK | SQLAlchemy model + Alembic migration | Vẽ đường nối liền trong ERD |
+| `tools.assigned_agents -> agents.name` | Logical relation | Application config JSON | Trình bày bằng note hoặc nét đứt, không vẽ như FK cứng |
+| `knowledge_documents` | Standalone | SQLAlchemy model | Đặt độc lập, giải thích là metadata cho RAG |
+| `system_settings` | Standalone | SQLAlchemy model | Đặt độc lập, giải thích là runtime config |
 
 #### 2.1.3 Table Descriptions
 
@@ -1445,20 +1493,21 @@ erDiagram
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| id | UUID | PK | Primary Key |
+| pet_id | UUID | PK | Primary Key |
 | user_id | UUID | FK→users, NOT NULL | Owner (Pet Owner) |
-| name | VARCHAR(100) | NOT NULL | Pet name |
-| species | VARCHAR(50) | | Species (Dog, Cat, Other) |
-| breed | VARCHAR(100) | | Breed |
-| date_of_birth | DATE | | Birth date |
-| weight | DECIMAL(5,2) | | Weight (kg) |
-| gender | VARCHAR(10) | | Gender |
+| name | VARCHAR(255) | NOT NULL | Pet name |
+| species | ENUM | NOT NULL | DOG, CAT, BIRD, RABBIT, HAMSTER, FISH, OTHER |
+| breed | VARCHAR(255) | NOT NULL | Breed |
+| date_of_birth | DATE | NOT NULL | Birth date |
+| weight | DECIMAL(10,2) | NOT NULL | Weight (kg) |
+| gender | VARCHAR(50) | NOT NULL | Gender |
 | color | VARCHAR(100) | | Fur color |
 | allergies | TEXT | | Allergies (if any) |
 | image_url | VARCHAR(500) | | Pet image |
 | image_public_id | VARCHAR(100) | | Cloudinary public ID |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
-| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+| created_at | TIMESTAMP | NOT NULL | Created date |
+| updated_at | TIMESTAMP | | Updated date |
+| deleted_at | TIMESTAMP | | Soft delete timestamp |
 
 ###### Clinic Tables
 
@@ -1477,20 +1526,24 @@ erDiagram
 | district | VARCHAR(100) | | District |
 | province | VARCHAR(100) | | Province/City |
 | specific_location | VARCHAR(200) | | Specific location |
-| phone | VARCHAR(20) | | Phone number |
+| phone | VARCHAR(20) | NOT NULL | Phone number |
 | email | VARCHAR(100) | | Contact email |
+| bank_name | VARCHAR(100) | | Bank name for payments |
+| account_number | VARCHAR(50) | | Bank account number |
 | latitude | DECIMAL(10,8) | | Latitude |
 | longitude | DECIMAL(11,8) | | Longitude |
 | logo | VARCHAR(500) | | Logo URL |
+| business_license_url | VARCHAR(500) | | Business license URL |
 | operating_hours | JSONB | | Operating hours (JSON) |
 | status | ENUM | NOT NULL, DEFAULT 'PENDING' | PENDING, APPROVED, REJECTED, SUSPENDED |
 | rejection_reason | TEXT | | Rejection reason |
 | rating_avg | DECIMAL(2,1) | DEFAULT 0.0 | Rating score |
 | rating_count | INT | DEFAULT 0 | Number of ratings |
 | approved_at | TIMESTAMP | | Approval date |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
-| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+| created_at | TIMESTAMP | NOT NULL | Created date |
+| updated_at | TIMESTAMP | | Updated date |
 | deleted_at | TIMESTAMP | | Soft delete |
+| version | BIGINT | DEFAULT 0 | Optimistic locking |
 
 **operating_hours JSONB Structure:**
 ```json
@@ -1521,10 +1574,12 @@ erDiagram
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| clinic_id | UUID | PK, FK→clinics | 1:1 with clinics |
-| price_per_km | DECIMAL(12,2) | NOT NULL | Travel price per km |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
-| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+| clinic_id | UUID | PK, FK→clinics | 1:1 with clinics (@MapsId) |
+| price_per_km | DECIMAL(12,2) | | Travel price per km |
+| sos_fee | DECIMAL(12,2) | | Additional SOS travel fee |
+| version | BIGINT | NOT NULL, DEFAULT 0 | Optimistic locking |
+| created_at | TIMESTAMP | | Created date |
+| updated_at | TIMESTAMP | | Updated date |
 
 ###### Service Tables
 
@@ -1557,17 +1612,55 @@ erDiagram
 | service_id | UUID | PK | Primary Key |
 | clinic_id | UUID | FK→clinics, NOT NULL | Clinic |
 | master_service_id | UUID | FK→master_services | Template (nullable) |
-| is_custom | BOOLEAN | DEFAULT false | true=Custom, false=Inherited |
+| is_custom | BOOLEAN | DEFAULT true | true=Custom, false=Inherited |
 | name | VARCHAR(200) | NOT NULL | Service name |
 | description | TEXT | | Description |
-| base_price | DECIMAL(19,2) | | Base price |
-| duration_time | INT | | Duration (minutes) |
-| slots_required | INT | DEFAULT 1 | Required slots |
+| base_price | DECIMAL(19,2) | NOT NULL | Base price |
+| duration_time | INT | NOT NULL | Duration (minutes) |
+| slots_required | INT | NOT NULL | Required slots |
 | is_active | BOOLEAN | DEFAULT true | Is active |
 | is_home_visit | BOOLEAN | DEFAULT false | Supports Home Visit |
-| price_per_km | DECIMAL(19,2) | | Travel price |
 | service_category | ENUM | | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
 | pet_type | VARCHAR(100) | | Pet type |
+| reminder_interval | INT | | Reminder amount before due date |
+| reminder_unit | VARCHAR(50) | | Reminder unit (DAYS, WEEKS, MONTHS, YEARS) |
+| vaccine_template_id | UUID | FK→vaccine_templates | Linked vaccine template when service is vaccination |
+| created_at | TIMESTAMP | NOT NULL | Created date |
+| updated_at | TIMESTAMP | | Updated date |
+| version | BIGINT | DEFAULT 0 | Optimistic locking |
+
+**Table: vaccine_templates**
+
+**Description:** Vaccine master data used for clinic vaccination services and scheduling reminders.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| vaccine_template_id | UUID | PK | Primary Key |
+| name | VARCHAR(100) | NOT NULL | Vaccine name |
+| manufacturer | VARCHAR(100) | | Manufacturer |
+| description | TEXT | | Description |
+| default_price | DECIMAL(19,2) | | Suggested default price |
+| min_age_weeks | INT | | Minimum age in weeks |
+| repeat_interval_days | INT | | Suggested repeat interval |
+| series_doses | INT | | Number of doses in series |
+| is_annual_repeat | BOOLEAN | DEFAULT false | Annual booster flag |
+| min_interval_days | INT | | Minimum interval between doses |
+| target_species | ENUM | NOT NULL | Target species |
+| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| updated_at | TIMESTAMP | DEFAULT now() | Updated date |
+
+**Table: vaccine_dose_prices**
+
+**Description:** Price breakdown by dose number for vaccination services.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | Primary Key |
+| service_id | UUID | FK→clinic_services, NOT NULL | Vaccination service |
+| dose_number | INT | NOT NULL | Dose order in series |
+| dose_label | VARCHAR(100) | | Human-readable label |
+| price | DECIMAL(19,2) | NOT NULL | Dose price |
+| is_active | BOOLEAN | DEFAULT true | Is active |
 | created_at | TIMESTAMP | DEFAULT now() | Created date |
 | updated_at | TIMESTAMP | DEFAULT now() | Updated date |
 
@@ -1588,14 +1681,14 @@ erDiagram
 
 ###### Scheduling Tables
 
-**Table: vet_shifts**
+**Table: staff_shifts**
 
-**Description:** Work schedules for veterinarians at specific clinics. Auto-generates 30-minute slots for booking. Supports overnight shifts and break times.
+**Description:** Work schedules for staff at specific clinics. Auto-generates 30-minute slots for booking. Supports overnight shifts and break times.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | shift_id | UUID | PK | Primary Key |
-| vet_id | UUID | FK→users, NOT NULL | Veterinarian |
+| staff_id | UUID | FK→users, NOT NULL | Staff member |
 | clinic_id | UUID | FK→clinics, NOT NULL | Clinic |
 | work_date | DATE | NOT NULL | Work date |
 | start_time | TIME | NOT NULL | Shift start time |
@@ -1609,12 +1702,12 @@ erDiagram
 
 **Table: slots**
 
-**Description:** 30-minute time blocks auto-generated from vet_shifts. Used for booking appointments. Status tracks availability.
+**Description:** 30-minute time blocks auto-generated from staff_shifts. Used for booking appointments. Status tracks availability.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | slot_id | UUID | PK | Primary Key |
-| shift_id | UUID | FK→vet_shifts, NOT NULL | Parent shift |
+| shift_id | UUID | FK→staff_shifts, NOT NULL | Parent shift |
 | start_time | TIME | NOT NULL | Slot start time |
 | end_time | TIME | NOT NULL | Slot end time |
 | status | ENUM | NOT NULL, DEFAULT 'AVAILABLE' | AVAILABLE, BOOKED, BLOCKED |
@@ -1625,38 +1718,45 @@ erDiagram
 
 **Table: bookings**
 
-**Description:** Appointment records connecting pets, pet owners, clinics, and optional vets. Core booking entity supporting IN_CLINIC, HOME_VISIT, and SOS types.
+**Description:** Appointment records connecting pets, pet owners, clinics, and optional assigned staff. Core booking entity supporting IN_CLINIC, HOME_VISIT, and SOS types.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | booking_id | UUID | PK | Primary Key |
+| version | BIGINT | | Optimistic locking |
 | booking_code | VARCHAR(20) | UNIQUE, NOT NULL | Booking code (BK-YYYYMMDD-XXXX) |
 | pet_id | UUID | FK→pets, NOT NULL | Pet being treated |
 | pet_owner_id | UUID | FK→users, NOT NULL | Pet owner |
-| clinic_id | UUID | FK→clinics, NOT NULL | Target clinic |
+| clinic_id | UUID | FK→clinics | Target clinic (nullable while SOS is SEARCHING) |
 | assigned_staff_id | UUID | FK→users | Assigned staff |
+| proxy_booker_id | UUID | FK→users | Staff who created booking on behalf of pet owner (NULL if self-booked) |
 | booking_date | DATE | NOT NULL | Appointment date |
 | booking_time | TIME | NOT NULL | Appointment time |
-| type | ENUM | NOT NULL, DEFAULT 'IN_CLINIC' | IN_CLINIC, HOME_VISIT, SOS |
+| type | ENUM | NOT NULL | IN_CLINIC, HOME_VISIT, SOS |
 | home_address | VARCHAR(500) | | Address (Home Visit/SOS only) |
 | home_lat | DECIMAL(10,7) | | Home latitude |
 | home_long | DECIMAL(10,7) | | Home longitude |
 | distance_km | DECIMAL(5,2) | | Distance in km |
 | distance_fee | DECIMAL(12,2) | | Travel fee |
-| total_price | DECIMAL(12,2) | | Total price |
+| sos_fee | DECIMAL(12,2) | | SOS emergency surcharge |
+| total_price | DECIMAL(12,2) | NOT NULL | Total price |
 | status | ENUM | NOT NULL, DEFAULT 'PENDING' | (See State Machine below) |
-| cancellation_reason | TEXT | | Cancellation reason |
+| cancellation_reason | VARCHAR(255) | | Cancellation reason |
 | cancelled_by | UUID | | Cancelled by user |
 | notes | TEXT | | Notes |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| symptoms | TEXT | | Symptom description (SOS bookings) |
+| confirmed_at | TIMESTAMP | | When clinic confirmed the booking |
+| arrived_at | TIMESTAMP | | When staff arrived (Home Visit/SOS) |
+| created_at | TIMESTAMP | | Created date |
 
-**Booking Status State Machine:**
+**Booking Status State Machine (persisted in DB):**
 ```
 PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
+PENDING → SEARCHING → PENDING_CLINIC_CONFIRM → CONFIRMED
 ```
-Alternative paths: CANCELLED, NO_SHOW
+Alternative persisted paths: CANCELLED, NO_SHOW
 
-**Table: booking_service_items**
+**Table: booking_services**
 
 **Description:** Junction table linking bookings to specific clinic services (Many-to-Many). Captures price snapshot at booking time for historical accuracy.
 
@@ -1664,12 +1764,14 @@ Alternative paths: CANCELLED, NO_SHOW
 |--------|------|-------------|-------------|
 | booking_service_id | UUID | PK | Primary Key |
 | booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
+| pet_id | UUID | FK→pets | Pet receiving the service |
 | service_id | UUID | FK→clinic_services, NOT NULL | Clinic service |
 | assigned_staff_id | UUID | FK→users | Staff assigned to this service |
 | unit_price | DECIMAL(12,2) | | Price snapshot at booking time |
 | base_price | DECIMAL(12,2) | | Base price |
 | weight_price | DECIMAL(12,2) | | Weight-based price |
 | quantity | INT | DEFAULT 1 | Quantity |
+| is_add_on | BOOLEAN | DEFAULT false | Arising/add-on service flag |
 | created_at | TIMESTAMP | DEFAULT now() | Created date |
 
 **Table: booking_slots**
@@ -1681,7 +1783,7 @@ Alternative paths: CANCELLED, NO_SHOW
 | booking_slot_id | UUID | PK | Primary Key |
 | booking_id | UUID | FK→bookings, NOT NULL | Parent booking |
 | slot_id | UUID | FK→slots, NOT NULL | Reserved slot |
-| booking_service_id | UUID | FK→booking_service_items | Associated service item |
+| booking_service_id | UUID | FK→booking_services | Associated service item |
 | created_at | TIMESTAMP | DEFAULT now() | Created date |
 
 **Table: payments**
@@ -1693,11 +1795,12 @@ Alternative paths: CANCELLED, NO_SHOW
 | payment_id | UUID | PK | Primary Key |
 | booking_id | UUID | FK→bookings, UNIQUE, NOT NULL | 1:1 with Booking |
 | amount | DECIMAL(12,2) | NOT NULL | Payment amount |
-| method | ENUM | NOT NULL, DEFAULT 'CASH' | CASH, QR, CARD |
+| payment_description | VARCHAR(100) | | Payment description |
+| method | ENUM | NOT NULL | CASH, QR, CARD |
 | status | ENUM | NOT NULL, DEFAULT 'PENDING' | PENDING, PAID, REFUNDED, FAILED |
 | stripe_payment_id | VARCHAR(255) | | Stripe transaction ID |
 | paid_at | TIMESTAMP | | Payment timestamp |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| created_at | TIMESTAMP | | Created date |
 
 ###### Notification Table
 
@@ -1710,25 +1813,33 @@ Alternative paths: CANCELLED, NO_SHOW
 | notification_id | UUID | PK | Primary Key |
 | user_id | UUID | FK→users, NOT NULL | Notification recipient |
 | clinic_id | UUID | FK→clinics | Related clinic (optional) |
-| shift_id | UUID | FK→vet_shifts | Related shift (optional) |
+| shift_id | UUID | FK→staff_shifts | Related shift (optional) |
 | type | ENUM | NOT NULL | (See Notification Types) |
 | emr_id | VARCHAR(50) | | MongoDB ObjectId |
 | message | TEXT | NOT NULL | Notification content |
 | reason | TEXT | | Reason (for rejection) |
 | read | BOOLEAN | DEFAULT false | Read status |
-| created_at | TIMESTAMP | DEFAULT now() | Created date |
+| action_type | VARCHAR(100) | | Action type (e.g., QUICK_BOOKING, INFO_ONLY) |
+| action_data | TEXT | | JSON payload for action buttons |
+| created_at | TIMESTAMP | NOT NULL | Created date |
 
 **Notification Types:**
 - Clinic: APPROVED, REJECTED, PENDING, CLINIC_PENDING_APPROVAL, CLINIC_VERIFIED
-- VetShift: VET_SHIFT_ASSIGNED, VET_SHIFT_UPDATED, VET_SHIFT_DELETED
-- Booking: BOOKING_CREATED, BOOKING_CONFIRMED, BOOKING_ASSIGNED, BOOKING_CANCELLED, BOOKING_CHECKIN, BOOKING_COMPLETED, VET_ON_WAY
-- Medical: RE_EXAMINATION_REMINDER
+- StaffShift: STAFF_SHIFT_ASSIGNED, STAFF_SHIFT_UPDATED, STAFF_SHIFT_DELETED
+- Booking: BOOKING_CREATED, BOOKING_CONFIRMED, BOOKING_ASSIGNED, BOOKING_CANCELLED, BOOKING_CHECKIN, BOOKING_COMPLETED, STAFF_ON_WAY, STAFF_ARRIVED
+- Medical: RE_EXAMINATION_REMINDER, VACCINATION_REMINDER
+- DB CHECK only (not yet in JPA enum): BOOKING_REMINDER, SYSTEM, PROMOTION
 
 ##### 2.1.3.2 AI Agent Service Tables
 
 ###### Table: agents
 
 **Purpose:** Stores Single Agent configuration for the Petties AI Assistant using ReAct pattern (Reasoning + Acting). This table enables dynamic agent behavior modification through Admin Dashboard without code deployment.
+
+**Relationship status in current codebase:**
+- **Physical FK:** `agents.id` is referenced by `prompt_versions.agent_id`.
+- **Logical relation only:** Tools are assigned to agent through `tools.assigned_agents` JSON, not through a junction table or foreign key.
+- **No direct FK:** `knowledge_documents` and `system_settings` are standalone administrative tables.
 
 | Column | Type | Constraints | Purpose & Business Context |
 |--------|------|-------------|---------------------------|
@@ -1742,28 +1853,33 @@ Alternative paths: CANCELLED, NO_SHOW
 | system_prompt | TEXT | | Defines agent personality, capabilities, and behavior rules. Core of ReAct pattern implementation |
 | enabled | BOOLEAN | DEFAULT true | Master switch to enable/disable agent. Useful for maintenance or A/B testing |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Record creation timestamp for audit trail |
-| updated_at | TIMESTAMPTZ | DEFAULT now() | Last modification timestamp for change tracking |
+| updated_at | TIMESTAMPTZ | | Last modification timestamp for change tracking (`onupdate` in ORM/runtime) |
 
 ###### Table: tools
 
-**Purpose:** Stores metadata for code-based tools decorated with `@mcp.tool`. Admin can enable/disable individual tools and assign them to specific agents. Tools provide the "Acting" capability in ReAct pattern.
+**Purpose:** Stores metadata for code-based tools decorated with `@mcp.tool`. Tools provide the "Acting" capability in ReAct pattern. In current single-agent architecture, business tools are system-managed while Playground-safe tools may still be toggled for admin testing.
+
+**Relationship status in current codebase:**
+- There is **no physical foreign key** from `tools` to `agents`.
+- Tool assignment is stored in `assigned_agents` as JSON array of agent names.
+- This means the relationship is **application-level governance**, not relational enforcement at PostgreSQL layer.
 
 | Column | Type | Constraints | Purpose & Business Context |
 |--------|------|-------------|---------------------------|
 | id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
-| name | VARCHAR(100) | UNIQUE, NOT NULL | Unique tool identifier matching the Python function name (e.g., "check_slot", "create_booking") |
+| name | VARCHAR(100) | UNIQUE, NOT NULL | Unique tool identifier matching the Python function name (e.g., "pet_knowledge_search", "create_booking_for_user") |
 | description | TEXT | | Semantic description used by LLM to decide when to invoke this tool. Critical for accurate tool selection |
-| tool_type | VARCHAR(20) | DEFAULT 'code_based' | Distinguishes `code_based` (FastMCP @mcp.tool) from `api_based` (direct Spring Boot API calls) |
+| tool_type | ENUM(`tooltype`) | DEFAULT `CODE_BASED` | Distinguishes `CODE_BASED` (FastMCP @mcp.tool) from `API_BASED` (direct Spring Boot API calls) |
 | input_schema | JSON | | JSON Schema defining expected input parameters. Used for validation and LLM function calling format |
 | output_schema | JSON | | JSON Schema defining output structure. Helps LLM interpret tool results correctly |
-| enabled | BOOLEAN | DEFAULT false | Admin toggle to enable/disable tool. Default false - admin must explicitly enable after deployment |
-| assigned_agents | JSON | | Array of agent names allowed to use this tool (e.g., ["petties_agent"]). Enables tool governance |
+| enabled | BOOLEAN | DEFAULT false | Schema-level default is false, but scanner/seed can auto-enable tools based on runtime governance policy. In current architecture, business-context tools are auto-enabled, while Playground-safe tools may still be toggled by admin |
+| assigned_agents | JSON | | Array of agent names allowed to use this tool (e.g., ["petties_agent"]). In current single-agent architecture this field is typically system-managed rather than manually configured |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Record creation timestamp |
 | updated_at | TIMESTAMPTZ | DEFAULT now() | Last modification timestamp |
 
 **Tool Types:**
-- `code_based`: FastMCP @mcp.tool decorators (default)
-- `api_based`: Spring Boot API calls
+- `CODE_BASED`: FastMCP @mcp.tool decorators (default)
+- `API_BASED`: Spring Boot API calls
 
 ###### Table: prompt_versions
 
@@ -1785,6 +1901,9 @@ Alternative paths: CANCELLED, NO_SHOW
 | notes | TEXT | | Change notes describing what was modified. Helps with version comparison |
 | created_at | TIMESTAMPTZ | DEFAULT now() | Version creation timestamp |
 
+**Relationship status in current codebase:**
+- This is the **only direct PostgreSQL foreign key relationship** currently active in AI configuration schema: `prompt_versions.agent_id -> agents.id`.
+
 ###### AI Chat History Storage (MongoDB)
 
 **Decision:** Chat giữa AI và người dùng được lưu tại MongoDB để phù hợp dữ liệu hội thoại có cấu trúc linh hoạt, nested metadata (thought/tool_calls/sources), và tốc độ ghi cao theo luồng streaming.
@@ -1792,6 +1911,30 @@ Alternative paths: CANCELLED, NO_SHOW
 **Scope:**
 - PostgreSQL giữ phần cấu hình và quản trị (agents/tools/prompt_versions/knowledge_documents/system_settings).
 - MongoDB giữ lịch sử chat AI-user (sessions + messages + trace metadata).
+
+**Important architecture clarification:**
+- Trong migration cũ của AI service từng có `chat_sessions` và `chat_messages` ở PostgreSQL.
+- Tuy nhiên model hiện tại trong codebase đã chuyển AI chat runtime sang MongoDB (`ai_chat_sessions`, `ai_chat_messages`).
+- Vì vậy trong schema PostgreSQL hiện tại, AI tables nhìn sẽ ít đường nối hơn backend business schema, và điều đó **đúng với codebase hiện tại**.
+
+###### AI PostgreSQL Relationship Summary
+
+| Source Table | Target Table | Relationship Type | Implemented In Code | Notes |
+|-------------|--------------|-------------------|---------------------|-------|
+| `prompt_versions` | `agents` | Physical FK | Yes | `prompt_versions.agent_id -> agents.id` |
+| `tools` | `agents` | Logical only | Yes | Stored via `assigned_agents` JSON, not FK |
+| `knowledge_documents` | - | Standalone | Yes | Used as RAG document metadata table |
+| `system_settings` | - | Standalone | Yes | Runtime configuration store |
+
+###### AI Table Description Summary
+
+| Table | Primary Role | Why Separate | Main Users |
+|------|--------------|-------------|-----------|
+| `agents` | LLM agent configuration | Core runtime behavior needs independent versionable config | Admin, AI service |
+| `tools` | Tool registry metadata | Tools are governed by config and toggles, not transactional relations | Admin, AI service |
+| `prompt_versions` | Prompt version history | Supports rollback and controlled prompt evolution | Admin, AI service |
+| `knowledge_documents` | RAG document metadata | Tracks uploaded sources before/after embedding | Admin, AI service |
+| `system_settings` | Runtime secrets and model settings | Centralized operational configuration | Admin, AI service |
 
 ###### Table: knowledge_documents
 
@@ -1819,7 +1962,7 @@ Alternative paths: CANCELLED, NO_SHOW
 |--------|------|-------------|---------------------------|
 | id | INT | PK, AUTO_INCREMENT | Auto-increment primary key |
 | key | VARCHAR(100) | UNIQUE, NOT NULL | Unique setting identifier (e.g., "OPENROUTER_API_KEY", "COHERE_EMBEDDING_MODEL") |
-| value | TEXT | NOT NULL | Setting value. Encrypted in database if is_sensitive=true |
+| value | TEXT | NOT NULL | Setting value. Masked in admin UI when sensitive; current codebase does not implement at-rest encryption yet |
 | category | VARCHAR(50) | DEFAULT 'general' | Groups settings: `llm` (OpenRouter), `rag` (Cohere), `embeddings`, `vector_db` (Qdrant), `general` |
 | is_sensitive | BOOLEAN | DEFAULT false | If true, value is encrypted and masked in UI. Used for API keys and secrets |
 | description | TEXT | | Human-readable description for Admin Dashboard tooltip |
@@ -1838,7 +1981,6 @@ Alternative paths: CANCELLED, NO_SHOW
 OPENROUTER_API_KEY, OPENROUTER_DEFAULT_MODEL, OPENROUTER_FALLBACK_MODEL
 DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL
 COHERE_API_KEY, COHERE_EMBEDDING_MODEL
-OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL
 QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME
 JWT_SECRET
 ```
@@ -1858,16 +2000,19 @@ JWT_SECRET
 | **service_category** | GROOMING_SPA, VACCINATION, CHECK_UP, SURGERY, DENTAL, DERMATOLOGY, OTHER |
 | **payment_method** | CASH, QR, CARD |
 | **payment_status** | PENDING, PAID, REFUNDED, FAILED |
-| **notification_type** | (See full list above) |
+| **notification_type** | APPROVED, REJECTED, PENDING, CLINIC_PENDING_APPROVAL, STAFF_SHIFT_ASSIGNED, STAFF_SHIFT_UPDATED, STAFF_SHIFT_DELETED, BOOKING_CREATED, BOOKING_CONFIRMED, BOOKING_CANCELLED, BOOKING_CHECKIN, BOOKING_COMPLETED, STAFF_ON_WAY, STAFF_ARRIVED, BOOKING_ASSIGNED, CLINIC_VERIFIED, RE_EXAMINATION_REMINDER, VACCINATION_REMINDER (+ DB CHECK: BOOKING_REMINDER, SYSTEM, PROMOTION) |
+| **pet_species** | DOG, CAT, BIRD, RABBIT, HAMSTER, FISH, OTHER |
+| **target_species** | DOG, CAT, BOTH |
+| **auto_reply_condition** | OFF_HOURS, ALWAYS |
 
 ##### AI Agent Service Enums
 
 | Enum | Values |
 |------|--------|
-| **tool_type** | code_based, api_based |
-| **setting_category** | llm, rag, embeddings, vector_db, general |
-| **message_role** | user, assistant, system, tool |
-| **file_type** | pdf, docx, txt, md |
+| **tool_type** | CODE_BASED, API_BASED |
+| **setting_category** | Stored as VARCHAR in `system_settings.category` (values used in code: llm, rag, embeddings, vector_db, general) |
+| **message_role** | Document-level value in MongoDB messages (`user`, `assistant`, `system`, `tool`) |
+| **file_type** | Stored as VARCHAR in `knowledge_documents.file_type` (examples: pdf, docx, txt, md) |
 
 #### 2.1.5 Index Strategy
 
@@ -1883,8 +2028,8 @@ JWT_SECRET
 | bookings | idx_bookings_code | booking_code | UNIQUE | Code lookup |
 | bookings | idx_bookings_status | status | B-TREE | Status filtering |
 | bookings | idx_bookings_date | booking_date | B-TREE | Date range queries |
-| vet_shifts | idx_shift_vet_date | (vet_id, work_date) | COMPOSITE | Staff schedule lookup |
-| vet_shifts | idx_shift_clinic_date | (clinic_id, work_date) | COMPOSITE | Clinic schedule |
+| staff_shifts | idx_shift_staff_date | (staff_id, work_date) | COMPOSITE | Staff schedule lookup |
+| staff_shifts | idx_shift_clinic_date | (clinic_id, work_date) | COMPOSITE | Clinic schedule |
 | slots | idx_slot_shift | shift_id | B-TREE | Shift lookup |
 | slots | idx_slot_status | status | B-TREE | Available slots |
 
@@ -1894,7 +2039,6 @@ JWT_SECRET
 |-------|------------|---------|------|---------|
 | agents | idx_agents_name | name | UNIQUE | Agent lookup by name |
 | tools | idx_tools_name | name | UNIQUE | Tool lookup by name |
-| tools | idx_tools_enabled | enabled | B-TREE | Filter enabled tools |
 | system_settings | idx_system_settings_key | key | UNIQUE | Setting lookup |
 
 ##### Cross-Service References
@@ -1903,9 +2047,10 @@ JWT_SECRET
 
 #### 2.1.6 Complete ERD (All Tables)
 
-> **Note:** Complete ERD bao gồm tất cả 24 tables (17 Backend + 7 AI Service).
+> **Note:** Complete ERD bao gồm toàn bộ PostgreSQL schema hiện tại: 26 tables (21 Backend + 5 AI Service).
 > ERD này là **Database Design** chi tiết với columns, types, constraints.
 > DBML source code: [`docs-references/database/PETTIES_DBML.dbml`](../../database/PETTIES_DBML.dbml)
+> MongoDB collections cần xem riêng tại Section 2.2 NoSQL Database Design.
 
 **Instructions to generate Complete ERD:**
 1. Visit https://dbdiagram.io/
@@ -1922,6 +2067,18 @@ JWT_SECRET
 ### 2.2 NoSQL Database Design (MongoDB)
 
 MongoDB is used for flexible data with nested documents, no strict schema required.
+
+#### 2.2.0 Presentation Notes
+
+**Talking Script - MongoDB Overview:**
+
+"Bên cạnh PostgreSQL, Petties sử dụng MongoDB cho các dữ liệu có cấu trúc linh hoạt và thay đổi thường xuyên. Thay vì ép toàn bộ dữ liệu vào mô hình quan hệ, chúng tôi tách các phần phù hợp hơn với document model sang MongoDB. Hiện tại MongoDB phục vụ hai nhóm chính: dữ liệu y tế và dữ liệu chat."
+
+"Nhóm thứ nhất là EMR và Vaccination Record. Đây là dữ liệu có nhiều trường mô tả, nội dung dài, và các phần tử lồng nhau như prescriptions hoặc images. Dùng MongoDB giúp lưu trữ các hồ sơ này tự nhiên hơn, không cần tách quá nhiều bảng phụ như trong relational model."
+
+"Nhóm thứ hai là chat. Hệ thống có chat giữa Pet Owner và Clinic, đồng thời có AI chat giữa User và AI Agent. Các message trong chat thường phát sinh liên tục, có metadata khác nhau theo từng loại message, nên MongoDB phù hợp hơn để lưu session, message, tool trace, feedback và proactive notification log."
+
+"Tuy dùng MongoDB, chúng tôi vẫn giữ liên kết logic với PostgreSQL thông qua các khóa tham chiếu như pet_id, booking_id, clinic_id hoặc user_id. Nghĩa là PostgreSQL vẫn là nguồn định danh chuẩn của hệ thống, còn MongoDB tối ưu cho việc lưu document giàu nội dung và đọc ghi linh hoạt. Đây là lý do kiến trúc dữ liệu của Petties được thiết kế theo hướng polyglot persistence thay vì chỉ dùng một loại database duy nhất."
 
 #### 2.2.1 Collections Overview
 
@@ -1947,8 +2104,8 @@ flowchart LR
 
 | Collection | Description | Avg Doc Size | Reference to PostgreSQL |
 |------------|-------------|--------------|------------------------|
-| emr_records | Electronic Medical Records (SOAP format) | ~2KB | pet_id, booking_id, vet_id, clinic_id |
-| vaccination_records | Vaccination history | ~500B | pet_id, booking_id, vet_id |
+| emr_records | Electronic Medical Records (SOAP format) | ~2KB | pet_id, booking_id, staff_id, clinic_id |
+| vaccination_records | Vaccination history | ~500B | pet_id, booking_id, staff_id, clinic_id |
 | chat_conversations | 1-1 chat sessions | ~300B | pet_owner_id, clinic_id |
 | chat_messages | Messages | ~200B | sender_id, chat_box_id (MongoDB _id) |
 | ai_chat_sessions | AI-user chat sessions | ~500B | user_id, agent_id (logical ref) |
@@ -1964,10 +2121,12 @@ flowchart LR
 ```json
 {
   "_id": ObjectId("507f1f77bcf86cd799439011"),
-  "pet_id": "550e8400-e29b-41d4-a716-446655440000",
-  "booking_id": "550e8400-e29b-41d4-a716-446655440001",
-  "vet_id": "550e8400-e29b-41d4-a716-446655440002",
-  "clinic_id": "550e8400-e29b-41d4-a716-446655440003",
+  "petId": "550e8400-e29b-41d4-a716-446655440000",
+  "bookingId": "550e8400-e29b-41d4-a716-446655440001",
+  "staffId": "550e8400-e29b-41d4-a716-446655440002",
+  "clinicId": "550e8400-e29b-41d4-a716-446655440003",
+  "clinicName": "ABC Veterinary Clinic",
+  "staffName": "Dr. Nguyen Van A",
 
   "subjective": "Owner reports pet stopped eating for 2 days, lethargic, vomited once this morning.",
 
@@ -1977,30 +2136,26 @@ flowchart LR
 
   "plan": "Medical treatment for 5 days. Rest, feed soft and digestible food. Follow-up in 5 days if no improvement.",
 
-  "weight_kg": 4.5,
-  "temperature_c": 39.5,
+  "notes": "",
+  "weightKg": 4.5,
+  "temperatureC": 39.5,
+  "heartRate": 120,
+  "bcs": 5,
 
   "prescriptions": [
     {
-      "medicine_name": "Amoxicillin 250mg",
+      "medicineName": "Amoxicillin 250mg",
       "dosage": "1 tablet",
       "frequency": "Twice daily",
-      "duration_days": 5,
+      "durationDays": 5,
       "instructions": "Take after meals"
     },
     {
-      "medicine_name": "Omeprazole 20mg",
+      "medicineName": "Omeprazole 20mg",
       "dosage": "1/2 tablet",
       "frequency": "Once daily (morning)",
-      "duration_days": 5,
+      "durationDays": 5,
       "instructions": "Take 30 minutes before meals"
-    },
-    {
-      "medicine_name": "Metoclopramide 10mg",
-      "dosage": "1/4 tablet",
-      "frequency": "Three times daily",
-      "duration_days": 3,
-      "instructions": "Take 15 minutes before meals, stop when vomiting ceases"
     }
   ],
 
@@ -2011,17 +2166,40 @@ flowchart LR
     }
   ],
 
-  "re_examination_date": ISODate("2025-01-31T00:00:00Z"),
-  "created_at": ISODate("2025-01-26T10:30:00Z"),
-  "updated_at": ISODate("2025-01-26T10:30:00Z")
+  "examinationDate": ISODate("2025-01-26T10:30:00Z"),
+  "reExaminationDate": ISODate("2025-01-31T00:00:00Z"),
+  "createdAt": ISODate("2025-01-26T10:30:00Z")
 }
 ```
 
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| petId | UUID | Pet reference (indexed) |
+| bookingId | UUID | Booking reference (indexed) |
+| staffId | UUID | Staff who created EMR |
+| clinicId | UUID | Clinic reference |
+| clinicName | String | Denormalized clinic name |
+| staffName | String | Denormalized staff name |
+| subjective | String | S - Symptoms described by owner |
+| objective | String | O - Clinical observations |
+| assessment | String | A - Diagnosis |
+| plan | String | P - Treatment plan |
+| notes | String | Additional notes |
+| weightKg | BigDecimal | Pet weight at examination |
+| temperatureC | BigDecimal | Body temperature |
+| heartRate | Integer | Heart rate (bpm) |
+| bcs | Integer | Body Condition Score (1-9) |
+| images | EmrImage[] | Embedded images (url, description) |
+| prescriptions | Prescription[] | Embedded prescriptions (medicineName, dosage, frequency, durationDays, instructions) |
+| examinationDate | DateTime | Examination date |
+| reExaminationDate | DateTime | Scheduled re-examination date |
+| createdAt | DateTime | Record creation timestamp |
+
 **Indexes:**
-- `{ pet_id: 1 }` - Find EMR by pet
-- `{ booking_id: 1 }` - Find by booking
-- `{ vet_id: 1, created_at: -1 }` - Staff's EMR records by time
-- `{ clinic_id: 1, created_at: -1 }` - Clinic's EMR records
+- `{ petId: 1 }` - Find EMR by pet
+- `{ bookingId: 1 }` - Find by booking
 
 ##### Collection: vaccination_records
 
@@ -2031,29 +2209,58 @@ flowchart LR
 ```json
 {
   "_id": ObjectId("507f1f77bcf86cd799439012"),
-  "pet_id": "550e8400-e29b-41d4-a716-446655440000",
-  "booking_id": "550e8400-e29b-41d4-a716-446655440001",
-  "vet_id": "550e8400-e29b-41d4-a716-446655440002",
+  "petId": "550e8400-e29b-41d4-a716-446655440000",
+  "bookingId": "550e8400-e29b-41d4-a716-446655440001",
+  "staffId": "550e8400-e29b-41d4-a716-446655440002",
+  "clinicId": "550e8400-e29b-41d4-a716-446655440003",
+  "clinicName": "ABC Veterinary Clinic",
+  "staffName": "Dr. Nguyen Van A",
 
-  "vaccine_name": "5-in-1 Vaccine (DHPP+Lepto)",
-  "batch_number": "VN2025-001234",
-  "manufacturer": "MSD Animal Health",
+  "vaccineName": "5-in-1 Vaccine (DHPP+Lepto)",
+  "batchNumber": "VN2025-001234",
+  "status": "COMPLETED",
 
-  "vaccination_date": ISODate("2025-01-26T10:00:00Z"),
-  "next_due_date": ISODate("2026-01-26T00:00:00Z"),
+  "vaccineTemplateId": "550e8400-e29b-41d4-a716-446655440010",
+  "doseNumber": 2,
+  "totalDoses": 3,
+  "seriesId": "550e8400-e29b-41d4-a716-446655440020",
 
-  "dose_number": 2,
-  "total_doses": 3,
+  "vaccinationDate": "2025-01-26",
+  "nextDueDate": "2026-01-26",
+  "reminderSent": false,
 
   "notes": "Booster dose 2. Pet is healthy, no adverse reactions. Schedule dose 3 in 1 year.",
 
-  "created_at": ISODate("2025-01-26T10:15:00Z")
+  "createdAt": ISODate("2025-01-26T10:15:00Z")
 }
 ```
 
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| petId | UUID | Pet reference (indexed) |
+| bookingId | UUID | Booking reference |
+| staffId | UUID | Staff who administered |
+| clinicId | UUID | Clinic reference |
+| clinicName | String | Denormalized clinic name |
+| staffName | String | Denormalized staff name |
+| vaccineName | String | Vaccine name |
+| batchNumber | String | Batch number for tracking |
+| status | String | PENDING, COMPLETED |
+| vaccineTemplateId | UUID | Link to vaccine_templates master data |
+| doseNumber | Integer | Dose number in series (e.g., 1, 2, 3) |
+| totalDoses | Integer | Total doses in series (e.g., 3) |
+| seriesId | UUID | Groups related doses together |
+| vaccinationDate | LocalDate | Date administered |
+| nextDueDate | LocalDate | Next due date (indexed) |
+| reminderSent | Boolean | Whether reminder notification was sent |
+| notes | String | Additional notes |
+| createdAt | DateTime | Record creation timestamp |
+
 **Indexes:**
-- `{ pet_id: 1, vaccination_date: -1 }` - Pet's vaccination history
-- `{ next_due_date: 1 }` - Find upcoming vaccinations
+- `{ petId: 1, vaccinationDate: -1 }` - Pet's vaccination history
+- `{ nextDueDate: 1 }` - Find upcoming vaccinations
 
 ##### Collection: chat_conversations
 
@@ -2063,29 +2270,35 @@ flowchart LR
 ```json
 {
   "_id": ObjectId("507f1f77bcf86cd799439013"),
-  "pet_owner_id": "550e8400-e29b-41d4-a716-446655440000",
-  "clinic_id": "550e8400-e29b-41d4-a716-446655440001",
+  "petOwnerId": "550e8400-e29b-41d4-a716-446655440000",
+  "clinicId": "550e8400-e29b-41d4-a716-446655440001",
 
-  "clinic_name": "ABC Veterinary Clinic",
-  "pet_owner_name": "John Smith",
-  "pet_owner_avatar": "https://res.cloudinary.com/petties/avatars/user-001.jpg",
-  "clinic_logo": "https://res.cloudinary.com/petties/clinics/clinic-001-logo.jpg",
+  "clinicName": "ABC Veterinary Clinic",
+  "clinicLogo": "https://res.cloudinary.com/petties/clinics/clinic-001-logo.jpg",
+  "petOwnerName": "Nguyen Van A",
+  "petOwnerAvatar": "https://res.cloudinary.com/petties/avatars/user-001.jpg",
 
-  "last_message": "Thank you doctor, I'll bring my pet tomorrow!",
-  "last_message_at": ISODate("2025-01-26T15:30:00Z"),
-  "last_sender_type": "PET_OWNER",
+  "lastMessage": "Cam on bac si, ngay mai em se dem be den!",
+  "lastMessageSender": "PET_OWNER",
+  "lastMessageAt": ISODate("2025-01-26T15:30:00Z"),
 
-  "unread_count_pet_owner": 0,
-  "unread_count_clinic": 1,
+  "unreadCountPetOwner": 0,
+  "unreadCountClinic": 1,
 
-  "status": "ACTIVE",
-  "created_at": ISODate("2025-01-20T08:00:00Z")
+  "petOwnerOnline": false,
+  "clinicOnline": true,
+
+  "lastAutoReplyAt": ISODate("2025-01-26T12:00:00Z"),
+  "lastAutoReplyType": "QUICK_REPLY",
+
+  "createdAt": ISODate("2025-01-20T08:00:00Z"),
+  "updatedAt": ISODate("2025-01-26T15:30:00Z")
 }
 ```
 
 **Indexes:**
-- `{ pet_owner_id: 1, last_message_at: -1 }` - Pet owner's chat list
-- `{ clinic_id: 1, last_message_at: -1 }` - Clinic's chat list
+- `{ petOwnerId: 1, clinicId: 1 }` (unique) - One conversation per pet owner-clinic pair
+- `{ lastMessageAt: -1 }` - Sort by most recent activity
 
 ##### Collection: chat_messages
 
@@ -2095,25 +2308,40 @@ flowchart LR
 ```json
 {
   "_id": ObjectId("507f1f77bcf86cd799439014"),
-  "chat_box_id": ObjectId("507f1f77bcf86cd799439013"),
+  "chatBoxId": "507f1f77bcf86cd799439013",
 
-  "sender_id": "550e8400-e29b-41d4-a716-446655440000",
-  "sender_type": "PET_OWNER",
+  "senderId": "550e8400-e29b-41d4-a716-446655440000",
+  "senderType": "PET_OWNER",
+  "senderName": "Nguyen Van A",
+  "senderAvatar": "https://res.cloudinary.com/petties/avatars/user-001.jpg",
 
-  "content": "Hello, I'd like to ask about the vaccination schedule for my pet?",
-  "message_type": "TEXT",
+  "content": "Xin chao, em muon hoi lich tiem phong cho be nha em?",
+  "messageType": "TEXT",
+  "imageUrl": null,
 
   "status": "DELIVERED",
-  "is_read": true,
-  "read_at": ISODate("2025-01-26T14:35:00Z"),
+  "isRead": true,
+  "readAt": ISODate("2025-01-26T14:35:00Z"),
 
-  "created_at": ISODate("2025-01-26T14:30:00Z")
+  "actionButtons": [
+    {
+      "id": "btn-1",
+      "label": "Dat lich ngay",
+      "type": "BOOKING"
+    }
+  ],
+
+  "createdAt": ISODate("2025-01-26T14:30:00Z")
 }
 ```
 
-**Message Types:** TEXT, IMAGE, SYSTEM
+**Inner Enums:**
+- **SenderType:** PET_OWNER, CLINIC
+- **MessageType:** TEXT, IMAGE, IMAGE_TEXT
+- **MessageStatus:** SENT, DELIVERED, SEEN
 
-**Message Status:** SENT, DELIVERED, READ
+**Inner Class ActionButton:**
+- `id` (String), `label` (String), `type` (String: MENU, OFFER, BOOKING, CUSTOM)
 
 ##### Collection: ai_chat_sessions
 
@@ -2147,10 +2375,15 @@ flowchart LR
     "session_id": ObjectId("507f1f77bcf86cd799439015"),
     "role": "assistant",
     "content": "Bé có thể đang bị viêm dạ dày nhẹ...",
-    "message_metadata": {
-        "tool_calls": ["symptom_search"],
-        "sources": ["doc_12_chunk_3"]
+    "react_trace": {
+        "steps": [
+            {"type": "thought", "content": "Cần tra cứu knowledge base"}
+        ]
     },
+    "tool_calls": [
+        {"tool_name": "pet_knowledge_search"}
+    ],
+    "sources": ["doc_12_chunk_3"],
     "timestamp": ISODate("2026-03-04T09:00:05Z")
 }
 ```
@@ -2159,9 +2392,11 @@ flowchart LR
 - `{ session_id: 1, timestamp: 1 }` - ordered conversation replay
 - `{ role: 1, timestamp: -1 }` - analytics by role
 
+##### Chat Message Indexes (chat_messages)
+
 **Indexes:**
-- `{ chat_box_id: 1, created_at: -1 }` - Messages in conversation
-- `{ sender_id: 1, created_at: -1 }` - User's messages
+- `{ chatBoxId: 1, createdAt: -1 }` - Messages in conversation
+- `{ chatBoxId: 1, isRead: 1 }` - Unread message queries
 
 ---
 
@@ -5770,7 +6005,69 @@ sequenceDiagram
     BC-->>UI: 200 OK
 ```
 
-#### 4.12.14 Cross-Reference to SRS
+#### 4.12.14 Sequence Diagram: Vaccination Booking Advisory in Standard Flow
+
+```mermaid
+sequenceDiagram
+    actor PO as Pet Owner
+    participant UI as Mobile Booking Wizard or AI Booking Chat
+    participant BT as Booking Tools
+    participant SBC as SpringBackendClient
+    participant VC as VaccinationController
+    participant VS as VaccinationService
+    participant DB as Database
+
+    PO->>UI: 1. Chọn pet và dịch vụ tiêm chủng
+    activate UI
+    UI->>BT: 2. get_clinic_services(clinic_id, pet_species, is_home_visit)
+    activate BT
+    BT->>SBC: 3. GET /services/by-clinic/{clinicId}/compatible
+    activate SBC
+    SBC->>DB: 4. SELECT compatible clinic services + dose prices
+    activate DB
+    DB-->>SBC: 5. Service metadata
+    deactivate DB
+    SBC-->>BT: 6. Vaccination service list
+    deactivate SBC
+    BT-->>UI: 7. serviceCategory, vaccineTemplateId, dosePrices
+    deactivate BT
+    UI->>BT: 8. check_vaccination_status(pet_id, vaccine_template_id)
+    activate BT
+    BT->>SBC: 9. GET /vaccinations/pet/{petId}
+    activate SBC
+    SBC->>VC: 10. getVaccinationsByPet(petId)
+    activate VC
+    VC->>VS: 11. getVaccinationsByPet(petId)
+    activate VS
+    VS->>DB: 12. SELECT vaccination history by pet
+    activate DB
+    DB-->>VS: 13. Vaccination history
+    deactivate DB
+    VS-->>VC: 14. VaccinationResponse list
+    deactivate VS
+    VC-->>SBC: 15. History response
+    deactivate VC
+    SBC->>VC: 16. getUpcomingVaccinations(petId)
+    activate VC
+    VC->>VS: 17. getUpcomingVaccinations(petId)
+    activate VS
+    VS->>DB: 18. SELECT vaccination templates and predicted due doses
+    activate DB
+    DB-->>VS: 19. Upcoming vaccination suggestions
+    deactivate DB
+    VS-->>VC: 20. VaccinationResponse list
+    deactivate VS
+    VC-->>SBC: 21. Upcoming response
+    deactivate VC
+    SBC-->>BT: 22. Vaccination history + upcoming doses
+    deactivate SBC
+    BT-->>UI: 23. Advisory summary, recent doses, recommended next dose
+    deactivate BT
+    UI-->>PO: 24. Hiển thị giá theo mũi + gợi ý nhẹ, vẫn giữ flow booking chuẩn
+    deactivate UI
+```
+
+#### 4.12.15 Cross-Reference to SRS
 
 | SRS Section | Use Case | Main Backend Flow |
 |-------------|----------|-------------------|
@@ -5786,6 +6083,7 @@ sequenceDiagram
 | 3.8.10 | View Staff Home Summary | `GET /bookings/staff/home-summary` |
 | 3.8.11 | Add Add-on Service | `GET /bookings/{bookingId}/available-add-ons`, `POST /bookings/{bookingId}/services` |
 | 3.8.12 | Remove Add-on Service | `DELETE /bookings/{bookingId}/services/{serviceId}` |
+| 3.8.13 | Vaccination Booking Advisory in Standard Flow | `GET /services/by-clinic/{clinicId}/compatible`, `GET /vaccinations/pet/{petId}`, `GET /vaccinations/pet/{petId}/upcoming` |
 
 ---
 
@@ -6602,7 +6900,7 @@ sequenceDiagram
     deactivate UI
 ```
 
-#### 4.18.3 AI Vision Pet Health Analysis (UC-PO-14d)
+#### 4.18.3 AI Vision Pet Health Analysis (Planned / Future Design)
 
 ```mermaid
 classDiagram
@@ -6731,7 +7029,7 @@ classDiagram
     ChatWebSocket --> BookingSuggestionMessage : sends
 ```
 
-#### 4.18.4 Class Specifications
+#### 4.18.4 Class Specifications (Planned)
 
 **1. OpenRouterClient (Extended)**
 - **Responsibility:** Giao tiếp với OpenRouter API, hỗ trợ cả text và multimodal (image) input.
@@ -6759,7 +7057,7 @@ classDiagram
 - **Fields:**
     - `confirmation_action`: Deep link params để mobile app navigate đến booking screen.
 
-#### 4.18.5 Sequence Diagram: AI Vision Analysis to Booking
+#### 4.18.5 Sequence Diagram: AI Vision Analysis to Booking (Planned)
 
 ```mermaid
 sequenceDiagram
@@ -6852,7 +7150,7 @@ sequenceDiagram
     UI->>UI: 33. Navigate to BookingScreen with params
 ```
 
-#### 4.18.6 WebSocket Message Schemas
+#### 4.18.6 WebSocket Message Schemas (Planned)
 
 **1. Image Message (Client → Server)**
 ```json

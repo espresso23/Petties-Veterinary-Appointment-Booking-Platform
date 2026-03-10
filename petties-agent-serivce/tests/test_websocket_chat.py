@@ -32,7 +32,7 @@ class FakeSessionContext:
 class FakeAgent:
     name = "petties_agent"
     agent_type = "single_agent"
-    enabled_tools = ["pet_care_qa", "symptom_search"]
+    enabled_tools = ["pet_knowledge_search", "web_search"]
 
     async def stream(self, user_message, session_id):
         yield {"type": "final_answer", "content": "phan hoi test"}
@@ -57,11 +57,15 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
 
         user = CurrentUser(user_id="user-1", role="PET_OWNER", is_admin=False)
 
-        with patch.object(websocket_chat.AgentFactory, "get_agent", fake_get_agent), \
-             patch.object(websocket_chat, "AsyncSessionLocal", lambda: FakeSessionContext()), \
-             patch.object(websocket_chat, "save_chat_message", fake_save_chat_message), \
-             patch.object(websocket_chat, "touch_chat_session", fake_touch_chat_session), \
-             patch.object(websocket_chat.manager, "send_message", fake_send_message):
+        with (
+            patch.object(websocket_chat.AgentFactory, "get_agent", fake_get_agent),
+            patch.object(
+                websocket_chat, "AsyncSessionLocal", lambda: FakeSessionContext()
+            ),
+            patch.object(websocket_chat, "save_chat_message", fake_save_chat_message),
+            patch.object(websocket_chat, "touch_chat_session", fake_touch_chat_session),
+            patch.object(websocket_chat.manager, "send_message", fake_send_message),
+        ):
             await websocket_chat.handle_chat_message(
                 websocket=None,
                 session_id="session-1",
@@ -73,6 +77,18 @@ class WebSocketChatTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured["user_role"], "PET_OWNER")
         self.assertEqual(captured["context_type"], BUSINESS_CHAT)
+
+    async def test_websocket_close_reasons_are_stable_constants(self):
+        self.assertEqual(websocket_chat.WS_REASON_AUTH_REQUIRED, "CHAT_AUTH_REQUIRED")
+        self.assertEqual(websocket_chat.WS_REASON_INVALID_AUTH, "CHAT_INVALID_AUTH")
+        self.assertEqual(
+            websocket_chat.WS_REASON_SESSION_FORBIDDEN,
+            "CHAT_SESSION_FORBIDDEN",
+        )
+        self.assertEqual(
+            websocket_chat.WS_REASON_PLAYGROUND_FORBIDDEN,
+            "CHAT_PLAYGROUND_FORBIDDEN",
+        )
 
 
 if __name__ == "__main__":

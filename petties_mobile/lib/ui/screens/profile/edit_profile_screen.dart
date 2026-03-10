@@ -274,6 +274,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ? PetOwnerBottomNav(
                   currentIndex: 4,
                   onTap: (index) => handlePetOwnerNavTap(context, index),
+                  showAiBubble: false,
                 )
               : null,
         );

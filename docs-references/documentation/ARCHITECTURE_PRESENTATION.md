@@ -40,7 +40,7 @@
   - Gợi ý và hỗ trợ đặt lịch qua chat.
 - Cách hoạt động (đúng với code):
   - Frontend mở WebSocket/REST tới AI Agent Service.
-  - Bên trong, agent chạy theo **ReAct**: LLM suy nghĩ; khi cần, gọi tools như `search_clinics`, `check_slots`, `create_booking` để hỏi Spring Boot, hoặc dùng **RAG với Qdrant + LlamaIndex + Cohere** để truy vấn kiến thức.
+  - Bên trong, agent chạy theo **ReAct**: LLM suy nghĩ; khi cần, gọi tools như `search_clinics_nearby`, `check_available_slots`, `create_booking_for_user` để hỏi Spring Boot, hoặc dùng **RAG với Qdrant + LlamaIndex + Cohere** để truy vấn kiến thức.
   - Kết quả cuối cùng được **stream ngược** lại cho user qua WebSocket.
 - Điểm quan trọng:
   - **AI chỉ gọi sang backend qua HTTP, không truy cập trực tiếp database** → dữ liệu nghiệp vụ vẫn do Spring Boot kiểm soát.

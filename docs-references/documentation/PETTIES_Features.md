@@ -142,15 +142,15 @@
 
 > **Architecture:** Single Agent + ReAct Pattern + MCP Tools
 > 
-> **Note:** MVP sử dụng **Single Agent** (không phải Multi-Agent) với nhiều skills/tools, có thể config bởi Admin.
+> **Note:** MVP sử dụng **Single Agent** với nhiều skills/tools, có thể config bởi Admin.
 
 ### AI Chatbot - Pet Care Assistant
 - 🤖 Chat với AI Chatbot thông minh ✅
 - 🤖 Tư vấn chăm sóc thú cưng ✅
-- 🤖 Hỗ trợ tìm kiếm triệu chứng (Symptom Search) ✅
+- 🤖 Hỗ trợ tra cứu triệu chứng qua knowledge base ✅
 - 🤖 **AI Vision Analysis - Phân tích hình ảnh sức khỏe thú cưng** ✅
 - 🤖 RAG Engine - Tra cứu kiến thức y tế thú y (LlamaIndex + Qdrant) ✅
-- 🤖 Booking via Chat - Đặt lịch qua hội thoại ✅
+- 🤖 Booking via Chat - Đặt lịch qua hội thoại 🔄 (đã có tool + mobile confirmation, đang chờ E2E validation)
 - 🤖 Citation & Attribution - Trích dẫn nguồn
 - 🤖 Web Search - Tìm kiếm realtime 🔄
 - 🤖 EMR Integration - Xem bệnh án điện tử ✅ (FE/BE)
@@ -175,12 +175,12 @@
 │  └── System Prompt (Admin Configurable)                             │
 │                                                                     │
 │  🔧 Skills/Tools (FastMCP @mcp.tool)                                │
-│  ├── @mcp.tool: pet_care_qa       → RAG-based Q&A                  │
-│  ├── @mcp.tool: symptom_search    → Symptom → Disease lookup       │
-│  ├── @mcp.tool: analyze_pet_image → Phân tích hình ảnh (Vision)     │
-│  ├── @mcp.tool: search_clinics    → Find nearby clinics            │
-│  ├── @mcp.tool: check_slots       → Check available slots          │
-│  └── @mcp.tool: create_booking    → Create booking via chat        │
+│  ├── @mcp.tool: pet_knowledge_search → RAG knowledge retrieval      │
+│  ├── @mcp.tool: web_search          → Web fallback search           │
+│  ├── @mcp.tool: get_user_pets         → Load user pets             │
+│  ├── @mcp.tool: search_clinics_nearby → Find nearby clinics        │
+│  ├── @mcp.tool: check_available_slots → Check available slots      │
+│  └── @mcp.tool: create_booking_for_user → Create booking via chat  │
 │                                                                     │
 │  📚 RAG Engine (LlamaIndex + Qdrant)                                │
 │  ├── LlamaIndex: Document processing, chunking, retrieval          │
@@ -206,12 +206,14 @@
 - ✅ **Answer**: Tổng hợp và trả lời user
 
 ### AI Tools (FastMCP Protocol)
-- 🔧 `pet_care_qa` - Hỏi đáp về chăm sóc thú cưng (RAG-based)
-- 🔧 `symptom_search` - Tìm bệnh dựa trên triệu chứng
-- 🔧 `analyze_pet_image` - Phân tích hình ảnh sức khỏe pet (Vision)
-- 🔧 `search_clinics` - Tìm phòng khám gần đây
-- 🔧 `check_slots` - Kiểm tra slot trống
-- 🔧 `create_booking` - Tạo lịch hẹn qua chat
+- 🔧 `pet_knowledge_search` - Tra cứu kiến thức thú y và triệu chứng từ knowledge base
+- 🔧 `web_search` - Tìm kiếm web khi knowledge base chưa đủ dữ liệu
+- 🔧 `get_user_pets` - Lấy danh sách thú cưng của user hiện tại
+- 🔧 `search_clinics_nearby` - Tìm phòng khám gần vị trí người dùng
+- 🔧 `get_clinic_services` - Lấy dịch vụ đang hoạt động của phòng khám
+- 🔧 `check_vaccination_status` - Kiểm tra lịch sử tiêm và mũi sắp tới
+- 🔧 `check_available_slots` - Kiểm tra slot trống theo dịch vụ
+- 🔧 `create_booking_for_user` - Tạo lịch hẹn qua chat sau khi đã xác nhận
 
 ### Admin Agent Configuration (Simple UI)
 - ⚙️ **Agent Status** - Bật/Tắt Agent
@@ -314,7 +316,7 @@
 3. **Hệ thống xử lý (Background)**:
     - Kiểm tra Overlap: Nhân viên đã có lịch tại chi nhánh này hoặc chi nhánh khác chưa.
     - Chia nhỏ thời gian thành các Slot 30 phút.
-    - Lưu vào DB: 1 bản ghi `VetShift` và danh sách các `Slot`.
+    - Lưu vào DB: 1 bản ghi `StaffShift` và danh sách các `Slot`.
 4. **Kết quả**: Lịch và các ô trống hiện lên Dashboard để Pet Owner đặt lịch.
 
 
@@ -343,7 +345,7 @@
 ❌ ~~Home Visit Geo-Routing~~ (Đơn giản hóa cho MVP, chỉ dùng cho SOS)
 ❌ ~~Video Consultation~~ (Deferred - WebRTC phức tạp)  
 ❌ ~~Excel Import~~ (Deferred - Manual đủ cho MVP)  
-❌ ~~Multi-Agent Architecture~~ (Simplified to Single Agent)  
+❌ ~~Legacy supervisor architecture~~ (Simplified to Single Agent)  
 ❌ ~~Email/SMS Notifications~~ (Push đủ cho MVP)  
 
 ---

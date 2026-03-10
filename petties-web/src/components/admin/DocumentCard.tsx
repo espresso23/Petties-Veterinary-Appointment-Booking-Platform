@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { TrashIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ClockIcon, CheckCircleIcon, EyeIcon } from '@heroicons/react/24/outline'
 import type { Document } from '../../services/agentService'
 import { ConfirmDialog } from '../common/ConfirmDialog'
+import { DocumentPreviewModal } from './DocumentPreviewModal'
 
 interface DocumentCardProps {
   document: Document
@@ -10,10 +11,11 @@ interface DocumentCardProps {
 
 /**
  * Document Card Component
- * Shows document info, processing status, and vector count
+ * Shows document info, processing status, vector count, and preview button
  */
 export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
@@ -113,16 +115,35 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
             </div>
           </div>
 
-          {/* Delete Button */}
-          <button
-            onClick={handleDeleteClick}
-            className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-            title="Delete document"
-          >
-            <TrashIcon className="w-5 h-5" />
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1">
+            {/* Preview Button */}
+            <button
+              onClick={() => setShowPreview(true)}
+              className="p-2 text-stone-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+              title="Xem nội dung"
+            >
+              <EyeIcon className="w-5 h-5" />
+            </button>
+
+            {/* Delete Button */}
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+              title="Xóa tài liệu"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Preview Modal */}
+      <DocumentPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        document={document}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -138,3 +159,4 @@ export const DocumentCard = ({ document, onDelete }: DocumentCardProps) => {
     </>
   )
 }
+

@@ -281,16 +281,6 @@ export const toolApi = {
         if (!response.ok) throw new Error('Failed to toggle tool')
     },
 
-    // Assign tool to agent
-    async assignToAgent(id: number, agentName: string): Promise<void> {
-        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/tools/${id}/assign`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent_name: agentName })
-        })
-        if (!response.ok) throw new Error('Failed to assign tool')
-    },
-
     // Scan code tools
     async scanTools(): Promise<ScanToolsResult> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/tools/scan`, {
@@ -374,6 +364,21 @@ export const knowledgeApi = {
         return data.chunks
     },
 
+    // Fetch document blob for preview (handles auth via headers)
+    async fetchDocumentBlob(documentId: number): Promise<{ blob: Blob; contentType: string }> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${documentId}/download`)
+        if (!response.ok) throw new Error('Không thể tải tài liệu')
+        const blob = await response.blob()
+        return { blob, contentType: response.headers.get('content-type') || 'application/octet-stream' }
+    },
+
+    // Fetch text content for TXT/MD preview
+    async fetchDocumentText(documentId: number): Promise<string> {
+        const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/documents/${documentId}/download`)
+        if (!response.ok) throw new Error('Không thể tải tài liệu')
+        return response.text()
+    },
+
     // Get status
     async getStatus(): Promise<KnowledgeStatusResult> {
         const response = await fetchWithAuth(`${AGENT_API_BASE_URL}/api/v1/knowledge/status`)
@@ -426,13 +431,28 @@ export const chatApi = {
 /**
  * Create WebSocket connection for chat
  * Automatically converts http/https to ws/wss
+ * Includes JWT token as query param for authentication
  */
-export const createChatWebSocket = (sessionId: string): WebSocket => {
-    const fullWsUrl = `${AGENT_WS_BASE_URL}/ws/chat/${sessionId}`
+export const createChatWebSocket = (sessionId: string, contextType?: string): WebSocket => {
+    const token = useAuthStore.getState().accessToken
+    const params = new URLSearchParams()
 
-    // Debug log in development
+    if (token) {
+        params.set('token', token)
+    }
+    if (contextType) {
+        params.set('context_type', contextType)
+    }
+
+    const queryString = params.toString()
+    const fullWsUrl = `${AGENT_WS_BASE_URL}/ws/chat/${sessionId}${queryString ? `?${queryString}` : ''}`
+
+    // Debug log in development (mask token)
     if (import.meta.env.DEV) {
-        console.log('🔌 WebSocket URL:', fullWsUrl)
+        const maskedUrl = token
+            ? fullWsUrl.replace(token, `${token.slice(0, 8)}...`)
+            : fullWsUrl
+        console.log('WebSocket URL:', maskedUrl)
     }
 
     return new WebSocket(fullWsUrl)

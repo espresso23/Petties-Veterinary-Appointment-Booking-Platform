@@ -17,12 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from loguru import logger
 
-from app.core.agents.single_agent import SingleAgent, build_react_agent
+from app.core.agents.single_agent import SingleAgent
 from app.core.context_policy import ContextPolicyService
 from app.services.llm_client import (
     create_llm_client_from_db,
     LLMConfig,
-    OpenRouterClient
+    OpenRouterClient,
 )
 from app.db.postgres.models import Agent as AgentModel, Tool
 
@@ -88,10 +88,12 @@ class AgentFactory:
         llm_client = await create_llm_client_from_db(
             db_session,
             provider_override=provider_override,
-            model_override=effective_model
+            model_override=effective_model,
         )
 
-        logger.info(f"LLM client created: provider={provider_override or 'default'}, model={effective_model}")
+        logger.info(
+            f"LLM client created: provider={provider_override or 'default'}, model={effective_model}"
+        )
 
         # 4. Load enabled tools tu DB
         tools_list = await AgentFactory._load_tools_for_agent(
@@ -105,8 +107,8 @@ class AgentFactory:
             {
                 "name": t.name,
                 "description": t.description,
-                "input_schema": t.input_schema
-            } 
+                "input_schema": t.input_schema,
+            }
             for t in tools_list
         ]
 
@@ -120,7 +122,7 @@ class AgentFactory:
         )
 
         # 5. Build Single Agent voi ReAct pattern
-        agent = build_react_agent(
+        agent = SingleAgent(
             llm_client=llm_client,
             name=agent_config.name,
             agent_type="single_agent",
@@ -129,7 +131,7 @@ class AgentFactory:
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
             enabled_tools=enabled_tools,
-            tool_schemas=tool_schemas
+            tool_schemas=tool_schemas,
         )
 
         actual_model = model_override or agent_config.model
@@ -182,10 +184,12 @@ class AgentFactory:
         llm_client = await create_llm_client_from_db(
             db_session,
             provider_override=provider_override,
-            model_override=effective_model
+            model_override=effective_model,
         )
 
-        logger.info(f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={effective_model}")
+        logger.info(
+            f"LLM client created for agent {agent_id}: provider={provider_override or 'default'}, model={effective_model}"
+        )
 
         # Load enabled tools tu DB
         tools_list = await AgentFactory._load_tools_for_agent(
@@ -199,8 +203,8 @@ class AgentFactory:
             {
                 "name": t.name,
                 "description": t.description,
-                "input_schema": t.input_schema
-            } 
+                "input_schema": t.input_schema,
+            }
             for t in tools_list
         ]
 
@@ -212,7 +216,7 @@ class AgentFactory:
         )
 
         # Build agent
-        agent = build_react_agent(
+        agent = SingleAgent(
             llm_client=llm_client,
             name=agent_config.name,
             agent_type="single_agent",
@@ -221,7 +225,7 @@ class AgentFactory:
             max_tokens=agent_config.max_tokens,
             top_p=agent_config.top_p or 0.9,
             enabled_tools=enabled_tools,
-            tool_schemas=tool_schemas
+            tool_schemas=tool_schemas,
         )
 
         return agent
@@ -240,8 +244,7 @@ class AgentFactory:
         tools_list = tools_result.scalars().all()
 
         assigned_tools = [
-            tool for tool in tools_list
-            if agent_name in (tool.assigned_agents or [])
+            tool for tool in tools_list if agent_name in (tool.assigned_agents or [])
         ]
 
         if not user_role and not context_type:
@@ -254,10 +257,7 @@ class AgentFactory:
         )
         allowed_lookup = {tool_name.lower() for tool_name in allowed_names}
 
-        return [
-            tool for tool in assigned_tools
-            if tool.name.lower() in allowed_lookup
-        ]
+        return [tool for tool in assigned_tools if tool.name.lower() in allowed_lookup]
 
     @staticmethod
     async def get_agent_config(db_session: AsyncSession) -> dict:
@@ -281,7 +281,7 @@ class AgentFactory:
                 "model": "google/gemini-2.0-flash-exp:free",
                 "system_prompt": "...",
                 "enabled": True,
-                "enabled_tools": ["search_symptoms", "RAG_search", ...]
+                "enabled_tools": ["pet_knowledge_search", "web_search", ...]
             }
         """
         # Load agent
@@ -309,11 +309,12 @@ class AgentFactory:
             "model": agent_config.model,
             "system_prompt": agent_config.system_prompt,
             "enabled": agent_config.enabled,
-            "enabled_tools": enabled_tools
+            "enabled_tools": enabled_tools,
         }
 
 
 # ===== HELPER FUNCTIONS =====
+
 
 async def get_enabled_tools(db_session: AsyncSession) -> List[str]:
     """
@@ -325,9 +326,7 @@ async def get_enabled_tools(db_session: AsyncSession) -> List[str]:
     Returns:
         List of enabled tool names
     """
-    result = await db_session.execute(
-        select(Tool.name).where(Tool.enabled == True)
-    )
+    result = await db_session.execute(select(Tool.name).where(Tool.enabled == True))
     return [row[0] for row in result.fetchall()]
 
 

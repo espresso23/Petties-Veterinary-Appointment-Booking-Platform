@@ -20,11 +20,11 @@ Single Agent (ReAct Pattern - LangGraph)
 FastMCP Tools        RAG Engine
 (Code-based)         (LlamaIndex + Qdrant)
     ↓
-[pet_care_qa]     → RAG-based Q&A
-[symptom_search]  → Symptom DB lookup
-[search_clinics]  → Find nearby clinics
-[check_slots]     → Check available slots
-[create_booking]  → Create booking
+[pet_knowledge_search]    → Knowledge base retrieval
+[web_search]              → Web fallback lookup
+[search_clinics_nearby]   → Find nearby clinics
+[check_available_slots]   → Check available slots
+[create_booking_for_user] → Create booking
 ```
 
 ---
@@ -57,18 +57,18 @@ Kiểm tra hành vi của Single Agent theo ReAct pattern.
 
 | Input Query | Expected Tool | Priority |
 |-------------|---------------|----------|
-| "Con chó bị nôn" | `pet_care_qa` (RAG) | ⭐ Critical |
-| "Mèo bị tiêu chảy từ hôm qua" | `symptom_search` | ⭐ Critical |
-| "Đặt lịch khám thứ 2" | `check_slots` → `create_booking` | ⭐ Critical |
-| "Tìm phòng khám gần đây" | `search_clinics` | High |
+| "Con chó bị nôn" | `pet_knowledge_search` (RAG) | ⭐ Critical |
+| "Mèo bị tiêu chảy từ hôm qua" | `pet_knowledge_search` | ⭐ Critical |
+| "Đặt lịch khám thứ 2" | `check_available_slots` → `create_booking_for_user` | ⭐ Critical |
+| "Tìm phòng khám gần đây" | `search_clinics_nearby` | High |
 | "Xin chào" | No tool (direct response) | Medium |
 
 **Test Method:**
 ```python
 @pytest.mark.parametrize("query,expected_tool", [
-    ("Con chó bị nôn", "pet_care_qa"),
-    ("Đặt lịch khám thứ 2", "check_slots"),
-    ("Tìm phòng khám gần đây", "search_clinics"),
+    ("Con chó bị nôn", "pet_knowledge_search"),
+    ("Đặt lịch khám thứ 2", "check_available_slots"),
+    ("Tìm phòng khám gần đây", "search_clinics_nearby"),
 ])
 async def test_react_tool_selection(query: str, expected_tool: str):
     response = await agent.process(query)
@@ -81,22 +81,21 @@ async def test_react_tool_selection(query: str, expected_tool: str):
 
 | Scenario | Test |
 |----------|------|
-| User nói "Con chó nhà tôi 5 tuổi" → Sau đó hỏi "Nó bị sao vậy?" | Medical Agent nhận context: `pet_type=dog, age=5` |
+| User nói "Con chó nhà tôi 5 tuổi" → Sau đó hỏi "Nó bị sao vậy?" | Single Agent giữ context: `pet_type=dog, age=5` |
 | User hỏi nhiều lượt | Context history được giữ nguyên |
 
 #### C. Tool Calling Test
 
 Kiểm tra Agent gọi đúng Tool khi cần.
 
-| Agent | Tool | Test Scenario |
-|-------|------|---------------|
-| Booking Agent | `check_slot` | "Thứ 2 có slot không?" → Tool được gọi |
-| Booking Agent | `create_booking` | "Đặt lịch 9h thứ 2" → Tool được gọi |
-| Medical Agent | `query_rag` | Hỏi về bệnh → RAG được query |
-| Medical Agent | `call_research_agent` | RAG confidence < 80% → Research Agent được gọi |
-| Research Agent | `web_search` | Tìm sản phẩm → Web search được gọi |
+| Capability | Tool | Test Scenario |
+|-----------|------|---------------|
+| Booking | `check_available_slots` | "Thứ 2 có slot không?" → Tool được gọi |
+| Booking | `create_booking_for_user` | "Đặt lịch 9h thứ 2" → Tool được gọi |
+| Knowledge | `pet_knowledge_search` | Hỏi về bệnh → Knowledge base được query |
+| Fallback | `web_search` | Knowledge base không đủ dữ liệu → Web search được gọi |
 
-#### D. Medical Agent Confidence Flow Test
+#### D. Low Confidence Fallback Flow Test
 
 ```
 Scenario: Bệnh lạ không có trong RAG
@@ -104,9 +103,9 @@ Scenario: Bệnh lạ không có trong RAG
 Input: "Chó bị bệnh Parvo"
 
 Expected Flow:
-1. Medical Agent query Internal RAG
-2. Confidence < 80% → Gọi Research Agent
-3. Research Agent tìm kiếm web
+1. Single Agent query internal RAG bằng `pet_knowledge_search`
+2. Confidence thấp / không có kết quả → gọi `web_search`
+3. Single Agent tổng hợp câu trả lời từ web
 4. Medical Agent tổng hợp kết quả
 5. Main Agent format response
 
@@ -275,8 +274,8 @@ Admin Dashboard cung cấp:
 | **Category** | Agent Behavior |
 | **Priority** | Critical |
 | **Input** | "Con chó nhà em bị nôn ra máu" |
-| **Expected** | Route to Medical Agent |
-| **Assertions** | 1. `target_agent == "medical_agent"` |
+| **Expected** | Call `pet_knowledge_search` |
+| **Assertions** | 1. `tool_called == "pet_knowledge_search"` |
 | | 2. `confidence >= 0.9` |
 | | 3. `context.pet_type == "dog"` |
 
@@ -288,9 +287,9 @@ Admin Dashboard cung cấp:
 | **Category** | Tool Integration |
 | **Priority** | Critical |
 | **Input** | "Tôi muốn đặt lịch khám lúc 9h sáng thứ 2" |
-| **Expected** | Booking Agent gọi `check_slot` → `create_booking` |
-| **Assertions** | 1. `check_slot` được gọi với đúng params |
-| | 2. `create_booking` được gọi nếu slot available |
+| **Expected** | Call `check_available_slots` → `create_booking_for_user` |
+| **Assertions** | 1. `check_available_slots` được gọi với đúng params |
+| | 2. `create_booking_for_user` được gọi nếu slot available |
 | | 3. Response chứa booking confirmation |
 
 ### TC-AI-003: Low Confidence Escalation
@@ -301,9 +300,9 @@ Admin Dashboard cung cấp:
 | **Category** | Agent Collaboration |
 | **Priority** | High |
 | **Input** | "Chó bị bệnh Addison" (rare disease) |
-| **Expected** | Medical Agent → Research Agent → Medical Agent |
+| **Expected** | `pet_knowledge_search` → `web_search` |
 | **Assertions** | 1. Internal RAG returns low confidence |
-| | 2. Research Agent được gọi |
+| | 2. `web_search` được gọi |
 | | 3. Response có citations từ web |
 
 ### TC-AI-004: Multilingual Support
@@ -314,7 +313,7 @@ Admin Dashboard cung cấp:
 | **Category** | Cross-lingual |
 | **Priority** | Medium |
 | **Input** | "My dog is vomiting" (English) |
-| **Expected** | Route to Medical Agent (same as Vietnamese) |
+| **Expected** | Call `pet_knowledge_search` (same as Vietnamese) |
 | **Assertions** | 1. Correct routing despite language |
 | | 2. Response in same language as query |
 
@@ -399,10 +398,10 @@ Admin Dashboard cung cấp:
 
 ```json
 [
-  {"query": "Con chó bị nôn", "expected_agent": "medical_agent"},
-  {"query": "Mèo không chịu ăn 2 ngày rồi", "expected_agent": "medical_agent"},
-  {"query": "Chó bị tiêu chảy ra máu", "expected_agent": "medical_agent"},
-  {"query": "Thú cưng bị ho", "expected_agent": "medical_agent"}
+  {"query": "Con chó bị nôn", "expected_tool": "pet_knowledge_search"},
+  {"query": "Mèo không chịu ăn 2 ngày rồi", "expected_tool": "pet_knowledge_search"},
+  {"query": "Chó bị tiêu chảy ra máu", "expected_tool": "pet_knowledge_search"},
+  {"query": "Thú cưng bị ho", "expected_tool": "pet_knowledge_search"}
 ]
 ```
 
@@ -410,9 +409,9 @@ Admin Dashboard cung cấp:
 
 ```json
 [
-  {"query": "Đặt lịch khám thứ 2", "expected_agent": "booking_agent"},
-  {"query": "Tôi muốn hẹn nhân viên", "expected_agent": "booking_agent"},
-  {"query": "Có slot nào trống không?", "expected_agent": "booking_agent"}
+  {"query": "Đặt lịch khám thứ 2", "expected_tool": "check_available_slots"},
+  {"query": "Tôi muốn hẹn nhân viên", "expected_tool": "create_booking_for_user"},
+  {"query": "Có slot nào trống không?", "expected_tool": "check_available_slots"}
 ]
 ```
 
@@ -420,8 +419,8 @@ Admin Dashboard cung cấp:
 
 ```json
 [
-  {"query": "Có bán Royal Canin không?", "expected_agent": "research_agent"},
-  {"query": "Cách huấn luyện chó", "expected_agent": "research_agent"},
-  {"query": "Review thức ăn cho mèo", "expected_agent": "research_agent"}
+  {"query": "Có bán Royal Canin không?", "expected_tool": "web_search"},
+  {"query": "Cách huấn luyện chó", "expected_tool": "pet_knowledge_search"},
+  {"query": "Review thức ăn cho mèo", "expected_tool": "web_search"}
 ]
 ```

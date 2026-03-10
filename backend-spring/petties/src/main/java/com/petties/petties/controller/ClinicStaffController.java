@@ -45,7 +45,7 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @Valid @RequestBody InviteByEmailRequest request) {
         staffService.inviteByEmail(clinicId, request);
-        return ResponseEntity.ok("Staff invited successfully");
+        return ResponseEntity.ok("Mời nhân viên thành công");
     }
 
     /**
@@ -57,7 +57,7 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable String usernameOrEmail) {
         staffService.assignManager(clinicId, usernameOrEmail);
-        return ResponseEntity.ok("Clinic Manager assigned successfully");
+        return ResponseEntity.ok("Gán quản lý phòng khám thành công");
     }
 
     /**
@@ -78,7 +78,7 @@ public class ClinicStaffController {
             @PathVariable UUID clinicId,
             @PathVariable UUID userId) {
         staffService.removeStaff(clinicId, userId);
-        return ResponseEntity.ok("Staff removed successfully");
+        return ResponseEntity.ok("Xóa nhân viên thành công");
     }
 
     /**
@@ -89,9 +89,9 @@ public class ClinicStaffController {
     public ResponseEntity<String> updateStaffSpecialty(
             @PathVariable UUID clinicId,
             @PathVariable UUID userId,
-            @RequestBody java.util.Map<String, String> body) {
-        String specialty = body.get("specialty");
+            @jakarta.validation.Valid @RequestBody com.petties.petties.dto.clinic.UpdateSpecialtyRequest request) {
+        String specialty = request.getSpecialty();
         staffService.updateStaffSpecialty(clinicId, userId, specialty);
-        return ResponseEntity.ok("Staff specialty updated successfully");
+        return ResponseEntity.ok("Cập nhật chuyên môn nhân viên thành công");
     }
 }

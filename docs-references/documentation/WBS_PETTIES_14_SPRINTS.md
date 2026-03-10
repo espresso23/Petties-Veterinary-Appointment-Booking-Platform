@@ -899,13 +899,13 @@
 > **As a** Clinic Manager, **I want to** create work shifts for veterinarians  
 > **So that** I can schedule my vets and the system auto-generates bookable slots
 
-**Sprint:** S4 | **Verified Files:** `VetShift.java`, `Slot.java`, `VetShiftService.createShifts()`
+**Sprint:** S4 | **Verified Files:** `StaffShift.java`, `Slot.java`, `StaffShiftService.createShifts()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-1 | 3h | ✅ |
 | Viết class/sequence diagram (Report 4) | DEV-1 | 5h | ✅ |
-| Code BE: VetShift, Slot auto-generation | DEV-1 | 12h | ✅ |
+| Code BE: StaffShift, Slot auto-generation | DEV-1 | 12h | ✅ |
 | Code FE: Web Shift Calendar View | DEV-2 | 10h | ✅ |
 | Viết unit test | DEV-1 | 3h | ✅ |
 | Viết system test (Report 5) | DEV-4 | 3h | ✅ |
@@ -918,7 +918,7 @@
 > **As a** Clinic Manager, **I want to** block or unblock specific time slots  
 > **So that** I can temporarily disable slots for breaks, meetings, or emergencies
 
-**Sprint:** S5 | **Verified Files:** `VetShiftService.blockSlot()`, `VetShiftService.unblockSlot()`
+**Sprint:** S5 | **Verified Files:** `StaffShiftService.blockSlot()`, `StaffShiftService.unblockSlot()`
 
 | Sub-task | Assignee | Effort | Status |
 |----------|----------|--------|--------|
@@ -1258,7 +1258,7 @@
 |----------|----------|--------|--------|
 | Viết spec (Report 3) | DEV-5 | 3h | ⏳ |
 | Viết class/sequence diagram (Report 4) | DEV-5 | 4h | ⏳ |
-| Code AI: create_booking tool + function calling | DEV-5 | 12h | ⏳ |
+| Code AI: create_booking_for_user tool + function calling | DEV-5 | 12h | ⏳ |
 | Code BE: AI Booking API integration | DEV-1 | 6h | ⏳ |
 | Code FE: Mobile AI Booking confirmation | DEV-3 | 6h | ⏳ |
 | Viết unit test | DEV-5 | 2h | ⏳ |

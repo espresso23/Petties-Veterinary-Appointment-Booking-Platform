@@ -14,7 +14,7 @@ import httpx
 import logging
 
 from app.db.postgres.session import get_db
-from app.db.postgres.models import SystemSetting, DEFAULT_SETTINGS
+from app.db.postgres.models import SystemSetting, DEFAULT_SETTINGS, ToolType
 from app.api.middleware.auth import get_admin_user
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 # ===== SCHEMAS =====
 
+
 class SettingResponse(BaseModel):
     key: str
     value: str  # Masked if sensitive
@@ -30,8 +31,10 @@ class SettingResponse(BaseModel):
     is_sensitive: bool
     description: Optional[str]
 
+
 class SettingUpdate(BaseModel):
     value: str
+
 
 class SettingCreate(BaseModel):
     key: str
@@ -40,6 +43,7 @@ class SettingCreate(BaseModel):
     is_sensitive: bool = False
     description: Optional[str] = None
 
+
 class TestResult(BaseModel):
     status: str
     message: str
@@ -47,6 +51,7 @@ class TestResult(BaseModel):
 
 
 # ===== HELPER FUNCTIONS =====
+
 
 def mask_value(value: str, is_sensitive: bool) -> str:
     """Mask sensitive values, show only last 4 chars"""
@@ -58,6 +63,7 @@ def mask_value(value: str, is_sensitive: bool) -> str:
 
 
 from app.core.config_helper import get_setting as _get_setting
+
 
 # Keep the same signature for compatibility within this file
 async def get_setting(key: str, db: AsyncSession = None) -> Optional[str]:
@@ -76,7 +82,7 @@ async def init_default_settings(db: AsyncSession):
                 value=setting_data["value"],
                 category=setting_data["category"],  # Simple string now
                 is_sensitive=setting_data["is_sensitive"],
-                description=setting_data.get("description")
+                description=setting_data.get("description"),
             )
             db.add(setting)
     await db.commit()
@@ -84,27 +90,28 @@ async def init_default_settings(db: AsyncSession):
 
 # ===== ROUTES =====
 
+
 @router.get("", response_model=List[SettingResponse])
 async def list_settings(
     category: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    _: dict = Depends(get_admin_user),
 ):
     """List all settings (admin only). Sensitive values are masked."""
     query = select(SystemSetting)
     if category:
         query = query.where(SystemSetting.category == category)
-    
+
     result = await db.execute(query)
     settings = result.scalars().all()
-    
+
     return [
         SettingResponse(
             key=s.key,
             value=mask_value(s.value, s.is_sensitive),
             category=s.category or "general",
             is_sensitive=s.is_sensitive,
-            description=s.description
+            description=s.description,
         )
         for s in settings
     ]
@@ -112,25 +119,21 @@ async def list_settings(
 
 @router.get("/{key}", response_model=SettingResponse)
 async def get_setting_by_key(
-    key: str,
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    key: str, db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """Get single setting by key"""
-    result = await db.execute(
-        select(SystemSetting).where(SystemSetting.key == key)
-    )
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
     setting = result.scalar_one_or_none()
-    
+
     if not setting:
         raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
-    
+
     return SettingResponse(
         key=setting.key,
         value=mask_value(setting.value, setting.is_sensitive),
         category=setting.category or "general",
         is_sensitive=setting.is_sensitive,
-        description=setting.description
+        description=setting.description,
     )
 
 
@@ -139,36 +142,33 @@ async def update_setting(
     key: str,
     data: SettingUpdate,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    _: dict = Depends(get_admin_user),
 ):
     """Update setting value (admin only)"""
-    result = await db.execute(
-        select(SystemSetting).where(SystemSetting.key == key)
-    )
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
     setting = result.scalar_one_or_none()
-    
+
     if not setting:
         raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
-    
+
     setting.value = data.value
     await db.commit()
     await db.refresh(setting)
-    
+
     logger.info(f"Setting '{key}' updated")
-    
+
     return SettingResponse(
         key=setting.key,
         value=mask_value(setting.value, setting.is_sensitive),
         category=setting.category or "general",
         is_sensitive=setting.is_sensitive,
-        description=setting.description
+        description=setting.description,
     )
 
 
 @router.post("/init")
 async def initialize_settings(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """Initialize default settings"""
     await init_default_settings(db)
@@ -179,7 +179,7 @@ async def initialize_settings(
 async def seed_database(
     force: bool = False,
     db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    _: dict = Depends(get_admin_user),
 ):
     """
     Seed database voi Single Agent architecture
@@ -197,14 +197,19 @@ async def seed_database(
     """
     try:
         from app.db.postgres.models import (
-            Agent, Tool, SystemSetting,
-            DEFAULT_SETTINGS, PromptVersion
+            Agent,
+            Tool,
+            SystemSetting,
+            DEFAULT_SETTINGS,
+            PromptVersion,
         )
         from sqlalchemy import select, delete
         from pathlib import Path
 
         # Templates directory
-        templates_dir = Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        templates_dir = (
+            Path(__file__).parent.parent.parent / "core" / "prompts" / "templates"
+        )
 
         def load_template(agent_name: str) -> str:
             """Load template file"""
@@ -216,11 +221,7 @@ async def seed_database(
                 logger.warning(f"Failed to load template {agent_name}: {e}")
             return ""
 
-        results = {
-            "system_settings": 0,
-            "agents": 0,
-            "tools": 0
-        }
+        results = {"system_settings": 0, "agents": 0, "tools": 0}
 
         # 1. Seed system settings
         if force:
@@ -235,7 +236,7 @@ async def seed_database(
                     value=setting_data["value"],
                     category=setting_data["category"],  # Simple string
                     is_sensitive=setting_data["is_sensitive"],
-                    description=setting_data["description"]
+                    description=setting_data["description"],
                 )
                 settings.append(setting)
             db.add_all(settings)
@@ -250,7 +251,9 @@ async def seed_database(
         existing_agents = await db.execute(select(Agent))
         if not existing_agents.scalars().first() or force:
             # Load prompt tu template hoac dung default
-            single_agent_prompt = load_template("single_agent") or load_template("main_agent")
+            single_agent_prompt = load_template("single_agent") or load_template(
+                "main_agent"
+            )
 
             # Fallback prompt cho Single Agent + ReAct
             if not single_agent_prompt:
@@ -294,7 +297,7 @@ async def seed_database(
                 top_p=0.9,
                 model="google/gemini-2.0-flash-exp:free",  # OpenRouter model
                 system_prompt=single_agent_prompt,
-                enabled=True
+                enabled=True,
             )
 
             db.add(single_agent)
@@ -307,46 +310,55 @@ async def seed_database(
             if force:
                 await db.execute(delete(Tool))
 
-            # Chi seed 2 RAG-based tools
+            # Chi seed 1 unified RAG tool + web fallback
             # Cac tools khac (booking, clinic search) se duoc add sau khi co API integration
             tools = [
                 Tool(
-                    name="pet_care_qa",
-                    description="""Tim kiem kien thuc cham soc thu cung tu knowledge base (RAG Q&A).
+                    name="pet_knowledge_search",
+                    description="""Tim kiem kien thuc cham soc thu cung va phan tich trieu chung tu Knowledge Base (RAG).
 
-Su dung tool nay khi user hoi cac cau hoi ve:
-- Cach cham soc thu cung (cho an, tam rua, tap luyen)
-- Thong tin ve giong loai
-- Dieu tri benh thuong gap
-- Dinh duong va thuc pham
+Su dung tool nay khi user:
+- Hoi cach cham soc thu cung (cho an, tam rua, tap luyen)
+- Hoi ve thong tin giong loai, dinh duong, thuc pham
+- Mo ta trieu chung (sot, non, tieu chay, bo an, ngua, rung long)
+- Hoi ve benh, chan doan, dieu tri tham khao
 
-Tool nay su dung Cohere embeddings + Qdrant vector search de tim kiem
-trong knowledge base da duoc upload boi Admin.""",
-                    tool_type="code_based",
+Tool tra cuu kien thuc thu y (benh, trieu chung, cham soc) tu knowledge base va tra ve ket qua tho (raw data).
+LLM se tu tong hop va format cau tra loi tu ket qua tool.
+
+WARNING: Tool nay chi cung cap thong tin tham khao.
+Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Cau hoi hoac tu khoa tim kiem (tieng Viet hoac English)"
+                                "description": "Cau hoi hoac mo ta trieu chung (tieng Viet hoac English)",
+                            },
+                            "pet_type": {
+                                "type": "string",
+                                "description": "Loai thu cung: dog, cat, bird, rabbit, hamster",
+                                "default": "dog",
                             },
                             "top_k": {
                                 "type": "integer",
                                 "description": "So luong ket qua tra ve (default: 5)",
-                                "default": 5
+                                "default": 5,
                             },
                             "min_score": {
                                 "type": "number",
-                                "description": "Diem tuong dong toi thieu (default: 0.5)",
-                                "default": 0.5
-                            }
+                                "description": "Diem tuong dong toi thieu (default: 0.4)",
+                                "default": 0.4,
+                            },
                         },
-                        "required": ["query"]
+                        "required": ["query"],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
                             "query": {"type": "string"},
+                            "pet_type": {"type": "string"},
                             "results": {
                                 "type": "array",
                                 "items": {
@@ -355,76 +367,16 @@ trong knowledge base da duoc upload boi Admin.""",
                                         "content": {"type": "string"},
                                         "score": {"type": "number"},
                                         "source": {"type": "string"},
-                                        "chunk_index": {"type": "integer"}
-                                    }
-                                }
+                                        "chunk_index": {"type": "integer"},
+                                    },
+                                },
                             },
-                            "answer": {"type": "string"},
-                            "sources_used": {"type": "integer"}
-                        }
-                    },
-                    enabled=True,
-                    assigned_agents=["petties_agent"]
-                ),
-                Tool(
-                    name="symptom_search",
-                    description="""Tim benh dua tren trieu chung su dung RAG (Symptom Checker).
-
-Su dung tool nay khi user mo ta trieu chung cua thu cung:
-- Thu cung bi sot, non, tieu chay
-- Thu cung bo an, met moi
-- Cac van de ve da, long
-- Van de ho hap, mat
-
-WARNING: Tool nay chi cung cap thong tin tham khao.
-Luon khuyen nguoi dung den phong kham thu y de duoc chan doan chinh xac.""",
-                    tool_type="code_based",
-                    input_schema={
-                        "type": "object",
-                        "properties": {
-                            "symptoms": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Danh sach trieu chung (vi du: ['sot', 'non mua', 'met moi'])"
-                            },
-                            "pet_type": {
-                                "type": "string",
-                                "description": "Loai thu cung: dog, cat, bird, rabbit, hamster",
-                                "default": "dog"
-                            },
-                            "top_k": {
-                                "type": "integer",
-                                "description": "So luong ket qua (default: 5)",
-                                "default": 5
-                            }
+                            "sources_used": {"type": "integer"},
+                            "search_source": {"type": "string"},
                         },
-                        "required": ["symptoms"]
-                    },
-                    output_schema={
-                        "type": "object",
-                        "properties": {
-                            "symptoms": {"type": "array", "items": {"type": "string"}},
-                            "pet_type": {"type": "string"},
-                            "possible_conditions": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {"type": "string"},
-                                        "description": {"type": "string"},
-                                        "severity": {"type": "string"},
-                                        "source": {"type": "string"},
-                                        "score": {"type": "number"}
-                                    }
-                                }
-                            },
-                            "urgent": {"type": "boolean"},
-                            "recommendations": {"type": "string"},
-                            "disclaimer": {"type": "string"}
-                        }
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="web_search",
@@ -435,21 +387,21 @@ Chi su dung tool nay cho cau hoi lien quan den:
 - Trieu chung, benh ly, huong dan xu ly tham khao
 
 Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu y.""",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Cau hoi can tim tren web (chi nhan noi dung lien quan thu cung/thu y)"
+                                "description": "Cau hoi can tim tren web (chi nhan noi dung lien quan thu cung/thu y)",
                             },
                             "max_results": {
                                 "type": "integer",
                                 "description": "So luong ket qua toi da (default: 5)",
-                                "default": 5
-                            }
+                                "default": 5,
+                            },
                         },
-                        "required": ["query"]
+                        "required": ["query"],
                     },
                     output_schema={
                         "type": "object",
@@ -463,114 +415,150 @@ Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu
                                         "title": {"type": "string"},
                                         "snippet": {"type": "string"},
                                         "url": {"type": "string"},
-                                        "source": {"type": "string"}
-                                    }
-                                }
+                                        "source": {"type": "string"},
+                                    },
+                                },
                             },
-                            "answer": {"type": "string"},
                             "sources_used": {"type": "integer"},
-                            "search_source": {"type": "string"}
-                        }
+                            "search_source": {"type": "string"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="get_user_pets",
                     description="Lay danh sach thu cung cua pet owner hien tai de phuc vu booking flow.",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
-                            "user_id": {"type": "string", "description": "User ID duoc auto-inject tu business chat session"}
+                            "user_id": {
+                                "type": "string",
+                                "description": "User ID duoc auto-inject tu business chat session",
+                            }
                         },
-                        "required": []
+                        "required": [],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
                             "user_id": {"type": "string"},
                             "pets": {"type": "array", "items": {"type": "object"}},
-                            "total_pets": {"type": "integer"}
-                        }
+                            "total_pets": {"type": "integer"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="search_clinics_nearby",
                     description="Tim phong kham gan vi tri user va loc theo dich vu neu can.",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
                             "latitude": {"type": "number"},
                             "longitude": {"type": "number"},
                             "radius_km": {"type": "number", "default": 5},
-                            "service_names": {"type": "array", "items": {"type": "string"}},
-                            "top_k": {"type": "integer", "default": 5}
+                            "service_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "top_k": {"type": "integer", "default": 5},
                         },
-                        "required": ["latitude", "longitude"]
+                        "required": ["latitude", "longitude"],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
                             "clinics": {"type": "array", "items": {"type": "object"}},
-                            "total_found": {"type": "integer"}
-                        }
+                            "total_found": {"type": "integer"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="get_clinic_services",
                     description="Lay danh sach dich vu cua clinic de AI de xuat booking.",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
                             "clinic_id": {"type": "string"},
-                            "pet_species": {"type": "string"}
+                            "pet_species": {"type": "string"},
+                            "is_home_visit": {"type": "boolean"},
                         },
-                        "required": ["clinic_id"]
+                        "required": ["clinic_id"],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
                             "services": {"type": "array", "items": {"type": "object"}},
-                            "total_services": {"type": "integer"}
-                        }
+                            "total_services": {"type": "integer"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
+                ),
+                Tool(
+                    name="check_vaccination_status",
+                    description="Lay lich su tiem va goi y mui sap toi cua pet de ho tro tu van booking tiem chung trong flow binh thuong.",
+                    tool_type=ToolType.CODE_BASED,
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pet_id": {"type": "string"},
+                            "vaccine_template_id": {"type": "string"},
+                        },
+                        "required": ["pet_id"],
+                    },
+                    output_schema={
+                        "type": "object",
+                        "properties": {
+                            "history": {"type": "array", "items": {"type": "object"}},
+                            "upcoming": {"type": "array", "items": {"type": "object"}},
+                            "recommended_next": {"type": "object"},
+                            "message": {"type": "string"},
+                        },
+                    },
+                    enabled=True,
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="check_available_slots",
                     description="Kiem tra khung gio con trong cua clinic cho booking AI.",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
                             "clinic_id": {"type": "string"},
                             "date": {"type": "string"},
-                            "service_ids": {"type": "array", "items": {"type": "string"}}
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
                         },
-                        "required": ["clinic_id", "date", "service_ids"]
+                        "required": ["clinic_id", "date", "service_ids"],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
-                            "available_slots": {"type": "array", "items": {"type": "object"}},
-                            "total_slots": {"type": "integer"}
-                        }
+                            "available_slots": {
+                                "type": "array",
+                                "items": {"type": "object"},
+                            },
+                            "total_slots": {"type": "integer"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
                 Tool(
                     name="create_booking_for_user",
                     description="Tao booking cho pet owner sau khi da co human confirmation.",
-                    tool_type="code_based",
+                    tool_type=ToolType.CODE_BASED,
                     input_schema={
                         "type": "object",
                         "properties": {
@@ -578,22 +566,40 @@ Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu
                             "clinic_id": {"type": "string"},
                             "booking_date": {"type": "string"},
                             "start_time": {"type": "string"},
-                            "service_ids": {"type": "array", "items": {"type": "string"}},
+                            "service_ids": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "booking_type": {
+                                "type": "string",
+                                "enum": ["IN_CLINIC", "HOME_VISIT"],
+                            },
                             "notes": {"type": "string"},
-                            "confirmed": {"type": "boolean", "default": false}
+                            "home_address": {"type": "string"},
+                            "home_lat": {"type": "number"},
+                            "home_long": {"type": "number"},
+                            "distance_km": {"type": "number"},
+                            "confirmed": {"type": "boolean", "default": false},
                         },
-                        "required": ["pet_id", "clinic_id", "booking_date", "start_time", "service_ids", "confirmed"]
+                        "required": [
+                            "pet_id",
+                            "clinic_id",
+                            "booking_date",
+                            "start_time",
+                            "service_ids",
+                            "confirmed",
+                        ],
                     },
                     output_schema={
                         "type": "object",
                         "properties": {
                             "success": {"type": "boolean"},
                             "booking": {"type": "object"},
-                            "message": {"type": "string"}
-                        }
+                            "message": {"type": "string"},
+                        },
                     },
                     enabled=True,
-                    assigned_agents=["petties_agent"]
+                    assigned_agents=["petties_agent"],
                 ),
             ]
 
@@ -606,7 +612,7 @@ Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu
         return {
             "status": "success",
             "message": "Database seeded successfully with Single Agent architecture",
-            "results": results
+            "results": results,
         }
 
     except Exception as e:
@@ -617,10 +623,10 @@ Tool nay dung DuckDuckGo search va tu dong loc ket qua theo pham vi thu cung/thu
 
 # ===== TEST ENDPOINTS =====
 
+
 @router.post("/test-qdrant", response_model=TestResult)
 async def test_qdrant_connection(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """Test Qdrant connection"""
     qdrant_url = await get_setting("QDRANT_URL", db) or "http://localhost:6333"
@@ -632,11 +638,13 @@ async def test_qdrant_connection(
             response = await client.get(f"{qdrant_url}/collections", headers=headers)
             if response.status_code == 200:
                 data = response.json()
-                collections = [c["name"] for c in data.get("result", {}).get("collections", [])]
+                collections = [
+                    c["name"] for c in data.get("result", {}).get("collections", [])
+                ]
                 return TestResult(
                     status="success",
                     message="Connected to Qdrant",
-                    details={"collections": collections}
+                    details={"collections": collections},
                 )
             return TestResult(status="error", message=f"HTTP {response.status_code}")
     except Exception as e:
@@ -645,8 +653,7 @@ async def test_qdrant_connection(
 
 @router.post("/test-openrouter", response_model=TestResult)
 async def test_openrouter_connection(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """
     Test OpenRouter Cloud API connection
@@ -661,11 +668,13 @@ async def test_openrouter_connection(
     if not api_key:
         return TestResult(
             status="error",
-            message="OpenRouter API key not configured. Set OPENROUTER_API_KEY in settings."
+            message="OpenRouter API key not configured. Set OPENROUTER_API_KEY in settings.",
         )
 
     # Get configured model or fallback default
-    model = await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.0-flash-exp:free"
+    model = (
+        await get_setting("OPENROUTER_MODEL", db) or "google/gemini-2.0-flash-exp:free"
+    )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -674,13 +683,13 @@ async def test_openrouter_connection(
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "HTTP-Referer": "https://petties.world",
-                    "X-Title": "Petties AI"
+                    "X-Title": "Petties AI",
                 },
                 json={
                     "model": model,
                     "messages": [{"role": "user", "content": "Hello"}],
-                    "max_tokens": 10
-                }
+                    "max_tokens": 10,
+                },
             )
 
             if response.status_code == 200:
@@ -689,10 +698,7 @@ async def test_openrouter_connection(
                 return TestResult(
                     status="success",
                     message="OpenRouter API connected successfully",
-                    details={
-                        "model": model,
-                        "provider": "openrouter"
-                    }
+                    details={"model": model, "provider": "openrouter"},
                 )
             else:
                 try:
@@ -700,7 +706,9 @@ async def test_openrouter_connection(
                     # OpenRouter error structure can vary
                     if "error" in error_data:
                         if isinstance(error_data["error"], dict):
-                            error_msg = error_data["error"].get("message", str(error_data["error"]))
+                            error_msg = error_data["error"].get(
+                                "message", str(error_data["error"])
+                            )
                         else:
                             error_msg = str(error_data["error"])
                     else:
@@ -711,7 +719,7 @@ async def test_openrouter_connection(
                 return TestResult(
                     status="error",
                     message=f"OpenRouter Error ({response.status_code}): {error_msg}",
-                    details={"status_code": response.status_code}
+                    details={"status_code": response.status_code},
                 )
 
     except Exception as e:
@@ -721,8 +729,7 @@ async def test_openrouter_connection(
 
 @router.post("/test-cohere", response_model=TestResult)
 async def test_cohere_embeddings(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """
     Test Cohere Embeddings API connection
@@ -737,7 +744,7 @@ async def test_cohere_embeddings(
     if not api_key:
         return TestResult(
             status="error",
-            message="Cohere API key not configured. Set COHERE_API_KEY in settings."
+            message="Cohere API key not configured. Set COHERE_API_KEY in settings.",
         )
 
     try:
@@ -746,13 +753,13 @@ async def test_cohere_embeddings(
                 "https://api.cohere.ai/v1/embed",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 },
                 json={
                     "model": "embed-multilingual-v3.0",
                     "texts": ["Xin chao, day la test embedding tieng Viet"],
-                    "input_type": "search_query"
-                }
+                    "input_type": "search_query",
+                },
             )
 
             if response.status_code == 200:
@@ -765,8 +772,8 @@ async def test_cohere_embeddings(
                     details={
                         "model": "embed-multilingual-v3.0",
                         "dimension": dimension,
-                        "provider": "cohere"
-                    }
+                        "provider": "cohere",
+                    },
                 )
             else:
                 error_data = response.json()
@@ -774,7 +781,7 @@ async def test_cohere_embeddings(
                 return TestResult(
                     status="error",
                     message=f"Cohere API error: {error_msg}",
-                    details={"status_code": response.status_code}
+                    details={"status_code": response.status_code},
                 )
 
     except Exception as e:
@@ -784,8 +791,7 @@ async def test_cohere_embeddings(
 
 @router.post("/test-deepseek", response_model=TestResult)
 async def test_deepseek_connection(
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_admin_user)
+    db: AsyncSession = Depends(get_db), _: dict = Depends(get_admin_user)
 ):
     """
     Test DeepSeek API connection
@@ -800,7 +806,7 @@ async def test_deepseek_connection(
     if not api_key:
         return TestResult(
             status="error",
-            message="DeepSeek API key not configured. Set DEEPSEEK_API_KEY in settings."
+            message="DeepSeek API key not configured. Set DEEPSEEK_API_KEY in settings.",
         )
 
     base_url = await get_setting("DEEPSEEK_BASE_URL", db) or "https://api.deepseek.com"
@@ -812,13 +818,13 @@ async def test_deepseek_connection(
                 f"{base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 },
                 json={
                     "model": model,
                     "messages": [{"role": "user", "content": "Hello"}],
-                    "max_tokens": 10
-                }
+                    "max_tokens": 10,
+                },
             )
 
             if response.status_code == 200:
@@ -830,8 +836,8 @@ async def test_deepseek_connection(
                     details={
                         "model": used_model,
                         "provider": "deepseek",
-                        "base_url": base_url
-                    }
+                        "base_url": base_url,
+                    },
                 )
             else:
                 error_data = response.json()
@@ -839,7 +845,7 @@ async def test_deepseek_connection(
                 return TestResult(
                     status="error",
                     message=f"DeepSeek API error: {error_msg}",
-                    details={"status_code": response.status_code}
+                    details={"status_code": response.status_code},
                 )
 
     except Exception as e:

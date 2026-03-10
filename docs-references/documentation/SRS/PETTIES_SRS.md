@@ -1,7 +1,7 @@
 # PETTIES - Software Requirements Specification (SRS)
 
 **Project:** Petties - Veterinary Appointment Booking Platform
-**Version:** 2.3.1 (Normalized staff and scheduling requirements to match codebase)
+**Version:** 2.3.2 (Updated ERD and data inventory to match current backend and AI data model)
 **Last Updated:** 2026-03-09
 **Document Status:** In Progress
 
@@ -339,7 +339,7 @@ graph TB
 
 | # | Use Case | UC-ID | SRS Ref | Backend | Frontend | Status |
 |---|----------|-------|---------|---------|----------|--------|
-| 36 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
+| 36 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | 🔄 In Progress |
 | 37 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
 | 38 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
 | 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
@@ -1217,58 +1217,57 @@ erDiagram
     USER ||--o{ BLACKLISTED_TOKEN : invalidates
     USER ||--o{ PET : owns
     USER ||--o{ CLINIC : owns
-    USER ||--o{ CLINIC : works_at
-    USER ||--o{ VET_SHIFT : works
+    USER }o--|| CLINIC : works_at
+    USER ||--o{ STAFF_SHIFT : works
     USER ||--o{ BOOKING : books
+    USER ||--o{ BOOKING : proxies
     USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ REVIEW : writes
     USER ||--o{ CHAT_CONVERSATION : participates
+    USER ||--o{ AI_CHAT_SESSION : starts
 
     %% ==================== CLINIC & SERVICES ====================
     CLINIC ||--o| CLINIC_PRICE_PER_KM : has_pricing
     CLINIC ||--o{ CLINIC_IMAGE : has_images
     CLINIC ||--o{ CLINIC_SERVICE : offers
-    CLINIC ||--o{ VET_SHIFT : schedules
+    CLINIC ||--o{ STAFF_SHIFT : schedules
     CLINIC ||--o{ BOOKING : receives
+    CLINIC ||--o{ REVIEW : receives_review
     CLINIC ||--o{ CHAT_CONVERSATION : receives_chat
+    CLINIC ||--o{ CHAT_AUTO_REPLY_SETTING : configures
     MASTER_SERVICE ||--o{ CLINIC_SERVICE : defines
-    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_tiers
     MASTER_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_default_tiers
+    VACCINE_TEMPLATE ||--o{ CLINIC_SERVICE : linked_to
+    CLINIC_SERVICE ||--o{ SERVICE_WEIGHT_PRICE : has_weight_tiers
+    CLINIC_SERVICE ||--o{ VACCINE_DOSE_PRICE : has_dose_prices
 
     %% ==================== BOOKING (M:N via Junction Tables) ====================
-    BOOKING ||--|{ BOOKING_SERVICE_ITEM : contains
-    BOOKING_SERVICE_ITEM }|--|| CLINIC_SERVICE : references
-    BOOKING_SERVICE_ITEM }o--o| USER : assigned_staff
+    BOOKING ||--|{ BOOKING_SERVICE : contains
+    BOOKING ||--|{ BOOKING_SLOT : reserves
+    BOOKING ||--|| PAYMENT : has
+    BOOKING ||--o| EMR_RECORD : generates
+    BOOKING ||--o| REVIEW : has_review
+    BOOKING_SERVICE }|--|| CLINIC_SERVICE : references
+    BOOKING_SERVICE }o--o| USER : assigned_staff
+    BOOKING_SLOT }|--|| SLOT : links
+    BOOKING_SLOT }o--o| BOOKING_SERVICE : for_service
 
     %% ==================== PET & MEDICAL ====================
     PET ||--o{ BOOKING : has
     PET ||--o{ EMR_RECORD : has
     PET ||--o{ VACCINATION_RECORD : receives
-    BOOKING ||--o| EMR_RECORD : generates
 
-    %% ==================== SCHEDULING & MULTI-SLOT ====================
-    VET_SHIFT ||--|{ SLOT : contains
-    BOOKING ||--|{ BOOKING_SLOT : reserves
-    BOOKING_SLOT }|--|| SLOT : links
-    BOOKING_SLOT }o--o| BOOKING_SERVICE_ITEM : for_service
-
-    %% ==================== FINANCE ====================
-    BOOKING ||--|| PAYMENT : has
+    %% ==================== SCHEDULING ====================
+    STAFF_SHIFT ||--|{ SLOT : contains
 
     %% ==================== COMMUNICATION (MongoDB) ====================
     CHAT_CONVERSATION ||--o{ CHAT_MESSAGE : contains
 
-    %% ==================== FUTURE ENTITIES (Not Implemented) ====================
-    %% USER ||--o{ REVIEW : writes
-    %% BOOKING ||--o{ REVIEW : has
-    %% USER ||--o{ USER_REPORT : submits
-    %% CLINIC ||--o{ USER_REPORT : is_reported
-
-    %% ==================== AI SERVICE (Separate petties-agent-service) ====================
-    %% AI_AGENT ||--o{ AI_PROMPT_VERSION : has
-    %% AI_AGENT ||--o{ AI_CHAT_SESSION : handles
-    %% AI_CHAT_SESSION ||--o{ AI_CHAT_MESSAGE : contains
-    %% AI_AGENT }o--o{ AI_TOOL : uses
-    %% AI_AGENT ||--o{ AI_KNOWLEDGE_DOC : references
+    %% ==================== AI SERVICE ====================
+    AGENT ||--o{ PROMPT_VERSION : has
+    %% Logical relation only in application layer:
+    %% AGENT .. TOOL : assigned_via_JSON
+    %% AI chat runtime is stored in MongoDB, not PostgreSQL
 ```
 
 ##### Relationship Matrix (Cardinality)
@@ -1277,67 +1276,83 @@ erDiagram
 |:---|:---|:---|:---:|:---|
 | **USER** | **PET** | owns | 1 : N | Một người nuôi có thể sở hữu nhiều thú cưng. |
 | **USER** | **CLINIC** | owns | 1 : N | Một Clinic Owner có thể sở hữu nhiều chi nhánh phòng khám. |
-| **CLINIC** | **USER** | works_at | 1 : N | Một phòng khám có nhiều nhân viên (Staff, Manager). Mỗi nhân viên chỉ thuộc 1 phòng khám. |
-| **USER** | **VET_SHIFT** | works | 1 : N | Một nhân viên có nhiều ca trực. Mỗi ca trực thuộc sở hữu của 1 nhân viên. |
-| **VET_SHIFT** | **SLOT** | contains | 1 : N | Một ca trực được chia thành nhiều ô thời gian 30 phút. |
-| **BOOKING** | **BOOKING_SLOT** | reserves | 1 : N | Một lịch hẹn chiếm dùng một hoặc nhiều Slot (thông qua bảng BOOKING_SLOT). |
-| **BOOKING_SLOT** | **SLOT** | links | N : 1 | Mỗi booking_slot liên kết với một slot cụ thể. |
-| **USER** | **BOOKING** | books | 1 : N | Khách hàng tạo nhiều lịch hẹn theo thời gian. |
-| **PET** | **VACCINATION_RECORD** | receives | 1 : N | Một thú cưng có lịch sử tiêm chủng nhiều lần (tương đương với sổ tiêm). |
-| **PET** | **BOOKING** | has | 1 : N | Một thú cưng có lịch sử khám nhiều lần. |
-| **BOOKING** | **PAYMENT** | has | 1 : 1 | Mỗi lịch hẹn có chính xác một bản ghi thanh toán (Cash/Stripe). |
-| **BOOKING** | **EMR_RECORD** | generates | 1 : 0..1 | Một lịch hẹn chỉ phát sinh tối đa 01 bệnh án (nếu khám thành công). |
-| **BOOKING** | **BOOKING_SERVICE_ITEM** | contains | 1 : N | Một lịch hẹn có thể chứa nhiều dịch vụ khác nhau. |
-| **BOOKING_SERVICE_ITEM** | **CLINIC_SERVICE** | references | N : 1 | Mỗi item tham chiếu đến một dịch vụ cụ thể. |
-| **BOOKING_SERVICE_ITEM** | **USER** | assigned_staff | N : 0..1 | Mỗi dịch vụ trong booking có thể được gán cho một Staff riêng. |
-| **BOOKING_SLOT** | **BOOKING_SERVICE_ITEM** | for_service | N : 0..1 | Slot được dành cho service cụ thể trong booking. |
-| **USER** | **CHAT_CONVERSATION** | participates | 1 : N | Một người dùng tham gia vào nhiều hội thoại 1-1. |
-| **CLINIC** | **CHAT_CONVERSATION** | receives_chat | 1 : N | Một phòng khám nhận nhiều hội thoại từ khách hàng. |
-| **CHAT_CONVERSATION** | **CHAT_MESSAGE** | contains | 1 : N | Một cuộc hội thoại chứa nhiều tin nhắn. |
+| **CLINIC** | **USER** | works_at | 1 : N | Một phòng khám có nhiều nhân viên. Mỗi nhân viên chỉ thuộc 1 phòng khám tại một thời điểm. |
+| **USER** | **STAFF_SHIFT** | works | 1 : N | Một nhân viên có nhiều ca trực. Mỗi ca trực thuộc về một nhân viên cụ thể. |
+| **STAFF_SHIFT** | **SLOT** | contains | 1 : N | Một ca trực được chia thành nhiều slot 30 phút. |
+| **USER** | **BOOKING** | books | 1 : N | Chủ thú cưng có thể tạo nhiều lịch hẹn theo thời gian. |
+| **USER** | **BOOKING** | proxies | 1 : N | Một người dùng có thể đặt hộ lịch cho chủ thú cưng khác trong một số nghiệp vụ đặc biệt. |
+| **PET** | **BOOKING** | has | 1 : N | Một thú cưng có thể có nhiều lịch hẹn. |
+| **PET** | **EMR_RECORD** | has | 1 : N | Một thú cưng có nhiều bệnh án điện tử. |
+| **PET** | **VACCINATION_RECORD** | receives | 1 : N | Một thú cưng có nhiều bản ghi tiêm chủng. |
+| **BOOKING** | **BOOKING_SERVICE** | contains | 1 : N | Một booking có thể gồm nhiều dịch vụ cụ thể. |
+| **BOOKING_SERVICE** | **CLINIC_SERVICE** | references | N : 1 | Mỗi dòng dịch vụ trong booking tham chiếu một clinic service. |
+| **BOOKING_SERVICE** | **USER** | assigned_staff | N : 0..1 | Mỗi dịch vụ trong booking có thể được gán cho một staff cụ thể. |
+| **BOOKING** | **BOOKING_SLOT** | reserves | 1 : N | Một booking chiếm một hoặc nhiều slot thông qua bảng trung gian. |
+| **BOOKING_SLOT** | **SLOT** | links | N : 1 | Mỗi booking_slot liên kết với đúng một slot. |
+| **BOOKING_SLOT** | **BOOKING_SERVICE** | for_service | N : 0..1 | Slot có thể được gắn với một dịch vụ cụ thể trong booking. |
+| **BOOKING** | **PAYMENT** | has | 1 : 1 | Mỗi booking có một bản ghi thanh toán chính. |
+| **BOOKING** | **EMR_RECORD** | generates | 1 : 0..1 | Một booking có thể sinh ra tối đa một EMR khi hoàn tất khám. |
+| **BOOKING** | **REVIEW** | has_review | 1 : 0..1 | Một booking chỉ được đánh giá tối đa một lần. |
+| **USER** | **REVIEW** | writes | 1 : N | Một người dùng có thể viết nhiều đánh giá cho các booking khác nhau. |
+| **CLINIC** | **REVIEW** | receives_review | 1 : N | Một phòng khám nhận nhiều đánh giá. |
 | **CLINIC** | **CLINIC_SERVICE** | offers | 1 : N | Một phòng khám cung cấp nhiều loại dịch vụ. |
-| **CLINIC** | **CLINIC_IMAGE** | has_images | 1 : N | Một phòng khám có nhiều ảnh thực tế/không gian. |
+| **CLINIC** | **CLINIC_IMAGE** | has_images | 1 : N | Một phòng khám có nhiều ảnh. |
 | **CLINIC** | **CLINIC_PRICE_PER_KM** | has_pricing | 1 : 0..1 | Một phòng khám có tối đa một cấu hình giá di chuyển. |
-| **CLINIC_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_tiers | 1 : N | Một dịch vụ có nhiều mức giá theo cân nặng. |
-| **MASTER_SERVICE** | **CLINIC_SERVICE** | defines | 1 : N | Template dịch vụ chung được áp dụng cho nhiều phòng khám. |
-| **MASTER_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_default_tiers | 1 : N | Template có các mức giá mặc định theo cân nặng. |
-| **BLACKLISTED_TOKEN** | **USER** | invalidates | N : 1 | Token bị vô hiệu hóa khi người dùng logout. |
-| **REFRESH_TOKEN** | **USER** | has | N : 1 | Một user có thể có nhiều refresh token (multi-device). |
+| **CLINIC** | **CHAT_AUTO_REPLY_SETTING** | configures | 1 : N | Phòng khám có thể lưu một hoặc nhiều bản ghi cấu hình auto-reply theo phiên bản cấu hình. |
+| **MASTER_SERVICE** | **CLINIC_SERVICE** | defines | 1 : N | Master service làm template cho nhiều clinic service. |
+| **MASTER_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_default_tiers | 1 : N | Template dịch vụ có thể định nghĩa khung giá mặc định theo cân nặng. |
+| **VACCINE_TEMPLATE** | **CLINIC_SERVICE** | linked_to | 1 : N | Một vaccine template có thể được nhiều clinic service tiêm chủng tham chiếu. |
+| **CLINIC_SERVICE** | **SERVICE_WEIGHT_PRICE** | has_weight_tiers | 1 : N | Một clinic service có thể có nhiều mức giá theo cân nặng. |
+| **CLINIC_SERVICE** | **VACCINE_DOSE_PRICE** | has_dose_prices | 1 : N | Dịch vụ tiêm chủng có thể có nhiều mức giá theo mũi tiêm. |
 | **USER** | **NOTIFICATION** | receives | 1 : N | Một người dùng nhận nhiều thông báo. |
+| **USER** | **CHAT_CONVERSATION** | participates | 1 : N | Một chủ thú cưng có thể tham gia nhiều cuộc hội thoại với các phòng khám khác nhau. |
+| **CLINIC** | **CHAT_CONVERSATION** | receives_chat | 1 : N | Một phòng khám có nhiều cuộc hội thoại với khách hàng. |
+| **CHAT_CONVERSATION** | **CHAT_MESSAGE** | contains | 1 : N | Một cuộc hội thoại chứa nhiều tin nhắn. |
+| **AGENT** | **PROMPT_VERSION** | has | 1 : N | Một AI agent có nhiều phiên bản system prompt. |
+| **AGENT** | **TOOL** | enables | 1 : N (logical) | Agent sử dụng tool theo cấu hình logic `assigned_agents`, không phải foreign key trực tiếp. |
+| **USER** | **AI_CHAT_SESSION** | starts | 1 : N (logical) | User được tham chiếu logic trong MongoDB AI chat session, không phải FK PostgreSQL. |
+| **AGENT** | **AI_CHAT_SESSION** | handles | 1 : N (logical) | Agent xử lý nhiều phiên chat AI ở MongoDB runtime layer. |
+| **AI_CHAT_SESSION** | **AI_CHAT_MESSAGE** | contains | 1 : N (logical) | Một phiên AI chat chứa nhiều message và ReAct trace ở MongoDB. |
+| **AI_CHAT_MESSAGE** | **CHAT_FEEDBACK** | receives_feedback | 1 : 0..N (logical) | Feedback AI được lưu ở MongoDB runtime layer. |
 
 #### 3.1.6 Entities Description
 
-Dưới đây là danh sách đầy đủ **24 thực thể** đang được sử dụng trong hệ thống Petties (17 PostgreSQL + 4 MongoDB + 3 Embedded):
+Dưới đây là danh sách các thực thể và cấu trúc dữ liệu chính đang được sử dụng trong hệ thống Petties, được tách theo từng storage và service để tránh nhầm lẫn giữa backend nghiệp vụ và AI service.
 
-##### PostgreSQL Entities (17 tables)
+##### Backend PostgreSQL Entities (21 tables)
 
 | Nhóm | Thực thể | Mô tả | Các trường chính |
 |:---:|---|---|---|
 | **Auth & User** | **USER** | Tài khoản định danh (5 roles) | user_id, username, email, password, role, working_clinic_id, specialty, fcm_token |
 | | **REFRESH_TOKEN** | Token duy trì phiên đăng nhập | token_id, user_id, token_hash, expires_at |
 | | **BLACKLISTED_TOKEN** | Token bị vô hiệu hóa sau logout | token_id, token_hash, user_id, expires_at |
-| **Pet** | **PET** | Hồ sơ thông tin thú cưng | pet_id, user_id, name, species, breed, weight, gender, allergies, image_url |
+| **Pet** | **PET** | Hồ sơ thông tin thú cưng | pet_id, user_id, name, species, breed, date_of_birth, weight, gender, allergies, image_url |
 | **Clinic** | **CLINIC** | Thông tin phòng khám thú y | clinic_id, owner_id, name, address, phone, status, latitude, longitude, operating_hours(JSON), rating_avg |
 | | **CLINIC_IMAGE** | Ảnh không gian phòng khám | image_id, clinic_id, image_url, is_primary, display_order |
-| | **CLINIC_PRICE_PER_KM** | Giá di chuyển theo km | clinic_id, price_per_km |
-| | **MASTER_SERVICE** | Bản mẫu dịch vụ (Templates) | master_service_id, name, default_price, duration_time, slots_required, is_home_visit |
-| | **CLINIC_SERVICE** | Dịch vụ thực tế tại phòng khám | service_id, clinic_id, master_service_id, name, base_price, is_home_visit, price_per_km, is_active |
+| | **CLINIC_PRICE_PER_KM** | Giá di chuyển theo km và phụ phí SOS | clinic_id, price_per_km, sos_fee |
+| **Services** | **MASTER_SERVICE** | Bản mẫu dịch vụ dùng chung | master_service_id, name, description, default_price, duration_time, slots_required, is_home_visit, default_price_per_km, service_category, pet_type, icon |
+| | **CLINIC_SERVICE** | Dịch vụ thực tế tại phòng khám | service_id, clinic_id, master_service_id, vaccine_template_id, is_custom, name, description, base_price, duration_time, slots_required, is_active, is_home_visit, reminder_interval, reminder_unit, service_category, pet_type |
 | | **SERVICE_WEIGHT_PRICE** | Khung giá theo cân nặng | weight_price_id, service_id, master_service_id, min_weight, max_weight, price |
+| | **VACCINE_TEMPLATE** | Dữ liệu mẫu vắc-xin và lịch nhắc | vaccine_template_id, name, manufacturer, description, default_price, min_age_weeks, repeat_interval_days, series_doses, is_annual_repeat, min_interval_days, target_species |
+| | **VACCINE_DOSE_PRICE** | Giá theo mũi tiêm của dịch vụ vắc-xin | id, service_id, dose_number, dose_label, price, is_active |
 | **Scheduling** | **STAFF_SHIFT** | Ca trực của nhân viên | shift_id, staff_id, clinic_id, work_date, start_time, end_time, break_start, break_end, is_overnight |
 | | **SLOT** | Đơn vị thời gian 30 phút | slot_id, shift_id, start_time, end_time, status (AVAILABLE/BOOKED/BLOCKED) |
-| **Booking** | **BOOKING** | Lịch hẹn khám | booking_id, booking_code, pet_id, pet_owner_id, clinic_id, assigned_staff_id, type, status, total_price, distance_fee, home_address |
+| **Booking** | **BOOKING** | Lịch hẹn khám | booking_id, booking_code, pet_id, pet_owner_id, clinic_id, assigned_staff_id, proxy_booker_id, type, status, total_price, distance_fee, home_address |
 | | **BOOKING_SERVICE_ITEM** | M:N Booking ↔ Service | booking_service_id, booking_id, service_id, assigned_staff_id, unit_price, base_price, weight_price, quantity |
 | | **BOOKING_SLOT** | M:N Booking ↔ Slot | booking_slot_id, booking_id, slot_id, booking_service_id |
-| | **PAYMENT** | Giao dịch thanh toán | payment_id, booking_id, amount, method (CASH/STRIPE), status, stripe_payment_id, paid_at |
-| **Notification** | **NOTIFICATION** | Thông báo đẩy/in-app | notification_id, user_id, clinic_id, shift_id, type, message, read |
+| | **PAYMENT** | Giao dịch thanh toán | payment_id, booking_id, amount, method, status, payment_description, stripe_payment_id, paid_at |
+| | **REVIEW** | Đánh giá sau khám | review_id, booking_id, clinic_id, user_id, rating, comment, created_at |
+| **Operations** | **NOTIFICATION** | Thông báo đẩy/in-app | notification_id, user_id, clinic_id, shift_id, emr_id, type, message, reason, read, action_type, action_data |
+| | **CHAT_AUTO_REPLY_SETTING** | Cấu hình trả lời tự động theo phòng khám | setting_id, clinic_id, quick_reply_enabled, quick_reply_message, away_message_enabled, away_condition |
 
-##### MongoDB Documents (4 collections)
+##### Backend MongoDB Documents (4 collections)
 
 | Nhóm | Thực thể | Collection | Mô tả | Các trường chính |
 |:---:|---|---|---|---|
-| **Medical** | **EMR_RECORD** | emr_records | Bệnh án điện tử (SOAP) | _id, pet_id, booking_id, vet_id, subjective, objective, assessment, plan, weight_kg, temperature_c, prescriptions[], images[] |
-| | **VACCINATION_RECORD** | vaccination_records | Sổ tiêm chủng | _id, pet_id, booking_id, vet_id, vaccine_name, batch_number, vaccination_date, next_due_date |
-| **Communication** | **CHAT_CONVERSATION** | chat_conversations | Phiên hội thoại 1-1 | _id, pet_owner_id, clinic_id, clinic_name, last_message, last_message_at, unread_count_pet_owner, unread_count_clinic |
-| | **CHAT_MESSAGE** | chat_messages | Nội dung tin nhắn | _id, chat_box_id, sender_id, sender_type, content, message_type (TEXT/IMAGE), status, is_read |
+| **Medical** | **EMR_RECORD** | emr_records | Bệnh án điện tử (SOAP) | _id, pet_id, booking_id, staff_id, clinic_id, clinic_name, staff_name, subjective, objective, assessment, plan, notes, weight_kg, temperature_c, heart_rate, bcs, re_examination_date, prescriptions[], images[] |
+| | **VACCINATION_RECORD** | vaccination_records | Sổ tiêm chủng | _id, pet_id, booking_id, staff_id, clinic_id, vaccine_name, batch_number, status, vaccination_date, next_due_date, reminder_sent, vaccine_template_id, dose_number, total_doses, series_id |
+| **Communication** | **CHAT_CONVERSATION** | chat_conversations | Phiên hội thoại 1-1 Pet Owner <-> Clinic | _id, pet_owner_id, clinic_id, clinic_name, clinic_logo, pet_owner_name, last_message, last_message_sender, unread_count_pet_owner, unread_count_clinic, last_auto_reply_at |
+| | **CHAT_MESSAGE** | chat_messages | Nội dung tin nhắn trong hội thoại | _id, chat_box_id, sender_id, sender_type, sender_name, content, message_type, image_url, status, is_read, action_buttons[] |
 
 ##### Embedded Classes (không có table riêng)
 
@@ -1346,24 +1361,32 @@ Dưới đây là danh sách đầy đủ **24 thực thể** đang được s�
 | **OperatingHours** | Clinic.operating_hours (JSON) | Giờ mở cửa theo ngày | open_time, close_time, break_start, break_end, is_closed |
 | **Prescription** | EmrRecord.prescriptions[] | Đơn thuốc | medicine_name, dosage, frequency, duration_days, instructions |
 | **EmrImage** | EmrRecord.images[] | Ảnh y khoa | url, description |
+| **ActionButton** | ChatMessage.action_buttons[] | Nút tương tác trong auto-reply/chat | id, label, type |
+
+##### AI Service PostgreSQL Entities (5 tables)
+
+| Thực thể | Mô tả | Ghi chú |
+|---|---|---|
+| **AGENT** | Cấu hình single agent | Lưu model, temperature, top_p, max_tokens, system_prompt |
+| **TOOL** | Metadata của tool mà agent có thể sử dụng | Gán agent theo `assigned_agents` JSON, không dùng foreign key trực tiếp |
+| **PROMPT_VERSION** | Version control cho system prompt | Gắn với AGENT qua `agent_id` |
+| **KNOWLEDGE_DOCUMENT** | Metadata tài liệu RAG | Metadata ở PostgreSQL, vector embeddings ở Qdrant Cloud |
+| **SYSTEM_SETTING** | Cấu hình runtime cho AI service | Lưu API key, model mặc định, Qdrant URL, Cohere config |
+
+##### AI Service MongoDB Documents (4 collections)
+
+| Thực thể | Collection | Mô tả | Ghi chú |
+|---|---|---|---|
+| **AI_CHAT_SESSION** | ai_chat_sessions | Phiên hội thoại giữa user và AI | Lưu session metadata, context_type, timestamps, logical refs tới user/agent |
+| **AI_CHAT_MESSAGE** | ai_chat_messages | Tin nhắn AI chat và ReAct trace | Lưu tool calls, observations, thinking steps theo session MongoDB |
+| **AI_PROACTIVE_NOTIFICATION** | ai_proactive_notifications | Log thông báo/chủ động gợi ý từ AI | Runtime collection cho AI proactive workflows |
+| **CHAT_FEEDBACK** | chat_feedback | Phản hồi chất lượng câu trả lời AI | Lưu thumbs up/down và feedback theo message |
 
 ##### Future Entities (chưa implement - dành cho các UC còn lại)
 
 | Thực thể | UC liên quan | Mô tả | Dự kiến các trường |
 |---|---|---|---|
-| **REVIEW** | UC-PO-13 | Đánh giá nhân viên/phòng khám | id, booking_id, reviewer_id, type (STAFF/CLINIC), rating, comment |
 | **USER_REPORT** | UC-PO-16 | Báo cáo vi phạm | id, reporter_id, reported_user_id, clinic_id, category, status |
-
-##### AI Service Entities (trong petties-agent-service riêng)
-
-| Thực thể | Mô tả | Ghi chú |
-|---|---|---|
-| **AI_AGENT** | Cấu hình AI Agent | Managed trong petties-agent-service PostgreSQL |
-| **AI_TOOL** | Công cụ (Tools) Agent sử dụng | @mcp.tool decorator |
-| **AI_PROMPT_VERSION** | Version control cho System Prompt | Managed trong petties-agent-service |
-| **AI_CHAT_SESSION** | Phiên hội thoại với AI | Managed trong petties-agent-service |
-| **AI_CHAT_MESSAGE** | Tin nhắn trong phiên AI | Managed trong petties-agent-service |
-| **AI_KNOWLEDGE_DOC** | Tài liệu nạp cho RAG | Managed trong Qdrant Cloud |
 
 ---
 
@@ -2724,6 +2747,54 @@ Figure 49. Remove Add-on Service Confirmation from Booking Detail.
   - A2. The removed add-on disappears from the current booking summary while remaining audit history is preserved.
   - E2. Booking state no longer allows add-on modification; the system rejects the removal.
 
+#### *3.8.13 Vaccination Booking Advisory in Standard Flow (UC-PO-10)*
+**User Story:**
+> *As a Pet Owner, I want vaccination booking to stay in the normal booking flow while still seeing dose pricing and relevant reminders from my pet's vaccination history so that I can choose the appropriate shot without a separate complicated process.*
+
+**Function trigger:**
+- **Navigation path:**
+    - **Pet Owner Mobile:** Clinic Detail -> `Đặt lịch ngay` -> Select Services -> chọn dịch vụ tiêm chủng.
+    - **Pet Owner AI Chat:** AI booking conversation -> chọn phòng khám/dịch vụ tiêm chủng -> AI tóm tắt dịch vụ và tư vấn mũi phù hợp nếu có dữ liệu lịch sử tiêm.
+- **Timing frequency:** Khi người dùng chọn dịch vụ tiêm chủng trong luồng booking thông thường.
+
+**Function description:**
+- **Actors/Roles:** Pet Owner.
+- **Purpose:** Giữ tiêm chủng là một dịch vụ bình thường trong booking flow, đồng thời bổ sung thông tin giá theo mũi và gợi ý nhẹ dựa trên lịch sử tiêm hiện có của pet.
+- **Interface:**
+    - Service card hiển thị giá cơ bản hoặc giá theo mũi
+    - Booking summary tiêu chuẩn
+    - AI advisory message trong chat booking (không mở flow riêng)
+- **Data processing:**
+    1. Người dùng chọn pet và dịch vụ tiêm chủng trong flow booking thông thường.
+    2. Hệ thống tải metadata dịch vụ tiêm chủng, bao gồm `vaccineTemplateId`, `dosePrices`, species compatibility và trạng thái hỗ trợ home visit nếu có.
+    3. Nếu đi qua AI booking flow, AI có thể đọc lịch sử tiêm và danh sách mũi sắp tới của pet để tư vấn ngắn gọn mũi phù hợp hoặc mũi kế tiếp.
+    4. Người dùng vẫn chọn dịch vụ và thời gian như booking thông thường; hệ thống không yêu cầu một flow chuyên biệt riêng cho tiêm chủng.
+
+**Screen layout:**
+Figure 50. Vaccination Service Card in Standard Booking Flow.
+Figure 51. AI Booking Advisory for Vaccination with dose price and due-shot reminder.
+
+**Function details:**
+- **Data:**
+    - **Input fields:** `petId`, `clinicId`, `serviceIds`, optional `vaccineTemplateId`, optional vaccination-history context when AI booking is used.
+    - **Output fields:** service pricing detail (`basePrice`, `dosePrices`), optional vaccination advisory (`lastDose`, `recommendedDose`, `nextDueDate`), and standard booking payload.
+- **Validation:**
+    - Tiêm chủng phải vẫn là dịch vụ đang hoạt động và tương thích với loài của pet.
+    - AI chỉ được dùng dữ liệu lịch sử tiêm của chính pet đang booking.
+    - Nếu không có lịch sử tiêm, flow vẫn tiếp tục bình thường và không bị chặn.
+- **Business rules:**
+    - BR-01
+    - BR-03
+    - BR-04
+    - BR-17
+    - BR-40
+- **Normal case:** Người dùng thấy giá theo mũi, nhận gợi ý nhẹ nếu có lịch sử tiêm, rồi tiếp tục booking như một dịch vụ bình thường.
+- **Abnormal/Exception cases:**
+    - A1. Dịch vụ tiêm chủng có nhiều mức giá theo mũi; hệ thống hiển thị rõ để người dùng tự chọn như flow thủ công.
+    - E1. Dịch vụ tiêm chủng không tương thích với species của pet; hệ thống không cho chọn dịch vụ đó.
+    - A2. AI không lấy được lịch sử tiêm; hệ thống vẫn giữ flow booking thông thường và chỉ bỏ qua advisory.
+    - E2. Metadata tiêm chủng không đầy đủ; hệ thống fallback về thông tin giá cơ bản hiện có và không tạo flow riêng.
+
 ---
 
 ### 3.9 Electronic Medical Records (EMR) Flow
@@ -3458,6 +3529,8 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
     - **Multi-modal Support:** Text input, future support for clinical photos.
     - **Citations:** Link to medical sources (RAG) for transparency.
 
+> **Implementation status (2026-03-10):** `Ask ChatBot To Pet Care` đã hoạt động ổn định trên mobile business chat. Riêng `Booking With ChatBot` đã có nền tảng function calling, WebSocket streaming, mobile confirmation card và khả năng gọi backend tạo booking, nhưng hiện vẫn được xếp `In Progress` cho đến khi hoàn tất E2E validation và acceptance checklist cho các kịch bản khám tại phòng khám, tiêm chủng, khám tại nhà, và các trường hợp lỗi quan trọng.
+
 **UC-PO-14: Chi tiết Use Case Trợ lý AI (Smart AI Assistant)**
 
 | Thành phần | Đặc tả chi tiết |
@@ -3466,18 +3539,23 @@ Figure 47. SOS Fee Override Dialog (Mobile - Staff App)
 | **Tác nhân** | Pet Owner (Chủ thú cưng) |
 | **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động (Status: ENABLED). |
 | **Luồng xử lý chính** | 1. Người dùng chọn chức năng "AI Assistant" trên mobile app.<br/>2. Hệ thống hiển thị khung chat và các gợi ý thông minh.<br/>3. Người dùng nhập tin nhắn hoặc chọn nút gợi ý nhanh.<br/>4. AI Agent (ReAct Pattern) phân tích ý định (intent) và thực hiện:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tra cứu kiến thức (RAG) nếu là câu hỏi tư vấn.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Gọi Tool (FastMCP) nếu cần tìm phòng khám hoặc đặt lịch.<br/>5. Hệ thống hiển thị phản hồi theo dạng streaming (từng từ) để tăng trải nghiệm.<br/>6. Người dùng nhận câu trả lời và có thể tiếp tục hỏi (Multi-turn conversation). |
-| **Hậu điều kiện** | 1. Lịch sử trò chuyện được lưu trữ.<br/>2. Đơn đặt lịch được tạo thành công trong hệ thống (nếu có hành động đặt lịch). |
+| **Hậu điều kiện** | 1. Lịch sử trò chuyện được lưu trữ.<br/>2. Nếu người dùng cung cấp đủ dữ liệu và xác nhận rõ ràng, hệ thống có thể tạo đơn đặt lịch thành công qua AI booking tools.<br/>3. Việc đánh dấu use case `Booking With ChatBot` là hoàn thành chỉ được thực hiện sau khi pass acceptance checklist và E2E validation. |
 | **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-21 |
 
 **Use Case: Interaction Scenarios**
 
 | Scenario | User Actions | AI Agent Logic (ReAct) | System Response |
 |----------|--------------|-------------------------|-----------------|
-| **General Pet Care** | User asks: "Mèo con 2 tháng tuổi nên tiêm phòng gì?" | Agent calls `pet_care_qa` tool to search knowledge base (RAG). | Agent provides a list of recommended vaccines with citations from veterinary documents. |
-| **Symptom Lookup** | User describes: "Chó nhà tôi bỏ ăn và bị nôn, có sao không?" | Agent calls `symptom_search` tool based on keywords. | Agent suggests possible causes (e.g., gastritis, poisoning) and strongly advises visiting a vet. |
-| **Clinic Discovery** | User asks: "Tìm phòng khám thú y ở Quận 7." | Agent calls `search_clinics` with parameters `district=7`. | Agent displays top 3 clinics in District 7 with addresses and ratings. |
-| **Booking Search** | User says: "Tôi muốn đặt lịch ở phòng khám ABC ngày mai." | Agent calls `check_slots` for Clinic ABC on tomorrow's date. | Agent lists available slots (e.g., 09:00, 14:30) and asks User to pick one. |
-| **Guided Booking** | User selects 14:00 and pet "Mimi". | Agent calls `create_booking` with the gathered parameters. | Agent confirms the booking creation: "Đã đặt lịch thành công (#B101) cho Mimi lúc 14:00 ngày mai." |
+| **General Pet Care** | User asks: "Mèo con 2 tháng tuổi nên tiêm phòng gì?" | Agent calls `pet_knowledge_search` tool to search the veterinary knowledge base (RAG). | Agent provides a list of recommended vaccines with citations from veterinary documents. |
+| **Symptom Lookup** | User describes: "Chó nhà tôi bỏ ăn và bị nôn, có sao không?" | Agent calls `pet_knowledge_search` to retrieve relevant symptom and care information from the knowledge base. | Agent suggests possible causes (e.g., gastritis, poisoning) and strongly advises visiting a vet. |
+| **Clinic Discovery** | User asks: "Tìm phòng khám thú y ở Quận 7." | Agent calls `search_clinics_nearby` with location-aware parameters and optional service filters. | Agent displays nearby clinics with address, distance and relevant services. |
+| **Booking Search** | User says: "Tôi muốn đặt lịch ở phòng khám ABC ngày mai." | Agent calls `get_user_pets`, `get_clinic_services`, then `check_available_slots` for the selected clinic/date/services. | Agent lists available slots (e.g., 09:00, 14:30) and asks User to pick one. |
+| **Guided Booking** | User selects 14:00 and pet "Mimi". | After explicit confirmation, Agent calls `create_booking_for_user` with the gathered parameters. | Agent confirms the booking creation after backend returns success. |
+
+**Acceptance note for UC-PO-14c - Booking With ChatBot**
+- Chỉ được chuyển trạng thái sang `Done` khi pass đầy đủ các kịch bản end-to-end: khám tại phòng khám, tiêm chủng, khám tại nhà.
+- Phải verify cả các lỗi chính: thiếu token, không có slot trống, clinic/service không hợp lệ, backend validation fail.
+- Mobile confirmation flow không được phụ thuộc chủ yếu vào heuristic text parsing trước khi nghiệm thu hoàn tất.
 
 **Data processing**
 1. **User Input:** User submits a message via WebSocket.
@@ -3503,7 +3581,7 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
     - BR-42
     - BR-43
 
- #### *3.11.2 Analyze Pet Health via Vision (UC-PO-14d)*
+ #### *3.11.2 Analyze Pet Health via Vision (Planned / Future Scope)*
 **User Story:**
 > *As a Pet Owner, I want to upload photos of my pet for AI analysis so that I can identify potential health issues and get booking recommendations.*
 
@@ -3513,7 +3591,7 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 
 **Function description**
 - **Actors/Roles:** Pet Owner.
-- **Purpose:** Cho phép AI phân tích hình ảnh thú cưng để nhận diện các vấn đề sức khỏe tiềm ẩn, đưa ra cảnh báo và tự động đề xuất đặt lịch khám với dịch vụ phù hợp.
+- **Purpose:** Planned capability cho phép AI phân tích hình ảnh thú cưng để nhận diện các vấn đề sức khỏe tiềm ẩn, đưa ra cảnh báo và đề xuất hướng xử lý phù hợp.
 - **Interface:**
     - **Image Upload Button:** Nút camera/gallery trong chat input để chọn hình ảnh.
     - **Image Preview:** Hiển thị preview ảnh trước khi gửi.
@@ -3528,6 +3606,8 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
         - Nút "Đặt lịch ngay"
     - **Pet Selection Dialog:** Popup cho user chọn pet khi có nhiều pet.
 
+> **Implementation status:** Chưa được implement trong codebase AI service hiện tại. Giữ section này như future scope để định hướng phát triển sau MVP.
+
 **UC-PO-14d: Chi tiết Use Case AI Vision Pet Health Analysis**
 
 | Thành phần | Đặc tả chi tiết |
@@ -3535,7 +3615,7 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 | **Mục tiêu** | Phân tích hình ảnh thú cưng để phát hiện bệnh/triệu chứng, cảnh báo người dùng và tự động đề xuất booking. |
 | **Tác nhân** | Pet Owner (Chủ thú cưng) |
 | **Tiền điều kiện** | 1. Người dùng đã đăng nhập vào ứng dụng mobile.<br/>2. Thiết bị có kết nối Internet.<br/>3. AI Agent Service đang hoạt động với Vision Model enabled.<br/>4. App đã có quyền truy cập Camera/Gallery.<br/>5. GPS permission đã được cấp để tìm clinic gần nhất. |
-| **Luồng chính** | 1. User mở AI Assistant chat.<br/>2. User nhấn nút camera/gallery để chọn hình ảnh thú cưng.<br/>3. Hình ảnh được upload lên Cloudinary, nhận về URL.<br/>4. App gửi message với `image_url` và `user_location` (GPS) qua WebSocket.<br/>5. AI Agent gọi tool `analyze_pet_image` để phân tích hình ảnh.<br/>6. Agent nhận kết quả phân tích với detected issues và severity.<br/>7. Nếu severity là "moderate" hoặc cao hơn:<br/>   - Agent gọi `search_nearby_clinics` với user GPS.<br/>   - Agent gọi `get_user_pets` để lấy danh sách pet của user.<br/>   - Agent hỏi user chọn pet nào (nếu có nhiều pet).<br/>   - Agent gọi `create_booking_suggestion` để tạo đề xuất.<br/>8. AI trả về response với:<br/>   - Cảnh báo về vấn đề phát hiện được<br/>   - Booking Suggestion Card với thông tin đã điền sẵn.<br/>9. User nhấn "Đặt lịch ngay" → Navigate đến Booking Screen với params. |
+| **Luồng chính** | 1. User mở AI Assistant chat.<br/>2. User nhấn nút camera/gallery để chọn hình ảnh thú cưng.<br/>3. Hình ảnh được upload và gửi vào luồng AI chat.<br/>4. Vision-capable AI workflow phân tích hình ảnh và phát hiện vấn đề sức khỏe tiềm ẩn.<br/>5. Nếu mức độ nghiêm trọng cao, hệ thống có thể gợi ý clinic nearby và booking flow phù hợp.<br/>6. AI trả về response với cảnh báo và hướng dẫn tiếp theo.<br/>7. User có thể tiếp tục sang booking flow nếu tính năng này được implement trong tương lai. |
 | **Luồng thay thế** | A1. Hình ảnh không rõ ràng → AI yêu cầu gửi lại ảnh rõ hơn.<br/>A2. Không phát hiện vấn đề (severity: mild) → AI thông báo "Không phát hiện vấn đề nghiêm trọng" và khuyên theo dõi thêm.<br/>A3. User có nhiều pet → AI hiển thị Pet Selection Dialog để chọn.<br/>A4. Không tìm được clinic trong bán kính → AI mở rộng tìm kiếm hoặc thông báo. |
 | **Hậu điều kiện** | 1. Lịch sử chat được lưu trữ (bao gồm image URL).<br/>2. Nếu user confirm booking → Đơn đặt lịch được tạo trong hệ thống. |
 | **Quy tắc nghiệp vụ** | BR-42; BR-43; BR-45 |
@@ -3553,16 +3633,16 @@ Figure 43. AI Chat Interface with Streaming Response (Mobile)
 **Data processing**
 1. **Image Upload:** User selects image → Upload to Cloudinary → Receive public URL.
 2. **WebSocket Message:** App sends `{type: "image", image_url: "...", latitude: 10.xxx, longitude: 106.xxx}`.
-3. **Vision Analysis:** AI Agent calls `analyze_pet_image` tool which:
+3. **Vision Analysis:** Planned AI workflow phân tích hình ảnh và:
    - Sends image URL to Vision LLM (Gemini 2.0 Flash via OpenRouter).
    - Vision LLM analyzes and returns structured findings.
 4. **Severity Assessment:** Agent evaluates severity:
    - `mild`: No action needed, just advice.
    - `moderate`: Suggest booking within 24-48h.
    - `severe`/`urgent`: Strong warning + immediate booking suggestion.
-5. **Clinic Discovery:** If booking needed, Agent calls `search_nearby_clinics(lat, lng)`.
+5. **Clinic Discovery:** If booking is recommended, hệ thống sẽ cần clinic discovery flow phù hợp với vị trí người dùng.
 6. **Pet Selection:** Agent calls `get_user_pets` → If multiple pets, asks user to choose.
-7. **Booking Suggestion:** Agent calls `create_booking_suggestion` to prepare booking data.
+7. **Booking Suggestion:** Planned booking suggestion flow prepares pre-filled booking data.
 8. **Response Delivery:** AI streams response with warning message + BookingSuggestionCard component.
 9. **User Confirmation:** User taps "Đặt lịch ngay" → App navigates to BookingScreen with pre-filled params.
 
@@ -3586,10 +3666,10 @@ Figure 47. Pet Selection Dialog (Mobile)
     - For `urgent` severity, always recommend immediate vet visit.
 - **Normal case:**
     1. Pet Owner uploads photo of pet with skin rash via chat.
-    2. AI Agent calls `analyze_pet_image` tool with image URL.
+    2. Vision-capable AI workflow analyzes the uploaded image.
     3. Vision LLM analyzes and detects "dermatitis, fungal infection".
     4. Agent evaluates severity as "moderate".
-    5. Agent calls `search_nearby_clinics` with owner's GPS.
+    5. Hệ thống gợi ý clinic phù hợp gần owner nếu mức độ nghiêm trọng đủ cao.
     6. Agent responds with warning + BookingSuggestionCard.
     7. Owner taps "Đặt lịch ngay" → App navigates to booking screen.
 - **Abnormal/Exception Cases:**
@@ -3597,7 +3677,7 @@ Figure 47. Pet Selection Dialog (Mobile)
     - A2. Non-pet image – Show "Không phát hiện thú cưng trong hình ảnh."
     - A3. User declines booking suggestion – Agent offers alternative care advice.
     - E1. Image upload fails – Show "Không thể tải ảnh lên, vui lòng thử lại."
-    - E2. Vision LLM error – Fallback to text-based symptom_search if possible.
+    - E2. Vision LLM error - fallback to text-based `pet_knowledge_search` if possible.
     - E3. No clinics found nearby – Expand search radius or show "Không tìm thấy phòng khám trong khu vực."
     - A4. GPS unavailable: Ask user to enable location or enter address manually.
 - **Business rules:**
@@ -3625,8 +3705,8 @@ Figure 47. Pet Selection Dialog (Mobile)
 
 **Data processing**
 1. Admin uploads a document.
-2. System processes text, generates vectors, and saves to MongoDB `AI_KNOWLEDGE_DOC`.
-3. Admin updates Prompt. System creates a new `AI_PROMPT_VERSION`.
+2. System processes text, generates vectors, stores metadata in PostgreSQL `knowledge_documents`, and upserts vectors to Qdrant.
+3. Admin updates Prompt. System creates a new row in PostgreSQL `prompt_versions`.
 
  #### *3.11.4 Test Agent Playground (UC-AD-07)*
 **User Story:**
@@ -3703,7 +3783,7 @@ Figure 47. Pet Selection Dialog (Mobile)
 - **Abnormal case:**
     - A1. User cố truy cập session của người khác → trả về `403` hoặc đóng WebSocket.
     - A2. Session context không khớp role/token → từ chối nạp history.
-    - A3. Thiếu `clinic_id` cho role clinic-scoped → không cho khởi tạo session nghiệp vụ cần clinic context.
+    - A3. Nếu session cần clinic scope, hệ thống phải validate `clinic_id` phù hợp với token và context nghiệp vụ; nếu không hợp lệ thì từ chối truy cập hoặc từ chối nạp history.
     - A4. MongoDB unavailable → không tạo session mới, trả thông báo lỗi an toàn và không fallback sang in-memory production path.
 
 ### 3.12 Governance & Reporting Flow
@@ -3813,6 +3893,8 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
 | **Luồng thay thế** | A1. Owner muốn bắt đầu lại từ đầu → AI hỏi xác nhận và reset về trạng thái blank.<br/>A2. Owner muốn chỉ generate một số services → Owner chọn categories trước khi AI generate.<br/>A3. AI suggestions không phù hợp → Owner có thể chỉnh sửa thủ công hoặc yêu cầu AI regenerate.<br/>A4. Knowledge base không có thông tin → AI thông báo và sử dụng templates mặc định.<br/>A5. Owner muốn import services từ Master Services có sẵn → AI hỗ trợ bulk import với customization. |
 | **Hậu điều kiện** | 1. Clinic có đầy đủ services với mô tả, giá cả, duration.<br/>2. Services được lưu trong `clinic_services` table với status ACTIVE.<br/>3. AI-generated content được audit log (metadata: `created_by_ai`, `confidence_score`). |
 | **Quy tắc nghiệp vụ** | BR-50; BR-51; BR-52 |
+
+> **Implementation status:** Chưa được implement trong codebase Backend + AI service hiện tại. Các nội dung dưới đây được giữ như planned scope cho giai đoạn mở rộng sau MVP.
 
 **Use Case: AI Clinic Setup Scenarios**
 

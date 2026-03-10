@@ -329,7 +329,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    - pet_id: MIMI
    - booking_date: 2024-12-25
    - booking_time: 09:00
-   - assigned_vet_id: NULL
+   - assigned_staff_id: NULL
    - status: PENDING
    - total_price: 150,000 VND
 
@@ -377,7 +377,7 @@ SCHEDULED → COMPLETED (sau khi hết ngày)
    
    SELECT v.id, v.full_name, shift.start_time, shift.end_time
    FROM users v
-   JOIN vet_shifts shift ON shift.vet_id = v.id
+   JOIN staff_shifts shift ON shift.staff_id = v.id
    JOIN slots s ON s.shift_id = shift.id
    WHERE shift.clinic_id = 'ABC'
      AND shift.work_date = '2024-12-25'
@@ -418,8 +418,8 @@ VALUES ('B001', [slot_09:00_id]);
 
 -- 3. Update booking
 UPDATE bookings SET 
-    assigned_vet_id = [Dr.Minh_id],
-    status = 'ASSIGNED'
+    assigned_staff_id = [Dr.Minh_id],
+    status = 'PENDING_CLINIC_CONFIRM'
 WHERE id = 'B001';
 
 -- 4. Create notification for Staff
@@ -471,7 +471,7 @@ COMMIT;
 ```sql
 -- 1. Update booking - trực tiếp CONFIRMED
 UPDATE bookings SET 
-    assigned_vet_id = [Dr.Minh_id],
+    assigned_staff_id = [Dr.Minh_id],
     status = 'CONFIRMED'
 WHERE id = 'B001';
 
@@ -519,7 +519,7 @@ VALUES ([Dr.Minh_id], 'BOOKING', 'Lịch hẹn mới',
 ```sql
 SELECT v.id, v.full_name
 FROM users v
-JOIN vet_shifts shift ON shift.vet_id = v.id
+ JOIN staff_shifts shift ON shift.staff_id = v.id
 WHERE shift.clinic_id = 'ABC'
   AND shift.work_date = '2024-12-25'
   AND EXISTS (
@@ -989,7 +989,7 @@ CREATE TABLE chat_messages (
 4. Agent reasoning (internal):
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User hỏi về triệu chứng sổ mũi    │
-   │ ACTION: Call pet_care_qa("mèo sổ mũi")     │
+   │ ACTION: Call pet_knowledge_search("mèo sổ mũi") │
    │ OBSERVATION: RAG trả về 3 chunks...        │
    │ THOUGHT: Có đủ thông tin để trả lời        │
    │ ANSWER: "Mèo sổ mũi có thể do..."          │
@@ -1009,11 +1009,11 @@ CREATE TABLE chat_messages (
 2. Agent reasoning:
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User mô tả triệu chứng, cần lookup │
-   │ ACTION: symptom_search("chó bỏ ăn, uống    │
+   │ ACTION: pet_knowledge_search("chó bỏ ăn, uống │
    │         nước nhiều, lông xù")               │
    │ OBSERVATION: Có thể: Tiểu đường, Suy thận..│
    │ THOUGHT: Cần thêm context từ RAG           │
-   │ ACTION: pet_care_qa("chó tiểu đường")      │
+   │ ACTION: pet_knowledge_search("chó tiểu đường") │
    │ OBSERVATION: Triệu chứng, cách nhận biết...│
    │ ANSWER: "Dựa trên triệu chứng, có thể..."  │
    └─────────────────────────────────────────────┘
@@ -1031,22 +1031,24 @@ CREATE TABLE chat_messages (
 2. Agent reasoning:
    ┌─────────────────────────────────────────────┐
    │ THOUGHT: User muốn đặt lịch, cần tìm clinic │
-   │ ACTION: search_clinics("Quận 7")            │
+   │ ACTION: search_clinics_nearby(user_location) │
    │ OBSERVATION: 3 clinics: ABC, XYZ, DEF...    │
    │ ANSWER: "Có 3 phòng khám gần bạn..."        │
    └─────────────────────────────────────────────┘
 3. User: "Chọn ABC, ngày mai có slot không?"
 4. Agent:
    ┌─────────────────────────────────────────────┐
-   │ ACTION: check_slots("clinic_abc", "2025-01")│
+   │ ACTION: check_available_slots("clinic_abc", │
+   │         "2025-01", ["service_checkup"])    │
    │ OBSERVATION: Slots: 09:00, 10:30, 14:00... │
    │ ANSWER: "Ngày mai có các slot: ..."         │
    └─────────────────────────────────────────────┘
 5. User: "Đặt lúc 14:00 cho mèo Mimi, khám tổng quát"
 6. Agent:
    ┌─────────────────────────────────────────────┐
-   │ ACTION: create_booking(clinic_abc, slot_14, │
-   │         pet_mimi, service_checkup)          │
+   │ ACTION: create_booking_for_user(            │
+   │         pet_mimi, clinic_abc, date_tomorrow,│
+   │         slot_14, [service_checkup])         │
    │ OBSERVATION: Booking created, code: #B123   │
    │ ANSWER: "Đã đặt lịch thành công! #B123..."  │
    └─────────────────────────────────────────────┘
@@ -1076,11 +1078,12 @@ CREATE TABLE chat_messages (
    │ Max Tokens: [2048]                          │
    │                                             │
    │ Tools:                                      │
-   │ [✅] pet_care_qa                            │
-   │ [✅] symptom_search                         │
-   │ [✅] search_clinics                         │
-   │ [✅] check_slots                            │
-   │ [✅] create_booking                         │
+   │ [✅] pet_knowledge_search                   │
+   │ [✅] web_search                             │
+   │ [✅] get_user_pets                          │
+   │ [✅] search_clinics_nearby                  │
+   │ [✅] check_available_slots                  │
+   │ [✅] create_booking_for_user                │
    │                                             │
    │ Knowledge Base: 15 docs | 2,456 vectors     │
    │ [📤 Upload] [🗑️ Clear] [🔄 Re-index]        │
@@ -1092,7 +1095,7 @@ CREATE TABLE chat_messages (
 
 ---
 
-### 16.7 Kịch bản: Phân tích hình ảnh (Vision Health Analysis)
+### 16.7 Kịch bản: Phân tích hình ảnh (Vision Health Analysis - Planned Scope, chưa implement)
 
 **Actor:** Pet Owner (Mobile)
 
@@ -1108,7 +1111,7 @@ CREATE TABLE chat_messages (
    │ OBSERVATION: Phát hiện "viêm da dị ứng",    │
    │              mức độ: Moderate               │
    │ THOUGHT: Cần tìm clinic gần nhất để gợi ý   │
-   │ ACTION: search_clinics(lat, lng)            │
+   │ ACTION: search_clinics_nearby(lat, lng)     │
    │ OBSERVATION: 3 clinics nearby...            │
    │ ANSWER: "Phát hiện dấu hiệu viêm da. Nên..."│
    └─────────────────────────────────────────────┘

@@ -35,13 +35,13 @@ AI Agent Service là **thành phần tách biệt** (microservice Python FastAPI
 
 | Nhóm | Chức năng | Mô tả ngắn |
 |------|-----------|------------|
-| **Chat & tư vấn** | Hỏi đáp chăm sóc thú cưng | RAG + tool `pet_care_qa` tra Knowledge Base, trả lời có trích dẫn nguồn. |
-| | Chẩn đoán sơ bộ theo triệu chứng | Tool `symptom_search`: map triệu chứng → gợi ý bệnh, khuyên đặt lịch nếu cần. |
-| | Đặt lịch qua chat | Tools `search_clinics`, `check_slots`, `create_booking` gọi Spring Boot API. |
-| **Vision** | Phân tích hình ảnh sức khỏe thú cưng | Tool `analyze_pet_image`: gửi ảnh + context lên LLM (multimodal), trả severity + gợi ý dịch vụ/booking. |
+| **Chat & tư vấn** | Hỏi đáp chăm sóc thú cưng | RAG + tool `pet_knowledge_search` tra Knowledge Base, trả lời có trích dẫn nguồn. |
+| | Chẩn đoán sơ bộ theo triệu chứng | Tool `pet_knowledge_search`: tra cứu thông tin triệu chứng/bệnh trong Knowledge Base, khuyên đặt lịch nếu cần. |
+| | Đặt lịch qua chat | Tools `get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user` gọi Spring Boot API. |
+| **Vision** | Phân tích hình ảnh sức khỏe thú cưng | Planned / future scope, chưa được implement trong AI service hiện tại. |
 | **Clinic / Staff** | Hỗ trợ xử lý booking, FAQ, gợi ý reassign, thêm lịch làm việc | Dùng cùng Single Agent, có thể bật tools tương ứng cho role (Web) và chỉ thực thi khi người dùng xác nhận. |
 | **Admin** | Cấu hình Agent, Tools, Knowledge Base | REST API + Web: prompt, model, hyperparameters, enable/disable tools, upload/test RAG. |
-| **Fallback** | Trả lời khi confidence thấp | Tool `web_search` (ví dụ DuckDuckGo): bổ sung thông tin từ web khi RAG/symptom_search/vision trả về confidence thấp; vẫn trích dẫn nguồn và khuyên đi khám khi liên quan sức khỏe. |
+| **Fallback** | Trả lời khi confidence thấp | Tool `web_search` (ví dụ DuckDuckGo): bổ sung thông tin từ web khi RAG/vision trả về confidence thấp; vẫn trích dẫn nguồn và khuyên đi khám khi liên quan sức khỏe. |
 
 ---
 
@@ -54,10 +54,10 @@ Use cases được nhóm theo actor và boundary (theo SRS AI Agent Service).
 | UC-ID | Tên | Mô tả ngắn |
 |-------|-----|-------------|
 | UC-001 | Chat with AI Agent | Gửi tin nhắn qua WebSocket, nhận stream response + ReAct trace (thought/tool/observation). |
-| UC-002 | Ask pet care questions (RAG) | Agent gọi `pet_care_qa` → RAG query → trả lời kèm citation. |
-| UC-003 | Search diseases by symptoms | Agent gọi `symptom_search` → trả gợi ý bệnh, khuyên đến phòng khám nếu cần. |
-| UC-004 | Book appointment via chat | Agent gọi `search_clinics` → `check_slots` → `create_booking` (gọi Spring Boot). |
-| UC-019 | Analyze pet health images (Vision) | User gửi ảnh + text; Agent gọi `analyze_pet_image` → LLM multimodal → severity + gợi ý booking. |
+| UC-002 | Ask pet care questions (RAG) | Agent gọi `pet_knowledge_search` → RAG query → trả lời kèm citation. |
+| UC-003 | Search diseases by symptoms | Agent gọi `pet_knowledge_search` → trả thông tin tham khảo về triệu chứng/bệnh và khuyên đến phòng khám nếu cần. |
+| UC-004 | Book appointment via chat | Agent gọi `get_user_pets` → `search_clinics_nearby` → `get_clinic_services` → `check_available_slots` → `create_booking_for_user` (gọi Spring Boot). |
+| UC-019 | Analyze pet health images (Vision) | Planned / future scope, chưa có tool runtime trong AI service hiện tại. |
 | UC-029 | Retrieve vet tips from web (fallback) | Khi RAG nội bộ không đủ hoặc user hỏi thông tin cập nhật, agent gọi `web_search` để lấy nguồn tham khảo và tóm tắt hướng dẫn/mẹo chăm sóc (kèm trích dẫn nguồn). |
 | UC-AI-030 | Summarize medical history (Pet Owner) | Tool gọi API backend lấy pet health records, vaccinations, past bookings/EMR → AI tóm tắt thành medical summary report với timeline, medications, upcoming appointments. Pet owner có thể export PDF. |
 
@@ -132,13 +132,8 @@ flowchart TB
     end
 
     subgraph Tools["Tools"]
-        RAG["pet_care_qa → RAG"]
-        Symptom["symptom_search"]
-        Clinic["search_clinics, check_slots, create_booking"]
-        Vision["analyze_pet_image"]
-        EmrTools["emr_summary, patient_timeline"]
-        StaffShiftTools["create_staff_shifts, get_shifts_by_clinic"]
-        ClinicSetup["clinic_setup_wizard, clinic_config_suggester"]
+        RAG["pet_knowledge_search → RAG"]
+        Clinic["search_clinics_nearby, check_available_slots, create_booking_for_user"]
         WebSearch["web_search (fallback confidence thấp)"]
     end
 
@@ -193,21 +188,21 @@ flowchart TB
 ### 3.3 Giải quyết vấn đề (ReAct)
 
 1. **Thought:** LLM phân tích câu hỏi, quyết định cần tool nào hay trả lời luôn.
-2. **Action:** Gọi đúng tool (pet_care_qa, symptom_search, search_clinics, …); tool xử lý logic nội bộ, có thể gọi RAG engine hoặc Spring Boot REST API khi cần dữ liệu domain.
+2. **Action:** Gọi đúng tool (`pet_knowledge_search`, `web_search`, `search_clinics_nearby`, ...); tool xử lý logic nội bộ, có thể gọi RAG engine hoặc Spring Boot REST API khi cần dữ liệu domain.
 3. **Observation:** Kết quả tool được đưa lại vào state.
 4. **Loop:** Lặp Think → Act → Observe tối đa N lần (ví dụ 5), sau đó Generate final answer.
 5. **Answer:** Stream text về client; đồng thời lưu session + messages (và metadata) vào MongoDB.
 
 ### 3.4 Fallback khi confidence thấp – Web search
 
-Khi kết quả từ RAG, `symptom_search` hoặc `analyze_pet_image` có **confidence thấp** (ít chunk liên quan, score thấp, hoặc không tìm thấy bệnh phù hợp), hoặc user hỏi **cẩm nang thú y / mẹo chăm sóc / thông tin cập nhật**, agent có thể gọi tool **web search** (ví dụ DuckDuckGo hoặc API tìm kiếm) để bổ sung thông tin cho người dùng:
+Khi kết quả từ RAG có **confidence thấp** (ít chunk liên quan, score thấp, hoặc không tìm thấy thông tin phù hợp), hoặc user hỏi **cẩm nang thú y / mẹo chăm sóc / thông tin cập nhật**, agent có thể gọi tool **web search** (ví dụ DuckDuckGo hoặc API tìm kiếm) để bổ sung thông tin cho người dùng:
 
 - **Điều kiện:** Confidence của tool trước đó dưới ngưỡng (cấu hình được), user hỏi ngoài phạm vi knowledge base, hoặc chủ đề yêu cầu thông tin cập nhật theo thời gian.
 - **Luồng:** Agent tạo query tìm kiếm từ câu hỏi user / mô tả triệu chứng → gọi `web_search(query)` → nhận danh sách snippet/title/URL → đưa vào context cho LLM tổng hợp câu trả lời.
 - **Trả lời:** LLM vẫn phải trích dẫn nguồn (URL hoặc "theo kết quả tìm kiếm"), và với câu hỏi sức khỏe phải **khuyên đi khám / không thay thế chẩn đoán bác sĩ**.
 - **Cấu hình:** `DUCKDUCKGO_MAX_RESULTS` (số kết quả tối đa lấy về, ví dụ 5).
 
-Tool web search **không thay thế** RAG hay symptom_search; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
+Tool web search **không thay thế** RAG; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
 
 ### 3.5 AI được phát triển/vận hành và cập nhật dữ liệu theo thời gian
 
@@ -369,7 +364,7 @@ flowchart TB
 | **api/websocket** | WebSocket chat, streaming, ReAct events. |
 | **api/middleware** | Auth (JWT từ Spring Boot), logging. |
 | **core/agents** | Single Agent, ReAct (LangGraph), state, factory. |
-| **core/tools** | FastMCP server, executor, scanner, mcp_tools (pet_care_qa, symptom_search, …). |
+| **core/tools** | FastMCP server, executor, scanner, mcp_tools (`pet_knowledge_search`, `web_search`, booking tools, ...). |
 | **core/rag** | LlamaIndex RAG engine, Cohere, Qdrant. |
 | **services** | LLM client (OpenRouter), streaming. |
 | **db/postgres** | Agent, Tool, PromptVersion, KnowledgeDocument, SystemSetting (không lưu message chat). |
@@ -378,7 +373,61 @@ flowchart TB
 
 ## 6. Sequence diagrams – Gửi/nhận dữ liệu với AI
 
-### 6.1 Mobile gửi tin nhắn, nhận stream (WebSocket)
+### 6.1 Tổng quát - AI flow cho mọi user role
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User (Pet Owner / Staff / Manager / Owner / Admin)
+    participant Client as Mobile / Web Client
+    participant Gateway as AI API / WebSocket
+    participant Auth as JWT + Session Guard
+    participant Factory as AgentFactory
+    participant Policy as ContextPolicyService
+    participant Agent as SingleAgent
+    participant LLM as OpenRouter
+    participant Tools as FastMCP Tools
+    participant KB as Qdrant + LlamaIndex
+    participant Backend as Spring Boot API
+    participant Mongo as MongoDB
+
+    User->>Client: Gửi câu hỏi / yêu cầu
+    Client->>Gateway: REST hoặc WebSocket message
+    Gateway->>Auth: Xác thực JWT + ownership + context
+    Auth-->>Gateway: user_id, user_role, clinic_id, context_type
+    Gateway->>Factory: Load agent config + enabled tools
+    Factory->>Policy: Filter tool whitelist theo role/context
+    Policy-->>Factory: allowed_tools
+    Factory-->>Gateway: SingleAgent runtime
+    Gateway->>Agent: invoke / stream(message, context)
+
+    Agent->>LLM: Think
+    alt Cần knowledge/web lookup
+        Agent->>Tools: pet_knowledge_search / web_search
+        alt Knowledge Base
+            Tools->>KB: Query relevant chunks
+            KB-->>Tools: Retrieved documents
+        else Web fallback
+            Tools-->>Agent: Search snippets/URLs
+        end
+        Tools-->>Agent: Tool observation
+    else Cần business context tool
+        Agent->>Tools: booking/clinic/pet tool
+        Tools->>Backend: Call Spring Boot API
+        Backend-->>Tools: Domain data / action result
+        Tools-->>Agent: Tool observation
+    else Trả lời trực tiếp
+        LLM-->>Agent: Final reasoning
+    end
+
+    Agent->>LLM: Generate final answer
+    Agent->>Mongo: Save session/message/trace metadata
+    Agent-->>Gateway: Stream tokens / final response
+    Gateway-->>Client: thinking / tool_call / tool_result / stream / complete
+    Client-->>User: Hiển thị kết quả
+```
+
+### 6.2 Mobile gửi tin nhắn, nhận stream (WebSocket)
 
 ```mermaid
 sequenceDiagram
@@ -397,31 +446,31 @@ sequenceDiagram
     WS->>Agent: Start ReAct loop (user message)
 
     Agent->>LLM: Generate thought
-    LLM-->>Agent: Thought: "Cần gọi search_clinics"
+    LLM-->>Agent: Thought: "Cần gọi search_clinics_nearby"
     Agent->>WS: emit("thinking", thought)
     WS-->>Mobile: Hiển thị thinking
 
-    Agent->>Tools: call_tool("search_clinics", params)
+    Agent->>Tools: call_tool("search_clinics_nearby", params)
     Tools->>Backend: GET /api/clinics/nearby?lat=&lng=
     Backend-->>Tools: List clinics
     Tools-->>Agent: Observation (clinics)
     Agent->>WS: emit("tool_call", name + params)
     WS-->>Mobile: Hiển thị tool call
-    Agent->>WS: emit("observation", result)
-    WS-->>Mobile: Hiển thị observation (optional)
+    Agent->>WS: emit("tool_result", result)
+    WS-->>Mobile: Hiển thị tool result (optional)
 
     Agent->>LLM: Generate answer (streaming)
     loop Streaming tokens
         LLM-->>Agent: Token chunk
-        Agent->>WS: emit("response", delta=true)
+        Agent->>WS: emit("stream", delta=true)
         WS-->>Mobile: Hiển thị token
     end
-    Agent->>WS: emit("done", content + sources)
+    Agent->>WS: emit("complete", content + sources)
     WS-->>Mobile: Hiển thị nguồn
     Mobile-->>User: Câu trả lời hoàn chỉnh
 ```
 
-### 6.2 REST: Gửi message, chờ response (đồng bộ)
+### 6.3 REST: Gửi message, chờ response (đồng bộ)
 
 ```mermaid
 sequenceDiagram
@@ -437,14 +486,12 @@ sequenceDiagram
     Auth-->>API: User authenticated
     API->>DB: Load agent config
     DB-->>API: AgentConfig
-    API->>Agent: invoke(user_query, config)
-    Agent->>Agent: ReAct loop (think → act → observe)
-    Agent-->>API: Response + metadata
-    API->>DB: Save chat message (session)
-    API-->>Client: JSON Response (full content)
+    API->>DB: Persist user message metadata
+    API-->>Client: ACK + session/message metadata
+    Note over Client,API: Full AI response tiếp tục nhận qua WebSocket stream
 ```
 
-### 6.3 Web Clinic Staff chat với AI (WebSocket)
+### 6.4 Web Clinic Staff chat với AI (WebSocket)
 
 ```mermaid
 sequenceDiagram
@@ -466,7 +513,7 @@ sequenceDiagram
     Agent->>WS: emit("thinking", thought)
     WS-->>WebUI: Hiển thị trạng thái đang suy nghĩ
 
-    Agent->>Tools: call_tool(...) (vd: emr_summary, search_clinics, check_slots, create_staff_shifts)
+    Agent->>Tools: call_tool(...) (vd: pet_knowledge_search, get_user_pets, search_clinics_nearby, check_available_slots)
     Tools->>Backend: Gọi REST API (pet/booking/EMR/clinic)
     Backend-->>Tools: Trả dữ liệu
     Tools-->>Agent: Observation (patient summary / booking options)
@@ -498,8 +545,8 @@ Luồng chính cho chat: **Mobile/Web → API Gateway → AI Service (FastAPI) �
 
 ### 7.2 Cách chờ phản hồi
 
-- **WebSocket:** Client giữ kết nối, gửi một message và nhận nhiều event (thinking, tool_call, observation, response stream, done). Client đọc từng event đến khi `type: "done"` hoặc `type: "error"`.
-- **REST:** Client gửi POST và chờ HTTP response (có thể timeout 30–60s). Nếu AI dùng streaming nội bộ thì FastAPI có thể trả về StreamingResponse (chunked).
+- **WebSocket:** Client giữ kết nối, gửi một message và nhận nhiều event (`thinking`, `tool_call`, `tool_result`, `stream`, `complete`, `error`). Client đọc từng event đến khi `type: "complete"` hoặc `type: "error"`.
+- **REST:** `POST /api/v1/chat/sessions/{id}/messages` hiện tại dùng để persist user message/metadata và trả ACK; luồng phản hồi AI đầy đủ được nhận qua WebSocket.
 
 ### 7.3 Xử lý khi AI lỗi
 
@@ -549,10 +596,12 @@ Thiết kế hiện tại **có hỗ trợ** lưu dữ liệu gửi tới AI và
 
 ### 8.2 MongoDB (AI chat history)
 
-Collections `ai_chat_sessions` và `ai_chat_messages` lưu hội thoại AI-user:
+Collections `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications` và `chat_feedback` hỗ trợ runtime chat AI-user:
 
-- **ai_chat_sessions:** session_id, user_id, agent_name, started_at, ended_at
-- **ai_chat_messages:** role, content, timestamp, message_metadata (thought/tool_calls/sources)
+- **ai_chat_sessions:** session_id, user_id, user_role, clinic_id, context_type, agent_id, created_at, updated_at
+- **ai_chat_messages:** message_id, session_id, user_id, role, content, context_type, react_trace, tool_calls, sources, timestamp
+- **ai_proactive_notifications:** log thông báo chủ động/phân tích AI theo user
+- **chat_feedback:** thumbs up/down và feedback text theo message
 
 → Đủ để:
 - Phân tích sau: câu hỏi nào, tool nào được gọi, kết quả tool, nguồn RAG.
@@ -561,7 +610,7 @@ Collections `ai_chat_sessions` và `ai_chat_messages` lưu hội thoại AI-user
 ### 8.3 Kết luận
 
 - **Dữ liệu gửi tới AI:** Lưu trong MongoDB (`ai_chat_messages`, role=`user`).
-- **Kết quả AI trả về:** Lưu trong MongoDB (`ai_chat_messages`, role=`assistant`) kèm metadata ReAct/tool/sources.
+- **Kết quả AI trả về:** Lưu trong MongoDB (`ai_chat_messages`, role=`assistant`) kèm `react_trace`, `tool_calls`, `sources`.
 - **RAG/vector:** Chunk và embedding lưu ở Qdrant; metadata document ở PostgreSQL (knowledge_documents). Có thể trace từ tool_calls/sources về document và chunk.
 
 ---
@@ -570,7 +619,111 @@ Collections `ai_chat_sessions` và `ai_chat_messages` lưu hội thoại AI-user
 
 Gọi AI và xử lý kết quả được gói trong các lớp/mô-đun riêng (AI Client / Agent / Prediction không nhúng trực tiếp vào controller Spring Boot).
 
-### 9.1 Lớp chính phía AI Service (FastAPI)
+### 9.1 Class diagram tổng quát
+
+```mermaid
+classDiagram
+    class ChatRoute {
+        +create_session()
+        +send_message()
+        +list_sessions()
+    }
+
+    class WebSocketChatHandler {
+        +connect()
+        +handle_chat_message()
+        +disconnect()
+    }
+
+    class AgentFactory {
+        +get_agent() SingleAgent
+        +get_agent_config() dict
+    }
+
+    class ContextPolicyService {
+        +get_allowed_tools() List
+        +build_system_prompt() str
+    }
+
+    class SingleAgent {
+        +invoke() str
+        +stream() AsyncIterator
+        -_think_node()
+        -_act_node()
+        -_observe_node()
+    }
+
+    class BaseLLMClient {
+        <<abstract>>
+        +generate()
+        +stream()
+        +chat()
+    }
+
+    class OpenRouterClient
+
+    class ToolExecutor {
+        +execute_tool()
+        +get_enabled_tools_for_agent()
+    }
+
+    class ToolScanner {
+        +scan_and_sync_tools()
+    }
+
+    class MCPServer {
+        +get_mcp_tools_metadata()
+    }
+
+    class LlamaIndexRAGEngine {
+        +query()
+        +index_document()
+    }
+
+    class MongoDBStore {
+        +save_chat_session()
+        +save_chat_message()
+        +get_chat_history()
+    }
+
+    class PostgreSQLToolConfig {
+        +tools
+        +agents
+        +prompt_versions
+        +system_settings
+    }
+
+    class SpringBootAPI {
+        <<external>>
+    }
+
+    class Qdrant {
+        <<external>>
+    }
+
+    class Cohere {
+        <<external>>
+    }
+
+    ChatRoute --> AgentFactory
+    WebSocketChatHandler --> AgentFactory
+    AgentFactory --> ContextPolicyService
+    AgentFactory --> PostgreSQLToolConfig
+    AgentFactory --> SingleAgent
+    SingleAgent --> BaseLLMClient
+    SingleAgent --> ToolExecutor
+    SingleAgent --> MongoDBStore
+    OpenRouterClient --|> BaseLLMClient
+    ToolExecutor --> MCPServer
+    ToolExecutor --> SpringBootAPI
+    ToolExecutor --> LlamaIndexRAGEngine
+    ToolScanner --> MCPServer
+    ToolScanner --> PostgreSQLToolConfig
+    LlamaIndexRAGEngine --> Qdrant
+    LlamaIndexRAGEngine --> Cohere
+```
+
+### 9.2 Lớp chính phía AI Service (FastAPI)
 
 ```mermaid
 classDiagram
@@ -605,7 +758,6 @@ classDiagram
 
     class OpenRouterClient
     class DeepSeekClient
-    class OllamaClient
     class OpenAIClient
 
     class ToolExecutor {
@@ -632,15 +784,14 @@ classDiagram
 
     OpenRouterClient --|> BaseLLMClient
     DeepSeekClient --|> BaseLLMClient
-    OllamaClient --|> BaseLLMClient
     OpenAIClient --|> BaseLLMClient
 ```
 
-### 9.2 Tách biệt module
+### 9.3 Tách biệt module
 
 | Module / Class | Vai trò |
 |----------------|--------|
-| **BaseLLMClient + OpenRouterClient/DeepSeekClient/OllamaClient/OpenAIClient (services/llm_client)** | Đóng gói gọi provider LLM theo interface thống nhất `generate/stream/chat`. |
+| **BaseLLMClient + OpenRouterClient/DeepSeekClient/OpenAIClient (services/llm_client)** | Đóng gói gọi provider LLM theo interface thống nhất `generate/stream/chat`. |
 | **SingleAgent (core/agents/single_agent)** | Điều phối ReAct: think → act → observe; gọi LLM client và thực thi tools; không chứa logic nghiệp vụ Spring Boot. |
 | **AgentFactory (core/agents/factory)** | Load cấu hình agent + tools từ PostgreSQL, tạo `SingleAgent` runtime theo cấu hình động. |
 | **ToolExecutor + ToolScanner + mcp_server (core/tools)** | Scan/sync tool metadata, validate input, thực thi tool qua FastMCP, quản trị enable/disable từ DB. |
@@ -652,8 +803,5 @@ classDiagram
 ---
 
 ## Tài liệu tham chiếu
-
-- [AI_AGENT_SERVICE_SRS.md](SRS/AI_AGENT_SERVICE_SRS.md) – Use cases, functional requirements.
-- [AI_AGENT_SERVICE_SDD.md](SDD/AI_AGENT_SERVICE_SDD.md) – Architecture, RAG, API, DB, sequence/class diagrams chi tiết.
 - [REPORT_4_SDD_SYSTEM_DESIGN.md](SDD/REPORT_4_SDD_SYSTEM_DESIGN.md) – Mục 1.1 System Architecture, 1.2 Package Diagram, 4.10 AI Assistance Flow.
 - [TECHNICAL SCOPE PETTIES - AGENT MANAGEMENT.md](TECHNICAL%20SCOPE%20PETTIES%20-%20AGENT%20MANAGEMENT.md) – Single Agent, ReAct, tools, admin config.

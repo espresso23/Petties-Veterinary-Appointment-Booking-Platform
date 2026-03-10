@@ -31,8 +31,10 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 # ===== SCHEMAS =====
 
+
 class ChatMessage(BaseModel):
     """Single chat message"""
+
     message_id: Optional[str] = None
     user_id: Optional[str] = None
     role: str  # user, assistant, system
@@ -44,6 +46,7 @@ class ChatMessage(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     """Create new chat session"""
+
     agent_id: Optional[int] = None
     title: Optional[str] = None
     context_type: Literal["BUSINESS_CHAT", "PLAYGROUND_TEST"] = BUSINESS_CHAT
@@ -51,6 +54,7 @@ class CreateSessionRequest(BaseModel):
 
 class CreateSessionResponse(BaseModel):
     """Response after creating session"""
+
     success: bool
     session_id: str
     agent_id: Optional[int] = None
@@ -62,21 +66,27 @@ class CreateSessionResponse(BaseModel):
 
 class SendMessageRequest(BaseModel):
     """Send message to chat"""
+
     message: str = Field(..., min_length=1)
     agent_id: Optional[int] = None
 
 
 class SendMessageResponse(BaseModel):
-    """Response after sending message"""
+    """Response after saving user message (AI response via WebSocket only)"""
+
     success: bool
     session_id: str
+    message_id: str
     user_message: str
-    assistant_response: str
     timestamp: datetime
+    hint: str = (
+        "Kết nối WebSocket /ws/chat/{session_id}?token={jwt} để nhận phản hồi từ AI"
+    )
 
 
 class ChatSessionResponse(BaseModel):
     """Chat session with messages"""
+
     session_id: str
     agent_id: Optional[int] = None
     title: Optional[str] = None
@@ -90,13 +100,16 @@ class ChatSessionResponse(BaseModel):
 
 class SessionListResponse(BaseModel):
     """List of sessions"""
+
     total: int
     sessions: List[ChatSessionResponse]
 
 
 def _ensure_context_access(user: CurrentUser, context_type: str):
     if context_type == PLAYGROUND_TEST and not user.is_admin:
-        raise HTTPException(status_code=403, detail="Chỉ admin mới được dùng Playground")
+        raise HTTPException(
+            status_code=403, detail="Chỉ admin mới được dùng Playground"
+        )
 
 
 def _validate_session_access(session: Optional[dict], user: CurrentUser) -> dict:
@@ -104,7 +117,9 @@ def _validate_session_access(session: Optional[dict], user: CurrentUser) -> dict
         raise HTTPException(status_code=404, detail="Không tìm thấy session")
 
     if session.get("user_id") != user.user_id:
-        raise HTTPException(status_code=403, detail="Bạn không có quyền truy cập session này")
+        raise HTTPException(
+            status_code=403, detail="Bạn không có quyền truy cập session này"
+        )
 
     context_type = normalize_context_type(session.get("context_type"), BUSINESS_CHAT)
     _ensure_context_access(user, context_type)
@@ -130,7 +145,9 @@ def _map_message(message: dict) -> ChatMessage:
     )
 
 
-def _map_session(session: dict, messages: Optional[List[dict]] = None) -> ChatSessionResponse:
+def _map_session(
+    session: dict, messages: Optional[List[dict]] = None
+) -> ChatSessionResponse:
     return ChatSessionResponse(
         session_id=session.get("session_id"),
         agent_id=session.get("agent_id"),
@@ -146,18 +163,16 @@ def _map_session(session: dict, messages: Optional[List[dict]] = None) -> ChatSe
 
 # ===== ENDPOINTS =====
 
+
 @router.post(
-    "/sessions",
-    response_model=CreateSessionResponse,
-    summary="Create new chat session"
+    "/sessions", response_model=CreateSessionResponse, summary="Create new chat session"
 )
 async def create_session(
-    request: CreateSessionRequest,
-    user: CurrentUser = Depends(get_current_user)
+    request: CreateSessionRequest, user: CurrentUser = Depends(get_current_user)
 ):
     """
     Create a new chat session
-    
+
     Returns session_id for subsequent messages
     """
     context_type = normalize_context_type(request.context_type, BUSINESS_CHAT)
@@ -188,24 +203,26 @@ async def create_session(
         context_type=context_type,
         user_role=user.role,
         clinic_id=user.clinic_id,
-        created_at=now
+        created_at=now,
     )
 
 
 @router.get(
-    "/sessions",
-    response_model=SessionListResponse,
-    summary="List chat sessions"
+    "/sessions", response_model=SessionListResponse, summary="List chat sessions"
 )
 async def list_sessions(
     limit: int = 10,
-    context_type: Optional[str] = Query(None, description="BUSINESS_CHAT hoặc PLAYGROUND_TEST"),
-    user: CurrentUser = Depends(get_current_user)
+    context_type: Optional[str] = Query(
+        None, description="BUSINESS_CHAT hoặc PLAYGROUND_TEST"
+    ),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """
     List recent chat sessions
     """
-    normalized_context = normalize_context_type(context_type, BUSINESS_CHAT) if context_type else None
+    normalized_context = (
+        normalize_context_type(context_type, BUSINESS_CHAT) if context_type else None
+    )
     if normalized_context:
         _ensure_context_access(user, normalized_context)
 
@@ -216,20 +233,16 @@ async def list_sessions(
     )
 
     return SessionListResponse(
-        total=len(sessions),
-        sessions=[_map_session(s) for s in sessions[:limit]]
+        total=len(sessions), sessions=[_map_session(s) for s in sessions[:limit]]
     )
 
 
 @router.get(
     "/sessions/{session_id}",
     response_model=ChatSessionResponse,
-    summary="Get chat session with messages"
+    summary="Get chat session with messages",
 )
-async def get_session(
-    session_id: str,
-    user: CurrentUser = Depends(get_current_user)
-):
+async def get_session(session_id: str, user: CurrentUser = Depends(get_current_user)):
     """
     Get chat session with all messages
     """
@@ -241,24 +254,26 @@ async def get_session(
 @router.post(
     "/sessions/{session_id}/messages",
     response_model=SendMessageResponse,
-    summary="Send message to chat session"
+    summary="Send message to chat session",
 )
 async def send_message(
     session_id: str,
     request: SendMessageRequest,
-    user: CurrentUser = Depends(get_current_user)
+    user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Send message to chat session
-    
-    Returns placeholder response (real implementation uses WebSocket)
+    Save user message to chat session.
+
+    This REST endpoint only persists the user message.
+    AI responses are delivered via WebSocket at /ws/chat/{session_id}?token={jwt}.
     """
     session = _validate_session_access(await get_chat_session(session_id), user)
     context_type = session.get("context_type", BUSINESS_CHAT)
     now = datetime.now(timezone.utc)
+    message_id = str(uuid.uuid4())
 
     user_msg = {
-        "message_id": str(uuid.uuid4()),
+        "message_id": message_id,
         "session_id": session_id,
         "user_id": user.user_id,
         "role": "user",
@@ -267,37 +282,20 @@ async def send_message(
         "timestamp": now,
     }
     await save_chat_message(user_msg)
-
-    assistant_response = f"[Placeholder] Received: {request.message[:50]}... Please use WebSocket /ws/chat/{session_id} for real-time streaming."
-
-    assistant_msg = {
-        "message_id": str(uuid.uuid4()),
-        "session_id": session_id,
-        "user_id": user.user_id,
-        "role": "assistant",
-        "content": assistant_response,
-        "context_type": context_type,
-        "timestamp": now,
-    }
-    await save_chat_message(assistant_msg)
     await touch_chat_session(session_id)
 
     return SendMessageResponse(
         success=True,
         session_id=session_id,
+        message_id=message_id,
         user_message=request.message,
-        assistant_response=assistant_response,
-        timestamp=now
+        timestamp=now,
     )
 
 
-@router.delete(
-    "/sessions/{session_id}",
-    summary="Delete chat session"
-)
+@router.delete("/sessions/{session_id}", summary="Delete chat session")
 async def delete_session_authenticated(
-    session_id: str,
-    user: CurrentUser = Depends(get_current_user)
+    session_id: str, user: CurrentUser = Depends(get_current_user)
 ):
     """Delete chat session nếu session thuộc owner hiện tại."""
     _validate_session_access(await get_chat_session(session_id), user)

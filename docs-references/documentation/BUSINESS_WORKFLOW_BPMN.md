@@ -231,12 +231,12 @@ flowchart LR
 
 ### 8.2 Agent Routing Decision Table
 
-| User Intent | Keywords/Patterns | Target Agent | Tools Available |
-|-------------|-------------------|--------------|-----------------|
-| Medical Inquiry | "bệnh", "triệu chứng", "ốm", "sick", "symptom" | Medical Agent | RAG Search, call Research Agent |
-| Booking | "đặt lịch", "book", "appointment", "slot" | Booking Agent | check_slot, create_booking |
-| Information | "mua", "giá", "ở đâu", "product", "tips" | Research Agent | web_search, youtube_search |
-| General Chat | greeting, unclear | Main Agent | Direct response |
+| User Intent | Keywords/Patterns | Runtime Handling | Tools Available |
+|-------------|-------------------|------------------|-----------------|
+| Medical Inquiry | "bệnh", "triệu chứng", "ốm", "sick", "symptom" | Single Agent + ReAct | `pet_knowledge_search`, `web_search` |
+| Booking | "đặt lịch", "book", "appointment", "slot" | Single Agent + ReAct | `get_user_pets`, `search_clinics_nearby`, `get_clinic_services`, `check_available_slots`, `create_booking_for_user` |
+| Information | "mua", "giá", "ở đâu", "product", "tips" | Single Agent + ReAct | `web_search` |
+| General Chat | greeting, unclear | Single Agent + ReAct | Direct response |
 
 ---
 

@@ -47,12 +47,12 @@ Stack:   Python 3.12 | FastAPI | LangGraph | LlamaIndex | PostgreSQL | Qdrant Cl
 │  ├── Chain-of-Thought Reasoning                                     │
 │  └── System Prompt (Admin Configurable via DB)                      │
 │                                                                     │
-│  🔧 Tools (FastMCP @mcp.tool)                                       │
-│  ├── pet_care_qa       → RAG-based Q&A                             │
-│  ├── symptom_search    → Symptom → Disease lookup                  │
-│  ├── search_clinics    → Find nearby clinics                       │
-│  ├── check_slots       → Check available slots                     │
-│  └── create_booking    → Create booking via chat                   │
+│  Tools (FastMCP @mcp.tool)                                       │
+│  ├── pet_knowledge_search → RAG-based Q&A + Symptom analysis     │
+│  ├── web_search          → Web research fallback                 │
+│  ├── search_clinics      → Find nearby clinics                   │
+│  ├── check_slots         → Check available slots                 │
+│  └── create_booking      → Create booking via chat               │
 │                                                                     │
 │  📚 RAG Engine (LlamaIndex + Qdrant Cloud)                          │
 │  ├── LlamaIndex: Document processing, chunking, retrieval          │
@@ -77,12 +77,12 @@ User: "Mèo bị sổ mũi nên làm gì?"
            ▼
 ┌─────────────────────────────────────────────┐
 │ THOUGHT: User hỏi về triệu chứng sổ mũi    │
-│ Cần gọi tool pet_care_qa để tìm thông tin │
+│ Cần gọi tool pet_knowledge_search để tìm   │
 └─────────────────────────────────────────────┘
            │
            ▼
 ┌─────────────────────────────────────────────┐
-│ ACTION: Call pet_care_qa("mèo sổ mũi")     │
+│ ACTION: Call pet_knowledge_search("mèo sổ mũi") │
 └─────────────────────────────────────────────┘
            │
            ▼
@@ -285,7 +285,7 @@ petties-agent-serivce/
 │   │   │   ├── scanner.py      # Tool scanner (TL-01)
 │   │   │   ├── executor.py     # Dynamic executor
 │   │   │   └── mcp_tools/
-│   │   │       └── medical_tools.py  # ⭐ 2 RAG tools only
+│   │   │       └── medical_tools.py  # pet_knowledge_search + web_search
 │   │   │
 │   │   └── rag/                # ⭐ RAG System (Full LlamaIndex v2.0)
 │   │       ├── __init__.py     # Exports LlamaIndex engine

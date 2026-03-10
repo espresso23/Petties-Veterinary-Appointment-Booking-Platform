@@ -17,7 +17,7 @@
 | 05 | **Service Management** | Master services (Admin), Clinic services (Owner) | 8 | ✅ Done |
 | 06 | **Pricing** | Dynamic pricing rules, price calculation | 3 | ✅ Done |
 | 07 | **Staff Management** | Quick add staff, deactivate, list | 4 | ✅ Done |
-| 08 | **VetShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock (STAFF shifts) | 8 | ✅ Done |
+| 08 | **StaffShift & Slot** | Create shifts, auto-generate 30-min slots, block/unblock | 8 | ✅ Done |
 | 09 | **Booking** | Create, assign, approve/reject, check-in/out, cancel, incurred services | 12 | ⏳ Pending |
 | 10 | **Chat (1-1)** | Conversations, messages, WebSocket realtime | 7+WS | ⏳ Pending |
 | 11 | **EMR** | Create/view medical records linked to booking | 4 | ❌ Phase 2 |
@@ -39,7 +39,7 @@
 | No | Module | Description | Status |
 |----|--------|-------------|:------:|
 | 01 | **Single Agent (ReAct)** | LangGraph-based agent with Thought → Action → Observation loop | ✅ Done |
-| 02 | **MCP Tools** | FastMCP tools: pet_care_qa, symptom_search, search_clinics, check_slots, create_booking | 🔄 Partial |
+| 02 | **MCP Tools** | FastMCP tools: pet_knowledge_search, web_search, search_clinics_nearby, check_available_slots, create_booking_for_user | 🔄 Partial |
 | 03 | **RAG Engine** | LlamaIndex + Cohere embeddings + Qdrant Cloud | ✅ Done |
 | 04 | **Agent Config** | Admin UI for prompt, hyperparameters, model selection | ✅ Done |
 | 05 | **Tool Management** | Enable/disable tools, view schemas | ✅ Done |
@@ -139,7 +139,7 @@
 | No | Feature | Reason | Priority |
 |----|---------|--------|:--------:|
 | 03 | Video Consultation | WebRTC phức tạp | Low |
-| 04 | Multi-Agent Architecture | Simplified to Single Agent | Low |
+| 04 | Single Agent + ReAct enhancements | Continue hardening current architecture | Low |
 | 05 | Email/SMS Notifications | Push đủ cho MVP | Medium |
 | 06 | Multi-language | Defer sau MVP | Low |
 

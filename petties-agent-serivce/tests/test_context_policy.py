@@ -15,28 +15,36 @@ class ContextPolicyTests(unittest.TestCase):
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
-            available_tools=["pet_care_qa", "symptom_search", "web_search", "get_patient_summary"],
+            available_tools=[
+                "pet_knowledge_search",
+                "web_search",
+                "get_patient_summary",
+            ],
         )
 
-        self.assertEqual(allowed, ["pet_care_qa", "symptom_search", "web_search"])
+        self.assertEqual(allowed, ["pet_knowledge_search", "web_search"])
 
-    def test_admin_playground_gets_all_available_tools(self):
+    def test_admin_playground_gets_only_playground_testable_tools(self):
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="ADMIN",
             context_type=PLAYGROUND_TEST,
-            available_tools=["pet_care_qa", "symptom_search", "get_patient_summary"],
+            available_tools=[
+                "pet_knowledge_search",
+                "get_patient_summary",
+                "web_search",
+            ],
         )
 
         self.assertEqual(
             allowed,
-            ["pet_care_qa", "symptom_search", "get_patient_summary"],
+            ["pet_knowledge_search", "web_search"],
         )
 
     def test_non_admin_playground_has_no_tools(self):
         allowed = ContextPolicyService.get_allowed_tools(
             user_role="PET_OWNER",
             context_type=PLAYGROUND_TEST,
-            available_tools=["pet_care_qa", "symptom_search"],
+            available_tools=["pet_knowledge_search"],
         )
 
         self.assertEqual(allowed, [])
@@ -46,12 +54,12 @@ class ContextPolicyTests(unittest.TestCase):
             base_prompt="Base prompt",
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
-            allowed_tools=["pet_care_qa", "symptom_search", "web_search"],
+            allowed_tools=["pet_knowledge_search", "web_search"],
         )
 
         self.assertIn("Base prompt", prompt)
         self.assertIn("BUSINESS_CHAT", prompt)
-        self.assertIn("pet_care_qa, symptom_search, web_search", prompt)
+        self.assertIn("pet_knowledge_search, web_search", prompt)
         self.assertIn("dễ hiểu", prompt)
 
     def test_build_system_prompt_appends_pet_owner_style(self):
@@ -59,7 +67,7 @@ class ContextPolicyTests(unittest.TestCase):
             base_prompt="Base prompt",
             user_role="PET_OWNER",
             context_type=BUSINESS_CHAT,
-            allowed_tools=["pet_care_qa"],
+            allowed_tools=["pet_knowledge_search"],
         )
 
         self.assertIn("role PET_OWNER", prompt)
@@ -76,6 +84,19 @@ class ContextPolicyTests(unittest.TestCase):
         self.assertIn("role CLINIC_MANAGER", prompt)
         self.assertIn("vận hành phòng khám", prompt)
         self.assertIn("checklist hành động", prompt)
+
+    def test_pet_owner_business_chat_allows_check_vaccination_status(self):
+        allowed = ContextPolicyService.get_allowed_tools(
+            user_role="PET_OWNER",
+            context_type=BUSINESS_CHAT,
+            available_tools=[
+                "get_clinic_services",
+                "check_vaccination_status",
+                "get_patient_summary",
+            ],
+        )
+
+        self.assertEqual(allowed, ["get_clinic_services", "check_vaccination_status"])
 
 
 if __name__ == "__main__":

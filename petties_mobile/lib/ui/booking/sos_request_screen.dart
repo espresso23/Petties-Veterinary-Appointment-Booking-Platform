@@ -470,6 +470,7 @@ class _SosRequestScreenState extends State<SosRequestScreen> {
           PetOwnerBottomNav(
             currentIndex: 2,
             onTap: (index) => handlePetOwnerNavTap(context, index),
+            showAiBubble: false,
           ),
         ],
       ),
@@ -706,6 +707,11 @@ class _SosRequestScreenState extends State<SosRequestScreen> {
           TextField(
             controller: _symptomsController,
             maxLines: 4,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              // Ẩn keyboard khi nhấn Done
+              FocusScope.of(context).unfocus();
+            },
             decoration: InputDecoration(
               hintText: 'Nhập thêm chi tiết nếu cần...',
               filled: true,

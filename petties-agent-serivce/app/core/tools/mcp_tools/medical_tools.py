@@ -6,22 +6,16 @@ Uses Cohere embeddings + Qdrant vector search.
 
 Package: app.core.tools.mcp_tools
 Purpose:
-    - RAG-based Q&A for pet care knowledge
-    - Symptom search using knowledge base
+    - RAG-based knowledge search for pet care & symptom analysis
+    - Web search fallback for additional information
     - Vietnamese language support via Cohere multilingual
 
 Tools:
-    - pet_care_qa: RAG-based Q&A for pet care questions
-    - symptom_search: Search diseases based on symptoms using RAG
+    - pet_knowledge_search: Unified RAG tool for pet care Q&A + symptom analysis
+    - web_search: Web fallback for pet/vet questions
 
 Reference: Technical Scope - Single Agent with ReAct pattern
-Version: v1.0.0 (Migrated from Multi-Agent medical_tools)
-
-Changes:
-- Removed API-based tools (booking, history, vaccine) - not for RAG
-- Implemented real RAG search using Qdrant + Cohere
-- Added pet_care_qa tool
-- Renamed to focus on RAG functionality
+Version: v2.0.0 (Merged pet_care_qa + symptom_search into pet_knowledge_search)
 """
 
 from app.core.tools.mcp_server import mcp_server
@@ -38,31 +32,148 @@ from app.config.settings import settings
 # --- MINIMAL STOP WORDS (bilingual, chỉ loại function words phổ biến) ---
 STOP_WORDS = {
     # Vietnamese function words
-    "là", "và", "của", "cho", "với", "khi", "nên", "cần", "được", "đến",
-    "trong", "những", "các", "một", "này", "kia", "thì", "có", "bị", "gì",
-    "sao", "thế", "nào", "hay", "rằng", "đang", "về", "từ", "theo",
+    "là",
+    "và",
+    "của",
+    "cho",
+    "với",
+    "khi",
+    "nên",
+    "cần",
+    "được",
+    "đến",
+    "trong",
+    "những",
+    "các",
+    "một",
+    "này",
+    "kia",
+    "thì",
+    "có",
+    "bị",
+    "gì",
+    "sao",
+    "thế",
+    "nào",
+    "hay",
+    "rằng",
+    "đang",
+    "về",
+    "từ",
+    "theo",
     # English function words
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
-    "it", "its", "this", "that", "or", "and", "but", "if", "do", "does",
-    "did", "has", "have", "had", "will", "would", "can", "could", "should",
-    "what", "how", "when", "where", "why", "which", "who", "whom",
-    "my", "your", "his", "her", "our", "their", "i", "you", "he", "she",
-    "we", "they", "me", "him", "us", "them",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "it",
+    "its",
+    "this",
+    "that",
+    "or",
+    "and",
+    "but",
+    "if",
+    "do",
+    "does",
+    "did",
+    "has",
+    "have",
+    "had",
+    "will",
+    "would",
+    "can",
+    "could",
+    "should",
+    "what",
+    "how",
+    "when",
+    "where",
+    "why",
+    "which",
+    "who",
+    "whom",
+    "my",
+    "your",
+    "his",
+    "her",
+    "our",
+    "their",
+    "i",
+    "you",
+    "he",
+    "she",
+    "we",
+    "they",
+    "me",
+    "him",
+    "us",
+    "them",
 }
 
 # --- PET GUARD (bilingual - chỉ dùng cho safety check, không scoring) ---
 PET_GUARD_KEYWORDS = {
     # Vietnamese
-    "chó", "cho", "cún", "cun", "mèo", "meo", "thú cưng", "thu cung",
-    "thú y", "thu y", "thú nuôi", "thu nuoi",
-    "tiêu chảy", "tieu chay", "nôn", "ăn", "dinh dưỡng",
-    "ký sinh trùng", "triệu chứng", "bệnh",
+    "chó",
+    "cho",
+    "cún",
+    "cun",
+    "mèo",
+    "meo",
+    "thú cưng",
+    "thu cung",
+    "thú y",
+    "thu y",
+    "thú nuôi",
+    "thu nuoi",
+    "tiêu chảy",
+    "tieu chay",
+    "nôn",
+    "ăn",
+    "dinh dưỡng",
+    "ký sinh trùng",
+    "triệu chứng",
+    "bệnh",
     # English
-    "dog", "cat", "pet", "puppy", "kitten", "vet", "veterinary",
-    "veterinarian", "animal", "parvo", "distemper", "diarrhea",
-    "vomit", "vaccine", "vaccination", "grooming", "clinic",
-    "symptom", "disease", "treatment", "nutrition", "diet", "feed",
+    "dog",
+    "cat",
+    "pet",
+    "puppy",
+    "kitten",
+    "vet",
+    "veterinary",
+    "veterinarian",
+    "animal",
+    "parvo",
+    "distemper",
+    "diarrhea",
+    "vomit",
+    "vaccine",
+    "vaccination",
+    "grooming",
+    "clinic",
+    "symptom",
+    "disease",
+    "treatment",
+    "nutrition",
+    "diet",
+    "feed",
 }
 
 # --- DOMAIN-BASED PENALTIES (language-agnostic) ---
@@ -81,18 +192,6 @@ GENERIC_CONTENT_PATTERNS = [
     re.compile(r"\d+\s*(giống|breeds?|loại|types?|best)", re.IGNORECASE),
     re.compile(r"(most popular|phổ biến nhất|nổi tiếng nhất)", re.IGNORECASE),
 ]
-
-# --- RED FLAG SYMPTOMS (bilingual) ---
-RED_FLAG_SYMPTOMS = {
-    # Vietnamese
-    "co giật", "bất tỉnh", "khó thở", "thở gấp", "suy hô hấp", "liệt",
-    "tiêu chảy ra máu", "nôn ra máu", "có máu trong phân", "xuất huyết",
-    "mất nước nặng", "bỏ ăn nhiều ngày", "sốc", "ngộ độc",
-    # English
-    "seizure", "unconscious", "difficulty breathing", "respiratory failure",
-    "bloody diarrhea", "bloody vomit", "blood in stool", "hemorrhage",
-    "severe dehydration", "poisoning", "collapse", "paralysis",
-}
 
 
 def _clean_rag_text(text: str) -> str:
@@ -117,31 +216,6 @@ def _is_pet_related_query(query: str) -> bool:
     """Check xem query có liên quan pet/vet không (bilingual guard)."""
     normalized_query = query.lower().strip()
     return any(keyword in normalized_query for keyword in PET_GUARD_KEYWORDS)
-
-
-def _format_web_search_answer(query: str, results: List[Dict[str, Any]]) -> str:
-    if not results:
-        return (
-            "Tôi chưa tìm thấy nguồn web phù hợp cho câu hỏi này trong phạm vi thú cưng/thú y. "
-            "Bạn hãy hỏi cụ thể hơn hoặc liên hệ bác sĩ thú y để được tư vấn chính xác."
-        )
-
-    bullet_points = []
-    for item in results[:3]:
-        title = _clean_rag_text(str(item.get("title", "")))
-        snippet = _clean_rag_text(str(item.get("snippet", "")))
-        source = item.get("source") or item.get("url") or "nguồn web"
-
-        if snippet:
-            bullet_points.append(f"- {title}: {snippet} (Nguồn: {source})")
-        else:
-            bullet_points.append(f"- {title} (Nguồn: {source})")
-
-    return (
-        "Tôi không thấy đủ thông tin trong knowledge base nên đã tìm thêm từ nguồn web liên quan thú cưng/thú y:\n"
-        f"{"\n".join(bullet_points)}\n\n"
-        "Lưu ý: Thông tin web chỉ mang tính tham khảo. Nếu thú cưng có dấu hiệu nặng hoặc kéo dài, nên đưa đi khám bác sĩ thú y."
-    )
 
 
 def _extract_domain(url: str) -> str:
@@ -201,9 +275,22 @@ def _build_search_query(query: str) -> str:
 
     # Kiểm tra đã có pet/vet context chưa (bilingual)
     pet_context_words = [
-        "thú y", "thu y", "vet", "veterinary",
-        "chó", "cho", "mèo", "meo", "pet", "cún", "cun",
-        "dog", "cat", "puppy", "kitten", "animal",
+        "thú y",
+        "thu y",
+        "vet",
+        "veterinary",
+        "chó",
+        "cho",
+        "mèo",
+        "meo",
+        "pet",
+        "cún",
+        "cun",
+        "dog",
+        "cat",
+        "puppy",
+        "kitten",
+        "animal",
     ]
     has_pet_context = any(kw in lower_query for kw in pet_context_words)
 
@@ -232,45 +319,6 @@ def _deduplicate_scored_results(results: List[Dict[str, Any]]) -> List[Dict[str,
         deduped.append(item)
 
     return deduped
-
-
-def _has_red_flag_symptom(symptoms: List[str]) -> bool:
-    normalized_symptoms = " ".join(symptoms).lower()
-    return any(keyword in normalized_symptoms for keyword in RED_FLAG_SYMPTOMS)
-
-
-def _build_symptom_query(symptoms: List[str], pet_type: str) -> str:
-    symptoms_text = ", ".join(symptoms)
-    return f"{pet_type} triệu chứng {symptoms_text} bệnh chẩn đoán xử lý"
-
-
-def _summarize_symptom_result(content: str, symptoms: List[str]) -> str:
-    cleaned_content = _clean_rag_text(content)
-    formatted_results = [{"content": cleaned_content, "score": 1.0, "source": "knowledge base"}]
-    symptom_query = " ".join(symptoms)
-    relevant_sentences = _select_relevant_sentences(symptom_query, formatted_results, limit=2)
-
-    if relevant_sentences:
-        if len(relevant_sentences) == 1:
-            all_sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", cleaned_content) if sentence.strip()]
-            for sentence in all_sentences:
-                if sentence not in relevant_sentences:
-                    relevant_sentences.append(sentence)
-                    break
-        return " ".join(relevant_sentences[:2])[:240]
-
-    fallback = cleaned_content[:240].strip()
-    return fallback + ("..." if len(cleaned_content) > 240 else "")
-
-
-def _infer_condition_name(content: str, source: str, index: int) -> str:
-    cleaned_content = _clean_rag_text(content)
-    heading_match = re.search(r"(?:^|\s)([A-ZÀ-Ỵ][^.!?:]{4,80})", cleaned_content)
-    if heading_match:
-        candidate = heading_match.group(1).strip(" -•:")
-        if len(candidate.split()) <= 10:
-            return candidate
-    return f"Khả năng #{index} từ {source}"
 
 
 def _perform_duckduckgo_search(query: str, max_results: int) -> List[Dict[str, Any]]:
@@ -323,259 +371,100 @@ def _perform_duckduckgo_search(query: str, max_results: int) -> List[Dict[str, A
     strict_results.sort(key=lambda x: x.get("score", 0), reverse=True)
     strict_results = _deduplicate_scored_results(strict_results)
     if strict_results:
-        logger.info(f"web_search: returning {len(strict_results[:max_results])} strict results")
+        logger.info(
+            f"web_search: returning {len(strict_results[:max_results])} strict results"
+        )
         return strict_results[:max_results]
 
     # Fallback: dùng relaxed results nếu strict rỗng
     relaxed_results.sort(key=lambda x: x.get("score", 0), reverse=True)
     relaxed_results = _deduplicate_scored_results(relaxed_results)
-    logger.info(f"web_search: strict=0, returning {len(relaxed_results[:max_results])} relaxed results")
-    return relaxed_results[:max_results]
-
-
-def _select_relevant_sentences(query: str, results: List[Dict[str, Any]], limit: int = 3) -> List[str]:
-    keywords = _extract_query_keywords(query)
-    scored_sentences: List[tuple[float, str]] = []
-    seen = set()
-
-    for result in results[:5]:
-        content = _clean_rag_text(str(result.get("content", "")))
-        base_score = float(result.get("score", 0.0) or 0.0)
-        sentences = re.split(r"(?<=[.!?])\s+|\s{2,}|\n+", content)
-
-        for sentence in sentences:
-            sentence = _clean_rag_text(sentence)
-            if len(sentence) < 35:
-                continue
-
-            normalized_sentence = sentence.lower()
-            if normalized_sentence in seen:
-                continue
-            seen.add(normalized_sentence)
-
-            overlap = sum(1 for keyword in keywords if keyword in normalized_sentence)
-            score = base_score + overlap
-
-            if overlap == 0 and keywords:
-                continue
-
-            scored_sentences.append((score, sentence))
-
-    scored_sentences.sort(key=lambda item: item[0], reverse=True)
-    return [sentence for _, sentence in scored_sentences[:limit]]
-
-
-def _build_pet_care_answer(query: str, formatted_results: List[Dict[str, Any]]) -> str:
-    if not formatted_results:
-        return "Không tìm thấy thông tin phù hợp trong knowledge base. Vui lòng hỏi cụ thể hơn hoặc liên hệ bác sĩ thú y."
-
-    relevant_sentences = _select_relevant_sentences(query, formatted_results, limit=3)
-    source_name = formatted_results[0].get("source") or "knowledge base"
-
-    if not relevant_sentences:
-        return (
-            "Tôi đã tìm thấy tài liệu liên quan nhưng chưa đủ chắc chắn để tóm tắt ngắn gọn. "
-            "Bạn hãy hỏi cụ thể hơn về chế độ ăn, cách chăm sóc hoặc dấu hiệu cần theo dõi."
-        )
-
-    bullet_points = "\n".join(f"- {sentence}" for sentence in relevant_sentences)
-    return (
-        "Gợi ý ngắn cho bạn:\n"
-        f"{bullet_points}\n\n"
-        "Lưu ý: Nếu thú cưng tiêu chảy kéo dài, bỏ ăn, nôn nhiều hoặc có máu trong phân thì nên đưa đi khám sớm.\n"
-        f"Nguồn tham khảo: {source_name}."
+    logger.info(
+        f"web_search: strict=0, returning {len(relaxed_results[:max_results])} relaxed results"
     )
+    return relaxed_results[:max_results]
 
 
 # ===== RAG TOOLS =====
 
+
 @mcp_server.tool
-async def pet_care_qa(
+async def pet_knowledge_search(
     query: str,
+    pet_type: str = "dog",
     top_k: int = 5,
-    min_score: float = 0.5
+    min_score: float = 0.4,
 ) -> Dict[str, Any]:
     """
-    Tìm kiếm kiến thức chăm sóc thú cưng từ Knowledge Base (RAG Q&A)
+    Tìm kiếm kiến thức chăm sóc thú cưng từ Knowledge Base (RAG).
 
-    Sử dụng tool này khi người dùng hỏi các câu hỏi về:
-    - Cách chăm sóc thú cưng (cho ăn, tắm rửa, tập luyện)
-    - Thông tin về giống loài
-    - Điều trị bệnh thường gặp
-    - Dinh dưỡng và thực phẩm
+    Sử dụng tool này khi người dùng:
+    - Hỏi cách chăm sóc thú cưng (cho ăn, tắm rửa, tập luyện, vệ sinh)
+    - Hỏi về thông tin giống loài, dinh dưỡng, thực phẩm
+    - Mô tả triệu chứng (sốt, nôn, tiêu chảy, bỏ ăn, ngứa, rụng lông)
+    - Hỏi về bệnh, chẩn đoán, điều trị tham khảo
+
+    Tool này trả về raw data từ Knowledge Base. LLM sẽ tự phân tích
+    nội dung, đánh giá mức độ nghiêm trọng và format câu trả lời.
 
     Args:
-        query: Câu hỏi hoặc từ khóa tìm kiếm (tiếng Việt hoặc English)
+        query: Câu hỏi hoặc mô tả triệu chứng (tiếng Việt hoặc English)
+        pet_type: Loại thú cưng (dog, cat, bird, rabbit, hamster)
         top_k: Số lượng kết quả trả về (mặc định: 5)
-        min_score: Điểm tương đồng tối thiểu (mặc định: 0.5)
+        min_score: Điểm tương đồng tối thiểu (mặc định: 0.4)
 
     Returns:
         Dict chứa:
             - query: str - Câu hỏi gốc
-            - results: List[Dict] - Danh sách tài liệu tìm được
-            - answer: str - Câu trả lời tổng hợp
+            - pet_type: str - Loại thú cưng
+            - results: List[Dict] - Danh sách tài liệu tìm được ({content, score, source, chunk_index})
             - sources_used: int - Số tài liệu được sử dụng
+            - search_source: str - "knowledge_base"
     """
     try:
         from app.core.rag.rag_engine import get_rag_engine
 
-        # Get RAG engine
         rag = get_rag_engine()
 
-        # Query knowledge base
+        # Query knowledge base directly — no query rewriting, no classification
         results = await rag.query(
             query=query,
             top_k=top_k,
-            min_score=min_score
+            min_score=min_score,
         )
 
-        # Format results
+        # Format raw results for LLM consumption
         formatted_results = [
             {
-                "content": r.content,
+                "content": _clean_rag_text(r.content),
                 "score": r.score,
                 "source": r.document_name,
-                "chunk_index": r.chunk_index
+                "chunk_index": r.chunk_index,
             }
             for r in results
         ]
 
-        answer = _build_pet_care_answer(query, formatted_results)
-
-        logger.info(f"pet_care_qa: Found {len(results)} results for query: {query[:50]}...")
+        logger.info(
+            f"pet_knowledge_search: Found {len(results)} results for query: {query[:50]}..."
+        )
 
         return {
             "query": query,
+            "pet_type": pet_type,
             "results": formatted_results,
-            "answer": answer,
             "sources_used": len(formatted_results),
             "search_source": "knowledge_base",
         }
 
     except Exception as e:
-        logger.error(f"Lỗi trong pet_care_qa: {e}")
+        logger.error(f"Lỗi trong pet_knowledge_search: {e}")
         return {
             "query": query,
+            "pet_type": pet_type,
             "results": [],
-            "answer": "Rất tiếc, hiện tại tôi không thể truy cập kho kiến thức (Knowledge Base) do lỗi cấu hình hệ thống (Thiếu API Key). Vui lòng liên hệ Admin hoặc thử câu hỏi khác.",
             "sources_used": 0,
-            "error": str(e)
-        }
-
-
-@mcp_server.tool
-async def symptom_search(
-    symptoms: List[str],
-    pet_type: str = "dog",
-    top_k: int = 5
-) -> Dict[str, Any]:
-    """
-    Tìm bệnh dựa trên triệu chứng sử dụng RAG (Kiểm tra triệu chứng)
-
-    Sử dụng tool này khi người dùng mô tả triệu chứng của thú cưng:
-    - Thú cưng bị sốt, nôn, tiêu chảy
-    - Thú cưng bỏ ăn, mệt mỏi
-    - Các vấn đề về da, lông
-    - Vấn đề hô hấp, mắt
-
-    Args:
-        symptoms: Danh sách triệu chứng (ví dụ: ["sốt", "nôn mửa", "mệt mỏi"])
-        pet_type: Loại thú cưng (dog, cat, bird, rabbit, hamster)
-        top_k: Số lượng kết quả (mặc định: 5)
-
-    Returns:
-        Dict chứa:
-            - symptoms: List[str] - Triệu chứng đã nhập
-            - pet_type: str - Loại thú cưng
-            - possible_conditions: List[Dict] - Các bệnh có thể
-            - urgent: bool - Cần khám gấp không
-            - recommendations: str - Khuyến nghị
-
-    LƯU Ý: Tool này chỉ cung cấp thông tin tham khảo.
-    Luôn khuyên người dùng đến phòng khám thú y để được chẩn đoán chính xác.
-    """
-    try:
-        from app.core.rag.rag_engine import get_rag_engine
-
-        # Lấy RAG engine
-        rag = get_rag_engine()
-
-        # Xây dựng câu truy vấn từ triệu chứng
-        query = _build_symptom_query(symptoms, pet_type)
-
-        # Truy vấn knowledge base
-        results = await rag.query(
-            query=query,
-            top_k=top_k,
-            min_score=0.4  # Ngưỡng thấp hơn cho tìm kiếm triệu chứng
-        )
-
-        # Phân tích kết quả tìm các bệnh có thể
-        possible_conditions = []
-        urgent = _has_red_flag_symptom(symptoms)
-        seen_descriptions = set()
-
-        for index, r in enumerate(results, start=1):
-            content_lower = r.content.lower()
-
-            severity = "nhẹ"
-            if _has_red_flag_symptom(symptoms):
-                severity = "nghiêm trọng"
-            elif any(kw in content_lower for kw in ["nặng", "nguy hiểm", "cấp cứu"]):
-                severity = "vừa"
-            elif any(kw in content_lower for kw in ["vừa", "cần theo dõi", "mất nước"]):
-                severity = "vừa"
-
-            if len(symptoms) >= 2 and any(kw in content_lower for kw in ["nguy hiểm", "cấp cứu", "ngay lập tức", "parvo", "distemper"]):
-                urgent = True
-                severity = "nghiêm trọng"
-
-            description = _summarize_symptom_result(r.content, symptoms)
-            normalized_description = description.lower()
-            if normalized_description in seen_descriptions:
-                continue
-            seen_descriptions.add(normalized_description)
-
-            possible_conditions.append({
-                "name": _infer_condition_name(r.content, r.document_name, index),
-                "description": description,
-                "severity": severity,
-                "source": r.document_name,
-                "score": r.score
-            })
-
-            if len(possible_conditions) >= 3:
-                break
-
-        # Tạo khuyến nghị
-        if urgent:
-            recommendations = "CẢNH BÁO: Các triệu chứng này có thể nghiêm trọng. Cần đến phòng khám thú y NGAY LẬP TỨC để được khám và điều trị kịp thời."
-        elif possible_conditions:
-            recommendations = "Nên theo dõi nước uống, tình trạng bỏ ăn, nôn hoặc máu trong phân. Nếu tiêu chảy kéo dài trên 24 giờ hoặc nặng lên, nên đưa đi khám thú y."
-        else:
-            recommendations = "Không tìm thấy thông tin phù hợp. Nếu triệu chứng nghiêm trọng, nên đến phòng khám thú y để được tư vấn."
-
-        logger.info(f"symptom_search: Tìm thấy {len(possible_conditions)} bệnh có thể cho triệu chứng: {symptoms}")
-
-        return {
-            "symptoms": symptoms,
-            "pet_type": pet_type,
-            "possible_conditions": possible_conditions,
-            "urgent": urgent,
-            "recommendations": recommendations,
-            "disclaimer": "Thông tin này chỉ mang tính chất tham khảo. Vui lòng đến phòng khám thú y để được chẩn đoán và điều trị chính xác.",
             "search_source": "knowledge_base",
-        }
-
-    except Exception as e:
-        logger.error(f"Lỗi trong symptom_search: {e}")
-        return {
-            "symptoms": symptoms,
-            "pet_type": pet_type,
-            "possible_conditions": [],
-            "urgent": False,
-            "recommendations": f"Lỗi khi tìm kiếm: {str(e)}. Nên đến phòng khám thú y để được tư vấn.",
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -590,12 +479,18 @@ async def web_search(
     Chỉ sử dụng tool này cho các câu hỏi liên quan đến thú cưng, thú y,
     chăm sóc, dinh dưỡng, triệu chứng hoặc điều trị tham khảo.
 
+    Tool này trả về raw data từ web. LLM sẽ tự tổng hợp và format câu trả lời.
+
     Args:
         query: Câu hỏi cần tìm trên web
         max_results: Số lượng kết quả tối đa (mặc định lấy từ config)
 
     Returns:
-        Dict chứa query, danh sách kết quả web, answer tóm tắt và số nguồn đã dùng.
+        Dict chứa:
+            - query: str - Câu hỏi gốc
+            - results: List[Dict] - Danh sách kết quả web ({title, snippet, url, source, score})
+            - sources_used: int - Số nguồn tìm được
+            - search_source: str - "web_search"
     """
     effective_max_results = max_results or settings.DUCKDUCKGO_MAX_RESULTS
 
@@ -603,22 +498,23 @@ async def web_search(
         return {
             "query": query,
             "results": [],
-            "answer": "Tôi chỉ được phép tìm kiếm web cho các nội dung liên quan đến thú cưng hoặc thú y.",
             "sources_used": 0,
             "search_source": "web_search",
             "error": "Query ngoài phạm vi thú cưng/thú y",
         }
 
     try:
-        results = await asyncio.to_thread(_perform_duckduckgo_search, query, effective_max_results)
-        answer = _format_web_search_answer(query, results)
+        results = await asyncio.to_thread(
+            _perform_duckduckgo_search, query, effective_max_results
+        )
 
-        logger.info(f"web_search: Found {len(results)} results for query: {query[:50]}...")
+        logger.info(
+            f"web_search: Found {len(results)} results for query: {query[:50]}..."
+        )
 
         return {
             "query": query,
             "results": results,
-            "answer": answer,
             "sources_used": len(results),
             "search_source": "web_search",
         }
@@ -627,7 +523,6 @@ async def web_search(
         return {
             "query": query,
             "results": [],
-            "answer": "Tôi chưa thể tìm thêm thông tin từ web vào lúc này. Vui lòng thử lại sau hoặc liên hệ bác sĩ thú y.",
             "sources_used": 0,
             "search_source": "web_search",
             "error": str(e),
@@ -637,8 +532,9 @@ async def web_search(
 # ===== TOOL METADATA =====
 if __name__ == "__main__":
     print("Pet Care RAG Tools registered in FastMCP:")
-    print("  - pet_care_qa: RAG-based Q&A for pet care knowledge")
-    print("  - symptom_search: Search diseases based on symptoms")
+    print(
+        "  - pet_knowledge_search: Unified RAG tool for pet care Q&A + symptom analysis"
+    )
     print("  - web_search: Web fallback for pet/vet questions")
     print("\nThese tools use:")
     print("  - Cohere embed-multilingual-v3.0 for Vietnamese support")

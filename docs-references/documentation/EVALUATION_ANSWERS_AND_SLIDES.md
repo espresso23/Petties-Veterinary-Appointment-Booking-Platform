@@ -89,8 +89,8 @@ flowchart TD
 - **PostgreSQL (Core + Auth):** USER, CLINIC, CLINIC_IMAGE, MASTER_SERVICE, SERVICE, SERVICE_WEIGHT_PRICE, PET, VET_SHIFT, SLOT, BOOKING_SLOT, BOOKING, BOOKING_SERVICE, PAYMENT, REVIEW, NOTIFICATION, CHAT_CONVERSATION, CHAT_MESSAGE, REFRESH_TOKEN, BLACKLISTED_TOKEN, USER_REPORT.
 - **MongoDB:** EMR_RECORD, VACCINATION_RECORD (và các embedded: prescriptions, images).
 - **AI Service (PostgreSQL + MongoDB):**
-    - **PostgreSQL:** AI_AGENT, AI_TOOL, AI_PROMPT_VERSION, AI_KNOWLEDGE_DOC, AI_SYSTEM_SETTING.
-    - **MongoDB:** AI_CHAT_SESSION (`ai_chat_sessions`), AI_CHAT_MESSAGE (`ai_chat_messages`).
+    - **PostgreSQL:** AGENT, TOOL, PROMPT_VERSION, KNOWLEDGE_DOCUMENT, SYSTEM_SETTING.
+    - **MongoDB:** AI_CHAT_SESSION (`ai_chat_sessions`), AI_CHAT_MESSAGE (`ai_chat_messages`), AI_PROACTIVE_NOTIFICATION, CHAT_FEEDBACK.
 - **Quan hệ:** Đầy đủ cardinality (1-N, N-1, junction tables như BOOKING_SLOT, BOOKING_SERVICE), khóa ngoại và mô tả từng thực thể (mục đích, thuộc tính chính).
 
 **Bằng chứng:** `docs-references/documentation/PETTIES_ERD_DIAGRAM.md` – §1 Complete Mermaid ERD, §2 Detailed Entities Description, §4 Relationship Matrix.
@@ -244,12 +244,12 @@ sequenceDiagram
     API->>Agent: Invoke với context user
     Agent->>LLM: Phân tích ý định
     alt Cần dữ liệu chuyên môn
-        Agent->>Tools: call pet_care_qa / symptom_search
+        Agent->>Tools: call pet_knowledge_search / web_search
         Tools->>RAG: Truy vấn tri thức
         RAG-->>Agent: Context + nguồn tham chiếu
     end
     alt Cần thao tác nghiệp vụ
-        Agent->>Tools: call search_clinics / check_slots / create_booking
+        Agent->>Tools: call get_user_pets / search_clinics_nearby / get_clinic_services / check_available_slots / create_booking_for_user
         Tools->>Spring: Gọi API nghiệp vụ
         Spring-->>Agent: Kết quả nghiệp vụ
     end
@@ -278,8 +278,8 @@ Tài liệu [AI_FEATURES_NON_PET_OWNER_IDEA.md](AI_FEATURES_NON_PET_OWNER_IDEA.m
   (AI_FEATURES_NON_PET_OWNER_IDEA.md mô tả agent được gọi từ nhiều role – Pet Owner, Staff, CM, CO – qua cùng entry point General Agent rồi phân luồng theo ngữ cảnh.)
 
 - **Chờ response:**  
-  - **REST:** Đồng bộ – client đợi đến khi `invoke()` trả về (sau khi Think → Act → Observe có thể lặp, rồi Generate answer).  
-  - **WebSocket:** Bất đồng bộ – client nhận lần lượt event: `thinking` → `tool_call` → `observation` → `response` (delta) → `done` (final answer + sources). Client hiển thị từng bước và tích lũy nội dung.
+  - **REST:** Endpoint `/api/v1/chat/sessions/{session_id}/messages` hiện chủ yếu persist user message và trả ACK/metadata.  
+  - **WebSocket:** Bất đồng bộ – client nhận lần lượt event: `thinking` → `tool_call` → `tool_result` → `stream` (delta) → `complete` (final answer + sources). Client hiển thị từng bước và tích lũy nội dung.
 
 - **Xử lý khi AI lỗi:**  
   - **WebSocket:** Server gửi event `type: "error"`, ví dụ `{ "type": "error", "error": "Failed to connect to LLM service", "code": "LLM_ERROR" }`. Client có thể hiển thị thông báo lỗi và cho phép gửi lại.  
@@ -328,11 +328,11 @@ sequenceDiagram
 - **PostgreSQL (AI config/governance):** lưu `agents`, `tools`, `prompt_versions`, `knowledge_documents`, `system_settings` để quản trị Single Agent, tools và RAG config.
 
 - **MongoDB (AI chat history):**
-    - **ai_chat_sessions:** session-level metadata (session_id, user_id, agent_name, started_at, ended_at).
-    - **ai_chat_messages:** message-level records (role, content, timestamp, **message_metadata** gồm tool_calls/thought/sources).
+    - **ai_chat_sessions:** session-level metadata (session_id, user_id, user_role, clinic_id, context_type, agent_id, created_at, updated_at).
+    - **ai_chat_messages:** message-level records (message_id, session_id, user_id, role, content, context_type, react_trace, tool_calls, sources, timestamp).
     Cấu trúc này phù hợp truy vấn theo session/user và audit chất lượng phản hồi AI.
 
-- **ERD (PETTIES_ERD_DIAGRAM.md §2.24–2.25):** AI_CHAT_SESSION, AI_CHAT_MESSAGE với mô tả: session nhóm tin theo user/agent; message lưu content và message_metadata (tool_calls, thinking steps). Đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
+- **ERD/SDD:** AI chat runtime được mô tả bằng `ai_chat_sessions`, `ai_chat_messages`, `ai_proactive_notifications`, `chat_feedback`; đủ để audit, debug và phân tích chất lượng câu trả lời / tool usage.
 
 **Bằng chứng:**  
 - `docs-references/documentation/SDD/AI_AGENT_SERVICE_SDD.md` – §5.1 PostgreSQL Schema (không lưu chat AI-user), §5.4 MongoDB Schema (`ai_chat_sessions`, `ai_chat_messages`).  

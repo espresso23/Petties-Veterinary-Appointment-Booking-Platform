@@ -146,6 +146,8 @@ class _PetOwnerHomeScreenState extends State<PetOwnerHomeScreen> {
       bottomNavigationBar: PetOwnerBottomNav(
         currentIndex: _currentIndex,
         onTap: _onTabTapped,
+        showAiBubble: true, // ✅ Hiển thị AI Chat Bubble
+        showAiNotificationDot: false,
       ),
     );
   }

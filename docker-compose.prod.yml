@@ -95,9 +95,14 @@ services:
       APP_DEBUG: "false"
       # Neon PostgreSQL
       DATABASE_URL: ${DATABASE_URL:-}
+      # MongoDB Atlas (Production)
+      MONGODB_URL: ${MONGODB_URL}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-petties_nosql}
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
+      # Spring Boot Backend (container-to-container)
+      SPRING_BACKEND_URL: http://backend:8080/api
       # Qdrant Cloud
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY}
@@ -132,6 +137,9 @@ services:
           memory: 384M # Reduced from 768M (Cloud-only AI is lightweight)
         reservations:
           memory: 256M
+    volumes:
+      # Persist uploaded documents across container rebuilds
+      - ai_storage_prod_data:/app/storage
 
 # ============================================
 # NETWORKS
@@ -140,3 +148,10 @@ networks:
   petties-prod-network:
     driver: bridge
     name: petties-prod-network
+
+# ============================================
+# VOLUMES (Persist data across rebuilds)
+# ============================================
+volumes:
+  ai_storage_prod_data:
+    driver: local

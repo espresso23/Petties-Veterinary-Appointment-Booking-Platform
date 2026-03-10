@@ -14,6 +14,7 @@ Changes from v0.0.1:
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
@@ -21,8 +22,10 @@ from loguru import logger
 from pathlib import Path
 import os
 import shutil
+import tempfile
 from datetime import datetime
 from app.api.middleware.auth import get_admin_user
+from app.config.settings import settings
 
 from app.api.schemas.knowledge_schemas import (
     DocumentResponse,
@@ -36,16 +39,56 @@ from app.api.schemas.knowledge_schemas import (
     QueryKnowledgeResponse,
     RetrievedChunk,
     DeleteDocumentResponse,
-    KnowledgeBaseStatusResponse
+    KnowledgeBaseStatusResponse,
 )
 from app.db.postgres.models import KnowledgeDocument
 from app.db.postgres.session import get_db
 
 # Initialize router
-router = APIRouter(prefix="/knowledge", tags=["Knowledge Base"], dependencies=[Depends(get_admin_user)])
+router = APIRouter(
+    prefix="/knowledge", tags=["Knowledge Base"], dependencies=[Depends(get_admin_user)]
+)
+
 
 # Storage configuration
-STORAGE_DIR = Path("storage/documents")
+def _is_directory_writable(path: Path) -> bool:
+    """Check whether a directory can be created and written to."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=path, prefix=".write_test_", delete=True):
+            pass
+        return True
+    except (PermissionError, OSError) as exc:
+        logger.warning(f"Storage path not writable: {path} ({exc})")
+        return False
+
+
+def get_storage_dir() -> Path:
+    """Resolve a writable storage directory for uploaded knowledge files."""
+    configured_dir = Path(settings.UPLOAD_DIR)
+    candidate_dirs = [
+        configured_dir,
+        Path("/app/uploads/documents"),
+        Path("uploads/documents"),
+    ]
+
+    seen = set()
+    for candidate in candidate_dirs:
+        normalized = str(candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+
+        if _is_directory_writable(candidate):
+            if candidate != configured_dir:
+                logger.warning(
+                    f"Upload dir '{configured_dir}' is not writable. Falling back to '{candidate}'."
+                )
+            return candidate.resolve()
+
+    raise RuntimeError("Khong co thu muc luu tru nao co quyen ghi cho knowledge upload")
+
+
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
@@ -53,10 +96,12 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 def get_rag_engine():
     """Lazy import RAG engine to avoid circular imports - Full LlamaIndex"""
     from app.core.rag.rag_engine import get_rag_engine as _get_rag_engine
+
     return _get_rag_engine()
 
 
 # ===== UPLOAD DOCUMENT =====
+
 
 @router.post(
     "/upload",
@@ -69,13 +114,13 @@ def get_rag_engine():
     Max file size: 10MB
     
     After upload, document needs to be processed to create vector embeddings.
-    """
+    """,
 )
 async def upload_document(
     file: UploadFile = File(...),
     notes: Optional[str] = Form(None),
     uploaded_by: Optional[str] = Form("admin"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Upload document to knowledge base
@@ -89,36 +134,35 @@ async def upload_document(
         # Validate file extension
         filename = file.filename or "unknown"
         extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        
+
         if extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"File type '{extension}' not allowed. Allowed: {list(ALLOWED_EXTENSIONS)}"
+                detail=f"File type '{extension}' not allowed. Allowed: {list(ALLOWED_EXTENSIONS)}",
             )
-        
+
         # Read file content
         content = await file.read()
         file_size = len(content)
-        
+
         # Check file size
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB"
+                detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024}MB",
             )
-        
-        # Create storage directory if not exists
-        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-        
+
+        storage_dir = get_storage_dir()
+
         # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{timestamp}_{filename}"
-        file_path = STORAGE_DIR / safe_filename
-        
+        file_path = storage_dir / safe_filename
+
         # Save file
         with open(file_path, "wb") as f:
             f.write(content)
-        
+
         # Create database record
         document = KnowledgeDocument(
             filename=filename,
@@ -128,12 +172,12 @@ async def upload_document(
             processed=False,
             vector_count=0,
             uploaded_by=uploaded_by,
-            notes=notes
+            notes=notes,
         )
         db.add(document)
         await db.commit()
         await db.refresh(document)
-        
+
         logger.info(f"Uploaded document: {filename} (ID: {document.id})")
 
         return UploadDocumentResponse(
@@ -143,7 +187,7 @@ async def upload_document(
             filename=filename,
             file_size=file_size,
             file_type=extension,
-            status="pending"
+            status="pending",
         )
 
     except HTTPException:
@@ -154,6 +198,7 @@ async def upload_document(
 
 
 # ===== PROCESS DOCUMENT (INDEX TO QDRANT) =====
+
 
 @router.post(
     "/documents/{document_id}/process",
@@ -169,12 +214,9 @@ async def upload_document(
     4. Stores vectors in Qdrant Cloud
 
     After processing, the document can be queried via RAG.
-    """
+    """,
 )
-async def process_document(
-    document_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def process_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """
     Process document and index to Qdrant
 
@@ -187,6 +229,7 @@ async def process_document(
     """
     try:
         import time
+
         start_time = time.time()
 
         # Get document from database
@@ -196,7 +239,9 @@ async def process_document(
         document = result.scalar_one_or_none()
 
         if not document:
-            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Document {document_id} not found"
+            )
 
         # Allow reprocessing if document has 0 vectors (failed previous attempt)
         if document.processed and document.vector_count > 0:
@@ -205,11 +250,13 @@ async def process_document(
                 message=f"Document '{document.filename}' already processed",
                 document_id=document_id,
                 chunks_created=document.vector_count,
-                processing_time_ms=0
+                processing_time_ms=0,
             )
 
         if document.processed and document.vector_count == 0:
-            logger.warning(f"Document {document_id} was marked processed with 0 vectors. Reprocessing...")
+            logger.warning(
+                f"Document {document_id} was marked processed with 0 vectors. Reprocessing..."
+            )
             # Reset processed status for retry
             document.processed = False
             await db.commit()
@@ -218,8 +265,7 @@ async def process_document(
         file_path = document.file_path
         if not file_path or not os.path.exists(file_path):
             raise HTTPException(
-                status_code=404,
-                detail=f"Document file not found at {file_path}"
+                status_code=404, detail=f"Document file not found at {file_path}"
             )
 
         with open(file_path, "rb") as f:
@@ -234,15 +280,15 @@ async def process_document(
             metadata={
                 "file_type": document.file_type,
                 "uploaded_by": document.uploaded_by,
-                "notes": document.notes
-            }
+                "notes": document.notes,
+            },
         )
 
         # Validate processing succeeded
         if chunks_count == 0:
             raise HTTPException(
                 status_code=500,
-                detail="Document processing failed: No vectors were created. This usually means the Cohere API key is missing or invalid."
+                detail="Document processing failed: No vectors were created. This usually means the Cohere API key is missing or invalid.",
             )
 
         # Update document status (only if vectors were created successfully)
@@ -253,14 +299,16 @@ async def process_document(
 
         processing_time = int((time.time() - start_time) * 1000)
 
-        logger.info(f"Processed document {document_id}: {chunks_count} chunks in {processing_time}ms")
+        logger.info(
+            f"Processed document {document_id}: {chunks_count} chunks in {processing_time}ms"
+        )
 
         return ProcessDocumentResponse(
             success=True,
             message=f"Document '{document.filename}' processed successfully",
             document_id=document_id,
             chunks_created=chunks_count,
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     except HTTPException:
@@ -278,7 +326,9 @@ async def process_document(
             doc = result.scalar_one_or_none()
 
             if doc and not doc.processed and doc.vector_count == 0:
-                logger.warning(f"Processing failed for new document {document_id}. Cleaning up...")
+                logger.warning(
+                    f"Processing failed for new document {document_id}. Cleaning up..."
+                )
 
                 # Delete file from disk
                 if doc.file_path and os.path.exists(doc.file_path):
@@ -299,16 +349,17 @@ async def process_document(
 
 # ===== LIST DOCUMENTS =====
 
+
 @router.get(
     "/documents",
     response_model=DocumentListResponse,
     summary="List all documents",
-    description="Get all documents in knowledge base with processing status"
+    description="Get all documents in knowledge base with processing status",
 )
 async def list_documents(
     processed: Optional[bool] = Query(None, description="Filter by processed status"),
     file_type: Optional[str] = Query(None, description="Filter by file type"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List all documents in knowledge base
@@ -319,27 +370,27 @@ async def list_documents(
     """
     try:
         query = select(KnowledgeDocument)
-        
+
         if processed is not None:
             query = query.where(KnowledgeDocument.processed == processed)
-        
+
         if file_type:
             query = query.where(KnowledgeDocument.file_type == file_type)
-        
+
         result = await db.execute(query)
         documents = result.scalars().all()
-        
+
         # Count processed vs pending
         processed_count = sum(1 for d in documents if d.processed)
         pending_count = len(documents) - processed_count
-        
+
         return DocumentListResponse(
             total=len(documents),
             processed_count=processed_count,
             pending_count=pending_count,
-            documents=[DocumentResponse.model_validate(d) for d in documents]
+            documents=[DocumentResponse.model_validate(d) for d in documents],
         )
-    
+
     except Exception as e:
         logger.error(f"Error listing documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -347,16 +398,14 @@ async def list_documents(
 
 # ===== GET DOCUMENT =====
 
+
 @router.get(
     "/documents/{document_id}",
     response_model=DocumentDetailResponse,
     summary="Get document detail",
-    description="Get document details with chunks preview"
+    description="Get document details with chunks preview",
 )
-async def get_document(
-    document_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def get_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """
     Get document detail with:
     - Document metadata
@@ -367,18 +416,20 @@ async def get_document(
             select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
         )
         document = result.scalar_one_or_none()
-        
+
         if not document:
-            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Document {document_id} not found"
+            )
+
         # TODO: Get chunks from Qdrant when implemented
         chunks_preview = []
-        
+
         return DocumentDetailResponse(
             document=DocumentResponse.model_validate(document),
-            chunks_preview=chunks_preview
+            chunks_preview=chunks_preview,
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -386,18 +437,93 @@ async def get_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ===== DOWNLOAD DOCUMENT (SERVE FILE FOR PREVIEW) =====
+
+# Content-type mapping
+CONTENT_TYPE_MAP = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "txt": "text/plain; charset=utf-8",
+    "md": "text/plain; charset=utf-8",
+}
+
+
+@router.get(
+    "/documents/{document_id}/download",
+    summary="Download/Preview document file",
+    description="""
+    Serve the original document file for preview in the frontend.
+    
+    Returns the raw file with appropriate content-type:
+    - PDF → application/pdf (for PDF viewer)
+    - DOCX → application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    - TXT/MD → text/plain (for text display)
+    """,
+)
+async def download_document(document_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Serve original document file for frontend preview
+
+    Path params:
+        - document_id: ID of the document
+
+    Returns:
+        FileResponse with the original file
+    """
+    try:
+        result = await db.execute(
+            select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+        )
+        document = result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(
+                status_code=404, detail=f"Document {document_id} not found"
+            )
+
+        file_path = document.file_path
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"File not found on disk for document {document_id}",
+            )
+
+        # Determine content type
+        content_type = CONTENT_TYPE_MAP.get(
+            document.file_type or "", "application/octet-stream"
+        )
+
+        logger.info(
+            f"Serving document {document_id}: {document.filename} ({content_type})"
+        )
+
+        return FileResponse(
+            path=file_path,
+            media_type=content_type,
+            filename=document.filename,
+            headers={
+                "Content-Disposition": f'inline; filename="{document.filename}"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ===== DELETE DOCUMENT =====
+
 
 @router.delete(
     "/documents/{document_id}",
     response_model=DeleteDocumentResponse,
     summary="Delete document",
-    description="Delete document and its vectors from knowledge base"
+    description="Delete document and its vectors from knowledge base",
 )
-async def delete_document(
-    document_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def delete_document(document_id: int, db: AsyncSession = Depends(get_db)):
     """
     Delete document:
     1. Remove file from storage
@@ -409,10 +535,12 @@ async def delete_document(
             select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
         )
         document = result.scalar_one_or_none()
-        
+
         if not document:
-            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Document {document_id} not found"
+            )
+
         filename = document.filename
         vector_count = document.vector_count
         file_path = document.file_path
@@ -424,15 +552,14 @@ async def delete_document(
             try:
                 rag = get_rag_engine()
                 vectors_actually_deleted = await rag.delete_document(document_id)
-                logger.info(f"Deleted {vectors_actually_deleted} vectors from Qdrant for document {document_id}")
+                logger.info(
+                    f"Deleted {vectors_actually_deleted} vectors from Qdrant for document {document_id}"
+                )
             except Exception as e:
                 # CRITICAL: If Qdrant delete fails, abort entire operation
                 error_msg = f"Failed to delete vectors from Qdrant: {str(e)}. Aborting document deletion to prevent orphaned data."
                 logger.error(error_msg)
-                raise HTTPException(
-                    status_code=500,
-                    detail=error_msg
-                )
+                raise HTTPException(status_code=500, detail=error_msg)
 
         # Only proceed with file and DB deletion if Qdrant delete succeeded
         # Delete file from storage
@@ -451,9 +578,9 @@ async def delete_document(
             message=f"Document '{filename}' and {vectors_actually_deleted} vectors deleted successfully",
             document_id=document_id,
             filename=filename,
-            vectors_deleted=vectors_actually_deleted
+            vectors_deleted=vectors_actually_deleted,
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -462,6 +589,7 @@ async def delete_document(
 
 
 # ===== QUERY KNOWLEDGE BASE =====
+
 
 @router.post(
     "/query",
@@ -476,11 +604,10 @@ async def delete_document(
     Uses:
     - Cohere embed-multilingual-v3.0 for query embedding
     - Qdrant Cloud for vector similarity search
-    """
+    """,
 )
 async def query_knowledge(
-    request: QueryKnowledgeRequest,
-    db: AsyncSession = Depends(get_db)
+    request: QueryKnowledgeRequest, db: AsyncSession = Depends(get_db)
 ):
     """
     Test RAG retrieval with Qdrant + Cohere
@@ -499,6 +626,7 @@ async def query_knowledge(
     """
     try:
         import time
+
         start_time = time.time()
 
         # Get RAG engine
@@ -506,9 +634,7 @@ async def query_knowledge(
 
         # Query knowledge base using Qdrant
         results = await rag.query(
-            query=request.query,
-            top_k=request.top_k,
-            min_score=request.min_score
+            query=request.query, top_k=request.top_k, min_score=request.min_score
         )
 
         # Convert to response format
@@ -519,7 +645,7 @@ async def query_knowledge(
                 chunk_index=r.chunk_index,
                 content=r.content,
                 score=r.score,
-                metadata={"source": r.document_name}
+                metadata={"source": r.document_name},
             )
             for r in results
         ]
@@ -528,28 +654,37 @@ async def query_knowledge(
         if not chunks:
             # Check if there are any processed documents
             result = await db.execute(
-                select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.processed == True)
+                select(func.count(KnowledgeDocument.id)).where(
+                    KnowledgeDocument.processed == True
+                )
             )
             processed_count = result.scalar() or 0
 
             if processed_count == 0:
-                chunks.append(RetrievedChunk(
-                    document_id=0,
-                    document_name="system",
-                    chunk_index=0,
-                    content=f"Chua co document nao duoc processed. Vui long upload va process document truoc khi query. Query: {request.query}",
-                    score=0.0,
-                    metadata={"type": "info"}
-                ))
+                chunks.append(
+                    RetrievedChunk(
+                        document_id=0,
+                        document_name="system",
+                        chunk_index=0,
+                        content=f"Chua co document nao duoc processed. Vui long upload va process document truoc khi query. Query: {request.query}",
+                        score=0.0,
+                        metadata={"type": "info"},
+                    )
+                )
             else:
-                chunks.append(RetrievedChunk(
-                    document_id=0,
-                    document_name="system",
-                    chunk_index=0,
-                    content=f"Khong tim thay ket qua phu hop voi min_score={request.min_score}. Thu giam min_score xuong 0.0 de xem tat ca ket qua. Neu van khong co ket qua, co the do: (1) Vector dimension mismatch - can recreate collection, (2) Query khong lien quan den noi dung document. Query: {request.query}",
-                    score=0.0,
-                    metadata={"type": "info", "suggestion": "Try lowering min_score to 0.0"}
-                ))
+                chunks.append(
+                    RetrievedChunk(
+                        document_id=0,
+                        document_name="system",
+                        chunk_index=0,
+                        content=f"Khong tim thay ket qua phu hop voi min_score={request.min_score}. Thu giam min_score xuong 0.0 de xem tat ca ket qua. Neu van khong co ket qua, co the do: (1) Vector dimension mismatch - can recreate collection, (2) Query khong lien quan den noi dung document. Query: {request.query}",
+                        score=0.0,
+                        metadata={
+                            "type": "info",
+                            "suggestion": "Try lowering min_score to 0.0",
+                        },
+                    )
+                )
 
         retrieval_time = int((time.time() - start_time) * 1000)
 
@@ -558,7 +693,7 @@ async def query_knowledge(
             query=request.query,
             total_chunks=len(chunks),
             chunks=chunks,
-            retrieval_time_ms=retrieval_time
+            retrieval_time_ms=retrieval_time,
         )
 
     except Exception as e:
@@ -567,6 +702,7 @@ async def query_knowledge(
 
 
 # ===== RECREATE COLLECTION =====
+
 
 @router.post(
     "/recreate-collection",
@@ -580,7 +716,7 @@ async def query_knowledge(
     - Resetting the knowledge base
 
     WARNING: This will delete ALL vectors. Documents in database will remain but need reprocessing.
-    """
+    """,
 )
 async def recreate_collection(db: AsyncSession = Depends(get_db)):
     """
@@ -600,9 +736,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=500, detail="Failed to recreate collection")
 
         # Reset all documents to unprocessed
-        result = await db.execute(
-            select(KnowledgeDocument)
-        )
+        result = await db.execute(select(KnowledgeDocument))
         documents = result.scalars().all()
 
         for doc in documents:
@@ -624,7 +758,7 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
             "collection_name": status.get("collection_name"),
             "dimension": COHERE_EMBED_DIMENSION,
             "documents_reset": len(documents),
-            "engine": "LlamaIndex"
+            "engine": "LlamaIndex",
         }
 
     except HTTPException:
@@ -636,10 +770,11 @@ async def recreate_collection(db: AsyncSession = Depends(get_db)):
 
 # ===== DEBUG QDRANT =====
 
+
 @router.get(
     "/debug/qdrant",
     summary="[Debug] Check Qdrant collection details",
-    description="Debug endpoint to verify Qdrant collection configuration and contents"
+    description="Debug endpoint to verify Qdrant collection configuration and contents",
 )
 async def debug_qdrant(db: AsyncSession = Depends(get_db)):
     """
@@ -664,7 +799,7 @@ async def debug_qdrant(db: AsyncSession = Depends(get_db)):
                 "exists": False,
                 "error": debug_info.get("error"),
                 "collection_name": debug_info.get("collection_name"),
-                "message": "Collection not accessible"
+                "message": "Collection not accessible",
             }
 
         return {
@@ -675,7 +810,7 @@ async def debug_qdrant(db: AsyncSession = Depends(get_db)):
             "expected_dimension": COHERE_EMBED_DIMENSION,
             "sample_points": debug_info.get("sample_points", []),
             "engine": debug_info.get("engine"),
-            "message": "Collection found and accessible"
+            "message": "Collection found and accessible",
         }
 
     except Exception as e:
@@ -685,15 +820,14 @@ async def debug_qdrant(db: AsyncSession = Depends(get_db)):
 
 # ===== KNOWLEDGE BASE STATUS =====
 
+
 @router.get(
     "/status",
     response_model=KnowledgeBaseStatusResponse,
     summary="Get knowledge base status",
-    description="Overall status of the knowledge base including Qdrant info"
+    description="Overall status of the knowledge base including Qdrant info",
 )
-async def get_status(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_status(db: AsyncSession = Depends(get_db)):
     """
     Get overall knowledge base status
 
@@ -705,14 +839,14 @@ async def get_status(
     """
     try:
         # Count documents
-        total_result = await db.execute(
-            select(func.count(KnowledgeDocument.id))
-        )
+        total_result = await db.execute(select(func.count(KnowledgeDocument.id)))
         total_documents = total_result.scalar() or 0
 
         # Count processed
         processed_result = await db.execute(
-            select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.processed == True)
+            select(func.count(KnowledgeDocument.id)).where(
+                KnowledgeDocument.processed == True
+            )
         )
         processed_documents = processed_result.scalar() or 0
 
@@ -723,9 +857,7 @@ async def get_status(
         total_vectors = vectors_result.scalar() or 0
 
         # Sum file sizes
-        size_result = await db.execute(
-            select(func.sum(KnowledgeDocument.file_size))
-        )
+        size_result = await db.execute(select(func.sum(KnowledgeDocument.file_size)))
         storage_size = size_result.scalar() or 0
 
         # Get last updated
@@ -752,7 +884,7 @@ async def get_status(
             total_vectors=total_vectors,
             storage_size_bytes=storage_size,
             last_updated=last_updated,
-            qdrant_info=qdrant_info
+            qdrant_info=qdrant_info,
         )
 
     except Exception as e:

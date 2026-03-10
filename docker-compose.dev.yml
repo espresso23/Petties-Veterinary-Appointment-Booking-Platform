@@ -154,6 +154,8 @@ services:
       # JWT Secret (Synced with Backend)
       JWT_SECRET: ${JWT_SECRET}
       SECRET_KEY: ${JWT_SECRET}
+      # Spring Boot Backend (container-to-container)
+      SPRING_BACKEND_URL: http://backend:8080/api
       # Qdrant Cloud (same as production)
       QDRANT_URL: ${QDRANT_URL:-}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
@@ -176,6 +178,8 @@ services:
     volumes:
       # Mount source code for hot-reload
       - ./petties-agent-serivce/app:/app/app:ro
+      # Persist uploaded documents across container rebuilds
+      - ai_storage_dev_data:/app/storage
     ports:
       - "8000:8000"
     depends_on:
@@ -238,4 +242,6 @@ volumes:
   mongodb_dev_data:
     driver: local
   redis_dev_data:
+    driver: local
+  ai_storage_dev_data:
     driver: local

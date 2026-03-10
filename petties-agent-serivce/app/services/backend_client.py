@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from loguru import logger
@@ -98,6 +98,12 @@ class SpringBackendClient:
     async def get_my_pets(self, token: str) -> Any:
         return await self._request("GET", "/pets/me", token=token)
 
+    async def get_vaccinations_by_pet(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
+        return await self._request("GET", f"/vaccinations/pet/{pet_id}", token=token)
+
+    async def get_upcoming_vaccinations(self, token: str, pet_id: str) -> List[Dict[str, Any]]:
+        return await self._request("GET", f"/vaccinations/pet/{pet_id}/upcoming", token=token)
+
     async def find_nearby_clinics(
         self,
         latitude: float,
@@ -118,9 +124,21 @@ class SpringBackendClient:
             },
         )
 
-    async def get_clinic_services(self, clinic_id: str, pet_species: Optional[str] = None) -> Any:
-        path = f"/services/by-clinic/{clinic_id}/compatible" if pet_species else f"/services/by-clinic/{clinic_id}"
-        params = {"petSpecies": pet_species} if pet_species else None
+    async def get_clinic_services(
+        self,
+        clinic_id: str,
+        pet_species: Optional[str] = None,
+        is_home_visit: Optional[bool] = None,
+    ) -> Any:
+        use_compatible_endpoint = pet_species is not None or is_home_visit is not None
+        path = f"/services/by-clinic/{clinic_id}/compatible" if use_compatible_endpoint else f"/services/by-clinic/{clinic_id}"
+        params = None
+        if use_compatible_endpoint:
+            params = {}
+            if pet_species is not None:
+                params["petSpecies"] = pet_species
+            if is_home_visit is not None:
+                params["isHomeVisit"] = is_home_visit
         return await self._request("GET", path, params=params)
 
     async def get_available_slots(

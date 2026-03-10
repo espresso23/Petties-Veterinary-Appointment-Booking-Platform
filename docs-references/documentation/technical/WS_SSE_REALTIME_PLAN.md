@@ -11,7 +11,7 @@ Tài liệu này định hướng cách phối hợp hai công nghệ này để
 Hệ thống hiện đã tích hợp hoàn tất các luồng thông báo chính qua **SSE**:
 
 *   **Thông báo Phòng khám (Clinic Notifications):** `APPROVED`, `REJECTED`, `CLINIC_PENDING_APPROVAL`.
-*   **Thông báo Lịch làm việc (Staff Shift Notifications):** `VET_SHIFT_ASSIGNED`, `VET_SHIFT_UPDATED`, `VET_SHIFT_DELETED`.
+*   **Thông báo Lịch làm việc (Staff Shift Notifications):** `STAFF_SHIFT_ASSIGNED`, `STAFF_SHIFT_UPDATED`, `STAFF_SHIFT_DELETED`.
 *   **Sidebar Badge Count:** Cập nhật số lượng thông báo chưa đọc thời gian thực cho tất cả các Role.
 *   **Real-time Pending Clinic Counter (Admin):** Tự động cập nhật số lượng phòng khám chờ duyệt trên Sidebar Admin ngay khi có yêu cầu mới hoặc có thay đổi trạng thái. ✅
 

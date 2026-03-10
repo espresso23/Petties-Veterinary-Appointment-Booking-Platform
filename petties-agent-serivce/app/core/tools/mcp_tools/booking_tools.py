@@ -12,6 +12,22 @@ from app.core.tools.mcp_server import mcp_server
 from app.services.backend_client import BackendClientError, get_backend_client
 
 
+def _normalize_booking_type(
+    booking_type: Optional[str],
+    home_address: Optional[str] = None,
+    home_lat: Optional[float] = None,
+    home_long: Optional[float] = None,
+) -> str:
+    normalized = (booking_type or "").strip().upper()
+    if normalized in {"IN_CLINIC", "HOME_VISIT", "SOS"}:
+        return normalized
+
+    if home_address or home_lat is not None or home_long is not None:
+        return "HOME_VISIT"
+
+    return "IN_CLINIC"
+
+
 def _require_auth_token() -> str:
     context = require_tool_runtime_context()
     if not context.auth_token:
@@ -52,6 +68,39 @@ def _format_operating_hours(raw_hours: Any) -> str:
             if open_time and close_time:
                 formatted_parts.append(f"{day}: {open_time}-{close_time}")
     return "; ".join(formatted_parts[:3]) if formatted_parts else "Chưa cập nhật"
+
+
+def _safe_date_label(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)).date().isoformat()
+    except ValueError:
+        try:
+            return date_cls.fromisoformat(str(value)).isoformat()
+        except ValueError:
+            return str(value)
+
+
+def _format_vaccination_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": record.get("id"),
+        "pet_id": record.get("petId"),
+        "booking_id": record.get("bookingId"),
+        "clinic_id": record.get("clinicId"),
+        "clinic_name": record.get("clinicName"),
+        "staff_id": record.get("staffId"),
+        "staff_name": record.get("staffName"),
+        "vaccine_name": record.get("vaccineName"),
+        "vaccine_template_id": record.get("vaccineTemplateId"),
+        "dose_number": record.get("doseNumber"),
+        "total_doses": record.get("totalDoses"),
+        "series_id": record.get("seriesId"),
+        "vaccination_date": _safe_date_label(record.get("vaccinationDate")),
+        "next_due_date": _safe_date_label(record.get("nextDueDate")),
+        "status": record.get("status"),
+        "notes": record.get("notes"),
+    }
 
 
 @mcp_server.tool
@@ -101,11 +150,19 @@ async def get_user_pets(user_id: Optional[str] = None) -> Dict[str, Any]:
 
 
 @mcp_server.tool
-async def get_clinic_services(clinic_id: str, pet_species: Optional[str] = None) -> Dict[str, Any]:
+async def get_clinic_services(
+    clinic_id: str,
+    pet_species: Optional[str] = None,
+    is_home_visit: Optional[bool] = None,
+) -> Dict[str, Any]:
     """Lấy danh sách dịch vụ của phòng khám."""
     client = get_backend_client()
     try:
-        services = await client.get_clinic_services(clinic_id, pet_species=pet_species)
+        services = await client.get_clinic_services(
+            clinic_id,
+            pet_species=pet_species,
+            is_home_visit=is_home_visit,
+        )
     except BackendClientError as exc:
         logger.error(f"get_clinic_services failed: {exc}")
         return {
@@ -122,9 +179,24 @@ async def get_clinic_services(clinic_id: str, pet_species: Optional[str] = None)
             "description": service.get("description"),
             "base_price": service.get("basePrice"),
             "duration_minutes": service.get("durationTime"),
+            "slots_required": service.get("slotsRequired"),
             "category": service.get("serviceCategory"),
             "pet_type": service.get("petType"),
             "is_home_visit": service.get("isHomeVisit"),
+            "reminder_interval": service.get("reminderInterval"),
+            "reminder_unit": service.get("reminderUnit"),
+            "vaccine_template_id": service.get("vaccineTemplateId"),
+            "is_vaccination": service.get("serviceCategory") == "VACCINATION",
+            "dose_prices": [
+                {
+                    "dose_number": dose_price.get("doseNumber"),
+                    "dose_label": dose_price.get("doseLabel"),
+                    "price": dose_price.get("price"),
+                    "is_active": dose_price.get("isActive"),
+                }
+                for dose_price in (service.get("dosePrices") or [])
+                if isinstance(dose_price, dict) and dose_price.get("isActive", True)
+            ],
         }
         for service in services
         if service.get("isActive", True)
@@ -132,8 +204,109 @@ async def get_clinic_services(clinic_id: str, pet_species: Optional[str] = None)
 
     return {
         "clinic_id": clinic_id,
+        "filters": {
+            "pet_species": pet_species,
+            "is_home_visit": is_home_visit,
+        },
         "services": formatted_services,
         "total_services": len(formatted_services),
+    }
+
+
+@mcp_server.tool
+async def check_vaccination_status(
+    pet_id: str,
+    vaccine_template_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Kiểm tra lịch sử tiêm và mũi sắp tới của pet để AI tư vấn booking tiêm chủng nhẹ nhàng như flow thường."""
+    token = _require_auth_token()
+    client = get_backend_client()
+
+    try:
+        history = await client.get_vaccinations_by_pet(token, pet_id)
+        upcoming = await client.get_upcoming_vaccinations(token, pet_id)
+    except BackendClientError as exc:
+        logger.error(f"check_vaccination_status failed: {exc}")
+        return {
+            "pet_id": pet_id,
+            "vaccine_template_id": vaccine_template_id,
+            "history": [],
+            "upcoming": [],
+            "history_count": 0,
+            "upcoming_count": 0,
+            "message": f"Không thể tải lịch sử tiêm chủng lúc này: {exc}",
+        }
+
+    normalized_template_id = (vaccine_template_id or "").strip() or None
+
+    def _matches_template(record: Dict[str, Any]) -> bool:
+        if not normalized_template_id:
+            return True
+        return str(record.get("vaccineTemplateId") or "").strip() == normalized_template_id
+
+    filtered_history = [
+        _format_vaccination_record(record)
+        for record in history
+        if isinstance(record, dict) and _matches_template(record)
+    ]
+    filtered_upcoming = [
+        _format_vaccination_record(record)
+        for record in upcoming
+        if isinstance(record, dict) and _matches_template(record)
+    ]
+
+    latest_history = None
+    if filtered_history:
+        latest_history = max(
+            filtered_history,
+            key=lambda item: (
+                item.get("vaccination_date") or "",
+                item.get("dose_number") or 0,
+            ),
+        )
+
+    recommended_next = None
+    if filtered_upcoming:
+        recommended_next = min(
+            filtered_upcoming,
+            key=lambda item: (
+                item.get("next_due_date") or "9999-12-31",
+                item.get("dose_number") or 999,
+            ),
+        )
+
+    if recommended_next and latest_history:
+        message = (
+            f"Pet đã có lịch sử tiêm {latest_history.get('vaccine_name') or 'vắc-xin này'}"
+            f" ở mũi {latest_history.get('dose_number') or 'gần nhất'}."
+            f" Có thể tư vấn người dùng đặt mũi tiếp theo với hạn nhắc"
+            f" {recommended_next.get('next_due_date') or 'chưa xác định'}."
+        )
+    elif recommended_next:
+        message = (
+            f"Đã có gợi ý mũi tiêm sắp tới cho pet này:"
+            f" {recommended_next.get('vaccine_name') or 'vắc-xin'}"
+            f" (mũi {recommended_next.get('dose_number') or 'tiếp theo'})"
+            f", hạn nhắc {recommended_next.get('next_due_date') or 'chưa xác định'}."
+        )
+    elif latest_history:
+        message = (
+            f"Pet đã có lịch sử tiêm gần nhất là {latest_history.get('vaccine_name') or 'vắc-xin'}"
+            f" vào ngày {latest_history.get('vaccination_date') or 'chưa rõ'}."
+        )
+    else:
+        message = "Chưa có lịch sử hoặc gợi ý tiêm chủng phù hợp; vẫn có thể tiếp tục flow booking bình thường."
+
+    return {
+        "pet_id": pet_id,
+        "vaccine_template_id": normalized_template_id,
+        "history": filtered_history,
+        "upcoming": filtered_upcoming,
+        "history_count": len(filtered_history),
+        "upcoming_count": len(filtered_upcoming),
+        "latest_history": latest_history,
+        "recommended_next": recommended_next,
+        "message": message,
     }
 
 
@@ -277,7 +450,12 @@ async def create_booking_for_user(
     booking_date: str,
     start_time: str,
     service_ids: List[str],
+    booking_type: Optional[str] = None,
     notes: Optional[str] = None,
+    home_address: Optional[str] = None,
+    home_lat: Optional[float] = None,
+    home_long: Optional[float] = None,
+    distance_km: Optional[float] = None,
     user_id: Optional[str] = None,
     confirmed: bool = False,
 ) -> Dict[str, Any]:
@@ -289,6 +467,33 @@ async def create_booking_for_user(
             "message": "Chưa có xác nhận đặt lịch từ người dùng. Hãy tóm tắt thông tin booking và yêu cầu xác nhận rõ ràng trước khi tạo booking.",
         }
 
+    normalized_booking_type = _normalize_booking_type(
+        booking_type=booking_type,
+        home_address=home_address,
+        home_lat=home_lat,
+        home_long=home_long,
+    )
+
+    if normalized_booking_type == "HOME_VISIT":
+        missing_fields: List[str] = []
+        if not home_address:
+            missing_fields.append("địa chỉ khám tại nhà")
+        if home_lat is None:
+            missing_fields.append("tọa độ vĩ độ")
+        if home_long is None:
+            missing_fields.append("tọa độ kinh độ")
+        if distance_km is None:
+            missing_fields.append("khoảng cách di chuyển")
+
+        if missing_fields:
+            return {
+                "success": False,
+                "message": (
+                    "Booking khám tại nhà còn thiếu thông tin bắt buộc: "
+                    f"{', '.join(missing_fields)}."
+                ),
+            }
+
     token = _require_auth_token()
     client = get_backend_client()
 
@@ -297,10 +502,20 @@ async def create_booking_for_user(
         "clinicId": clinic_id,
         "bookingDate": booking_date,
         "bookingTime": start_time,
-        "type": "IN_CLINIC",
+        "type": normalized_booking_type,
         "serviceIds": service_ids,
         "notes": notes,
     }
+
+    if normalized_booking_type == "HOME_VISIT":
+        payload.update(
+            {
+                "homeAddress": home_address,
+                "homeLat": home_lat,
+                "homeLong": home_long,
+                "distanceKm": distance_km,
+            }
+        )
 
     try:
         booking = await client.create_booking(token, payload)
@@ -330,9 +545,12 @@ async def create_booking_for_user(
             "clinic_name": booking.get("clinicName"),
             "date": booking.get("bookingDate"),
             "time": str(booking.get("bookingTime", ""))[:5],
+            "type": booking.get("type") or normalized_booking_type,
             "services": services,
             "estimated_total": booking.get("totalPrice"),
+            "home_address": booking.get("homeAddress") or home_address,
+            "distance_km": booking.get("distanceKm") or distance_km,
             "user_id": resolved_user_id,
         },
-        "message": f"Đã tạo booking thành công cho {booking.get('petName')} tại {booking.get('clinicName')}.",
+        "message": f"Đã tạo booking thành công cho {booking.get('petName')} tại {booking.get('clinicName')}",
     }

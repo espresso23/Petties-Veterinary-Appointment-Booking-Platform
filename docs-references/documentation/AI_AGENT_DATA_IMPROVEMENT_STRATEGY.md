@@ -369,8 +369,8 @@ else:
 
 2. **Tool Performance:**
    - `get_user_pets`: 98% success
-   - `search_clinics`: 95% success
-   - `create_booking`: 85% success ⚠️ (needs investigation)
+   - `search_clinics_nearby`: 95% success
+   - `create_booking_for_user`: 85% success ⚠️ (needs investigation)
 
 3. **User Satisfaction:**
    - 👍 Thumbs up: 420 (82%)
