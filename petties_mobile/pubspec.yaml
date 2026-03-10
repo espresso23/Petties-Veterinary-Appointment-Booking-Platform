@@ -85,3 +85,4 @@ flutter:
   assets:
     - assets/images/
     - assets/images/logo/
+    - shorebird.yaml
