@@ -67,4 +67,6 @@ workflows:
           ls -la Runner.ipa
           echo "✅ IPA ready: $(du -h Runner.ipa)"
     artifacts:
-      - petties_mobile/Runner.ipa
+      - Runner.ipa
+      - build/ios/archive/Runner.xcarchive/**/*.ipa
+      - ./**/*.ipa
