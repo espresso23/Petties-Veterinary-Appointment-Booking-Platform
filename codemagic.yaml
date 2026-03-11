@@ -19,8 +19,19 @@ workflows:
           $HOME/.shorebird/bin/shorebird --version
       - name: Create .env from CodeMagic Variables
         script: |
-          echo "ENV=$ENV" > .env
-          echo "API_BASE_URL=$API_BASE_URL" >> .env
+          cat > .env << 'ENVEOF'
+          API_BASE_URL=https://api-test.petties.world
+          AI_SERVICE_URL=https://api-test.petties.world
+          WS_URL=wss://api-test.petties.world
+          GOOGLE_CLIENT_ID=620454234596-vv1v2t95mmsvpgfj6h2oodj0030fguia.apps.googleusercontent.com
+          GOONG_API_KEY=wFNRmlVOfptNJb1489XgcutaXwZc2FBJJPU3VQ0j
+          MAP_API_KEY=AIzaSyC-IQBcX0Sbbhb0seXwGdUbkvB5rSBUoic
+          SENTRY_DSN=
+          ENVIRONMENT=dev
+          ENVEOF
+          # Xóa khoảng trắng đầu dòng do heredoc
+          sed -i 's/^[[:space:]]*//' .env
+          echo "✅ .env file created:"
           cat .env
       - name: Flutter pub get
         script: flutter pub get
