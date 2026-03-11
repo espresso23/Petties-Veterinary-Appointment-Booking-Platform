@@ -50,19 +50,26 @@ class Environment {
 
   /// Get the base URL (dart-define -> .env -> local fallback)
   static String get baseUrl {
-    // Priority 1: API_URL passed via --dart-define
+    // 1. Priority: API_URL passed via --dart-define (compile time)
     if (_apiUrlOverride.isNotEmpty) {
       return _apiUrlOverride;
     }
 
-    // Priority 2: API_URL from .env file (via dotenv)
+    // 2. Priority: API_BASE_URL from .env file (auto-appends /api)
+    // This is the primary way for Local Dev and CodeMagic
+    final envBase = _devBaseUrl;
+    if (!envBase.contains('localhost') && !envBase.contains('10.0.2.2')) {
+      return envBase;
+    }
+
+    // 3. Fallback: Check if there's a specific API_URL in .env
     try {
       final envUrl = dotenv.env['API_URL'] ?? '';
       if (envUrl.isNotEmpty) return envUrl;
     } catch (_) {}
 
-    // Priority 3: local fallback
-    return _devBaseUrl;
+    // 4. Final fallback: local dev values (localhost/10.0.2.2)
+    return envBase;
   }
 
   /// AI Service URL

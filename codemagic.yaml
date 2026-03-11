@@ -23,7 +23,6 @@ workflows:
       - name: Create .env from CodeMagic Variables
         script: |
           echo "API_BASE_URL=$API_BASE_URL" > .env
-          echo "API_URL=$API_BASE_URL" >> .env
           echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
           echo "WS_URL=$WS_URL" >> .env
           echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
@@ -98,7 +97,6 @@ workflows:
       - name: Create .env from CodeMagic Variables
         script: |
           echo "API_BASE_URL=$API_BASE_URL" > .env
-          echo "API_URL=$API_BASE_URL" >> .env
           echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
           echo "WS_URL=$WS_URL" >> .env
           echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
