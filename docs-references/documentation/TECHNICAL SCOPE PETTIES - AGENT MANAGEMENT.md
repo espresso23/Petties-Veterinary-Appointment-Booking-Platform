@@ -374,9 +374,31 @@ Danh sách chi tiết các công nghệ được sử dụng để xây dựng h
 
 * **Web Search:** Tavily Search API
   * Free tier: 1,000 searches/month
-  * Optimized cho AI agents (trả về structured data)
+  * Optimized cho AI agents (tra ve structured data)
 
-* **Domain Knowledge:** Veterinary Knowledge Graph (future enhancement)
+* **Domain Knowledge & Intelligence:**
+
+  * **Knowledge Graph (LlamaIndex KnowledgeGraphIndex):**
+    * Extract triplets tu tai lieu thu y: (Trieu chung) --chi_diem--> (Benh) --thuong_gap--> (Loai)
+    * Hybrid Query: RAG (vector similarity) + KG (graph traversal) cho suy luan chuoi
+    * Backend: SimpleGraphStore (MVP) -> Neo4j (scale)
+    * Vi du: "Ho khan + Chay mui" -> KG suy luan -> "Viem mui hong" -> "Khang sinh + Giu am"
+
+  * **Visual Case Memory (Qdrant `petties_case_memory` collection):**
+    * LLM Vision mo ta hinh anh -> embed text -> luu kem metadata (loai, benh, feedback)
+    * Lan sau gap anh tuong tu -> tim case da confirmed -> chinh xac hon
+    * Feedback-weighted retrieval: case confirmed nhieu lan duoc uu tien
+
+  * **Query Expansion:**
+    * LLM tu dong mo rong query ngan ("cho non bo an" -> them dong nghia, thuat ngu chuyen mon)
+    * Tang recall cho RAG search
+
+  * **Feedback Loop:**
+    * Thumbs up/down -> luu MongoDB `chat_feedback` -> embed confirmed cases vao Case Memory
+    * Prompt optimization dua tren pattern tu feedback data
+    * Periodic prune: loai case nhieu, uu tien case verified
+
+  * **Chi tiet:** Xem `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Section 7-11
 
 ### **D. Infrastructure & Real-time (AWS EC2 Production)**
 
@@ -430,6 +452,10 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **KB-01** | **Document Upload** | Upload tài liệu (PDF, DOCX, TXT, MD) cho RAG. LlamaIndex xử lý chunking. | **✅ Done** |
 | **KB-02** | **Indexing Status** | Theo dõi trạng thái indexing: parsing → chunking → embedding → Qdrant. | **✅ Done** |
 | **KB-03** | **RAG Retrieval Test** | Admin nhập query test để xem RAG trả về chunks nào từ knowledge base. | **✅ Done** |
+| **KB-04** | **Query Expansion** | LLM tu dong mo rong query ngan gon truoc khi RAG search. Tang recall cho cau hoi ngan cua bac si. | **✅ Done** |
+| **KB-05** | **Knowledge Graph Index** | LlamaIndex KG extract triplets (trieu chung->benh->loai) tu tai lieu. Hybrid query RAG + KG. | **Planned (Phase 2)** |
+| **KB-06** | **Visual Case Memory** | Luu mo ta hinh anh + chan doan + feedback vao Qdrant. Tim case tuong tu cho lan sau. | **✅ Done** |
+| **KB-07** | **Feedback Loop & Case Embedding** | Thu thap feedback (thumbs up/down), embed confirmed cases vao Case Memory. | **✅ Done** |
 
 ### **Agent Testing & Debugging**
 
@@ -439,7 +465,7 @@ Các tính năng được phân nhóm theo chức năng và mức độ ưu tiê
 | **PG-02** | **ReAct Flow Visualization** | Hiển thị luồng ReAct: Thought → Action → Observation → Loop → Answer. | **✅ Done** |
 | **PG-03** | **Tool Call Inspector** | Xem chi tiết parameters và response của mỗi tool call. | **✅ Done** |
 | **PG-04** | **Citation View** | Hiển thị nguồn trích dẫn từ RAG (filename, chunks). | **🔄 In Progress** |
-| **PG-05** | **Response Feedback** | Admin đánh giá câu trả lời (Good/Bad) để improve prompt. | **Medium** |
+| **PG-05** | **Response Feedback** | User/Admin danh gia cau tra loi (Good/Bad) de improve prompt. Luu vao MongoDB `chat_feedback`. | **✅ Done** |
 
 
 ## **10\. Use Case Descriptions (Mô tả Kịch bản Sử dụng)**

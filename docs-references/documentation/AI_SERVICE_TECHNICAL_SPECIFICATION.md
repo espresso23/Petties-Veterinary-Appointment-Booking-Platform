@@ -204,24 +204,67 @@ Khi kết quả từ RAG có **confidence thấp** (ít chunk liên quan, score 
 
 Tool web search **không thay thế** RAG; nó dùng để **phòng trường hợp confidence thấp** và vẫn cần hiển thị disclaimer phù hợp (thông tin từ web, cần tham khảo bác sĩ thú y).
 
-### 3.5 AI được phát triển/vận hành và cập nhật dữ liệu theo thời gian
+### 3.5 AI duoc phat trien/van hanh va cap nhat du lieu theo thoi gian
 
-Để trả lời đúng mối quan tâm của reviewer/mentor, AI được vận hành theo 3 vòng:
+De tra loi dung moi quan tam cua reviewer/mentor, AI duoc van hanh theo 3 vong chinh va 4 co che cai thien do chinh xac:
 
-1. **Vòng phát triển (Development):**
-    - Thêm/cập nhật tool bằng code (`@mcp.tool`).
-    - Version hóa prompt, model, hyperparameters trong PostgreSQL.
-    - Kiểm thử API/tool và regression theo use case.
+#### A. 3 Vong Van Hanh
 
-2. **Vòng vận hành (Operations):**
-    - Runtime lấy config động từ DB (không hard-code).
-    - Ghi log + trace (thought/tool/observation) vào chat metadata để audit.
-    - Theo dõi lỗi LLM/tool, áp dụng retry và fallback an toàn.
+1. **Vong phat trien (Development):**
+    - Them/cap nhat tool bang code (`@mcp.tool`).
+    - Version hoa prompt, model, hyperparameters trong PostgreSQL.
+    - Kiem thu API/tool va regression theo use case.
 
-3. **Vòng cập nhật tri thức (Knowledge Refresh):**
-    - Admin upload tài liệu mới → chunking → embedding → upsert Qdrant.
-    - Re-index định kỳ hoặc khi tài liệu thay đổi.
-    - Dọn dữ liệu chat cũ theo chính sách retention.
+2. **Vong van hanh (Operations):**
+    - Runtime lay config dong tu DB (khong hard-code).
+    - Ghi log + trace (thought/tool/observation) vao chat metadata de audit.
+    - Theo doi loi LLM/tool, ap dung retry va fallback an toan.
+
+3. **Vong cap nhat tri thuc (Knowledge Refresh):**
+    - Admin upload tai lieu moi -> chunking -> embedding -> upsert Qdrant.
+    - Re-index dinh ky hoac khi tai lieu thay doi.
+    - Don du lieu chat cu theo chinh sach retention.
+
+#### B. 4 Co che Cai thien Do Chinh xac
+
+| # | Co che | Mo ta | Trang thai |
+|---|--------|-------|------------|
+| 1 | **Query Expansion** | LLM tu dong mo rong query ngan gon (vd: "cho non bo an" -> them dong nghia, thuat ngu chuyen mon, trieu chung lien quan) truoc khi RAG search. Tang recall dang ke. | Implemented |
+| 2 | **Knowledge Graph** | LlamaIndex KnowledgeGraphIndex extract triplets (trieu chung -> benh -> loai -> phac do) tu tai lieu thu y. Hybrid query RAG + KG cho phep suy luan chuoi ma RAG thuan khong lam duoc. | Planned (Phase 2) |
+| 3 | **Visual Case Memory** | Moi lan chan doan qua hinh anh: LLM Vision mo ta visual features -> embed text + metadata (loai, benh, feedback) -> luu vao Qdrant collection `petties_case_memory`. Lan sau gap anh tuong tu -> tim case da confirmed -> chinh xac hon. | Implemented |
+| 4 | **Feedback Loop** | User/bac si danh gia dung/sai (thumbs up/down). Case confirmed -> tu dong embed vao Case Memory. Case rejected -> giam trong so. Prompt duoc tinh chinh dua tren pattern tu feedback. | Implemented |
+
+#### C. Flow Tong the: He thong Tot len Theo Thoi gian
+
+```mermaid
+flowchart TB
+    subgraph COLLECT["1. Thu thap"]
+        Chat["Chat History (MongoDB)"]
+        FB["User Feedback (thumbs up/down)"]
+        Img["Hinh anh chan doan"]
+        Doc["Tai lieu thu y moi"]
+    end
+    
+    subgraph PROCESS["2. Xu ly & Tich luy"]
+        QE["Query Expansion<br/>(mo rong truy van)"]
+        KG["Knowledge Graph<br/>(extract triplets)"]
+        CM["Case Memory<br/>(embed confirmed cases)"]
+    end
+    
+    subgraph IMPROVE["3. Cai thien"]
+        Prompt["Prompt Optimization"]
+        Rerank["Feedback-weighted Retrieval"]
+        Prune["Periodic Prune & Re-rank"]
+    end
+    
+    COLLECT --> PROCESS
+    PROCESS --> IMPROVE
+    IMPROVE -->|"Lan query tiep theo"| COLLECT
+```
+
+**Ket qua:** Cang nhieu case tich luy, AI cang co nhieu tri thuc tham chieu thuc te. He thong khong bao gio dung mai 1 bo du lieu cu — no tu lon len sau moi lan su dung.
+
+**Chi tiet day du:** Xem `AI_AGENT_DATA_IMPROVEMENT_STRATEGY.md` Section 7-11.
 
 ### 3.6 Prompt Version có cần thiết không?
 

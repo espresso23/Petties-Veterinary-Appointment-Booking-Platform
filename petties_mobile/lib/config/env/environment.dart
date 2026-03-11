@@ -13,8 +13,20 @@ class Environment {
     }
 
     try {
-      final envWsUrl = dotenv.env['WS_URL'] ?? '';
-      if (envWsUrl.isNotEmpty) return envWsUrl;
+      String envWsUrl = dotenv.env['WS_URL'] ?? '';
+      if (envWsUrl.isNotEmpty) {
+        // Ensure path is present
+        if (!envWsUrl.contains('/ws-native')) {
+          if (envWsUrl.endsWith('/')) {
+            envWsUrl += 'api/ws-native';
+          } else if (envWsUrl.endsWith('/api')) {
+            envWsUrl += '/ws-native';
+          } else {
+            envWsUrl += '/api/ws-native';
+          }
+        }
+        return envWsUrl;
+      }
     } catch (_) {}
 
     return '';

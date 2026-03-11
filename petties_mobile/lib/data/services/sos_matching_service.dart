@@ -404,8 +404,14 @@ class SosMatchingService extends ChangeNotifier {
     _client = StompClient(
       config: StompConfig(
         url: _wsUrl,
-        stompConnectHeaders: {'Authorization': 'Bearer $_accessToken'},
-        webSocketConnectHeaders: {'Authorization': 'Bearer $_accessToken'},
+        stompConnectHeaders: {
+          'Authorization': 'Bearer $_accessToken',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        webSocketConnectHeaders: {
+          'Authorization': 'Bearer $_accessToken',
+          'ngrok-skip-browser-warning': 'true',
+        },
         onConnect: (frame) {
           _logger.i('SOS Matching WebSocket connected');
           _isConnected = true;

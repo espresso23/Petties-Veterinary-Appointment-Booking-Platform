@@ -155,9 +155,11 @@ class ChatWebSocketService {
         url: wsUrl,
         stompConnectHeaders: {
           'Authorization': 'Bearer $_accessToken',
+          'ngrok-skip-browser-warning': 'true',
         },
         webSocketConnectHeaders: {
           'Authorization': 'Bearer $_accessToken',
+          'ngrok-skip-browser-warning': 'true',
         },
         onConnect: _onConnect,
         onDisconnect: _onDisconnect,
