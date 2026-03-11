@@ -22,17 +22,14 @@ workflows:
           $HOME/.shorebird/bin/shorebird --version
       - name: Create .env from CodeMagic Variables
         script: |
-          cat > .env << ENVEOF
-          API_BASE_URL=$API_BASE_URL
-          AI_SERVICE_URL=$AI_SERVICE_URL
-          WS_URL=$WS_URL
-          GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
-          GOONG_API_KEY=$GOONG_API_KEY
-          MAP_API_KEY=$MAP_API_KEY
-          SENTRY_DSN=$SENTRY_DSN
-          ENVIRONMENT=$ENVIRONMENT
-          ENVEOF
-          sed -i 's/^[[:space:]]*//' .env
+          echo "API_BASE_URL=$API_BASE_URL" > .env
+          echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
+          echo "WS_URL=$WS_URL" >> .env
+          echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+          echo "GOONG_API_KEY=$GOONG_API_KEY" >> .env
+          echo "MAP_API_KEY=$MAP_API_KEY" >> .env
+          echo "SENTRY_DSN=$SENTRY_DSN" >> .env
+          echo "ENVIRONMENT=$ENVIRONMENT" >> .env
           echo "✅ .env file created:"
           cat .env
       - name: Flutter pub get
@@ -99,17 +96,14 @@ workflows:
           $HOME/.shorebird/bin/shorebird --version
       - name: Create .env from CodeMagic Variables
         script: |
-          cat > .env << ENVEOF
-          API_BASE_URL=$API_BASE_URL
-          AI_SERVICE_URL=$AI_SERVICE_URL
-          WS_URL=$WS_URL
-          GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
-          GOONG_API_KEY=$GOONG_API_KEY
-          MAP_API_KEY=$MAP_API_KEY
-          SENTRY_DSN=$SENTRY_DSN
-          ENVIRONMENT=$ENVIRONMENT
-          ENVEOF
-          sed -i 's/^[[:space:]]*//' .env
+          echo "API_BASE_URL=$API_BASE_URL" > .env
+          echo "AI_SERVICE_URL=$AI_SERVICE_URL" >> .env
+          echo "WS_URL=$WS_URL" >> .env
+          echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+          echo "GOONG_API_KEY=$GOONG_API_KEY" >> .env
+          echo "MAP_API_KEY=$MAP_API_KEY" >> .env
+          echo "SENTRY_DSN=$SENTRY_DSN" >> .env
+          echo "ENVIRONMENT=$ENVIRONMENT" >> .env
           echo "✅ .env file created:"
           cat .env
       - name: Flutter pub get
