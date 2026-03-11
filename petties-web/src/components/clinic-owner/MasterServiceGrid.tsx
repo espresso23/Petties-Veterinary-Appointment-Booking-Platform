@@ -19,7 +19,7 @@ import { inheritFromMasterService } from '../../services/endpoints/service'
 import { useToast } from '../Toast'
 import { ClinicSelectModal } from './ClinicSelectModal'
 import type { ClinicApplyItem } from './ClinicSelectModal'
-import { getClinicPricePerKm } from '../../services/endpoints/clinic'
+import { getClinicPricing } from '../../services/endpoints/clinic'
 import type { MasterServiceResponse, MasterServiceRequest } from '../../types/service'
 
 // Convert MasterServiceResponse to local MasterService type
@@ -315,7 +315,8 @@ export function MasterServiceGrid() {
                       const fetchedPriceMap: Record<string, number | undefined> = {}
                       await Promise.all(clinicsNeedingFetch.map(async (c) => {
                         try {
-                          const p = await getClinicPricePerKm(c.clinicId)
+                          const result = await getClinicPricing(c.clinicId)
+                          const p = result.pricePerKm
                           if (p !== null && p !== undefined) {
                             fetchedPriceMap[c.clinicId] = p
                             return

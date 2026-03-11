@@ -64,8 +64,10 @@ public class BookingController {
 
     /**
      * Calculate estimated completion time (Public endpoint)
-     * Returns total duration and estimated end time based on pets with services and start time
-     * Request format: { startTime, pets: [{ petId, petWeight, serviceIds: [...] }] }
+     * Returns total duration and estimated end time based on pets with services and
+     * start time
+     * Request format: { startTime, pets: [{ petId, petWeight, serviceIds: [...] }]
+     * }
      */
     @PostMapping("/public/estimated-completion")
     public ResponseEntity<EstimatedCompletionResponse> getEstimatedCompletion(
@@ -99,7 +101,8 @@ public class BookingController {
 
     /**
      * Create a proxy booking (Đặt hộ - booking on behalf of someone else)
-     * The logged-in user creates a booking for another person who may not have an account.
+     * The logged-in user creates a booking for another person who may not have an
+     * account.
      */
     @PreAuthorize("hasRole('PET_OWNER')")
     @PostMapping("/proxy")
@@ -107,9 +110,9 @@ public class BookingController {
             @Valid @RequestBody ProxyBookingRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
 
-        log.info("POST /bookings/proxy - Creating proxy booking for recipient: {}", 
+        log.info("POST /bookings/proxy - Creating proxy booking for recipient: {}",
                 request.getRecipient().getFullName());
-        
+
         com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
         BookingResponse response = bookingService.createProxyBooking(request, userPrincipal.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -189,7 +192,7 @@ public class BookingController {
     /**
      * Get available staff for reassigning a specific service item
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'CLINIC_OWNER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @GetMapping("/{bookingId}/services/{serviceId}/available-staff")
     public ResponseEntity<List<AvailableStaffResponse>> getAvailableStaffForReassign(
             @PathVariable UUID bookingId,
@@ -214,7 +217,7 @@ public class BookingController {
     /**
      * Get detailed availability info for a specific booking
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @GetMapping("/{bookingId}/availability")
     public ResponseEntity<StaffAvailabilityCheckResponse> getStaffAvailability(@PathVariable UUID bookingId) {
         StaffAvailabilityCheckResponse response = bookingService.checkStaffAvailability(bookingId);
@@ -224,7 +227,7 @@ public class BookingController {
     /**
      * Get available staff for manual confirmation of a booking
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @GetMapping({ "/{bookingId}/staff-options", "/{bookingId}/available-staff-for-confirm" })
     public ResponseEntity<List<StaffOptionDTO>> getStaffOptions(@PathVariable UUID bookingId) {
         List<StaffOptionDTO> options = bookingService.getAvailableStaffForConfirm(bookingId);
@@ -234,7 +237,7 @@ public class BookingController {
     /**
      * Get available staff for reassigning a specific service item (alternatives)
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @GetMapping("/{bookingId}/services/{serviceId}/alternatives")
     public ResponseEntity<List<AvailableStaffResponse>> getReassignAlternatives(
             @PathVariable UUID bookingId,
@@ -249,7 +252,7 @@ public class BookingController {
      * Confirm booking (Clinic Manager action)
      * Auto-assigns or manual-assigns staff and reserves slots
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/confirm")
     public ResponseEntity<BookingResponse> confirmBooking(
             @PathVariable UUID bookingId,
@@ -262,7 +265,7 @@ public class BookingController {
     /**
      * Reassign staff for a specific service item
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @PutMapping("/{bookingId}/services/{serviceId}/reassign")
     public ResponseEntity<BookingResponse> reassignStaff(
             @PathVariable UUID bookingId,
@@ -277,7 +280,7 @@ public class BookingController {
     /**
      * Add service to an active booking (Staff/Manager action)
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/services")
     public ResponseEntity<BookingResponse> addService(
             @PathVariable UUID bookingId,
@@ -294,7 +297,7 @@ public class BookingController {
     /**
      * Get available services that can be added to a booking
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER')")
     @GetMapping("/{bookingId}/available-add-ons")
     public ResponseEntity<List<com.petties.petties.dto.clinicService.ClinicServiceResponse>> getAvailableAddOns(
             @PathVariable UUID bookingId,
@@ -311,7 +314,7 @@ public class BookingController {
     /**
      * Cancel booking
      */
-    @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('PET_OWNER', 'CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/cancel")
     public ResponseEntity<BookingResponse> cancelBooking(
             @PathVariable UUID bookingId,
@@ -323,15 +326,15 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/check-in")
-        public ResponseEntity<BookingResponse> checkIn(
-                @PathVariable UUID bookingId,
-                @AuthenticationPrincipal UserDetails userDetails) {
-            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
-            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+    public ResponseEntity<BookingResponse> checkIn(
+            @PathVariable UUID bookingId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
 
-            BookingResponse response = bookingService.checkIn(bookingId, currentUser);
+        BookingResponse response = bookingService.checkIn(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 
@@ -339,35 +342,36 @@ public class BookingController {
      * Start moving to customer location (Staff action)
      * Transitions: CONFIRMED → IN_PROGRESS (simplified flow)
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF')")
     @PostMapping("/{bookingId}/start-moving")
-        public ResponseEntity<BookingResponse> startMoving(
-                @PathVariable UUID bookingId,
-                @AuthenticationPrincipal UserDetails userDetails) {
-            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
-            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+    public ResponseEntity<BookingResponse> startMoving(
+            @PathVariable UUID bookingId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
 
-            BookingResponse response = bookingService.startMoving(bookingId, currentUser);
+        BookingResponse response = bookingService.startMoving(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
+
     /**
      * Staff arrived at customer location (Staff action)
      * Transitions: IN_PROGRESS (Movement) -> IN_PROGRESS (Arrival recorded)
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF')")
     @PostMapping("/{bookingId}/arrived")
-        public ResponseEntity<BookingResponse> arrived(
-                @PathVariable UUID bookingId,
-                @AuthenticationPrincipal UserDetails userDetails) {
-            com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
-            com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
+    public ResponseEntity<BookingResponse> arrived(
+            @PathVariable UUID bookingId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal userPrincipal = (com.petties.petties.config.UserDetailsServiceImpl.UserPrincipal) userDetails;
+        com.petties.petties.model.User currentUser = bookingService.getCurrentUserById(userPrincipal.getUserId());
 
-            BookingResponse response = bookingService.arrived(bookingId, currentUser);
+        BookingResponse response = bookingService.arrived(bookingId, currentUser);
         return ResponseEntity.ok(response);
     }
 
     /**
-         * Checkout booking (Staff/Manager action)
+     * Checkout booking (Staff/Manager action)
      * For SOS bookings, allows overriding the SOS fee
      */
     @PreAuthorize("hasAnyRole('STAFF', 'CLINIC_MANAGER')")
@@ -389,7 +393,7 @@ public class BookingController {
      * Does NOT change booking status - just sends notification
      * Only for HOME_VISIT and SOS bookings
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER')")
     @PostMapping("/{bookingId}/notify-on-way")
     public ResponseEntity<BookingResponse> notifyOnWay(@PathVariable UUID bookingId) {
         BookingResponse response = bookingService.notifyOnWay(bookingId);
@@ -403,7 +407,7 @@ public class BookingController {
      * Aggregates: today's booking count, pending count, upcoming bookings list
      * Optimized single API call for mobile home screen
      */
-    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('STAFF')")
     @GetMapping("/staff/home-summary")
     public ResponseEntity<com.petties.petties.dto.booking.StaffHomeSummaryResponse> getStaffHomeSummary(
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -417,7 +421,7 @@ public class BookingController {
     /**
      * Remove a service from booking (Only add-on services)
      */
-    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'STAFF', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_MANAGER', 'STAFF')")
     @DeleteMapping("/{bookingId}/services/{serviceId}")
     public ResponseEntity<BookingResponse> removeServiceFromBooking(
             @PathVariable UUID bookingId,

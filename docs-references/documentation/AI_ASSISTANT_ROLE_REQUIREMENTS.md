@@ -17,14 +17,16 @@
 | Role | AI Behavior | Interface | Proactive? | Context Data |
 |------|-------------|-----------|------------|--------------|
 | **PET_OWNER** | Simple Q&A chatbot | Mobile: Chat bubble | ❌ No | user_id, pets, bookings |
-| **STAFF** | Task assistant + Alerts | Web/Mobile: Slide-in panel | ✅ Yes | user_id, clinic_id, assigned_bookings, today_schedule |
-| **CLINIC_MANAGER** | Operations assistant + Analytics | Web: Slide-in panel | ✅ Yes | user_id, clinic_id, all_bookings, staff_list, revenue_data |
-| **CLINIC_OWNER** | Business intelligence assistant | Web: Slide-in panel | ✅ Yes | user_id, owned_clinics[], revenue_trends, market_data |
+| **STAFF** | Diagnostic support + Patient context | Web/Mobile: Slide-in panel | ⚠️ Limited | user_id, clinic_id, assigned_bookings, patient_context |
+| **CLINIC_MANAGER** | Operations assistant | Web: Slide-in panel | ✅ Yes | user_id, clinic_id, all_bookings, staff_list |
+| **CLINIC_OWNER** | Clinic setup assistant | Web: Setup wizard/panel | ❌ No | user_id, clinic_id, clinic_profile |
 | **ADMIN** | Agent configuration only | Web: Admin dashboard | ❌ No | system_settings, agent_config |
 
 **Sự khác biệt chính:**
 - **Pet Owner:** Passive assistant - chỉ trả lời khi được hỏi
-- **Clinic Roles (Staff/Manager/Owner):** Proactive assistant - chủ động gửi notifications khi phát hiện issues/insights
+- **Staff:** Hỗ trợ đánh giá ca bệnh nhanh hơn nhờ triệu chứng, hồ sơ và hình ảnh lâm sàng.
+- **Clinic Manager:** Tập trung hỗ trợ vận hành clinic như SOS và phân công staff.
+- **Clinic Owner:** Tập trung generate danh mục dịch vụ để setup clinic, không đi theo hướng BI/phân tích tăng trưởng.
 
 ---
 
@@ -80,12 +82,12 @@
 
 ---
 
-## 3. 👨‍⚕️ STAFF - Task Assistant + Alerts
+## 3. 👨‍⚕️ STAFF - Diagnostic Support + Patient Summary
 
 ### 3.1 Use Cases
 | UC-ID | Tên | Priority | Proactive Trigger |
 |-------|-----|----------|-------------------|
-| UC-020 | AI Staff Assistant | P0 | New booking assigned, Vaccination reminder, Schedule conflict |
+| UC-020 | AI Staff Diagnostic Support | P0 | Before examination / During case review |
 | UC-023 | Summarize patient info | P1 | Before examination |
 
 ### 3.2 Interface Requirements
@@ -116,49 +118,12 @@
 ```
 
 ### 3.4 AI Behavior
-- **Tone:** Professional, hướng dẫn, supportive
-- **Proactive:** ✅ Chủ động gửi notifications
-- **Notification Types:**
-  1. 🔴 **URGENT:** Conflict lịch (2 bookings cùng giờ)
-  2. 🟡 **WARNING:** Pet sắp hết hạn vaccine (7 ngày)
-  3. 🟢 **INFO:** Booking mới được assign, Patient info summary sẵn sàng
-
-### 3.5 Proactive Notification Logic
-**Trigger 1: New Booking Assigned**
-```python
-# Khi Manager assign booking → Staff
-notification = {
-    "type": "INFO",
-    "title": "Booking mới được giao",
-    "message": "Bạn có booking mới: Max (Golden Retriever) - 14:00",
-    "action": "XEM CHI TIẾT",
-    "context": {"booking_id": "uuid"}
-}
-```
-
-**Trigger 2: Schedule Conflict Detection**
-```python
-# Khi phát hiện 2 bookings cùng giờ
-notification = {
-    "type": "URGENT",
-    "title": "XUNG ĐỘT LỊCH KHÁM",
-    "message": "14:00 - Bạn có 2 bookings: Max và Luna",
-    "action": "GIẢI QUYẾT NGAY",
-    "context": {"conflicting_bookings": ["uuid1", "uuid2"]}
-}
-```
-
-**Trigger 3: Vaccination Reminder**
-```python
-# Khi pet sắp hết hạn vaccine (7 ngày)
-notification = {
-    "type": "WARNING",
-    "title": "Nhắc nhở vaccination",
-    "message": "Pet Max cần tiêm vaccine Rabies (hết hạn 5 ngày nữa)",
-    "action": "GỌI CHỦ PET",
-    "context": {"pet_id": "uuid", "vaccine_type": "Rabies"}
-}
-```
+- **Tone:** Professional, hướng dẫn, hỗ trợ chuyên môn.
+- **Proactive:** ⚠️ Giới hạn; ưu tiên user-invoked trong MVP.
+- **Main outputs:**
+  1. Tóm tắt bệnh nhân trước khám
+  2. Chẩn đoán phân biệt sơ bộ từ triệu chứng + EMR
+  3. Cảnh báo red flags và bước kiểm tra gợi ý
 
 ### 3.6 Tools Access Permission
 | Tool | Allowed? | Notes |
@@ -167,6 +132,7 @@ notification = {
 | `get_patient_summary` | ✅ | Own clinic only |
 | `get_emr_history` | ✅ | Assigned bookings only |
 | `check_vaccination_status` | ✅ | Own clinic pets |
+| `analyze_pet_image` | Planned | Chỉ dùng khi vision runtime sẵn sàng |
 | `create_booking_for_user` | ❌ | Staff không tự tạo booking cho customer trong scope hiện tại |
 | Manager/Owner tools | ❌ | Forbidden |
 
@@ -177,9 +143,8 @@ notification = {
 ### 4.1 Use Cases
 | UC-ID | Tên | Priority | Proactive Trigger |
 |-------|-----|----------|-------------------|
-| UC-021 | AI Manager Assistant | P0 | SOS alert, Revenue report, Reassignment suggestion |
+| UC-021 | AI Manager Assistant | P0 | SOS alert, Reassignment suggestion |
 | UC-024 | Assist creating staff schedules | P1 | Weekly schedule planning |
-| UC-025 | Optimize work schedules | P2 | Workload imbalance detected |
 | UC-030 | Auto-suggest staff assignments | P1 | New booking created |
 
 ### 4.2 Interface Requirements
@@ -198,22 +163,17 @@ notification = {
     "staff_list": [
         {"id": "uuid", "name": "Dr. Hùng", "workload": 8, "specialties": ["Surgery"]}
     ],
-    "revenue_data": {
-        "today": 15000000,
-        "week": 85000000,
-        "month": 320000000
-    },
     "permissions": ["manage_staff", "assign_bookings", "view_reports", "create_shifts"]
 }
 ```
 
 ### 4.4 AI Behavior
-- **Tone:** Data-driven, analytical, actionable recommendations
-- **Proactive:** ✅ Chủ động gửi notifications + daily reports
+- **Tone:** Thực tế, rõ ràng, ưu tiên hành động vận hành.
+- **Proactive:** ✅ Chủ động gửi notifications cho các tình huống cần xử lý nhanh.
 - **Notification Types:**
   1. 🔴 **URGENT:** SOS booking (countdown timer)
   2. 🟡 **WARNING:** Workload imbalance, Tuần tới thiếu staff
-  3. 🟢 **INFO:** Daily revenue report, Reassignment suggestions
+  3. 🟢 **INFO:** Reassignment suggestions
 
 ### 4.5 Proactive Notification Logic
 **Trigger 1: SOS Booking Alert**
@@ -228,19 +188,7 @@ notification = {
 }
 ```
 
-**Trigger 2: Daily Revenue Report**
-```python
-# Mỗi ngày 18:00
-notification = {
-    "type": "INFO",
-    "title": "Báo cáo doanh thu ngày",
-    "message": "Hôm nay: 25 bookings, 15M doanh thu (↑12% so với hôm qua)",
-    "action": "XEM CHI TIẾT",
-    "context": {"revenue_data": {...}}
-}
-```
-
-**Trigger 3: Reassignment Suggestion**
+**Trigger 2: Reassignment Suggestion**
 ```python
 # Khi phát hiện staff workload imbalance
 notification = {
@@ -256,105 +204,57 @@ notification = {
 | Tool | Allowed? | Notes |
 |------|----------|-------|
 | All Staff tools | ✅ | Full clinic access |
-| `analyze_revenue_trends` | ✅ | Own clinic only |
 | `suggest_staff_assignments` | ✅ | Own clinic staff |
 | `create_staff_shifts` | ✅ | Own clinic staff |
-| `optimize_schedules` | ✅ | Own clinic |
 | `accept_sos_booking` | ✅ | Within radius + slots available |
 | Owner tools | ❌ | Forbidden (cannot access multi-clinic data) |
 
 ---
 
-## 5. 🏢 CLINIC_OWNER - Business Intelligence Assistant
+## 5. 🏢 CLINIC_OWNER - Clinic Setup Assistant
 
 ### 5.1 Use Cases
 | UC-ID | Tên | Priority | Proactive Trigger |
 |-------|-----|----------|-------------------|
-| UC-022 | AI Owner Assistant | P0 | Revenue trends, Market opportunities, Vet workload analysis |
-| UC-026 | Assist clinic setup | P2 | New clinic onboarding |
-| UC-027 | Generate clinic services | P1 | Setup wizard |
-| UC-028 | Compose clinic description | P2 | Marketing content |
+| UC-027 | Generate clinic services | P0 | Setup wizard |
 
 ### 5.2 Interface Requirements
-**Web (Owner Dashboard): Slide-in Panel + BI Cards**
-- AI icon với insights badge
-- Dashboard: "Business Insights" section với AI-generated cards
-- Click card → open detailed analysis trong chat
+**Web (Clinic Setup Wizard / Owner Dashboard)**
+- Nút `AI Generate Services` trong clinic setup
+- Danh sách service cards để review/chỉnh sửa/lưu
+- Không cần chat analytics riêng trong scope hiện tại
 
 ### 5.3 Context Data (Session)
 ```python
 {
     "user_id": "uuid",
     "role": "CLINIC_OWNER",
-    "owned_clinics": [
-        {"id": "uuid", "name": "Pet Care HCM", "revenue_month": 120000000}
-    ],
-    "revenue_trends": {
-        "last_3_months": [98000000, 105000000, 120000000],  # ↑18%
-        "yoy_growth": 0.25
+    "clinic_id": "uuid",
+    "clinic_profile": {
+        "name": "Pet Care HCM",
+        "clinic_type": "GENERAL_PRACTICE",
+        "pet_types": ["DOG", "CAT"]
     },
-    "market_data": {
-        "top_services": ["Grooming", "Vaccination", "Dental"],
-        "competitor_avg_price": {...}
-    },
-    "permissions": ["manage_clinics", "view_all_data", "configure_services"]
+    "permissions": ["manage_clinics", "configure_services"]
 }
 ```
 
 ### 5.4 AI Behavior
-- **Tone:** Strategic, business-focused, growth-oriented
-- **Proactive:** ✅ Chủ động gửi insights hàng tuần/tháng
-- **Notification Types:**
-  1. 🟢 **INSIGHT:** Revenue growth, Service opportunities
-  2. 🟡 **WARNING:** Booking decline, Vet workload red flag
-  3. 🔵 **TIP:** Market expansion, Pricing optimization
-
-### 5.5 Proactive Notification Logic
-**Trigger 1: Monthly Revenue Insight**
-```python
-# Đầu tháng (ngày 1)
-notification = {
-    "type": "INSIGHT",
-    "title": "Báo cáo tháng 2",
-    "message": "Doanh thu tháng 2: 120M (↑18%). Top service: Grooming (45M). Vet workload: Dr. Hùng cao nhất (80h).",
-    "action": "XEM PHÂN TÍCH",
-    "context": {"monthly_report": {...}}
-}
-```
-
-**Trigger 2: Service Opportunity**
-```python
-# Khi phát hiện nhu cầu dịch vụ mới
-notification = {
-    "type": "INSIGHT",
-    "title": "Cơ hội mở rộng dịch vụ",
-    "message": "Dental Cleaning có 15 yêu cầu nhưng clinic chưa có. Doanh thu tiềm năng: 8M/tháng.",
-    "action": "THÊM DỊCH VỤ",
-    "context": {"suggested_service": "Dental Cleaning", "estimated_revenue": 8000000}
-}
-```
-
-**Trigger 3: Vet Workload Alert**
-```python
-# Khi vet workload quá cao (>80% capacity)
-notification = {
-    "type": "WARNING",
-    "title": "Workload cảnh báo",
-    "message": "Dr. Hùng workload 85% (cao nhất). Gợi ý: Tuyển thêm 1 vet hoặc giảm booking slots.",
-    "action": "XEM GIẢI PHÁP",
-    "context": {"vet_id": "uuid", "workload_percent": 0.85}
-}
-```
+- **Tone:** Thực tế, ngắn gọn, tập trung vào setup dữ liệu.
+- **Proactive:** ❌ Không cần proactive analytics trong scope hiện tại.
+- **Main outputs:**
+  1. Danh sách dịch vụ gợi ý theo loại hình clinic
+  2. Nhóm dịch vụ phù hợp theo pet types
+  3. Dịch vụ khởi tạo để owner review và lưu
 
 ### 5.6 Tools Access Permission
 | Tool | Allowed? | Notes |
 |------|----------|-------|
-| All Manager tools | ✅ | For all owned clinics |
-| `analyze_revenue_trends` | ✅ | Multi-clinic aggregation |
-| `generate_clinic_services` | ✅ | Batch service creation |
-| `compose_clinic_description` | ✅ | Marketing content |
-| `suggest_service_pricing` | ✅ | Market-based pricing |
-| `analyze_vet_workload` | ✅ | HR analytics |
+| `generate_clinic_services` | ✅ | Core tool cho setup clinic |
+| `compose_clinic_description` | ❌ | Out of current scope |
+| `suggest_service_pricing` | ❌ | Out of current scope |
+| `analyze_vet_workload` | ❌ | Out of current scope |
+| Manager analytics tools | ❌ | Out of current scope |
 | Admin tools | ❌ | Forbidden |
 
 ---
@@ -426,23 +326,23 @@ Tone: Thân thiện, dễ hiểu, dùng emojis 🐕🐈
         UserRole.STAFF: """
 Bạn là AI assistant hỗ trợ nhân viên phòng khám.
 - Tóm tắt thông tin bệnh nhân trước khám
-- Chủ động nhắc nhở về conflicts và vaccination
-- Hỗ trợ tra cứu EMR
+- Hỗ trợ phân tích triệu chứng và chẩn đoán phân biệt sơ bộ
+- Hỗ trợ tra cứu EMR và dữ liệu liên quan ca khám
 Tone: Professional, hướng dẫn
         """,
         UserRole.CLINIC_MANAGER: """
 Bạn là AI assistant hỗ trợ quản lý phòng khám.
-- Chủ động báo cáo doanh thu, SOS alerts
-- Gợi ý tối ưu lịch làm việc, reassignment
-- Phân tích workload và operations
-Tone: Data-driven, analytical
+- Chủ động cảnh báo SOS và hỗ trợ điều phối vận hành
+- Gợi ý phân công staff và cân bằng workload
+- Không tập trung vào phân tích doanh thu trong scope hiện tại
+Tone: Rõ ràng, hành động, thiên về vận hành
         """,
         UserRole.CLINIC_OWNER: """
-Bạn là AI assistant business intelligence cho chủ phòng khám.
-- Phân tích doanh thu, trends, market opportunities
-- Gợi ý mở rộng dịch vụ, pricing optimization
-- HR analytics (vet workload)
-Tone: Strategic, growth-oriented
+Bạn là AI assistant hỗ trợ thiết lập phòng khám.
+- Generate danh mục dịch vụ khởi tạo theo loại hình clinic
+- Hỗ trợ review và chỉnh sửa service catalog trước khi lưu
+- Không phân tích doanh thu, trends hay BI trong scope hiện tại
+Tone: Rõ ràng, thực tế, tập trung setup
         """
     }
     return prompts.get(role, prompts[UserRole.PET_OWNER])
@@ -462,14 +362,12 @@ def get_allowed_tools_by_role(role: UserRole) -> List[str]:
         ],
         UserRole.CLINIC_MANAGER: [
             # All Staff tools +
-            "analyze_revenue_trends", "suggest_staff_assignments",
-            "create_staff_shifts", "optimize_schedules",
+            "suggest_staff_assignments",
+            "create_staff_shifts",
             "accept_sos_booking"
         ],
         UserRole.CLINIC_OWNER: [
-            # All Manager tools +
-            "generate_clinic_services", "compose_clinic_description",
-            "suggest_service_pricing", "analyze_vet_workload"
+            "generate_clinic_services"
         ]
     }
     return tools_map.get(role, [])
@@ -547,11 +445,14 @@ class ProactiveNotificationService:
 - [x] Add booking context guardrails: hỏi loại khám trước nếu thiếu, không hỏi lại thông tin đã có
 - [x] Support `HOME_VISIT` payload cho `create_booking_for_user` với address/GPS/distance validation
 
-### Phase 4: Proactive Notification System (Clinic Roles)
+### Phase 4: Clinic Role Workflows
 - [ ] Implement `ProactiveNotificationService`
 - [ ] Background task: Check notifications định kỳ (mỗi 5 phút)
 - [ ] WebSocket push notifications
 - [ ] Frontend: Toast notifications + Slide-in panel
+- [ ] Staff diagnostic support UI with symptom input + patient context
+- [ ] Staff patient summary integration before examination
+- [ ] Clinic owner service generation flow in setup wizard
 
 ### Phase 5: Frontend Integration
 - [ ] Pet Owner: Chat bubble UI (Flutter)
@@ -569,9 +470,9 @@ class ProactiveNotificationService:
 - ✅ RAG Q&A relevant (score > 0.7)
 
 **Staff:**
-- ✅ Nhận proactive notifications (conflicts, vaccinations)
 - ✅ Patient summary sẵn sàng trước khám
 - ✅ Chat hỗ trợ tra cứu EMR
+- ✅ Hỗ trợ chẩn đoán phân biệt sơ bộ từ triệu chứng và bệnh sử
 
 **Manager:**
 - ✅ SOS alert realtime (< 10s latency)
@@ -579,9 +480,8 @@ class ProactiveNotificationService:
 - ✅ Reassignment suggestions accurate
 
 **Owner:**
-- ✅ Monthly insights đầy đủ (revenue, trends, opportunities)
 - ✅ Service generation tool hoạt động
-- ✅ Workload analytics chính xác
+- ✅ Owner có thể review, chỉnh sửa và lưu danh mục dịch vụ khởi tạo
 
 ---
 
@@ -596,3 +496,4 @@ class ProactiveNotificationService:
 4. **Proactive notifications không spam:** Background task chỉ check mỗi 5 phút, và notification deduplicate (không gửi lại notification giống nhau).
 
 5. **Admin không chat:** Admin chỉ configure, không tương tác với AI chatbot.
+6. **Clinic Owner scope hiện tại:** Chỉ tập trung generate danh mục dịch vụ để setup clinic, không bao gồm business intelligence hay market analytics.

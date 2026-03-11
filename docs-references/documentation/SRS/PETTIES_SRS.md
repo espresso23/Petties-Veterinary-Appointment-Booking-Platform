@@ -342,6 +342,7 @@ graph TB
 | 36 | Booking With ChatBot | UC-PO-14c | 3.11.1 | ✅ Agent Service | ✅ Mobile | 🔄 In Progress |
 | 37 | Ask ChatBot To Pet Care | UC-PO-14a | 3.11.1 | ✅ Agent Service | ✅ Mobile | ✅ Done |
 | 38 | Chat | UC-PO-14d | 3.11.2 | ✅ ChatController | ✅ Mobile | ✅ Done |
+| 107 | Staff Diagnostic Support | UC-STAFF-11 | 3.11.6 | ❌ | ❌ | 📋 Documented |
 | 98 | Real-time Chat WebSocket | UC-PO-20 | - | ✅ ChatWebSocketController | ✅ Mobile/Web | ✅ Done |
 | 99 | Chat Images Gallery | UC-PO-23 | - | ✅ ChatController | ✅ Mobile | ✅ Done |
 
@@ -389,9 +390,7 @@ graph TB
 | 101 | Service Home Visit Toggle | UC-CO-11 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
 | 102 | Service Price Per KM | UC-CO-12 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
 | 103 | Bulk Price Per KM Update | UC-CO-13 | - | ✅ ClinicServiceController | ✅ Web | ✅ Done |
-| 104 | AI-Assisted Clinic Setup | UC-CO-14 | 3.13 | ❌ | ❌ | ❌ Not Started |
-| 105 | AI Generate Service Descriptions | UC-CO-15 | 3.13 | ❌ | ❌ | ❌ Not Started |
-| 106 | AI Pricing Suggestions | UC-CO-16 | 3.13 | ❌ | ❌ | ❌ Not Started |
+| 104 | AI Generate Clinic Services | UC-CO-14 | 3.13.1 | ❌ | ❌ | 📋 Documented |
 
 #### Staff Management
 
@@ -563,6 +562,8 @@ Bảng tham chiếu giữa Use Cases trong SRS và các Module Implementation tr
 | UC-AI-06 | Manage Agent Tools | Agent Configuration | 3.11.4 |
 | UC-AI-07 | Manage Knowledge Base | Knowledge Base | 3.11.5 |
 | UC-AI-08 | Test Agent Playground | Agent Testing | 3.11.6 |
+| UC-STAFF-11 | AI Staff Diagnostic Support | AI Agent Service | 3.11.6 |
+| UC-CO-14 | AI Generate Clinic Services | AI Agent Service | 3.13.1 |
 
 #### Notification Management Mapping
 
@@ -615,7 +616,8 @@ Mục này ghi nhận **các use case còn thiếu** theo feature, đối chiế
 | Clinic Discovery Management | Filter and Sort (business rule/filter set đầy đủ theo spec) | 4.4.x |
 | Chat Management | Delete Message (hard/soft delete ở level message) | 4.10.x |
 | EMR & Vaccination Management | Receive Medication Reminders (luồng nhắc thuốc rõ ràng cho người dùng) | 4.9.x |
-| AI Assistant (Clinic) | AI-Assisted Clinic Setup; AI Generate Service Descriptions; AI Pricing Suggestions | 4.12.x (AI Management cho clinic) |
+| AI Assistant (Staff) | AI Staff Diagnostic Support | 4.18.21.x |
+| AI Assistant (Clinic Setup) | AI Generate Clinic Services | 4.18.8.x |
 
 > Ghi chú: Các use case không nằm trong bảng trên được xem là đã có implementation nền tảng trong code hiện tại ở mức feature-function.
 
@@ -3786,6 +3788,61 @@ Figure 47. Pet Selection Dialog (Mobile)
     - A3. Nếu session cần clinic scope, hệ thống phải validate `clinic_id` phù hợp với token và context nghiệp vụ; nếu không hợp lệ thì từ chối truy cập hoặc từ chối nạp history.
     - A4. MongoDB unavailable → không tạo session mới, trả thông báo lỗi an toàn và không fallback sang in-memory production path.
 
+ #### *3.11.6 AI Staff Diagnostic Support (UC-STAFF-11)*
+**User Story:**
+> *As a Staff member, I want to describe symptoms and attach clinical images in AI Assistant so that I can assess the case faster and prepare a more informed examination.*
+
+**Function trigger**
+- **Navigation path:** Staff Mobile/Web -> Booking Detail hoặc Patient Detail -> "AI Assistant" -> "Hỗ trợ chẩn đoán".
+- **Timing frequency:** On demand trước khi khám, trong lúc xem bệnh án, hoặc khi cần đối chiếu triệu chứng phức tạp.
+
+**Function description**
+- **Actors/Roles:** Staff.
+- **Purpose:** Hỗ trợ nhân viên thú y tổng hợp triệu chứng, bệnh sử liên quan và hình ảnh lâm sàng để đưa ra chẩn đoán phân biệt sơ bộ và gợi ý bước kiểm tra tiếp theo.
+- **Interface:**
+    - **Symptom Input:** Ô nhập mô tả triệu chứng tự do.
+    - **Clinical Image Upload:** Nút đính kèm ảnh vùng tổn thương, da, mắt, vết thương hoặc kết quả kiểm tra.
+    - **Quick Actions:** "Tóm tắt bệnh nhân", "Phân tích triệu chứng", "Cảnh báo dấu hiệu nguy hiểm".
+    - **Analysis Result Card:** Hiển thị tóm tắt lâm sàng, chẩn đoán phân biệt sơ bộ, mức độ ưu tiên và bước kiểm tra gợi ý.
+
+**Data processing**
+1. Staff mở AI Assistant từ booking hoặc hồ sơ bệnh nhân đang xử lý.
+2. Hệ thống nạp context gồm `patient summary`, lịch sử EMR, lịch sử tiêm chủng và booking hiện tại nếu có.
+3. Staff nhập triệu chứng quan sát được và có thể đính kèm hình ảnh lâm sàng.
+4. AI Agent phân tích ý định theo ReAct pattern.
+5. Nếu cần dữ liệu hồ sơ, agent gọi các tool nội bộ như `get_patient_summary`, `get_emr_history`, `check_vaccination_status`.
+6. Nếu cần tra cứu kiến thức thú y, agent gọi `pet_knowledge_search`; nếu vision capability được bật ở giai đoạn sau, agent có thể phân tích thêm ảnh lâm sàng.
+7. Hệ thống trả về đánh giá sơ bộ gồm triệu chứng chính, chẩn đoán phân biệt, red flags và khuyến nghị bước kiểm tra tiếp theo.
+8. Kết quả được lưu vào session AI của Staff để tiếp tục hội thoại theo ngữ cảnh ca khám.
+
+**Function details**
+- **Data:**
+    - `booking_id` - UUID - optional - Lịch hẹn hiện tại đang được Staff xử lý.
+    - `patient_id` - UUID - required - Bệnh nhân/thú cưng cần hỗ trợ đánh giá.
+    - `symptoms_text` - string - required - Mô tả triệu chứng quan sát được.
+    - `clinical_images[]` - image list - optional - Ảnh lâm sàng minh họa triệu chứng.
+    - `clinical_summary` - string - output - Tóm tắt ca bệnh do AI tổng hợp.
+    - `differential_diagnoses[]` - list - output - Danh sách chẩn đoán phân biệt sơ bộ.
+    - `recommended_checks[]` - list - output - Các bước khám/kiểm tra nên thực hiện tiếp.
+- **Validation:**
+    - Chỉ Staff thuộc đúng clinic và có quyền xem hồ sơ mới được truy cập use case này.
+    - Ảnh tải lên phải là JPEG/PNG, tối đa 10MB mỗi ảnh.
+    - AI không được trả về kết luận tuyệt đối theo kiểu xác nhận bệnh cuối cùng.
+- **Business rules:**
+    - Kết quả AI chỉ là clinical decision support, không thay thế kết luận chuyên môn cuối cùng của Staff hoặc bác sĩ thú y.
+    - Nếu phát hiện dấu hiệu nguy hiểm, hệ thống phải ưu tiên hiển thị cảnh báo nổi bật và đề xuất xử trí ngay.
+    - Nếu dữ liệu chưa đủ, AI phải hỏi tiếp thay vì suy đoán quá mức.
+- **Normal case:**
+    1. Staff mở hồ sơ bệnh nhân từ booking đang khám.
+    2. Staff nhập "Mèo bỏ ăn 2 ngày, nôn, lờ đờ" và tải lên ảnh mắt/da nếu có.
+    3. AI tổng hợp dữ liệu hồ sơ cũ và tra cứu nguồn tham khảo.
+    4. AI trả về chẩn đoán phân biệt sơ bộ, mức độ nghi ngờ và các bước kiểm tra nên làm tiếp.
+- **Abnormal case:**
+    - A1. Không có EMR trước đó -> AI chỉ phân tích dựa trên triệu chứng hiện tại và báo rõ giới hạn dữ liệu.
+    - A2. Hình ảnh không rõ -> yêu cầu chụp lại hoặc bỏ qua ảnh để tiếp tục bằng văn bản.
+    - A3. Staff không có quyền truy cập hồ sơ -> từ chối truy cập và trả lỗi phân quyền.
+    - E1. Tool tra cứu lỗi -> trả thông báo an toàn và khuyến nghị xem xét lâm sàng trực tiếp.
+
 ### 3.12 Governance & Reporting Flow
 
  #### *3.12.1 Report Platform Violation (UC-PO-16)*
@@ -3858,207 +3915,59 @@ Figure 44. Screen Platform Violation Reporting (Mobile)
 
 ### 3.13 Clinic Setup AI Agent Flow
 
-#### *3.13.1 AI-Assisted Clinic Setup (UC-CO-14)*
+#### *3.13.1 AI Generate Clinic Services (UC-CO-14)*
 
 **User Story:**
-> *As a Clinic Owner, I want an AI assistant to help me quickly set up and configure my clinic profile, services, pricing, and descriptions so that I can launch my clinic on the platform in minutes instead of hours.*
+> *As a Clinic Owner, I want AI to generate an initial service catalog for my clinic so that I can finish clinic setup faster with less manual entry.*
 
 **Function trigger**
-- **Navigation path:** Web Dashboard → Clinic Setup → "Start with AI Assistant" (Button on onboarding wizard or Clinic Settings → AI Setup).
-- **Timing frequency:** Once during initial clinic setup, or when updating large amounts of service information.
+- **Navigation path:** Web Dashboard -> Clinic Setup -> "AI Generate Services".
+- **Timing frequency:** Khi tạo mới phòng khám hoặc khi cần khởi tạo lại danh mục dịch vụ ban đầu.
 
 **Function description**
-- **Actors/Roles:** Clinic Owner (Primary), Clinic Manager (Secondary - can edit).
-- **Purpose:**
-  - Accelerate clinic onboarding with AI-powered setup wizard.
-  - Generate professional service descriptions automatically.
-  - Suggest optimal pricing based on market data and clinic type.
-  - Categorize and organize services intuitively.
-  - Reduce manual data entry and human error.
+- **Actors/Roles:** Clinic Owner (primary), Clinic Manager (secondary review/edit only nếu được phân quyền).
+- **Purpose:** Hỗ trợ tạo nhanh danh mục dịch vụ khởi tạo dựa trên loại hình phòng khám, nhóm thú cưng phục vụ và phạm vi dịch vụ mong muốn.
 - **Interface:**
-  - **AI Setup Wizard:** Step-by-step dialog guided by AI.
-  - **Service Preview Cards:** Cards showing generated service name, description, price range.
-  - **Edit-in-Place:** Click any field to edit/approve AI suggestions.
-  - **Bulk Actions:** "Approve All", "Regenerate All", "Add Custom Service".
-  - **Progress Indicator:** Steps (Basic Info → Services → Pricing → Review).
+    - **Setup Form:** Chọn loại hình phòng khám, nhóm thú cưng phục vụ, phạm vi dịch vụ mong muốn.
+    - **Service Preview Cards:** Hiển thị tên dịch vụ, nhóm dịch vụ, mô tả ngắn, thời lượng dự kiến.
+    - **Review Actions:** "Chấp nhận", "Chỉnh sửa", "Tạo lại", "Xóa" cho từng dịch vụ.
+    - **Bulk Actions:** "Tạo danh sách", "Chấp nhận tất cả", "Lưu danh mục".
 
-**UC-CO-14: Chi tiết Use Case AI Hỗ trợ Thiết lập Phòng khám**
-
-| Thành phần | Đặc tả chi tiết |
-|:---|:---|
-| **Mục tiêu** | Hỗ trợ chủ phòng khám thiết lập nhanh thông tin phòng khám, dịch vụ, giá cả, mô tả bằng AI. |
-| **Tác nhân** | Clinic Owner (Chủ phòng khám) |
-| **Tiền điều kiện** | 1. Clinic Owner đã đăng ký tài khoản và tạo clinic profile cơ bản (tên, địa chỉ, loại hình).<br/>2. AI Agent Service đang hoạt động (Status: ENABLED).<br/>3. Clinic chưa có services hoặc đang trong chế độ chỉnh sửa. |
-| **Luồng xử lý chính** | 1. Owner nhấn nút "AI Setup" trong Clinic Dashboard.<br/>2. Hệ thống hiển thị AI Setup Wizard dialog.<br/>3. Owner chọn loại hình phòng khám (General Practice, Specialty, Emergency, Multi-specialty).<br/>4. Owner nhập thông tin cơ bản (nếu chưa có): địa chỉ, giờ hoạt động, loại thú cưng phục vụ (chó, mèo, exotic).<br/>5. AI Agent phân tích và gọi các tools để:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tra cứu knowledge base về best practices cho loại hình phòng khám.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tìm kiếm dữ liệu tham khảu về giá cả thị trường (nếu có).<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Generate danh sách services phù hợp với category.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tạo mô tả chi tiết cho từng service.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Đề xuất price range cho từng service.<br/>6. AI hiển thị danh sách services đã tạo dạng cards với thông tin:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Tên dịch vụ (VD: "Tiêm phòng DHPPi cho Chó")**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Mô tả chi tiết (AI-generated).**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Danh mục (Examination, Vaccination, Surgery, Grooming, etc.)**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Giá đề xuất (VNĐ).**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Estimated duration (phút).**<br/>7. Owner có thể:<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Chỉnh sửa trực tiếp từng field.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Xóa service không muốn.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Thêm service mới thủ công.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Nhấn "Regenerate" để AI tạo lại mô tả.<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Nhấn "Add More" để thêm services theo category khác.<br/>8. Owner nhấn "Next" để qua bước Pricing Tier Configuration.<br/>9. AI hiển thị gợi ý weight-based pricing tiers (nếu applicable):<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Small (<5kg): Base price**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Medium (5-15kg): +20%**<br/>&nbsp;&nbsp;&nbsp;&nbsp;- Large (>15kg): +50%**<br/>10. Owner điều chỉnh và nhấn "Next" qua bước Review.<br/>11. Owner nhấn "Save & Publish" để lưu và kích hoạt.<br/>12. System redirect về Clinic Dashboard với tất cả services đã configured. |
-| **Luồng thay thế** | A1. Owner muốn bắt đầu lại từ đầu → AI hỏi xác nhận và reset về trạng thái blank.<br/>A2. Owner muốn chỉ generate một số services → Owner chọn categories trước khi AI generate.<br/>A3. AI suggestions không phù hợp → Owner có thể chỉnh sửa thủ công hoặc yêu cầu AI regenerate.<br/>A4. Knowledge base không có thông tin → AI thông báo và sử dụng templates mặc định.<br/>A5. Owner muốn import services từ Master Services có sẵn → AI hỗ trợ bulk import với customization. |
-| **Hậu điều kiện** | 1. Clinic có đầy đủ services với mô tả, giá cả, duration.<br/>2. Services được lưu trong `clinic_services` table với status ACTIVE.<br/>3. AI-generated content được audit log (metadata: `created_by_ai`, `confidence_score`). |
-| **Quy tắc nghiệp vụ** | BR-50; BR-51; BR-52 |
-
-> **Implementation status:** Chưa được implement trong codebase Backend + AI service hiện tại. Các nội dung dưới đây được giữ như planned scope cho giai đoạn mở rộng sau MVP.
-
-**Use Case: AI Clinic Setup Scenarios**
-
-| Scenario | Owner Actions | AI Agent Logic | System Response |
-|----------|---------------|----------------|-----------------|
-| **Initial Setup - General Practice** | Owner clicks "AI Setup" for new clinic type "General Practice". | Agent calls `generate_clinic_services(clinic_type="general_practice", location="hcmc")`. Agent searches knowledge base for standard services and generates descriptions. | Agent returns 15 service cards covering: Examination, Vaccination, Deworming, Basic Tests, Grooming with descriptions and price suggestions. |
-| **Add Specialty Services** | Owner selects "Add Ophthalmology Services". | Agent calls `generate_specialty_services(specialty="ophthalmology")`. Agent queries veterinary ophthalmology guidelines. | Agent returns 8 ophthalmology services: Eye Examination, Cataract Surgery, Glaucoma Treatment, etc. with detailed descriptions. |
-| **Pricing Optimization** | Owner reviews AI-suggested prices for surgery services. | Agent calls `analyze_market_pricing(service_category="surgery", region="southern_vietnam")`. | Agent shows price comparison chart with market average vs suggested price. Owner can adjust. |
-| **Multi-language Descriptions** | Owner wants service descriptions in English for foreign customers. | Agent calls `translate_service_descriptions(service_ids=[...], target_lang="en")`. | Agent generates English versions of all service descriptions. Owner can review both VN/EN. |
-| **Competitor-based Pricing** | Owner asks "What should I charge compared to other clinics in District 7?". | Agent calls `analyze_competitor_pricing(location="district_7_hcmc", service_types=["vaccination", "examination"])`. | Agent returns analysis: "Your area average vaccination price: 150-200K. AI suggests: 180K (competitive but profitable)." |
-
-**AI Tools cho Clinic Setup Agent**
-
-| Tool Name | Purpose | Parameters | Returns |
-|-----------|---------|------------|---------|
-| `generate_clinic_services` | Generate danh sách services theo loại hình phòng khám | `clinic_type`, `pet_types`, `location`, `language` | `[{name, category, description, base_price, duration_minutes, ...}]` |
-| `generate_service_description` | Tạo mô tả chi tiết cho một service | `service_name`, `category`, `target_pet`, `tone` (professional/friendly) | `{title, description, highlights[], faqs[]}` |
-| `analyze_market_pricing` | Phân tích giá thị trường để đề xuất pricing | `service_category`, `region`, `clinic_type` | `{market_avg, price_range_low, price_range_high, recommendation}` |
-| `translate_service_descriptions` | Dịch service descriptions sang ngôn ngữ khác | `service_ids[]`, `target_language` | `[{service_id, translated_title, translated_description}]` |
-| `suggest_weight_tiers` | Đề xuất weight-based pricing tiers | `service_name`, `base_price`, `pet_type` | `[{weight_range, multiplier, final_price}]` |
-| `import_master_services` | Import services từ Master Services template | `category`, `clinic_id`, `customizations[]` | `{imported_count, services[]}` |
-| `audit_ai_content` | Kiểm tra AI-generated content | `content_type`, `content` | `{is_appropriate: bool, flags[], confidence}` |
+> **Implementation status:** Chưa được implement trong codebase Backend + AI service hiện tại. Section này là scope đã được chốt cho giai đoạn tiếp theo của clinic setup.
 
 **Data processing**
-
-1. **Input Collection:** Wizard collects clinic type, location, pet types served, operating hours.
-2. **Service Generation:** AI Agent calls `generate_clinic_services` based on clinic profile:
-   - Queries knowledge base for standard veterinary services.
-   - Generates contextually appropriate descriptions using LLM.
-   - Suggests base prices based on market analysis.
-3. **Review Workflow:** Services displayed as cards for owner review/editing:
-   - Owner can edit any field inline.
-   - Regenerate descriptions if unsatisfactory.
-   - Delete unnecessary services.
-4. **Pricing Tier Configuration:** AI suggests weight-based pricing multipliers:
-   - Uses veterinary industry standards.
-   - Adjusts for local market conditions.
-5. **Bulk Import Option:** Owner can import from Master Services:
-   - AI helps filter and customize templates.
-   - Preserves ability to edit after import.
-6. **Save & Publish:** All approved services saved with metadata:
-   - `created_by_ai: true`
-   - `ai_confidence_score: 0.85`
-   - `owner_approved_at: timestamp`
-
-**Screen layout**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  AI Setup Wizard - Thiết lập Phòng khám                      │
-├─────────────────────────────────────────────────────────────────┤
-│  Step 1 of 4: Chọn loại hình phòng khám                      │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ ○ General Practice    ○ Specialty    ○ Emergency     │   │
-│  │ ○ Multi-Specialty     ○ Mobile Clinic                  │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                    [Next >]    │
-├─────────────────────────────────────────────────────────────────┤
-│  Step 2 of 4: Xem lại Services (15 services found)           │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 🐕 Tiêm phòng DHPPi cho Chó                              ││
-│  │ 📝 Mô tả: [AI-GENERATED] Tiêm phòng 6 bệnh...           ││
-│  │ 💰 Giá: 180,000 VNĐ  ⏱️ 15 phút  📂 Vaccination         ││
-│  │ [✏️ Edit] [🔄 Regenerate] [🗑️ Remove]                   ││
-│  └─────────────────────────────────────────────────────────────┘│
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 🐕 Khám tổng quát                                        ││
-│  │ 📝 Mô tả: [AI-GENERATED] Khám sức khỏe toàn diện...     ││
-│  │ 💰 Giá: 250,000 VNĐ  ⏱️ 30 phút  📂 Examination          ││
-│  │ [✏️ Edit] [🔄 Regenerate] [🗑️ Remove]                   ││
-│  └─────────────────────────────────────────────────────────────┘│
-│  [ + Add More Services ]  [Approve All]  [< Back] [Next >]   │
-├─────────────────────────────────────────────────────────────────┤
-│  Step 3 of 4: Cấu hình giá theo cân nặng                     │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Tiêm phòng DHPPi                                         ││
-│  │ ├── <5kg (Small):     180,000 VNĐ  [Edit]               ││
-│  │ ├── 5-15kg (Medium):  216,000 VNĐ (+20%)  [Edit]        ││
-│  │ └── >15kg (Large):    270,000 VNĐ (+50%)  [Edit]        ││
-│  └─────────────────────────────────────────────────────────────┘│
-│  [< Back] [Next >]                                            │
-├─────────────────────────────────────────────────────────────────┤
-│  Step 4 of 4: Review & Publish                                │
-│  ✅ 15 Services đã được thiết lập                             │
-│  ✅ Pricing tiers đã cấu hình                                │
-│  📋 AI-generated content sẽ được đánh dấu trong hệ thống    │
-│                                                                │
-│  [ < Back ]  [ 💾 Save & Publish ]                           │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. Owner mở màn hình thiết lập dịch vụ bằng AI từ Web Dashboard.
+2. Hệ thống thu thập thông tin đầu vào gồm loại hình phòng khám, nhóm thú cưng phục vụ và các nhóm dịch vụ muốn khởi tạo.
+3. AI Agent gọi `generate_clinic_services` để tạo danh sách dịch vụ mẫu phù hợp với profile của clinic.
+4. Hệ thống hiển thị danh sách dịch vụ gợi ý để Owner xem lại.
+5. Owner có thể chỉnh sửa thủ công, xóa hoặc yêu cầu tạo lại một số dịch vụ chưa phù hợp.
+6. Sau khi Owner xác nhận, hệ thống lưu các dịch vụ đã được duyệt vào danh mục của clinic.
 
 **Function details**
-
-- **Data Objects:**
-  - `ClinicSetupRequest`: `{clinic_id, clinic_type, pet_types[], location, language}`
-  - `GeneratedService`: `{name, category, description, base_price, duration_minutes, weight_tiers[], ai_confidence}`
-  - `ServiceCardData`: `{service_id, name, description, price, duration, category, is_ai_generated}`
-  - `PricingTierConfig`: `{service_id, weight_range, multiplier, final_price}`
+- **Data:**
+    - `clinic_id` - UUID - required - Phòng khám đang được thiết lập.
+    - `clinic_type` - enum - required - Loại hình phòng khám.
+    - `pet_types[]` - list - required - Nhóm thú cưng clinic phục vụ.
+    - `service_scope[]` - list - optional - Nhóm dịch vụ muốn AI ưu tiên tạo.
+    - `generated_services[]` - list - output - Danh sách dịch vụ AI đề xuất.
+    - `approved_services[]` - list - output - Danh sách dịch vụ Owner duyệt để lưu.
 - **Validation:**
-  - Service names must be 10-100 characters.
-  - Descriptions must be 50-500 characters.
-  - Prices must be positive integers (VND).
-  - Durations must be reasonable (5-480 minutes).
-- **Safety Constraints:**
-  - AI cannot create services with medical claims without vet verification flag.
-  - Price suggestions must include disclaimer: "Giá tham khảo, vui lòng điều chỉnh theo thực tế".
-  - AI-generated descriptions must be marked with `AI-GENERATED` label.
-  - Owner must explicitly approve each service before publishing.
+    - Chỉ `CLINIC_OWNER` hoặc người được phân quyền thiết lập dịch vụ mới được dùng chức năng này.
+    - Mỗi dịch vụ tạo ra phải có tên, nhóm dịch vụ và mô tả ngắn trước khi được lưu.
+    - Owner phải xác nhận danh sách cuối cùng trước khi hệ thống lưu.
 - **Business rules:**
-  - BR-50
-  - BR-51
-  - BR-52
-
-**AI Agent Workflow (ReAct Pattern cho Clinic Setup)**
-
-```mermaid
-sequenceDiagram
-    participant CO as Clinic Owner
-    participant UI as Web Dashboard
-    participant Agent as AI Agent (FastAPI)
-    participant KB as Knowledge Base (Qdrant)
-    participant DB as PostgreSQL
-
-    CO->>UI: 1. Click "AI Setup Wizard"
-    UI->>Agent: 2. POST /api/ai/clinic-setup/init {clinic_id}
-    
-    Agent->>DB: 3. Get clinic profile
-    DB-->>Agent: 4. Clinic info (type, location, pets)
-    
-    Agent->>KB: 5. Search standard services by clinic_type
-    KB-->>Agent: 6. Standard service templates
-    
-    Note over Agent: 7. Analyze and generate<br/>service list with<br/>descriptions & prices
-    
-    Agent->>Agent: 8. Call generate_clinic_services tool
-    Agent->>KB: 9. Query market pricing data (optional)
-    KB-->>Agent: 10. Price ranges for region
-    
-    Agent-->>UI: 11. Return generated services (cards)
-    UI-->>CO: 12. Display wizard with service cards
-    
-    loop Review Loop
-        CO->>UI: 13. Edit/Regenerate/Delete services
-        UI->>Agent: 14. Update request
-        Agent-->>UI: 15. Regenerated content
-        UI-->>CO: 16. Updated cards
-    end
-    
-    CO->>UI: 17. Click "Next" → Pricing Tier Config
-    UI->>Agent: 18. Get weight tier suggestions
-    Agent-->>UI: 19. Tier configurations
-    UI-->>CO: 20. Display pricing tiers
-    
-    CO->>UI: 21. Adjust and confirm pricing
-    UI->>Agent: 22. Validate pricing (BR-52)
-    Agent-->>UI: 23. Validation result
-    
-    CO->>UI: 24. Click "Save & Publish"
-    UI->>Agent: 25. Final save request
-    Agent->>DB: 26. Save all services with metadata<br/>(created_by_ai=true, approved=true)
-    DB-->>Agent: 27. Save confirmation
-    Agent-->>UI: 28. Success response
-    UI-->>CO: 29. Clinic Dashboard with all services
-```
+    - AI chỉ gợi ý danh mục dịch vụ; không tự động publish nếu chưa có xác nhận từ người dùng.
+    - Nội dung AI tạo phải cho phép chỉnh sửa thủ công trước khi lưu.
+    - Danh mục dịch vụ sau khi lưu phải tuân theo quy tắc quản lý dịch vụ hiện có của clinic.
+- **Normal case:**
+    1. Owner chọn loại hình clinic và nhóm thú cưng phục vụ.
+    2. AI sinh danh sách dịch vụ phù hợp.
+    3. Owner duyệt, chỉnh sửa một vài mục và nhấn lưu.
+    4. Hệ thống tạo danh mục dịch vụ ban đầu cho clinic.
+- **Abnormal case:**
+    - A1. AI tạo danh sách chưa phù hợp -> Owner yêu cầu tạo lại hoặc chỉnh sửa thủ công.
+    - A2. Clinic profile chưa đủ dữ liệu -> hệ thống yêu cầu bổ sung trước khi generate.
+    - E1. Tool generate lỗi -> trả thông báo an toàn và cho phép Owner nhập dịch vụ thủ công.
 
 ---
 

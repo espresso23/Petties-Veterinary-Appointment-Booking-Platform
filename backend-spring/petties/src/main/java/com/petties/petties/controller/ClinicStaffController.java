@@ -20,7 +20,7 @@ public class ClinicStaffController {
     private final ClinicStaffService staffService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<List<StaffResponse>> getStaff(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.getClinicStaff(clinicId));
     }
@@ -29,7 +29,7 @@ public class ClinicStaffController {
      * Check if clinic already has a manager
      */
     @GetMapping("/has-manager")
-    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CLINIC_OWNER', 'CLINIC_MANAGER')")
     public ResponseEntity<Boolean> hasManager(@PathVariable UUID clinicId) {
         return ResponseEntity.ok(staffService.hasManager(clinicId));
     }
